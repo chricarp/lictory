@@ -1,0 +1,33 @@
+{
+  "name": "@lictory/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "db:migrate:local": "wrangler d1 migrations apply lictory-db --local --config wrangler.local.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply lictory-db --remote",
+    "deploy": "wrangler deploy",
+    "dev": "portless api.lictory --app-port 8787 pnpm run dev:app",
+    "dev:app": "wrangler dev --config wrangler.local.jsonc",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/expo": "1.6.30",
+    "@better-auth/passkey": "1.6.30",
+    "@lictory/contracts": "workspace:*",
+    "aws4fetch": "1.0.20",
+    "better-auth": "1.6.30",
+    "hono": "4.13.2",
+    "jose": "6.2.9",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260817.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "wrangler": "4.123.0"
+  }
+}

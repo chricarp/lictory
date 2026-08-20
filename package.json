@@ -1,0 +1,27 @@
+{
+  "name": "lictory",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.13.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "dev:api": "pnpm --filter @lictory/api dev",
+    "dev:mobile": "pnpm --filter @lictory/mobile dev",
+    "dev:web": "pnpm --filter @lictory/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "portless": "0.15.5",
+    "prettier": "3.9.6",
+    "turbo": "2.10.10",
+    "typescript": "5.9.3"
+  }
+}

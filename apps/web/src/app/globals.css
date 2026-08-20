@@ -1,0 +1,322 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Lictory design system — "Signal"
+ * A crisp, neutral workspace inspired by X's high-contrast palette and the
+ * quiet precision of modern developer tools. The existing semantic token names
+ * stay stable so every surface receives the refresh without structural churn.
+ */
+:root {
+  color-scheme: dark;
+  --canvas: 0 0 0;
+  --canvas-raised: 22 24 28;
+  --surface: 239 243 244;
+  --surface-alpha: 0.045;
+  --surface-strong-alpha: 0.085;
+  --foreground: 231 233 234;
+  --muted-foreground: 168 176 183;
+  --subtle-foreground: 113 118 123;
+  --hairline: 239 243 244;
+  --hairline-alpha: 0.12;
+  --hairline-strong-alpha: 0.2;
+  --ember-50: 239 248 255;
+  --ember: 29 155 240;
+  --ember-bright: 74 170 244;
+  --ember-deep: 26 140 216;
+  --iris: 167 139 250;
+  --mint: 32 202 151;
+  --danger: 244 33 46;
+  --warning: 255 173 31;
+  --success: 0 186 124;
+  --entity-person: 249 96 139;
+  --entity-place: 0 186 124;
+  --entity-time: 167 139 250;
+  --entity-topic: 29 155 240;
+  --entity-organization: 255 122 69;
+  --radius-control: 0.625rem;
+  --radius-card: 0.875rem;
+  --radius-panel: 1.125rem;
+}
+
+.light {
+  color-scheme: light;
+  --canvas: 255 255 255;
+  --canvas-raised: 247 249 249;
+  --surface: 15 20 25;
+  --surface-alpha: 0.025;
+  --surface-strong-alpha: 0.055;
+  --foreground: 15 20 25;
+  --muted-foreground: 83 100 113;
+  --subtle-foreground: 113 118 123;
+  --hairline: 15 20 25;
+  --hairline-alpha: 0.1;
+  --hairline-strong-alpha: 0.18;
+  --ember-bright: 26 140 216;
+  --ember-deep: 15 122 192;
+}
+
+@theme inline {
+  --color-canvas: rgb(var(--canvas));
+  --color-canvas-raised: rgb(var(--canvas-raised));
+  --color-foreground: rgb(var(--foreground));
+  --color-muted: rgb(var(--muted-foreground));
+  --color-subtle: rgb(var(--subtle-foreground));
+  --color-hairline: rgb(var(--hairline) / var(--hairline-alpha));
+  --color-hairline-strong: rgb(var(--hairline) / var(--hairline-strong-alpha));
+  --color-surface: rgb(var(--surface) / var(--surface-alpha));
+  --color-surface-strong: rgb(var(--surface) / var(--surface-strong-alpha));
+  --color-ember: rgb(var(--ember));
+  --color-ember-bright: rgb(var(--ember-bright));
+  --color-ember-deep: rgb(var(--ember-deep));
+  --color-iris: rgb(var(--iris));
+  --color-mint: rgb(var(--mint));
+  --color-danger: rgb(var(--danger));
+  --color-warning: rgb(var(--warning));
+  --color-success: rgb(var(--success));
+  --color-person: rgb(var(--entity-person));
+  --color-place: rgb(var(--entity-place));
+  --color-time: rgb(var(--entity-time));
+  --color-topic: rgb(var(--entity-topic));
+  --color-organization: rgb(var(--entity-organization));
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
+  --radius-sm: 0.625rem;
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-card);
+  --radius-xl: var(--radius-panel);
+  --radius-2xl: 2rem;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  --animate-beam: beam 2.4s ease-in-out infinite;
+  --animate-breathe: breathe 2.8s ease-in-out infinite;
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes beam {
+    0% {
+      transform: translateX(-120%);
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(120%);
+      opacity: 0;
+    }
+  }
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-hairline);
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background:
+      radial-gradient(
+        ellipse 54rem 30rem at 50% -15rem,
+        rgb(var(--ember) / 0.075),
+        transparent 72%
+      ),
+      var(--color-canvas);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgb(var(--ember) / 0.28);
+    color: var(--color-foreground);
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--ember) / 0.85);
+    outline-offset: 2px;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--hairline) / 0.16);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--hairline) / 0.26);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* Compatibility hooks retained while surfaces move to the Signal system. */
+  .atlas-aurora {
+    display: none;
+  }
+  .atlas-grid {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgb(var(--hairline) / 0.07) 1px,
+      transparent 0
+    );
+    background-size: 1.25rem 1.25rem;
+  }
+  .text-gradient-ember {
+    background: linear-gradient(
+      110deg,
+      rgb(var(--ember-bright)),
+      rgb(var(--iris))
+    );
+    background-clip: text;
+    color: transparent;
+  }
+  .index-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--color-subtle);
+  }
+  .index-kicker::before {
+    content: "";
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: rgb(var(--ember));
+  }
+  .ai-active {
+    border-color: rgb(var(--ember) / 0.5) !important;
+    box-shadow:
+      0 0 0 1px rgb(var(--ember) / 0.12),
+      0 16px 44px rgb(var(--ember) / 0.09);
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--hairline) / 0.045) 25%,
+      rgb(var(--hairline) / 0.11) 50%,
+      rgb(var(--hairline) / 0.045) 75%
+    );
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+  .prose-atlas {
+    font-size: 0.9375rem;
+    line-height: 1.75;
+    color: var(--color-foreground);
+  }
+  .prose-atlas > * + * {
+    margin-top: 0.9em;
+  }
+  .prose-atlas h1,
+  .prose-atlas h2,
+  .prose-atlas h3 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.3;
+  }
+  .prose-atlas h1 {
+    font-size: 1.4rem;
+  }
+  .prose-atlas h2 {
+    font-size: 1.2rem;
+  }
+  .prose-atlas h3 {
+    font-size: 1.05rem;
+  }
+  .prose-atlas a {
+    color: rgb(var(--ember-bright));
+    text-underline-offset: 3px;
+    text-decoration: underline;
+    text-decoration-color: rgb(var(--ember) / 0.45);
+  }
+  .prose-atlas ul,
+  .prose-atlas ol {
+    padding-left: 1.25rem;
+  }
+  .prose-atlas ul {
+    list-style: disc;
+  }
+  .prose-atlas ol {
+    list-style: decimal;
+  }
+  .prose-atlas li::marker {
+    color: rgb(var(--ember) / 0.75);
+  }
+  .prose-atlas blockquote {
+    border-left: 2px solid rgb(var(--ember) / 0.6);
+    padding-left: 0.875rem;
+    color: var(--color-muted);
+  }
+  .prose-atlas code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: rgb(var(--hairline) / 0.08);
+    padding: 0.15em 0.4em;
+    border-radius: var(--radius-sm);
+  }
+  .prose-atlas pre {
+    background: rgb(var(--hairline) / 0.045);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-card);
+    padding: 0.875rem 1rem;
+    overflow-x: auto;
+  }
+  .prose-atlas pre code {
+    background: none;
+    padding: 0;
+  }
+  .prose-atlas table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .prose-atlas th,
+  .prose-atlas td {
+    border: 1px solid var(--color-hairline);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+  }
+  .prose-atlas hr {
+    border-color: var(--color-hairline);
+  }
+  .prose-atlas img {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--color-hairline);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,30 @@
+# Local development has a checked-in, development-only fallback secret. Set a
+# unique 32+ character value here if you want local sessions to survive config changes.
+BETTER_AUTH_SECRET=
+
+# Create a Web OAuth client in Google Cloud. The local redirect URI is:
+# https://api.lictory.localhost/api/auth/callback/google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Apple uses a Services ID as the web client ID. APPLE_CLIENT_SECRET can be a
+# pre-generated JWT; otherwise Better Auth generates it from the values below.
+APPLE_CLIENT_ID=
+APPLE_CLIENT_SECRET=
+APPLE_TEAM_ID=
+APPLE_KEY_ID=
+# Paste the PEM as one line with literal \n sequences when using a vars file.
+APPLE_PRIVATE_KEY=
+APPLE_APP_BUNDLE_IDENTIFIER=com.lictory.app
+
+# Required only for production presigned R2 uploads.
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+
+# Optional locally. When all four values are present, understanding uses OpenAI
+# through Cloudflare AI Gateway instead of deterministic development results.
+AI_GATEWAY_ACCOUNT_ID=
+AI_GATEWAY_ID=
+AI_GATEWAY_TOKEN=
+OPENAI_API_KEY=

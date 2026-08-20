@@ -1,0 +1,60 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lictory-api-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true },
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ALLOWED_ORIGINS": "https://lictory.localhost",
+    "BETTER_AUTH_URL": "https://api.lictory.localhost",
+    "PASSKEY_RP_ID": "lictory.localhost",
+    "PASSKEY_ORIGINS": "https://lictory.localhost",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lictory-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "lictory-media",
+    },
+  ],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "lictory-jobs" }],
+    "consumers": [
+      {
+        "queue": "lictory-jobs",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 2,
+      },
+    ],
+  },
+  "workflows": [
+    {
+      "name": "lictory-process-media-local",
+      "binding": "PROCESS_MEDIA",
+      "class_name": "ProcessMediaWorkflow",
+    },
+    {
+      "name": "lictory-process-note-local",
+      "binding": "PROCESS_NOTE",
+      "class_name": "ProcessNoteWorkflow",
+    },
+    {
+      "name": "lictory-fire-trigger-local",
+      "binding": "FIRE_TRIGGER",
+      "class_name": "FireTriggerWorkflow",
+    },
+  ],
+}

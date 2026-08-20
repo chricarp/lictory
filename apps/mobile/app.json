@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Lictory",
+    "slug": "lictory",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "lictory",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Lictory uses your photos only when you choose a memory to upload."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Lictory uses your location to recognize places you attach to memories.",
+          "locationAlwaysAndWhenInUsePermission": "Lictory uses location in the background to notify you when you enter or leave a place you chose.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lictory.app",
+      "associatedDomains": ["webcredentials:lictory.com"],
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.lictory.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    }
+  }
+}

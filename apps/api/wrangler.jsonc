@@ -1,0 +1,65 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lictory-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true },
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "ALLOWED_ORIGINS": "https://lictory.com,https://www.lictory.com",
+    "BETTER_AUTH_URL": "https://api.lictory.com",
+    "PASSKEY_RP_ID": "lictory.com",
+    "PASSKEY_ORIGINS": "https://lictory.com,https://www.lictory.com",
+    "APPLE_APP_BUNDLE_IDENTIFIER": "com.lictory.app",
+    "AI_GATEWAY_ACCOUNT_ID": "",
+    "AI_GATEWAY_ID": "",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lictory-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "lictory-media",
+    },
+  ],
+  "ai": { "binding": "AI" },
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "lictory-jobs" }],
+    "consumers": [
+      {
+        "queue": "lictory-jobs",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "lictory-jobs-dlq",
+      },
+    ],
+  },
+  "workflows": [
+    {
+      "name": "lictory-process-media",
+      "binding": "PROCESS_MEDIA",
+      "class_name": "ProcessMediaWorkflow",
+    },
+    {
+      "name": "lictory-process-note",
+      "binding": "PROCESS_NOTE",
+      "class_name": "ProcessNoteWorkflow",
+    },
+    {
+      "name": "lictory-fire-trigger",
+      "binding": "FIRE_TRIGGER",
+      "class_name": "FireTriggerWorkflow",
+    },
+  ],
+}

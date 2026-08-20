@@ -1,0 +1,34 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - "@cloudflare/workers-types@5.20260817.1"
+  - "@expo/cli@57.0.16"
+  - "@expo/config@57.0.8"
+  - "@expo/fingerprint@0.20.8"
+  - "@expo/inline-modules@0.1.6"
+  - "@expo/log-box@57.0.3"
+  - "@expo/metro-runtime@57.0.11"
+  - expo-asset@57.0.12
+  - expo-constants@57.0.12
+  - expo-image-picker@57.0.11
+  - expo-location@57.0.11
+  - expo-notifications@57.0.12
+  - expo-router@57.0.14
+  - expo-task-manager@57.0.11
+  - expo@57.0.14
+  - "@better-auth/core@1.6.30"
+  - "@better-auth/drizzle-adapter@1.6.30"
+  - "@better-auth/expo@1.6.30"
+  - "@better-auth/kysely-adapter@1.6.30"
+  - "@better-auth/memory-adapter@1.6.30"
+  - "@better-auth/mongo-adapter@1.6.30"
+  - "@better-auth/passkey@1.6.30"
+  - "@better-auth/prisma-adapter@1.6.30"
+  - "@better-auth/telemetry@1.6.30"
+  - better-auth@1.6.30
