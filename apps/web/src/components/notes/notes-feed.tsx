@@ -42,7 +42,7 @@ export function NotesFeed() {
   const results = notes.data?.notes ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="w-full">
       <header className="mb-6 flex flex-wrap items-end gap-3">
         <h1 className="text-3xl font-semibold tracking-[-0.035em]">Notes</h1>
         <span className="mb-1 border-l border-hairline-strong pl-3 font-mono text-[0.6875rem] tabular-nums text-subtle">

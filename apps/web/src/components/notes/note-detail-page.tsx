@@ -25,7 +25,7 @@ export function NoteDetailPage({ noteId }: { noteId: string }) {
   }, [busy, note]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full max-w-5xl">
       <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
         <Link href="/app/notes">
           <ArrowLeft />

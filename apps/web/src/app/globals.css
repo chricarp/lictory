@@ -129,6 +129,8 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
   }
   body {
     background:

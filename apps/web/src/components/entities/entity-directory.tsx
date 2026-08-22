@@ -88,7 +88,7 @@ export function EntityDirectory({
   const meta = ENTITY_META[type];
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full max-w-5xl">
       <header className="mb-6">
         <div className="mb-1.5 flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-[-0.035em]">

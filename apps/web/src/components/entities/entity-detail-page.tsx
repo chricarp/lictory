@@ -73,7 +73,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
 
   if (resource.initialLoading) {
     return (
-      <div className="mx-auto w-full max-w-4xl">
+      <div className="w-full max-w-4xl">
         <Skeleton className="mb-4 h-8 w-24" />
         <Skeleton className="mb-6 h-24 w-full rounded-md" />
         <div className="grid gap-3 sm:grid-cols-2">
@@ -86,7 +86,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
 
   if (!entity) {
     return (
-      <div className="mx-auto w-full max-w-4xl">
+      <div className="w-full max-w-4xl">
         <p className="rounded-md border border-hairline bg-surface p-6 text-sm text-muted">
           {resource.error?.message ?? "This context no longer exists."}
         </p>
@@ -114,7 +114,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div className="w-full max-w-4xl">
       <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
         <Link href={meta.listHref}>
           <ArrowLeft />

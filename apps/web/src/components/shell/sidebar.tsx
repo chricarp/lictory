@@ -184,7 +184,7 @@ function NavLink({
         item.shortcut ? keybindingAria(item.shortcut) : undefined
       }
       className={cn(
-        "relative flex min-h-12 w-fit max-w-full items-center gap-3 rounded-full px-2.5 py-2 text-[0.9375rem] transition-[background-color,color,box-shadow] xl:gap-3.5 xl:px-3",
+        "relative flex min-h-12 w-fit max-w-full items-center gap-3 rounded-full py-2 pl-2.5 pr-4 text-[0.9375rem] transition-[background-color,color,box-shadow] lg:px-2.5 xl:gap-3.5 xl:pl-3 xl:pr-[1.125rem]",
         active
           ? "bg-surface font-bold text-foreground hover:bg-surface-strong"
           : "font-normal text-muted hover:bg-surface-strong hover:text-foreground",
@@ -309,7 +309,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
               onClick={() => setOpen(false)}
             />
             <motion.aside
-              className="fixed inset-y-0 left-0 z-50 flex w-72 border-r border-hairline bg-canvas px-4 py-3 lg:hidden"
+              className="fixed left-0 top-0 z-50 flex h-dvh w-72 min-h-0 overflow-y-auto overscroll-contain border-r border-hairline bg-canvas px-4 pb-3 pt-16 lg:hidden"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}

@@ -56,7 +56,7 @@ export function CaptureHome() {
   ).length;
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="w-full">
       <motion.header
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

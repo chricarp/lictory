@@ -40,13 +40,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AuthGate redirectTo="/login">
       <ApiProvider>
         <TooltipProvider delayDuration={300}>
-          <div className="mx-auto flex min-h-dvh max-w-[90rem] bg-canvas">
-            <aside className="sticky top-0 hidden h-dvh w-20 shrink-0 flex-col items-center bg-canvas px-3 py-3 lg:flex xl:w-72 xl:items-stretch xl:px-4 xl:pl-6">
+          <div className="mx-auto grid min-h-dvh w-full max-w-[90rem] grid-cols-1 bg-canvas lg:grid-cols-[5rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)]">
+            <aside
+              aria-label="Primary navigation"
+              data-app-sidebar
+              className="sticky top-0 hidden h-dvh min-h-0 flex-col overflow-y-auto border-r border-hairline bg-canvas px-3 py-3 lg:flex lg:items-center xl:items-stretch xl:px-4 xl:pl-6"
+            >
               <SidebarContent onSearch={() => setPaletteOpen(true)} />
             </aside>
 
-            <div className="flex min-w-0 flex-1 flex-col border-l border-hairline">
-              <div className="flex items-center gap-2 px-4 pt-3 sm:px-6 lg:hidden">
+            <div className="flex min-h-dvh min-w-0 flex-col">
+              <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-hairline bg-[rgb(var(--canvas)/0.9)] px-4 backdrop-blur-xl sm:px-6 lg:hidden">
                 <MobileNav onSearch={() => setPaletteOpen(true)} />
 
                 <Button
@@ -58,10 +62,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 >
                   <Search />
                 </Button>
-              </div>
+              </header>
 
-              <main className="min-w-0 flex-1 px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
-                {children}
+              <main className="flex min-w-0 flex-1 px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
+                <div
+                  data-app-content
+                  className="mx-auto min-w-0 w-full max-w-6xl flex-1"
+                >
+                  {children}
+                </div>
               </main>
             </div>
           </div>
