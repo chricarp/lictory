@@ -1,7 +1,6 @@
 "use client";
 
 import type { Entity, UpdateEntityRequest } from "@lictory/contracts";
-import { motion } from "motion/react";
 import {
   ArrowLeft,
   Check,
@@ -122,11 +121,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
         </Link>
       </Button>
 
-      <motion.header
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-6 border-b border-hairline pb-6"
-      >
+      <header className="mb-6 border-b border-hairline pb-6">
         <div className="flex items-start gap-4">
           <span
             className={cn(
@@ -326,7 +321,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
             </div>
           </div>
         ) : null}
-      </motion.header>
+      </header>
 
       {related.length > 0 ? (
         <section className="mb-6">

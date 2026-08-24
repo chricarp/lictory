@@ -12,8 +12,9 @@ export const ComposerCamera = React.forwardRef<
   {
     active: boolean;
     onCapture: (file: File) => void;
+    onReadyChange?: (ready: boolean) => void;
   }
->(function ComposerCamera({ active, onCapture }, ref) {
+>(function ComposerCamera({ active, onCapture, onReadyChange }, ref) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
   const onCaptureRef = React.useRef(onCapture);
@@ -22,6 +23,10 @@ export const ComposerCamera = React.forwardRef<
   React.useEffect(() => {
     onCaptureRef.current = onCapture;
   }, [onCapture]);
+
+  React.useEffect(() => {
+    onReadyChange?.(false);
+  }, [active, onReadyChange]);
 
   const stop = React.useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -35,6 +40,7 @@ export const ComposerCamera = React.forwardRef<
     }
 
     let cancelled = false;
+    setError(null);
     void navigator.mediaDevices
       .getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1920 } },
@@ -53,6 +59,7 @@ export const ComposerCamera = React.forwardRef<
       })
       .catch(() => {
         if (!cancelled) {
+          onReadyChange?.(false);
           setError(
             "Camera access is blocked. You can still add a photo from Files.",
           );
@@ -63,7 +70,7 @@ export const ComposerCamera = React.forwardRef<
       cancelled = true;
       stop();
     };
-  }, [active, stop]);
+  }, [active, onReadyChange, stop]);
 
   React.useImperativeHandle(ref, () => ({
     capture() {
@@ -95,7 +102,10 @@ export const ComposerCamera = React.forwardRef<
   if (!active) return null;
 
   return error ? (
-    <div className="flex size-full flex-col items-center justify-center gap-3 px-8 text-center text-sm text-muted">
+    <div
+      role="alert"
+      className="flex size-full flex-col items-center justify-center gap-3 px-8 text-center text-sm text-muted"
+    >
       <TriangleAlert className="size-5 text-warning" />
       {error}
     </div>
@@ -105,10 +115,10 @@ export const ComposerCamera = React.forwardRef<
         ref={videoRef}
         muted
         playsInline
-        className="size-full object-cover"
+        onCanPlay={() => onReadyChange?.(true)}
+        className="size-full object-contain"
       />
-      <div className="pointer-events-none absolute inset-4 rounded-lg border border-white/25" />
-      <div className="pointer-events-none absolute left-1/2 top-5 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md">
+      <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-md">
         <Camera className="size-3.5" /> Camera
       </div>
     </div>

@@ -101,7 +101,6 @@ export function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
           >
-            <p className="index-kicker mb-5">Your memory, in one place</p>
             <h1 className="max-w-2xl text-balance text-5xl font-semibold leading-[1.02] tracking-[-0.055em] sm:text-6xl">
               Keep the whole moment.
             </h1>

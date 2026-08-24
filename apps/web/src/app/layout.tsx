@@ -61,7 +61,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} ${mono.variable}`}
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var p=JSON.parse(localStorage.getItem('lictory.preferences.v1')||'{}');var t=p.theme==='light'||p.theme==='dark'?p.theme:'system';var l=t==='light'||(t==='system'&&matchMedia('(prefers-color-scheme: light)').matches);var r=document.documentElement;r.classList.toggle('light',l);r.classList.toggle('a11y-high-contrast',p.highContrast===true);r.classList.toggle('a11y-large-text',p.largeText===true);r.classList.toggle('a11y-reduce-motion',p.reduceMotion===true);r.style.colorScheme=l?'light':'dark'}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className="antialiased">
         {children}
         <Toaster

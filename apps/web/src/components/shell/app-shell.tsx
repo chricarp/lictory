@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { KEYBINDINGS, matchesKeybinding } from "@/components/ui/keybinding";
 import { ApiProvider } from "@/lib/api";
+import { PreferencesManager } from "@/lib/preferences";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -39,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthGate redirectTo="/login">
       <ApiProvider>
+        <PreferencesManager />
         <TooltipProvider delayDuration={300}>
           <div className="mx-auto grid min-h-dvh w-full max-w-[90rem] grid-cols-1 bg-canvas lg:grid-cols-[5rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)]">
             <aside

@@ -17,6 +17,7 @@ import WaveSurfer from "wavesurfer.js";
 
 import { ShimmerText } from "@/components/ai/primitives";
 import { Button } from "@/components/ui/button";
+import { getFilePresentation } from "@/lib/file-presentation";
 import { cn, formatBytes, formatDuration } from "@/lib/utils";
 
 export type AttachmentLike = {
@@ -38,6 +39,37 @@ const KIND_ICON = {
   image: ImageIcon,
   audio: AudioLines,
   document: FileText,
+} as const;
+
+const DOCUMENT_TONES = {
+  pdf: {
+    tile: "border-red-500/25 bg-red-500/10 text-red-300",
+    badge: "bg-red-500 text-white",
+  },
+  word: {
+    tile: "border-blue-500/25 bg-blue-500/10 text-blue-300",
+    badge: "bg-blue-500 text-white",
+  },
+  sheet: {
+    tile: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
+    badge: "bg-emerald-600 text-white",
+  },
+  slides: {
+    tile: "border-orange-500/25 bg-orange-500/10 text-orange-300",
+    badge: "bg-orange-500 text-white",
+  },
+  text: {
+    tile: "border-slate-400/25 bg-slate-400/10 text-slate-300",
+    badge: "bg-slate-500 text-white",
+  },
+  archive: {
+    tile: "border-violet-500/25 bg-violet-500/10 text-violet-300",
+    badge: "bg-violet-500 text-white",
+  },
+  file: {
+    tile: "border-hairline-strong bg-surface-strong text-subtle",
+    badge: "bg-slate-600 text-white",
+  },
 } as const;
 
 /**
@@ -139,6 +171,12 @@ export function AttachmentTile({
     );
   }
 
+  const presentation = getFilePresentation(
+    attachment.fileName,
+    attachment.contentType,
+  );
+  const tone = DOCUMENT_TONES[presentation.tone];
+
   return (
     <motion.div
       layout
@@ -146,22 +184,33 @@ export function AttachmentTile({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
       className={cn(
-        "group flex items-center rounded-md border border-hairline bg-surface",
-        compact ? "w-48 shrink-0 gap-2 p-2" : "gap-3 p-3",
+        "group relative flex min-w-0 items-center overflow-hidden rounded-lg border border-hairline bg-surface shadow-[0_1px_0_rgb(255_255_255/0.025)]",
+        compact
+          ? "w-[17rem] max-w-[calc(100vw-3.5rem)] shrink-0 gap-3 p-2.5"
+          : "gap-3 p-3",
       )}
     >
       <span
         className={cn(
-          "flex shrink-0 items-center justify-center rounded-md border border-hairline-strong bg-surface-strong text-subtle",
-          compact ? "size-7" : "size-9",
+          "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md border",
+          tone.tile,
+          compact ? "size-11" : "size-12",
         )}
       >
-        {uploading ? (
-          <Loader className="size-4 animate-spin" />
-        ) : failed ? (
+        {failed ? (
           <TriangleAlert className="size-4 text-danger" />
         ) : (
-          <Icon className="size-4" />
+          <>
+            <Icon className="size-5 -translate-y-1" />
+            <span
+              className={cn(
+                "absolute inset-x-1 bottom-1 truncate rounded-[0.2rem] px-1 py-0.5 text-center text-[0.5rem] font-bold uppercase leading-none tracking-wide",
+                tone.badge,
+              )}
+            >
+              {presentation.extension}
+            </span>
+          </>
         )}
       </span>
       <div className="min-w-0 flex-1">
@@ -169,24 +218,16 @@ export function AttachmentTile({
           {attachment.fileName}
         </p>
         <p className="truncate text-xs text-subtle">
-          {analysing ? (
+          {uploading ? (
+            `Uploading · ${formatBytes(attachment.bytes)}`
+          ) : analysing ? (
             <ShimmerText>Preparing this document…</ShimmerText>
           ) : failed ? (
             (attachment.failureReason ?? "Could not be processed")
           ) : (
-            formatBytes(attachment.bytes)
+            `${presentation.label} · ${formatBytes(attachment.bytes)}`
           )}
         </p>
-        {uploading && !compact ? (
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[rgb(var(--hairline)/0.14)]">
-            <motion.div
-              className="h-full bg-ember"
-              animate={{
-                width: `${Math.round((attachment.progress ?? 0) * 100)}%`,
-              }}
-            />
-          </div>
-        ) : null}
       </div>
       {onRemove ? (
         <Button
@@ -197,6 +238,16 @@ export function AttachmentTile({
         >
           <X />
         </Button>
+      ) : null}
+      {uploading ? (
+        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgb(var(--hairline)/0.14)]">
+          <motion.div
+            className="h-full bg-ember"
+            animate={{
+              width: `${Math.round((attachment.progress ?? 0) * 100)}%`,
+            }}
+          />
+        </div>
       ) : null}
     </motion.div>
   );

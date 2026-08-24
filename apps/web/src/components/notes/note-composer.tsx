@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowUpRight,
   Camera,
@@ -246,10 +246,12 @@ export function NoteComposer({
   const api = useApi();
   const pathname = usePathname();
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
 
   const [body, setBody] = React.useState("");
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const [cameraOpen, setCameraOpen] = React.useState(false);
+  const [cameraReady, setCameraReady] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
   const noteIdRef = React.useRef<string | null>(null);
@@ -466,10 +468,20 @@ export function NoteComposer({
   const captureActive = audio.active || cameraOpen;
 
   const floatingToolbar = (
-    <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-hairline-strong bg-[rgb(var(--canvas)/0.88)] p-1.5 shadow-[0_12px_36px_rgb(0_0_0/0.32)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="relative flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <motion.div
+        aria-hidden
+        layoutId="capture-toolbar"
+        transition={{
+          duration: reduceMotion ? 0 : 0.35,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        className="pointer-events-none absolute inset-0 rounded-[inherit] border border-hairline-strong bg-[rgb(var(--canvas)/0.88)] shadow-[0_12px_36px_rgb(0_0_0/0.32)] backdrop-blur-xl"
+      />
       <Button
         variant={audio.active ? "danger" : "ghost"}
         size="sm"
+        className="relative rounded-full pl-2.5 pr-1.5"
         disabled={cameraOpen}
         aria-label={audio.active ? "Stop recording" : "Record audio"}
         aria-pressed={audio.active}
@@ -514,38 +526,31 @@ export function NoteComposer({
       </Button>
 
       <Button
-        variant={cameraOpen ? "primary" : "ghost"}
+        variant="ghost"
         size="sm"
+        className="relative rounded-full"
         disabled={audio.active}
+        aria-expanded={cameraOpen}
+        aria-controls="composer-camera-viewfinder"
         onClick={() => {
-          if (cameraOpen) cameraRef.current?.capture();
-          else setCameraOpen(true);
+          setCameraReady(false);
+          setCameraOpen(true);
         }}
       >
         <Camera />
-        {cameraOpen ? "Take photo" : "Camera"}
+        Camera
       </Button>
 
       <Button
         variant="ghost"
         size="sm"
+        className="relative rounded-full"
         disabled={captureActive}
         onClick={() => fileInputRef.current?.click()}
       >
         <FileUp />
         Add files
       </Button>
-
-      {cameraOpen ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setCameraOpen(false)}
-          aria-label="Close camera"
-        >
-          <X />
-        </Button>
-      ) : null}
     </div>
   );
 
@@ -556,42 +561,107 @@ export function NoteComposer({
         className,
       )}
     >
-      <MarkdownEditor
-        value={body}
-        onChange={setBody}
-        onFilesDropped={(files) => void addFiles(files)}
-        minRows={9}
-        autoFocus={pathname === "/app"}
-        className="rounded-none border-0 bg-transparent focus-within:border-transparent"
-        emptyState={
-          <div>
-            <p className="font-medium text-muted">Start writing anywhere.</p>
-            <p className="mt-1 max-w-md">
-              Or drop a file here, record a thought, take a photo, or add
-              something from your device.
-            </p>
-          </div>
-        }
-        floatingToolbar={floatingToolbar}
-        overlay={
-          audio.active ? (
-            <WaveformOverlay
-              levels={audio.levels}
-              seconds={audio.seconds}
-              starting={audio.status === "starting"}
+      <AnimatePresence initial={false} mode="popLayout">
+        {cameraOpen ? (
+          <motion.section
+            key="camera"
+            layoutId="capture-toolbar"
+            id="composer-camera-viewfinder"
+            aria-label="Camera viewfinder"
+            initial={{ opacity: 0.92, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0.92, scale: 0.98 }}
+            transition={{
+              duration: reduceMotion ? 0 : 0.35,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="relative flex h-[clamp(22rem,68svh,42rem)] min-h-0 flex-col overflow-hidden bg-black"
+          >
+            <div className="relative min-h-0 flex-1">
+              <ComposerCamera
+                ref={cameraRef}
+                active
+                onReadyChange={setCameraReady}
+                onCapture={(file) => {
+                  void addFiles([file]);
+                  setCameraOpen(false);
+                }}
+              />
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 bg-[rgb(10_10_12/0.96)] px-4 py-3 sm:px-5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full text-white hover:bg-white/10 hover:text-white"
+                onClick={() => setCameraOpen(false)}
+              >
+                <X />
+                Close
+              </Button>
+
+              <button
+                type="button"
+                disabled={!cameraReady}
+                onClick={() => cameraRef.current?.capture()}
+                aria-label={cameraReady ? "Take photo" : "Opening camera"}
+                className="grid size-14 shrink-0 place-items-center rounded-full border-2 border-white bg-white/15 shadow-[0_0_0_5px_rgb(255_255_255/0.12)] transition-[background-color,transform] duration-150 hover:bg-white/25 active:scale-95 disabled:cursor-wait disabled:opacity-45"
+              >
+                <span className="size-10 rounded-full bg-white" />
+              </button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full text-white hover:bg-white/10 hover:text-white"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Add photo from files"
+              >
+                <FileUp />
+                <span className="hidden sm:inline">Files</span>
+              </Button>
+            </div>
+          </motion.section>
+        ) : (
+          <motion.div
+            key="editor"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.15 }}
+          >
+            <MarkdownEditor
+              value={body}
+              onChange={setBody}
+              onFilesDropped={(files) => void addFiles(files)}
+              minRows={9}
+              autoFocus={pathname === "/app"}
+              className="rounded-none border-0 bg-transparent focus-within:border-transparent"
+              emptyState={
+                <div>
+                  <p className="font-medium text-muted">
+                    Start writing anywhere.
+                  </p>
+                  <p className="mt-1 max-w-md">
+                    Or drop a file here, record a thought, take a photo, or add
+                    something from your device.
+                  </p>
+                </div>
+              }
+              floatingToolbar={floatingToolbar}
+              overlay={
+                audio.active ? (
+                  <WaveformOverlay
+                    levels={audio.levels}
+                    seconds={audio.seconds}
+                    starting={audio.status === "starting"}
+                  />
+                ) : null
+              }
             />
-          ) : cameraOpen ? (
-            <ComposerCamera
-              ref={cameraRef}
-              active
-              onCapture={(file) => {
-                void addFiles([file]);
-                setCameraOpen(false);
-              }}
-            />
-          ) : null
-        }
-      />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {audio.error ? (
         <p className="border-t border-hairline px-5 py-3 text-xs text-danger">
@@ -667,7 +737,9 @@ export function NoteComposer({
         multiple
         hidden
         onChange={(event) => {
-          void addFiles(Array.from(event.target.files ?? []));
+          const files = Array.from(event.target.files ?? []);
+          void addFiles(files);
+          if (files.length > 0) setCameraOpen(false);
           event.target.value = "";
         }}
       />

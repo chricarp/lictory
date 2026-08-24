@@ -1,7 +1,6 @@
 "use client";
 
 import type { NoteSummary } from "@lictory/contracts";
-import { motion } from "motion/react";
 import { ArrowRight } from "@/components/ui/icons";
 import Link from "next/link";
 import * as React from "react";
@@ -57,37 +56,23 @@ export function CaptureHome() {
 
   return (
     <div className="w-full">
-      <motion.header
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mb-7"
-      >
+      <header className="mb-7">
         <h1 className="max-w-3xl text-balance text-3xl font-semibold leading-[1.08] tracking-[-0.035em] sm:text-4xl">
           Keep what matters.
         </h1>
-      </motion.header>
+      </header>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.06 }}
-      >
+      <div>
         <NoteComposer
           onCreated={() => {
             void notes.refresh();
             void graph.refresh();
           }}
         />
-      </motion.div>
+      </div>
 
       {graph.data ? (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="mt-7 grid grid-cols-2 overflow-hidden rounded-lg border border-hairline bg-surface sm:grid-cols-4"
-        >
+        <div className="mt-7 grid grid-cols-2 overflow-hidden rounded-lg border border-hairline bg-surface sm:grid-cols-4">
           <StatCard
             label="People"
             value={graph.data.totals.people}
@@ -112,7 +97,7 @@ export function CaptureHome() {
             href="/app/notes"
             accent="text-foreground"
           />
-        </motion.div>
+        </div>
       ) : null}
 
       {graph.data && graph.data.upcoming.length > 0 ? (

@@ -6,6 +6,7 @@ import {
   LogOut,
   Menu,
   Search,
+  UserRound,
   X,
 } from "@/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
@@ -130,6 +131,12 @@ function AccountMenu() {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/app/profile">
+            <UserRound />
+            Profile & preferences
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={async () => {
             const result = await authClient.passkey.addPasskey({

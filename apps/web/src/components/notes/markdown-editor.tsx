@@ -4,6 +4,7 @@ import {
   Bold,
   Code,
   Eye,
+  FileUp,
   Heading,
   Italic,
   Link2,
@@ -103,8 +104,12 @@ export function MarkdownEditor({
   onFilesDropped,
 }: MarkdownEditorProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const dragDepthRef = React.useRef(0);
   const [mode, setMode] = React.useState<"write" | "preview">("write");
   const [dragging, setDragging] = React.useState(false);
+
+  const hasDraggedFiles = (dataTransfer: DataTransfer) =>
+    Array.from(dataTransfer.types).includes("Files");
 
   const applyWrap = React.useCallback(
     (action: Wrap) => {
@@ -160,26 +165,62 @@ export function MarkdownEditor({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-md border border-hairline-strong bg-[rgb(var(--surface)/0.04)] transition-colors",
+        "relative overflow-hidden rounded-md border border-hairline-strong bg-[rgb(var(--surface)/0.04)] transition-[border-color,background-color,box-shadow] duration-200",
         "focus-within:border-[rgb(var(--ember)/0.45)]",
         dragging &&
-          "border-[rgb(var(--ember)/0.7)] bg-[rgb(var(--ember)/0.06)]",
+          "shadow-[0_0_0_1px_rgb(var(--ember)/0.55),0_20px_60px_rgb(var(--ember)/0.12)]",
         className,
       )}
-      onDragOver={(event) => {
-        if (!onFilesDropped) return;
+      onDragEnter={(event) => {
+        if (!onFilesDropped || !hasDraggedFiles(event.dataTransfer)) return;
         event.preventDefault();
+        dragDepthRef.current += 1;
         setDragging(true);
       }}
-      onDragLeave={() => setDragging(false)}
+      onDragOver={(event) => {
+        if (!onFilesDropped || !hasDraggedFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(event) => {
+        if (!onFilesDropped || !hasDraggedFiles(event.dataTransfer)) return;
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setDragging(false);
+      }}
       onDrop={(event) => {
         if (!onFilesDropped) return;
         event.preventDefault();
+        dragDepthRef.current = 0;
         setDragging(false);
         const files = Array.from(event.dataTransfer.files);
         if (files.length) onFilesDropped(files);
       }}
     >
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-0 z-40 grid place-items-center bg-[radial-gradient(circle_at_center,rgb(var(--ember)/0.16),rgb(var(--canvas)/0.88)_68%)] p-4 opacity-0 backdrop-blur-[3px] transition-opacity duration-200",
+          dragging && "opacity-100",
+        )}
+      >
+        <div
+          className={cn(
+            "flex max-w-xs translate-y-2 scale-[0.97] flex-col items-center rounded-2xl border border-dashed border-[rgb(var(--ember)/0.65)] bg-[rgb(var(--canvas-raised)/0.9)] px-8 py-6 text-center opacity-0 shadow-[0_16px_50px_rgb(0_0_0/0.34),0_0_40px_rgb(var(--ember)/0.12)] transition-[opacity,transform] duration-200 ease-out",
+            dragging && "translate-y-0 scale-100 opacity-100",
+          )}
+        >
+          <span className="grid size-11 place-items-center rounded-full border border-[rgb(var(--ember)/0.3)] bg-[rgb(var(--ember)/0.12)] text-ember shadow-[0_0_24px_rgb(var(--ember)/0.2)]">
+            <FileUp className="size-5" />
+          </span>
+          <span className="mt-3 text-sm font-semibold text-foreground">
+            Drop to attach
+          </span>
+          <span className="mt-1 text-xs leading-5 text-muted">
+            We’ll add every file to this note
+          </span>
+        </div>
+      </div>
+
       <div className="flex items-center gap-1 border-b border-hairline px-2 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {ACTIONS.map((action) => (

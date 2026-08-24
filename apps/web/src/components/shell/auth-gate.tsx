@@ -138,7 +138,6 @@ export function AuthGate({
             LI
           </span>
           <div>
-            <p className="index-kicker mb-4">Private by default</p>
             <p className="text-2xl font-semibold leading-tight tracking-[-0.035em]">
               Keep the whole moment, all in one place.
             </p>
