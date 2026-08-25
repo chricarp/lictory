@@ -32,12 +32,20 @@ import {
   matchesKeybinding,
 } from "@/components/ui/keybinding";
 import { useApi } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+import {
+  clearLocalCapture,
+  readLocalCaptureAttachments,
+  readLocalCaptureBody,
+  type LocalCaptureAttachment,
+  writeLocalCaptureAttachments,
+  writeLocalCaptureBody,
+} from "@/lib/local-capture";
 import { cn, formatDuration } from "@/lib/utils";
 
 type Draft = AttachmentLike & {
   localId: string;
   file: File;
-  remoteId?: string;
 };
 
 const FILE_ACCEPT =
@@ -244,6 +252,8 @@ export function NoteComposer({
   className?: string;
 }) {
   const api = useApi();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user.id;
   const pathname = usePathname();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
@@ -252,9 +262,11 @@ export function NoteComposer({
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const [cameraOpen, setCameraOpen] = React.useState(false);
   const [cameraReady, setCameraReady] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState<"save" | "draft" | null>(
+    null,
+  );
+  const [loadedUserId, setLoadedUserId] = React.useState<string | null>(null);
 
-  const noteIdRef = React.useRef<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraRef = React.useRef<ComposerCameraHandle>(null);
   const pressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
@@ -262,12 +274,57 @@ export function NoteComposer({
   );
   const longPressRef = React.useRef(false);
 
-  const ensureNote = React.useCallback(async () => {
-    if (noteIdRef.current) return noteIdRef.current;
-    const { note } = await api.createNote({});
-    noteIdRef.current = note.id;
-    return note.id;
-  }, [api]);
+  // Reset synchronously when the authenticated owner changes so one person's
+  // private capture is never briefly rendered in another person's session.
+  if (userId && loadedUserId !== userId) {
+    setLoadedUserId(userId);
+    setBody(readLocalCaptureBody(userId));
+    setDrafts([]);
+  }
+
+  React.useEffect(() => {
+    if (!userId || loadedUserId !== userId) return;
+    let cancelled = false;
+    void readLocalCaptureAttachments(userId)
+      .then((attachments) => {
+        if (cancelled) return;
+        setDrafts(
+          attachments.map((attachment) => ({
+            ...attachment,
+            id: "",
+            status: "pending_upload",
+            progress: 0,
+            url:
+              attachment.kind === "image" || attachment.kind === "audio"
+                ? URL.createObjectURL(attachment.file)
+                : null,
+          })),
+        );
+      })
+      .catch(() => toast.error("Could not restore your local capture"));
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedUserId, userId]);
+
+  const persistDrafts = React.useCallback(
+    (next: Draft[]) => {
+      if (!userId) return;
+      const stored: LocalCaptureAttachment[] = next.map((draft) => ({
+        localId: draft.localId,
+        file: draft.file,
+        fileName: draft.fileName,
+        bytes: draft.bytes,
+        contentType: draft.contentType,
+        durationSeconds: draft.durationSeconds ?? null,
+        kind: draft.kind,
+      }));
+      void writeLocalCaptureAttachments(userId, stored).catch(() =>
+        toast.error("Could not keep the attachments on this device"),
+      );
+    },
+    [userId],
+  );
 
   const updateDraft = React.useCallback(
     (localId: string, patch: Partial<Draft>) => {
@@ -300,35 +357,56 @@ export function NoteComposer({
         bytes: file.size,
         contentType: file.type || "application/octet-stream",
         durationSeconds: durationSeconds ?? null,
-        status: "uploading",
+        status: "pending_upload",
         progress: 0,
         url:
           file.type.startsWith("image/") || file.type.startsWith("audio/")
             ? URL.createObjectURL(file)
             : null,
       }));
-      setDrafts((current) => [...current, ...newDrafts]);
+      const next = [...drafts, ...newDrafts];
+      setDrafts(next);
+      persistDrafts(next);
+    },
+    [drafts, persistDrafts],
+  );
 
-      const noteId = await ensureNote().catch((error: Error) => {
-        toast.error(error.message);
-        return null;
-      });
-      if (!noteId) {
-        setDrafts((current) =>
-          current.map((draft) =>
-            newDrafts.some((item) => item.localId === draft.localId)
-              ? { ...draft, status: "failed_upload" }
-              : draft,
-          ),
-        );
+  const onRecordingComplete = React.useCallback(
+    (file: File, duration: number) => void addFiles([file], duration),
+    [addFiles],
+  );
+  const audio = useWaveformRecorder(onRecordingComplete);
+
+  const removeDraft = async (draft: Draft) => {
+    const next = drafts.filter((item) => item.localId !== draft.localId);
+    setDrafts(next);
+    persistDrafts(next);
+    if (draft.url?.startsWith("blob:")) URL.revokeObjectURL(draft.url);
+  };
+
+  const uploading = drafts.some((draft) => draft.status === "uploading");
+  const hasContent = body.trim().length > 0 || drafts.length > 0;
+
+  const submit = React.useCallback(
+    async (mode: "save" | "draft") => {
+      if (!userId || !hasContent || uploading || audio.active || cameraOpen)
         return;
-      }
-
-      await Promise.all(
-        newDrafts.map(async (draft) => {
-          try {
-            const attachment = await api.uploadAttachment(
-              noteId,
+      setSubmitting(mode);
+      let createdNoteId: string | null = null;
+      try {
+        const { note } = await api.createNote({ bodyMarkdown: body });
+        createdNoteId = note.id;
+        setDrafts((current) =>
+          current.map((draft) => ({
+            ...draft,
+            status: "uploading",
+            progress: 0,
+          })),
+        );
+        await Promise.all(
+          drafts.map(async (draft) => {
+            await api.uploadAttachment(
+              note.id,
               {
                 fileName: draft.fileName,
                 contentType: draft.contentType,
@@ -343,89 +421,62 @@ export function NoteComposer({
                     : 0,
                 }),
             );
-            updateDraft(draft.localId, {
-              status: "uploaded",
-              progress: 1,
-              remoteId: attachment.id,
-              id: attachment.id,
-            });
-          } catch (error) {
-            updateDraft(draft.localId, { status: "failed_upload" });
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : `${draft.fileName} could not be uploaded`,
-            );
-          }
-        }),
-      );
+            updateDraft(draft.localId, { status: "uploaded", progress: 1 });
+          }),
+        );
+        if (mode === "save") await api.processNote(note.id);
+        toast.success(mode === "save" ? "Note saved" : "Draft saved");
+        setBody("");
+        drafts.forEach((draft) => {
+          if (draft.url?.startsWith("blob:")) URL.revokeObjectURL(draft.url);
+        });
+        setDrafts([]);
+        await clearLocalCapture(userId);
+        if (onCreated) onCreated(note.id);
+        else router.push(`/app/notes/${note.id}`);
+      } catch (error) {
+        if (createdNoteId) {
+          await api.deleteNote(createdNoteId).catch(() => undefined);
+        }
+        setDrafts((current) =>
+          current.map((draft) => ({
+            ...draft,
+            status: "pending_upload",
+            progress: 0,
+          })),
+        );
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : mode === "save"
+              ? "Could not save this note"
+              : "Could not save this draft",
+        );
+      } finally {
+        setSubmitting(null);
+      }
     },
-    [api, ensureNote, updateDraft],
+    [
+      api,
+      audio.active,
+      body,
+      cameraOpen,
+      drafts,
+      hasContent,
+      onCreated,
+      router,
+      uploading,
+      updateDraft,
+      userId,
+    ],
   );
-
-  const onRecordingComplete = React.useCallback(
-    (file: File, duration: number) => void addFiles([file], duration),
-    [addFiles],
-  );
-  const audio = useWaveformRecorder(onRecordingComplete);
-
-  const removeDraft = async (draft: Draft) => {
-    setDrafts((current) =>
-      current.filter((item) => item.localId !== draft.localId),
-    );
-    if (draft.url?.startsWith("blob:")) URL.revokeObjectURL(draft.url);
-    if (draft.remoteId && noteIdRef.current) {
-      await api
-        .deleteAttachment(noteIdRef.current, draft.remoteId)
-        .catch(() => undefined);
-    }
-  };
-
-  const uploading = drafts.some((draft) => draft.status === "uploading");
-  const hasContent = body.trim().length > 0 || drafts.length > 0;
-
-  const submit = React.useCallback(async () => {
-    if (!hasContent || uploading || audio.active || cameraOpen) return;
-    setSubmitting(true);
-    try {
-      const noteId = await ensureNote();
-      await api.updateNote(noteId, { bodyMarkdown: body });
-      await api.processNote(noteId);
-      toast.success("Note saved");
-      noteIdRef.current = null;
-      setBody("");
-      drafts.forEach((draft) => {
-        if (draft.url?.startsWith("blob:")) URL.revokeObjectURL(draft.url);
-      });
-      setDrafts([]);
-      if (onCreated) onCreated(noteId);
-      else router.push(`/app/notes/${noteId}`);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not save this note",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }, [
-    api,
-    audio.active,
-    body,
-    cameraOpen,
-    drafts,
-    ensureNote,
-    hasContent,
-    onCreated,
-    router,
-    uploading,
-  ]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return;
       if (matchesKeybinding(event, KEYBINDINGS.save)) {
         event.preventDefault();
-        void submit();
+        void submit("save");
         return;
       }
 
@@ -453,14 +504,12 @@ export function NoteComposer({
   }, [audio, cameraOpen, submit]);
 
   const discard = async () => {
-    const noteId = noteIdRef.current;
     setBody("");
     drafts.forEach((draft) => {
       if (draft.url?.startsWith("blob:")) URL.revokeObjectURL(draft.url);
     });
     setDrafts([]);
-    noteIdRef.current = null;
-    if (noteId) await api.deleteNote(noteId).catch(() => undefined);
+    if (userId) await clearLocalCapture(userId);
   };
 
   const images = drafts.filter((draft) => draft.kind === "image");
@@ -632,7 +681,10 @@ export function NoteComposer({
           >
             <MarkdownEditor
               value={body}
-              onChange={setBody}
+              onChange={(nextBody) => {
+                setBody(nextBody);
+                if (userId) writeLocalCaptureBody(userId, nextBody);
+              }}
               onFilesDropped={(files) => void addFiles(files)}
               minRows={9}
               autoFocus={pathname === "/app"}
@@ -689,8 +741,11 @@ export function NoteComposer({
         </div>
       ) : null}
 
-      <div className="flex items-center gap-3 border-t border-hairline px-4 py-3 sm:px-5">
-        <p className="min-w-0 flex-1 text-xs text-subtle" aria-live="polite">
+      <div className="flex flex-wrap items-center gap-3 border-t border-hairline px-4 py-3 sm:flex-nowrap sm:px-5">
+        <p
+          className="min-w-0 basis-full text-xs text-subtle sm:flex-1 sm:basis-auto"
+          aria-live="polite"
+        >
           {uploading ? (
             "Uploading…"
           ) : drafts.length > 0 ? (
@@ -706,6 +761,7 @@ export function NoteComposer({
           <Button
             variant="ghost"
             size="icon-sm"
+            className="ml-auto sm:ml-0"
             onClick={() => void discard()}
             aria-label="Discard note"
           >
@@ -713,11 +769,24 @@ export function NoteComposer({
           </Button>
         ) : null}
         <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void submit("draft")}
+          loading={submitting === "draft"}
+          disabled={
+            !hasContent || uploading || captureActive || submitting !== null
+          }
+        >
+          Save draft
+        </Button>
+        <Button
           variant="primary"
           size="sm"
-          onClick={() => void submit()}
-          loading={submitting}
-          disabled={!hasContent || uploading || captureActive}
+          onClick={() => void submit("save")}
+          loading={submitting === "save"}
+          disabled={
+            !hasContent || uploading || captureActive || submitting !== null
+          }
           aria-keyshortcuts={keybindingAria(KEYBINDINGS.save)}
         >
           {!submitting ? <ArrowUpRight /> : null}

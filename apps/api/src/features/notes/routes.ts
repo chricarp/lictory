@@ -7,13 +7,22 @@ import {
   updateNoteEntityRequestSchema,
   updateNoteRequestSchema,
 } from "@lictory/contracts";
+import { and, count, eq, max, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
 import type { AppBindings } from "../../bindings";
 import { errorBody } from "../../http/errors";
+import { database } from "../../infrastructure/database/client";
 import { attachmentRecord } from "../../infrastructure/database/records";
-import type { MediaRow, NoteRow } from "../../infrastructure/database/rows";
+import type { NoteRow } from "../../infrastructure/database/rows";
+import {
+  entities,
+  mediaAssets,
+  noteEntities,
+  noteLinks,
+  notes as notesTable,
+} from "../../infrastructure/database/schema";
 import {
   attachEntityToNote,
   listNotes,
@@ -29,9 +38,15 @@ async function ownedNote(
   c: Context<AppBindings>,
   noteId: string,
 ): Promise<NoteRow | null> {
-  return c.env.DB.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?")
-    .bind(noteId, c.get("userId"))
-    .first<NoteRow>();
+  return (
+    (await database(c.env)
+      .select()
+      .from(notesTable)
+      .where(
+        and(eq(notesTable.id, noteId), eq(notesTable.user_id, c.get("userId"))),
+      )
+      .get()) ?? null
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -72,20 +87,19 @@ notes.post("/", async (c) => {
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  await c.env.DB.prepare(
-    `INSERT INTO notes (id, user_id, title, body_markdown, status, occurred_at, pinned, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'draft', ?, 0, ?, ?)`,
-  )
-    .bind(
+  await database(c.env)
+    .insert(notesTable)
+    .values({
       id,
-      c.get("userId"),
-      parsed.data.title ?? null,
-      parsed.data.bodyMarkdown ?? "",
-      parsed.data.occurredAt ?? null,
-      now,
-      now,
-    )
-    .run();
+      user_id: c.get("userId"),
+      title: parsed.data.title ?? null,
+      body_markdown: parsed.data.bodyMarkdown ?? "",
+      status: "draft",
+      occurred_at: parsed.data.occurredAt ?? null,
+      pinned: 0,
+      created_at: now,
+      updated_at: now,
+    });
 
   const note = await loadNote(
     c.env,
@@ -134,22 +148,23 @@ notes.patch("/:noteId", async (c) => {
   }
 
   const now = new Date().toISOString();
-  await c.env.DB.prepare(
-    `UPDATE notes SET title = ?, body_markdown = ?, occurred_at = ?, pinned = ?, updated_at = ? WHERE id = ?`,
-  )
-    .bind(
-      parsed.data.title === undefined ? existing.title : parsed.data.title,
-      parsed.data.bodyMarkdown ?? existing.body_markdown,
-      parsed.data.occurredAt === undefined
-        ? existing.occurred_at
-        : parsed.data.occurredAt,
-      parsed.data.pinned === undefined
-        ? existing.pinned
-        : Number(parsed.data.pinned),
-      now,
-      existing.id,
-    )
-    .run();
+  await database(c.env)
+    .update(notesTable)
+    .set({
+      title:
+        parsed.data.title === undefined ? existing.title : parsed.data.title,
+      body_markdown: parsed.data.bodyMarkdown ?? existing.body_markdown,
+      occurred_at:
+        parsed.data.occurredAt === undefined
+          ? existing.occurred_at
+          : parsed.data.occurredAt,
+      pinned:
+        parsed.data.pinned === undefined
+          ? existing.pinned
+          : Number(parsed.data.pinned),
+      updated_at: now,
+    })
+    .where(eq(notesTable.id, existing.id));
 
   return c.json({
     note: await loadNote(
@@ -169,17 +184,16 @@ notes.delete("/:noteId", async (c) => {
       404,
     );
   }
-  const { results } = await c.env.DB.prepare(
-    "SELECT object_key FROM media_assets WHERE note_id = ?",
-  )
-    .bind(existing.id)
-    .all<{ object_key: string }>();
+  const results = await database(c.env)
+    .select({ object_key: mediaAssets.object_key })
+    .from(mediaAssets)
+    .where(eq(mediaAssets.note_id, existing.id));
   await Promise.all(
     results.map((asset) => c.env.MEDIA_BUCKET.delete(asset.object_key)),
   );
-  await c.env.DB.prepare("DELETE FROM notes WHERE id = ?")
-    .bind(existing.id)
-    .run();
+  await database(c.env)
+    .delete(notesTable)
+    .where(eq(notesTable.id, existing.id));
   return c.body(null, 204);
 });
 
@@ -219,11 +233,11 @@ notes.post("/:noteId/attachments", async (c) => {
     );
   }
 
-  const position = await c.env.DB.prepare(
-    "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM media_assets WHERE note_id = ?",
-  )
-    .bind(note.id)
-    .first<{ next: number }>();
+  const position = await database(c.env)
+    .select({ current: max(mediaAssets.position) })
+    .from(mediaAssets)
+    .where(eq(mediaAssets.note_id, note.id))
+    .get();
 
   const slot = await createUploadSlot(c.env, {
     userId: c.get("userId"),
@@ -232,7 +246,7 @@ notes.post("/:noteId/attachments", async (c) => {
     contentType: parsed.data.contentType,
     bytes: parsed.data.bytes,
     durationSeconds: parsed.data.durationSeconds ?? undefined,
-    position: position?.next ?? 0,
+    position: (position?.current ?? -1) + 1,
     requestOrigin: new URL(c.req.url).origin,
   });
   if (!slot) throw new Error("Validated attachment type was rejected");
@@ -247,11 +261,17 @@ notes.post("/:noteId/attachments", async (c) => {
 });
 
 notes.delete("/:noteId/attachments/:attachmentId", async (c) => {
-  const row = await c.env.DB.prepare(
-    "SELECT * FROM media_assets WHERE id = ? AND note_id = ? AND user_id = ?",
-  )
-    .bind(c.req.param("attachmentId"), c.req.param("noteId"), c.get("userId"))
-    .first<MediaRow>();
+  const row = await database(c.env)
+    .select()
+    .from(mediaAssets)
+    .where(
+      and(
+        eq(mediaAssets.id, c.req.param("attachmentId")),
+        eq(mediaAssets.note_id, c.req.param("noteId")),
+        eq(mediaAssets.user_id, c.get("userId")),
+      ),
+    )
+    .get();
   if (!row) {
     return c.json(
       errorBody("attachment_not_found", "Attachment not found"),
@@ -259,9 +279,7 @@ notes.delete("/:noteId/attachments/:attachmentId", async (c) => {
     );
   }
   await c.env.MEDIA_BUCKET.delete(row.object_key);
-  await c.env.DB.prepare("DELETE FROM media_assets WHERE id = ?")
-    .bind(row.id)
-    .run();
+  await database(c.env).delete(mediaAssets).where(eq(mediaAssets.id, row.id));
   return c.body(null, 204);
 });
 
@@ -288,11 +306,16 @@ notes.post("/:noteId/process", async (c) => {
     });
   }
 
-  const pending = await c.env.DB.prepare(
-    "SELECT COUNT(*) AS total FROM media_assets WHERE note_id = ? AND status = 'pending_upload'",
-  )
-    .bind(note.id)
-    .first<{ total: number }>();
+  const pending = await database(c.env)
+    .select({ total: count() })
+    .from(mediaAssets)
+    .where(
+      and(
+        eq(mediaAssets.note_id, note.id),
+        eq(mediaAssets.status, "pending_upload"),
+      ),
+    )
+    .get();
   if ((pending?.total ?? 0) > 0) {
     return c.json(
       errorBody(
@@ -306,11 +329,10 @@ notes.post("/:noteId/process", async (c) => {
 
   const now = new Date().toISOString();
   await resetProcessingSteps(c.env, note.id);
-  await c.env.DB.prepare(
-    "UPDATE notes SET status = 'queued', ai_error = NULL, updated_at = ? WHERE id = ?",
-  )
-    .bind(now, note.id)
-    .run();
+  await database(c.env)
+    .update(notesTable)
+    .set({ status: "queued", ai_error: null, updated_at: now })
+    .where(eq(notesTable.id, note.id));
   await c.env.JOBS.send({
     type: "process-note",
     noteId: note.id,
@@ -372,11 +394,13 @@ notes.post("/:noteId/entities", async (c) => {
     );
     entityId = entity.id;
   } else {
-    const owned = await c.env.DB.prepare(
-      "SELECT id FROM entities WHERE id = ? AND user_id = ?",
-    )
-      .bind(entityId, c.get("userId"))
-      .first();
+    const owned = await database(c.env)
+      .select({ id: entities.id })
+      .from(entities)
+      .where(
+        and(eq(entities.id, entityId), eq(entities.user_id, c.get("userId"))),
+      )
+      .get();
     if (!owned) {
       return c.json(errorBody("entity_not_found", "Entity not found"), 404);
     }
@@ -418,22 +442,22 @@ notes.patch("/:noteId/entities/:entityId", async (c) => {
 
   // Any human decision on an AI suggestion promotes the edge to user-owned so
   // later re-processing never silently overwrites the correction.
-  const result = await c.env.DB.prepare(
-    `UPDATE note_entities
-        SET status = COALESCE(?, status),
-            role = COALESCE(?, role),
-            origin = 'user'
-      WHERE note_id = ? AND entity_id = ?`,
-  )
-    .bind(
-      parsed.data.status ?? null,
-      parsed.data.role ?? null,
-      note.id,
-      c.req.param("entityId"),
+  const result = await database(c.env)
+    .update(noteEntities)
+    .set({
+      status: parsed.data.status ?? sql`${noteEntities.status}`,
+      role: parsed.data.role ?? sql`${noteEntities.role}`,
+      origin: "user",
+    })
+    .where(
+      and(
+        eq(noteEntities.note_id, note.id),
+        eq(noteEntities.entity_id, c.req.param("entityId")),
+      ),
     )
-    .run();
+    .returning({ id: noteEntities.entity_id });
 
-  if (!result.meta.changes) {
+  if (result.length === 0) {
     return c.json(errorBody("entity_link_not_found", "Link not found"), 404);
   }
   return c.json({
@@ -451,11 +475,14 @@ notes.delete("/:noteId/entities/:entityId", async (c) => {
   if (!note) {
     return c.json(errorBody("note_not_found", "Note not found"), 404);
   }
-  await c.env.DB.prepare(
-    "DELETE FROM note_entities WHERE note_id = ? AND entity_id = ?",
-  )
-    .bind(note.id, c.req.param("entityId"))
-    .run();
+  await database(c.env)
+    .delete(noteEntities)
+    .where(
+      and(
+        eq(noteEntities.note_id, note.id),
+        eq(noteEntities.entity_id, c.req.param("entityId")),
+      ),
+    );
   return c.body(null, 204);
 });
 
@@ -483,23 +510,33 @@ notes.post("/:noteId/links", async (c) => {
     return c.json(errorBody("note_not_found", "Target note not found"), 404);
   }
 
-  await c.env.DB.prepare(
-    `INSERT INTO note_links
-       (id, user_id, source_note_id, target_note_id, relation, confidence, origin, status, reason, created_at)
-     VALUES (?, ?, ?, ?, ?, 1, 'user', 'confirmed', ?, ?)
-     ON CONFLICT(source_note_id, target_note_id, relation)
-     DO UPDATE SET status = 'confirmed', origin = 'user', confidence = 1, reason = excluded.reason`,
-  )
-    .bind(
-      crypto.randomUUID(),
-      c.get("userId"),
-      note.id,
-      target.id,
-      parsed.data.relation,
-      parsed.data.reason ?? null,
-      new Date().toISOString(),
-    )
-    .run();
+  await database(c.env)
+    .insert(noteLinks)
+    .values({
+      id: crypto.randomUUID(),
+      user_id: c.get("userId"),
+      source_note_id: note.id,
+      target_note_id: target.id,
+      relation: parsed.data.relation,
+      confidence: 1,
+      origin: "user",
+      status: "confirmed",
+      reason: parsed.data.reason ?? null,
+      created_at: new Date().toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: [
+        noteLinks.source_note_id,
+        noteLinks.target_note_id,
+        noteLinks.relation,
+      ],
+      set: {
+        status: "confirmed",
+        origin: "user",
+        confidence: 1,
+        reason: sql`excluded.reason`,
+      },
+    });
 
   return c.json(
     {
@@ -519,12 +556,20 @@ notes.patch("/:noteId/links/:linkId", async (c) => {
   if (!["suggested", "confirmed", "rejected"].includes(body.status ?? "")) {
     return c.json(errorBody("invalid_link", "Unknown link status"), 400);
   }
-  const result = await c.env.DB.prepare(
-    "UPDATE note_links SET status = ?, origin = 'user' WHERE id = ? AND user_id = ?",
-  )
-    .bind(body.status, c.req.param("linkId"), c.get("userId"))
-    .run();
-  if (!result.meta.changes) {
+  const result = await database(c.env)
+    .update(noteLinks)
+    .set({
+      status: body.status as "suggested" | "confirmed" | "rejected",
+      origin: "user",
+    })
+    .where(
+      and(
+        eq(noteLinks.id, c.req.param("linkId")),
+        eq(noteLinks.user_id, c.get("userId")),
+      ),
+    )
+    .returning({ id: noteLinks.id });
+  if (result.length === 0) {
     return c.json(errorBody("link_not_found", "Link not found"), 404);
   }
   return c.json({
@@ -538,9 +583,14 @@ notes.patch("/:noteId/links/:linkId", async (c) => {
 });
 
 notes.delete("/:noteId/links/:linkId", async (c) => {
-  await c.env.DB.prepare("DELETE FROM note_links WHERE id = ? AND user_id = ?")
-    .bind(c.req.param("linkId"), c.get("userId"))
-    .run();
+  await database(c.env)
+    .delete(noteLinks)
+    .where(
+      and(
+        eq(noteLinks.id, c.req.param("linkId")),
+        eq(noteLinks.user_id, c.get("userId")),
+      ),
+    );
   return c.body(null, 204);
 });
 

@@ -31,7 +31,9 @@ src/
 │       └── workflows.ts             durable processing workflows
 └── infrastructure/
     ├── database/
-    │   ├── rows.ts                  raw D1 row types
+    │   ├── schema.ts                canonical Drizzle schema for D1
+    │   ├── client.ts                typed client over the D1 binding
+    │   ├── rows.ts                  schema-inferred database row types
     │   └── records.ts               rows mapped to public contracts
     └── queue/consumer.ts            queue message dispatch
 ```
@@ -41,7 +43,8 @@ src/
 `index.ts` adapts Cloudflare events. `app.ts` assembles feature routers. Routes
 validate transport input and call feature operations. Feature operations use
 the injected Worker bindings and pure functions from `@lictory/contracts`.
-Infrastructure modules know about D1, R2, queues, or external delivery APIs.
+Infrastructure modules know about Drizzle/D1, R2, queues, or external delivery
+APIs.
 
 Feature routers must not import other feature routers. Reusable behavior belongs
 in a feature service or a narrowly named infrastructure module; it should not be
@@ -63,3 +66,23 @@ copied between handlers. Public response types always come from
 Do not add product endpoints to the Next.js app. Both clients consume this one
 API, and every `/v1/*` route receives its user ID from the shared authenticated
 boundary in `app.ts`.
+
+## Database changes
+
+`src/infrastructure/database/schema.ts` is the source of truth for product and
+Better Auth tables. Runtime code creates a request-scoped Drizzle client over
+the `DB` binding; public response types still come from `@lictory/contracts`.
+
+The original `0001`–`0003` SQL files are applied migration history and remain
+append-only. Drizzle's snapshot in `migrations/meta` is baselined at `0003`, so
+new migrations start at `0004` without trying to recreate an existing database.
+
+```bash
+pnpm --filter @lictory/api db:generate       # diff schema.ts into a new SQL migration
+pnpm --filter @lictory/api db:check          # validate migration snapshots
+pnpm --filter @lictory/api db:migrate:local  # apply to local D1 with Wrangler
+```
+
+Review generated SQL before applying it. Use the existing remote migration
+script only during an intentional deployment; it targets the real Cloudflare
+database.

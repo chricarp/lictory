@@ -1,10 +1,19 @@
 import { expo } from "@better-auth/expo";
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { bearer } from "better-auth/plugins";
 import { importPKCS8, SignJWT } from "jose";
 
 import type { Env } from "../../bindings";
+import { database } from "../../infrastructure/database/client";
+import {
+  accounts,
+  passkeys,
+  sessions,
+  users,
+  verifications,
+} from "../../infrastructure/database/schema";
 
 const LOCAL_AUTH_SECRET =
   "lictory-local-development-secret-change-before-deploying";
@@ -54,7 +63,16 @@ export function createAuth(env: Env) {
   return betterAuth({
     appName: "Lictory",
     baseURL: env.BETTER_AUTH_URL,
-    database: env.DB,
+    database: drizzleAdapter(database(env), {
+      provider: "sqlite",
+      schema: {
+        user: users,
+        session: sessions,
+        account: accounts,
+        verification: verifications,
+        passkey: passkeys,
+      },
+    }),
     secret:
       env.BETTER_AUTH_SECRET ??
       (env.ENVIRONMENT === "development" ? LOCAL_AUTH_SECRET : undefined),

@@ -36,7 +36,7 @@ index.ts                              Worker adapter and workflow exports
 │   ├── triggers/                     triggers and notifications
 │   └── understanding/                extraction and durable workflows
 └── infrastructure/
-    ├── database/                     D1 row types and contract mappers
+    ├── database/                     Drizzle schema/client and contract mappers
     └── queue/                        queue event adapter
 ```
 
@@ -47,12 +47,19 @@ the smallest operation module it needs, then mounts that router in `app.ts`.
 Feature routers do not import one another; shared HTTP concerns live in `http/`,
 and shared business behavior lives in a named operation module.
 
-D1 is intentionally passed through the Cloudflare `Env` binding rather than
-hidden behind generic repository interfaces. When logic is reused, complex, or
-needs isolated tests, it is extracted from the Hono handler into an operation.
-Simple feature-local queries stay beside their route. This keeps the boundary
-clear without building abstractions that merely rename D1 methods. The complete
-developer map and feature checklist live in `apps/api/README.md`.
+D1 is exposed by Cloudflare through the `Env` binding and wrapped in a
+request-scoped Drizzle client. The TypeScript schema is the canonical model for
+product and Better Auth tables, and database row types are inferred from it.
+When logic is reused, complex, or needs isolated tests, it is extracted from the
+Hono handler into an operation; simple feature-local queries stay beside their
+route. The complete developer map and migration workflow live in
+`apps/api/README.md`.
+
+Wrangler remains the migration executor because it owns local D1 persistence
+and the remote Cloudflare binding. Drizzle Kit generates and validates the SQL.
+The hand-written `0001`–`0003` migrations remain immutable applied history;
+Drizzle metadata is baselined after `0003`, and every later schema change is a
+new generated, reviewed migration.
 
 ## Why Cloudflare over a Vercel split
 
@@ -157,7 +164,11 @@ Queue delivery is at least once. Push notifications must therefore be treated as
 
 ## Authentication boundary
 
-`apps/api/src/auth.ts` owns the Better Auth instance for each Worker request and uses D1 directly through Better Auth's Cloudflare-native adapter. The auth tables live beside the product tables, while all product queries still use the D1 binding directly. This avoids adding an ORM solely for authentication.
+`apps/api/src/features/auth/service.ts` owns the Better Auth instance for each
+Worker request. It uses Better Auth's Drizzle adapter over the same Cloudflare
+D1 binding as the product data. Auth tables live in the canonical schema beside
+the product tables, so authentication and product schema changes share one
+migration history.
 
 The web client sends Better Auth's HTTP-only session cookie. Expo stores the same cookie in SecureStore and attaches it to API calls. Every `/v1/*` request resolves the session server-side and takes the user ID from the authenticated Better Auth user, never from request input. Development bearer identities remain available only for focused API testing when Wrangler explicitly uses `ENVIRONMENT=development`; neither client uses them.
 

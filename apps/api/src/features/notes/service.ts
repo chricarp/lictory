@@ -8,8 +8,10 @@ import {
   type NoteSummary,
   normalizeEntityKey,
 } from "@lictory/contracts";
+import { and, eq, sql } from "drizzle-orm";
 
 import type { Env } from "../../bindings";
+import { database } from "../../infrastructure/database/client";
 import {
   attachmentRecord,
   excerptFrom,
@@ -25,6 +27,11 @@ import type {
   NoteRow,
   ProcessingStepRow,
 } from "../../infrastructure/database/rows";
+import {
+  entities as entitiesTable,
+  noteEntities,
+  noteProcessingSteps,
+} from "../../infrastructure/database/schema";
 import { signMediaUrl } from "../media/uploads";
 
 const placeholders = (count: number) =>
@@ -58,11 +65,13 @@ export async function resolveEntity(
   if (!normalizedKey) throw new Error("Entity name cannot be empty");
   const now = new Date().toISOString();
 
-  const existing = await env.DB.prepare(
-    "SELECT * FROM entities WHERE user_id = ? AND type = ? AND normalized_key = ?",
-  )
-    .bind(userId, input.type, normalizedKey)
-    .first<EntityRow>();
+  const db = database(env);
+  const identity = and(
+    eq(entitiesTable.user_id, userId),
+    eq(entitiesTable.type, input.type),
+    eq(entitiesTable.normalized_key, normalizedKey),
+  );
+  const existing = await db.select().from(entitiesTable).where(identity).get();
 
   if (existing) {
     const merged: EntityRow = {
@@ -85,28 +94,24 @@ export async function resolveEntity(
       origin: origin === "user" ? "user" : existing.origin,
       updated_at: now,
     };
-    await env.DB.prepare(
-      `UPDATE entities SET description = ?, latitude = ?, longitude = ?, radius_meters = ?,
-         address = ?, starts_at = ?, ends_at = ?, all_day = ?, timezone = ?, recurrence = ?,
-         color = ?, origin = ?, updated_at = ? WHERE id = ?`,
-    )
-      .bind(
-        merged.description,
-        merged.latitude,
-        merged.longitude,
-        merged.radius_meters,
-        merged.address,
-        merged.starts_at,
-        merged.ends_at,
-        merged.all_day,
-        merged.timezone,
-        merged.recurrence,
-        merged.color,
-        merged.origin,
-        now,
-        existing.id,
-      )
-      .run();
+    await db
+      .update(entitiesTable)
+      .set({
+        description: merged.description,
+        latitude: merged.latitude,
+        longitude: merged.longitude,
+        radius_meters: merged.radius_meters,
+        address: merged.address,
+        starts_at: merged.starts_at,
+        ends_at: merged.ends_at,
+        all_day: merged.all_day,
+        timezone: merged.timezone,
+        recurrence: merged.recurrence,
+        color: merged.color,
+        origin: merged.origin,
+        updated_at: now,
+      })
+      .where(eq(entitiesTable.id, existing.id));
     return merged;
   }
 
@@ -132,42 +137,18 @@ export async function resolveEntity(
     updated_at: now,
   };
 
-  await env.DB.prepare(
-    `INSERT INTO entities
-      (id, user_id, type, name, normalized_key, description, latitude, longitude,
-       radius_meters, address, starts_at, ends_at, all_day, timezone, recurrence,
-       color, origin, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(user_id, type, normalized_key) DO NOTHING`,
-  )
-    .bind(
-      row.id,
-      row.user_id,
-      row.type,
-      row.name,
-      row.normalized_key,
-      row.description,
-      row.latitude,
-      row.longitude,
-      row.radius_meters,
-      row.address,
-      row.starts_at,
-      row.ends_at,
-      row.all_day,
-      row.timezone,
-      row.recurrence,
-      row.color,
-      row.origin,
-      row.created_at,
-      row.updated_at,
-    )
-    .run();
+  await db
+    .insert(entitiesTable)
+    .values(row)
+    .onConflictDoNothing({
+      target: [
+        entitiesTable.user_id,
+        entitiesTable.type,
+        entitiesTable.normalized_key,
+      ],
+    });
 
-  const stored = await env.DB.prepare(
-    "SELECT * FROM entities WHERE user_id = ? AND type = ? AND normalized_key = ?",
-  )
-    .bind(userId, input.type, normalizedKey)
-    .first<EntityRow>();
+  const stored = await db.select().from(entitiesTable).where(identity).get();
   return stored ?? row;
 }
 
@@ -183,29 +164,27 @@ export async function attachEntityToNote(
     mention?: string | null;
   },
 ): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO note_entities (note_id, entity_id, role, confidence, origin, status, mention, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(note_id, entity_id, role) DO UPDATE SET
-       confidence = MAX(note_entities.confidence, excluded.confidence),
-       status = CASE
-         WHEN note_entities.origin = 'user' THEN note_entities.status
-         ELSE excluded.status
-       END,
-       origin = CASE WHEN excluded.origin = 'user' THEN 'user' ELSE note_entities.origin END,
-       mention = COALESCE(excluded.mention, note_entities.mention)`,
-  )
-    .bind(
-      noteId,
-      entityId,
-      options.role,
-      options.confidence ?? 1,
-      options.origin,
-      options.status,
-      options.mention ?? null,
-      new Date().toISOString(),
-    )
-    .run();
+  await database(env)
+    .insert(noteEntities)
+    .values({
+      note_id: noteId,
+      entity_id: entityId,
+      role: options.role,
+      confidence: options.confidence ?? 1,
+      origin: options.origin,
+      status: options.status,
+      mention: options.mention ?? null,
+      created_at: new Date().toISOString(),
+    })
+    .onConflictDoUpdate({
+      target: [noteEntities.note_id, noteEntities.entity_id, noteEntities.role],
+      set: {
+        confidence: sql`max(${noteEntities.confidence}, excluded.confidence)`,
+        status: sql`case when ${noteEntities.origin} = 'user' then ${noteEntities.status} else excluded.status end`,
+        origin: sql`case when excluded.origin = 'user' then 'user' else ${noteEntities.origin} end`,
+        mention: sql`coalesce(excluded.mention, ${noteEntities.mention})`,
+      },
+    });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -546,15 +525,17 @@ export async function resetProcessingSteps(
   env: Env,
   noteId: string,
 ): Promise<void> {
-  await env.DB.prepare("DELETE FROM note_processing_steps WHERE note_id = ?")
-    .bind(noteId)
-    .run();
-  await env.DB.batch(
-    PROCESSING_STAGES.map((stage) =>
-      env.DB.prepare(
-        "INSERT INTO note_processing_steps (id, note_id, stage, status) VALUES (?, ?, ?, 'pending')",
-      ).bind(crypto.randomUUID(), noteId, stage),
-    ),
+  const db = database(env);
+  await db
+    .delete(noteProcessingSteps)
+    .where(eq(noteProcessingSteps.note_id, noteId));
+  await db.insert(noteProcessingSteps).values(
+    PROCESSING_STAGES.map((stage) => ({
+      id: crypto.randomUUID(),
+      note_id: noteId,
+      stage,
+      status: "pending" as const,
+    })),
   );
 }
 
@@ -566,14 +547,21 @@ export async function markStep(
   detail?: string | null,
 ): Promise<void> {
   const now = new Date().toISOString();
-  await env.DB.prepare(
-    `UPDATE note_processing_steps
-        SET status = ?,
-            detail = COALESCE(?, detail),
-            started_at = CASE WHEN ? = 'running' THEN ? ELSE started_at END,
-            finished_at = CASE WHEN ? IN ('completed', 'failed', 'skipped') THEN ? ELSE finished_at END
-      WHERE note_id = ? AND stage = ?`,
-  )
-    .bind(status, detail ?? null, status, now, status, now, noteId, stage)
-    .run();
+  await database(env)
+    .update(noteProcessingSteps)
+    .set({
+      status,
+      detail: sql`coalesce(${detail ?? null}, ${noteProcessingSteps.detail})`,
+      started_at:
+        status === "running" ? now : sql`${noteProcessingSteps.started_at}`,
+      finished_at: ["completed", "failed", "skipped"].includes(status)
+        ? now
+        : sql`${noteProcessingSteps.finished_at}`,
+    })
+    .where(
+      and(
+        eq(noteProcessingSteps.note_id, noteId),
+        eq(noteProcessingSteps.stage, stage),
+      ),
+    );
 }

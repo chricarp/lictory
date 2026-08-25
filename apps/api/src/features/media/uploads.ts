@@ -58,6 +58,17 @@ export function safeFileName(name: string): string {
   return normalized.replace(/^-+|-+$/g, "").slice(0, 120) || "upload";
 }
 
+/**
+ * Returns the browser-facing API origin. Behind the local HTTPS proxy, the
+ * Worker sees an HTTP upstream request, so the request URL is only a fallback.
+ */
+export function publicApiOrigin(env: Env, requestOrigin: string): string {
+  const configuredOrigin = env.BETTER_AUTH_URL.trim();
+  return configuredOrigin
+    ? new URL(configuredOrigin).origin
+    : new URL(requestOrigin).origin;
+}
+
 export async function createPresignedUpload(
   env: Env,
   objectKey: string,
@@ -143,7 +154,7 @@ export async function createUploadSlot(env: Env, input: CreateUploadSlotInput) {
 
   const upload = localUpload
     ? {
-        url: `${input.requestOrigin}/uploads/local/${id}`,
+        url: `${publicApiOrigin(env, input.requestOrigin)}/uploads/local/${id}`,
         headers: {
           "content-type": input.contentType,
           "x-upload-token": uploadToken!,
@@ -173,7 +184,11 @@ export async function createUploadSlot(env: Env, input: CreateUploadSlotInput) {
 const MEDIA_URL_TTL_SECONDS = 60 * 60;
 
 function signingSecret(env: Env): string {
-  return env.BETTER_AUTH_SECRET ?? `lictory-local-media-${env.ENVIRONMENT}`;
+  const configuredSecret = env.BETTER_AUTH_SECRET?.trim();
+  if (configuredSecret) return configuredSecret;
+  if (env.ENVIRONMENT === "development")
+    return "lictory-local-media-development";
+  throw new Error("BETTER_AUTH_SECRET is required to sign private media URLs");
 }
 
 async function hmac(env: Env, payload: string): Promise<string> {

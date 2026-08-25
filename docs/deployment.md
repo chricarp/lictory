@@ -43,6 +43,12 @@ pnpm run db:migrate:remote
 pnpm run deploy
 ```
 
+Schema changes start in
+`apps/api/src/infrastructure/database/schema.ts`. Run `pnpm run db:generate`
+from `apps/api`, review the generated append-only SQL, and test it with
+`pnpm run db:migrate:local` before intentionally applying it remotely. Drizzle
+Kit generates and checks migrations; Wrangler applies them to D1.
+
 Attach `api.lictory.com` as the API Worker's custom domain. Update `ALLOWED_ORIGINS` for preview domains through a Wrangler environment or deployment configuration rather than broadening it to `*`.
 
 ## 2. Configure R2 CORS

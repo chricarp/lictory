@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/keybinding";
 import type { AnimatedIconHandle } from "@/lib/use-icon-animation";
 import { authClient } from "@/lib/auth-client";
+import { useHasLocalCapture } from "@/lib/local-capture";
 import { cn } from "@/lib/utils";
 
 type AnimatedSidebarIcon = React.ForwardRefExoticComponent<
@@ -166,9 +167,11 @@ function AccountMenu() {
 function NavLink({
   item,
   onNavigate,
+  captureInProgress = false,
 }: {
   item: NavItem;
   onNavigate?: () => void;
+  captureInProgress?: boolean;
 }) {
   const pathname = usePathname();
   const active =
@@ -183,6 +186,11 @@ function NavLink({
   return (
     <Link
       href={item.href}
+      aria-label={
+        item.href === "/app" && captureInProgress
+          ? `${item.label}, unsaved capture in progress`
+          : item.label
+      }
       onClick={() => {
         iconRef.current?.startAnimation();
         onNavigate?.();
@@ -206,6 +214,12 @@ function NavLink({
             active ? "text-foreground [&_path]:stroke-[2.25]" : "text-muted",
           )}
         />
+        {item.href === "/app" && captureInProgress ? (
+          <span
+            aria-hidden="true"
+            className="absolute right-0 top-0 size-2 rounded-full bg-ember-bright shadow-[0_0_6px_rgb(var(--ember)/0.55)]"
+          />
+        ) : null}
       </span>
       <span className="relative lg:hidden xl:inline">{item.label}</span>
       {item.shortcut ? (
@@ -225,6 +239,9 @@ export function SidebarContent({
   onNavigate?: () => void;
   onSearch: () => void;
 }) {
+  const { data: session } = authClient.useSession();
+  const captureInProgress = useHasLocalCapture(session?.user.id);
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       <Link
@@ -261,7 +278,12 @@ export function SidebarContent({
 
       <nav className="flex flex-col items-start gap-0.5">
         {PRIMARY_NAV.map((item) => (
-          <NavLink key={item.href} item={item} onNavigate={onNavigate} />
+          <NavLink
+            key={item.href}
+            item={item}
+            onNavigate={onNavigate}
+            captureInProgress={captureInProgress}
+          />
         ))}
       </nav>
 
