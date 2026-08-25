@@ -4,6 +4,7 @@ import type { EntityType, Note } from "@lictory/contracts";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowRight,
+  CalendarClock,
   Check,
   GitBranch,
   Pencil,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ai/primitives";
 import { EntityChip } from "@/components/entities/entity-chip";
 import { EntityPicker } from "@/components/entities/entity-picker";
+import { AttachmentPreview } from "@/components/notes/attachment-preview";
 import { AttachmentTile } from "@/components/notes/attachment-tile";
 import { Markdown } from "@/components/notes/markdown";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
@@ -39,6 +41,8 @@ import {
   ENTITY_META,
   NOTE_STATUS_META,
   ROLE_LABEL,
+  entityHref,
+  formatEntityTime,
   relativeTime,
 } from "@/lib/entities";
 import { cn } from "@/lib/utils";
@@ -64,6 +68,7 @@ export function NoteDetail({
   const [editing, setEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [previewId, setPreviewId] = React.useState<string | null>(null);
 
   // While not editing the form mirrors the server copy, so a background poll
   // that adds an AI-suggested title shows up immediately. Once editing starts
@@ -129,8 +134,18 @@ export function NoteDetail({
     (item) => item.status === "suggested",
   ).length;
 
-  const images = note.attachments.filter((item) => item.kind === "image");
-  const others = note.attachments.filter((item) => item.kind !== "image");
+  // `position` is the order the user attached things in; respect it.
+  const attachments = [...note.attachments].sort(
+    (a, b) => a.position - b.position,
+  );
+  const images = attachments.filter((item) => item.kind === "image");
+  const others = attachments.filter((item) => item.kind !== "image");
+  const previewIndex = previewId
+    ? attachments.findIndex((item) => item.id === previewId)
+    : -1;
+  const times = note.entities.filter(
+    (item) => item.entity.type === "time" && item.status !== "rejected",
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -229,6 +244,17 @@ export function NoteDetail({
           </motion.div>
         ) : null}
 
+        {note.aiAnalysis && !editing ? (
+          <section className="mb-6">
+            <h2 className="mb-2 text-sm font-semibold tracking-tight text-foreground">
+              Rundown
+            </h2>
+            <Markdown className="rounded-lg border border-hairline bg-surface p-5 text-sm">
+              {note.aiAnalysis}
+            </Markdown>
+          </section>
+        ) : null}
+
         {note.status === "failed" && note.aiError ? (
           <div className="mb-5 flex items-start gap-2.5 rounded-md border border-[rgb(var(--danger)/0.3)] bg-[rgb(var(--danger)/0.08)] p-4 text-sm text-danger">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
@@ -268,6 +294,7 @@ export function NoteDetail({
               <AttachmentTile
                 key={attachment.id}
                 attachment={attachment}
+                onPreview={() => setPreviewId(attachment.id)}
                 onRemove={
                   editing
                     ? () =>
@@ -288,6 +315,7 @@ export function NoteDetail({
               <AttachmentTile
                 key={attachment.id}
                 attachment={attachment}
+                onPreview={() => setPreviewId(attachment.id)}
                 onRemove={
                   editing
                     ? () =>
@@ -300,6 +328,62 @@ export function NoteDetail({
               />
             ))}
           </div>
+        ) : null}
+
+        {times.length > 0 ? (
+          <section className="mt-8">
+            <h2 className="mb-3 inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
+              <CalendarClock className="size-3.5 text-subtle" />
+              Dates & reminders
+              <span className="text-xs font-normal text-subtle">
+                {times.length}
+              </span>
+            </h2>
+            <div className="flex flex-col gap-2">
+              {times.map((item) => {
+                const entity = item.entity;
+                const reason =
+                  entity.reminderReason ?? entity.description ?? item.mention;
+                return (
+                  <Link
+                    key={entity.id}
+                    href={entityHref(entity.id)}
+                    className="rounded-lg border border-hairline bg-surface p-4 transition-colors hover:border-hairline-strong hover:bg-surface-strong"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[0.8125rem] font-medium text-foreground">
+                          {entity.name}
+                        </p>
+                        {entity.startsAt ? (
+                          <p className="mt-0.5 text-xs text-muted">
+                            {formatEntityTime(entity.startsAt, entity.allDay)}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-[0.625rem] font-medium uppercase tracking-[0.08em]",
+                          entity.needsReminder
+                            ? "border-[rgb(var(--ember)/0.35)] bg-[rgb(var(--ember)/0.1)] text-ember-bright"
+                            : "border-hairline text-subtle",
+                        )}
+                      >
+                        {entity.needsReminder
+                          ? "Reminder suggested"
+                          : (entity.timeKind ?? "Date")}
+                      </span>
+                    </div>
+                    {reason ? (
+                      <p className="mt-2 text-xs leading-relaxed text-subtle">
+                        {reason}
+                      </p>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         {/* ------------------------- Related notes --------------------------- */}
@@ -371,25 +455,11 @@ export function NoteDetail({
       </div>
 
       {/* ------------------------------ Sidebar ------------------------------ */}
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
-        {note.status !== "draft" && note.status !== "ready" ? (
-          <ProcessingPipeline steps={note.steps} status={note.status} />
-        ) : null}
-
-        {note.status === "ready" && note.steps.length > 0 ? (
-          <details className="group rounded-lg border border-hairline bg-surface">
-            <summary className="cursor-pointer list-none px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-subtle transition-colors hover:text-foreground">
-              Note details
-            </summary>
-            <div className="px-2 pb-2">
-              <ProcessingPipeline
-                steps={note.steps}
-                status={note.status}
-                className="border-0 bg-transparent"
-              />
-            </div>
-          </details>
-        ) : null}
+      {/* min-w-0: at mobile the grid collapses to one column, and without this
+          the aside's automatic minimum size sizes the track to its widest
+          entity chip, pushing the whole page sideways. */}
+      <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
+        <ProcessingPipeline steps={note.steps} status={note.status} />
 
         <div className="rounded-lg border border-hairline bg-surface p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -484,6 +554,13 @@ export function NoteDetail({
           });
           onChange(updated);
         }}
+      />
+
+      <AttachmentPreview
+        attachments={attachments}
+        index={previewIndex === -1 ? null : previewIndex}
+        onIndexChange={(next) => setPreviewId(attachments[next]?.id ?? null)}
+        onClose={() => setPreviewId(null)}
       />
     </div>
   );

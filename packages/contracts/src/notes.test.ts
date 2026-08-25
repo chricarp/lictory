@@ -51,7 +51,14 @@ describe("extractionSchema", () => {
       summary: "Coffee at Bar Luce",
       people: [{ name: "Marta", mention: "with Marta", confidence: 0.9 }],
       places: [{ name: "Bar Luce", latitude: 45.4642, longitude: 9.19 }],
-      times: [{ label: "Thursday", startsAt: "2026-03-14T18:30:00Z" }],
+      times: [
+        {
+          label: "Thursday",
+          startsAt: "2026-03-14T18:30:00Z",
+          kind: "event",
+          needsReminder: false,
+        },
+      ],
       organizations: [],
       topics: [{ name: "launch" }],
     });

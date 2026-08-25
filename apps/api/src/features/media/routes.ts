@@ -42,12 +42,17 @@ publicMedia.get("/media/:assetId", async (c) => {
   const object = await c.env.MEDIA_BUCKET.get(row.object_key);
   if (!object) return c.json(errorBody("media_not_found", "Not found"), 404);
 
+  // `?d=1` asks the browser to save rather than render. The signature covers the
+  // asset, the user and the expiry, so this presentation hint is not signed: it
+  // cannot widen what the capability URL already grants.
+  const disposition = c.req.query("d") === "1" ? "attachment" : "inline";
+
   return new Response(object.body, {
     headers: {
       "content-type": row.content_type,
       "content-length": String(row.byte_size),
       "cache-control": "private, max-age=3600",
-      "content-disposition": `inline; filename="${safeFileName(row.original_name)}"`,
+      "content-disposition": `${disposition}; filename="${safeFileName(row.original_name)}"`,
     },
   });
 });
@@ -107,7 +112,7 @@ media.post("/uploads", async (c) => {
       400,
     );
   }
-  if (!mediaKindFor(parsed.data.contentType)) {
+  if (!mediaKindFor(parsed.data.contentType, parsed.data.fileName)) {
     return c.json(
       errorBody(
         "unsupported_media_type",

@@ -8,6 +8,7 @@ import type {
   CreateTriggerRequest,
   CreateUploadRequest,
   CreateUploadResponse,
+  DuplicateSuspicion,
   Entity,
   EntityInput,
   EntityType,
@@ -16,6 +17,7 @@ import type {
   ListNotesResponse,
   LocationEventRequest,
   MediaAsset,
+  MomentRangeResponse,
   Note,
   NoteSummary,
   RegisterDeviceRequest,
@@ -194,8 +196,18 @@ export function createLictoryClient(options: LictoryClientOptions) {
 
     /* ------------------------- Entities & graph -------------------------- */
 
-    listEntities: (query: { type?: EntityType; q?: string } = {}) =>
-      request<{ entities: Entity[] }>(`/v1/entities${queryString(query)}`),
+    listEntities: (
+      query: { type?: EntityType; types?: EntityType[]; q?: string } = {},
+    ) =>
+      request<{ entities: Entity[] }>(
+        `/v1/entities${queryString({
+          type: query.type,
+          // The API takes a comma-separated list so one directory can render
+          // more than one kind in a single request.
+          types: query.types?.join(","),
+          q: query.q,
+        })}`,
+      ),
 
     createEntity: (input: EntityInput) =>
       request<{ entity: Entity }>("/v1/entities", {
@@ -208,6 +220,7 @@ export function createLictoryClient(options: LictoryClientOptions) {
         entity: Entity;
         notes: NoteSummary[];
         related: Entity[];
+        duplicates: DuplicateSuspicion[];
       }>(`/v1/entities/${entityId}`),
 
     updateEntity: (entityId: string, input: UpdateEntityRequest) =>
@@ -225,7 +238,31 @@ export function createLictoryClient(options: LictoryClientOptions) {
         body: JSON.stringify({ sourceId }),
       }),
 
+    /** Pairs the resolver could not separate confidently, awaiting a human. */
+    listDuplicates: () =>
+      request<{ duplicates: DuplicateSuspicion[] }>("/v1/entities/duplicates"),
+
+    /** Sweeps the existing graph for pairs that look like the same thing. */
+    scanDuplicates: () =>
+      request<{ found: number }>("/v1/entities/duplicates/scan", {
+        method: "POST",
+      }),
+
+    dismissDuplicate: (duplicateId: string) =>
+      request<void>(`/v1/entities/duplicates/${duplicateId}/dismiss`, {
+        method: "POST",
+      }),
+
     graph: () => request<GraphOverview>("/v1/graph"),
+
+    /**
+     * Every moment occurring in a window, with repeats already expanded. The
+     * calendar asks by range rather than paging the entity directory, because a
+     * birthday recorded in 1990 is not near the top of any list sorted by
+     * anything other than when it next happens.
+     */
+    listMoments: (range: { from: string; to: string }) =>
+      request<MomentRangeResponse>(`/v1/moments${queryString(range)}`),
 
     search: (q: string) =>
       request<{ notes: NoteSummary[]; entities: Entity[] }>(
@@ -322,6 +359,16 @@ export function createLictoryClient(options: LictoryClientOptions) {
       request<{ trigger: Trigger }>("/v1/triggers", {
         method: "POST",
         body: JSON.stringify(input),
+      }),
+
+    /**
+     * Switches a reminder off, or back on. Works for reminders the
+     * understanding pipeline armed on its own as well as hand-made ones.
+     */
+    setTriggerStatus: (triggerId: string, status: "active" | "cancelled") =>
+      request<{ trigger: Trigger }>(`/v1/triggers/${triggerId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
       }),
 
     registerDevice: (input: RegisterDeviceRequest) =>

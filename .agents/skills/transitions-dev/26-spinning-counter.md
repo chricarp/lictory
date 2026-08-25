@@ -9,7 +9,8 @@ Reach for this over **number pop-in** when the change should feel like an event 
 ## HTML usage
 
 ```html
-<div class="t-reel"></div>  <!-- reels built in JS -->
+<div class="t-reel"></div>
+<!-- reels built in JS -->
 ```
 
 Build one .t-reel-col per digit, each clipping a strip
@@ -21,13 +22,13 @@ to 0 per column as each reel settles.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--reel-dur` | `1400ms` | sourced from `--p26-dur` |
-| `--reel-cell` | `30px` | sourced from `--p26-cell` |
-| `--reel-spin-blur` | `3px` | sourced from `--p26-spin-blur` |
-| `--reel-stagger` | `90ms` | sourced from `--p26-stagger` |
-| `--reel-ease` | `cubic-bezier(0.16, 1, 0.3, 1)` | sourced from `--p26-ease` |
+| Variable           | Default                         | Notes                          |
+| ------------------ | ------------------------------- | ------------------------------ |
+| `--reel-dur`       | `1400ms`                        | sourced from `--p26-dur`       |
+| `--reel-cell`      | `30px`                          | sourced from `--p26-cell`      |
+| `--reel-spin-blur` | `3px`                           | sourced from `--p26-spin-blur` |
+| `--reel-stagger`   | `90ms`                          | sourced from `--p26-stagger`   |
+| `--reel-ease`      | `cubic-bezier(0.16, 1, 0.3, 1)` | sourced from `--p26-ease`      |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -44,22 +45,53 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 ## CSS
 
 ```css
-.t-reel { display: inline-flex; align-items: center; height: var(--reel-cell); font-variant-numeric: tabular-nums; }
-.t-reel-col {
-  position: relative; height: var(--reel-cell); overflow: hidden;
-  /* Soft-fade the window edges instead of hard-cropping. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+.t-reel {
+  display: inline-flex;
+  align-items: center;
+  height: var(--reel-cell);
+  font-variant-numeric: tabular-nums;
 }
-.t-reel-strip { display: flex; flex-direction: column; will-change: transform, filter; }
-.t-reel-digit { height: var(--reel-cell); display: flex; align-items: center; justify-content: center; }
+.t-reel-col {
+  position: relative;
+  height: var(--reel-cell);
+  overflow: hidden;
+  /* Soft-fade the window edges instead of hard-cropping. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 22%,
+    #000 78%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 22%,
+    #000 78%,
+    transparent 100%
+  );
+}
+.t-reel-strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform, filter;
+}
+.t-reel-digit {
+  height: var(--reel-cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 /* JS drives the tween: strip.style.transition =
      'transform var(--reel-dur) var(--reel-ease) ' + (col*var(--reel-stagger)) + 'ms';
    and decays each column's feGaussianBlur stdDeviation from
    var(--reel-spin-blur) to 0 over its own window. */
 
 @media (prefers-reduced-motion: reduce) {
-  .t-reel-strip { transition: none !important; filter: none !important; }
+  .t-reel-strip {
+    transition: none !important;
+    filter: none !important;
+  }
 }
 ```
 
@@ -68,4 +100,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

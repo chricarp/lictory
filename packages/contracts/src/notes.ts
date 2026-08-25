@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { momentRecurrenceSchema } from "./moments";
+
 /* -------------------------------------------------------------------------- */
 /*                                 Attachments                                */
 /* -------------------------------------------------------------------------- */
@@ -53,6 +55,120 @@ export type EntityType = z.infer<typeof entityTypeSchema>;
 export const originSchema = z.enum(["ai", "user"]);
 export type Origin = z.infer<typeof originSchema>;
 
+export const timeKindSchema = z.enum(["date", "event", "deadline", "reminder"]);
+export type TimeKind = z.infer<typeof timeKindSchema>;
+
+/* ------------------------------ Place facet ------------------------------ */
+
+/** How specific a place's coordinates are, which governs how far they can be trusted. */
+export const placePrecisionSchema = z.enum([
+  "exact",
+  "street",
+  "locality",
+  "region",
+  "country",
+  "unknown",
+]);
+export type PlacePrecision = z.infer<typeof placePrecisionSchema>;
+
+/** Where a place's coordinates came from. `user` outranks everything else. */
+export const placeSourceSchema = z.enum([
+  "model",
+  "inherited",
+  "geocoder",
+  "user",
+]);
+export type PlaceSource = z.infer<typeof placeSourceSchema>;
+
+export const addressPartsSchema = z.object({
+  street: z.string().nullable(),
+  locality: z.string().nullable(),
+  region: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  country: z.string().nullable(),
+});
+export type AddressParts = z.infer<typeof addressPartsSchema>;
+
+/**
+ * The normalized form of a place, kept in its own table so an address is
+ * queryable structure rather than a free-text string. `parentEntityId` records
+ * the broader place a coordinate was inherited from, so an inherited position
+ * is always explainable and can be re-derived if the parent is corrected.
+ */
+export const entityPlaceSchema = addressPartsSchema.extend({
+  formattedAddress: z.string().nullable(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  geohash: z.string().nullable(),
+  precision: placePrecisionSchema,
+  source: placeSourceSchema,
+  parentEntityId: z.string().nullable(),
+});
+export type EntityPlace = z.infer<typeof entityPlaceSchema>;
+
+export const updatePlaceRequestSchema = addressPartsSchema.partial().extend({
+  formattedAddress: z.string().trim().max(400).nullish(),
+});
+export type UpdatePlaceRequest = z.infer<typeof updatePlaceRequestSchema>;
+
+/* ----------------------------- Moment facet ------------------------------ */
+
+/** How specific an extracted timestamp is. Imprecise moments are never scheduled. */
+export const momentPrecisionSchema = z.enum([
+  "minute",
+  "day",
+  "month",
+  "year",
+  "unknown",
+]);
+export type MomentPrecision = z.infer<typeof momentPrecisionSchema>;
+
+/**
+ * The normalized form of a moment. `kind` is its objective — plain context, a
+ * thing that happens, a thing that is due, or an explicit ask to be reminded —
+ * and `remindAt` is the instant derived from that objective. `triggerId` is the
+ * armed notification, present only when one is actually scheduled.
+ */
+export const entityMomentSchema = z.object({
+  kind: timeKindSchema,
+  precision: momentPrecisionSchema,
+  /**
+   * The moment's own timing. These are authoritative: the matching columns on
+   * `entities` are a legacy mirror kept only so older clients keep reading.
+   */
+  startsAt: z.string().nullable(),
+  endsAt: z.string().nullable(),
+  allDay: z.boolean(),
+  timezone: z.string().nullable(),
+  /**
+   * The evaluated schedule. A birthday is a yearly, all-day moment anchored in
+   * the past rather than a distinct kind of thing.
+   */
+  recurrence: momentRecurrenceSchema.nullable(),
+  /**
+   * The first occurrence at or after the moment was last written. This is the
+   * column the calendar sorts by, so a one-off and the next instance of a
+   * repeating moment answer the same question the same way.
+   */
+  nextOccurrenceAt: z.string().nullable(),
+  needsReminder: z.boolean(),
+  remindAt: z.string().nullable(),
+  triggerId: z.string().nullable(),
+  /**
+   * Whether a notification is actually scheduled. A moment keeps pointing at a
+   * cancelled trigger on purpose — that link is the record of a human turning
+   * the reminder off, and it is what stops re-processing from arming a new one.
+   */
+  armed: z.boolean(),
+  reminderReason: z.string().nullable(),
+});
+export type EntityMoment = z.infer<typeof entityMomentSchema>;
+
+/* --------------------------- Duplicate review ---------------------------- */
+
+export const duplicateStatusSchema = z.enum(["open", "dismissed", "merged"]);
+export type DuplicateStatus = z.infer<typeof duplicateStatusSchema>;
+
 export const entitySchema = z.object({
   id: z.string(),
   type: entityTypeSchema,
@@ -70,14 +186,37 @@ export const entitySchema = z.object({
   allDay: z.boolean(),
   timezone: z.string().nullable(),
   recurrence: z.string().nullable(),
+  timeKind: timeKindSchema.nullable(),
+  needsReminder: z.boolean(),
+  reminderReason: z.string().nullable(),
   /* presentation */
   color: z.string().nullable(),
   origin: originSchema,
   noteCount: z.number().int().nonnegative().optional(),
+  /**
+   * Normalized facets. Present only for the type they belong to, and only once
+   * the resolver has run — a hand-created place has an address string before it
+   * has structure.
+   */
+  place: entityPlaceSchema.nullish(),
+  moment: entityMomentSchema.nullish(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 export type Entity = z.infer<typeof entitySchema>;
+
+/** A pair the resolver thinks might be the same node, awaiting a human. */
+export const duplicateSuspicionSchema = z.object({
+  id: z.string(),
+  type: entityTypeSchema,
+  score: z.number().min(0).max(1),
+  reason: z.string().nullable(),
+  status: duplicateStatusSchema,
+  entity: entitySchema,
+  candidate: entitySchema,
+  createdAt: z.string(),
+});
+export type DuplicateSuspicion = z.infer<typeof duplicateSuspicionSchema>;
 
 export const entityInputSchema = z.object({
   type: entityTypeSchema,
@@ -87,11 +226,23 @@ export const entityInputSchema = z.object({
   longitude: z.number().min(-180).max(180).nullish(),
   radiusMeters: z.number().int().min(25).max(200_000).nullish(),
   address: z.string().trim().max(400).nullish(),
+  /* structured place — lets a human correct what the resolver deduced */
+  street: z.string().trim().max(200).nullish(),
+  locality: z.string().trim().max(120).nullish(),
+  region: z.string().trim().max(120).nullish(),
+  postalCode: z.string().trim().max(32).nullish(),
+  country: z.string().trim().max(120).nullish(),
   startsAt: z.string().trim().max(64).nullish(),
   endsAt: z.string().trim().max(64).nullish(),
   allDay: z.boolean().nullish(),
   timezone: z.string().trim().max(64).nullish(),
+  /** Free-text schedule as written or extracted; parsed server-side. */
   recurrence: z.string().trim().max(200).nullish(),
+  /** Structured schedule. Wins over `recurrence` when both are supplied. */
+  recurrenceRule: momentRecurrenceSchema.nullish(),
+  timeKind: timeKindSchema.nullish(),
+  needsReminder: z.boolean().nullish(),
+  reminderReason: z.string().trim().max(1_000).nullish(),
   color: z
     .string()
     .trim()
@@ -235,7 +386,9 @@ export const noteSummarySchema = z.object({
   excerpt: z.string(),
   status: noteStatusSchema,
   aiSummary: z.string().nullable(),
+  aiAnalysis: z.string().nullable(),
   aiError: z.string().nullable(),
+  captureTimezone: z.string(),
   occurredAt: z.string().nullable(),
   pinned: z.boolean(),
   counts: z.object({
@@ -276,6 +429,7 @@ export const createNoteRequestSchema = z.object({
   title: z.string().trim().max(200).nullish(),
   bodyMarkdown: z.string().max(100_000).optional(),
   occurredAt: z.string().trim().max(64).nullish(),
+  captureTimezone: z.string().trim().min(1).max(64).optional(),
 });
 export type CreateNoteRequest = z.infer<typeof createNoteRequestSchema>;
 
@@ -321,6 +475,23 @@ export const listNotesResponseSchema = z.object({
 });
 export type ListNotesResponse = z.infer<typeof listNotesResponseSchema>;
 
+/**
+ * `type` stays for compatibility with the Expo client. `types` is the
+ * comma-separated form the directories use, so People can render People and
+ * Organisations from a single request instead of two racing ones.
+ */
+export const listEntitiesQuerySchema = z.object({
+  type: entityTypeSchema.optional(),
+  types: z
+    .string()
+    .trim()
+    .transform((value) => value.split(",").map((part) => part.trim()))
+    .pipe(z.array(entityTypeSchema).min(1).max(5))
+    .optional(),
+  q: z.string().trim().max(200).optional(),
+});
+export type ListEntitiesQuery = z.infer<typeof listEntitiesQuerySchema>;
+
 /* -------------------------------------------------------------------------- */
 /*                          Structured AI extraction                          */
 /* -------------------------------------------------------------------------- */
@@ -333,10 +504,12 @@ export type ListNotesResponse = z.infer<typeof listNotesResponseSchema>;
 export const extractionSchema = z.object({
   title: z.string().max(200).nullish(),
   summary: z.string().max(1_000).nullish(),
+  analysis: z.string().max(6_000).nullish(),
   people: z
     .array(
       z.object({
         name: z.string().max(200),
+        description: z.string().max(1_000).nullish(),
         mention: z.string().max(280).nullish(),
         confidence: z.number().min(0).max(1).nullish(),
       }),
@@ -349,6 +522,7 @@ export const extractionSchema = z.object({
         address: z.string().max(400).nullish(),
         latitude: z.number().nullish(),
         longitude: z.number().nullish(),
+        description: z.string().max(1_000).nullish(),
         mention: z.string().max(280).nullish(),
         confidence: z.number().min(0).max(1).nullish(),
       }),
@@ -361,7 +535,11 @@ export const extractionSchema = z.object({
         startsAt: z.string().max(64).nullish(),
         endsAt: z.string().max(64).nullish(),
         allDay: z.boolean().nullish(),
+        timezone: z.string().max(64).nullish(),
         recurrence: z.string().max(200).nullish(),
+        kind: timeKindSchema,
+        needsReminder: z.boolean(),
+        reason: z.string().max(1_000).nullish(),
         mention: z.string().max(280).nullish(),
         confidence: z.number().min(0).max(1).nullish(),
       }),
@@ -371,6 +549,7 @@ export const extractionSchema = z.object({
     .array(
       z.object({
         name: z.string().max(200),
+        description: z.string().max(1_000).nullish(),
         mention: z.string().max(280).nullish(),
         confidence: z.number().min(0).max(1).nullish(),
       }),
@@ -380,6 +559,7 @@ export const extractionSchema = z.object({
     .array(
       z.object({
         name: z.string().max(200),
+        description: z.string().max(1_000).nullish(),
         confidence: z.number().min(0).max(1).nullish(),
       }),
     )

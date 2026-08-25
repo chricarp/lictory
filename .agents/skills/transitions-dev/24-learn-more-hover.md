@@ -9,11 +9,13 @@ A hover-only affordance: keyboard focus and touch fall back to the resting state
 ## HTML usage
 
 ```html
-<button class="t-learn">Learn more
-  <span class="t-learn-chevron"><svg>
-    <path class="t-learn-arm t-learn-arm-top" d="M6 4L10 8"/>
-    <path class="t-learn-arm t-learn-arm-bot" d="M10 8L6 12"/>
-  </svg></span>
+<button class="t-learn">
+  Learn more
+  <span class="t-learn-chevron"
+    ><svg>
+      <path class="t-learn-arm t-learn-arm-top" d="M6 4L10 8" />
+      <path class="t-learn-arm t-learn-arm-bot" d="M10 8L6 12" /></svg
+  ></span>
 </button>
 ```
 
@@ -23,13 +25,13 @@ returns. Pure CSS.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--learn-shift` | `2px` | sourced from `--p24-shift` |
-| `--learn-spread` | `8deg` | sourced from `--p24-spread` |
-| `--learn-in` | `350ms` | sourced from `--p24-in-dur` |
-| `--learn-out` | `350ms` | sourced from `--p24-out-dur` |
-| `--learn-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p24-ease` |
+| Variable         | Default                          | Notes                        |
+| ---------------- | -------------------------------- | ---------------------------- |
+| `--learn-shift`  | `2px`                            | sourced from `--p24-shift`   |
+| `--learn-spread` | `8deg`                           | sourced from `--p24-spread`  |
+| `--learn-in`     | `350ms`                          | sourced from `--p24-in-dur`  |
+| `--learn-out`    | `350ms`                          | sourced from `--p24-out-dur` |
+| `--learn-ease`   | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p24-ease`    |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -57,13 +59,25 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   vector-effect: non-scaling-stroke;
   transition: transform var(--learn-out) var(--learn-ease);
 }
-.t-learn:hover .t-learn-chevron { transform: translateX(var(--learn-shift)); transition-duration: var(--learn-in); }
-.t-learn:hover .t-learn-arm { transition-duration: var(--learn-in); }
-.t-learn:hover .t-learn-arm-top { transform: rotate(var(--learn-spread)); }
-.t-learn:hover .t-learn-arm-bot { transform: rotate(calc(var(--learn-spread) * -1)); }
+.t-learn:hover .t-learn-chevron {
+  transform: translateX(var(--learn-shift));
+  transition-duration: var(--learn-in);
+}
+.t-learn:hover .t-learn-arm {
+  transition-duration: var(--learn-in);
+}
+.t-learn:hover .t-learn-arm-top {
+  transform: rotate(var(--learn-spread));
+}
+.t-learn:hover .t-learn-arm-bot {
+  transform: rotate(calc(var(--learn-spread) * -1));
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .t-learn-chevron, .t-learn-arm { transition: none !important; }
+  .t-learn-chevron,
+  .t-learn-arm {
+    transition: none !important;
+  }
 }
 ```
 
@@ -72,4 +86,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

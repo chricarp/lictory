@@ -7,6 +7,7 @@ import {
   FileText,
   ImageIcon,
   Loader,
+  Maximize2,
   Pause,
   Play,
   TriangleAlert,
@@ -16,6 +17,7 @@ import * as React from "react";
 import WaveSurfer from "wavesurfer.js";
 
 import { ShimmerText } from "@/components/ai/primitives";
+import { AttachmentDownloadButton } from "@/components/notes/attachment-preview";
 import { Button } from "@/components/ui/button";
 import { getFilePresentation } from "@/lib/file-presentation";
 import { cn, formatBytes, formatDuration } from "@/lib/utils";
@@ -80,10 +82,13 @@ const DOCUMENT_TONES = {
 export function AttachmentTile({
   attachment,
   onRemove,
+  onPreview,
   compact = false,
 }: {
   attachment: AttachmentLike;
   onRemove?: () => void;
+  /** Opens the full-size preview. Omitted in the composer, where a draft has nothing to show yet. */
+  onPreview?: () => void;
   compact?: boolean;
 }) {
   const Icon = KIND_ICON[attachment.kind];
@@ -91,6 +96,7 @@ export function AttachmentTile({
   const failed =
     attachment.status === "failed" || attachment.status === "failed_upload";
   const analysing = attachment.status === "processing";
+  const canOpen = Boolean(onPreview && attachment.url);
 
   if (attachment.kind === "image") {
     return (
@@ -136,6 +142,26 @@ export function AttachmentTile({
           </div>
         ) : null}
 
+        {canOpen && !compact ? (
+          <button
+            type="button"
+            onClick={onPreview}
+            aria-label={`Preview ${attachment.fileName}`}
+            className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 outline-none transition-[opacity,background-color] duration-150 hover:bg-black/35 hover:opacity-100 focus-visible:bg-black/35 focus-visible:opacity-100"
+          >
+            <Maximize2 className="size-5 text-white drop-shadow" />
+          </button>
+        ) : null}
+
+        {!compact && attachment.url ? (
+          <div className="absolute left-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <AttachmentDownloadButton
+              attachment={attachment}
+              className="rounded-full bg-black/70 text-white hover:bg-black/85 hover:text-white"
+            />
+          </div>
+        ) : null}
+
         {onRemove ? (
           <button
             type="button"
@@ -166,6 +192,7 @@ export function AttachmentTile({
       <AudioTile
         attachment={attachment}
         onRemove={onRemove}
+        onPreview={canOpen ? onPreview : undefined}
         compact={compact}
       />
     );
@@ -213,7 +240,15 @@ export function AttachmentTile({
           </>
         )}
       </span>
-      <div className="min-w-0 flex-1">
+      {canOpen && !compact ? (
+        <button
+          type="button"
+          onClick={onPreview}
+          aria-label={`Preview ${attachment.fileName}`}
+          className="absolute inset-0 rounded-lg outline-none transition-colors hover:bg-[rgb(var(--hairline)/0.06)] focus-visible:ring-2 focus-visible:ring-[rgb(var(--ember)/0.65)]"
+        />
+      ) : null}
+      <div className="pointer-events-none min-w-0 flex-1">
         <p className="truncate text-[0.8125rem] font-medium text-foreground">
           {attachment.fileName}
         </p>
@@ -229,12 +264,19 @@ export function AttachmentTile({
           )}
         </p>
       </div>
+      {!compact ? (
+        <AttachmentDownloadButton
+          attachment={attachment}
+          className="relative shrink-0"
+        />
+      ) : null}
       {onRemove ? (
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={onRemove}
           aria-label={`Remove ${attachment.fileName}`}
+          className="relative shrink-0"
         >
           <X />
         </Button>
@@ -256,10 +298,12 @@ export function AttachmentTile({
 function AudioTile({
   attachment,
   onRemove,
+  onPreview,
   compact,
 }: {
   attachment: AttachmentLike;
   onRemove?: () => void;
+  onPreview?: () => void;
   compact: boolean;
 }) {
   const waveformRef = React.useRef<HTMLDivElement>(null);
@@ -367,6 +411,20 @@ function AudioTile({
             ? formatDuration(attachment.durationSeconds)
             : formatBytes(attachment.bytes)}
         </span>
+
+        {!compact ? <AttachmentDownloadButton attachment={attachment} /> : null}
+
+        {onPreview && !compact ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onPreview}
+            aria-label={`Preview ${attachment.fileName}`}
+            title="Open in a larger player"
+          >
+            <Maximize2 />
+          </Button>
+        ) : null}
 
         {onRemove ? (
           <Button

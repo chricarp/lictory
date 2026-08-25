@@ -8,6 +8,8 @@ import type {
   Trigger,
 } from "@lictory/contracts";
 
+import { momentRecord } from "../../features/entities/moments";
+import { placeRecord } from "../../features/entities/places";
 import type {
   EntityRow,
   MediaRow,
@@ -59,14 +61,23 @@ export const entityRecord = (row: EntityRow): Entity => ({
   longitude: row.longitude,
   radiusMeters: row.radius_meters,
   address: row.address,
-  startsAt: row.starts_at,
-  endsAt: row.ends_at,
-  allDay: row.all_day === 1,
-  timezone: row.timezone,
-  recurrence: row.recurrence,
+  // The moment facet is authoritative for timing; the columns on `entities`
+  // are the mirror it writes for clients that still read the flat shape.
+  startsAt: row.moment?.starts_at ?? row.starts_at,
+  endsAt: row.moment?.ends_at ?? row.ends_at,
+  allDay: (row.moment?.all_day ?? row.all_day) === 1,
+  timezone: row.moment?.timezone ?? row.timezone,
+  recurrence: row.moment?.recurrence_text ?? row.recurrence,
+  timeKind: row.moment?.kind ?? row.time_kind,
+  needsReminder: (row.moment?.needs_reminder ?? row.needs_reminder) === 1,
+  reminderReason: row.moment?.reminder_reason ?? row.reminder_reason,
   color: row.color,
   origin: row.origin,
   ...(row.note_count === undefined ? {} : { noteCount: row.note_count }),
+  // Facets are attached only by queries that hydrate them, so a list endpoint
+  // stays one round trip while a detail view gets the full structure.
+  place: row.place ? placeRecord(row.place) : null,
+  moment: row.moment ? momentRecord(row.moment) : null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -129,6 +140,9 @@ export const triggerRecord = (row: TriggerRow): Trigger => ({
   longitude: row.longitude,
   radiusMeters: row.radius_meters,
   event: row.location_event,
+  origin: row.origin,
+  noteId: row.note_id,
+  entityId: row.entity_id,
   createdAt: row.created_at,
   triggeredAt: row.triggered_at,
 });

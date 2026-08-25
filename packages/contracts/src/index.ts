@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 export * from "./geofence";
+export * from "./moments";
 export * from "./notes";
+export * from "./resolution";
 
 export const mediaKindSchema = z.enum(["image", "audio", "document"]);
 export type MediaKind = z.infer<typeof mediaKindSchema>;
@@ -98,6 +100,10 @@ export const triggerSchema = z.object({
   longitude: z.number().nullable(),
   radiusMeters: z.number().nullable(),
   event: z.enum(["enter", "exit"]).nullable(),
+  /** Whether the understanding pipeline armed this, or the user did. */
+  origin: z.enum(["ai", "user"]),
+  noteId: z.string().nullable(),
+  entityId: z.string().nullable(),
 });
 export type Trigger = z.infer<typeof triggerSchema>;
 

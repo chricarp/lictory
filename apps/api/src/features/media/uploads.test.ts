@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import type { Env } from "../../bindings";
-import { publicApiOrigin, signMediaUrl, verifyMediaUrl } from "./uploads";
+import {
+  mediaKindFor,
+  publicApiOrigin,
+  signMediaUrl,
+  verifyMediaUrl,
+} from "./uploads";
+
+describe("mediaKindFor", () => {
+  it("accepts AnyDoc formats even when the browser reports a generic MIME type", () => {
+    expect(mediaKindFor("application/octet-stream", "brief.docm")).toBe(
+      "document",
+    );
+    expect(mediaKindFor("application/octet-stream", "slides.odp")).toBe(
+      "document",
+    );
+    expect(mediaKindFor("", "book.epub")).toBe("document");
+  });
+
+  it("does not treat an arbitrary binary file as a document", () => {
+    expect(mediaKindFor("application/octet-stream", "payload.bin")).toBeNull();
+  });
+});
 
 describe("publicApiOrigin", () => {
   it("uses the configured public origin behind an HTTP upstream proxy", () => {
@@ -49,6 +70,25 @@ describe("private media URL signing", () => {
         url.searchParams.get("s"),
       ),
     ).resolves.toBe(true);
+  });
+
+  it("signs the browser-facing origin, not the proxied upstream one", async () => {
+    const env = {
+      ENVIRONMENT: "development",
+      BETTER_AUTH_SECRET: "secret",
+      BETTER_AUTH_URL: "https://api.lictory.localhost",
+    } as Env;
+
+    // The local HTTPS proxy forwards to the Worker over plain HTTP; an http URL
+    // inside an https page is blocked as mixed content, so it must not leak out.
+    const signedUrl = await signMediaUrl(
+      env,
+      "http://localhost:8787",
+      "asset-1",
+      "user-1",
+    );
+
+    expect(new URL(signedUrl).origin).toBe("https://api.lictory.localhost");
   });
 
   it("does not use a predictable fallback outside development", async () => {

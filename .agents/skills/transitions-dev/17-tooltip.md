@@ -22,16 +22,16 @@ positioning + its transition live here.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--tt-in-dur` | `150ms` | sourced from `--p17-in-dur` |
-| `--tt-out-dur` | `50ms` | sourced from `--p17-out-dur` |
-| `--tt-scale` | `0.98` | sourced from `--p17-scale-from` |
-| `--tt-delay` | `80ms` | sourced from `--p17-delay` |
-| `--tt-in-ease` | `ease-out` | sourced from `--p17-in-ease` |
-| `--tt-out-ease` | `ease-out` | sourced from `--p17-out-ease` |
-| `--tt-bg` | `#ffffff` | sourced from `--p17-bg` |
-| `--tt-fg` | `#2f2f2f` | sourced from `--p17-fg` |
+| Variable        | Default    | Notes                           |
+| --------------- | ---------- | ------------------------------- |
+| `--tt-in-dur`   | `150ms`    | sourced from `--p17-in-dur`     |
+| `--tt-out-dur`  | `50ms`     | sourced from `--p17-out-dur`    |
+| `--tt-scale`    | `0.98`     | sourced from `--p17-scale-from` |
+| `--tt-delay`    | `80ms`     | sourced from `--p17-delay`      |
+| `--tt-in-ease`  | `ease-out` | sourced from `--p17-in-ease`    |
+| `--tt-out-ease` | `ease-out` | sourced from `--p17-out-ease`   |
+| `--tt-bg`       | `#ffffff`  | sourced from `--p17-bg`         |
+| `--tt-fg`       | `#2f2f2f`  | sourced from `--p17-fg`         |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -75,7 +75,7 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   /* Default rule controls the LEAVE state. transition-delay
      stays unset so leaving plays without delay. */
   transition:
-    opacity   var(--tt-out-dur) var(--tt-out-ease),
+    opacity var(--tt-out-dur) var(--tt-out-ease),
     transform var(--tt-out-dur) var(--tt-out-ease);
 }
 /* The 50ms delay belongs ONLY to the hover rule so leaving
@@ -91,7 +91,9 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-tt { transition: none !important; }
+  .t-tt {
+    transition: none !important;
+  }
 }
 ```
 
@@ -100,4 +102,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

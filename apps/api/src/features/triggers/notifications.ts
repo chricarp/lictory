@@ -1,5 +1,6 @@
 import type { Env } from "../../bindings";
 import type { TriggerRow } from "../../infrastructure/database/rows";
+import { rearmRecurringMoment } from "../entities/moments";
 
 type DeviceTokenRow = { token: string };
 
@@ -49,4 +50,8 @@ export async function sendTriggerNotification(
   )
     .bind(now, trigger.id)
     .run();
+
+  // A repeating moment re-arms itself here rather than at write time, because
+  // "when is this next?" only has a new answer once the current one has passed.
+  await rearmRecurringMoment(env, trigger.id);
 }

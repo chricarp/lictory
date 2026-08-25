@@ -26,8 +26,9 @@ src/
 │   │   ├── routes.ts                trigger, device and location endpoints
 │   │   └── notifications.ts         push notification delivery
 │   └── understanding/
-│       ├── extraction.ts            AI Gateway/OpenAI and document adapters
-│       ├── heuristics.ts            deterministic local extraction
+│       ├── anydoc.ts                Worker-hosted document-to-Markdown WASM
+│       ├── extraction.ts            OpenAI media and Structured Outputs adapter
+│       ├── heuristics.ts            pure deterministic parser-test utility
 │       └── workflows.ts             durable processing workflows
 └── infrastructure/
     ├── database/

@@ -21,31 +21,32 @@ The snippet covers the **appear transition only** — bring your own hide behavi
 ```
 
 Trigger:
-  - Cold load is data-state="out" (opacity 0; no animation).
-  - Show: set data-state="in" (fade + rotate + blur + Y-bob
-    + path draw run in parallel).
+
+- Cold load is data-state="out" (opacity 0; no animation).
+- Show: set data-state="in" (fade + rotate + blur + Y-bob
+  - path draw run in parallel).
 
 Snippet covers the appear transition only — bring your own
 hide behavior (e.g. unmount, opacity:0, or a custom exit).
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--check-opacity-dur` | `500ms` | sourced from `--p10-opacity-dur` |
-| `--check-rotate-dur` | `500ms` | sourced from `--p10-rotate-dur` |
-| `--check-rotate-from` | `80deg` | sourced from `--p10-rotate-from` |
-| `--check-bob-dur` | `500ms` | sourced from `--p10-bob-dur` |
-| `--check-y-amount` | `40px` | sourced from `--p10-y-amount` |
-| `--check-blur-dur` | `500ms` | sourced from `--p10-blur-dur` |
-| `--check-blur-from` | `10px` | sourced from `--p10-blur-from` |
-| `--check-path-dur` | `500ms` | sourced from `--p10-path-dur` |
-| `--check-path-delay` | `80ms` | sourced from `--p10-path-delay` |
-| `--check-ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p10-ease-out` |
-| `--check-ease-opacity` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p10-ease-opacity` |
-| `--check-ease-rotate` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p10-ease-rotate` |
-| `--check-ease-bob` | `cubic-bezier(0.34, 1.35, 0.64, 1)` | sourced from `--p10-ease-bob` |
-| `--check-ease-path` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p10-ease-path` |
+| Variable               | Default                             | Notes                             |
+| ---------------------- | ----------------------------------- | --------------------------------- |
+| `--check-opacity-dur`  | `500ms`                             | sourced from `--p10-opacity-dur`  |
+| `--check-rotate-dur`   | `500ms`                             | sourced from `--p10-rotate-dur`   |
+| `--check-rotate-from`  | `80deg`                             | sourced from `--p10-rotate-from`  |
+| `--check-bob-dur`      | `500ms`                             | sourced from `--p10-bob-dur`      |
+| `--check-y-amount`     | `40px`                              | sourced from `--p10-y-amount`     |
+| `--check-blur-dur`     | `500ms`                             | sourced from `--p10-blur-dur`     |
+| `--check-blur-from`    | `10px`                              | sourced from `--p10-blur-from`    |
+| `--check-path-dur`     | `500ms`                             | sourced from `--p10-path-dur`     |
+| `--check-path-delay`   | `80ms`                              | sourced from `--p10-path-delay`   |
+| `--check-ease-out`     | `cubic-bezier(0.22, 1, 0.36, 1)`    | sourced from `--p10-ease-out`     |
+| `--check-ease-opacity` | `cubic-bezier(0.22, 1, 0.36, 1)`    | sourced from `--p10-ease-opacity` |
+| `--check-ease-rotate`  | `cubic-bezier(0.22, 1, 0.36, 1)`    | sourced from `--p10-ease-rotate`  |
+| `--check-ease-bob`     | `cubic-bezier(0.34, 1.35, 0.64, 1)` | sourced from `--p10-ease-bob`     |
+| `--check-ease-path`    | `cubic-bezier(0.22, 1, 0.36, 1)`    | sourced from `--p10-ease-path`    |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -81,7 +82,10 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 }
 /* overflow: visible keeps the stroke from clipping while it
    draws; display: block kills the inline whitespace under SVGs. */
-.t-success-check svg { display: block; overflow: visible; }
+.t-success-check svg {
+  display: block;
+  overflow: visible;
+}
 /* Stroke-draw setup. Replace 20 with the result of
    path.getTotalLength() for your path; round caps mean any
    sub-pixel overshoot is invisible. */
@@ -92,33 +96,63 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 
 .t-success-check[data-state="in"] {
   animation:
-    t-check-fade   var(--check-opacity-dur) var(--check-ease-opacity) forwards,
-    t-check-rotate var(--check-rotate-dur)  var(--check-ease-rotate)  forwards,
-    t-check-blur   var(--check-blur-dur)    var(--check-ease-out)     forwards,
-    t-check-bob    var(--check-bob-dur)     var(--check-ease-bob)     forwards;
+    t-check-fade var(--check-opacity-dur) var(--check-ease-opacity) forwards,
+    t-check-rotate var(--check-rotate-dur) var(--check-ease-rotate) forwards,
+    t-check-blur var(--check-blur-dur) var(--check-ease-out) forwards,
+    t-check-bob var(--check-bob-dur) var(--check-ease-bob) forwards;
 }
 .t-success-check[data-state="in"] svg path {
-  animation: t-check-draw var(--check-path-dur) var(--check-ease-path) var(--check-path-delay, 0ms) forwards;
+  animation: t-check-draw var(--check-path-dur) var(--check-ease-path)
+    var(--check-path-delay, 0ms) forwards;
 }
 
-@keyframes t-check-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes t-check-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 @keyframes t-check-rotate {
-  from { transform: rotate(var(--check-rotate-from)); }
-  to   { transform: rotate(0deg); }
+  from {
+    transform: rotate(var(--check-rotate-from));
+  }
+  to {
+    transform: rotate(0deg);
+  }
 }
 @keyframes t-check-blur {
-  from { filter: blur(var(--check-blur-from)); }
-  to   { filter: blur(0); }
+  from {
+    filter: blur(var(--check-blur-from));
+  }
+  to {
+    filter: blur(0);
+  }
 }
 @keyframes t-check-bob {
-  from { translate: 0 var(--check-y-amount); }
-  to   { translate: 0 0; }
+  from {
+    translate: 0 var(--check-y-amount);
+  }
+  to {
+    translate: 0 0;
+  }
 }
-@keyframes t-check-draw { to { stroke-dashoffset: 0; } }
+@keyframes t-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .t-success-check { animation: none !important; opacity: 1; }
-  .t-success-check svg path { animation: none !important; stroke-dashoffset: 0 !important; }
+  .t-success-check {
+    animation: none !important;
+    opacity: 1;
+  }
+  .t-success-check svg path {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
 }
 ```
 
@@ -152,7 +186,7 @@ The CSS hardcodes `stroke-dasharray: 20` as a placeholder. For a clean draw, rep
 1. **Static (recommended)** — measure the path in the browser console once, then paste the rounded-up integer into the CSS:
 
    ```js
-   document.querySelector(".t-success-check svg path").getTotalLength()
+   document.querySelector(".t-success-check svg path").getTotalLength();
    // → 19.42 → use stroke-dasharray: 20 (round up by 1px for safety)
    ```
 
@@ -166,4 +200,3 @@ The CSS hardcodes `stroke-dasharray: 20` as a placeholder. For a clean draw, rep
    ```
 
 If the dasharray is too short the stroke pre-reveals before the animation starts; too long and the path appears to draw past its end before fading in. Round up by 1px to absorb sub-pixel float jitter.
-

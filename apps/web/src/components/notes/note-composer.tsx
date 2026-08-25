@@ -49,7 +49,7 @@ type Draft = AttachmentLike & {
 };
 
 const FILE_ACCEPT =
-  "image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.rtf,application/pdf,text/plain,text/markdown,text/csv";
+  "image/*,audio/*,.pdf,.doc,.docm,.docx,.xls,.xlsb,.xlsm,.xlsx,.ppt,.pptm,.pptx,.pps,.ppsm,.ppsx,.pot,.odt,.ods,.odp,.rtf,.epub,.txt,.md,.csv,.json,application/pdf,text/plain,text/markdown,text/csv";
 const WAVEFORM_BARS = 52;
 const LONG_PRESS_MS = 420;
 
@@ -394,7 +394,10 @@ export function NoteComposer({
       setSubmitting(mode);
       let createdNoteId: string | null = null;
       try {
-        const { note } = await api.createNote({ bodyMarkdown: body });
+        const { note } = await api.createNote({
+          bodyMarkdown: body,
+          captureTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
         createdNoteId = note.id;
         setDrafts((current) =>
           current.map((draft) => ({

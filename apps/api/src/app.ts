@@ -4,6 +4,7 @@ import type { AppBindings } from "./bindings";
 import { createAuth } from "./features/auth/service";
 import { entityRoutes } from "./features/entities/routes";
 import { graphRoutes } from "./features/graph/routes";
+import { momentRoutes } from "./features/moments/routes";
 import { mediaRoutes, publicMediaRoutes } from "./features/media/routes";
 import { noteRoutes } from "./features/notes/routes";
 import { searchRoutes } from "./features/search/routes";
@@ -37,6 +38,7 @@ export function createApp() {
   api.use("*", requireUser);
   api.route("/notes", noteRoutes);
   api.route("/entities", entityRoutes);
+  api.route("/moments", momentRoutes);
   api.route("/graph", graphRoutes);
   api.route("/search", searchRoutes);
   api.route("/", mediaRoutes);

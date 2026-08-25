@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { EntityDirectory } from "@/components/entities/entity-directory";
+import { MomentsCalendar } from "@/components/moments/moments-calendar";
 
 export const metadata: Metadata = { title: "Moments" };
 
 export default function Page() {
+  // The calendar reads its view and focused day from the URL, and
+  // `useSearchParams` suspends on a statically rendered route.
   return (
-    <EntityDirectory
-      type="time"
-      title="Moments"
-      description="Dates, plans and moments from your notes."
-    />
+    <Suspense fallback={null}>
+      <MomentsCalendar />
+    </Suspense>
   );
 }

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AppBindings } from "../../bindings";
 import { entityRecord } from "../../infrastructure/database/records";
 import type { EntityRow } from "../../infrastructure/database/rows";
+import { hydrateFacets } from "../entities/query";
 
 const graph = new Hono<AppBindings>();
 
@@ -46,10 +47,14 @@ graph.get("/", async (c) => {
     top("person"),
     top("place"),
     top("topic", 16),
+    // Ordered by the moment's next occurrence, not its anchor, so a birthday
+    // recorded years ago still surfaces in the right place.
     c.env.DB.prepare(
-      `${WITH_NOTE_COUNT} WHERE e.user_id = ? AND e.type = 'time' AND e.starts_at IS NOT NULL
-          AND e.starts_at >= ?
-        ORDER BY e.starts_at ASC LIMIT 12`,
+      `${WITH_NOTE_COUNT}
+         JOIN entity_moments m ON m.entity_id = e.id
+        WHERE e.user_id = ? AND m.next_occurrence_at IS NOT NULL
+          AND m.next_occurrence_at >= ?
+        ORDER BY m.next_occurrence_at ASC LIMIT 12`,
     )
       .bind(userId, new Date(Date.now() - 86_400_000).toISOString())
       .all<EntityRow>(),
@@ -67,7 +72,7 @@ graph.get("/", async (c) => {
     people: people.results.map(entityRecord),
     places: places.results.map(entityRecord),
     topics: topics.results.map(entityRecord),
-    upcoming: upcoming.results.map(entityRecord),
+    upcoming: (await hydrateFacets(c.env, upcoming.results)).map(entityRecord),
   });
 });
 

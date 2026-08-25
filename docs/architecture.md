@@ -93,6 +93,10 @@ being left as free-form model output:
 notes ──< media_assets                     (attachments of any kind)
   │
   ├──< note_entities >── entities          (person | place | time | topic | organization)
+  │                        ├──< entity_aliases      (every surface form that names it)
+  │                        ├─── entity_places       (structured address + geohash)
+  │                        ├─── entity_moments      (when it happens, how it repeats)
+  │                        └──< entity_duplicates   (pairs awaiting a human)
   ├──< note_links >── notes                (semantic note-to-note relationships)
   └──< note_processing_steps               (per-stage AI state, surfaced in the UI)
 ```
@@ -102,15 +106,106 @@ person mentioned across fifty notes is one node. Newly learned attributes
 (coordinates for a place, a resolved date for a moment) enrich the existing row
 instead of forking a duplicate.
 
+### Resolution
+
+An exact key alone is too brittle to be the whole answer — it splits "OpenAI"
+from "OpenAI Inc." and "standup" from "standups". Resolution therefore decides
+identity in order of how much evidence each signal carries:
+
+1. **the identity key** — `normalizeEntityKey`, unchanged, so no existing graph
+   re-shards;
+2. **the alias index** — `entity_aliases` holds every unambiguous surface form,
+   with honorifics, legal suffixes, plurals and middle names folded away and
+   organisation acronyms expanded. This is a lookup, not a scan;
+3. **name similarity** — token-set overlap, acronym expansion and initialled
+   surnames. Only structural matches auto-merge; anything merely plausible is
+   written to `entity_duplicates` for a human;
+4. **proximity**, for places only — two records within ~150 m whose names
+   already look alike are one place written two ways.
+
+The canonicalization and scoring live in `packages/contracts/src/resolution.ts`
+as pure functions, so they are unit tested and behave identically everywhere.
+Only unambiguous variants become aliases: a bare first name would otherwise
+hijack every future person who shares it, so it stays a scored suggestion.
+
+### Places
+
+`entity_places` holds the address as structure — street, locality, region,
+postal code, country — plus a geohash that gives SQLite a prefix-indexable
+proximity bucket without a spatial extension.
+
+Coordinates are taken from the model when it offers them, then from a geocoder
+if `GEOCODER_URL` is configured, and otherwise **inherited** from a broader
+place the user already has: an address in Milano borrows Milano's position and
+records `precision = 'locality'`, `source = 'inherited'` and the
+`parent_entity_id` it came from. Knowing roughly where something is beats
+knowing nothing, as long as the imprecision is recorded rather than hidden. A
+coordinate a person typed in outranks every deduced one and survives
+re-processing.
+
+### Moments
+
+`entity_moments` is the authoritative record of when something happens. Timing
+lives there rather than on `entities` because a moment is not a bag of loose
+columns: the timestamp, how precise it is, how it repeats and the notification
+derived from all three only make sense together. The matching columns on
+`entities` are kept as a mirror for clients that still read the flat shape, and
+a single writer (`upsertMomentFacet`) owns both, so they cannot drift.
+
+The four shapes the product cares about are all expressible in that one table:
+
+| Shape                  | How it is stored                                                |
+| ---------------------- | --------------------------------------------------------------- |
+| One-off date           | `starts_at`, `recurrence_freq` null                             |
+| Birthday / anniversary | `recurrence_freq = 'yearly'`, `all_day = 1`, anchor in the past |
+| Recurring event        | any `recurrence_freq` with an `interval` and optional `until`   |
+| Reminder               | `needs_reminder = 1`, or `kind = 'reminder'`                    |
+
+Note that a birthday is **not** a fifth kind of moment. `kind` is the moment's
+_objective_ — plain context, an event, a deadline, or an explicit ask to be
+reminded — and repetition is orthogonal to all four. Modelling repetition rather
+than enumerating occasions is what lets one row answer "when is this next?"
+forever, and it is why the free-text `recurrence` column this replaced was never
+usable: nothing could interpret it. `parseRecurrence` now reads the model's
+prose into `(freq, interval, until)` at the boundary, so a birthday the AI
+inferred and one a person typed are the same row.
+
+`next_occurrence_at` is the denormalized answer to "when is this next?" — the
+one column a calendar can index and sort by without knowing whether the row
+repeats. It is recomputed on every write, re-armed when a reminder fires, and
+self-healed when the range endpoint reads a row that time has overtaken, so an
+index can be trusted rather than quietly rotting.
+
+Occurrences are **expanded, not materialised**. `GET /v1/moments?from&to` filters
+one-offs in SQL by the indexed `next_occurrence_at` and expands repeating rows in
+memory with `occurrencesBetween`. A personal graph has tens of repeating moments,
+not thousands, which makes expansion cheaper than an occurrence table that would
+then have to be kept in step with every edit.
+
+The objective determines the reminder's lead time: a deadline warns a day ahead,
+an event nudges shortly before, and a reminder fires exactly when it was asked
+for. Moments that only ever named a month are never scheduled, because a
+notification at an invented time is worse than none. Crucially the lead is
+measured from the **next occurrence**, not the anchor — otherwise a birthday
+recorded in 1994 could never fire.
+
+When a moment warrants one, the pipeline arms a real `triggers` row with
+`origin = 'ai'`. Re-processing retimes that trigger rather than stacking a
+second, a repeating moment rewinds the same row to its next occurrence after
+firing, and a reminder the user switched off stays off: the moment deliberately
+keeps pointing at the cancelled trigger, and that link is the record of the
+human decision. Re-arming is a single call, so switching it off is never a
+one-way door.
+
 Every edge carries `origin` (`ai` | `user`), `confidence` and `status`
 (`suggested` | `confirmed` | `rejected`). This is what makes the graph
 correctable: the UI shows AI suggestions as dashed chips awaiting review, and any
 human decision flips the edge to `origin = 'user'` so re-processing a note never
 overwrites a correction.
 
-Place entities carry `latitude`/`longitude`/`radius_meters` and time entities
-carry `starts_at`/`recurrence`, which is what lets a note become location- or
-time-aware. `triggers` can reference both the originating `note_id` and the
+Place entities carry `latitude`/`longitude`/`radius_meters` and moments carry
+`starts_at` plus a structured schedule, which is what lets a note become
+location- or time-aware. `triggers` can reference both the originating `note_id` and the
 grounding `entity_id`.
 
 ## Upload and AI lifecycle
@@ -129,14 +224,21 @@ grounding `entity_id`.
 6. The workflow runs five durable stages, each recorded in
    `note_processing_steps` so the UI can render real progress rather than a
    spinner:
-   - **transcribe** — OpenAI `gpt-4o-mini-transcribe` through Cloudflare AI
-     Gateway over every audio attachment
-   - **describe** — OpenAI `gpt-5-nano` vision through AI Gateway for images,
-     and Workers AI `toMarkdown` for PDFs and Office documents
-   - **extract** — one JSON-schema-constrained `gpt-5-nano` call through AI
-     Gateway over the note text plus everything read out of its attachments
-   - **resolve** — extracted mentions are normalised and upserted into
-     `entities`, then linked to the note as `suggested` edges
+   - **transcribe** — OpenAI `gpt-4o-mini-transcribe`, called directly or
+     through Cloudflare AI Gateway, over every audio attachment
+   - **describe** — OpenAI `gpt-5-nano` vision through the configured OpenAI
+     route for images, and Firecrawl AnyDoc in Worker-hosted WebAssembly for
+     office, OpenDocument, EPUB, CSV, RTF and text-based PDF attachments.
+     Workers AI `toMarkdown` is used only as an OCR fallback for scanned files
+   - **extract** — one strict Structured Outputs `gpt-5-nano` call through the
+     configured OpenAI route over the note text plus everything read out of its
+     attachments. The capture timezone grounds relative dates; the result
+     includes a title, feed summary, Markdown rundown, and typed entities
+   - **resolve** — extracted mentions are normalised through the resolution
+     ladder above, upserted into `entities` with their place and moment facets,
+     any reminder is armed, and each is linked to the note as a `suggested`
+     edge. The stage detail reports what normalization actually did — how many
+     were merged, how many look like duplicates, how many reminders were armed
    - **connect** — notes sharing entities are linked in `note_links`, with
      confidence scaled by how much context they genuinely share
 
@@ -150,11 +252,10 @@ secret and valid for one hour.
 
 Large audio should eventually move to a format-aware chunking/transcoding pipeline. This starter caps input at 50 MB and processes the source object as one inference request; it does not pretend arbitrary binary byte chunks are valid standalone audio files.
 
-Local development runs without remote AI credentials. Rather than showing an
-empty graph, `apps/api/src/heuristics.ts` produces a deterministic extraction
-from surface patterns (verb-introduced names, prepositional places, ISO and
-relative dates) so the entire UI can be exercised offline. It is never used when
-the complete AI Gateway configuration is available.
+Local development uses the same OpenAI path as production and fails visibly
+when `OPENAI_API_KEY` is missing. `apps/api/src/heuristics.ts` remains only as a
+pure parser-test utility; workflow results are never mocked. AnyDoc conversion
+is local to the Worker and does not require an external document service.
 
 ## Notification lifecycle
 

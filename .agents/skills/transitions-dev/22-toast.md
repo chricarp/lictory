@@ -9,7 +9,7 @@ Use **toast** when the surface announces itself and goes away on its own; use **
 ## HTML usage
 
 ```html
-<div class="t-toast" data-open="false"> … </div>
+<div class="t-toast" data-open="false">…</div>
 ```
 
 Toggle `.is-open` on the toast. It rises from below with a
@@ -19,14 +19,14 @@ close clock, so a single class gives the open/close asymmetry.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--toast-open` | `350ms` | sourced from `--p22-open-dur` |
-| `--toast-close` | `250ms` | sourced from `--p22-close-dur` |
-| `--toast-distance` | `16px` | sourced from `--p22-distance` |
-| `--toast-blur` | `2px` | sourced from `--p22-blur` |
-| `--toast-scale` | `0.97` | sourced from `--p22-scale` |
-| `--toast-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p22-ease` |
+| Variable           | Default                          | Notes                          |
+| ------------------ | -------------------------------- | ------------------------------ |
+| `--toast-open`     | `350ms`                          | sourced from `--p22-open-dur`  |
+| `--toast-close`    | `250ms`                          | sourced from `--p22-close-dur` |
+| `--toast-distance` | `16px`                           | sourced from `--p22-distance`  |
+| `--toast-blur`     | `2px`                            | sourced from `--p22-blur`      |
+| `--toast-scale`    | `0.97`                           | sourced from `--p22-scale`     |
+| `--toast-ease`     | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p22-ease`      |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -65,7 +65,9 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-toast { transition: none !important; }
+  .t-toast {
+    transition: none !important;
+  }
 }
 ```
 
@@ -74,4 +76,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

@@ -49,7 +49,12 @@ export function EntityChip({
       <Icon className="shrink-0" />
       <span className="truncate">{entity.name}</span>
       {detail ? (
-        <span className="hidden shrink-0 opacity-70 sm:inline">· {detail}</span>
+        // The name identifies the chip; the timestamp only qualifies it. Both
+        // truncate, but the detail yields several times faster so a narrow
+        // column eats the date before it eats the name.
+        <span className="min-w-0 shrink-[4] truncate opacity-70 max-sm:hidden">
+          · {detail}
+        </span>
       ) : null}
       {typeof entity.noteCount === "number" && entity.noteCount > 0 ? (
         <span className="shrink-0 rounded-full bg-[rgb(var(--hairline)/0.18)] px-1.5 text-[0.6875rem] font-semibold tabular-nums">
@@ -60,7 +65,7 @@ export function EntityChip({
   );
 
   const shared = cn(
-    "group/chip inline-flex max-w-full items-center gap-1.5 rounded-full border font-medium tracking-tight transition-all duration-200",
+    "group/chip inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border font-medium tracking-tight transition-all duration-200",
     size === "sm"
       ? "px-2 py-0.5 text-[0.6875rem] [&_svg]:size-3"
       : "px-2.5 py-1 text-xs [&_svg]:size-3.5",
@@ -69,21 +74,28 @@ export function EntityChip({
     className,
   );
 
+  // Both the name and the detail truncate in narrow columns, so the full
+  // value has to stay recoverable on hover.
+  const full = detail ? `${entity.name} · ${detail}` : entity.name;
+
   return (
-    <span className="inline-flex max-w-full items-center gap-1">
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1">
       {href === null ? (
-        <span className={shared}>{body}</span>
+        <span className={shared} title={full}>
+          {body}
+        </span>
       ) : (
         <Link
           href={href ?? entityHref(entity.id)}
           className={cn(shared, "hover:brightness-110")}
+          title={full}
         >
           {body}
         </Link>
       )}
 
       {suggested && (onConfirm || onReject) ? (
-        <span className="inline-flex items-center gap-0.5">
+        <span className="inline-flex shrink-0 items-center gap-0.5">
           {onConfirm ? (
             <button
               type="button"

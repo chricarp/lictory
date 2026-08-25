@@ -14,10 +14,12 @@ pnpm exec wrangler queues create lictory-jobs-dlq
 
 Replace the zero UUID in `apps/api/wrangler.jsonc` with the D1 ID returned by Wrangler. Workflows are created when the Worker is deployed.
 
-Create an authenticated Cloudflare AI Gateway, copy its account and gateway IDs
-into `AI_GATEWAY_ACCOUNT_ID` and `AI_GATEWAY_ID` in `wrangler.jsonc`, and create
-a gateway token with Run permission. The OpenAI provider key remains a Worker
-secret; requests use it only through the provider-native AI Gateway endpoint.
+The Worker can call OpenAI directly with `OPENAI_API_KEY`. To route requests
+through an authenticated Cloudflare AI Gateway instead, copy its account and
+gateway IDs into `AI_GATEWAY_ACCOUNT_ID` and `AI_GATEWAY_ID` in
+`wrangler.jsonc`, create a gateway token with Run permission, and store it as
+`AI_GATEWAY_TOKEN`. Gateway routing is enabled only when all three gateway
+values are present.
 
 Create an R2 API token scoped to `lictory-media`, then add secrets:
 
@@ -32,9 +34,11 @@ pnpm exec wrangler secret put APPLE_CLIENT_ID
 pnpm exec wrangler secret put APPLE_TEAM_ID
 pnpm exec wrangler secret put APPLE_KEY_ID
 pnpm exec wrangler secret put APPLE_PRIVATE_KEY
-pnpm exec wrangler secret put AI_GATEWAY_TOKEN
 pnpm exec wrangler secret put OPENAI_API_KEY
 ```
+
+When AI Gateway routing is configured, also run
+`pnpm exec wrangler secret put AI_GATEWAY_TOKEN`.
 
 Apply the schema and deploy:
 

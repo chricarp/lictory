@@ -1,12 +1,10 @@
 import {
   type AttachEntityRequest,
-  type EntityInput,
   type ListNotesQuery,
   type Note,
   type NoteEntity,
   type NoteLink,
   type NoteSummary,
-  normalizeEntityKey,
 } from "@lictory/contracts";
 import { and, eq, sql } from "drizzle-orm";
 
@@ -28,7 +26,6 @@ import type {
   ProcessingStepRow,
 } from "../../infrastructure/database/rows";
 import {
-  entities as entitiesTable,
   noteEntities,
   noteProcessingSteps,
 } from "../../infrastructure/database/schema";
@@ -38,119 +35,8 @@ const placeholders = (count: number) =>
   Array.from({ length: count }, () => "?").join(", ");
 
 /* -------------------------------------------------------------------------- */
-/*                              Entity resolution                             */
+/*                              Note ↔ entity edge                            */
 /* -------------------------------------------------------------------------- */
-
-const ENTITY_COLORS: Record<EntityInput["type"], string> = {
-  person: "#f4a261",
-  place: "#5eead4",
-  time: "#a78bfa",
-  topic: "#93c5fd",
-  organization: "#fca5a5",
-};
-
-/**
- * Entities are deduplicated per user on (type, normalized name) so that the
- * same person or place mentioned across many notes collapses onto one node in
- * the graph. Newly learned details (coordinates, a date) enrich the existing
- * row instead of creating a duplicate.
- */
-export async function resolveEntity(
-  env: Env,
-  userId: string,
-  input: EntityInput,
-  origin: "ai" | "user" = "ai",
-): Promise<EntityRow> {
-  const normalizedKey = normalizeEntityKey(input.type, input.name);
-  if (!normalizedKey) throw new Error("Entity name cannot be empty");
-  const now = new Date().toISOString();
-
-  const db = database(env);
-  const identity = and(
-    eq(entitiesTable.user_id, userId),
-    eq(entitiesTable.type, input.type),
-    eq(entitiesTable.normalized_key, normalizedKey),
-  );
-  const existing = await db.select().from(entitiesTable).where(identity).get();
-
-  if (existing) {
-    const merged: EntityRow = {
-      ...existing,
-      description: input.description ?? existing.description,
-      latitude: input.latitude ?? existing.latitude,
-      longitude: input.longitude ?? existing.longitude,
-      radius_meters: input.radiusMeters ?? existing.radius_meters,
-      address: input.address ?? existing.address,
-      starts_at: input.startsAt ?? existing.starts_at,
-      ends_at: input.endsAt ?? existing.ends_at,
-      all_day:
-        input.allDay === undefined || input.allDay === null
-          ? existing.all_day
-          : Number(input.allDay),
-      timezone: input.timezone ?? existing.timezone,
-      recurrence: input.recurrence ?? existing.recurrence,
-      color: input.color ?? existing.color,
-      // A human curating the graph promotes the entity out of "AI guessed it".
-      origin: origin === "user" ? "user" : existing.origin,
-      updated_at: now,
-    };
-    await db
-      .update(entitiesTable)
-      .set({
-        description: merged.description,
-        latitude: merged.latitude,
-        longitude: merged.longitude,
-        radius_meters: merged.radius_meters,
-        address: merged.address,
-        starts_at: merged.starts_at,
-        ends_at: merged.ends_at,
-        all_day: merged.all_day,
-        timezone: merged.timezone,
-        recurrence: merged.recurrence,
-        color: merged.color,
-        origin: merged.origin,
-        updated_at: now,
-      })
-      .where(eq(entitiesTable.id, existing.id));
-    return merged;
-  }
-
-  const row: EntityRow = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    type: input.type,
-    name: input.name.trim(),
-    normalized_key: normalizedKey,
-    description: input.description ?? null,
-    latitude: input.latitude ?? null,
-    longitude: input.longitude ?? null,
-    radius_meters: input.radiusMeters ?? (input.type === "place" ? 250 : null),
-    address: input.address ?? null,
-    starts_at: input.startsAt ?? null,
-    ends_at: input.endsAt ?? null,
-    all_day: Number(input.allDay ?? false),
-    timezone: input.timezone ?? null,
-    recurrence: input.recurrence ?? null,
-    color: input.color ?? ENTITY_COLORS[input.type],
-    origin,
-    created_at: now,
-    updated_at: now,
-  };
-
-  await db
-    .insert(entitiesTable)
-    .values(row)
-    .onConflictDoNothing({
-      target: [
-        entitiesTable.user_id,
-        entitiesTable.type,
-        entitiesTable.normalized_key,
-      ],
-    });
-
-  const stored = await db.select().from(entitiesTable).where(identity).get();
-  return stored ?? row;
-}
 
 export async function attachEntityToNote(
   env: Env,
@@ -221,6 +107,8 @@ async function loadAggregates(
               e.latitude AS e_latitude, e.longitude AS e_longitude, e.radius_meters AS e_radius_meters,
               e.address AS e_address, e.starts_at AS e_starts_at, e.ends_at AS e_ends_at,
               e.all_day AS e_all_day, e.timezone AS e_timezone, e.recurrence AS e_recurrence,
+              e.time_kind AS e_time_kind, e.needs_reminder AS e_needs_reminder,
+              e.reminder_reason AS e_reminder_reason,
               e.color AS e_color, e.origin AS e_origin, e.created_at AS e_created_at,
               e.updated_at AS e_updated_at
          FROM note_entities ne
@@ -281,6 +169,9 @@ async function loadAggregates(
       all_day: (raw.e_all_day as number) ?? 0,
       timezone: (raw.e_timezone as string | null) ?? null,
       recurrence: (raw.e_recurrence as string | null) ?? null,
+      time_kind: (raw.e_time_kind as EntityRow["time_kind"]) ?? null,
+      needs_reminder: (raw.e_needs_reminder as number) ?? 0,
+      reminder_reason: (raw.e_reminder_reason as string | null) ?? null,
       color: (raw.e_color as string | null) ?? null,
       origin: raw.e_origin as EntityRow["origin"],
       created_at: raw.e_created_at as string,
@@ -320,7 +211,9 @@ function summarize(note: NoteRow, aggregates: Aggregates): NoteSummary {
     ),
     status: note.status,
     aiSummary: note.ai_summary,
+    aiAnalysis: note.ai_analysis,
     aiError: note.ai_error,
+    captureTimezone: note.capture_timezone,
     occurredAt: note.occurred_at,
     pinned: note.pinned === 1,
     counts: {
@@ -361,10 +254,10 @@ export async function listNotes(
   }
   if (query.q) {
     conditions.push(
-      "(n.title LIKE ? OR n.body_markdown LIKE ? OR n.ai_summary LIKE ?)",
+      "(n.title LIKE ? OR n.body_markdown LIKE ? OR n.ai_summary LIKE ? OR n.ai_analysis LIKE ?)",
     );
     const like = `%${query.q}%`;
-    bindings.push(like, like, like);
+    bindings.push(like, like, like, like);
   }
   if (query.entityId) {
     conditions.push(

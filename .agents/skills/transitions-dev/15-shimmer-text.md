@@ -21,13 +21,13 @@ follow light / dark mode.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--shimmer-dur` | `2000ms` | sourced from `--p15-dur` |
-| `--shimmer-base` | `#7c7c7c` | sourced from `--p15-base` |
+| Variable              | Default   | Notes                          |
+| --------------------- | --------- | ------------------------------ |
+| `--shimmer-dur`       | `2000ms`  | sourced from `--p15-dur`       |
+| `--shimmer-base`      | `#7c7c7c` | sourced from `--p15-base`      |
 | `--shimmer-highlight` | `#0d0d0d` | sourced from `--p15-highlight` |
-| `--shimmer-band` | `400%` | sourced from `--p15-band` |
-| `--shimmer-ease` | `linear` | sourced from `--p15-ease` |
+| `--shimmer-band`      | `400%`    | sourced from `--p15-band`      |
+| `--shimmer-ease`      | `linear`  | sourced from `--p15-ease`      |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -63,11 +63,11 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   pointer-events: none;
   background-image: linear-gradient(
     90deg,
-    transparent          0%,
-    transparent         40%,
+    transparent 0%,
+    transparent 40%,
     var(--shimmer-highlight) 50%,
-    transparent         60%,
-    transparent        100%
+    transparent 60%,
+    transparent 100%
   );
   background-size: var(--shimmer-band) 100%;
   background-repeat: no-repeat;
@@ -78,12 +78,18 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   animation: t-shimmer var(--shimmer-dur) var(--shimmer-ease) infinite;
 }
 @keyframes t-shimmer {
-  0%   { background-position: 100% 0; }
-  100% { background-position: 0% 0; }
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-shimmer::before { animation: none !important; }
+  .t-shimmer::before {
+    animation: none !important;
+  }
 }
 ```
 
@@ -92,4 +98,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

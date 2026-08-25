@@ -38,12 +38,29 @@
   --radius-control: 0.625rem;
   --radius-card: 0.875rem;
   --radius-panel: 1.125rem;
+  --icon-swap-dur: 250ms;
+  --icon-swap-blur: 2px;
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: ease-in-out;
+  --acc-expand: 250ms;
+  --acc-collapse: 250ms;
+  --acc-chevron: 250ms;
+  --acc-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --toggle-dur: 350ms;
   --toggle-travel: 14.66px;
   --toggle-ov1: 1px;
   --toggle-ov2: 0px;
   --toggle-track: 0ms;
   --toggle-ease: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --spincheck-spin-dur: 900ms;
+  --spincheck-swap-dur: 250ms;
+  --spincheck-pop-dur: 400ms;
+  --spincheck-draw-dur: 400ms;
+  --spincheck-draw-delay: 120ms;
+  --spincheck-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --spincheck-ease-pop: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --rail-fill-dur: 400ms;
+  --rail-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .light {
@@ -196,6 +213,77 @@
 }
 
 @layer components {
+  .t-icon-swap {
+    position: relative;
+    display: inline-grid;
+  }
+  .t-icon-swap .t-icon {
+    grid-area: 1 / 1;
+    transition:
+      opacity var(--icon-swap-dur) var(--icon-swap-ease),
+      filter var(--icon-swap-dur) var(--icon-swap-ease),
+      transform var(--icon-swap-dur) var(--icon-swap-ease);
+    will-change: opacity, filter, transform;
+  }
+  .t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+  .t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+  .t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+  .t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+    opacity: 0;
+    filter: blur(var(--icon-swap-blur));
+    transform: scale(var(--icon-swap-start-scale));
+  }
+
+  /* grid-template-rows 0fr → 1fr gives a clean height animation
+     with no JS measurement; the inner element clips overflow. */
+  .t-acc-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
+  }
+  .t-acc[data-open="true"] .t-acc-panel {
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--acc-expand) var(--acc-ease);
+  }
+  .t-acc-panel-inner {
+    overflow: hidden;
+    opacity: 0;
+    filter: blur(2px);
+    transition:
+      opacity var(--acc-collapse) var(--acc-ease),
+      filter var(--acc-collapse) var(--acc-ease);
+  }
+  .t-acc[data-open="true"] .t-acc-panel-inner {
+    opacity: 1;
+    filter: blur(0);
+    transition:
+      opacity var(--acc-expand) var(--acc-ease),
+      filter var(--acc-expand) var(--acc-ease);
+  }
+  /* Flip the chevron vertically to turn the "v" into a "^".
+     scaleY(-1) about the centre passes through a flat line at
+     the midpoint (same look as a `d:` path morph) but animates
+     in every browser, unlike CSS `d:` morphing (Chromium only).
+     The chevron path is symmetric about the 16x16 viewBox
+     centre, so the flip lands exactly on the "^"; non-scaling
+     -stroke keeps the stroke width constant through the flip. */
+  .t-acc-chevron {
+    display: inline-flex;
+    transform: scaleY(1);
+    transform-origin: center;
+    transition: transform var(--acc-chevron) var(--acc-ease);
+  }
+  .t-acc-chevron path {
+    vector-effect: non-scaling-stroke;
+  }
+  .t-acc[data-open="true"] .t-acc-chevron {
+    transform: scaleY(-1);
+  }
+
   .t-toggle {
     transition: background var(--toggle-track) var(--toggle-ease);
   }
@@ -241,7 +329,119 @@
     }
   }
 
+  /* Spinner → check morph. One slot holds a rotating arc and a check
+     mark stacked on top of each other. Leaving the running state pops
+     the arc outward while the mark scales in and draws its stroke, so
+     "still working" and "done" read as one continuous object rather
+     than two icons swapping places. */
+  .t-spincheck {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+  }
+  .t-spincheck > * {
+    grid-area: 1 / 1;
+  }
+  .t-spincheck-ring,
+  .t-spincheck-mark {
+    display: block;
+    opacity: 0;
+    transform: scale(0.5);
+    transition:
+      opacity var(--spincheck-swap-dur) var(--spincheck-ease),
+      transform var(--spincheck-swap-dur) var(--spincheck-ease);
+    will-change: opacity, transform;
+  }
+  .t-spincheck[data-state="run"] .t-spincheck-ring {
+    opacity: 1;
+    transform: scale(1);
+    animation: t-spincheck-spin var(--spincheck-spin-dur) linear infinite;
+  }
+  /* The arc keeps growing as it leaves so the mark appears to burst
+     out of it instead of replacing it. */
+  .t-spincheck:not([data-state="run"]) .t-spincheck-ring {
+    transform: scale(1.4);
+  }
+  .t-spincheck:not([data-state="run"]) .t-spincheck-mark {
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      opacity var(--spincheck-pop-dur) var(--spincheck-ease-pop),
+      transform var(--spincheck-pop-dur) var(--spincheck-ease-pop);
+  }
+  /* 19 is getTotalLength() of the check path, rounded up. */
+  .t-spincheck-mark path {
+    stroke-dasharray: 19;
+    stroke-dashoffset: 19;
+  }
+  .t-spincheck[data-state="done"] .t-spincheck-mark path {
+    animation: t-spincheck-draw var(--spincheck-draw-dur) var(--spincheck-ease)
+      var(--spincheck-draw-delay) forwards;
+  }
+  .t-spincheck[data-state="fail"] .t-spincheck-mark path,
+  .t-spincheck[data-state="idle"] .t-spincheck-mark path {
+    stroke-dashoffset: 0;
+  }
+  @keyframes t-spincheck-spin {
+    to {
+      transform: scale(1) rotate(360deg);
+    }
+  }
+  @keyframes t-spincheck-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* Segmented progress rail. Each stage is a track whose fill is a
+     scaled child, so progress animates on the compositor. */
+  .t-rail-fill {
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--rail-fill-dur) var(--rail-ease);
+    will-change: transform;
+  }
+  .t-rail-seg[data-fill="full"] .t-rail-fill {
+    transform: scaleX(1);
+  }
+  .t-rail-seg[data-fill="partial"] .t-rail-fill {
+    transform: scaleX(0.45);
+    animation: t-rail-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes t-rail-pulse {
+    0%,
+    100% {
+      transform: scaleX(0.28);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scaleX(0.82);
+      opacity: 1;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .t-spincheck-ring,
+    .t-spincheck-mark {
+      transition: none !important;
+      animation: none !important;
+    }
+    .t-spincheck-mark path {
+      animation: none !important;
+      stroke-dashoffset: 0 !important;
+    }
+    .t-rail-fill {
+      transition: none !important;
+      animation: none !important;
+    }
+    .t-icon-swap .t-icon {
+      transition: none !important;
+    }
+    .t-acc-panel,
+    .t-acc-panel-inner,
+    .t-acc-chevron {
+      transition: none !important;
+    }
     .t-toggle-thumb {
       animation: none !important;
     }

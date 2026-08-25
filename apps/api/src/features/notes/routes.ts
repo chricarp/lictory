@@ -14,6 +14,8 @@ import type { Context } from "hono";
 import type { AppBindings } from "../../bindings";
 import { errorBody } from "../../http/errors";
 import { database } from "../../infrastructure/database/client";
+import { upsertMomentFacet } from "../entities/moments";
+import { resolveEntity } from "../entities/resolver";
 import { attachmentRecord } from "../../infrastructure/database/records";
 import type { NoteRow } from "../../infrastructure/database/rows";
 import {
@@ -28,7 +30,6 @@ import {
   listNotes,
   loadNote,
   resetProcessingSteps,
-  resolveEntity,
 } from "./service";
 import { createUploadSlot, mediaKindFor } from "../media/uploads";
 
@@ -95,6 +96,7 @@ notes.post("/", async (c) => {
       title: parsed.data.title ?? null,
       body_markdown: parsed.data.bodyMarkdown ?? "",
       status: "draft",
+      capture_timezone: parsed.data.captureTimezone ?? "UTC",
       occurred_at: parsed.data.occurredAt ?? null,
       pinned: 0,
       created_at: now,
@@ -222,7 +224,7 @@ notes.post("/:noteId/attachments", async (c) => {
     );
   }
 
-  if (!mediaKindFor(parsed.data.contentType)) {
+  if (!mediaKindFor(parsed.data.contentType, parsed.data.fileName)) {
     return c.json(
       errorBody(
         "unsupported_media_type",
@@ -386,13 +388,28 @@ notes.post("/:noteId/entities", async (c) => {
         400,
       );
     }
-    const entity = await resolveEntity(
+    const resolved = await resolveEntity(
       c.env,
       c.get("userId"),
       parsed.data.entity,
       "user",
     );
-    entityId = entity.id;
+    // A hand-created moment arms its own reminder, exactly as an extracted one
+    // does, so both origins reach the same behaviour.
+    if (resolved.moment) {
+      await upsertMomentFacet(
+        c.env,
+        c.get("userId"),
+        resolved.row,
+        resolved.moment,
+        {
+          noteId: note.id,
+          title: note.title?.trim() || "Reminder",
+          body: resolved.row.reminder_reason?.trim() || resolved.row.name,
+        },
+      );
+    }
+    entityId = resolved.row.id;
   } else {
     const owned = await database(c.env)
       .select({ id: entities.id })

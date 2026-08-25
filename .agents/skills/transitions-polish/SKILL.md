@@ -5,7 +5,7 @@ description: Polish and refine existing motion against the transitions.dev motio
 
 # Transitions Polish
 
-An **add-on** to the [`transitions-dev`](../transitions-dev/SKILL.md) skill. Where `transitions-dev` installs whole transitions, this skill **polishes motion that already exists**: it scans the five motion-token dimensions — **duration, distance, scale, blur, easing** — and suggests the token each value should reference, plus the higher-order rules for *when* a value is right (open/close asymmetry, hover in/out, stagger, delay).
+An **add-on** to the [`transitions-dev`](../transitions-dev/SKILL.md) skill. Where `transitions-dev` installs whole transitions, this skill **polishes motion that already exists**: it scans the five motion-token dimensions — **duration, distance, scale, blur, easing** — and suggests the token each value should reference, plus the higher-order rules for _when_ a value is right (open/close asymmetry, hover in/out, stagger, delay).
 
 Install it alongside `transitions-dev`, or on its own — the token values are restated below so this skill can audit a project standalone. When it is installed, the transitions.dev **Refine panel** automatically feeds these rules into every **Small refinement** job.
 
@@ -19,59 +19,59 @@ Same scale the [transitions.dev](https://transitions.dev) Motion tokens tab expo
 
 ### Durations
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--duration-stagger` | `40ms` | per-item stagger offset |
-| `--duration-micro` | `80ms` | tooltip/path delay, shake segment, large stagger |
-| `--duration-quick` | `150ms` | modal/dropdown close, text swap, tooltip appear |
-| `--duration-fast` | `250ms` | icon swap, dropdown/modal open, tabs sliding, page slide |
-| `--duration-medium` | `350ms` | panel close, toast close |
-| `--duration-slow` | `400ms` | panel open, skeleton content reveal, input clear |
+| Token                  | Value   | Usage                                                      |
+| ---------------------- | ------- | ---------------------------------------------------------- |
+| `--duration-stagger`   | `40ms`  | per-item stagger offset                                    |
+| `--duration-micro`     | `80ms`  | tooltip/path delay, shake segment, large stagger           |
+| `--duration-quick`     | `150ms` | modal/dropdown close, text swap, tooltip appear            |
+| `--duration-fast`      | `250ms` | icon swap, dropdown/modal open, tabs sliding, page slide   |
+| `--duration-medium`    | `350ms` | panel close, toast close                                   |
+| `--duration-slow`      | `400ms` | panel open, skeleton content reveal, input clear           |
 | `--duration-very-slow` | `500ms` | emphasis moments, badge appear, text reveal, success check |
 
 ### Easings
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--ease-smooth-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | modal/dropdown/panel open + close, page slide, resize, position change |
-| `--ease-in-out` | `ease-in-out` | icon swap, text swap, text reveal, skeleton reveal |
-| `--ease-out` | `ease-out` | tooltip open / close |
-| `--ease-linear` | `linear` | shimmer, skeleton pulse, spinner |
-| `--ease-bounce` | `cubic-bezier(0.34, 1.36, 0.64, 1)` | badge pop open |
-| `--ease-bounce-strong` | `cubic-bezier(0.34, 3.85, 0.64, 1)` | bouncy hover-out (avatar return) |
+| Token                  | Value                               | Usage                                                                  |
+| ---------------------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| `--ease-smooth-out`    | `cubic-bezier(0.22, 1, 0.36, 1)`    | modal/dropdown/panel open + close, page slide, resize, position change |
+| `--ease-in-out`        | `ease-in-out`                       | icon swap, text swap, text reveal, skeleton reveal                     |
+| `--ease-out`           | `ease-out`                          | tooltip open / close                                                   |
+| `--ease-linear`        | `linear`                            | shimmer, skeleton pulse, spinner                                       |
+| `--ease-bounce`        | `cubic-bezier(0.34, 1.36, 0.64, 1)` | badge pop open                                                         |
+| `--ease-bounce-strong` | `cubic-bezier(0.34, 3.85, 0.64, 1)` | bouncy hover-out (avatar return)                                       |
 
 `--ease-smooth-out` is the default. Nudge generic `ease`, `ease-in`, or any hand-rolled `cubic-bezier(...)` / `linear(...)` toward it **only** for surface motion (open/close, slide, resize, position). Leave the other five token easings alone — they are already on-grid and each carries its own intent.
 
 ### Distances
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--distance-micro` | `4px` | text swap |
-| `--distance-small` | `6px` | error shake (small segment) |
-| `--distance-base` | `8px` | badge diagonal reveal, page slide, error shake (large segment) |
-| `--distance-medium` | `12px` | text reveal |
-| `--distance-large` | `30px` | check badge appear |
+| Token               | Value  | Usage                                                          |
+| ------------------- | ------ | -------------------------------------------------------------- |
+| `--distance-micro`  | `4px`  | text swap                                                      |
+| `--distance-small`  | `6px`  | error shake (small segment)                                    |
+| `--distance-base`   | `8px`  | badge diagonal reveal, page slide, error shake (large segment) |
+| `--distance-medium` | `12px` | text reveal                                                    |
+| `--distance-large`  | `30px` | check badge appear                                             |
 
-Travel distance scales *down* with frequency and *up* with ceremony: an in-place text swap barely moves (`4px`), a page slide travels a readable `8px`, a one-off celebratory badge can sweep `30px`. If a translate distance is larger than `~40px` for anything but a full panel/drawer, it usually reads as sluggish — pull it toward `--distance-base`.
+Travel distance scales _down_ with frequency and _up_ with ceremony: an in-place text swap barely moves (`4px`), a page slide travels a readable `8px`, a one-off celebratory badge can sweep `30px`. If a translate distance is larger than `~40px` for anything but a full panel/drawer, it usually reads as sluggish — pull it toward `--distance-base`.
 
 ### Scales
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--scale-large` | `0.96` | modal open / close |
-| `--scale-medium` | `0.97` | dropdown open |
-| `--scale-small` | `0.98` | tooltip open |
-| `--scale-tiny` | `0.99` | dropdown close |
+| Token            | Value  | Usage              |
+| ---------------- | ------ | ------------------ |
+| `--scale-large`  | `0.96` | modal open / close |
+| `--scale-medium` | `0.97` | dropdown open      |
+| `--scale-small`  | `0.98` | tooltip open       |
+| `--scale-tiny`   | `0.99` | dropdown close     |
 
-The captured value is the non-resting "pre" scale the surface animates *from*; it always settles to `1`. Bigger surfaces start from further away (`0.96` modal), small hints barely scale (`0.98`–`0.99`). A pre-scale below `~0.9` reads as a "zoom" and rarely fits UI chrome — snap it to the usage token.
+The captured value is the non-resting "pre" scale the surface animates _from_; it always settles to `1`. Bigger surfaces start from further away (`0.96` modal), small hints barely scale (`0.98`–`0.99`). A pre-scale below `~0.9` reads as a "zoom" and rarely fits UI chrome — snap it to the usage token.
 
 ### Blur
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--blur-small` | `2px` | panel reveal, icon swap, text swap, skeleton reveal, number pop-in |
-| `--blur-medium` | `3px` | page slide, text reveal |
-| `--blur-large` | `8px` | success check open |
+| Token           | Value | Usage                                                              |
+| --------------- | ----- | ------------------------------------------------------------------ |
+| `--blur-small`  | `2px` | panel reveal, icon swap, text swap, skeleton reveal, number pop-in |
+| `--blur-medium` | `3px` | page slide, text reveal                                            |
+| `--blur-large`  | `8px` | success check open                                                 |
 
 Blur is the non-resting "pre" blur, settling to `0`. Use it to soften a swap or slide, never on a plain fade or a color/theme change. Blur can be **absent** as well as off-token: when the usage clearly calls for one (a page slide with no blur lane) suggest adding `--blur-medium`.
 
@@ -84,17 +84,17 @@ Opening is an invitation; closing should get out of the way. Closes are faster a
 - **Duration:** dropdown/modal **open 250ms → close 150ms** (`--duration-fast` → `--duration-quick`); panel **open 400ms → close 350ms** (`--duration-slow` → `--duration-medium`); toast **close 350ms** (`--duration-medium`).
 - **Symmetric exceptions — same duration + easing both ways, do NOT split:** page side-by-side (250ms), tabs sliding (250ms), accordion (250ms), icon swap (250ms), text swap (150ms). These read as a single reversible motion, not an open/close pair.
 - **Distance & blur:** the enter phase carries the distance and blur; the exit can drop or shrink them so a close doesn't fling content across the screen.
-- **Easing:** most opens and closes share `--ease-smooth-out`. Overshoot curves belong to *entrances only* (badge pop, number pop-in) — never bounce a close.
+- **Easing:** most opens and closes share `--ease-smooth-out`. Overshoot curves belong to _entrances only_ (badge pop, number pop-in) — never bounce a close.
 
 ### Hover in vs hover out
 
 - **In:** quick and direct — a short `--duration-fast`-or-less lift with `--ease-smooth-out`.
-- **Out:** softer and springier — the return can take longer and use `--ease-bounce-strong` (avatar return, `cubic-bezier(0.34, 3.85, 0.64, 1)`) so the row settles instead of snapping. This is the one place the *out* is more elaborate than the *in*.
+- **Out:** softer and springier — the return can take longer and use `--ease-bounce-strong` (avatar return, `cubic-bezier(0.34, 3.85, 0.64, 1)`) so the row settles instead of snapping. This is the one place the _out_ is more elaborate than the _in_.
 
 ### Stagger and delay
 
 - **Stagger offset:** `--duration-stagger` (40ms) per item; step up to `--duration-micro` (80ms) for a few large items. Keep the **total** stagger (offset × item count) under ~300ms so the last item doesn't feel late — for long lists, cap the number of staggered items or shrink the offset.
-- **Intent delay:** a tooltip waits `--duration-micro` (80ms) before appearing so a passing cursor doesn't trigger it; the success-check path draw uses the same 80ms beat. A delay is right when you want to *filter accidental triggers* or *sequence* two things — not to pad a slow animation.
+- **Intent delay:** a tooltip waits `--duration-micro` (80ms) before appearing so a passing cursor doesn't trigger it; the success-check path draw uses the same 80ms beat. A delay is right when you want to _filter accidental triggers_ or _sequence_ two things — not to pad a slow animation.
 - **Delay vs duration:** if motion feels late, prefer trimming the **duration** over adding delay. Reserve delay for stagger, intent gating, and deliberate sequencing.
 - **Never delay a close** or a hover-out — dismissal must feel instant.
 

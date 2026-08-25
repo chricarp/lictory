@@ -35,6 +35,13 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "application/rtf",
+  "application/epub+zip",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/vnd.ms-word.document.macroenabled.12",
+  "application/vnd.ms-excel.sheet.macroenabled.12",
+  "application/vnd.ms-powerpoint.presentation.macroenabled.12",
   "application/json",
   "application/zip",
   "text/plain",
@@ -43,13 +50,42 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   "text/html",
 ]);
 
+const ANYDOC_EXTENSIONS = new Set([
+  "doc",
+  "docm",
+  "docx",
+  "epub",
+  "odp",
+  "ods",
+  "odt",
+  "pdf",
+  "pot",
+  "pps",
+  "ppsm",
+  "ppsx",
+  "ppt",
+  "pptm",
+  "pptx",
+  "rtf",
+  "xls",
+  "xlsb",
+  "xlsm",
+  "xlsx",
+  "csv",
+]);
+
 export type AttachmentKind = "image" | "audio" | "document";
 
-export function mediaKindFor(contentType: string): AttachmentKind | null {
+export function mediaKindFor(
+  contentType: string,
+  fileName?: string,
+): AttachmentKind | null {
   const normalized = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
   if (ALLOWED_IMAGE_TYPES.has(normalized)) return "image";
   if (ALLOWED_AUDIO_TYPES.has(normalized)) return "audio";
   if (ALLOWED_DOCUMENT_TYPES.has(normalized)) return "document";
+  const extension = fileName?.split(".").at(-1)?.toLowerCase();
+  if (extension && ANYDOC_EXTENSIONS.has(extension)) return "document";
   return null;
 }
 
@@ -63,7 +99,7 @@ export function safeFileName(name: string): string {
  * Worker sees an HTTP upstream request, so the request URL is only a fallback.
  */
 export function publicApiOrigin(env: Env, requestOrigin: string): string {
-  const configuredOrigin = env.BETTER_AUTH_URL.trim();
+  const configuredOrigin = env.BETTER_AUTH_URL?.trim();
   return configuredOrigin
     ? new URL(configuredOrigin).origin
     : new URL(requestOrigin).origin;
@@ -120,7 +156,7 @@ type CreateUploadSlotInput = {
  * storage layout cannot drift apart.
  */
 export async function createUploadSlot(env: Env, input: CreateUploadSlotInput) {
-  const kind = mediaKindFor(input.contentType);
+  const kind = mediaKindFor(input.contentType, input.fileName);
   if (!kind) return null;
 
   const id = crypto.randomUUID();
@@ -222,7 +258,11 @@ export async function signMediaUrl(
 ): Promise<string> {
   const expiresAt = Math.floor(Date.now() / 1_000) + MEDIA_URL_TTL_SECONDS;
   const signature = await hmac(env, `${assetId}.${userId}.${expiresAt}`);
-  return `${origin}/media/${assetId}?u=${encodeURIComponent(userId)}&e=${expiresAt}&s=${signature}`;
+  // Behind the local HTTPS proxy the Worker sees an http upstream request, and
+  // an http URL embedded in an https page is blocked as mixed content — so the
+  // browser-facing origin has to come from configuration, as it does for uploads.
+  const publicOrigin = publicApiOrigin(env, origin);
+  return `${publicOrigin}/media/${assetId}?u=${encodeURIComponent(userId)}&e=${expiresAt}&s=${signature}`;
 }
 
 export async function verifyMediaUrl(

@@ -4,18 +4,25 @@ import {
   ArrowRight,
   ArrowUpRight,
   AudioLinesIcon,
+  Bell,
+  BellOff,
   Bold,
   Building2,
   CalendarClock,
   Camera,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleStop,
   Code,
+  Download,
   Eye,
+  ExternalLink,
   FileText,
   FileUp,
   Fingerprint,
   GitBranch,
+  GitMerge,
   Hash,
   Heading,
   Home,
@@ -25,6 +32,7 @@ import {
   List,
   ListOrdered,
   Loader,
+  Maximize2,
   Lock,
   LogOut,
   Mail,
@@ -77,6 +85,8 @@ export const ArrowLeftIcon = createIcon(ArrowLeft, "ArrowLeftIcon");
 export const ArrowRightIcon = createIcon(ArrowRight, "ArrowRightIcon");
 export const ArrowUpRightIcon = createIcon(ArrowUpRight, "ArrowUpRightIcon");
 export const AudioLinesIconView = createIcon(AudioLinesIcon, "AudioLinesIcon");
+export const BellIcon = createIcon(Bell, "BellIcon");
+export const BellOffIcon = createIcon(BellOff, "BellOffIcon");
 export const BoldIcon = createIcon(Bold, "BoldIcon");
 export const BuildingIcon = createIcon(Building2, "BuildingIcon");
 export const CalendarClockIcon = createIcon(CalendarClock, "CalendarClockIcon");
@@ -84,11 +94,17 @@ export const CameraIcon = createIcon(Camera, "CameraIcon");
 export const CheckIcon = createIcon(Check, "CheckIcon");
 export const CircleStopIcon = createIcon(CircleStop, "CircleStopIcon");
 export const CodeIcon = createIcon(Code, "CodeIcon");
+export const ChevronLeftIcon = createIcon(ChevronLeft, "ChevronLeftIcon");
+export const ChevronRightIcon = createIcon(ChevronRight, "ChevronRightIcon");
+export const DownloadIcon = createIcon(Download, "DownloadIcon");
+export const ExternalLinkIcon = createIcon(ExternalLink, "ExternalLinkIcon");
+export const MaximizeIcon = createIcon(Maximize2, "MaximizeIcon");
 export const EyeIcon = createIcon(Eye, "EyeIcon");
 export const FileTextIcon = createIcon(FileText, "FileTextIcon");
 export const FileUpIcon = createIcon(FileUp, "FileUpIcon");
 export const FingerprintIcon = createIcon(Fingerprint, "FingerprintIcon");
 export const GitBranchIcon = createIcon(GitBranch, "GitBranchIcon");
+export const MergeIcon = createIcon(GitMerge, "MergeIcon");
 export const HashIcon = createIcon(Hash, "HashIcon");
 export const HeadingIcon = createIcon(Heading, "HeadingIcon");
 export const HomeIcon = createIcon(Home, "HomeIcon");
@@ -134,6 +150,8 @@ export {
   ArrowRightIcon as ArrowRight,
   ArrowUpRightIcon as ArrowUpRight,
   AudioLinesIconView as AudioLines,
+  BellIcon as BellRing,
+  BellOffIcon as BellOff,
   BoldIcon as Bold,
   BuildingIcon as Building2,
   CalendarClockIcon as CalendarClock,
@@ -141,11 +159,17 @@ export {
   CheckIcon as Check,
   CircleStopIcon as CircleStop,
   CodeIcon as Code,
+  ChevronLeftIcon as ChevronLeft,
+  ChevronRightIcon as ChevronRight,
+  DownloadIcon as Download,
+  ExternalLinkIcon as ExternalLink,
+  MaximizeIcon as Maximize2,
   EyeIcon as Eye,
   FileTextIcon as FileText,
   FileUpIcon as FileUp,
   FingerprintIcon as Fingerprint,
   GitBranchIcon as GitBranch,
+  MergeIcon as Merge,
   HashIcon as Hash,
   HeadingIcon as Heading,
   HomeIcon as Home,

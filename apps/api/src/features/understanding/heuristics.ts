@@ -1,10 +1,9 @@
 import type { Extraction } from "@lictory/contracts";
 
 /**
- * Local development runs without the Workers AI binding. Rather than showing an
- * empty graph, this deterministic extractor produces a believable result from
- * obvious surface patterns so the whole UI (entities, filters, relationships)
- * can be exercised offline. It is never used when `env.AI` is available.
+ * A deterministic extraction utility retained for fast, pure parser tests.
+ * The note workflow always uses the configured AI and never persists this as
+ * note understanding.
  */
 
 const STOP_WORDS = new Set([
@@ -151,6 +150,8 @@ export function heuristicExtraction(
       label: match[1] ?? "Scheduled date",
       startsAt: new Date(iso).toISOString(),
       allDay: !match[2],
+      kind: "date",
+      needsReminder: false,
       mention: match[0],
       confidence: 0.9,
     });
@@ -164,6 +165,8 @@ export function heuristicExtraction(
       label: word.charAt(0).toUpperCase() + word.slice(1),
       startsAt: date.toISOString(),
       allDay: word !== "tonight",
+      kind: "date",
+      needsReminder: false,
       mention: match[0],
       confidence: 0.7,
     });
@@ -180,6 +183,8 @@ export function heuristicExtraction(
       label: match[0],
       startsAt: date.toISOString(),
       allDay: true,
+      kind: "date",
+      needsReminder: false,
       mention: match[0],
       confidence: 0.68,
     });
@@ -195,6 +200,8 @@ export function heuristicExtraction(
       label: clock[0] ?? "Time",
       startsAt: date.toISOString(),
       allDay: false,
+      kind: "date",
+      needsReminder: false,
       mention: clock[0],
       confidence: 0.6,
     });
@@ -242,6 +249,7 @@ export function heuristicExtraction(
       ? firstSentence.split(" ").slice(0, 8).join(" ")
       : null,
     summary: firstSentence || null,
+    analysis: firstSentence || null,
     people: unique(people, (item) => item.name).slice(0, 6),
     places: unique(places, (item) => item.name).slice(0, 6),
     times: unique(times, (item) => item.startsAt ?? item.label).slice(0, 6),

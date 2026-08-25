@@ -16,25 +16,25 @@ A segmented control / tab bar where the active pill slides between options — v
 ```
 
 Wire-up:
-  On click, flip aria-selected on each tab and write the
-  active tab's offsetLeft / offsetWidth onto the pill:
-    pill.style.transform = `translateX(${tab.offsetLeft}px)`;
-    pill.style.width     = `${tab.offsetWidth}px`;
-  On first paint and resize, write the same values WITHOUT
-  a transition (suspend with `transition: none`, force a
-  reflow, restore) so the pill snaps to position before any
-  animation can run.
+On click, flip aria-selected on each tab and write the
+active tab's offsetLeft / offsetWidth onto the pill:
+pill.style.transform = `translateX(${tab.offsetLeft}px)`;
+pill.style.width = `${tab.offsetWidth}px`;
+On first paint and resize, write the same values WITHOUT
+a transition (suspend with `transition: none`, force a
+reflow, restore) so the pill snaps to position before any
+animation can run.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--tabs-dur` | `250ms` | sourced from `--p16-dur` |
-| `--tabs-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p16-ease` |
-| `--tabs-text-muted` | `rgba(15, 15, 15, 0.8)` | sourced from `--p16-text-muted` |
-| `--tabs-text-active` | `#0f0f0f` | sourced from `--p16-text-active` |
-| `--tabs-bar-bg` | `#f1f1f1` | sourced from `--p16-bar-bg` |
-| `--tabs-pill-bg` | `#ffffff` | sourced from `--p16-pill-bg` |
+| Variable             | Default                          | Notes                            |
+| -------------------- | -------------------------------- | -------------------------------- |
+| `--tabs-dur`         | `250ms`                          | sourced from `--p16-dur`         |
+| `--tabs-ease`        | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p16-ease`        |
+| `--tabs-text-muted`  | `rgba(15, 15, 15, 0.8)`          | sourced from `--p16-text-muted`  |
+| `--tabs-text-active` | `#0f0f0f`                        | sourced from `--p16-text-active` |
+| `--tabs-bar-bg`      | `#f1f1f1`                        | sourced from `--p16-bar-bg`      |
+| `--tabs-pill-bg`     | `#ffffff`                        | sourced from `--p16-pill-bg`     |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -96,14 +96,17 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   transform: translateX(0);
   transition:
     transform var(--tabs-dur) var(--tabs-ease),
-    width     var(--tabs-dur) var(--tabs-ease);
+    width var(--tabs-dur) var(--tabs-ease);
   will-change: transform, width;
   z-index: 0;
   pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-tabs-pill, .t-tab { transition: none !important; }
+  .t-tabs-pill,
+  .t-tab {
+    transition: none !important;
+  }
 }
 ```
 
@@ -135,7 +138,7 @@ const active = () =>
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     tabs.forEach((t) =>
-      t.setAttribute("aria-selected", t === tab ? "true" : "false")
+      t.setAttribute("aria-selected", t === tab ? "true" : "false"),
     );
     moveTo(tab, true);
   });
@@ -143,4 +146,3 @@ tabs.forEach((tab) => {
 requestAnimationFrame(() => moveTo(active(), false));
 window.addEventListener("resize", () => moveTo(active(), false));
 ```
-

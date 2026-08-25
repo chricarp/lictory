@@ -94,7 +94,10 @@ function LocalCaptureExitGuard() {
     try {
       const bodyMarkdown = readLocalCaptureBody(userId);
       const attachments = await readLocalCaptureAttachments(userId);
-      const { note } = await api.createNote({ bodyMarkdown });
+      const { note } = await api.createNote({
+        bodyMarkdown,
+        captureTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
       noteId = note.id;
       await Promise.all(
         attachments.map((attachment) =>

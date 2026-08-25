@@ -21,14 +21,14 @@ the track colour cross-fades on its own clock.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--toggle-dur` | `350ms` | sourced from `--p27-dur` |
-| `--toggle-travel` | `14.66px` | sourced from `--p27-travel` |
-| `--toggle-ov1` | `1px` | sourced from `--p27-ov1` |
-| `--toggle-ov2` | `0px` | sourced from `--p27-ov2` |
-| `--toggle-track` | `0ms` | sourced from `--p27-track-dur` |
-| `--toggle-ease` | `cubic-bezier(0.34, 1.35, 0.64, 1)` | sourced from `--p27-ease` |
+| Variable          | Default                             | Notes                          |
+| ----------------- | ----------------------------------- | ------------------------------ |
+| `--toggle-dur`    | `350ms`                             | sourced from `--p27-dur`       |
+| `--toggle-travel` | `14.66px`                           | sourced from `--p27-travel`    |
+| `--toggle-ov1`    | `1px`                               | sourced from `--p27-ov1`       |
+| `--toggle-ov2`    | `0px`                               | sourced from `--p27-ov2`       |
+| `--toggle-track`  | `0ms`                               | sourced from `--p27-track-dur` |
+| `--toggle-ease`   | `cubic-bezier(0.34, 1.35, 0.64, 1)` | sourced from `--p27-ease`      |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -46,26 +46,55 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 ## CSS
 
 ```css
-.t-toggle { transition: background var(--toggle-track) var(--toggle-ease); }
-.t-toggle-thumb { translate: 0 0; will-change: translate; }
-.t-toggle[data-on="true"] .t-toggle-thumb { translate: var(--toggle-travel) 0; }
-.t-toggle.is-init[data-on="true"] .t-toggle-thumb { animation: t-toggle-on var(--toggle-dur) var(--toggle-ease) both; }
-.t-toggle.is-init[data-on="false"] .t-toggle-thumb { animation: t-toggle-off var(--toggle-dur) var(--toggle-ease) both; }
+.t-toggle {
+  transition: background var(--toggle-track) var(--toggle-ease);
+}
+.t-toggle-thumb {
+  translate: 0 0;
+  will-change: translate;
+}
+.t-toggle[data-on="true"] .t-toggle-thumb {
+  translate: var(--toggle-travel) 0;
+}
+.t-toggle.is-init[data-on="true"] .t-toggle-thumb {
+  animation: t-toggle-on var(--toggle-dur) var(--toggle-ease) both;
+}
+.t-toggle.is-init[data-on="false"] .t-toggle-thumb {
+  animation: t-toggle-off var(--toggle-dur) var(--toggle-ease) both;
+}
 @keyframes t-toggle-on {
-  0% { translate: 0 0; }
-  55% { translate: calc(var(--toggle-travel) + var(--toggle-ov1)) 0; }
-  80% { translate: calc(var(--toggle-travel) - var(--toggle-ov2)) 0; }
-  100% { translate: var(--toggle-travel) 0; }
+  0% {
+    translate: 0 0;
+  }
+  55% {
+    translate: calc(var(--toggle-travel) + var(--toggle-ov1)) 0;
+  }
+  80% {
+    translate: calc(var(--toggle-travel) - var(--toggle-ov2)) 0;
+  }
+  100% {
+    translate: var(--toggle-travel) 0;
+  }
 }
 @keyframes t-toggle-off {
-  0% { translate: var(--toggle-travel) 0; }
-  55% { translate: calc(0px - var(--toggle-ov1)) 0; }
-  80% { translate: var(--toggle-ov2) 0; }
-  100% { translate: 0 0; }
+  0% {
+    translate: var(--toggle-travel) 0;
+  }
+  55% {
+    translate: calc(0px - var(--toggle-ov1)) 0;
+  }
+  80% {
+    translate: var(--toggle-ov2) 0;
+  }
+  100% {
+    translate: 0 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-toggle-thumb { animation: none !important; }
+  .t-toggle-thumb {
+    animation: none !important;
+  }
 }
 ```
 
@@ -74,4 +103,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

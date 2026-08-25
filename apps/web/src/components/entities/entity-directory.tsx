@@ -28,6 +28,10 @@ function EntityRow({ entity }: { entity: Entity }) {
   return (
     <motion.div
       layout
+      // A grid item defaults to `min-width: auto`, so the `nowrap` that
+      // `truncate` sets on the name below propagates all the way out and sizes
+      // the column to the untruncated text. This is what lets it shrink.
+      className="min-w-0"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
@@ -65,26 +69,47 @@ export function EntityDirectory({
   type,
   title,
   description,
+  /**
+   * Extra kinds shown alongside the primary one. People and Organisations live
+   * together because that is how they are actually recalled — you look for the
+   * company to find the person, and the person to remember the company.
+   */
+  alsoInclude = [],
 }: {
   type: EntityType;
   title: string;
   description: string;
+  alsoInclude?: EntityType[];
 }) {
   const api = useApi();
   const [query, setQuery] = React.useState("");
   const [debounced, setDebounced] = React.useState("");
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [filter, setFilter] = React.useState<EntityType | "all">("all");
 
   React.useEffect(() => {
     const handle = setTimeout(() => setDebounced(query.trim()), 250);
     return () => clearTimeout(handle);
   }, [query]);
 
-  const entities = useResource(`entities:${type}:${debounced}`, () =>
-    api.listEntities({ type, q: debounced || undefined }),
+  const types = React.useMemo(
+    () => [type, ...alsoInclude],
+    [type, alsoInclude],
+  );
+  const key = types.join(",");
+
+  const entities = useResource(`entities:${key}:${debounced}`, () =>
+    api.listEntities({ types, q: debounced || undefined }),
   );
 
-  const results = entities.data?.entities ?? [];
+  const all = React.useMemo(
+    () => entities.data?.entities ?? [],
+    [entities.data],
+  );
+  const results = React.useMemo(
+    () => (filter === "all" ? all : all.filter((e) => e.type === filter)),
+    [all, filter],
+  );
   const meta = ENTITY_META[type];
 
   return (
@@ -131,6 +156,44 @@ export function EntityDirectory({
           </button>
         ) : null}
       </div>
+
+      {types.length > 1 ? (
+        <div
+          role="tablist"
+          aria-label={`Filter ${title.toLowerCase()}`}
+          className="mb-5 flex flex-wrap gap-1.5"
+        >
+          {(["all", ...types] as const).map((value) => {
+            const active = filter === value;
+            const label =
+              value === "all" ? "All" : ENTITY_META[value as EntityType].plural;
+            const count =
+              value === "all"
+                ? all.length
+                : all.filter((e) => e.type === value).length;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setFilter(value as EntityType | "all")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors active:scale-[0.97]",
+                  active
+                    ? value === "all"
+                      ? "border-hairline-strong bg-surface-strong text-foreground"
+                      : ENTITY_META[value as EntityType].chip
+                    : "border-hairline text-subtle hover:border-hairline-strong hover:text-foreground",
+                )}
+              >
+                {label}
+                <span className="tabular-nums opacity-70">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {entities.initialLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">

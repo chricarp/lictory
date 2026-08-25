@@ -5,6 +5,8 @@ import type {
   EntityInput,
   EntityRole,
   EntityType,
+  MomentRecurrence,
+  TimeKind,
 } from "@lictory/contracts";
 import { Check, Plus, Search } from "@/components/ui/icons";
 import * as React from "react";
@@ -19,7 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, Input } from "@/components/ui/input";
+import { RecurrenceField } from "@/components/moments/recurrence-field";
+import { Field, Input, Textarea, fieldStyles } from "@/components/ui/input";
 import { useApi } from "@/lib/api";
 import { ENTITY_META } from "@/lib/entities";
 import { cn } from "@/lib/utils";
@@ -73,6 +76,14 @@ export function EntityPicker({
   const [longitude, setLongitude] = React.useState("");
   const [radius, setRadius] = React.useState("250");
   const [startsAt, setStartsAt] = React.useState("");
+  const [allDay, setAllDay] = React.useState(false);
+  const [recurrence, setRecurrence] = React.useState<MomentRecurrence | null>(
+    null,
+  );
+  const [description, setDescription] = React.useState("");
+  const [timeKind, setTimeKind] = React.useState<TimeKind>("event");
+  const [needsReminder, setNeedsReminder] = React.useState(false);
+  const [reminderReason, setReminderReason] = React.useState("");
 
   // Reset during render on each open so the dialog never flashes the previous
   // search before the effect clears it.
@@ -83,6 +94,17 @@ export function EntityPicker({
       setType(initialType);
       setQuery("");
       setMatches([]);
+      setAddress("");
+      setLatitude("");
+      setLongitude("");
+      setRadius("250");
+      setStartsAt("");
+      setAllDay(false);
+      setRecurrence(null);
+      setDescription("");
+      setTimeKind("event");
+      setNeedsReminder(false);
+      setReminderReason("");
     }
   }
 
@@ -123,6 +145,7 @@ export function EntityPicker({
     const name = query.trim();
     if (!name) return;
     const entity: EntityInput = { type, name };
+    if (description.trim()) entity.description = description.trim();
     if (type === "place") {
       if (address.trim()) entity.address = address.trim();
       if (latitude && longitude) {
@@ -132,8 +155,20 @@ export function EntityPicker({
       }
     }
     if (type === "time" && startsAt) {
-      entity.startsAt = new Date(startsAt).toISOString();
-      entity.allDay = startsAt.length <= 10;
+      // An all-day moment is a date, not an instant: keeping the bare date is
+      // what stops a birthday drifting a day either side of a timezone.
+      entity.startsAt = allDay
+        ? startsAt.slice(0, 10)
+        : new Date(startsAt).toISOString();
+      entity.allDay = allDay;
+    }
+    if (type === "time") {
+      entity.timeKind = timeKind;
+      entity.recurrenceRule = recurrence;
+      entity.needsReminder = needsReminder;
+      if (reminderReason.trim()) {
+        entity.reminderReason = reminderReason.trim();
+      }
     }
     void attach({ entity });
   };
@@ -198,6 +233,15 @@ export function EntityPicker({
             </div>
           </Field>
 
+          <Field label="Why it matters" hint="Optional context for this note.">
+            <Textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="How this person, place or moment is relevant…"
+              className="min-h-20"
+            />
+          </Field>
+
           {type === "place" ? (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Address" className="col-span-2">
@@ -238,13 +282,65 @@ export function EntityPicker({
           ) : null}
 
           {type === "time" ? (
-            <Field label="When" hint="Leave empty for an undated moment.">
-              <Input
-                type="datetime-local"
-                value={startsAt}
-                onChange={(event) => setStartsAt(event.target.value)}
-              />
-            </Field>
+            <div className="flex flex-col gap-3">
+              <Field label="When" hint="Leave empty for an undated moment.">
+                <Input
+                  type={allDay ? "date" : "datetime-local"}
+                  value={allDay ? startsAt.slice(0, 10) : startsAt}
+                  onChange={(event) => setStartsAt(event.target.value)}
+                />
+              </Field>
+              <label className="flex items-center gap-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={allDay}
+                  onChange={(event) => setAllDay(event.target.checked)}
+                  className="accent-ember"
+                />
+                All day
+              </label>
+              <Field label="Kind">
+                <select
+                  value={timeKind}
+                  onChange={(event) =>
+                    setTimeKind(event.target.value as TimeKind)
+                  }
+                  className={cn(fieldStyles, "h-10")}
+                >
+                  <option value="date">Date</option>
+                  <option value="event">Event</option>
+                  <option value="deadline">Deadline</option>
+                  <option value="reminder">Reminder</option>
+                </select>
+              </Field>
+              <RecurrenceField value={recurrence} onChange={setRecurrence} />
+              <label className="flex items-start gap-2.5 rounded-md border border-hairline bg-canvas-raised p-3 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={needsReminder}
+                  onChange={(event) => setNeedsReminder(event.target.checked)}
+                  className="mt-0.5 accent-ember"
+                />
+                <span>
+                  <span className="block font-medium text-foreground">
+                    This needs a reminder
+                  </span>
+                  <span className="mt-0.5 block text-xs text-subtle">
+                    Marks this moment as something that should actively
+                    resurface.
+                  </span>
+                </span>
+              </label>
+              {needsReminder ? (
+                <Field label="Reminder reason">
+                  <Input
+                    value={reminderReason}
+                    onChange={(event) => setReminderReason(event.target.value)}
+                    placeholder="What should not be missed?"
+                  />
+                </Field>
+              ) : null}
+            </div>
           ) : null}
 
           {matches.length > 0 ? (

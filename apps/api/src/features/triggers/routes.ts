@@ -60,8 +60,8 @@ triggers.post("/triggers", async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO triggers
       (id, user_id, type, status, title, body, scheduled_for, timezone, location_label,
-       latitude, longitude, radius_meters, location_event, note_id, entity_id, created_at)
-     VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       latitude, longitude, radius_meters, location_event, origin, note_id, entity_id, created_at)
+     VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, ?, ?)`,
   )
     .bind(
       id,
@@ -94,6 +94,77 @@ triggers.post("/triggers", async (c) => {
     .first<TriggerRow>();
   if (!row) throw new Error("The trigger row was not persisted");
   return c.json({ trigger: triggerRecord(row) }, 201);
+});
+
+/**
+ * Switches a reminder off, or back on.
+ *
+ * The row is kept rather than deleted so a workflow already sleeping on it
+ * finds a cancelled trigger and quietly declines to fire, and so the moment it
+ * belongs to keeps the record that a human turned it off — which is what stops
+ * re-processing the note from helpfully arming a new one. Re-arming is the way
+ * back, so switching it off is never a one-way door.
+ */
+triggers.patch("/triggers/:triggerId", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { status?: string };
+  if (body.status !== "cancelled" && body.status !== "active") {
+    return c.json(
+      errorBody("invalid_trigger", "status must be 'cancelled' or 'active'"),
+      400,
+    );
+  }
+
+  const existing = await c.env.DB.prepare(
+    "SELECT * FROM triggers WHERE id = ? AND user_id = ?",
+  )
+    .bind(c.req.param("triggerId"), c.get("userId"))
+    .first<TriggerRow>();
+  if (!existing) {
+    return c.json(errorBody("trigger_not_found", "Reminder not found"), 404);
+  }
+  if (existing.status === "triggered") {
+    return c.json(
+      errorBody("trigger_already_fired", "That reminder has already fired"),
+      409,
+    );
+  }
+
+  if (
+    body.status === "active" &&
+    (!existing.scheduled_for ||
+      Date.parse(existing.scheduled_for) <= Date.now())
+  ) {
+    return c.json(
+      errorBody("trigger_in_past", "That reminder's time has already passed"),
+      400,
+    );
+  }
+
+  await c.env.DB.prepare("UPDATE triggers SET status = ? WHERE id = ?")
+    .bind(body.status, c.req.param("triggerId"))
+    .run();
+
+  // A cancelled workflow instance cannot be resumed, so re-arming starts a new
+  // one. The sleeping instance re-checks status before firing, so the old one
+  // cannot double-send.
+  if (body.status === "active" && existing.scheduled_for) {
+    try {
+      await c.env.FIRE_TRIGGER.create({
+        params: {
+          triggerId: existing.id,
+          scheduledFor: existing.scheduled_for,
+        },
+      });
+    } catch {
+      // Left active in the database so it can be inspected or re-armed.
+    }
+  }
+
+  const row = await c.env.DB.prepare("SELECT * FROM triggers WHERE id = ?")
+    .bind(c.req.param("triggerId"))
+    .first<TriggerRow>();
+  if (!row) throw new Error("The trigger row disappeared during the update");
+  return c.json({ trigger: triggerRecord(row) });
 });
 
 triggers.post("/devices", async (c) => {

@@ -35,7 +35,7 @@ pnpm dev:web
 pnpm dev:mobile
 ```
 
-Create an account from either client using email and password. Google and Apple buttons become functional after their credentials are added to `apps/api/.dev.vars`. The local Wrangler config omits remote AI credentials and returns deterministic placeholder AI results, so normal development does not require a Cloudflare login. Add all four AI Gateway values from `.dev.vars.example` to exercise the real OpenAI path locally.
+Create an account from either client using email and password. Google and Apple buttons become functional after their credentials are added to the API environment. Note understanding always uses OpenAI; set `OPENAI_API_KEY` in `apps/api/.env` for local development. Cloudflare AI Gateway is optional and is used only when its account ID, gateway ID and token are all present.
 
 The first run asks to trust Portless's local certificate authority. The web app is at `https://lictory.localhost`, and the API is at `https://api.lictory.localhost`. Wrangler also stays on `https://api.lictory.localhost` so mobile development keeps working: a physical phone cannot reach `localhost`, so set `EXPO_PUBLIC_API_URL` to your machine's LAN address. Android emulators normally use `http://10.0.2.2:8787`.
 
@@ -69,7 +69,8 @@ Required production secrets/variables:
 - `APPLE_APP_BUNDLE_IDENTIFIER`
 - `PASSKEY_RP_ID` and `PASSKEY_ORIGINS`
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
-- `AI_GATEWAY_ACCOUNT_ID`, `AI_GATEWAY_ID`, `AI_GATEWAY_TOKEN`, `OPENAI_API_KEY`
+- `OPENAI_API_KEY`
+- Optional Cloudflare AI Gateway routing: `AI_GATEWAY_ACCOUNT_ID`, `AI_GATEWAY_ID`, `AI_GATEWAY_TOKEN`
 - `ALLOWED_ORIGINS`
 - `NEXT_PUBLIC_API_URL` and `EXPO_PUBLIC_API_URL`
 - `EXPO_PUBLIC_EAS_PROJECT_ID`
@@ -110,18 +111,24 @@ Add every Android signing identity (development, EAS, and Play App Signing) to t
 **Understanding**
 
 - Queue-backed, durable per-note AI workflow with independent retries
-- OpenAI `gpt-4o-mini-transcribe` audio transcription through Cloudflare AI Gateway
-- OpenAI `gpt-5-nano` vision and JSON-schema-constrained extraction through Cloudflare AI Gateway
-- Workers AI `toMarkdown` conversion for PDFs and Office documents
+- OpenAI `gpt-4o-mini-transcribe` audio transcription, directly or through Cloudflare AI Gateway
+- OpenAI `gpt-5-nano` vision and strict Structured Outputs extraction, directly or through Cloudflare AI Gateway
+- Firecrawl AnyDoc WebAssembly conversion for Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV and text-based PDFs; Workers AI is an OCR fallback for scanned documents
 - Per-stage processing state persisted and surfaced live in the UI
-- Deterministic offline extractor so the full experience works without remote AI credentials
+- Structured dates distinguish contextual dates, events, deadlines and reminders, including why each one matters
 
 **Structure**
 
 - Entities deduplicated per user, enriched rather than duplicated as new details arrive
+- Alias-indexed resolution folds honorifics, legal suffixes, plurals, middle names and acronyms together, so "OpenAI Inc." and "OpenAI" are one node
+- Near-misses become reviewable duplicate suggestions instead of silent merges, with a one-tap merge or dismiss
+- Places normalised into structured addresses with a geohash; coordinates are read, geocoded, or inherited from a broader place you already have and labelled approximate
+- Moments carry an objective — context, event, deadline or reminder — and a structured schedule, so birthdays, recurring plans, reminders and one-off dates are all one row that knows when it next happens
+- Reminders arm a real notification you can switch off and back on, and a repeating moment re-arms itself after each firing
+- The Moments calendar reads a date range with repeats already expanded, and offers an upcoming agenda grouped by horizon or a month grid with a day panel
 - Note-to-entity and note-to-note relationships with `origin`, `confidence` and review status
 - Human review of every AI suggestion, plus manual add/edit/merge/delete of entities
-- Location-aware places (coordinates + radius) and time-aware moments (instant + recurrence)
+- People and organisations share one directory, and each links to the other
 - Entity pages, co-occurrence neighbourhoods, cross-entity filtering and ⌘K search over notes and entities
 
 **Platform**

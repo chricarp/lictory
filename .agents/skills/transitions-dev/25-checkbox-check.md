@@ -11,7 +11,7 @@ Toggle `aria-checked` on the control. Like **success check**, the draw needs `st
 ```html
 <button class="t-check" role="checkbox" aria-checked="false">
   <svg viewBox="0 0 10.1668 10.1668">
-    <path d="M1 5.52L3.92 9.17L9.17 1"/>
+    <path d="M1 5.52L3.92 9.17L9.17 1" />
   </svg>
 </button>
 ```
@@ -23,13 +23,13 @@ transitioning offset lets a mid-draw uncheck reverse cleanly.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--check-box` | `150ms` | sourced from `--p25-box-dur` |
-| `--check-draw` | `350ms` | sourced from `--p25-draw-dur` |
-| `--check-delay` | `0ms` | sourced from `--p25-draw-delay` |
-| `--check-uncheck` | `150ms` | sourced from `--p25-uncheck-dur` |
-| `--check-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p25-ease` |
+| Variable          | Default                          | Notes                            |
+| ----------------- | -------------------------------- | -------------------------------- |
+| `--check-box`     | `150ms`                          | sourced from `--p25-box-dur`     |
+| `--check-draw`    | `350ms`                          | sourced from `--p25-draw-dur`    |
+| `--check-delay`   | `0ms`                            | sourced from `--p25-draw-delay`  |
+| `--check-uncheck` | `150ms`                          | sourced from `--p25-uncheck-dur` |
+| `--check-ease`    | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p25-ease`        |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -58,11 +58,15 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 }
 .t-check[aria-checked="true"] svg path {
   stroke-dashoffset: 0;
-  transition: stroke-dashoffset var(--check-draw) var(--check-ease) var(--check-delay);
+  transition: stroke-dashoffset var(--check-draw) var(--check-ease)
+    var(--check-delay);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-check, .t-check svg path { transition: none !important; }
+  .t-check,
+  .t-check svg path {
+    transition: none !important;
+  }
 }
 ```
 
@@ -71,4 +75,3 @@ The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet
 ## JavaScript orchestration
 
 None — pure CSS. Toggle the documented HTML attributes or class names from whatever already drives state in your app.
-

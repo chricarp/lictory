@@ -1,7 +1,7 @@
 import { WorkflowEntrypoint, WorkflowStep } from "cloudflare:workers";
 import type { WorkflowEvent } from "cloudflare:workers";
 
-import type { Extraction } from "@lictory/contracts";
+import type { EntityInput, Extraction } from "@lictory/contracts";
 
 import type {
   Env,
@@ -14,11 +14,11 @@ import {
   describeImage,
   documentToText,
   extractStructure,
-  hasOpenAiGateway,
   transcribeAudio,
 } from "./extraction";
-import { heuristicExtraction } from "./heuristics";
-import { attachEntityToNote, markStep, resolveEntity } from "../notes/service";
+import { resolveEntity } from "../entities/resolver";
+import { upsertMomentFacet } from "../entities/moments";
+import { attachEntityToNote, markStep } from "../notes/service";
 
 /* -------------------------------------------------------------------------- */
 /*                        Legacy single-asset processing                      */
@@ -76,18 +76,6 @@ export class ProcessMediaWorkflow extends WorkflowEntrypoint<
 }
 
 async function describeAsset(env: Env, asset: MediaRow): Promise<string> {
-  if (!hasOpenAiGateway(env) && !env.AI && env.ENVIRONMENT === "development") {
-    // Plain text can still be read without a model, which keeps local
-    // development representative for document-heavy notes.
-    if (asset.content_type.startsWith("text/")) {
-      const object = await env.MEDIA_BUCKET.get(asset.object_key);
-      if (object) return (await object.text()).slice(0, 20_000);
-    }
-    return asset.kind === "audio"
-      ? `Local transcript placeholder for ${asset.original_name}`
-      : `Local description placeholder for ${asset.original_name}`;
-  }
-
   const object = await env.MEDIA_BUCKET.get(asset.object_key);
   if (!object) throw new Error(`Missing R2 object ${asset.object_key}`);
   const bytes = await object.arrayBuffer();
@@ -97,7 +85,6 @@ async function describeAsset(env: Env, asset: MediaRow): Promise<string> {
   }
   if (asset.kind === "image")
     return describeImage(env, bytes, asset.content_type);
-  if (!env.AI) throw new Error("Workers AI document conversion is unavailable");
   return documentToText(env, asset.original_name, bytes, asset.content_type);
 }
 
@@ -166,9 +153,16 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
           );
 
           const parts: string[] = [];
+          const audioFailures: string[] = [];
+          const visualFailures: string[] = [];
           for (const asset of results) {
             if (asset.status === "pending_upload") continue;
             try {
+              await this.env.DB.prepare(
+                "UPDATE media_assets SET status = 'processing', failure_reason = NULL, updated_at = ? WHERE id = ?",
+              )
+                .bind(new Date().toISOString(), asset.id)
+                .run();
               const text = await describeAsset(this.env, asset);
               await this.env.DB.prepare(
                 "UPDATE media_assets SET status = 'completed', ai_result = ?, failure_reason = NULL, updated_at = ? WHERE id = ?",
@@ -186,6 +180,9 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
               )
                 .bind(reason.slice(0, 500), new Date().toISOString(), asset.id)
                 .run();
+              const failures =
+                asset.kind === "audio" ? audioFailures : visualFailures;
+              failures.push(`${asset.original_name}: ${reason}`);
             }
           }
 
@@ -194,8 +191,10 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
               this.env,
               noteId,
               "transcribe",
-              "completed",
-              `${results.filter((a) => a.kind === "audio").length} clip(s) transcribed`,
+              audioFailures.length > 0 ? "failed" : "completed",
+              audioFailures.length > 0
+                ? audioFailures.join("; ").slice(0, 500)
+                : `${results.filter((a) => a.kind === "audio").length} clip(s) transcribed`,
             );
           }
           if (hasVisual) {
@@ -203,8 +202,16 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
               this.env,
               noteId,
               "describe",
-              "completed",
-              `${results.filter((a) => a.kind !== "audio").length} file(s) read`,
+              visualFailures.length > 0 ? "failed" : "completed",
+              visualFailures.length > 0
+                ? visualFailures.join("; ").slice(0, 500)
+                : `${results.filter((a) => a.kind !== "audio").length} file(s) read`,
+            );
+          }
+          const failures = [...audioFailures, ...visualFailures];
+          if (failures.length > 0) {
+            throw new Error(
+              `Attachment processing failed: ${failures.join("; ").slice(0, 900)}`,
             );
           }
           return parts;
@@ -226,11 +233,12 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
             .filter(Boolean)
             .join("\n\n");
 
-          const result = hasOpenAiGateway(this.env)
-            ? await extractStructure(this.env, composite, note.created_at)
-            : this.env.ENVIRONMENT === "development"
-              ? heuristicExtraction(composite, note.created_at)
-              : await extractStructure(this.env, composite, note.created_at);
+          const result = await extractStructure(
+            this.env,
+            composite,
+            note.created_at,
+            note.capture_timezone,
+          );
 
           await markStep(
             this.env,
@@ -247,14 +255,51 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
 
       const entityIds = await step.do("resolve entities", async () => {
         await markStep(this.env, noteId, "resolve", "running");
+        // Re-processing replaces only AI suggestions. Confirmed and rejected
+        // human decisions have origin=user and remain permanent.
+        await this.env.DB.prepare(
+          "DELETE FROM note_entities WHERE note_id = ? AND origin = 'ai'",
+        )
+          .bind(noteId)
+          .run();
         const ids: string[] = [];
+        // Counted so the stage can say what normalization actually did rather
+        // than just how many rows it wrote.
+        let merged = 0;
+        let suspected = 0;
+        let armed = 0;
 
         const link = async (
-          input: Parameters<typeof resolveEntity>[2],
+          input: EntityInput,
           confidence: number | null | undefined,
           mention: string | null | undefined,
         ) => {
-          const entity = await resolveEntity(this.env, userId, input, "ai");
+          const resolved = await resolveEntity(this.env, userId, input, "ai");
+          const entity = resolved.row;
+
+          if (resolved.match === "alias" || resolved.match === "similarity") {
+            merged += 1;
+          }
+          if (resolved.match === "proximity") merged += 1;
+          if (resolved.suspected) suspected += 1;
+
+          // A moment only becomes a notification once it belongs to a note, so
+          // the reminder is armed here rather than inside the resolver.
+          if (resolved.moment) {
+            const outcome = await upsertMomentFacet(
+              this.env,
+              userId,
+              entity,
+              resolved.moment,
+              {
+                noteId,
+                title: note.title?.trim() || "Reminder",
+                body: entity.reminder_reason?.trim() || entity.name,
+              },
+            );
+            if (outcome.armed) armed += 1;
+          }
+
           await attachEntityToNote(this.env, noteId, entity.id, {
             role: ROLE_BY_TYPE[input.type],
             status: "suggested",
@@ -267,14 +312,22 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
 
         for (const person of extraction.people) {
           await link(
-            { type: "person", name: person.name },
+            {
+              type: "person",
+              name: person.name,
+              description: person.description ?? null,
+            },
             person.confidence,
             person.mention,
           );
         }
         for (const org of extraction.organizations) {
           await link(
-            { type: "organization", name: org.name },
+            {
+              type: "organization",
+              name: org.name,
+              description: org.description ?? null,
+            },
             org.confidence,
             org.mention,
           );
@@ -287,6 +340,7 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
               address: place.address ?? null,
               latitude: place.latitude ?? null,
               longitude: place.longitude ?? null,
+              description: place.description ?? null,
             },
             place.confidence,
             place.mention,
@@ -300,7 +354,11 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
               startsAt: time.startsAt ?? null,
               endsAt: time.endsAt ?? null,
               allDay: time.allDay ?? null,
+              timezone: time.timezone ?? null,
               recurrence: time.recurrence ?? null,
+              timeKind: time.kind,
+              needsReminder: time.needsReminder,
+              reminderReason: time.reason ?? null,
             },
             time.confidence,
             time.mention,
@@ -308,19 +366,26 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
         }
         for (const topic of extraction.topics) {
           await link(
-            { type: "topic", name: topic.name },
+            {
+              type: "topic",
+              name: topic.name,
+              description: topic.description ?? null,
+            },
             topic.confidence,
             null,
           );
         }
 
-        await markStep(
-          this.env,
-          noteId,
-          "resolve",
-          "completed",
-          `${ids.length} entities linked`,
-        );
+        const detail = [
+          `${ids.length} linked`,
+          merged > 0 ? `${merged} merged` : null,
+          suspected > 0 ? `${suspected} possible duplicate` : null,
+          armed > 0 ? `${armed} reminder armed` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+        await markStep(this.env, noteId, "resolve", "completed", detail);
         return ids;
       });
 
@@ -328,6 +393,11 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
 
       await step.do("connect notes", async () => {
         await markStep(this.env, noteId, "connect", "running");
+        await this.env.DB.prepare(
+          "DELETE FROM note_links WHERE source_note_id = ? AND origin = 'ai'",
+        )
+          .bind(noteId)
+          .run();
         if (entityIds.length === 0) {
           await markStep(
             this.env,
@@ -392,12 +462,16 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
       /* ------------------------------ 5. finish ---------------------------- */
 
       await step.do("finalize", async () => {
-        const primaryTime = extraction.times.find((time) => time.startsAt);
+        const primaryTime = extraction.times.find(
+          (time) =>
+            time.startsAt && (time.kind === "date" || time.kind === "event"),
+        );
         const now = new Date().toISOString();
         await this.env.DB.prepare(
           `UPDATE notes
               SET status = 'ready',
                   ai_summary = ?,
+                  ai_analysis = ?,
                   ai_error = NULL,
                   title = COALESCE(NULLIF(title, ''), ?),
                   occurred_at = COALESCE(occurred_at, ?),
@@ -407,6 +481,7 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
         )
           .bind(
             extraction.summary ?? null,
+            extraction.analysis ?? null,
             extraction.title ?? null,
             primaryTime?.startsAt ?? null,
             now,

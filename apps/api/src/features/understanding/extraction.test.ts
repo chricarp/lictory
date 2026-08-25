@@ -4,7 +4,7 @@ import type { Env } from "../../bindings";
 import {
   describeImage,
   extractStructure,
-  hasOpenAiGateway,
+  hasOpenAiConfiguration,
   transcribeAudio,
 } from "./extraction";
 
@@ -19,13 +19,38 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("OpenAI through Cloudflare AI Gateway", () => {
-  it("requires every gateway credential", () => {
-    expect(hasOpenAiGateway(env)).toBe(true);
-    expect(hasOpenAiGateway({ ...env, OPENAI_API_KEY: undefined })).toBe(false);
+describe("OpenAI requests", () => {
+  it("requires an OpenAI API key", () => {
+    expect(hasOpenAiConfiguration(env)).toBe(true);
+    expect(hasOpenAiConfiguration({ ...env, OPENAI_API_KEY: undefined })).toBe(
+      false,
+    );
   });
 
-  it("extracts structured note context with gpt-5-nano", async () => {
+  it("uses OpenAI directly when Cloudflare AI Gateway is not configured", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ text: "Remember the tickets." }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await transcribeAudio(
+      {
+        OPENAI_API_KEY: "openai-key",
+      } as Env,
+      new Uint8Array([1, 2, 3]).buffer,
+      "memo.webm",
+      "audio/webm",
+    );
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.openai.com/v1/audio/transcriptions");
+    expect(init.headers).toMatchObject({
+      Authorization: "Bearer openai-key",
+    });
+    expect(init.headers).not.toHaveProperty("cf-aig-authorization");
+  });
+
+  it("extracts structured note context with gpt-5.4-nano", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         choices: [
@@ -34,11 +59,35 @@ describe("OpenAI through Cloudflare AI Gateway", () => {
               content: JSON.stringify({
                 title: "Coffee with Ada",
                 summary: "Met Ada in Rome.",
-                people: [{ name: "Ada" }],
-                places: [{ name: "Rome" }],
+                analysis: "Ada and I met for coffee.",
+                people: [
+                  {
+                    name: "Ada",
+                    description: "Coffee companion",
+                    mention: "Ada",
+                    confidence: 0.95,
+                  },
+                ],
+                places: [
+                  {
+                    name: "Rome",
+                    address: null,
+                    latitude: null,
+                    longitude: null,
+                    description: "Meeting city",
+                    mention: "Rome",
+                    confidence: 0.95,
+                  },
+                ],
                 times: [],
                 organizations: [],
-                topics: [{ name: "coffee" }],
+                topics: [
+                  {
+                    name: "coffee",
+                    description: "Subject of the meeting",
+                    confidence: 0.8,
+                  },
+                ],
               }),
             },
           },
@@ -51,6 +100,7 @@ describe("OpenAI through Cloudflare AI Gateway", () => {
       env,
       "Met Ada for coffee in Rome.",
       "2026-08-19T08:00:00.000Z",
+      "Europe/Rome",
     );
 
     expect(result.people[0]?.name).toBe("Ada");
@@ -64,7 +114,8 @@ describe("OpenAI through Cloudflare AI Gateway", () => {
       "Content-Type": "application/json",
     });
     expect(JSON.parse(init.body as string)).toMatchObject({
-      model: "gpt-5-nano",
+      model: "gpt-5.4-nano",
+      reasoning_effort: "none",
       response_format: {
         type: "json_schema",
         json_schema: { name: "note_extraction" },
@@ -72,7 +123,7 @@ describe("OpenAI through Cloudflare AI Gateway", () => {
     });
   });
 
-  it("uses gpt-5-nano for image descriptions", async () => {
+  it("uses gpt-5.4-nano for image descriptions", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         choices: [{ message: { content: "A red bicycle." } }],
@@ -86,7 +137,8 @@ describe("OpenAI through Cloudflare AI Gateway", () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(init.body as string)).toMatchObject({
-      model: "gpt-5-nano",
+      model: "gpt-5.4-nano",
+      reasoning_effort: "none",
     });
   });
 
@@ -120,7 +172,12 @@ describe("OpenAI through Cloudflare AI Gateway", () => {
     );
 
     await expect(
-      extractStructure(env, "A note", "2026-08-19T08:00:00.000Z"),
+      extractStructure(
+        env,
+        "A note",
+        "2026-08-19T08:00:00.000Z",
+        "Europe/Rome",
+      ),
     ).rejects.toThrow(
       "Cloudflare AI Gateway request failed (429): rate limited",
     );

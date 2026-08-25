@@ -240,7 +240,10 @@ export function RevealItem({
 }) {
   return (
     <motion.div
-      className={className}
+      // Reveal items live in wrapping flex rows. A flex item defaults to
+      // min-width: auto, so without these the wrapper grows to its content's
+      // intrinsic width and any truncation inside it never engages.
+      className={cn("min-w-0 max-w-full", className)}
       variants={{
         hidden: { opacity: 0, y: 8, scale: 0.94 },
         visible: {

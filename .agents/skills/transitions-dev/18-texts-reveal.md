@@ -14,23 +14,24 @@ A headline + supporting line that rise into view with staggered blur — hero co
 ```
 
 State:
-  - Add `.is-shown` to play the staggered entrance.
-  - Add `.is-hiding` (and remove `.is-shown`) to fade
-    out in place over a short 200ms — independent of the
-    entrance timing so the exit doesn't replay the stagger.
+
+- Add `.is-shown` to play the staggered entrance.
+- Add `.is-hiding` (and remove `.is-shown`) to fade
+  out in place over a short 200ms — independent of the
+  entrance timing so the exit doesn't replay the stagger.
 
 Add more lines by adding `.t-stagger-line--N` with
 `transition-delay: calc(var(--stagger-stagger) * (N - 1))`.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--stagger-dur` | `500ms` | sourced from `--p18-dur` |
-| `--stagger-distance` | `12px` | sourced from `--p18-distance` |
-| `--stagger-stagger` | `40ms` | sourced from `--p18-stagger` |
-| `--stagger-blur` | `3px` | sourced from `--p18-blur` |
-| `--stagger-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p18-ease` |
+| Variable             | Default                          | Notes                         |
+| -------------------- | -------------------------------- | ----------------------------- |
+| `--stagger-dur`      | `500ms`                          | sourced from `--p18-dur`      |
+| `--stagger-distance` | `12px`                           | sourced from `--p18-distance` |
+| `--stagger-stagger`  | `40ms`                           | sourced from `--p18-stagger`  |
+| `--stagger-blur`     | `3px`                            | sourced from `--p18-blur`     |
+| `--stagger-ease`     | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p18-ease`     |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -57,12 +58,14 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   transform: translateY(var(--stagger-distance));
   filter: blur(var(--stagger-blur));
   transition:
-    opacity   var(--stagger-dur) var(--stagger-ease),
+    opacity var(--stagger-dur) var(--stagger-ease),
     transform var(--stagger-dur) var(--stagger-ease),
-    filter    var(--stagger-dur) var(--stagger-ease);
+    filter var(--stagger-dur) var(--stagger-ease);
   will-change: transform, opacity, filter;
 }
-.t-stagger-line--2 { transition-delay: var(--stagger-stagger); }
+.t-stagger-line--2 {
+  transition-delay: var(--stagger-stagger);
+}
 
 .t-stagger.is-shown .t-stagger-line {
   opacity: 1;
@@ -84,7 +87,9 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-stagger-line { transition: none !important; }
+  .t-stagger-line {
+    transition: none !important;
+  }
 }
 ```
 
@@ -107,4 +112,3 @@ function hideText() {
   setTimeout(() => block.classList.remove("is-hiding"), 200);
 }
 ```
-

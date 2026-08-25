@@ -9,8 +9,10 @@ The pointer is tracked on an **outer flat wrapper** (`.t-tilt`) that never trans
 ## HTML usage
 
 ```html
-<div class="t-tilt">                <!-- flat hit area -->
-  <div class="t-tilt-card">       <!-- the element that tilts -->
+<div class="t-tilt">
+  <!-- flat hit area -->
+  <div class="t-tilt-card">
+    <!-- the element that tilts -->
     … card content …
     <div class="t-tilt-glare"></div>
   </div>
@@ -19,25 +21,25 @@ The pointer is tracked on an **outer flat wrapper** (`.t-tilt`) that never trans
 
 Track the pointer on the OUTER `.t-tilt` (it never
 transforms) and write four custom properties from JS:
-  el.style.setProperty('--tilt-rx', rxDeg + 'deg');
-  el.style.setProperty('--tilt-ry', ryDeg + 'deg');
-  el.style.setProperty('--tilt-gx', gxPct + '%');
-  el.style.setProperty('--tilt-gy', gyPct + '%');
+el.style.setProperty('--tilt-rx', rxDeg + 'deg');
+el.style.setProperty('--tilt-ry', ryDeg + 'deg');
+el.style.setProperty('--tilt-gx', gxPct + '%');
+el.style.setProperty('--tilt-gy', gyPct + '%');
 Add `.is-tilting` while moving (fast follow) and
 `.is-hover` to fade the glare in; remove both on leave.
 
 ## Tunable variables
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `--tilt-perspective` | `1000px` | sourced from `--p19-perspective` |
-| `--tilt-return` | `1000ms` | sourced from `--p19-return-dur` |
-| `--tilt-return-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p19-return-ease` |
-| `--tilt-follow` | `400ms` | sourced from `--p19-follow-dur` |
-| `--tilt-follow-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p19-follow-ease` |
-| `--tilt-glare-opacity` | `0.32` | sourced from `--p19-glare-opacity` |
-| `--tilt-glare-fade` | `300ms` | sourced from `--p19-glare-fade` |
-| `--tilt-glare-ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p19-glare-ease` |
+| Variable               | Default                          | Notes                              |
+| ---------------------- | -------------------------------- | ---------------------------------- |
+| `--tilt-perspective`   | `1000px`                         | sourced from `--p19-perspective`   |
+| `--tilt-return`        | `1000ms`                         | sourced from `--p19-return-dur`    |
+| `--tilt-return-ease`   | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p19-return-ease`   |
+| `--tilt-follow`        | `400ms`                          | sourced from `--p19-follow-dur`    |
+| `--tilt-follow-ease`   | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p19-follow-ease`   |
+| `--tilt-glare-opacity` | `0.32`                           | sourced from `--p19-glare-opacity` |
+| `--tilt-glare-fade`    | `300ms`                          | sourced from `--p19-glare-fade`    |
+| `--tilt-glare-ease`    | `cubic-bezier(0.22, 1, 0.36, 1)` | sourced from `--p19-glare-ease`    |
 
 The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
 
@@ -60,7 +62,9 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
 /* The outer wrapper is the flat hit area; touch-action:none
    lets a finger drag tilt the card instead of scrolling the
    page, so tap-hold-drag works on mobile. */
-.t-tilt { touch-action: none; }
+.t-tilt {
+  touch-action: none;
+}
 /* The card tilts toward the pointer via rotateX/rotateY fed
    from JS; on leave it eases back to flat. A separate
    .is-tilting class swaps in a short linear follow while the
@@ -69,9 +73,7 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   position: relative;
   border-radius: 12px;
   overflow: hidden;
-  transform:
-    perspective(var(--tilt-perspective))
-    rotateX(var(--tilt-rx, 0deg))
+  transform: perspective(var(--tilt-perspective)) rotateX(var(--tilt-rx, 0deg))
     rotateY(var(--tilt-ry, 0deg));
   transform-style: preserve-3d;
   transition: transform var(--tilt-return) var(--tilt-return-ease);
@@ -89,18 +91,34 @@ The `:root` defaults below match the live tuning on [transitions.dev](https://tr
   opacity: 0;
   mix-blend-mode: screen;
   background:
-    radial-gradient(circle 95px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.48), rgba(255,255,255,0.06) 52%, rgba(255,255,255,0) 84%),
-    radial-gradient(circle 200px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.22), rgba(255,255,255,0.04) 58%, rgba(255,255,255,0) 78%),
-    radial-gradient(circle 360px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
-      rgba(255,255,255,0.10), rgba(255,255,255,0) 88%);
+    radial-gradient(
+      circle 95px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+      rgba(255, 255, 255, 0.48),
+      rgba(255, 255, 255, 0.06) 52%,
+      rgba(255, 255, 255, 0) 84%
+    ),
+    radial-gradient(
+      circle 200px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+      rgba(255, 255, 255, 0.22),
+      rgba(255, 255, 255, 0.04) 58%,
+      rgba(255, 255, 255, 0) 78%
+    ),
+    radial-gradient(
+      circle 360px at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0) 88%
+    );
   transition: opacity var(--tilt-glare-fade) var(--tilt-glare-ease);
 }
-.t-tilt.is-hover .t-tilt-glare { opacity: var(--tilt-glare-opacity); }
+.t-tilt.is-hover .t-tilt-glare {
+  opacity: var(--tilt-glare-opacity);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .t-tilt-card { transform: none !important; transition: none !important; }
+  .t-tilt-card {
+    transform: none !important;
+    transition: none !important;
+  }
 }
 ```
 
@@ -144,7 +162,9 @@ tilt.addEventListener("pointerdown", (e) => {
   // the finger drifts past its edge. Pair with touch-action: none on
   // .t-tilt so the drag tilts instead of scrolling the page.
   if (e.pointerType !== "mouse") {
-    try { tilt.setPointerCapture(e.pointerId); } catch (_) {}
+    try {
+      tilt.setPointerCapture(e.pointerId);
+    } catch (_) {}
   }
 });
 tilt.addEventListener("pointermove", track);
@@ -167,4 +187,3 @@ Bind `pointermove` to the outer `.t-tilt` (which never transforms), not the `.t-
 ### Touch / mobile
 
 Because it uses Pointer Events, the tilt also works on touch: tap-hold-drag on the card and it follows your finger (a touch `pointermove` only fires while pressed). Two pieces make this reliable — `touch-action: none` on `.t-tilt` so the drag tilts instead of scrolling the page, and `setPointerCapture` on `pointerdown` so the gesture keeps targeting the card even if the finger drifts past its edge.
-

@@ -9,35 +9,35 @@ Twenty-seven portable CSS transitions, each namespaced under `t-*` selectors wit
 
 ## Quick reference
 
-| Transition | When to use | Reference |
-| --- | --- | --- |
-| **Card resize** | Tween a container's width or height when its layout state changes. | [01-card-resize.md](./01-card-resize.md) |
-| **Number pop-in** | Re-enter each digit with a blurred slide when a number updates. | [02-number-pop-in.md](./02-number-pop-in.md) |
-| **Notification badge** | Slide a small badge onto a trigger and pop the dot. | [03-notification-badge.md](./03-notification-badge.md) |
-| **Text states swap** | Swap text in place with a blurred up-and-down transition. | [04-text-states-swap.md](./04-text-states-swap.md) |
-| **Menu dropdown** | Open an origin-aware dropdown that grows from its trigger. | [05-menu-dropdown.md](./05-menu-dropdown.md) |
-| **Modal open / close** | Scale-up modal dialog with a softer scale-down on close. | [06-modal.md](./06-modal.md) |
-| **Panel reveal** | Slide a panel into a region with a cross-blur. | [07-panel-reveal.md](./07-panel-reveal.md) |
-| **Page side-by-side** | Slide between two side-by-side pages (list ↔ detail, step 1 ↔ step 2). | [08-page-side-by-side.md](./08-page-side-by-side.md) |
-| **Icon swap** | Cross-fade two icons in the same slot with blur and scale. | [09-icon-swap.md](./09-icon-swap.md) |
-| **Success check** | Compose fade + rotate + Y-bob + path stroke-draw to celebrate a completed action. | [10-success-check.md](./10-success-check.md) |
-| **Avatar group hover** | Distance-falloff lift on a row of items with a bouncy spring on return. | [11-avatar-group-hover.md](./11-avatar-group-hover.md) |
-| **Error state shake** | Per-segment cubic-bezier shake with auto-reverting border + message. | [12-error-state-shake.md](./12-error-state-shake.md) |
-| **Input clear with dissolve** | Fly-out + per-word streak when a text field is cleared. | [13-input-clear-dissolve.md](./13-input-clear-dissolve.md) |
-| **Skeleton loader and reveal** | Pulse a placeholder, then cross-fade + cross-blur to the loaded content. | [14-skeleton-reveal.md](./14-skeleton-reveal.md) |
-| **Shimmer text** | Sweep a highlight band across muted text on a loop (pure CSS). | [15-shimmer-text.md](./15-shimmer-text.md) |
-| **Tabs sliding** | Slide the active pill between tabs in a segmented control. | [16-tabs-sliding.md](./16-tabs-sliding.md) |
-| **Tooltip open/close** | Delayed fade+scale in, instant out (pure CSS). | [17-tooltip.md](./17-tooltip.md) |
-| **Texts reveal** | Staggered blurred rise for stacked text lines, quiet fade out. | [18-texts-reveal.md](./18-texts-reveal.md) |
-| **Card hover tilt** | Tilt a card in 3D toward the pointer with a cursor-tracked glare. | [19-card-tilt.md](./19-card-tilt.md) |
-| **Plus to menu morph** | Morph a circular trigger into the menu / panel it opens. | [20-plus-menu-morph.md](./20-plus-menu-morph.md) |
-| **Accordion expand** | Grow / shrink a panel via grid-rows with a chevron flip. | [21-accordion.md](./21-accordion.md) |
-| **Toast open / close** | Rise a toast from below with fade + cross-blur, slower in than out. | [22-toast.md](./22-toast.md) |
-| **Like button** | Fill a heart with a pop + particle burst on like. | [23-like-button.md](./23-like-button.md) |
-| **Learn more hover** | Slide the chevron and spread its arms into an arrow on hover. | [24-learn-more-hover.md](./24-learn-more-hover.md) |
-| **Checkbox check** | Fill the box, then stroke-draw the checkmark. | [25-checkbox-check.md](./25-checkbox-check.md) |
-| **Spinning counter** | Spin slot-machine digit reels with vertical motion blur. | [26-spinning-counter.md](./26-spinning-counter.md) |
-| **Toggle** | Travel the switch thumb with a double-bounce overshoot. | [27-toggle.md](./27-toggle.md) |
+| Transition                     | When to use                                                                       | Reference                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Card resize**                | Tween a container's width or height when its layout state changes.                | [01-card-resize.md](./01-card-resize.md)                   |
+| **Number pop-in**              | Re-enter each digit with a blurred slide when a number updates.                   | [02-number-pop-in.md](./02-number-pop-in.md)               |
+| **Notification badge**         | Slide a small badge onto a trigger and pop the dot.                               | [03-notification-badge.md](./03-notification-badge.md)     |
+| **Text states swap**           | Swap text in place with a blurred up-and-down transition.                         | [04-text-states-swap.md](./04-text-states-swap.md)         |
+| **Menu dropdown**              | Open an origin-aware dropdown that grows from its trigger.                        | [05-menu-dropdown.md](./05-menu-dropdown.md)               |
+| **Modal open / close**         | Scale-up modal dialog with a softer scale-down on close.                          | [06-modal.md](./06-modal.md)                               |
+| **Panel reveal**               | Slide a panel into a region with a cross-blur.                                    | [07-panel-reveal.md](./07-panel-reveal.md)                 |
+| **Page side-by-side**          | Slide between two side-by-side pages (list ↔ detail, step 1 ↔ step 2).            | [08-page-side-by-side.md](./08-page-side-by-side.md)       |
+| **Icon swap**                  | Cross-fade two icons in the same slot with blur and scale.                        | [09-icon-swap.md](./09-icon-swap.md)                       |
+| **Success check**              | Compose fade + rotate + Y-bob + path stroke-draw to celebrate a completed action. | [10-success-check.md](./10-success-check.md)               |
+| **Avatar group hover**         | Distance-falloff lift on a row of items with a bouncy spring on return.           | [11-avatar-group-hover.md](./11-avatar-group-hover.md)     |
+| **Error state shake**          | Per-segment cubic-bezier shake with auto-reverting border + message.              | [12-error-state-shake.md](./12-error-state-shake.md)       |
+| **Input clear with dissolve**  | Fly-out + per-word streak when a text field is cleared.                           | [13-input-clear-dissolve.md](./13-input-clear-dissolve.md) |
+| **Skeleton loader and reveal** | Pulse a placeholder, then cross-fade + cross-blur to the loaded content.          | [14-skeleton-reveal.md](./14-skeleton-reveal.md)           |
+| **Shimmer text**               | Sweep a highlight band across muted text on a loop (pure CSS).                    | [15-shimmer-text.md](./15-shimmer-text.md)                 |
+| **Tabs sliding**               | Slide the active pill between tabs in a segmented control.                        | [16-tabs-sliding.md](./16-tabs-sliding.md)                 |
+| **Tooltip open/close**         | Delayed fade+scale in, instant out (pure CSS).                                    | [17-tooltip.md](./17-tooltip.md)                           |
+| **Texts reveal**               | Staggered blurred rise for stacked text lines, quiet fade out.                    | [18-texts-reveal.md](./18-texts-reveal.md)                 |
+| **Card hover tilt**            | Tilt a card in 3D toward the pointer with a cursor-tracked glare.                 | [19-card-tilt.md](./19-card-tilt.md)                       |
+| **Plus to menu morph**         | Morph a circular trigger into the menu / panel it opens.                          | [20-plus-menu-morph.md](./20-plus-menu-morph.md)           |
+| **Accordion expand**           | Grow / shrink a panel via grid-rows with a chevron flip.                          | [21-accordion.md](./21-accordion.md)                       |
+| **Toast open / close**         | Rise a toast from below with fade + cross-blur, slower in than out.               | [22-toast.md](./22-toast.md)                               |
+| **Like button**                | Fill a heart with a pop + particle burst on like.                                 | [23-like-button.md](./23-like-button.md)                   |
+| **Learn more hover**           | Slide the chevron and spread its arms into an arrow on hover.                     | [24-learn-more-hover.md](./24-learn-more-hover.md)         |
+| **Checkbox check**             | Fill the box, then stroke-draw the checkmark.                                     | [25-checkbox-check.md](./25-checkbox-check.md)             |
+| **Spinning counter**           | Spin slot-machine digit reels with vertical motion blur.                          | [26-spinning-counter.md](./26-spinning-counter.md)         |
+| **Toggle**                     | Travel the switch thumb with a double-bounce overshoot.                           | [27-toggle.md](./27-toggle.md)                             |
 
 ## Decision rules
 
@@ -61,7 +61,7 @@ When the user asks for a transition, match against the visible UI element first,
 - **Hover/focus hint that appears over a trigger** (icon tooltip, info bubble) → tooltip open / close.
 - **Stacked headline + supporting line entering with rhythm** (hero copy, empty state, onboarding step) → texts reveal.
 - **Card / tile that should react in 3D to the pointer on hover** (product card, cover art, membership card, with or without a light glare) → card hover tilt.
-- **Circular trigger that becomes the surface it opens** (+ FAB grows into a menu / panel, compose button expands) → plus → menu morph. If the surface is a *separate* popover that merely grows from the trigger, use menu dropdown instead.
+- **Circular trigger that becomes the surface it opens** (+ FAB grows into a menu / panel, compose button expands) → plus → menu morph. If the surface is a _separate_ popover that merely grows from the trigger, use menu dropdown instead.
 - **Header with a collapsible body that grows / shrinks in height** (settings group, FAQ, filter section, "show more", disclosure) → accordion expand.
 - **Transient message that slides in over the page and leaves on its own** (saved / undo / error notice) → toast open / close.
 - **Affordance that celebrates being activated** (heart, star, upvote, bookmark) → like button.
@@ -128,53 +128,53 @@ The shared motion scale behind the twenty-seven transitions — the same tokens 
 
 **Durations**
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--duration-stagger` | `40ms` | per-item stagger offset |
-| `--duration-micro` | `80ms` | tooltip/path delay, shake segment, large stagger |
-| `--duration-quick` | `150ms` | modal/dropdown close, text swap, tooltip appear |
-| `--duration-fast` | `250ms` | icon swap, dropdown/modal open, tabs sliding, page slide |
-| `--duration-medium` | `350ms` | panel close, toast close |
-| `--duration-slow` | `400ms` | panel open, skeleton content reveal, input clear |
+| Token                  | Value   | Usage                                                      |
+| ---------------------- | ------- | ---------------------------------------------------------- |
+| `--duration-stagger`   | `40ms`  | per-item stagger offset                                    |
+| `--duration-micro`     | `80ms`  | tooltip/path delay, shake segment, large stagger           |
+| `--duration-quick`     | `150ms` | modal/dropdown close, text swap, tooltip appear            |
+| `--duration-fast`      | `250ms` | icon swap, dropdown/modal open, tabs sliding, page slide   |
+| `--duration-medium`    | `350ms` | panel close, toast close                                   |
+| `--duration-slow`      | `400ms` | panel open, skeleton content reveal, input clear           |
 | `--duration-very-slow` | `500ms` | emphasis moments, badge appear, text reveal, success check |
 
 **Easings**
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--ease-smooth-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | modal/dropdown/panel open + close, page slide, resize, position change |
-| `--ease-in-out` | `ease-in-out` | icon swap, text swap, text reveal, skeleton reveal |
-| `--ease-out` | `ease-out` | tooltip open / close |
-| `--ease-linear` | `linear` | shimmer, skeleton pulse, spinner |
-| `--ease-bounce` | `cubic-bezier(0.34, 1.36, 0.64, 1)` | badge pop open |
-| `--ease-bounce-strong` | `cubic-bezier(0.34, 3.85, 0.64, 1)` | bouncy hover-out (avatar return) |
+| Token                  | Value                               | Usage                                                                  |
+| ---------------------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| `--ease-smooth-out`    | `cubic-bezier(0.22, 1, 0.36, 1)`    | modal/dropdown/panel open + close, page slide, resize, position change |
+| `--ease-in-out`        | `ease-in-out`                       | icon swap, text swap, text reveal, skeleton reveal                     |
+| `--ease-out`           | `ease-out`                          | tooltip open / close                                                   |
+| `--ease-linear`        | `linear`                            | shimmer, skeleton pulse, spinner                                       |
+| `--ease-bounce`        | `cubic-bezier(0.34, 1.36, 0.64, 1)` | badge pop open                                                         |
+| `--ease-bounce-strong` | `cubic-bezier(0.34, 3.85, 0.64, 1)` | bouncy hover-out (avatar return)                                       |
 
 **Distances**
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--distance-micro` | `4px` | text swap |
-| `--distance-small` | `6px` | error shake (small segment) |
-| `--distance-base` | `8px` | badge diagonal reveal, page slide, error shake (large segment) |
-| `--distance-medium` | `12px` | text reveal |
-| `--distance-large` | `30px` | check badge appear |
+| Token               | Value  | Usage                                                          |
+| ------------------- | ------ | -------------------------------------------------------------- |
+| `--distance-micro`  | `4px`  | text swap                                                      |
+| `--distance-small`  | `6px`  | error shake (small segment)                                    |
+| `--distance-base`   | `8px`  | badge diagonal reveal, page slide, error shake (large segment) |
+| `--distance-medium` | `12px` | text reveal                                                    |
+| `--distance-large`  | `30px` | check badge appear                                             |
 
 **Scales**
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--scale-large` | `0.96` | modal open / close |
-| `--scale-medium` | `0.97` | dropdown open |
-| `--scale-small` | `0.98` | tooltip open |
-| `--scale-tiny` | `0.99` | dropdown close |
+| Token            | Value  | Usage              |
+| ---------------- | ------ | ------------------ |
+| `--scale-large`  | `0.96` | modal open / close |
+| `--scale-medium` | `0.97` | dropdown open      |
+| `--scale-small`  | `0.98` | tooltip open       |
+| `--scale-tiny`   | `0.99` | dropdown close     |
 
 **Blur**
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| `--blur-small` | `2px` | panel reveal, icon swap, text swap, skeleton reveal, number pop-in |
-| `--blur-medium` | `3px` | page slide, text reveal |
-| `--blur-large` | `8px` | success check open |
+| Token           | Value | Usage                                                              |
+| --------------- | ----- | ------------------------------------------------------------------ |
+| `--blur-small`  | `2px` | panel reveal, icon swap, text swap, skeleton reveal, number pop-in |
+| `--blur-medium` | `3px` | page slide, text reveal                                            |
+| `--blur-large`  | `8px` | success check open                                                 |
 
 ## Universal install
 
@@ -202,8 +202,8 @@ Keep the diff small: only edit the files needed to introduce the transition. Don
 - **Forgetting the reflow** in the text swap, number pop-in, success check replay, and error state shake — `void el.offsetWidth` (or `offsetHeight`) between class/attribute removal and re-addition is what guarantees the animation replays.
 - **Animating a single container** instead of the inner pieces — for the badge, animate the dot, not the trigger; for page slide, animate the page sections, not the container.
 - **Replacing `transition: …` with `transition: all`** — every snippet enumerates exact properties on purpose so unrelated style changes don't ride in for free.
-- **Hardcoding the success check's `stroke-dasharray`** — the snippet ships `20` as a placeholder. Replace it with `path.getTotalLength()` rounded up by 1 for *your* path, otherwise the stroke pre-reveals or over-draws.
-- **Setting `transition-timing-function` in CSS** for the avatar group hover — it has to be set inline in JS *before* the `--shift` / `--scale-active` writes so the bouncy ease-out only applies on `mouseleave`.
+- **Hardcoding the success check's `stroke-dasharray`** — the snippet ships `20` as a placeholder. Replace it with `path.getTotalLength()` rounded up by 1 for _your_ path, otherwise the stroke pre-reveals or over-draws.
+- **Setting `transition-timing-function` in CSS** for the avatar group hover — it has to be set inline in JS _before_ the `--shift` / `--scale-active` writes so the bouncy ease-out only applies on `mouseleave`.
 - **Mixing `.is-error` and `.is-shaking` into one class** for the error state shake — keeping them orthogonal is what allows the shake to replay (remove → reflow → re-add) without flickering the whole error treatment.
 - **Leaving the input clear glow on `mix-blend-mode: multiply` in dark mode** — flip to `screen`, bump `--glow-opacity` to ~0.85, and paint white gradients in JS.
 - **Forgetting to write the tabs pill's first position without a transition** — on first paint and resize, set `transform` + `width` with `transition: none` (then reflow + restore) or the pill animates in from `translateX(0)` / `width: 0`.

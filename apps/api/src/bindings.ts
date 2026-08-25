@@ -37,6 +37,13 @@ export interface Env {
   AI_GATEWAY_ID?: string;
   AI_GATEWAY_TOKEN?: string;
   OPENAI_API_KEY?: string;
+  /**
+   * Optional forward-geocoding endpoint. Absent in local development, where
+   * coordinates come from the model or are inherited from a broader place the
+   * user already has. `{query}` is replaced with the URL-encoded address.
+   */
+  GEOCODER_URL?: string;
+  GEOCODER_TOKEN?: string;
 }
 
 export type AppBindings = {
