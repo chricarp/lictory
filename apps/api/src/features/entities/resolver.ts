@@ -281,7 +281,12 @@ async function enrich(
   const now = new Date().toISOString();
   const merged: EntityRow = {
     ...existing,
-    description: input.description ?? existing.description,
+    // Topics are intentionally name-only. Clearing a legacy value while the
+    // node is touched prevents old extraction prose from lingering forever.
+    description:
+      input.type === "topic"
+        ? null
+        : (input.description ?? existing.description),
     latitude: input.latitude ?? existing.latitude,
     longitude: input.longitude ?? existing.longitude,
     radius_meters: input.radiusMeters ?? existing.radius_meters,
@@ -347,7 +352,7 @@ async function create(
     type: input.type,
     name: input.name.trim(),
     normalized_key: identityKey,
-    description: input.description ?? null,
+    description: input.type === "topic" ? null : (input.description ?? null),
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
     radius_meters: input.radiusMeters ?? (input.type === "place" ? 250 : null),

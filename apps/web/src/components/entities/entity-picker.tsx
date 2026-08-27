@@ -145,7 +145,9 @@ export function EntityPicker({
     const name = query.trim();
     if (!name) return;
     const entity: EntityInput = { type, name };
-    if (description.trim()) entity.description = description.trim();
+    if (type !== "topic" && description.trim()) {
+      entity.description = description.trim();
+    }
     if (type === "place") {
       if (address.trim()) entity.address = address.trim();
       if (latitude && longitude) {
@@ -233,14 +235,19 @@ export function EntityPicker({
             </div>
           </Field>
 
-          <Field label="Why it matters" hint="Optional context for this note.">
-            <Textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="How this person, place or moment is relevant…"
-              className="min-h-20"
-            />
-          </Field>
+          {type !== "topic" ? (
+            <Field
+              label="Why it matters"
+              hint="Optional context for this note."
+            >
+              <Textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="How this person, place or moment is relevant…"
+                className="min-h-20"
+              />
+            </Field>
+          ) : null}
 
           {type === "place" ? (
             <div className="grid grid-cols-2 gap-3">

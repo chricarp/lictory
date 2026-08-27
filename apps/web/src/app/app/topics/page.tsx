@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { TopicsPage } from "@/components/entities/topics-page";
+import { TopicDirectory } from "@/components/entities/topic-directory";
 
 export const metadata: Metadata = { title: "Topics" };
 
 export default function Page() {
-  return <TopicsPage />;
+  return <TopicDirectory />;
 }

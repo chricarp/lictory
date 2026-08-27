@@ -64,4 +64,11 @@ describe("extractionSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("strips legacy topic descriptions from extracted context", () => {
+    const result = extractionSchema.parse({
+      topics: [{ name: "coffee", description: "Old model prose" }],
+    });
+    expect(result.topics).toEqual([{ name: "coffee" }]);
+  });
 });

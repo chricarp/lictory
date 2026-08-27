@@ -228,7 +228,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
       id: entity.id,
       draft: {
         name: entity.name,
-        description: entity.description,
+        ...(entity.type === "topic" ? {} : { description: entity.description }),
         address: entity.address,
         street: entity.place?.street ?? null,
         locality: entity.place?.locality ?? null,
@@ -407,7 +407,7 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
               ) : null}
             </p>
 
-            {!editing && entity.description ? (
+            {!editing && entity.type !== "topic" && entity.description ? (
               <p className="mt-2 text-sm leading-relaxed text-muted">
                 {entity.description}
               </p>
@@ -441,18 +441,20 @@ export function EntityDetailPage({ entityId }: { entityId: string }) {
 
         {editing ? (
           <div className="mt-4 grid gap-3 border-t border-hairline pt-4 sm:grid-cols-2">
-            <Field label="Description" className="sm:col-span-2">
-              <Textarea
-                value={draft.description ?? ""}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                className="min-h-16"
-              />
-            </Field>
+            {entity.type !== "topic" ? (
+              <Field label="Description" className="sm:col-span-2">
+                <Textarea
+                  value={draft.description ?? ""}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  className="min-h-16"
+                />
+              </Field>
+            ) : null}
 
             {entity.type === "place" ? (
               <>

@@ -10,7 +10,6 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "dev:api": "pnpm --filter @lictory/api dev",
-    "dev:mobile": "pnpm --filter @lictory/mobile dev",
     "dev:web": "pnpm --filter @lictory/web dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
