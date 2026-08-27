@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fingerprint,
   Home,
   LogOut,
   Menu,
@@ -137,19 +136,6 @@ function AccountMenu() {
             <UserRound />
             Profile & preferences
           </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={async () => {
-            const result = await authClient.passkey.addPasskey({
-              name: "This device",
-              authenticatorAttachment: "platform",
-            });
-            if (result?.error) toast.error(result.error.message ?? "Failed");
-            else toast.success("Passkey added to your account");
-          }}
-        >
-          <Fingerprint />
-          Add a passkey
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

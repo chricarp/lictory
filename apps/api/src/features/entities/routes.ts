@@ -392,7 +392,9 @@ entities.patch("/:entityId", async (c) => {
     .bind(
       name,
       normalizedKey,
-      pick(patch.description, existing.description),
+      existing.type === "topic"
+        ? null
+        : pick(patch.description, existing.description),
       pick(patch.latitude, existing.latitude),
       pick(patch.longitude, existing.longitude),
       pick(patch.radiusMeters, existing.radius_meters),

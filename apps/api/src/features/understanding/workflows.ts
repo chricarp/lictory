@@ -369,7 +369,6 @@ export class ProcessNoteWorkflow extends WorkflowEntrypoint<
             {
               type: "topic",
               name: topic.name,
-              description: topic.description ?? null,
             },
             topic.confidence,
             null,

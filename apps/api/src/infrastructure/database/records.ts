@@ -56,7 +56,9 @@ export const entityRecord = (row: EntityRow): Entity => ({
   type: row.type,
   name: row.name,
   normalizedKey: row.normalized_key,
-  description: row.description,
+  // The shared entities table keeps this column for richer entity types, but
+  // topics are deliberately just normalized names plus their graph weight.
+  description: row.type === "topic" ? null : row.description,
   latitude: row.latitude,
   longitude: row.longitude,
   radiusMeters: row.radius_meters,

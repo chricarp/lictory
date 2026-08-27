@@ -84,7 +84,6 @@ describe("OpenAI requests", () => {
                 topics: [
                   {
                     name: "coffee",
-                    description: "Subject of the meeting",
                     confidence: 0.8,
                   },
                 ],
@@ -104,6 +103,7 @@ describe("OpenAI requests", () => {
     );
 
     expect(result.people[0]?.name).toBe("Ada");
+    expect(result.topics[0]).toEqual({ name: "coffee", confidence: 0.8 });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       "https://gateway.ai.cloudflare.com/v1/account%20id/lictory%20gateway/openai/chat/completions",
@@ -113,7 +113,18 @@ describe("OpenAI requests", () => {
       "cf-aig-authorization": "Bearer gateway-token",
       "Content-Type": "application/json",
     });
-    expect(JSON.parse(init.body as string)).toMatchObject({
+    const body = JSON.parse(init.body as string) as {
+      response_format: {
+        json_schema: {
+          schema: {
+            properties: {
+              topics: { items: { properties: Record<string, unknown> } };
+            };
+          };
+        };
+      };
+    };
+    expect(body).toMatchObject({
       model: "gpt-5.4-nano",
       reasoning_effort: "none",
       response_format: {
@@ -121,6 +132,10 @@ describe("OpenAI requests", () => {
         json_schema: { name: "note_extraction" },
       },
     });
+    expect(
+      body.response_format.json_schema.schema.properties.topics.items
+        .properties,
+    ).not.toHaveProperty("description");
   });
 
   it("uses gpt-5.4-nano for image descriptions", async () => {

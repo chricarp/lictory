@@ -559,7 +559,6 @@ export const extractionSchema = z.object({
     .array(
       z.object({
         name: z.string().max(200),
-        description: z.string().max(1_000).nullish(),
         confidence: z.number().min(0).max(1).nullish(),
       }),
     )

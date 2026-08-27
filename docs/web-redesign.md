@@ -93,8 +93,9 @@ as page decoration.
   ruled strip, and recent notes as a chronological ledger.
 - **Library:** search and state filters stay compact; results are one readable
   stream instead of a dashboard card grid.
-- **Context:** people, places, moments, and topics share one directory grammar,
-  with entity colour limited to the identifying mark.
+- **Context:** people, places, and moments share one directory grammar. Topics
+  use a ranked directory that makes recurrence comparable through note counts
+  and restrained usage bars, with entity colour limited to identifying marks.
 - **Details:** note content leads; understanding, provenance, connections, and
   processing remain visible but subordinate.
 - **Authentication and overlays:** solid raised surfaces, restrained shadow,
