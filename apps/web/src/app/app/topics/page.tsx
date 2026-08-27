@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 
-import { EntityDirectory } from "@/components/entities/entity-directory";
+import { TopicsPage } from "@/components/entities/topics-page";
 
 export const metadata: Metadata = { title: "Topics" };
 
 export default function Page() {
-  return (
-    <EntityDirectory
-      type="topic"
-      title="Topics"
-      description="Ideas and themes that keep coming back."
-    />
-  );
+  return <TopicsPage />;
 }
