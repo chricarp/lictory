@@ -1,11 +1,10 @@
 "use client";
 
-import { Search } from "@/components/ui/icons";
-import { useRouter } from "next/navigation";
+import { Sparkles } from "@/components/ui/icons";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import { AuthGate } from "@/components/shell/auth-gate";
-import { CommandPalette } from "@/components/shell/command-palette";
 import { MobileNav, SidebarContent } from "@/components/shell/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -173,7 +172,15 @@ function LocalCaptureExitGuard() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const pathname = usePathname();
+
+  const openAsk = React.useCallback(() => {
+    if (pathname === "/app/ask") {
+      window.dispatchEvent(new Event("lictory:focus-ask"));
+      return;
+    }
+    router.push("/app/ask");
+  }, [pathname, router]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -181,19 +188,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       if (matchesKeybinding(event, KEYBINDINGS.search)) {
         event.preventDefault();
-        setPaletteOpen((current) => !current);
+        openAsk();
         return;
       }
 
       if (!matchesKeybinding(event, KEYBINDINGS.capture)) return;
 
       event.preventDefault();
-      setPaletteOpen(false);
       router.push("/app");
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [router]);
+    // Ask owns ⌘K globally, including while the capture editor has focus. The
+    // capture phase runs before editor-local Markdown shortcuts can consume it.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [openAsk, router]);
 
   return (
     <AuthGate redirectTo="/login">
@@ -207,21 +215,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               data-app-sidebar
               className="sticky top-0 hidden h-dvh min-h-0 flex-col overflow-y-auto border-r border-hairline bg-canvas px-3 py-3 lg:flex lg:items-center xl:items-stretch xl:px-4 xl:pl-6"
             >
-              <SidebarContent onSearch={() => setPaletteOpen(true)} />
+              <SidebarContent onAsk={openAsk} />
             </aside>
 
             <div className="flex min-h-dvh min-w-0 flex-col">
               <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-hairline bg-[rgb(var(--canvas)/0.9)] px-4 backdrop-blur-xl sm:px-6 lg:hidden">
-                <MobileNav onSearch={() => setPaletteOpen(true)} />
+                <MobileNav onAsk={openAsk} />
 
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => setPaletteOpen(true)}
-                  aria-label="Search"
+                  onClick={openAsk}
+                  aria-label="Ask your notes"
                   className="lg:hidden"
                 >
-                  <Search />
+                  <Sparkles />
                 </Button>
               </header>
 
@@ -235,8 +243,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </main>
             </div>
           </div>
-
-          <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
         </TooltipProvider>
       </ApiProvider>
     </AuthGate>

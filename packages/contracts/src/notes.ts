@@ -475,6 +475,53 @@ export const listNotesResponseSchema = z.object({
 });
 export type ListNotesResponse = z.infer<typeof listNotesResponseSchema>;
 
+/* -------------------------------------------------------------------------- */
+/*                              Ask your context                              */
+/* -------------------------------------------------------------------------- */
+
+export const askSourceKindSchema = z.enum([
+  "body",
+  "audio",
+  "image",
+  "document",
+  "context",
+]);
+export type AskSourceKind = z.infer<typeof askSourceKindSchema>;
+
+/** A grounded note excerpt that supports an answer. */
+export const askCitationSchema = z.object({
+  noteId: z.string(),
+  title: z.string().nullable(),
+  excerpt: z.string(),
+  sourceKinds: z.array(askSourceKindSchema).min(1),
+});
+export type AskCitation = z.infer<typeof askCitationSchema>;
+
+/**
+ * Ask results are deliberately structured as an answer plus note citations.
+ * The model's prose is never allowed to become an untraceable blob.
+ */
+export const askQuerySchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  answerMarkdown: z.string(),
+  citations: z.array(askCitationSchema),
+  createdAt: z.string(),
+});
+export type AskQuery = z.infer<typeof askQuerySchema>;
+
+export const createAskRequestSchema = z.object({
+  question: z.string().trim().min(2).max(1_000),
+});
+export type CreateAskRequest = z.infer<typeof createAskRequestSchema>;
+
+export const listAskQueriesResponseSchema = z.object({
+  queries: z.array(askQuerySchema),
+});
+export type ListAskQueriesResponse = z.infer<
+  typeof listAskQueriesResponseSchema
+>;
+
 /**
  * `type` stays for compatibility with the Expo client. `types` is the
  * comma-separated form the directories use, so People can render People and

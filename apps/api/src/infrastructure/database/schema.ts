@@ -140,6 +140,21 @@ export const notes = sqliteTable(
   ],
 );
 
+export const askQueries = sqliteTable(
+  "ask_queries",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    question: text("question").notNull(),
+    answer_markdown: text("answer_markdown").notNull(),
+    citations_json: text("citations_json").notNull().default("[]"),
+    created_at: text("created_at").notNull(),
+  },
+  (table) => [
+    index("ask_queries_user_created_idx").on(table.user_id, table.created_at),
+  ],
+);
+
 export const mediaAssets = sqliteTable(
   "media_assets",
   {

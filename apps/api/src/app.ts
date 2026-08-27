@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import type { AppBindings } from "./bindings";
+import { askRoutes } from "./features/ask/routes";
 import { createAuth } from "./features/auth/service";
 import { entityRoutes } from "./features/entities/routes";
 import { graphRoutes } from "./features/graph/routes";
@@ -37,6 +38,7 @@ export function createApp() {
   const api = new Hono<AppBindings>();
   api.use("*", requireUser);
   api.route("/notes", noteRoutes);
+  api.route("/asks", askRoutes);
   api.route("/entities", entityRoutes);
   api.route("/moments", momentRoutes);
   api.route("/graph", graphRoutes);

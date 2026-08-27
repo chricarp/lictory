@@ -1,4 +1,5 @@
 import type {
+  AskQuery,
   Attachment,
   Entity,
   MediaAsset,
@@ -7,10 +8,12 @@ import type {
   ProcessingStep,
   Trigger,
 } from "@lictory/contracts";
+import { askCitationSchema } from "@lictory/contracts";
 
 import { momentRecord } from "../../features/entities/moments";
 import { placeRecord } from "../../features/entities/places";
 import type {
+  AskQueryRow,
   EntityRow,
   MediaRow,
   NoteEntityRow,
@@ -18,6 +21,25 @@ import type {
   ProcessingStepRow,
   TriggerRow,
 } from "./rows";
+
+export const askQueryRecord = (row: AskQueryRow): AskQuery => {
+  let citations: AskQuery["citations"] = [];
+  try {
+    const parsed = askCitationSchema
+      .array()
+      .safeParse(JSON.parse(row.citations_json) as unknown);
+    if (parsed.success) citations = parsed.data;
+  } catch {
+    // A malformed historical citation payload should not hide the question.
+  }
+  return {
+    id: row.id,
+    question: row.question,
+    answerMarkdown: row.answer_markdown,
+    citations,
+    createdAt: row.created_at,
+  };
+};
 
 export const mediaRecord = (row: MediaRow): MediaAsset => ({
   id: row.id,

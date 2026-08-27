@@ -104,6 +104,47 @@ async function chatCompletion(env: Env, body: object): Promise<string> {
   return content;
 }
 
+/**
+ * Answers a question only from retrieved note context. Retrieval owns source
+ * selection; the model's job is synthesis, never deciding which private notes
+ * it is allowed to see.
+ */
+export async function answerFromNoteContext(
+  env: Env,
+  question: string,
+  sources: Array<{ index: number; title: string; context: string }>,
+): Promise<string> {
+  requireOpenAi(env);
+  const context = sources
+    .map(
+      (source) =>
+        `[${source.index}] ${source.title}\n${source.context.slice(0, 3_000)}`,
+    )
+    .join("\n\n");
+
+  return chatCompletion(env, {
+    model: TEXT_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: [
+          "Answer questions about the user's personal notes using only the supplied sources.",
+          "Write a direct, concise Markdown answer in the user's language.",
+          "Cite every factual claim with the matching bracketed source number, such as [1].",
+          "Never invent a detail or source. If the notes do not answer the question, say so plainly.",
+          "Do not add a Sources heading; the product renders source cards separately.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: `Question: ${question}\n\nSources:\n${context}`,
+      },
+    ],
+    reasoning_effort: "none",
+    max_completion_tokens: 1_200,
+  });
+}
+
 export function encodeBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   const chunkSize = 32_768;

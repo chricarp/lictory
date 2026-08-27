@@ -129,7 +129,8 @@ Add every Android signing identity (development, EAS, and Play App Signing) to t
 - Note-to-entity and note-to-note relationships with `origin`, `confidence` and review status
 - Human review of every AI suggestion, plus manual add/edit/merge/delete of entities
 - People and organisations share one directory, and each links to the other
-- Entity pages, co-occurrence neighbourhoods, cross-entity filtering and ⌘K search over notes and entities
+- Entity pages, co-occurrence neighbourhoods and cross-entity filtering
+- A dedicated ⌘K Ask experience that retrieves across writing, audio transcripts, image descriptions, document text and structured context, with persisted history and note citations
 
 **Platform**
 

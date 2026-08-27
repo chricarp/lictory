@@ -1,7 +1,9 @@
 import type {
+  AskQuery,
   AttachEntityRequest,
   Attachment,
   CompleteUploadResponse,
+  CreateAskRequest,
   CreateAttachmentRequest,
   CreateNoteLinkRequest,
   CreateNoteRequest,
@@ -15,6 +17,7 @@ import type {
   GraphOverview,
   ListNotesQuery,
   ListNotesResponse,
+  ListAskQueriesResponse,
   LocationEventRequest,
   MediaAsset,
   MomentRangeResponse,
@@ -268,6 +271,22 @@ export function createLictoryClient(options: LictoryClientOptions) {
       request<{ notes: NoteSummary[]; entities: Entity[] }>(
         `/v1/search${queryString({ q })}`,
       ),
+
+    /* -------------------------- Ask your context ------------------------- */
+
+    listAskQueries: () => request<ListAskQueriesResponse>("/v1/asks"),
+
+    getAskQuery: (queryId: string) =>
+      request<{ query: AskQuery }>(`/v1/asks/${queryId}`),
+
+    createAskQuery: (input: CreateAskRequest) =>
+      request<{ query: AskQuery }>("/v1/asks", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+
+    deleteAskQuery: (queryId: string) =>
+      request<void>(`/v1/asks/${queryId}`, { method: "DELETE" }),
 
     /* ----------------------- Note ↔ entity editing ----------------------- */
 
