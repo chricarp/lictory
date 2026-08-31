@@ -256,17 +256,13 @@ function AskSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <button
-        type="button"
-        onClick={() => {
-          onNavigate?.();
-          router.back();
-        }}
+      <Link
+        href="/app"
         className="mb-6 flex min-h-11 w-full items-center gap-3 rounded-full border border-hairline px-3.5 py-2.5 text-sm text-muted transition-[background-color,color,transform] hover:bg-surface hover:text-foreground active:scale-[0.98] lg:w-fit xl:w-full"
       >
         <ArrowLeft className="size-4 shrink-0" />
-        <span className="lg:hidden xl:inline">Go back</span>
-      </button>
+        <span className="lg:hidden xl:inline">Capture</span>
+      </Link>
 
       <div className="mb-2 flex items-center gap-2 px-3 lg:hidden xl:flex">
         <Sparkles className="size-3.5 text-ember" />
