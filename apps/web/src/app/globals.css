@@ -658,6 +658,85 @@
   }
 }
 
+/* Marketing surface. The landing page is always light and uses the brand blue
+   (#0052CC) as its signature colour, independent of the in-app theme the
+   visitor may have stored. Scoped to `.landing` so nothing inside /app moves. */
+html:has(.landing) {
+  color-scheme: light;
+}
+html:has(.landing) body {
+  background: #fff;
+}
+.landing {
+  color-scheme: light;
+  --canvas: 255 255 255;
+  --canvas-raised: 247 248 250;
+  --surface: 15 20 25;
+  --surface-alpha: 0.03;
+  --surface-strong-alpha: 0.06;
+  --foreground: 17 20 24;
+  --muted-foreground: 88 98 110;
+  --subtle-foreground: 128 137 148;
+  --hairline: 15 20 25;
+  --hairline-alpha: 0.09;
+  --hairline-strong-alpha: 0.16;
+  --ember-50: 236 243 255;
+  --ember: 0 82 204;
+  --ember-bright: 22 102 224;
+  --ember-deep: 0 62 156;
+  --entity-topic: 0 82 204;
+  --entity-place: 0 158 106;
+  --entity-time: 124 92 232;
+  --entity-person: 220 66 112;
+  --entity-organization: 226 104 52;
+  /* Resolve from the scoped triples, not the @theme aliases: those are
+     computed on :root and would paint the dark canvas here. */
+  background: rgb(var(--canvas));
+  color: rgb(var(--foreground));
+}
+
+/* Hand-drawn connection lines. Dash length is set per path from
+   getTotalLength()-free approximations; the draw itself is CSS so it stays
+   cheap and falls back to a static line under reduced motion. */
+.landing .draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing [data-inview="true"] .draw-line {
+  stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing .draw-line {
+    stroke-dashoffset: 0;
+    transition: none;
+  }
+}
+
+.landing .landing-grid {
+  background-image:
+    linear-gradient(to right, rgb(var(--hairline) / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(var(--hairline) / 0.06) 1px, transparent 1px);
+  background-size: 4rem 4rem;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent);
+}
+
+.landing .landing-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: rgb(var(--ember));
+  animation: landing-caret 1s steps(2, jump-none) infinite;
+}
+@keyframes landing-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
 .a11y-high-contrast {
   --hairline-alpha: 0.28;
   --hairline-strong-alpha: 0.5;
