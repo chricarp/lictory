@@ -113,6 +113,7 @@ export async function answerFromNoteContext(
   env: Env,
   question: string,
   sources: Array<{ index: number; title: string; context: string }>,
+  history: Array<{ role: "user" | "assistant"; content: string }> = [],
 ): Promise<string> {
   requireOpenAi(env);
   const context = sources
@@ -135,14 +136,60 @@ export async function answerFromNoteContext(
           "Do not add a Sources heading; the product renders source cards separately.",
         ].join("\n"),
       },
+      ...history.slice(-8).map((message) => ({
+        role: message.role,
+        content: message.content.slice(0, 4_000),
+      })),
       {
         role: "user",
-        content: `Question: ${question}\n\nSources:\n${context}`,
+        content: [
+          `Current question: ${question}`,
+          "Use the sources below as the only factual authority for this answer. Source numbers restart for this turn.",
+          `Sources:\n${context}`,
+        ].join("\n\n"),
       },
     ],
     reasoning_effort: "none",
     max_completion_tokens: 1_200,
   });
+}
+
+/** Produces the compact, evolving label shown in Ask history. */
+export async function synthesizeAskConversationTitle(
+  env: Env,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<string> {
+  const title = await chatCompletion(env, {
+    model: TEXT_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: [
+          "Summarize the topic of this personal-notes conversation as a short title.",
+          "Use the conversation's language, 2 to 7 words, and at most 80 characters.",
+          "Return only the title with no quotes, Markdown, or trailing punctuation.",
+          "Update the topic to reflect the whole conversation, not only the latest turn.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: messages
+          .slice(-10)
+          .map(
+            (message) =>
+              `${message.role === "user" ? "User" : "Assistant"}: ${message.content.slice(0, 1_000)}`,
+          )
+          .join("\n\n"),
+      },
+    ],
+    reasoning_effort: "none",
+    max_completion_tokens: 40,
+  });
+
+  return title
+    .replace(/^["'`*_#\s]+|["'`*_#\s.!?;:]+$/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
 }
 
 export function encodeBase64(buffer: ArrayBuffer): string {

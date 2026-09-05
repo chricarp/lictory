@@ -497,29 +497,68 @@ export const askCitationSchema = z.object({
 });
 export type AskCitation = z.infer<typeof askCitationSchema>;
 
+export const askMessageRoleSchema = z.enum(["user", "assistant"]);
+export type AskMessageRole = z.infer<typeof askMessageRoleSchema>;
+
 /**
- * Ask results are deliberately structured as an answer plus note citations.
- * The model's prose is never allowed to become an untraceable blob.
+ * One turn in an Ask conversation. Assistant messages keep their citation
+ * snapshot beside the answer so a regenerated turn never changes the evidence
+ * shown for an older answer.
  */
-export const askQuerySchema = z.object({
+export const askMessageSchema = z.object({
   id: z.string(),
-  question: z.string(),
-  answerMarkdown: z.string(),
+  conversationId: z.string(),
+  role: askMessageRoleSchema,
+  contentMarkdown: z.string(),
   citations: z.array(askCitationSchema),
   createdAt: z.string(),
+  updatedAt: z.string(),
 });
-export type AskQuery = z.infer<typeof askQuerySchema>;
+export type AskMessage = z.infer<typeof askMessageSchema>;
 
-export const createAskRequestSchema = z.object({
-  question: z.string().trim().min(2).max(1_000),
+export const askConversationSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
-export type CreateAskRequest = z.infer<typeof createAskRequestSchema>;
+export type AskConversationSummary = z.infer<
+  typeof askConversationSummarySchema
+>;
 
-export const listAskQueriesResponseSchema = z.object({
-  queries: z.array(askQuerySchema),
+export const askConversationSchema = askConversationSummarySchema.extend({
+  messages: z.array(askMessageSchema),
 });
-export type ListAskQueriesResponse = z.infer<
-  typeof listAskQueriesResponseSchema
+export type AskConversation = z.infer<typeof askConversationSchema>;
+
+export const askPromptSchema = z.string().trim().min(2).max(1_000);
+
+export const createAskConversationRequestSchema = z.object({
+  message: askPromptSchema,
+});
+export type CreateAskConversationRequest = z.infer<
+  typeof createAskConversationRequestSchema
+>;
+
+export const createAskMessageRequestSchema = z.object({
+  message: askPromptSchema,
+});
+export type CreateAskMessageRequest = z.infer<
+  typeof createAskMessageRequestSchema
+>;
+
+export const updateAskMessageRequestSchema = z.object({
+  message: askPromptSchema,
+});
+export type UpdateAskMessageRequest = z.infer<
+  typeof updateAskMessageRequestSchema
+>;
+
+export const listAskConversationsResponseSchema = z.object({
+  conversations: z.array(askConversationSummarySchema),
+});
+export type ListAskConversationsResponse = z.infer<
+  typeof listAskConversationsResponseSchema
 >;
 
 /**

@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../../bindings";
 import {
+  answerFromNoteContext,
   describeImage,
   extractStructure,
   hasOpenAiConfiguration,
+  synthesizeAskConversationTitle,
   transcribeAudio,
 } from "./extraction";
 
@@ -155,6 +157,53 @@ describe("OpenAI requests", () => {
       model: "gpt-5.4-nano",
       reasoning_effort: "none",
     });
+  });
+
+  it("keeps prior turns in a grounded Ask completion", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        choices: [{ message: { content: "Sam chose Rome. [1]" } }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await answerFromNoteContext(
+      env,
+      "Where did they choose?",
+      [{ index: 1, title: "Planning", context: "Sam chose Rome." }],
+      [
+        { role: "user", content: "What did Sam decide?" },
+        { role: "assistant", content: "Sam chose a destination. [1]" },
+      ],
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(body.messages.slice(1, 3)).toEqual([
+      { role: "user", content: "What did Sam decide?" },
+      { role: "assistant", content: "Sam chose a destination. [1]" },
+    ]);
+    expect(body.messages.at(-1)?.content).toContain("Current question");
+    expect(body.messages.at(-1)?.content).toContain("Sam chose Rome");
+  });
+
+  it("normalizes an AI-synthesized Ask title", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          choices: [{ message: { content: '"Launch decisions!"' } }],
+        }),
+      ),
+    );
+
+    await expect(
+      synthesizeAskConversationTitle(env, [
+        { role: "user", content: "What did we decide about the launch?" },
+      ]),
+    ).resolves.toBe("Launch decisions");
   });
 
   it("sends audio as multipart to gpt-4o-mini-transcribe", async () => {

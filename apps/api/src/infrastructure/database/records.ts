@@ -1,5 +1,6 @@
 import type {
-  AskQuery,
+  AskConversationSummary,
+  AskMessage,
   Attachment,
   Entity,
   MediaAsset,
@@ -13,7 +14,8 @@ import { askCitationSchema } from "@lictory/contracts";
 import { momentRecord } from "../../features/entities/moments";
 import { placeRecord } from "../../features/entities/places";
 import type {
-  AskQueryRow,
+  AskConversationRow,
+  AskMessageRow,
   EntityRow,
   MediaRow,
   NoteEntityRow,
@@ -22,8 +24,17 @@ import type {
   TriggerRow,
 } from "./rows";
 
-export const askQueryRecord = (row: AskQueryRow): AskQuery => {
-  let citations: AskQuery["citations"] = [];
+export const askConversationSummaryRecord = (
+  row: AskConversationRow,
+): AskConversationSummary => ({
+  id: row.id,
+  title: row.title,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+export const askMessageRecord = (row: AskMessageRow): AskMessage => {
+  let citations: AskMessage["citations"] = [];
   try {
     const parsed = askCitationSchema
       .array()
@@ -34,10 +45,12 @@ export const askQueryRecord = (row: AskQueryRow): AskQuery => {
   }
   return {
     id: row.id,
-    question: row.question,
-    answerMarkdown: row.answer_markdown,
+    conversationId: row.conversation_id,
+    role: row.role,
+    contentMarkdown: row.content_markdown,
     citations,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 };
 

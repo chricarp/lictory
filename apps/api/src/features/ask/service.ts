@@ -1,11 +1,23 @@
-import type { AskCitation, AskQuery, AskSourceKind } from "@lictory/contracts";
+import type {
+  AskCitation,
+  AskConversation,
+  AskConversationSummary,
+  AskSourceKind,
+} from "@lictory/contracts";
 
 import type { Env } from "../../bindings";
-import { askQueryRecord } from "../../infrastructure/database/records";
-import type { AskQueryRow } from "../../infrastructure/database/rows";
+import {
+  askConversationSummaryRecord,
+  askMessageRecord,
+} from "../../infrastructure/database/records";
+import type {
+  AskConversationRow,
+  AskMessageRow,
+} from "../../infrastructure/database/rows";
 import {
   answerFromNoteContext,
   hasOpenAiConfiguration,
+  synthesizeAskConversationTitle,
 } from "../understanding/extraction";
 
 type CorpusRow = {
@@ -280,37 +292,77 @@ async function loadCorpus(env: Env, userId: string): Promise<CorpusRow[]> {
   return result.results;
 }
 
-export async function listAskQueries(
+export function fallbackConversationTitle(userMessages: string[]): string {
+  const firstMessage = plainText(userMessages[0] ?? "New conversation");
+  const words = firstMessage.split(/\s+/).filter(Boolean);
+  const title = words.slice(0, 7).join(" ");
+  return `${title || "New conversation"}${words.length > 7 ? "…" : ""}`.slice(
+    0,
+    80,
+  );
+}
+
+async function conversationTitle(
   env: Env,
-  userId: string,
-): Promise<AskQuery[]> {
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<string> {
+  const fallback = fallbackConversationTitle(
+    messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+  );
+  if (!hasOpenAiConfiguration(env)) return fallback;
+
+  try {
+    return (await synthesizeAskConversationTitle(env, messages)) || fallback;
+  } catch (error) {
+    console.error("Ask title synthesis failed; using the prompt", error);
+    return fallback;
+  }
+}
+
+function conversationRecord(
+  row: AskConversationRow,
+  messages: AskMessageRow[],
+): AskConversation {
+  return {
+    ...askConversationSummaryRecord(row),
+    messages: messages.map(askMessageRecord),
+  };
+}
+
+async function loadMessageRows(
+  env: Env,
+  conversationId: string,
+): Promise<AskMessageRow[]> {
   const result = await env.DB.prepare(
-    "SELECT * FROM ask_queries WHERE user_id = ? ORDER BY created_at DESC LIMIT 100",
+    "SELECT * FROM ask_messages WHERE conversation_id = ? ORDER BY position ASC",
   )
-    .bind(userId)
-    .all<AskQueryRow>();
-  return result.results.map(askQueryRecord);
+    .bind(conversationId)
+    .all<AskMessageRow>();
+  return result.results;
 }
 
-export async function loadAskQuery(
-  env: Env,
-  userId: string,
-  queryId: string,
-): Promise<AskQuery | null> {
-  const row = await env.DB.prepare(
-    "SELECT * FROM ask_queries WHERE id = ? AND user_id = ?",
-  )
-    .bind(queryId, userId)
-    .first<AskQueryRow>();
-  return row ? askQueryRecord(row) : null;
-}
-
-export async function createAskQuery(
+async function createAnswer(
   env: Env,
   userId: string,
   question: string,
-): Promise<AskQuery> {
-  const sources = rankNoteCorpus(await loadCorpus(env, userId), question);
+  previousMessages: AskMessageRow[],
+): Promise<{
+  answerMarkdown: string;
+  citations: AskCitation[];
+  title: string;
+}> {
+  const recentQuestions = previousMessages
+    .filter((message) => message.role === "user")
+    .slice(-3)
+    .reverse()
+    .map((message) => message.content_markdown);
+  const retrievalQuestion = [question, ...recentQuestions].join("\n");
+  const sources = rankNoteCorpus(
+    await loadCorpus(env, userId),
+    retrievalQuestion,
+  );
   const citations: AskCitation[] = sources.map((source) => ({
     noteId: source.row.id,
     title: source.row.title,
@@ -329,45 +381,343 @@ export async function createAskQuery(
           title: source.row.title?.trim() || "Untitled note",
           context: source.context,
         })),
+        previousMessages.map((message) => ({
+          role: message.role,
+          content: message.content_markdown,
+        })),
       );
     } catch (error) {
       console.error("Ask synthesis failed; returning grounded excerpts", error);
     }
   }
 
-  const row: AskQueryRow = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    question,
-    answer_markdown: answerMarkdown,
-    citations_json: JSON.stringify(citations),
-    created_at: new Date().toISOString(),
-  };
-  await env.DB.prepare(
-    `INSERT INTO ask_queries (id, user_id, question, answer_markdown, citations_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      row.id,
-      row.user_id,
-      row.question,
-      row.answer_markdown,
-      row.citations_json,
-      row.created_at,
-    )
-    .run();
-  return askQueryRecord(row);
+  const title = await conversationTitle(env, [
+    ...previousMessages.map((message) => ({
+      role: message.role,
+      content: message.content_markdown,
+    })),
+    { role: "user", content: question },
+    { role: "assistant", content: answerMarkdown },
+  ]);
+  return { answerMarkdown, citations, title };
 }
 
-export async function deleteAskQuery(
+export class AskMutationError extends Error {
+  constructor(
+    readonly code:
+      | "conversation_not_found"
+      | "message_not_found"
+      | "message_not_user"
+      | "message_not_assistant",
+  ) {
+    super(code);
+    this.name = "AskMutationError";
+  }
+}
+
+async function requireConversation(
   env: Env,
   userId: string,
-  queryId: string,
+  conversationId: string,
+): Promise<{ row: AskConversationRow; messages: AskMessageRow[] }> {
+  const row = await env.DB.prepare(
+    "SELECT * FROM ask_conversations WHERE id = ? AND user_id = ?",
+  )
+    .bind(conversationId, userId)
+    .first<AskConversationRow>();
+  if (!row) throw new AskMutationError("conversation_not_found");
+  return { row, messages: await loadMessageRows(env, conversationId) };
+}
+
+export async function listAskConversations(
+  env: Env,
+  userId: string,
+): Promise<AskConversationSummary[]> {
+  const result = await env.DB.prepare(
+    "SELECT * FROM ask_conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100",
+  )
+    .bind(userId)
+    .all<AskConversationRow>();
+  return result.results.map(askConversationSummaryRecord);
+}
+
+export async function loadAskConversation(
+  env: Env,
+  userId: string,
+  conversationId: string,
+): Promise<AskConversation | null> {
+  const row = await env.DB.prepare(
+    "SELECT * FROM ask_conversations WHERE id = ? AND user_id = ?",
+  )
+    .bind(conversationId, userId)
+    .first<AskConversationRow>();
+  if (!row) return null;
+  return conversationRecord(row, await loadMessageRows(env, conversationId));
+}
+
+export async function createAskConversation(
+  env: Env,
+  userId: string,
+  message: string,
+): Promise<AskConversation> {
+  const generated = await createAnswer(env, userId, message, []);
+  const conversationId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const row: AskConversationRow = {
+    id: conversationId,
+    user_id: userId,
+    title: generated.title,
+    created_at: now,
+    updated_at: now,
+  };
+  const userMessage: AskMessageRow = {
+    id: crypto.randomUUID(),
+    conversation_id: conversationId,
+    role: "user",
+    position: 0,
+    content_markdown: message,
+    citations_json: "[]",
+    created_at: now,
+    updated_at: now,
+  };
+  const assistantMessage: AskMessageRow = {
+    id: crypto.randomUUID(),
+    conversation_id: conversationId,
+    role: "assistant",
+    position: 1,
+    content_markdown: generated.answerMarkdown,
+    citations_json: JSON.stringify(generated.citations),
+    created_at: now,
+    updated_at: now,
+  };
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO ask_conversations (id, user_id, title, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).bind(row.id, row.user_id, row.title, row.created_at, row.updated_at),
+    env.DB.prepare(
+      `INSERT INTO ask_messages (id, conversation_id, role, position, content_markdown, citations_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      userMessage.id,
+      userMessage.conversation_id,
+      userMessage.role,
+      userMessage.position,
+      userMessage.content_markdown,
+      userMessage.citations_json,
+      userMessage.created_at,
+      userMessage.updated_at,
+    ),
+    env.DB.prepare(
+      `INSERT INTO ask_messages (id, conversation_id, role, position, content_markdown, citations_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      assistantMessage.id,
+      assistantMessage.conversation_id,
+      assistantMessage.role,
+      assistantMessage.position,
+      assistantMessage.content_markdown,
+      assistantMessage.citations_json,
+      assistantMessage.created_at,
+      assistantMessage.updated_at,
+    ),
+  ]);
+  return conversationRecord(row, [userMessage, assistantMessage]);
+}
+
+export async function appendAskMessage(
+  env: Env,
+  userId: string,
+  conversationId: string,
+  message: string,
+): Promise<AskConversation> {
+  const current = await requireConversation(env, userId, conversationId);
+  const generated = await createAnswer(env, userId, message, current.messages);
+  const now = new Date().toISOString();
+  const position = (current.messages.at(-1)?.position ?? -1) + 1;
+  const userMessage: AskMessageRow = {
+    id: crypto.randomUUID(),
+    conversation_id: conversationId,
+    role: "user",
+    position,
+    content_markdown: message,
+    citations_json: "[]",
+    created_at: now,
+    updated_at: now,
+  };
+  const assistantMessage: AskMessageRow = {
+    ...userMessage,
+    id: crypto.randomUUID(),
+    role: "assistant",
+    position: position + 1,
+    content_markdown: generated.answerMarkdown,
+    citations_json: JSON.stringify(generated.citations),
+  };
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO ask_messages (id, conversation_id, role, position, content_markdown, citations_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      userMessage.id,
+      conversationId,
+      userMessage.role,
+      userMessage.position,
+      userMessage.content_markdown,
+      userMessage.citations_json,
+      now,
+      now,
+    ),
+    env.DB.prepare(
+      `INSERT INTO ask_messages (id, conversation_id, role, position, content_markdown, citations_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      assistantMessage.id,
+      conversationId,
+      assistantMessage.role,
+      assistantMessage.position,
+      assistantMessage.content_markdown,
+      assistantMessage.citations_json,
+      now,
+      now,
+    ),
+    env.DB.prepare(
+      "UPDATE ask_conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+    ).bind(generated.title, now, conversationId, userId),
+  ]);
+  return conversationRecord(
+    { ...current.row, title: generated.title, updated_at: now },
+    [...current.messages, userMessage, assistantMessage],
+  );
+}
+
+export async function updateAskUserMessage(
+  env: Env,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  message: string,
+): Promise<AskConversation> {
+  const current = await requireConversation(env, userId, conversationId);
+  const target = current.messages.find((item) => item.id === messageId);
+  if (!target) throw new AskMutationError("message_not_found");
+  if (target.role !== "user") throw new AskMutationError("message_not_user");
+
+  const previous = current.messages.filter(
+    (item) => item.position < target.position,
+  );
+  const generated = await createAnswer(env, userId, message, previous);
+  const now = new Date().toISOString();
+  const updatedUser: AskMessageRow = {
+    ...target,
+    content_markdown: message,
+    citations_json: "[]",
+    updated_at: now,
+  };
+  const assistantMessage: AskMessageRow = {
+    id: crypto.randomUUID(),
+    conversation_id: conversationId,
+    role: "assistant",
+    position: target.position + 1,
+    content_markdown: generated.answerMarkdown,
+    citations_json: JSON.stringify(generated.citations),
+    created_at: now,
+    updated_at: now,
+  };
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM ask_messages WHERE conversation_id = ? AND position > ?",
+    ).bind(conversationId, target.position),
+    env.DB.prepare(
+      `UPDATE ask_messages SET content_markdown = ?, citations_json = '[]', updated_at = ?
+       WHERE id = ? AND conversation_id = ?`,
+    ).bind(message, now, messageId, conversationId),
+    env.DB.prepare(
+      `INSERT INTO ask_messages (id, conversation_id, role, position, content_markdown, citations_json, created_at, updated_at)
+       VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)`,
+    ).bind(
+      assistantMessage.id,
+      conversationId,
+      assistantMessage.position,
+      assistantMessage.content_markdown,
+      assistantMessage.citations_json,
+      now,
+      now,
+    ),
+    env.DB.prepare(
+      "UPDATE ask_conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+    ).bind(generated.title, now, conversationId, userId),
+  ]);
+  return conversationRecord(
+    { ...current.row, title: generated.title, updated_at: now },
+    [...previous, updatedUser, assistantMessage],
+  );
+}
+
+export async function regenerateAskMessage(
+  env: Env,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+): Promise<AskConversation> {
+  const current = await requireConversation(env, userId, conversationId);
+  const target = current.messages.find((item) => item.id === messageId);
+  if (!target) throw new AskMutationError("message_not_found");
+  if (target.role !== "assistant") {
+    throw new AskMutationError("message_not_assistant");
+  }
+  const userMessage = current.messages.find(
+    (item) => item.position === target.position - 1 && item.role === "user",
+  );
+  if (!userMessage) throw new AskMutationError("message_not_found");
+  const previous = current.messages.filter(
+    (item) => item.position < userMessage.position,
+  );
+  const generated = await createAnswer(
+    env,
+    userId,
+    userMessage.content_markdown,
+    previous,
+  );
+  const now = new Date().toISOString();
+  const regenerated: AskMessageRow = {
+    ...target,
+    content_markdown: generated.answerMarkdown,
+    citations_json: JSON.stringify(generated.citations),
+    updated_at: now,
+  };
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM ask_messages WHERE conversation_id = ? AND position > ?",
+    ).bind(conversationId, target.position),
+    env.DB.prepare(
+      `UPDATE ask_messages SET content_markdown = ?, citations_json = ?, updated_at = ?
+       WHERE id = ? AND conversation_id = ?`,
+    ).bind(
+      regenerated.content_markdown,
+      regenerated.citations_json,
+      now,
+      messageId,
+      conversationId,
+    ),
+    env.DB.prepare(
+      "UPDATE ask_conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+    ).bind(generated.title, now, conversationId, userId),
+  ]);
+  return conversationRecord(
+    { ...current.row, title: generated.title, updated_at: now },
+    [...previous, userMessage, regenerated],
+  );
+}
+
+export async function deleteAskConversation(
+  env: Env,
+  userId: string,
+  conversationId: string,
 ): Promise<boolean> {
   const result = await env.DB.prepare(
-    "DELETE FROM ask_queries WHERE id = ? AND user_id = ?",
+    "DELETE FROM ask_conversations WHERE id = ? AND user_id = ?",
   )
-    .bind(queryId, userId)
+    .bind(conversationId, userId)
     .run();
   return (result.meta.changes ?? 0) > 0;
 }

@@ -1,9 +1,10 @@
 import type {
-  AskQuery,
+  AskConversation,
   AttachEntityRequest,
   Attachment,
   CompleteUploadResponse,
-  CreateAskRequest,
+  CreateAskConversationRequest,
+  CreateAskMessageRequest,
   CreateAttachmentRequest,
   CreateNoteLinkRequest,
   CreateNoteRequest,
@@ -17,7 +18,7 @@ import type {
   GraphOverview,
   ListNotesQuery,
   ListNotesResponse,
-  ListAskQueriesResponse,
+  ListAskConversationsResponse,
   LocationEventRequest,
   MediaAsset,
   MomentRangeResponse,
@@ -25,6 +26,7 @@ import type {
   NoteSummary,
   RegisterDeviceRequest,
   Trigger,
+  UpdateAskMessageRequest,
   UpdateEntityRequest,
   UpdateNoteEntityRequest,
   UpdateNoteRequest,
@@ -274,19 +276,45 @@ export function createLictoryClient(options: LictoryClientOptions) {
 
     /* -------------------------- Ask your context ------------------------- */
 
-    listAskQueries: () => request<ListAskQueriesResponse>("/v1/asks"),
+    listAskConversations: () =>
+      request<ListAskConversationsResponse>("/v1/asks"),
 
-    getAskQuery: (queryId: string) =>
-      request<{ query: AskQuery }>(`/v1/asks/${queryId}`),
+    getAskConversation: (conversationId: string) =>
+      request<{ conversation: AskConversation }>(`/v1/asks/${conversationId}`),
 
-    createAskQuery: (input: CreateAskRequest) =>
-      request<{ query: AskQuery }>("/v1/asks", {
+    createAskConversation: (input: CreateAskConversationRequest) =>
+      request<{ conversation: AskConversation }>("/v1/asks", {
         method: "POST",
         body: JSON.stringify(input),
       }),
 
-    deleteAskQuery: (queryId: string) =>
-      request<void>(`/v1/asks/${queryId}`, { method: "DELETE" }),
+    createAskMessage: (
+      conversationId: string,
+      input: CreateAskMessageRequest,
+    ) =>
+      request<{ conversation: AskConversation }>(
+        `/v1/asks/${conversationId}/messages`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+
+    updateAskMessage: (
+      conversationId: string,
+      messageId: string,
+      input: UpdateAskMessageRequest,
+    ) =>
+      request<{ conversation: AskConversation }>(
+        `/v1/asks/${conversationId}/messages/${messageId}`,
+        { method: "PATCH", body: JSON.stringify(input) },
+      ),
+
+    regenerateAskMessage: (conversationId: string, messageId: string) =>
+      request<{ conversation: AskConversation }>(
+        `/v1/asks/${conversationId}/messages/${messageId}/regenerate`,
+        { method: "POST" },
+      ),
+
+    deleteAskConversation: (conversationId: string) =>
+      request<void>(`/v1/asks/${conversationId}`, { method: "DELETE" }),
 
     /* ----------------------- Note ↔ entity editing ----------------------- */
 

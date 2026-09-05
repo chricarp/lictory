@@ -100,7 +100,8 @@ notes ──< media_assets                     (attachments of any kind)
   ├──< note_links >── notes                (semantic note-to-note relationships)
   └──< note_processing_steps               (per-stage AI state, surfaced in the UI)
 
-ask_queries ── citations ──> notes         (per-user questions and grounded answers)
+ask_conversations ──< ask_messages         (multi-turn, per-user Ask history)
+                         └── citations ──> notes
 ```
 
 `entities` are deduplicated per user on `(type, normalized_key)`, so the same
@@ -110,20 +111,26 @@ instead of forking a duplicate.
 
 ### Ask retrieval
 
-`POST /v1/asks` retrieves across every readable representation of every note
-owned by the authenticated user: Markdown, summaries and analysis, structured
-entities and mentions, audio transcripts, image descriptions, and extracted
-document text. Retrieval ranks those stored representations before synthesis,
-so the model never chooses which private notes it may inspect. OpenAI composes a
-concise answer from the highest-ranked notes and is instructed to cite each
-claim; when OpenAI is unavailable, the same endpoint returns the ranked excerpts
-directly rather than hiding the feature behind a spinner or inventing context.
+The first `POST /v1/asks` creates an `ask_conversations` row and its opening
+user/assistant pair. Follow-ups use `POST /v1/asks/:id/messages`, so one thread
+keeps its conversational context instead of turning every prompt into a new
+history item. Each turn retrieves across every readable representation of every
+note owned by the authenticated user: Markdown, summaries and analysis,
+structured entities and mentions, audio transcripts, image descriptions, and
+extracted document text. The current prompt and recent user turns inform
+retrieval; OpenAI receives the thread history only after the API has chosen the
+private notes it may inspect. When OpenAI is unavailable, the same endpoints
+return ranked excerpts directly rather than hiding Ask or inventing context.
 
-Each `ask_queries` row stores a structured citation snapshot alongside the
-answer. A citation records the source note, supporting excerpt, and whether the
-match came from writing, audio, an image, a document, or extracted context. The
-web surface renders those citations as links back to the notes. History is
-scoped by the session-derived user ID and can be deleted through the same API.
+Every assistant `ask_messages` row stores a structured citation snapshot beside
+the answer. A citation records the source note, supporting excerpt, and whether
+the match came from writing, audio, an image, a document, or extracted context.
+Editing a user message truncates the dependent branch and regenerates its
+answer; regenerating an assistant message does the same from that response.
+Conversation titles are re-synthesised from the surviving thread after every
+generation, with a deterministic prompt-derived title when OpenAI is absent.
+All reads and mutations are scoped by the session-derived user ID, and deleting
+a conversation cascades to its messages.
 
 ### Resolution
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { questionTerms, rankNoteCorpus } from "./service";
+import {
+  fallbackConversationTitle,
+  questionTerms,
+  rankNoteCorpus,
+} from "./service";
 
 const base = {
   id: "note-1",
@@ -73,5 +77,19 @@ describe("Ask retrieval", () => {
       "note-1",
       "note-older",
     ]);
+  });
+});
+
+describe("Ask conversation titles", () => {
+  it("uses a compact deterministic title without an AI configuration", () => {
+    expect(
+      fallbackConversationTitle([
+        "What decisions are still waiting on me from the launch meeting?",
+      ]),
+    ).toBe("What decisions are still waiting on me…");
+  });
+
+  it("has a useful title for an empty historical conversation", () => {
+    expect(fallbackConversationTitle([])).toBe("New conversation");
   });
 });

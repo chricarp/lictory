@@ -254,8 +254,49 @@
     }
   }
 
+  /* Beautiful UI-inspired ASK primitives: a pixel wave for long-running work
+     and quiet, staggered reveals for tasks, retrieved context and suggestions. */
+  @keyframes ask-pixel-on {
+    0%,
+    100% {
+      opacity: 0.14;
+      transform: scale(0.82);
+    }
+    45% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes ask-reveal {
+    from {
+      opacity: 0;
+      filter: blur(3px);
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(0);
+    }
+  }
+
+  .ask-task-enter,
+  .ask-answer-enter,
+  .ask-context-enter,
+  .ask-recommendation-enter {
+    animation: ask-reveal 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: opacity, filter, transform;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .t-shimmer::before {
+      animation: none !important;
+    }
+    .ask-task-enter,
+    .ask-answer-enter,
+    .ask-context-enter,
+    .ask-recommendation-enter {
       animation: none !important;
     }
   }

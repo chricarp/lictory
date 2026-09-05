@@ -15,6 +15,7 @@ import {
   ChevronRight,
   CircleStop,
   Code,
+  Copy01Icon,
   Download,
   Eye,
   ExternalLink,
@@ -94,6 +95,7 @@ export const CameraIcon = createIcon(Camera, "CameraIcon");
 export const CheckIcon = createIcon(Check, "CheckIcon");
 export const CircleStopIcon = createIcon(CircleStop, "CircleStopIcon");
 export const CodeIcon = createIcon(Code, "CodeIcon");
+export const CopyIcon = createIcon(Copy01Icon, "CopyIcon");
 export const ChevronLeftIcon = createIcon(ChevronLeft, "ChevronLeftIcon");
 export const ChevronRightIcon = createIcon(ChevronRight, "ChevronRightIcon");
 export const DownloadIcon = createIcon(Download, "DownloadIcon");
@@ -159,6 +161,7 @@ export {
   CheckIcon as Check,
   CircleStopIcon as CircleStop,
   CodeIcon as Code,
+  CopyIcon as Copy,
   ChevronLeftIcon as ChevronLeft,
   ChevronRightIcon as ChevronRight,
   DownloadIcon as Download,

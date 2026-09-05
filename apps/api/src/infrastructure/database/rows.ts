@@ -1,5 +1,6 @@
 import type {
-  askQueries,
+  askConversations,
+  askMessages,
   entities,
   entityAliases,
   entityDuplicates,
@@ -15,7 +16,8 @@ import type {
 
 /** Database row shapes inferred from the canonical Drizzle schema. */
 export type MediaRow = typeof mediaAssets.$inferSelect;
-export type AskQueryRow = typeof askQueries.$inferSelect;
+export type AskConversationRow = typeof askConversations.$inferSelect;
+export type AskMessageRow = typeof askMessages.$inferSelect;
 export type NoteRow = typeof notes.$inferSelect;
 export type EntityRow = typeof entities.$inferSelect & {
   note_count?: number;

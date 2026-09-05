@@ -140,18 +140,44 @@ export const notes = sqliteTable(
   ],
 );
 
-export const askQueries = sqliteTable(
-  "ask_queries",
+export const askConversations = sqliteTable(
+  "ask_conversations",
   {
     id: text("id").primaryKey(),
     user_id: text("user_id").notNull(),
-    question: text("question").notNull(),
-    answer_markdown: text("answer_markdown").notNull(),
-    citations_json: text("citations_json").notNull().default("[]"),
-    created_at: text("created_at").notNull(),
+    title: text("title").notNull(),
+    ...timestamps,
   },
   (table) => [
-    index("ask_queries_user_created_idx").on(table.user_id, table.created_at),
+    index("ask_conversations_user_updated_idx").on(
+      table.user_id,
+      table.updated_at,
+    ),
+  ],
+);
+
+export const askMessages = sqliteTable(
+  "ask_messages",
+  {
+    id: text("id").primaryKey(),
+    conversation_id: text("conversation_id")
+      .notNull()
+      .references(() => askConversations.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["user", "assistant"] }).notNull(),
+    position: integer("position").notNull(),
+    content_markdown: text("content_markdown").notNull(),
+    citations_json: text("citations_json").notNull().default("[]"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("ask_messages_conversation_position_idx").on(
+      table.conversation_id,
+      table.position,
+    ),
+    check(
+      "ask_messages_role_check",
+      sql`${table.role} in ('user', 'assistant')`,
+    ),
   ],
 );
 

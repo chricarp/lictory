@@ -10,5 +10,5 @@ export default async function AskPage({
   searchParams: Promise<{ id?: string }>;
 }) {
   const { id } = await searchParams;
-  return <AskExperience initialQueryId={id ?? null} />;
+  return <AskExperience initialConversationId={id ?? null} />;
 }

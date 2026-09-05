@@ -130,7 +130,7 @@ Add every Android signing identity (development, EAS, and Play App Signing) to t
 - Human review of every AI suggestion, plus manual add/edit/merge/delete of entities
 - People and organisations share one directory, and each links to the other
 - Entity pages, co-occurrence neighbourhoods and cross-entity filtering
-- A dedicated ⌘K Ask experience that retrieves across writing, audio transcripts, image descriptions, document text and structured context, with persisted history and note citations
+- A dedicated ⌘K Ask experience with persistent multi-turn conversations, AI-synthesised titles, editable prompts, regenerated answers, one-click message copy, and citations grounded in writing, audio transcripts, image descriptions, document text and structured context
 
 **Platform**
 

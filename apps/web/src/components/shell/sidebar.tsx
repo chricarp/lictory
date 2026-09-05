@@ -5,6 +5,7 @@ import {
   Home,
   LogOut,
   Menu,
+  Plus,
   Sparkles,
   Trash2,
   UserRound,
@@ -224,7 +225,7 @@ function NavLink({
 function AskSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const api = useApi();
   const router = useRouter();
-  const history = useResource("ask-history", () => api.listAskQueries());
+  const history = useResource("ask-history", () => api.listAskConversations());
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const refreshHistory = history.refresh;
 
@@ -235,16 +236,21 @@ function AskSidebar({ onNavigate }: { onNavigate?: () => void }) {
       window.removeEventListener("lictory:ask-history-changed", refresh);
   }, [refreshHistory]);
 
-  const deleteQuery = async (queryId: string) => {
-    setDeletingId(queryId);
+  const deleteConversation = async (conversationId: string) => {
+    setDeletingId(conversationId);
     try {
-      await api.deleteAskQuery(queryId);
+      await api.deleteAskConversation(conversationId);
       history.mutate((current) => ({
-        queries: (current?.queries ?? []).filter(
-          (query) => query.id !== queryId,
+        conversations: (current?.conversations ?? []).filter(
+          (conversation) => conversation.id !== conversationId,
         ),
       }));
       window.dispatchEvent(new Event("lictory:ask-history-changed"));
+      if (
+        new URLSearchParams(window.location.search).get("id") === conversationId
+      ) {
+        router.replace("/app/ask");
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not delete that ask",
@@ -264,9 +270,19 @@ function AskSidebar({ onNavigate }: { onNavigate?: () => void }) {
         <span className="lg:hidden xl:inline">Capture</span>
       </Link>
 
+      <Link
+        href="/app/ask"
+        onClick={onNavigate}
+        className="mb-5 flex min-h-10 w-full items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-xs font-medium text-muted transition-[background-color,border-color,color,transform] hover:border-hairline-strong hover:bg-surface hover:text-foreground active:scale-[0.98] lg:w-10 lg:justify-center lg:px-0 xl:w-full xl:justify-start xl:px-3"
+        aria-label="New Ask conversation"
+      >
+        <Plus className="size-4 shrink-0" />
+        <span className="lg:hidden xl:inline">New conversation</span>
+      </Link>
+
       <div className="mb-2 flex items-center gap-2 px-3 lg:hidden xl:flex">
         <Sparkles className="size-3.5 text-ember" />
-        <p className="text-xs font-medium text-subtle">Ask history</p>
+        <p className="text-xs font-medium text-subtle">Conversations</p>
       </div>
 
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto lg:w-fit xl:w-full">
@@ -290,28 +306,31 @@ function AskSidebar({ onNavigate }: { onNavigate?: () => void }) {
             </span>
             <span className="hidden lg:inline xl:hidden">!</span>
           </button>
-        ) : history.data?.queries.length ? (
-          history.data.queries.map((query) => (
-            <div key={query.id} className="group relative lg:w-10 xl:w-full">
+        ) : history.data?.conversations.length ? (
+          history.data.conversations.map((conversation) => (
+            <div
+              key={conversation.id}
+              className="group relative lg:w-10 xl:w-full"
+            >
               <Link
-                href={`/app/ask?id=${encodeURIComponent(query.id)}`}
+                href={`/app/ask?id=${encodeURIComponent(conversation.id)}`}
                 onClick={onNavigate}
-                aria-label={query.question}
+                aria-label={conversation.title}
                 className="flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 pr-9 text-xs leading-5 text-muted transition-colors hover:bg-surface hover:text-foreground lg:justify-center lg:gap-0 lg:px-0 xl:block xl:pr-9"
               >
                 <Sparkles className="size-4 shrink-0 text-subtle xl:hidden" />
                 <span className="line-clamp-2 lg:hidden xl:block">
-                  {query.question}
+                  {conversation.title}
                 </span>
               </Link>
               <button
                 type="button"
                 onClick={(event) => {
                   event.preventDefault();
-                  void deleteQuery(query.id);
+                  void deleteConversation(conversation.id);
                 }}
-                disabled={deletingId === query.id}
-                aria-label={`Delete “${query.question}”`}
+                disabled={deletingId === conversation.id}
+                aria-label={`Delete “${conversation.title}”`}
                 className="absolute right-1.5 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-subtle opacity-100 transition-[background-color,color,opacity] hover:bg-surface-strong hover:text-danger lg:hidden xl:flex xl:opacity-0 xl:group-hover:opacity-100 xl:focus-visible:opacity-100"
               >
                 <Trash2 className="size-3.5" />
@@ -320,7 +339,7 @@ function AskSidebar({ onNavigate }: { onNavigate?: () => void }) {
           ))
         ) : (
           <p className="px-3 py-2 text-xs leading-5 text-subtle lg:hidden xl:block">
-            Questions you ask will stay here.
+            Your conversations will stay here.
           </p>
         )}
       </div>
