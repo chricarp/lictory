@@ -1,0 +1,15 @@
+# Dependencies and build output
+node_modules
+.next
+out
+build
+coverage
+
+# Generated
+next-env.d.ts
+bun.lock
+skills-lock.json
+*.tsbuildinfo
+
+# Vendored third-party agent skills
+.agents
