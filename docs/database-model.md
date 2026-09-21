@@ -1,3 +1,7 @@
+> The schema descriptions below document the original domain foundation. The implemented
+> mutation, revision, authorization, activity, and synchronization guarantees are defined in
+> [synchronization.md](synchronization.md), which supersedes the original deferred-service notes.
+
 # Database model
 
 ## Ownership and identity

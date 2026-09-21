@@ -15,6 +15,13 @@
       "when": 1790007580819,
       "tag": "0001_reflective_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790009412880,
+      "tag": "0002_tearful_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

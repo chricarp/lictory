@@ -28,3 +28,7 @@ npm-debug.log*
 Thumbs.db
 *.pem
 .idea
+
+/.next-e2e/
+/test-results/
+/playwright-report/

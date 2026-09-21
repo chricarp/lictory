@@ -1364,3 +1364,22 @@ If yes, it probably belongs here.
 If it primarily helps teams manage implementation after that point, it probably belongs in Jira or another delivery system.
 
 If it adds process without improving clarity, collaboration, traceability, or readiness, it probably should not exist.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
+## Implemented synchronization boundary
+
+Read [the synchronization architecture](docs/synchronization.md) before adding domain
+writes or synchronized entities. All workspace commands must preserve the shared
+organization transaction lock, domain/change-log/receipt atomicity, scope-local
+checkpoints, Better Auth membership checks, and immutable revision semantics.
+Never advance a client checkpoint using a mutation receipt. Never prune the change
+log without an expired-checkpoint recovery protocol.

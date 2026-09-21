@@ -13,3 +13,7 @@ skills-lock.json
 
 # Vendored third-party agent skills
 .agents
+
+.next-e2e
+test-results
+playwright-report

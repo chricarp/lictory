@@ -88,8 +88,20 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 Collaborative requirements and engineering-readiness platform.
 
-This repository currently contains the application scaffold only. Product
-philosophy, glossary, and engineering conventions live in [`AGENTS.md`](./AGENTS.md).
+The authenticated workspace supports proposals, Markdown revisions, contextual discussions,
+suggestions, review requests, revision-bound approvals and computed readiness through a
+persistent browser synchronization engine. See [the sync architecture](docs/synchronization.md)
+for the protocol, authorization, recovery guarantees and current boundaries.
+
+Start at `/app`: create an organization and product, then create a proposal. Organization
+settings provide invitation links for teammates. Product philosophy, glossary, and
+engineering conventions live in [`AGENTS.md`](./AGENTS.md).
+
+```bash
+bun run test:sync # disposable PostgreSQL + IndexedDB invariant tests
+bunx playwright install chromium
+bun run test:e2e # isolated database and two-browser workflow verification
+```
 
 ## Stack
 
