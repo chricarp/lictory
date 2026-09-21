@@ -5,7 +5,8 @@ import { betterAuth } from "better-auth/minimal";
 import { nextCookies } from "better-auth/next-js";
 
 import { db } from "~/db";
-import * as schema from "~/db/schema";
+import * as schema from "~/db/auth-schema";
+import { authSchemaOptions } from "~/lib/auth-schema-options";
 import { deliverAuthEmail } from "~/lib/email";
 
 const googleEnabled = Boolean(
@@ -16,6 +17,7 @@ const microsoftEnabled = Boolean(
 );
 
 export const auth = betterAuth({
+  ...authSchemaOptions,
   appName: "Lictory",
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -84,7 +86,7 @@ export const auth = betterAuth({
   onAPIError: {
     errorURL: "/auth-error",
   },
-  plugins: [nextCookies()],
+  plugins: [...authSchemaOptions.plugins, nextCookies()],
 });
 
 export const authProviders = {

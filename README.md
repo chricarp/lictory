@@ -67,12 +67,16 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
 
 ## Database workflow
 
-The TypeScript schema in `src/db/schema.ts` is the source of truth.
+The schema entry point is `src/db/schema.ts`, which exports the generated Better
+Auth schema and the application domain schema. See [the database model](docs/database-model.md)
+for revision semantics, tenant constraints, retention, and enforcement boundaries.
 
 ```bash
+bun run auth:generate # regenerate auth tables after changing Better Auth schema options
 bun run db:generate  # create a committed SQL migration after schema changes
 bun run db:migrate   # apply committed migrations
 bun run db:studio    # inspect local data
+bun run db:test      # verify migrations and constraints in a disposable local database
 ```
 
 ## Production notes
