@@ -131,6 +131,25 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     .fill(
       "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
     );
+  const specificationEditor = page.getByRole("textbox", {
+    name: "Specification",
+  });
+  await specificationEditor.evaluate((textarea: HTMLTextAreaElement) => {
+    const start = textarea.value.indexOf("POST");
+    textarea.setSelectionRange(start, start + 4);
+  });
+  const specificationToolbar = specificationEditor
+    .locator("..")
+    .getByRole("toolbar", { name: "Markdown formatting" });
+  await specificationToolbar.getByRole("button", { name: "Bold (⌘B)" }).click();
+  await expect(specificationEditor).toHaveValue(/\*\*POST\*\*/);
+  await specificationToolbar.getByRole("button", { name: "Bold (⌘B)" }).click();
+  await expect(specificationEditor).not.toHaveValue(/\*\*POST\*\*/);
+  await specificationToolbar
+    .getByRole("button", { name: "Preview Markdown" })
+    .click();
+  await expect(page.getByRole("heading", { name: "Behavior" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue writing" }).click();
   await page.getByRole("button", { name: /Save revision 2/ }).click();
   await expect(
     page.getByText("Duplicate callbacks do not create duplicate cancellations"),
@@ -274,6 +293,9 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // 19. Offline queue survives reload; reconnect propagates.
   await page.goto(storyUrl);
+  await expect(
+    page.getByRole("toolbar", { name: "Markdown formatting" }),
+  ).toBeVisible();
   await page.route("**/api/sync**", (route) =>
     route.abort("internetdisconnected"),
   );

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Layers, SquareStack, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd } from "~/components/ui/primitives";
 import { Popover, Picker } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
@@ -212,13 +213,13 @@ export function QuickCreate({
             className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
           />
           {showDescription ? (
-            <textarea
+            <MarkdownEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onValueChange={setDescription}
               placeholder="Intent, problem or first draft of the behavior… (Markdown)"
               aria-label="Description"
               rows={5}
-              className="w-full resize-y rounded-md bg-muted/50 p-2 text-sm outline-none placeholder:text-muted-foreground/60"
+              containerClassName="bg-muted/30"
             />
           ) : (
             <button

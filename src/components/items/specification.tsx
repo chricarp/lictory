@@ -21,6 +21,7 @@ import {
   splitSpecification,
 } from "~/sync/shared/specification";
 import { Button } from "~/components/ui/button";
+import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd, SectionLabel } from "~/components/ui/primitives";
 import { Markdown } from "./markdown";
 import { RevisionDiff } from "./diff";
@@ -389,10 +390,6 @@ function Editor({
   const [summary, setSummary] = useState("");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
   const conflicted = current && current.id !== baseRevision.id;
   const submit = async () => {
     if (!current) return;
@@ -450,10 +447,10 @@ function Editor({
           </Button>
         </div>
       )}
-      <textarea
-        ref={textareaRef}
+      <MarkdownEditor
+        autoFocus
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onValueChange={setContent}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
@@ -467,7 +464,8 @@ function Editor({
         placeholder={
           "# Intent\n\nWhy this matters and for whom.\n\n## Behavior\n\n…\n\n## Acceptance criteria\n\n- [ ] …"
         }
-        className="min-h-[320px] w-full resize-y rounded-md border bg-card p-4 font-mono text-[13px] leading-6 outline-none focus:border-primary/60"
+        className="min-h-[320px] px-4 pt-4 font-mono"
+        previewClassName="min-h-[320px] px-4 pt-4"
         style={{ fieldSizing: "content" }}
       />
       <div className="flex flex-wrap items-center gap-2">

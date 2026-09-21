@@ -12,7 +12,9 @@ import { cn } from "~/lib/utils";
 import { relativeTime } from "~/lib/work-items";
 import type { EntityOf } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
+import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Avatar, Badge, SectionLabel } from "~/components/ui/primitives";
+import { Markdown } from "~/components/items/markdown";
 import { useItem } from "~/components/items/item-context";
 
 type Draft = { quote?: string; section: string } | null;
@@ -160,7 +162,10 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                 {relativeTime(m.createdAt)}
               </time>
             </div>
-            <p className="leading-6 whitespace-pre-wrap">{m.body}</p>
+            <Markdown
+              source={m.body}
+              className="text-[13px] leading-6 [&>p]:my-0"
+            />
           </li>
         ))}
       </ol>
@@ -168,7 +173,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         <footer className="flex flex-wrap items-center gap-1 border-t px-2 py-1.5">
           {replying ? (
             <form
-              className="flex w-full items-start gap-2"
+              className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-start"
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!reply.trim()) return;
@@ -183,11 +188,11 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                 setReplying(false);
               }}
             >
-              <CornerDownRight className="mt-2 size-3.5 shrink-0 text-muted-foreground" />
-              <textarea
+              <CornerDownRight className="mt-2 hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
+              <MarkdownEditor
                 autoFocus
                 value={reply}
-                onChange={(e) => setReply(e.target.value)}
+                onValueChange={setReply}
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
                     e.currentTarget.form?.requestSubmit();
@@ -196,9 +201,15 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                 rows={2}
                 aria-label="Reply"
                 placeholder="Reply… (⌘↵ to send)"
-                className="min-h-8 flex-1 resize-y rounded-md border bg-card px-2 py-1 text-[13px] outline-none focus:border-primary/60"
+                containerClassName="min-w-0 flex-1"
+                className="min-h-28"
               />
-              <Button type="submit" size="sm" disabled={!reply.trim()}>
+              <Button
+                type="submit"
+                size="sm"
+                className="self-end"
+                disabled={!reply.trim()}
+              >
                 Reply
               </Button>
             </form>
@@ -305,10 +316,10 @@ export function ThreadComposer({
           </button>
         </div>
       )}
-      <textarea
+      <MarkdownEditor
         ref={textareaRef}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onValueChange={setBody}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
         }}
@@ -321,7 +332,7 @@ export function ThreadComposer({
             ? "What is unclear or wrong about this text?"
             : "Ask a question, flag a gap, or raise a concern…"
         }
-        className="w-full resize-y bg-transparent px-3 py-2 text-[13px] leading-6 outline-none placeholder:text-muted-foreground/70"
+        containerClassName="rounded-none border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
       />
       <div className="flex flex-wrap items-center gap-2 border-t px-2 py-1.5">
         <label className="flex items-center gap-1.5 text-xs">
