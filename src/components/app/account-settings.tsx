@@ -108,7 +108,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
         >
           {message}
         </FormMessage>
-        <Button type="submit" className="w-fit" disabled={pending}>
+        <Button size="lg" type="submit" className="w-fit" disabled={pending}>
           {pending ? "Saving…" : "Save profile"}
         </Button>
       </form>
@@ -160,6 +160,7 @@ function EmailSection({ user }: Pick<AccountSettingsProps, "user">) {
           {message}
         </FormMessage>
         <Button
+          size="lg"
           type="submit"
           variant="secondary"
           className="w-fit"
@@ -226,6 +227,7 @@ function PasswordSection() {
           {message}
         </FormMessage>
         <Button
+          size="lg"
           type="submit"
           variant="secondary"
           className="w-fit"
@@ -272,6 +274,7 @@ function ConnectionsSection({
                 </p>
               </div>
               <Button
+                size="lg"
                 variant="secondary"
                 disabled={connected || !configured}
                 onClick={() => connect(provider)}
@@ -315,6 +318,7 @@ function SessionsSection({
           this browser and change your password.
         </p>
         <Button
+          size="lg"
           variant="secondary"
           onClick={revoke}
           disabled={pending || sessionCount <= 1}
@@ -362,7 +366,12 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
         cannot be undone.
       </p>
       {!open ? (
-        <Button variant="danger" className="mt-5" onClick={() => setOpen(true)}>
+        <Button
+          size="lg"
+          variant="danger"
+          className="mt-5"
+          onClick={() => setOpen(true)}
+        >
           Delete my account
         </Button>
       ) : (
@@ -386,10 +395,10 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
           )}
           <FormMessage>{error}</FormMessage>
           <div className="flex gap-3">
-            <Button type="submit" variant="danger" disabled={pending}>
+            <Button size="lg" type="submit" variant="danger" disabled={pending}>
               {pending ? "Deleting…" : "Delete permanently"}
             </Button>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button size="lg" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
           </div>

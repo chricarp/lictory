@@ -1,6 +1,6 @@
 "use client";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/workspace";
+import { EmptyState } from "~/components/ui/primitives";
 export default function WorkspaceError({ reset }: { reset: () => void }) {
   return (
     <main className="mx-auto max-w-lg p-8">

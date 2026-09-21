@@ -1,0 +1,129 @@
+"use client";
+import Link from "next/link";
+import { memo } from "react";
+import { Layers } from "lucide-react";
+import { cn } from "~/lib/utils";
+import { identifier, relativeTime, type Product } from "~/lib/work-items";
+import type { WorkItem } from "~/sync/shared/protocol";
+import { Avatar } from "~/components/ui/primitives";
+import { IssueStatus } from "./status";
+import { AssigneePicker, IssuePriority } from "./properties";
+import { IssueIdentifier } from "./identifier";
+import { ReadinessBar, ReviewSignal } from "./signals";
+
+export const IssueRow = memo(function IssueRow({
+  item,
+  product,
+  parent,
+  href,
+  selected,
+  focused,
+  compact,
+  memberName,
+  onUpdate,
+  onFocus,
+}: {
+  item: WorkItem;
+  product: Product | undefined;
+  parent?: WorkItem;
+  href: string;
+  selected: boolean;
+  focused: boolean;
+  compact: boolean;
+  memberName: (id: string | null) => string;
+  onUpdate: (patch: {
+    status?: WorkItem["status"];
+    priority?: WorkItem["priority"];
+    assigneeId?: string | null;
+  }) => void;
+  onFocus: () => void;
+}) {
+  return (
+    <li
+      data-item-row
+      data-focused={focused || undefined}
+      className={cn(
+        "group relative flex items-center gap-2 border-b px-3 text-[13px] last:border-b-0",
+        compact ? "h-9" : "h-10",
+        selected
+          ? "bg-primary/6"
+          : focused
+            ? "bg-muted/70"
+            : "hover:bg-muted/50",
+      )}
+      onMouseEnter={onFocus}
+    >
+      {!compact && (
+        <span className="relative z-10">
+          <IssuePriority
+            priority={item.priority}
+            compact
+            onChange={(priority) => onUpdate({ priority })}
+          />
+        </span>
+      )}
+      <span className="relative z-10">
+        <IssueStatus
+          status={item.status}
+          compact
+          onChange={(status) => onUpdate({ status })}
+        />
+      </span>
+      <IssueIdentifier
+        product={product}
+        number={item.number}
+        className="w-[4.5rem]"
+      />
+      <Link
+        href={href}
+        className="min-w-0 flex-1 truncate py-2 font-medium outline-none after:absolute after:inset-0 after:content-[''] focus-visible:text-primary"
+        aria-current={selected ? "page" : undefined}
+      >
+        {item.title}
+      </Link>
+      {!compact && parent && (
+        <span
+          className="hidden max-w-[180px] items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
+          title={parent.title}
+        >
+          <Layers className="size-3 shrink-0" />
+          <span className="truncate">{identifier(product, parent.number)}</span>
+        </span>
+      )}
+      {item.kind === "epic" && item.childCount > 0 && !compact && (
+        <span
+          className="text-xs text-muted-foreground tabular-nums"
+          title={`${item.childReadyCount} of ${item.childCount} stories ready`}
+        >
+          {item.childReadyCount}/{item.childCount} stories
+        </span>
+      )}
+      <ReviewSignal item={item} />
+      {!compact && (
+        <ReadinessBar item={item} className="hidden md:inline-flex" />
+      )}
+      {!compact ? (
+        <span className="relative z-10">
+          <AssigneePicker
+            assigneeId={item.assigneeId}
+            compact
+            onChange={(assigneeId) => onUpdate({ assigneeId })}
+          />
+        </span>
+      ) : (
+        item.assigneeId && (
+          <Avatar name={memberName(item.assigneeId)} size="xs" />
+        )
+      )}
+      {!compact && (
+        <time
+          className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"
+          dateTime={item.updatedAt}
+          title={new Date(item.updatedAt).toLocaleString()}
+        >
+          {relativeTime(item.updatedAt)}
+        </time>
+      )}
+    </li>
+  );
+});

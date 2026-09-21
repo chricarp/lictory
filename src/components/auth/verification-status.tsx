@@ -50,7 +50,9 @@ export function VerificationStatus({
           </p>
         </div>
         <Link href="/app" className="contents">
-          <Button className="w-full">Open workspace</Button>
+          <Button size="lg" className="w-full">
+            Open workspace
+          </Button>
         </Link>
       </div>
     );
@@ -76,6 +78,7 @@ export function VerificationStatus({
       </FormMessage>
       {email ? (
         <Button
+          size="lg"
           variant="secondary"
           className="w-full"
           onClick={resend}

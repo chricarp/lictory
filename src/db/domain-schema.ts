@@ -39,16 +39,25 @@ const updatedAt = () =>
     .$onUpdate(() => new Date())
     .notNull();
 
-export const proposalStatus = pgEnum("proposal_status", [
+// Product owns the workflow up to `ready`; later statuses may eventually be
+// synchronized from a delivery system. `ready` is gated by readiness evidence.
+export const workItemStatus = pgEnum("work_item_status", [
+  "backlog",
   "draft",
   "refinement",
   "in_review",
-  "changes_requested",
-  "approved",
-  "delivery_review",
   "ready",
-  "published",
-  "obsolete",
+  "in_progress",
+  "done",
+  "cancelled",
+]);
+export const workItemKind = pgEnum("work_item_kind", ["epic", "story", "task"]);
+export const workItemPriority = pgEnum("work_item_priority", [
+  "none",
+  "low",
+  "medium",
+  "high",
+  "urgent",
 ]);
 export const reviewStatus = pgEnum("review_status", [
   "requested",
@@ -129,6 +138,8 @@ export const product = pgTable(
     organizationId: organizationId(),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
+    // Short uppercase identifier prefix for work items, e.g. PAY in PAY-142.
+    key: text("key").notNull(),
     description: text("description"),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
@@ -138,18 +149,30 @@ export const product = pgTable(
   (t) => [
     unique("product_org_id_unique").on(t.organizationId, t.id),
     unique("product_org_slug_unique").on(t.organizationId, t.slug),
+    unique("product_org_key_unique").on(t.organizationId, t.key),
+    check("product_key_format", sql`${t.key} ~ '^[A-Z][A-Z0-9]{1,9}$'`),
   ],
 );
 
-export const proposal = pgTable(
+// Work items are Epics, Stories and Tasks. The physical table keeps its original
+// `proposal` name (and `proposal_id` foreign keys below) so the migration stays
+// additive; the domain vocabulary lives in these TypeScript identifiers.
+export const workItem = pgTable(
   "proposal",
   {
     id: id(),
     organizationId: organizationId(),
     productId: text("product_id").notNull(),
+    parentId: text("parent_id"),
+    kind: workItemKind("kind").default("story").notNull(),
+    // Per-product sequence rendered as KEY-number. Allocated under the
+    // organization lock; the unique constraint arbitrates races.
+    number: integer("number").notNull(),
     title: text("title").notNull(),
     problemStatement: text("problem_statement"),
-    status: proposalStatus("status").default("draft").notNull(),
+    status: workItemStatus("status").default("draft").notNull(),
+    priority: workItemPriority("priority").default("none").notNull(),
+    assigneeId: optionalActor("assignee_id"),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -162,10 +185,25 @@ export const proposal = pgTable(
       t.productId,
       t.id,
     ),
+    unique("work_item_product_number_unique").on(
+      t.organizationId,
+      t.productId,
+      t.number,
+    ),
     foreignKey({
       columns: [t.organizationId, t.productId],
       foreignColumns: [product.organizationId, product.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "work_item_parent_fk",
+      columns: [t.organizationId, t.productId, t.parentId],
+      foreignColumns: [t.organizationId, t.productId, t.id],
+    }).onDelete("restrict"),
+    check(
+      "work_item_not_own_parent",
+      sql`${t.parentId} IS NULL OR ${t.parentId} <> ${t.id}`,
+    ),
+    check("work_item_positive_number", sql`${t.number} > 0`),
     index("proposal_product_status_idx").on(
       t.organizationId,
       t.productId,
@@ -173,6 +211,8 @@ export const proposal = pgTable(
       t.updatedAt,
     ),
     index("proposal_creator_idx").on(t.organizationId, t.createdById),
+    index("work_item_parent_idx").on(t.organizationId, t.parentId),
+    index("work_item_assignee_idx").on(t.organizationId, t.assigneeId),
   ],
 );
 
@@ -183,7 +223,7 @@ export const specificationRevision = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     number: integer("number").notNull(),
     title: text("title").notNull(),
     content: text("content").notNull(), // Markdown, including acceptance criteria.
@@ -192,15 +232,15 @@ export const specificationRevision = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    unique("revision_context_unique").on(t.organizationId, t.proposalId, t.id),
+    unique("revision_context_unique").on(t.organizationId, t.workItemId, t.id),
     unique("revision_number_unique").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.number,
     ),
     foreignKey({
-      columns: [t.organizationId, t.proposalId],
-      foreignColumns: [proposal.organizationId, proposal.id],
+      columns: [t.organizationId, t.workItemId],
+      foreignColumns: [workItem.organizationId, workItem.id],
     }).onDelete("restrict"),
     check("revision_positive_number", sql`${t.number} > 0`),
   ],
@@ -212,7 +252,7 @@ export const review = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     revisionId: text("revision_id").notNull(),
     responsibility: text("responsibility").notNull(),
     status: reviewStatus("status").default("requested").notNull(),
@@ -225,22 +265,22 @@ export const review = pgTable(
   (t) => [
     unique("review_context_unique").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.id,
     ),
     unique("review_org_id_unique").on(t.organizationId, t.id),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId],
+      columns: [t.organizationId, t.workItemId, t.revisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     index("review_revision_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
     ),
     index("review_status_idx").on(t.organizationId, t.status),
@@ -293,7 +333,7 @@ export const thread = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     revisionId: text("revision_id").notNull(),
     reviewId: text("review_id"),
     authorId: actor("author_id"),
@@ -310,36 +350,36 @@ export const thread = pgTable(
     unique("thread_org_id_unique").on(t.organizationId, t.id),
     unique("thread_context_unique").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.id,
     ),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId],
+      columns: [t.organizationId, t.workItemId, t.revisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId, t.reviewId],
+      columns: [t.organizationId, t.workItemId, t.revisionId, t.reviewId],
       foreignColumns: [
         review.organizationId,
-        review.proposalId,
+        review.workItemId,
         review.revisionId,
         review.id,
       ],
     }).onDelete("restrict"),
     index("thread_proposal_status_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.status,
       t.blocking,
     ),
     index("thread_revision_review_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.reviewId,
     ),
@@ -379,7 +419,7 @@ export const suggestion = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     revisionId: text("revision_id").notNull(),
     threadId: text("thread_id"),
     authorId: actor("author_id"),
@@ -396,33 +436,33 @@ export const suggestion = pgTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId],
+      columns: [t.organizationId, t.workItemId, t.revisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId, t.threadId],
+      columns: [t.organizationId, t.workItemId, t.revisionId, t.threadId],
       foreignColumns: [
         thread.organizationId,
-        thread.proposalId,
+        thread.workItemId,
         thread.revisionId,
         thread.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.acceptedRevisionId],
+      columns: [t.organizationId, t.workItemId, t.acceptedRevisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     index("suggestion_revision_status_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.status,
     ),
@@ -439,7 +479,7 @@ export const approval = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     revisionId: text("revision_id").notNull(),
     reviewId: text("review_id").notNull(),
     reviewerId: actor("reviewer_id"),
@@ -451,10 +491,10 @@ export const approval = pgTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId, t.reviewId],
+      columns: [t.organizationId, t.workItemId, t.revisionId, t.reviewId],
       foreignColumns: [
         review.organizationId,
-        review.proposalId,
+        review.workItemId,
         review.revisionId,
         review.id,
       ],
@@ -464,7 +504,7 @@ export const approval = pgTable(
       .where(sql`${t.status} = 'granted'`),
     index("approval_revision_status_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.status,
     ),
@@ -482,7 +522,7 @@ export const readinessCheck = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     revisionId: text("revision_id").notNull(),
     key: text("key").notNull(),
     status: checkStatus("status").default("pending").notNull(),
@@ -496,16 +536,16 @@ export const readinessCheck = pgTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId],
+      columns: [t.organizationId, t.workItemId, t.revisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     index("readiness_check_revision_key_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.key,
       t.createdAt,
@@ -523,7 +563,7 @@ export const decision = pgTable(
     id: id(),
     organizationId: organizationId(),
     productId: text("product_id").notNull(),
-    proposalId: text("proposal_id"),
+    workItemId: text("proposal_id"),
     revisionId: text("revision_id"),
     sourceThreadId: text("source_thread_id"),
     title: text("title").notNull(),
@@ -539,40 +579,40 @@ export const decision = pgTable(
       foreignColumns: [product.organizationId, product.id],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.productId, t.proposalId],
+      columns: [t.organizationId, t.productId, t.workItemId],
       foreignColumns: [
-        proposal.organizationId,
-        proposal.productId,
-        proposal.id,
+        workItem.organizationId,
+        workItem.productId,
+        workItem.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId],
+      columns: [t.organizationId, t.workItemId, t.revisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId, t.sourceThreadId],
+      columns: [t.organizationId, t.workItemId, t.revisionId, t.sourceThreadId],
       foreignColumns: [
         thread.organizationId,
-        thread.proposalId,
+        thread.workItemId,
         thread.revisionId,
         thread.id,
       ],
     }).onDelete("restrict"),
     check(
       "decision_source_context",
-      sql`(${t.revisionId} IS NULL OR ${t.proposalId} IS NOT NULL) AND (${t.sourceThreadId} IS NULL OR ${t.revisionId} IS NOT NULL)`,
+      sql`(${t.revisionId} IS NULL OR ${t.workItemId} IS NOT NULL) AND (${t.sourceThreadId} IS NULL OR ${t.revisionId} IS NOT NULL)`,
     ),
     index("decision_product_idx").on(
       t.organizationId,
       t.productId,
       t.createdAt,
     ),
-    index("decision_proposal_idx").on(t.organizationId, t.proposalId),
+    index("decision_proposal_idx").on(t.organizationId, t.workItemId),
   ],
 );
 
@@ -581,7 +621,7 @@ export const deliveryItem = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    proposalId: text("proposal_id").notNull(),
+    workItemId: text("proposal_id").notNull(),
     revisionId: text("revision_id").notNull(),
     parentId: text("parent_id"),
     title: text("title").notNull(),
@@ -597,22 +637,22 @@ export const deliveryItem = pgTable(
     unique("delivery_item_org_id_unique").on(t.organizationId, t.id),
     unique("delivery_item_context_unique").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.id,
     ),
     foreignKey({
-      columns: [t.organizationId, t.proposalId, t.revisionId],
+      columns: [t.organizationId, t.workItemId, t.revisionId],
       foreignColumns: [
         specificationRevision.organizationId,
-        specificationRevision.proposalId,
+        specificationRevision.workItemId,
         specificationRevision.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
       name: "delivery_item_parent_context_fk",
-      columns: [t.organizationId, t.proposalId, t.revisionId, t.parentId],
-      foreignColumns: [t.organizationId, t.proposalId, t.revisionId, t.id],
+      columns: [t.organizationId, t.workItemId, t.revisionId, t.parentId],
+      foreignColumns: [t.organizationId, t.workItemId, t.revisionId, t.id],
     }).onDelete("restrict"),
     check(
       "delivery_item_not_own_parent",
@@ -621,7 +661,7 @@ export const deliveryItem = pgTable(
     check("delivery_item_position_nonnegative", sql`${t.position} >= 0`),
     index("delivery_item_hierarchy_idx").on(
       t.organizationId,
-      t.proposalId,
+      t.workItemId,
       t.revisionId,
       t.parentId,
       t.position,

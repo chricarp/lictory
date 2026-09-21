@@ -1,32 +1,41 @@
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "../../db/schema";
 import {
+  PROTOCOL,
   entityKey,
   entitySchema,
   type Entity,
+  type EntityOf,
   type Mutation,
+  type ReadinessCheck,
   type Scope,
   type Change,
+  type WorkItemStatus,
 } from "../shared/protocol";
+import { hasAcceptanceCriteria } from "../shared/specification";
 
 type Database = PostgresJsDatabase<typeof s>;
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export class DomainError extends Error {
   constructor(
-    public category: "forbidden" | "conflict" | "validation",
+    public category: "forbidden" | "unavailable" | "conflict" | "validation",
     message: string,
     public currentRevisionId?: string,
   ) {
     super(message);
   }
 }
+// Missing or out-of-scope entities are "unavailable" (404) so a stale link never
+// looks like a revoked membership. Organization access failures stay forbidden.
 function requireValue<T>(
   v: T | undefined,
   message = "This item is unavailable.",
+  category: "forbidden" | "unavailable" = "unavailable",
 ): T {
-  if (!v) throw new DomainError("forbidden", message);
+  if (!v) throw new DomainError(category, message);
   return v;
 }
 export function serialize(type: Entity["type"], row: unknown): Entity {
@@ -53,6 +62,7 @@ export async function authorize(
         )
     )[0],
     "Organization access has been removed.",
+    "forbidden",
   );
 }
 async function lock(tx: Tx, organizationId: string) {
@@ -79,6 +89,7 @@ export async function directory(
     .select({
       id: s.organization.id,
       name: s.organization.name,
+      slug: s.organization.slug,
       role: s.member.role,
     })
     .from(s.organization)
@@ -94,15 +105,17 @@ export async function directory(
   requireValue(
     organizations.find((o) => o.id === organizationId),
     "Organization access has been removed.",
+    "forbidden",
   );
   const products = (
     await db
       .select()
       .from(s.product)
       .where(eq(s.product.organizationId, organizationId))
+      .orderBy(asc(s.product.createdAt))
   ).map((row) => serialize("product", row));
   const members = await db
-    .select({ id: s.user.id, name: s.user.name })
+    .select({ id: s.user.id, name: s.user.name, email: s.user.email })
     .from(s.member)
     .innerJoin(s.user, eq(s.member.userId, s.user.id))
     .where(eq(s.member.organizationId, organizationId));
@@ -127,103 +140,283 @@ export async function directory(
   }));
   return { organizations, products, members, groups };
 }
-export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
-  const { organizationId, productId, proposalId } = scope;
-  if (!productId)
-    return (
-      await tx
-        .select()
-        .from(s.product)
-        .where(eq(s.product.organizationId, organizationId))
-    ).map((p) => serialize("product", p));
-  const product = requireValue(
-    (
-      await tx
-        .select()
-        .from(s.product)
-        .where(
-          and(
-            eq(s.product.organizationId, organizationId),
-            eq(s.product.id, productId),
-          ),
-        )
-    )[0],
-  );
-  const proposals = await tx
-    .select()
-    .from(s.proposal)
-    .where(
-      and(
-        eq(s.proposal.organizationId, organizationId),
-        eq(s.proposal.productId, productId),
-      ),
-    );
-  const entities: Entity[] = [
-    serialize("product", product),
-    ...proposals.map((p) => serialize("proposal", p)),
-  ];
-  if (!proposalId) return entities;
-  requireValue(proposals.find((p) => p.id === proposalId));
-  const revisions = await tx
-    .select()
+
+type ItemRow = typeof s.workItem.$inferSelect;
+type RevisionRow = typeof s.specificationRevision.$inferSelect;
+type ReviewRow = typeof s.review.$inferSelect;
+type AssignmentRow = typeof s.reviewAssignment.$inferSelect;
+type ApprovalRow = typeof s.approval.$inferSelect;
+type ThreadRow = typeof s.thread.$inferSelect;
+type SuggestionRow = typeof s.suggestion.$inferSelect;
+
+// Everything a list, inbox or readiness evaluation needs about a set of items.
+async function loadItemContext(
+  tx: Tx,
+  organizationId: string,
+  items: ItemRow[],
+) {
+  const ids = items.map((i) => i.id);
+  if (ids.length === 0)
+    return {
+      revisions: new Map<string, RevisionRow[]>(),
+      threads: [] as ThreadRow[],
+      suggestions: [] as SuggestionRow[],
+      reviews: [] as ReviewRow[],
+      assignments: [] as AssignmentRow[],
+      approvals: [] as ApprovalRow[],
+    };
+  const where = (t: { organizationId: AnyPgColumn; workItemId: AnyPgColumn }) =>
+    and(eq(t.organizationId, organizationId), inArray(t.workItemId, ids));
+  const revisionRows = await tx
+    .select({
+      id: s.specificationRevision.id,
+      organizationId: s.specificationRevision.organizationId,
+      workItemId: s.specificationRevision.workItemId,
+      number: s.specificationRevision.number,
+      title: s.specificationRevision.title,
+      content: s.specificationRevision.content,
+      changeSummary: s.specificationRevision.changeSummary,
+      authorId: s.specificationRevision.authorId,
+      createdAt: s.specificationRevision.createdAt,
+    })
     .from(s.specificationRevision)
-    .where(
-      and(
-        eq(s.specificationRevision.organizationId, organizationId),
-        eq(s.specificationRevision.proposalId, proposalId),
-      ),
-    )
+    .where(where(s.specificationRevision))
     .orderBy(desc(s.specificationRevision.number));
-  const reviews = await tx
-    .select()
-    .from(s.review)
-    .where(
-      and(
-        eq(s.review.organizationId, organizationId),
-        eq(s.review.proposalId, proposalId),
-      ),
-    );
-  const threads = await tx
-    .select()
-    .from(s.thread)
-    .where(
-      and(
-        eq(s.thread.organizationId, organizationId),
-        eq(s.thread.proposalId, proposalId),
-      ),
-    );
-  const approvals = await tx
-    .select()
-    .from(s.approval)
-    .where(
-      and(
-        eq(s.approval.organizationId, organizationId),
-        eq(s.approval.proposalId, proposalId),
-      ),
-    );
+  const revisions = new Map<string, RevisionRow[]>();
+  for (const r of revisionRows) {
+    const list = revisions.get(r.workItemId) ?? [];
+    list.push(r);
+    revisions.set(r.workItemId, list);
+  }
+  const threads = await tx.select().from(s.thread).where(where(s.thread));
   const suggestions = await tx
     .select()
     .from(s.suggestion)
-    .where(
-      and(
-        eq(s.suggestion.organizationId, organizationId),
-        eq(s.suggestion.proposalId, proposalId),
-      ),
-    );
-  const assignments = reviews.length
+    .where(where(s.suggestion));
+  const reviews = await tx.select().from(s.review).where(where(s.review));
+  const reviewIds = reviews.map((r) => r.id);
+  const assignments = reviewIds.length
     ? await tx
         .select()
         .from(s.reviewAssignment)
         .where(
           and(
             eq(s.reviewAssignment.organizationId, organizationId),
-            inArray(
-              s.reviewAssignment.reviewId,
-              reviews.map((r) => r.id),
-            ),
+            inArray(s.reviewAssignment.reviewId, reviewIds),
           ),
         )
     : [];
+  const approvals = await tx.select().from(s.approval).where(where(s.approval));
+  return { revisions, threads, suggestions, reviews, assignments, approvals };
+}
+type ItemContext = Awaited<ReturnType<typeof loadItemContext>>;
+
+function summarize(
+  item: ItemRow,
+  all: ItemRow[],
+  ctx: ItemContext,
+): EntityOf<"workItem"> {
+  const current = ctx.revisions.get(item.id)?.[0];
+  const threads = ctx.threads.filter((t) => t.workItemId === item.id);
+  const reviews = ctx.reviews.filter(
+    (r) =>
+      r.workItemId === item.id &&
+      r.status !== "cancelled" &&
+      r.revisionId === current?.id,
+  );
+  const children = all.filter(
+    (c) => c.parentId === item.id && !c.archivedAt && c.status !== "cancelled",
+  );
+  const checks = readiness(item, all, ctx);
+  return entitySchema.parse({
+    type: "workItem",
+    id: item.id,
+    organizationId: item.organizationId,
+    productId: item.productId,
+    parentId: item.parentId,
+    kind: item.kind,
+    number: item.number,
+    title: item.title,
+    status: item.status,
+    priority: item.priority,
+    assigneeId: item.assigneeId,
+    createdById: item.createdById,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+    archivedAt: item.archivedAt?.toISOString() ?? null,
+    revisionId: current?.id ?? "",
+    revisionNumber: current?.number ?? 0,
+    openThreads: threads.filter((t) => t.status === "open").length,
+    blockingThreads: threads.filter((t) => t.status === "open" && t.blocking)
+      .length,
+    pendingSuggestions: ctx.suggestions.filter(
+      (x) => x.workItemId === item.id && x.status === "pending",
+    ).length,
+    reviews: reviews.map((r) => ({
+      id: r.id,
+      responsibility: r.responsibility,
+      status: r.status,
+      required: r.required,
+      assigneeIds: ctx.assignments
+        .filter((a) => a.reviewId === r.id && !a.withdrawnAt)
+        .map((a) => a.userId ?? a.groupId!)
+        .filter(Boolean),
+      approved: ctx.approvals.some(
+        (a) => a.reviewId === r.id && a.status === "granted",
+      ),
+    })),
+    readinessPassed: checks.filter((c) => c.passed).length,
+    readinessTotal: checks.length,
+    childCount: children.length,
+    childReadyCount: children.filter((c) =>
+      ["ready", "in_progress", "done"].includes(c.status),
+    ).length,
+  }) as EntityOf<"workItem">;
+}
+
+// Readiness is evidence. Each check explains itself so the UI never has to
+// reduce readiness to a percentage without a reason.
+function readiness(
+  item: ItemRow,
+  all: ItemRow[],
+  ctx: ItemContext,
+): ReadinessCheck[] {
+  const current = ctx.revisions.get(item.id)?.[0];
+  const content = current?.content ?? "";
+  const threads = ctx.threads.filter((t) => t.workItemId === item.id);
+  const reviews = ctx.reviews.filter(
+    (r) => r.workItemId === item.id && r.status !== "cancelled",
+  );
+  const responsibilities = [
+    ...new Set(reviews.filter((r) => r.required).map((r) => r.responsibility)),
+  ];
+  const currentRequired = reviews.filter(
+    (r) => r.required && r.revisionId === current?.id,
+  );
+  const approvedResponsibilities = responsibilities.filter((responsibility) => {
+    const candidates = currentRequired.filter(
+      (r) => r.responsibility === responsibility,
+    );
+    return (
+      candidates.length > 0 &&
+      candidates.every(
+        (r) =>
+          r.status === "completed" &&
+          ctx.approvals.some(
+            (a) =>
+              a.reviewId === r.id &&
+              a.status === "granted" &&
+              a.revisionId === current?.id,
+          ),
+      )
+    );
+  });
+  const missing = responsibilities.filter(
+    (r) => !approvedResponsibilities.includes(r),
+  );
+  const blocking = threads.filter((t) => t.status === "open" && t.blocking);
+  const children = all.filter(
+    (c) => c.parentId === item.id && !c.archivedAt && c.status !== "cancelled",
+  );
+  const childrenNotReady = children.filter(
+    (c) => !["ready", "in_progress", "done"].includes(c.status),
+  );
+  const checks: ReadinessCheck[] = [
+    {
+      key: "specification",
+      label: "Specification written",
+      passed: content.trim().length > 0,
+      detail: content.trim() ? undefined : "The description is empty.",
+    },
+  ];
+  if (item.kind !== "epic")
+    checks.push({
+      key: "acceptance_criteria",
+      label: "Acceptance criteria defined",
+      passed: hasAcceptanceCriteria(content),
+      detail: hasAcceptanceCriteria(content)
+        ? undefined
+        : "Add at least one criterion under “Acceptance criteria”.",
+    });
+  checks.push(
+    {
+      key: "no_blocking_threads",
+      label: "No open blocking discussions",
+      passed: blocking.length === 0,
+      detail: blocking.length
+        ? `${blocking.length} blocking ${blocking.length === 1 ? "discussion" : "discussions"} open.`
+        : undefined,
+    },
+    {
+      key: "reviews_requested",
+      label: "Required reviews requested",
+      passed: responsibilities.length > 0,
+      detail: responsibilities.length
+        ? undefined
+        : "Request at least one required review.",
+    },
+    {
+      key: "reviews_approved",
+      label: "Current revision approved by every required review",
+      passed: responsibilities.length > 0 && missing.length === 0,
+      detail:
+        responsibilities.length === 0
+          ? "No required review exists yet."
+          : missing.length
+            ? `Waiting on ${missing.join(", ")} for revision ${current?.number ?? ""}.`
+            : undefined,
+    },
+  );
+  if (item.kind === "epic" && children.length > 0)
+    checks.push({
+      key: "stories_ready",
+      label: "Every story is ready",
+      passed: childrenNotReady.length === 0,
+      detail: childrenNotReady.length
+        ? `${childrenNotReady.length} of ${children.length} stories are not ready.`
+        : undefined,
+    });
+  // Keep the projection JSON-stable: bootstrap and delta must compare equal.
+  return checks.map((c) =>
+    c.detail === undefined
+      ? { key: c.key, label: c.label, passed: c.passed }
+      : c,
+  );
+}
+
+export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
+  const { organizationId, productId, workItemId } = scope;
+  const products = await tx
+    .select()
+    .from(s.product)
+    .where(
+      and(
+        eq(s.product.organizationId, organizationId),
+        productId ? eq(s.product.id, productId) : undefined,
+      ),
+    );
+  if (productId) requireValue(products[0]);
+  const items = await tx
+    .select()
+    .from(s.workItem)
+    .where(
+      and(
+        eq(s.workItem.organizationId, organizationId),
+        productId ? eq(s.workItem.productId, productId) : undefined,
+      ),
+    )
+    .orderBy(asc(s.workItem.createdAt));
+  const ctx = await loadItemContext(tx, organizationId, items);
+  const entities: Entity[] = [
+    ...products.map((p) => serialize("product", p)),
+    ...items.map((item) => summarize(item, items, ctx)),
+  ];
+  if (!workItemId) return entities;
+  const item = requireValue(items.find((p) => p.id === workItemId));
+  const revisions = ctx.revisions.get(workItemId) ?? [];
+  const threads = ctx.threads.filter((t) => t.workItemId === workItemId);
+  const reviews = ctx.reviews.filter((r) => r.workItemId === workItemId);
+  const reviewIds = new Set(reviews.map((r) => r.id));
   const messages = threads.length
     ? await tx
         .select()
@@ -245,7 +438,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     .where(
       and(
         eq(s.activity.organizationId, organizationId),
-        eq(s.activity.proposalId, proposalId),
+        eq(s.activity.workItemId, workItemId),
       ),
     )
     .orderBy(asc(s.activity.createdAt));
@@ -253,62 +446,30 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ["revision", revisions],
     ["review", reviews],
     ["thread", threads],
-    ["approval", approvals],
-    ["suggestion", suggestions],
-    ["assignment", assignments],
+    ["approval", ctx.approvals.filter((a) => a.workItemId === workItemId)],
+    ["suggestion", ctx.suggestions.filter((x) => x.workItemId === workItemId)],
+    ["assignment", ctx.assignments.filter((a) => reviewIds.has(a.reviewId))],
     ["message", messages],
     ["activity", activity],
   ] as const)
     entities.push(...rows.map((row) => serialize(type, row)));
-  const current = revisions[0];
-  // Required responsibilities persist across revisions; fresh requests satisfy them.
-  const responsibilities = [
-    ...new Set(
-      reviews
-        .filter((r) => r.required && r.status !== "cancelled")
-        .map((r) => r.responsibility),
-    ),
-  ];
-  const currentRequired = reviews.filter(
-    (r) =>
-      r.required && r.status !== "cancelled" && r.revisionId === current?.id,
-  );
   entities.push({
     type: "readiness",
-    id: proposalId,
+    id: workItemId,
     organizationId,
-    proposalId,
-    checks: [
-      {
-        label: "Specification content defined",
-        passed: Boolean(current?.content.trim()),
-      },
-      {
-        label: "No open blocking discussions",
-        passed: !threads.some((t) => t.blocking && t.status === "open"),
-      },
-      {
-        label: "Required reviews and current approvals complete",
-        passed:
-          responsibilities.length > 0 &&
-          responsibilities.every((responsibility) =>
-            currentRequired.some((r) => r.responsibility === responsibility),
-          ) &&
-          currentRequired.every(
-            (r) =>
-              r.status === "completed" &&
-              approvals.some(
-                (a) =>
-                  a.reviewId === r.id &&
-                  a.status === "granted" &&
-                  a.revisionId === current?.id,
-              ),
-          ),
-      },
-    ],
+    workItemId,
+    checks: readiness(item, items, ctx),
   });
   return entities;
 }
+
+const preReadyStatuses: WorkItemStatus[] = [
+  "backlog",
+  "draft",
+  "refinement",
+  "in_review",
+];
+
 export function createSyncService(db: Database) {
   return {
     async read(userId: string, scope: Scope, cursor?: string, limit = 100) {
@@ -325,24 +486,24 @@ export function createSyncService(db: Database) {
         const roster = await directory(tx, userId, scope.organizationId);
         if (scope.productId !== undefined)
           requireValue(roster.products.find((p) => p.id === scope.productId));
-        if (scope.proposalId && scope.productId)
+        if (scope.workItemId && scope.productId)
           requireValue(
             (
               await tx
-                .select({ id: s.proposal.id })
-                .from(s.proposal)
+                .select({ id: s.workItem.id })
+                .from(s.workItem)
                 .where(
                   and(
-                    eq(s.proposal.organizationId, scope.organizationId),
-                    eq(s.proposal.productId, scope.productId),
-                    eq(s.proposal.id, scope.proposalId),
+                    eq(s.workItem.organizationId, scope.organizationId),
+                    eq(s.workItem.productId, scope.productId),
+                    eq(s.workItem.id, scope.workItemId),
                   ),
                 )
             )[0],
           );
         if (cursor === undefined)
           return {
-            protocol: 1 as const,
+            protocol: PROTOCOL,
             changes: (await snapshot(tx, scope)).map((entity) => ({
               operation: "upsert" as const,
               cursor: head.toString(),
@@ -362,12 +523,12 @@ export function createSyncService(db: Database) {
                 ? undefined
                 : eq(s.syncChange.productId, scope.productId),
               gt(s.syncChange.cursor, BigInt(cursor)),
-              scope.proposalId
+              scope.workItemId
                 ? or(
-                    isNull(s.syncChange.proposalId),
-                    eq(s.syncChange.proposalId, scope.proposalId),
+                    isNull(s.syncChange.workItemId),
+                    eq(s.syncChange.workItemId, scope.workItemId),
                   )
-                : isNull(s.syncChange.proposalId),
+                : isNull(s.syncChange.workItemId),
             ),
           )
           .orderBy(asc(s.syncChange.cursor))
@@ -375,16 +536,8 @@ export function createSyncService(db: Database) {
         const hasMore = rows.length > pageSize;
         const page = rows.slice(0, pageSize);
         return {
-          protocol: 1 as const,
-          changes: page
-            .map((r) => r.change)
-            .filter(
-              (c) =>
-                scope.productId !== undefined ||
-                (c.operation === "upsert"
-                  ? c.entity.type === "product"
-                  : c.type === "product"),
-            ),
+          protocol: PROTOCOL,
+          changes: page.map((r) => r.change),
           nextCursor: hasMore
             ? page.at(-1)!.cursor.toString()
             : head.toString(),
@@ -422,7 +575,7 @@ export function createSyncService(db: Database) {
               "Mutation ID was already used for a different command.",
             );
           return {
-            protocol: 1 as const,
+            protocol: PROTOCOL,
             mutationId: mutation.id,
             cursor: previous.cursor.toString(),
           };
@@ -431,30 +584,30 @@ export function createSyncService(db: Database) {
           .split(",")
           .some((r) => r === "owner" || r === "admin");
         let productId: string;
-        let proposalId: string | undefined;
-        if (c.type === "createProduct") productId = crypto.randomUUID();
-        else if ("productId" in c) productId = c.productId;
+        let workItemId: string | undefined;
+        let item: ItemRow | undefined;
+        if ("productId" in c) productId = c.productId;
         else {
-          proposalId = c.proposalId;
-          const proposal = requireValue(
+          workItemId = c.workItemId;
+          item = requireValue(
             (
               await tx
                 .select()
-                .from(s.proposal)
+                .from(s.workItem)
                 .where(
                   and(
-                    eq(s.proposal.organizationId, organizationId),
-                    eq(s.proposal.id, proposalId),
+                    eq(s.workItem.organizationId, organizationId),
+                    eq(s.workItem.id, workItemId),
                   ),
                 )
             )[0],
           );
-          if (proposal.archivedAt && c.type !== "archiveProposal")
+          if (item.archivedAt && c.type !== "archiveWorkItem")
             throw new DomainError(
               "conflict",
-              "Restore this proposal before changing it.",
+              "Restore this item before changing it.",
             );
-          productId = proposal.productId;
+          productId = item.productId;
         }
         if (c.type !== "createProduct")
           requireValue(
@@ -471,9 +624,16 @@ export function createSyncService(db: Database) {
                 )
             )[0],
           );
-        const scope = { organizationId, productId, proposalId };
+        if (c.type === "createWorkItem") workItemId = c.workItemId;
+        const scope = { organizationId, productId, workItemId };
         const before =
-          c.type === "createProduct" ? [] : await snapshot(tx, scope);
+          c.type === "createProduct"
+            ? []
+            : await snapshot(tx, {
+                ...scope,
+                workItemId:
+                  c.type === "createWorkItem" ? undefined : workItemId,
+              });
         const latest = before
           .filter((e) => e.type === "revision")
           .sort((a, b) => b.number - a.number)[0];
@@ -486,69 +646,191 @@ export function createSyncService(db: Database) {
         const now = new Date();
         const context = {
           organizationId,
-          proposalId: proposalId!,
+          workItemId: workItemId!,
           revisionId: latest?.id ?? "",
         };
+        const activities: {
+          action: string;
+          detail?: Record<string, unknown>;
+        }[] = [];
+        const log = (action: string, detail?: Record<string, unknown>) =>
+          activities.push({ action, detail });
         const revision = async (
           title: string,
           content: string,
-          summary: string,
+          summary: string | undefined,
+          previous = latest,
         ) => {
-          if (latest?.title === title && latest.content === content)
-            return latest.id;
+          if (previous?.title === title && previous.content === content)
+            return previous.id;
           const revisionId = crypto.randomUUID();
+          const number = (previous?.number ?? 0) + 1;
           await tx.insert(s.specificationRevision).values({
             id: revisionId,
             organizationId,
-            proposalId: proposalId!,
-            number: (latest?.number ?? 0) + 1,
+            workItemId: workItemId!,
+            number,
             title,
             content,
-            changeSummary: summary,
+            changeSummary: summary?.trim() ? summary.trim() : null,
             authorId: userId,
           });
           await tx
-            .update(s.proposal)
-            .set({ title, status: "refinement" })
+            .update(s.workItem)
+            .set({ title })
             .where(
               and(
-                eq(s.proposal.organizationId, organizationId),
-                eq(s.proposal.id, proposalId!),
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.id, workItemId!),
               ),
             );
-          await tx
-            .update(s.approval)
-            .set({
-              status: "stale",
-              endedAt: now,
-              endedById: userId,
-              endReason: "Specification revised",
-            })
-            .where(
-              and(
-                eq(s.approval.organizationId, organizationId),
-                eq(s.approval.proposalId, proposalId!),
-                eq(s.approval.status, "granted"),
-              ),
+          if (previous) {
+            await tx
+              .update(s.approval)
+              .set({
+                status: "stale",
+                endedAt: now,
+                endedById: userId,
+                endReason: `Specification revised (revision ${number})`,
+              })
+              .where(
+                and(
+                  eq(s.approval.organizationId, organizationId),
+                  eq(s.approval.workItemId, workItemId!),
+                  eq(s.approval.status, "granted"),
+                ),
+              );
+            // Responsibilities persist across revisions: every active review on
+            // the previous revision is re-requested on the new one with the same
+            // assignments. Old review rows stay as history of what was decided.
+            const carried = before.filter(
+              (e): e is EntityOf<"review"> =>
+                e.type === "review" &&
+                e.revisionId === previous.id &&
+                e.status !== "cancelled",
             );
+            for (const old of carried) {
+              const reviewId = crypto.randomUUID();
+              await tx.insert(s.review).values({
+                id: reviewId,
+                organizationId,
+                workItemId: workItemId!,
+                revisionId,
+                responsibility: old.responsibility,
+                required: old.required,
+                requestedById: userId,
+              });
+              const targets = before.filter(
+                (e): e is EntityOf<"assignment"> =>
+                  e.type === "assignment" &&
+                  e.reviewId === old.id &&
+                  !e.withdrawnAt,
+              );
+              if (targets.length)
+                await tx.insert(s.reviewAssignment).values(
+                  targets.map((t) => ({
+                    organizationId,
+                    reviewId,
+                    assignedById: userId,
+                    userId: t.userId,
+                    groupId: t.groupId,
+                  })),
+                );
+            }
+            log("revised", {
+              number,
+              summary: summary?.trim() ? summary.trim() : null,
+            });
+          }
           return revisionId;
         };
+        const validateParent = async (
+          parentId: string | null,
+          kind: string,
+        ) => {
+          if (!parentId) return;
+          if (kind === "epic")
+            throw new DomainError("validation", "Epics cannot have a parent.");
+          const parent = requireValue(
+            (
+              await tx
+                .select()
+                .from(s.workItem)
+                .where(
+                  and(
+                    eq(s.workItem.organizationId, organizationId),
+                    eq(s.workItem.productId, productId),
+                    eq(s.workItem.id, parentId),
+                    isNull(s.workItem.archivedAt),
+                  ),
+                )
+            )[0],
+            "The parent item is unavailable in this product.",
+          );
+          if (parent.id === workItemId)
+            throw new DomainError(
+              "validation",
+              "An item cannot be its own parent.",
+            );
+          if (kind === "story" && parent.kind !== "epic")
+            throw new DomainError("validation", "Stories belong to an Epic.");
+          if (kind === "task" && parent.kind === "task")
+            throw new DomainError(
+              "validation",
+              "Tasks belong to an Epic or a Story.",
+            );
+        };
+        const setStatus = async (
+          status: WorkItemStatus,
+          from: WorkItemStatus,
+          automatic = false,
+        ) => {
+          if (status === from) return;
+          await tx
+            .update(s.workItem)
+            .set({ status })
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.id, workItemId!),
+              ),
+            );
+          log("status_changed", { from, to: status, automatic });
+        };
         switch (c.type) {
-          case "createProduct":
+          case "createProduct": {
             if (!canManageProduct)
               throw new DomainError(
                 "forbidden",
                 "An organization administrator must create products.",
               );
+            const taken = (
+              await tx
+                .select({ id: s.product.id })
+                .from(s.product)
+                .where(
+                  and(
+                    eq(s.product.organizationId, organizationId),
+                    eq(s.product.key, c.key),
+                  ),
+                )
+            )[0];
+            if (taken)
+              throw new DomainError(
+                "validation",
+                `The key ${c.key} is already used by another product.`,
+              );
             await tx.insert(s.product).values({
               id: productId,
               organizationId,
               name: c.name,
-              slug: c.slug,
+              slug: c.key.toLowerCase(),
+              key: c.key,
               createdById: userId,
             });
             break;
-          case "renameProduct":
+          }
+          case "updateProduct":
             if (!canManageProduct)
               throw new DomainError(
                 "forbidden",
@@ -564,32 +846,107 @@ export function createSyncService(db: Database) {
                 ),
               );
             break;
-          case "createProposal":
-            proposalId = c.proposalId;
-            await tx.insert(s.proposal).values({
-              id: proposalId,
+          case "createWorkItem": {
+            await validateParent(c.parentId, c.kind);
+            const [{ next }] = (await tx
+              .select({
+                next: sql<number>`coalesce(max(${s.workItem.number}), 0) + 1`,
+              })
+              .from(s.workItem)
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.productId, productId),
+                ),
+              )) as [{ next: number }];
+            await tx.insert(s.workItem).values({
+              id: workItemId!,
               organizationId,
               productId,
+              parentId: c.parentId,
+              kind: c.kind,
+              number: Number(next),
               title: c.title,
-              problemStatement: c.problem,
+              status: "draft",
               createdById: userId,
             });
-            await revision(
-              c.title,
-              `# Intent\n\n${c.problem}\n\n## Acceptance criteria\n\n`,
-              "Initial proposal",
-            );
+            await revision(c.title, c.description ?? "", "Created", undefined);
+            log("created", { kind: c.kind, number: Number(next) });
             break;
-          case "archiveProposal":
+          }
+          case "updateWorkItem": {
+            const patch: Partial<ItemRow> = {};
+            if (c.status !== undefined && c.status !== item!.status) {
+              if (c.status === "ready") {
+                const checks = before.find(
+                  (e) => e.type === "readiness" && e.id === workItemId,
+                );
+                const failing =
+                  checks?.type === "readiness"
+                    ? checks.checks.filter((k) => !k.passed)
+                    : [];
+                if (failing.length)
+                  throw new DomainError(
+                    "validation",
+                    `Not ready yet: ${failing.map((k) => k.label.toLowerCase()).join("; ")}.`,
+                  );
+              }
+              patch.status = c.status;
+              log("status_changed", {
+                from: item!.status,
+                to: c.status,
+                automatic: false,
+              });
+            }
+            if (c.priority !== undefined && c.priority !== item!.priority) {
+              patch.priority = c.priority;
+              log("priority_changed", { from: item!.priority, to: c.priority });
+            }
+            if (
+              c.assigneeId !== undefined &&
+              c.assigneeId !== item!.assigneeId
+            ) {
+              if (c.assigneeId) {
+                const roster = await directory(tx, userId, organizationId);
+                requireValue(
+                  roster.members.find((m) => m.id === c.assigneeId),
+                  "Assignee is outside this organization.",
+                );
+              }
+              patch.assigneeId = c.assigneeId;
+              log("assignee_changed", {
+                from: item!.assigneeId,
+                to: c.assigneeId,
+              });
+            }
+            if (c.parentId !== undefined && c.parentId !== item!.parentId) {
+              await validateParent(c.parentId, item!.kind);
+              patch.parentId = c.parentId;
+              log("parent_changed", { from: item!.parentId, to: c.parentId });
+            }
+            if (Object.keys(patch).length)
+              await tx
+                .update(s.workItem)
+                .set(patch)
+                .where(
+                  and(
+                    eq(s.workItem.organizationId, organizationId),
+                    eq(s.workItem.id, workItemId!),
+                  ),
+                );
+            break;
+          }
+          case "archiveWorkItem":
             await tx
-              .update(s.proposal)
+              .update(s.workItem)
               .set({ archivedAt: c.archived ? now : null })
               .where(
                 and(
-                  eq(s.proposal.organizationId, organizationId),
-                  eq(s.proposal.id, proposalId!),
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.id, workItemId!),
                 ),
               );
+            log(c.archived ? "archived" : "restored");
             break;
           case "updateSpecification":
             await revision(c.title, c.content, c.summary);
@@ -600,20 +957,31 @@ export function createSyncService(db: Database) {
               ...context,
               authorId: userId,
               blocking: c.blocking,
-              anchor: { version: 1, kind: "document", section: c.section },
+              anchor: {
+                version: 1,
+                kind: "document",
+                section: c.section,
+                ...(c.quote ? { quote: c.quote } : {}),
+              },
             });
             await tx.insert(s.threadMessage).values({
+              id: c.messageId,
               organizationId,
               threadId: c.threadId,
               authorId: userId,
               body: c.body,
             });
+            log("thread_opened", {
+              threadId: c.threadId,
+              blocking: c.blocking,
+            });
             break;
           case "replyToThread":
           case "setThreadState": {
-            requireValue(
+            const thread = requireValue(
               before.find((e) => e.type === "thread" && e.id === c.threadId),
             );
+            if (thread.type !== "thread") break;
             if (c.type === "replyToThread")
               await tx.insert(s.threadMessage).values({
                 id: c.messageId,
@@ -622,7 +990,7 @@ export function createSyncService(db: Database) {
                 authorId: userId,
                 body: c.body,
               });
-            else
+            else {
               await tx
                 .update(s.thread)
                 .set({
@@ -637,15 +1005,33 @@ export function createSyncService(db: Database) {
                     eq(s.thread.id, c.threadId),
                   ),
                 );
+              const wasResolved = thread.status === "resolved";
+              if (wasResolved !== c.resolved)
+                log(c.resolved ? "thread_resolved" : "thread_reopened", {
+                  threadId: c.threadId,
+                });
+              if (thread.blocking !== c.blocking)
+                log("thread_blocking_changed", {
+                  threadId: c.threadId,
+                  blocking: c.blocking,
+                });
+            }
             break;
           }
           case "createSuggestion":
+            if (c.replacement === latest?.content)
+              throw new DomainError(
+                "validation",
+                "This suggestion makes no content change.",
+              );
             await tx.insert(s.suggestion).values({
+              id: c.suggestionId,
               ...context,
               authorId: userId,
               replacement: c.replacement,
               rationale: c.rationale,
             });
+            log("suggestion_created", { suggestionId: c.suggestionId });
             break;
           case "decideSuggestion": {
             const suggestion = requireValue(
@@ -676,7 +1062,7 @@ export function createSyncService(db: Database) {
               ? await revision(
                   latest!.title,
                   suggestion.replacement,
-                  "Accepted suggestion",
+                  suggestion.rationale ?? "Accepted suggestion",
                 )
               : null;
             await tx
@@ -693,6 +1079,10 @@ export function createSyncService(db: Database) {
                   eq(s.suggestion.id, c.suggestionId),
                 ),
               );
+            log(c.accept ? "suggestion_accepted" : "suggestion_rejected", {
+              suggestionId: c.suggestionId,
+              authorId: suggestion.authorId,
+            });
             break;
           }
           case "requestReview": {
@@ -703,9 +1093,8 @@ export function createSyncService(db: Database) {
               ),
               "Reviewer is outside this organization.",
             );
-            const reviewId = crypto.randomUUID();
             await tx.insert(s.review).values({
-              id: reviewId,
+              id: c.reviewId,
               ...context,
               responsibility: c.responsibility,
               required: c.required,
@@ -713,20 +1102,45 @@ export function createSyncService(db: Database) {
             });
             await tx.insert(s.reviewAssignment).values({
               organizationId,
-              reviewId,
+              reviewId: c.reviewId,
               assignedById: userId,
               userId: c.target.type === "user" ? c.target.id : null,
               groupId: c.target.type === "group" ? c.target.id : null,
             });
+            log("review_requested", {
+              reviewId: c.reviewId,
+              responsibility: c.responsibility,
+              targetType: c.target.type,
+              targetId: c.target.id,
+              required: c.required,
+            });
+            if (
+              (["backlog", "draft", "refinement"] as string[]).includes(
+                item!.status,
+              )
+            )
+              await setStatus("in_review", item!.status, true);
+            break;
+          }
+          case "cancelReview": {
+            const review = requireValue(
+              before.find((e) => e.type === "review" && e.id === c.reviewId),
+            );
+            if (review.type !== "review" || review.status === "cancelled")
+              throw new DomainError("conflict", "This review is not active.");
             await tx
-              .update(s.proposal)
-              .set({ status: "in_review" })
+              .update(s.review)
+              .set({ status: "cancelled" })
               .where(
                 and(
-                  eq(s.proposal.organizationId, organizationId),
-                  eq(s.proposal.id, proposalId!),
+                  eq(s.review.organizationId, organizationId),
+                  eq(s.review.id, c.reviewId),
                 ),
               );
+            log("review_cancelled", {
+              reviewId: c.reviewId,
+              responsibility: review.responsibility,
+            });
             break;
           }
           case "decideReview": {
@@ -739,6 +1153,8 @@ export function createSyncService(db: Database) {
                 "Request a review of the current revision.",
                 latest?.id,
               );
+            if (review.status === "cancelled")
+              throw new DomainError("conflict", "This review was cancelled.");
             const roster = await directory(tx, userId, organizationId);
             const canReviewSpecification = before.some(
               (e) =>
@@ -794,83 +1210,120 @@ export function createSyncService(db: Database) {
                   eq(s.review.id, c.reviewId),
                 ),
               );
-            await tx
-              .update(s.proposal)
-              .set({
-                status:
-                  c.decision === "changes_requested"
-                    ? "changes_requested"
-                    : "in_review",
-              })
-              .where(
-                and(
-                  eq(s.proposal.organizationId, organizationId),
-                  eq(s.proposal.id, proposalId!),
-                ),
-              );
+            log(
+              c.decision === "approve"
+                ? "approved"
+                : c.decision === "revoke"
+                  ? "approval_revoked"
+                  : "changes_requested",
+              {
+                reviewId: c.reviewId,
+                responsibility: review.responsibility,
+                revision: latest.number,
+              },
+            );
             break;
           }
         }
-        if (proposalId)
-          await tx.insert(s.activity).values({
-            id: crypto.randomUUID(),
-            organizationId,
-            productId,
-            proposalId,
-            actorId: userId,
-            action:
-              c.type === "setThreadState"
-                ? `${c.resolved ? "Resolved" : "Reopened"} ${c.blocking ? "blocking" : "non-blocking"} discussion ${c.threadId}`
-                : c.type === "decideReview"
-                  ? `${c.decision === "approve" ? "Approved" : c.decision === "revoke" ? "Revoked approval for" : "Requested changes to"} revision ${latest?.number ?? ""}`
-                  : c.type === "decideSuggestion"
-                    ? `${c.accept ? "Accepted" : "Rejected"} suggestion ${c.suggestionId}`
-                    : c.type === "archiveProposal"
-                      ? c.archived
-                        ? "Archived proposal"
-                        : "Restored proposal"
-                      : c.type,
-          });
-        let after = await snapshot(tx, {
-          organizationId,
-          productId,
-          proposalId,
-        });
-        const readiness = after.find((e) => e.type === "readiness");
-        const proposalState = after.find(
-          (e) => e.type === "proposal" && e.id === proposalId,
+        if (workItemId && c.type !== "createWorkItem")
+          await tx
+            .update(s.workItem)
+            .set({ updatedAt: now })
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.id, workItemId),
+              ),
+            );
+        let after = await snapshot(tx, scope);
+        // Readiness drives `ready` automatically in both directions while the
+        // item is still owned by refinement. Later statuses are never touched.
+        const readinessState = after.find((e) => e.type === "readiness");
+        const itemState = after.find(
+          (e) => e.type === "workItem" && e.id === workItemId,
         );
         if (
-          readiness?.type === "readiness" &&
-          proposalState?.type === "proposal"
+          readinessState?.type === "readiness" &&
+          itemState?.type === "workItem" &&
+          !itemState.archivedAt
         ) {
-          const ready = readiness.checks.every((check) => check.passed);
-          const status = ready
-            ? "approved"
-            : proposalState.status === "approved"
-              ? "in_review"
-              : undefined;
-          if (status && status !== proposalState.status) {
-            await tx
-              .update(s.proposal)
-              .set({ status })
-              .where(
-                and(
-                  eq(s.proposal.organizationId, organizationId),
-                  eq(s.proposal.id, proposalId!),
-                ),
-              );
-            after = after.map((e) =>
-              e.type === "proposal" && e.id === proposalId
-                ? { ...e, status }
-                : e,
+          const ready = readinessState.checks.every((check) => check.passed);
+          const next: WorkItemStatus | undefined =
+            ready && preReadyStatuses.includes(itemState.status)
+              ? "ready"
+              : !ready && itemState.status === "ready"
+                ? "in_review"
+                : undefined;
+          if (next) {
+            await setStatus(next, itemState.status, true);
+            after = await snapshot(tx, scope);
+          }
+        }
+        if (workItemId && activities.length) {
+          await tx.insert(s.activity).values(
+            activities.map((a, index) => ({
+              id: crypto.randomUUID(),
+              organizationId,
+              productId,
+              workItemId: workItemId,
+              actorId: userId,
+              action: a.action,
+              detail: a.detail ?? null,
+              createdAt: new Date(now.getTime() + index),
+            })),
+          );
+          after = await snapshot(tx, scope);
+        }
+        // A child's change can alter its Epic's readiness (stories_ready), which
+        // lives in the Epic's own scope. Emit that projection explicitly.
+        const parentIds = new Set(
+          [
+            item?.parentId,
+            c.type === "createWorkItem" ? c.parentId : undefined,
+            c.type === "updateWorkItem" ? c.parentId : undefined,
+          ].filter((v): v is string => typeof v === "string"),
+        );
+        const parentReadiness: { workItemId: string; entity: Entity }[] = [];
+        if (parentIds.size) {
+          const rows = await tx
+            .select()
+            .from(s.workItem)
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.productId, productId),
+              ),
             );
+          const ctx = await loadItemContext(tx, organizationId, rows);
+          for (const parentId of parentIds) {
+            const parent = rows.find((r) => r.id === parentId);
+            if (parent)
+              parentReadiness.push({
+                workItemId: parentId,
+                entity: {
+                  type: "readiness",
+                  id: parentId,
+                  organizationId,
+                  workItemId: parentId,
+                  checks: readiness(parent, rows, ctx),
+                },
+              });
           }
         }
         const old = new Map(
           before.map((e) => [entityKey(e), JSON.stringify(e)]),
         );
         let cursor = await clock(tx, organizationId);
+        for (const { workItemId: parentId, entity } of parentReadiness) {
+          cursor++;
+          await tx.insert(s.syncChange).values({
+            organizationId,
+            cursor,
+            productId,
+            workItemId: parentId,
+            change: { operation: "upsert", cursor: cursor.toString(), entity },
+          });
+        }
         for (const entity of after) {
           if (old.get(entityKey(entity)) === JSON.stringify(entity)) continue;
           cursor++;
@@ -883,10 +1336,10 @@ export function createSyncService(db: Database) {
             organizationId,
             cursor,
             productId,
-            proposalId:
-              entity.type === "proposal" || entity.type === "product"
+            workItemId:
+              entity.type === "workItem" || entity.type === "product"
                 ? null
-                : proposalId,
+                : workItemId,
             change,
           });
         }
@@ -909,7 +1362,7 @@ export function createSyncService(db: Database) {
           sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: cursor.toString() })})`,
         );
         return {
-          protocol: 1 as const,
+          protocol: PROTOCOL,
           mutationId: mutation.id,
           cursor: cursor.toString(),
         };

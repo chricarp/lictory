@@ -25,6 +25,7 @@ export function SocialButtons({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Button
+        size="lg"
         variant="secondary"
         className="w-full"
         disabled={!providers.google || pending !== null}
@@ -39,6 +40,7 @@ export function SocialButtons({
         {pending === "google" ? "Connecting…" : "Google"}
       </Button>
       <Button
+        size="lg"
         variant="secondary"
         className="w-full"
         disabled={!providers.microsoft || pending !== null}

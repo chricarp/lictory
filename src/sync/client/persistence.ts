@@ -34,7 +34,7 @@ export class IndexedPersistence implements Persistence {
   private connection?: Promise<IDBDatabase>;
   private open() {
     return (this.connection ??= new Promise((resolve, reject) => {
-      const request = indexedDB.open("lictory-sync-v1", 1);
+      const request = indexedDB.open("lictory-sync-v2", 1);
       request.onupgradeneeded = () => {
         request.result.createObjectStore("cache");
         request.result.createObjectStore("queue", { keyPath: "key" });
@@ -68,7 +68,9 @@ export class IndexedPersistence implements Persistence {
     const raw: unknown = await this.transaction("cache", "readonly", (s) =>
       s.get(key),
     );
-    return raw ? cacheSchema.parse(raw) : undefined;
+    // A cache written by an older protocol simply causes a fresh bootstrap.
+    const parsed = cacheSchema.safeParse(raw);
+    return parsed.success ? parsed.data : undefined;
   }
   async save(key: string, cache: Cache) {
     await this.transaction("cache", "readwrite", (s) => s.put(cache, key));

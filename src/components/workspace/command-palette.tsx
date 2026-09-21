@@ -1,0 +1,346 @@
+"use client";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+import {
+  ArrowRight,
+  BookOpenCheck,
+  Inbox,
+  Layers,
+  Plus,
+  Settings,
+  SquareStack,
+  UserRound,
+} from "lucide-react";
+import { cn } from "~/lib/utils";
+import { paths } from "~/lib/paths";
+import {
+  identifier,
+  parseIdentifier,
+  statusMeta,
+  statusOrder,
+  views,
+} from "~/lib/work-items";
+import { Kbd } from "~/components/ui/primitives";
+import { StatusIcon } from "~/components/items/status";
+import { useWorkspace } from "./provider";
+import { useShell } from "./shell";
+
+type Item = {
+  id: string;
+  label: string;
+  hint?: string;
+  icon?: ReactNode;
+  group: string;
+  keywords?: string;
+  run: () => void;
+};
+
+// Search and commands in one place. Items are matched by identifier and title
+// from the local store; commands depend on where the user currently is.
+export function CommandPalette({
+  initialQuery,
+  onClose,
+}: {
+  initialQuery: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const { organization, products, items, userId, mutate } = useWorkspace();
+  const { openCreate, currentItem } = useShell();
+  const [query, setQuery] = useState(initialQuery);
+  const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+  const org = organization.slug;
+  const go = useCallback(
+    (href: string) => {
+      onClose();
+      router.push(href);
+    },
+    [onClose, router],
+  );
+  const productOf = useCallback(
+    (id: string) => products.find((p) => p.id === id),
+    [products],
+  );
+  const currentProduct = currentItem
+    ? productOf(currentItem.productId)
+    : undefined;
+  const commands = useMemo<Item[]>(() => {
+    const list: Item[] = [];
+    if (currentItem && currentProduct) {
+      const id = identifier(currentProduct, currentItem.number);
+      if (currentItem.assigneeId !== userId)
+        list.push({
+          id: "assign-me",
+          label: `Assign ${id} to me`,
+          group: "Current item",
+          icon: <UserRound className="size-4" />,
+          run: () => {
+            onClose();
+            void mutate({
+              type: "updateWorkItem",
+              workItemId: currentItem.id,
+              assigneeId: userId,
+            });
+          },
+        });
+      for (const status of statusOrder)
+        if (status !== currentItem.status)
+          list.push({
+            id: `status-${status}`,
+            label: `Set status: ${statusMeta[status].label}`,
+            group: "Current item",
+            icon: <StatusIcon status={status} />,
+            keywords: "status change move",
+            run: () => {
+              onClose();
+              void mutate({
+                type: "updateWorkItem",
+                workItemId: currentItem.id,
+                status,
+              });
+            },
+          });
+    }
+    list.push(
+      {
+        id: "create-epic",
+        label: "Create Epic",
+        group: "Create",
+        icon: <Plus className="size-4" />,
+        run: () => {
+          onClose();
+          openCreate({ kind: "epic", productId: currentProduct?.id });
+        },
+      },
+      {
+        id: "create-story",
+        label: "Create Story",
+        group: "Create",
+        icon: <Plus className="size-4" />,
+        run: () => {
+          onClose();
+          openCreate({
+            kind: "story",
+            productId: currentProduct?.id,
+            parentId: currentItem?.kind === "epic" ? currentItem.id : null,
+          });
+        },
+      },
+      {
+        id: "inbox",
+        label: "Go to Inbox",
+        group: "Navigate",
+        icon: <Inbox className="size-4" />,
+        run: () => go(paths.inbox(org)),
+      },
+      {
+        id: "settings",
+        label: "Go to Settings",
+        group: "Navigate",
+        icon: <Settings className="size-4" />,
+        run: () => go(paths.settings(org)),
+      },
+    );
+    for (const p of products) {
+      list.push(
+        {
+          id: `epics-${p.id}`,
+          label: `${p.name} · Epics`,
+          group: "Navigate",
+          icon: <Layers className="size-4" />,
+          keywords: "open product",
+          run: () => go(paths.list(org, p.key, "epics")),
+        },
+        {
+          id: `stories-${p.id}`,
+          label: `${p.name} · Stories`,
+          group: "Navigate",
+          icon: <SquareStack className="size-4" />,
+          run: () => go(paths.list(org, p.key, "stories")),
+        },
+        {
+          id: `reviews-${p.id}`,
+          label: `${p.name} · Needs my review`,
+          group: "Navigate",
+          icon: <BookOpenCheck className="size-4" />,
+          run: () => go(paths.reviews(org, p.key)),
+        },
+      );
+      for (const v of views)
+        if (v.id !== "needs-my-review")
+          list.push({
+            id: `view-${p.id}-${v.id}`,
+            label: `${p.name} · ${v.label}`,
+            group: "Views",
+            run: () => go(paths.view(org, p.key, v.id)),
+          });
+    }
+    return list;
+  }, [
+    currentItem,
+    currentProduct,
+    userId,
+    mutate,
+    onClose,
+    openCreate,
+    products,
+    org,
+    go,
+  ]);
+  const q = query.trim().toLowerCase();
+  const parsed = parseIdentifier(query);
+  const results = useMemo<Item[]>(() => {
+    const matchedItems = items
+      .filter((i) => !i.archivedAt)
+      .map((i) => ({ item: i, product: productOf(i.productId) }))
+      .filter(({ item, product }) => {
+        if (!q) return false;
+        const id = identifier(product, item.number).toLowerCase();
+        if (parsed)
+          return product?.key === parsed.key && item.number === parsed.number;
+        return id.includes(q) || item.title.toLowerCase().includes(q);
+      })
+      .sort((a, b) => b.item.updatedAt.localeCompare(a.item.updatedAt))
+      .slice(0, 12)
+      .map<Item>(({ item, product }) => ({
+        id: item.id,
+        label: item.title,
+        hint: identifier(product, item.number),
+        group: "Items",
+        icon: <StatusIcon status={item.status} />,
+        run: () =>
+          go(
+            paths.item(
+              org,
+              product?.key ?? "",
+              item.kind === "epic" ? "epics" : "stories",
+              identifier(product, item.number),
+            ),
+          ),
+      }));
+    const matchedCommands = commands.filter(
+      (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
+    );
+    return [...matchedItems, ...(q ? matchedCommands : commands.slice(0, 8))];
+  }, [items, q, parsed, commands, productOf, go, org]);
+  const [lastQuery, setLastQuery] = useState(q);
+  if (lastQuery !== q) {
+    setLastQuery(q);
+    setActive(0);
+  }
+  useEffect(() => {
+    listRef.current
+      ?.querySelector<HTMLElement>("[data-active]")
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+  const groups = [...new Set(results.map((r) => r.group))];
+  let index = -1;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[14vh]"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setActive((a) => Math.min(results.length - 1, a + 1));
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setActive((a) => Math.max(0, a - 1));
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          results[active]?.run();
+        }
+      }}
+    >
+      <button
+        aria-label="Close"
+        className="absolute inset-0"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-label="Command palette"
+        className="relative w-full max-w-lg overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
+      >
+        <div className="flex items-center gap-2 border-b px-3">
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search items by ID or title, or type a command…"
+            aria-label="Search"
+            className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+          />
+          <Kbd>esc</Kbd>
+        </div>
+        <div
+          ref={listRef}
+          role="listbox"
+          className="max-h-[50vh] overflow-y-auto p-1.5"
+        >
+          {results.length === 0 && (
+            <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+              No results.
+            </p>
+          )}
+          {groups.map((group) => (
+            <div key={group}>
+              <p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
+                {group}
+              </p>
+              {results
+                .filter((r) => r.group === group)
+                .map((r) => {
+                  index++;
+                  const i = index;
+                  return (
+                    <button
+                      key={r.id}
+                      role="option"
+                      aria-selected={i === active}
+                      data-active={i === active || undefined}
+                      onMouseEnter={() => setActive(i)}
+                      onClick={r.run}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px]",
+                        i === active && "bg-muted",
+                      )}
+                    >
+                      <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
+                        {r.icon}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                      {r.hint && (
+                        <span className="font-mono text-[11px] text-muted-foreground">
+                          {r.hint}
+                        </span>
+                      )}
+                      {i === active && (
+                        <ArrowRight className="size-3.5 text-muted-foreground" />
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

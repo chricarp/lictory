@@ -83,7 +83,7 @@ export function SignUpForm() {
         required
       />
       <FormMessage>{error}</FormMessage>
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button size="lg" type="submit" className="w-full" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>
       <p className="text-center text-xs leading-5 text-muted-foreground">

@@ -1,4 +1,5 @@
 import {
+  PROTOCOL,
   directorySchema,
   errorSchema,
   mutationSchema,
@@ -8,6 +9,7 @@ import {
   type Directory,
   type Scope,
 } from "../shared/protocol";
+import { subscribeInvalidations } from "./hub";
 import {
   IndexedPersistence,
   type Cache,
@@ -42,9 +44,8 @@ export class SyncEngine {
   private stopped = false;
   private generation = 0;
   private revoked = false;
-  private source?: EventSource;
+  private unsubscribe?: () => void;
   private channel?: BroadcastChannel;
-  private timer?: ReturnType<typeof setInterval>;
   private running?: Promise<void>;
   private invalidated = false;
   private status: View["status"] = "hydrating";
@@ -63,7 +64,7 @@ export class SyncEngine {
     private persistence: Persistence = new IndexedPersistence(),
   ) {
     this.owner = `${userId}:${scope.organizationId}`;
-    this.key = `${this.owner}:${scope.productId}:${scope.proposalId ?? "list"}`;
+    this.key = `${this.owner}:${scope.productId ?? "org"}:${scope.workItemId ?? "list"}`;
   }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -106,38 +107,23 @@ export class SyncEngine {
         }
         void this.sync();
       };
-      window.addEventListener("online", this.wake);
       window.addEventListener("offline", this.offline);
-      window.addEventListener("focus", this.wake);
-      this.timer = setInterval(() => {
-        void this.sync();
-      }, 15_000);
       await this.sync();
       if (this.stopped || generation !== this.generation) return;
-      this.source = new EventSource(
-        `/api/sync/events?organizationId=${encodeURIComponent(this.scope.organizationId)}`,
+      this.unsubscribe = subscribeInvalidations(
+        this.scope.organizationId,
+        this.wake,
       );
-      this.source.onmessage = () => {
-        void this.sync();
-      };
-      this.source.onopen = () => {
-        void this.sync();
-      };
-      this.source.onerror = () => {
-        void this.sync();
-      };
     } catch (error) {
       this.fail(error);
     }
   }
   stop() {
     this.stopped = true;
-    this.source?.close();
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
     this.channel?.close();
-    clearInterval(this.timer);
-    window.removeEventListener("online", this.wake);
     window.removeEventListener("offline", this.offline);
-    window.removeEventListener("focus", this.wake);
   }
   private wake = () => {
     void this.sync();
@@ -159,7 +145,7 @@ export class SyncEngine {
         "Organization access is unavailable. Reload after signing in.",
       );
     const mutation = mutationSchema.parse({
-      protocol: 1,
+      protocol: PROTOCOL,
       id: crypto.randomUUID(),
       organizationId: this.scope.organizationId,
       command,
@@ -219,7 +205,8 @@ export class SyncEngine {
         this.cache = { entities: {}, directory: emptyDirectory };
         this.queue = [];
         this.emit();
-        this.source?.close();
+        this.unsubscribe?.();
+        this.unsubscribe = undefined;
         throw new Error(
           "Access is unavailable. Sign in or select another organization.",
         );

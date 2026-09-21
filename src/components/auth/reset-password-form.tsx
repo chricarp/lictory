@@ -54,7 +54,9 @@ export function ResetPasswordForm({ token }: { token?: string }) {
           Your password has been updated.
         </FormMessage>
         <Link href="/sign-in" className="contents">
-          <Button className="w-full">Continue to sign in</Button>
+          <Button size="lg" className="w-full">
+            Continue to sign in
+          </Button>
         </Link>
       </div>
     );
@@ -83,7 +85,12 @@ export function ResetPasswordForm({ token }: { token?: string }) {
         required
       />
       <FormMessage>{error}</FormMessage>
-      <Button type="submit" className="w-full" disabled={pending || !token}>
+      <Button
+        size="lg"
+        type="submit"
+        className="w-full"
+        disabled={pending || !token}
+      >
         {pending ? "Updating password…" : "Update password"}
       </Button>
     </form>

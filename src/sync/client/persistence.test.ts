@@ -8,12 +8,12 @@ void test("IndexedDB persists checkpoint with entities, queue survives reload, a
   const owner = crypto.randomUUID();
   const item: Queued = {
     mutation: {
-      protocol: 1,
+      protocol: 2,
       id: crypto.randomUUID(),
       organizationId: "org",
       command: {
         type: "replyToThread",
-        proposalId: "proposal",
+        workItemId: "proposal",
         threadId: "thread",
         messageId: crypto.randomUUID(),
         body: "Keep this across reload",
@@ -70,10 +70,15 @@ void test("access revocation purges every scope and pending command for only the
   await store.save(`different:${owner}`, cache);
   const item: Queued = {
     mutation: {
-      protocol: 1,
+      protocol: 2,
       id: crypto.randomUUID(),
       organizationId: "org",
-      command: { type: "createProduct", name: "Test", slug: "test" },
+      command: {
+        type: "createProduct",
+        productId: crypto.randomUUID(),
+        name: "Test",
+        key: "PAY",
+      },
     },
     enqueuedAt: 1,
     attempts: 0,

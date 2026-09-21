@@ -25,7 +25,16 @@ function failure(error: unknown) {
           currentRevisionId: error.currentRevisionId,
         },
       },
-      { status: error.category === "forbidden" ? 403 : 409 },
+      {
+        status:
+          error.category === "forbidden"
+            ? 403
+            : error.category === "unavailable"
+              ? 404
+              : error.category === "validation"
+                ? 422
+                : 409,
+      },
     );
   if (error instanceof z.ZodError)
     return Response.json(

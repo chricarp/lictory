@@ -132,20 +132,23 @@ async function fixture() {
     organizationId,
     name: "Product",
     slug: "product",
+    key: "PRD",
     createdById: userId,
   });
-  await db.insert(s.proposal).values({
+  await db.insert(s.workItem).values({
     id: proposalId,
     organizationId,
     productId,
+    number: 1,
+    kind: "epic",
     title: "Proposal",
     createdById: userId,
   });
-  const context = { organizationId, proposalId, revisionId };
+  const context = { organizationId, workItemId: proposalId, revisionId };
   await db.insert(s.specificationRevision).values({
     id: revisionId,
     organizationId,
-    proposalId,
+    workItemId: proposalId,
     number: 1,
     title: "Initial specification",
     content: "Original content",
@@ -218,9 +221,10 @@ void test("composite foreign keys reject foreign organizations and mismatched pr
   const a = await fixture();
   const b = await fixture();
   await rejectsCode(
-    db.insert(s.proposal).values({
+    db.insert(s.workItem).values({
       organizationId: a.organizationId,
       productId: b.productId,
+      number: 2,
       title: "Invalid",
       createdById: a.userId,
     }),
@@ -229,7 +233,7 @@ void test("composite foreign keys reject foreign organizations and mismatched pr
   await rejectsCode(
     db.insert(s.review).values({
       organizationId: a.organizationId,
-      proposalId: a.proposalId,
+      workItemId: a.workItemId,
       revisionId: b.revisionId,
       responsibility: "qa",
       requestedById: a.userId,
@@ -240,7 +244,7 @@ void test("composite foreign keys reject foreign organizations and mismatched pr
   await db.insert(s.specificationRevision).values({
     id: secondRevisionId,
     organizationId: a.organizationId,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     number: 2,
     title: "Revised",
     content: "New content",
@@ -276,7 +280,7 @@ void test("revision numbering is unique and accepted suggestions retain both sna
   const a = await fixture();
   const revision = {
     organizationId: a.organizationId,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     title: "Revised",
     content: "Replacement",
     authorId: a.userId,
@@ -291,7 +295,7 @@ void test("revision numbering is unique and accepted suggestions retain both sna
   );
   const suggestion = {
     organizationId: a.organizationId,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     revisionId: a.revisionId,
     authorId: a.userId,
     replacement: "Replacement",
@@ -323,7 +327,7 @@ void test("revision numbering is unique and accepted suggestions retain both sna
   const revisions = await db
     .select()
     .from(s.specificationRevision)
-    .where(eq(s.specificationRevision.proposalId, a.proposalId))
+    .where(eq(s.specificationRevision.workItemId, a.workItemId))
     .orderBy(s.specificationRevision.number);
   assert.deepEqual(
     revisions.map((r) => r.content),
@@ -382,7 +386,7 @@ void test("historical approvals survive membership removal and revoked approvals
   const a = await fixture();
   const values = {
     organizationId: a.organizationId,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     revisionId: a.revisionId,
     reviewId: a.reviewId,
     reviewerId: a.userId,
@@ -417,7 +421,7 @@ void test("historical approvals survive membership removal and revoked approvals
     "23503",
   );
   await rejectsCode(
-    db.delete(s.proposal).where(eq(s.proposal.id, a.proposalId)),
+    db.delete(s.workItem).where(eq(s.workItem.id, a.workItemId)),
     "23503",
   );
   await rejectsCode(
@@ -465,7 +469,7 @@ void test("thread resolution keeps messages and readiness reruns retain previous
   );
   const result = {
     organizationId: a.organizationId,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     revisionId: a.revisionId,
     key: "no-blocking-threads",
     evaluator: "test:v1",
@@ -480,7 +484,7 @@ void test("thread resolution keeps messages and readiness reruns retain previous
       await db
         .select()
         .from(s.readinessCheck)
-        .where(eq(s.readinessCheck.proposalId, a.proposalId))
+        .where(eq(s.readinessCheck.workItemId, a.workItemId))
     ).length,
     2,
   );
@@ -499,7 +503,7 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
   await db.insert(s.decision).values(decision);
   await db.insert(s.decision).values({
     ...decision,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     revisionId: a.revisionId,
     sourceThreadId: a.threadId,
   });
@@ -508,12 +512,12 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
     "23514",
   );
   await rejectsCode(
-    db.insert(s.decision).values({ ...decision, proposalId: b.proposalId }),
+    db.insert(s.decision).values({ ...decision, workItemId: b.workItemId }),
     "23503",
   );
   const item = {
     organizationId: a.organizationId,
-    proposalId: a.proposalId,
+    workItemId: a.workItemId,
     revisionId: a.revisionId,
     title: "Implement timeout",
     category: "story",
@@ -530,7 +534,7 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
       ...item,
       id: crypto.randomUUID(),
       organizationId: b.organizationId,
-      proposalId: b.proposalId,
+      workItemId: b.workItemId,
       revisionId: b.revisionId,
       parentId,
     }),

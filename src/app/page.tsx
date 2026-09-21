@@ -14,7 +14,9 @@ export default function HomePage() {
           aria-label="Authentication"
         >
           <Link href="/sign-in">
-            <Button variant="ghost">Sign in</Button>
+            <Button size="lg" variant="ghost">
+              Sign in
+            </Button>
           </Link>
           <Link href="/sign-up">
             <Button>Get started</Button>
@@ -36,13 +38,17 @@ export default function HomePage() {
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <Link href="/sign-up">
-              <Button className="w-full px-5 sm:w-auto">
+              <Button size="lg" className="w-full px-5 sm:w-auto">
                 Create your account
                 <ArrowRight className="size-4" />
               </Button>
             </Link>
             <Link href="/sign-in">
-              <Button variant="secondary" className="w-full px-5 sm:w-auto">
+              <Button
+                size="lg"
+                variant="secondary"
+                className="w-full px-5 sm:w-auto"
+              >
                 Sign in to your workspace
               </Button>
             </Link>

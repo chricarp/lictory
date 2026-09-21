@@ -41,6 +41,7 @@ export function ForgotPasswordForm() {
           way.
         </FormMessage>
         <Button
+          size="lg"
           variant="secondary"
           className="w-full"
           onClick={() => setSent(false)}
@@ -64,7 +65,7 @@ export function ForgotPasswordForm() {
         autoFocus
       />
       <FormMessage>{error}</FormMessage>
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button size="lg" type="submit" className="w-full" disabled={pending}>
         {pending ? "Sending link…" : "Send reset link"}
       </Button>
     </form>

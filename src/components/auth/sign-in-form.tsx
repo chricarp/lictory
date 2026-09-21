@@ -88,7 +88,7 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
         Keep me signed in
       </label>
       <FormMessage>{error}</FormMessage>
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button size="lg" type="submit" className="w-full" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>
