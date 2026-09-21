@@ -58,6 +58,14 @@
   --shadow-xl:
     0px 4px 15px 0px hsl(0 0% 0% / 0.15), 0px 8px 10px -1px hsl(0 0% 0% / 0.15);
   --shadow-2xl: 0px 4px 15px 0px hsl(0 0% 0% / 0.38);
+  --shadow-border:
+    0 0 0 1px oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.06),
+    0 2px 4px oklch(0 0 0 / 0.04);
+  --shadow-border-hover:
+    0 0 0 1px oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.08),
+    0 2px 4px oklch(0 0 0 / 0.06);
+  --shadow-panel:
+    0 0 0 1px oklch(0 0 0 / 0.05), 0 12px 40px -16px oklch(0 0 0 / 0.16);
   --tracking-normal: -0.01em;
   --spacing: 0.25rem;
 }
@@ -118,6 +126,10 @@
   --shadow-xl:
     0px 10px 25px 0px hsl(0 0% 0% / 0.15), 0px 8px 10px -1px hsl(0 0% 0% / 0.15);
   --shadow-2xl: 0px 10px 25px 0px hsl(0 0% 0% / 0.38);
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
+  --shadow-panel:
+    0 0 0 1px oklch(1 0 0 / 0.08), 0 16px 48px -18px oklch(0 0 0 / 0.65);
 }
 
 @theme inline {
@@ -187,5 +199,23 @@
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+  }
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

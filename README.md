@@ -1,5 +1,87 @@
 # Lictory
 
+Collaborative requirements and engineering-readiness, built with Next.js 16,
+Better Auth, Drizzle ORM, and PostgreSQL.
+
+## Local development with Docker
+
+The complete local stack includes the Next.js app, PostgreSQL, and Mailpit for
+capturing verification and password-reset emails.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+- App: http://localhost:3000
+- Mailpit inbox: http://localhost:8025
+- PostgreSQL: `localhost:5432`
+
+The app container waits for PostgreSQL, reconciles the locked dependencies,
+applies committed Drizzle migrations, and starts Next.js in development mode.
+Stop it with `docker compose down`. Add `-v` only when you intentionally want
+to delete the local database.
+
+## Transactional email
+
+Authentication emails use typed React Email templates from `src/emails`.
+Delivery automatically selects a provider:
+
+- When `RESEND_API_KEY` is present, email is sent through Resend.
+- Without that key, email is rendered from the same template and delivered to
+  the configured SMTP server. The default Compose stack captures it in Mailpit.
+
+For Resend, configure:
+
+```bash
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=Lictory <auth@your-verified-domain.com>
+```
+
+`onboarding@resend.dev` is retained as the example sender for initial account
+testing. Use an address on a verified Resend domain before production. Resend
+requests include an idempotency key derived from the recipient, auth flow, and
+one-time action URL to avoid duplicate delivery when the same request retries.
+
+## Local development without the app container
+
+```bash
+cp .env.example .env
+docker compose up -d postgres mailpit
+bun install
+bun run db:migrate
+bun run dev
+```
+
+## OAuth setup
+
+OAuth buttons are visible but disabled until their provider has credentials in
+`.env`. Configure these redirect URIs in the provider consoles:
+
+- Google: `http://localhost:3000/api/auth/callback/google`
+- Microsoft: `http://localhost:3000/api/auth/callback/microsoft`
+
+Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
+`MICROSOFT_CLIENT_SECRET`. Microsoft defaults to the `common` tenant; override
+`MICROSOFT_TENANT_ID` when the app should be tenant-specific.
+
+## Database workflow
+
+The TypeScript schema in `src/db/schema.ts` is the source of truth.
+
+```bash
+bun run db:generate  # create a committed SQL migration after schema changes
+bun run db:migrate   # apply committed migrations
+bun run db:studio    # inspect local data
+```
+
+## Production notes
+
+- Replace `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
+- Set `BETTER_AUTH_URL` to the canonical HTTPS origin.
+- Use a managed PostgreSQL database and a verified Resend sending domain.
+- Keep OAuth callback URLs aligned with the production origin.
+
 Collaborative requirements and engineering-readiness platform.
 
 This repository currently contains the application scaffold only. Product
