@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { memo } from "react";
-import { Layers } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { identifier, relativeTime, type Product } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
@@ -10,11 +9,16 @@ import { IssueStatus } from "./status";
 import { AssigneePicker, IssuePriority } from "./properties";
 import { IssueIdentifier } from "./identifier";
 import { ReadinessBar, ReviewSignal } from "./signals";
+import { KindIcon } from "./icons";
+import { LabelChip, MilestoneBadge } from "./labels";
+import type { Label, Milestone } from "~/lib/work-items";
 
 export const IssueRow = memo(function IssueRow({
   item,
   product,
   parent,
+  labels,
+  milestone,
   href,
   selected,
   focused,
@@ -26,6 +30,8 @@ export const IssueRow = memo(function IssueRow({
   item: WorkItem;
   product: Product | undefined;
   parent?: WorkItem;
+  labels: Label[];
+  milestone?: Milestone;
   href: string;
   selected: boolean;
   focused: boolean;
@@ -69,6 +75,7 @@ export const IssueRow = memo(function IssueRow({
           onChange={(status) => onUpdate({ status })}
         />
       </span>
+      <KindIcon kind={item.kind} />
       <IssueIdentifier
         product={product}
         number={item.number}
@@ -81,12 +88,29 @@ export const IssueRow = memo(function IssueRow({
       >
         {item.title}
       </Link>
+      {!compact && labels.length > 0 && (
+        <span className="hidden items-center gap-1 lg:inline-flex">
+          {labels.slice(0, 3).map((l) => (
+            <LabelChip key={l.id} label={l} />
+          ))}
+          {labels.length > 3 && (
+            <span className="text-[11px] text-muted-foreground">
+              +{labels.length - 3}
+            </span>
+          )}
+        </span>
+      )}
+      {!compact && milestone && (
+        <span className="hidden xl:inline-flex">
+          <MilestoneBadge milestone={milestone} />
+        </span>
+      )}
       {!compact && parent && (
         <span
           className="hidden max-w-[180px] items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
           title={parent.title}
         >
-          <Layers className="size-3 shrink-0" />
+          <KindIcon kind="epic" className="size-3 rounded-[3px]" />
           <span className="truncate">{identifier(product, parent.number)}</span>
         </span>
       )}

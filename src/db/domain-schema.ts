@@ -154,11 +154,72 @@ export const product = pgTable(
   ],
 );
 
-// Work items are Epics, Stories and Tasks. The physical table keeps its original
-// `proposal` name (and `proposal_id` foreign keys below) so the migration stays
-// additive; the domain vocabulary lives in these TypeScript identifiers.
+export const milestoneStatus = pgEnum("milestone_status", [
+  "planned",
+  "active",
+  "completed",
+  "cancelled",
+]);
+
+// Labels are lightweight, product-scoped tags. Color is a small named palette
+// so meaning stays consistent rather than every label being a saturated hue.
+export const label = pgTable(
+  "label",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    productId: text("product_id").notNull(),
+    name: text("name").notNull(),
+    color: text("color").default("gray").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("label_org_id_unique").on(t.organizationId, t.id),
+    unique("label_product_name_unique").on(
+      t.organizationId,
+      t.productId,
+      t.name,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.productId],
+      foreignColumns: [product.organizationId, product.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+// A target release or planning horizon. Deliberately not a sprint.
+export const milestone = pgTable(
+  "milestone",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    productId: text("product_id").notNull(),
+    name: text("name").notNull(),
+    targetDate: timestamp("target_date"),
+    status: milestoneStatus("status").default("planned").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("milestone_org_id_unique").on(t.organizationId, t.id),
+    unique("milestone_product_name_unique").on(
+      t.organizationId,
+      t.productId,
+      t.name,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.productId],
+      foreignColumns: [product.organizationId, product.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+// Work items are Epics, Stories and Tasks.
 export const workItem = pgTable(
-  "proposal",
+  "work_item",
   {
     id: id(),
     organizationId: organizationId(),
@@ -173,6 +234,9 @@ export const workItem = pgTable(
     status: workItemStatus("status").default("draft").notNull(),
     priority: workItemPriority("priority").default("none").notNull(),
     assigneeId: optionalActor("assignee_id"),
+    milestoneId: text("milestone_id"),
+    // Manual ordering among siblings (stories inside an epic). Sparse integers.
+    position: integer("position").default(0).notNull(),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -199,20 +263,48 @@ export const workItem = pgTable(
       columns: [t.organizationId, t.productId, t.parentId],
       foreignColumns: [t.organizationId, t.productId, t.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "work_item_milestone_fk",
+      columns: [t.organizationId, t.milestoneId],
+      foreignColumns: [milestone.organizationId, milestone.id],
+    }).onDelete("restrict"),
     check(
       "work_item_not_own_parent",
       sql`${t.parentId} IS NULL OR ${t.parentId} <> ${t.id}`,
     ),
     check("work_item_positive_number", sql`${t.number} > 0`),
-    index("proposal_product_status_idx").on(
+    index("work_item_product_status_idx").on(
       t.organizationId,
       t.productId,
       t.status,
       t.updatedAt,
     ),
-    index("proposal_creator_idx").on(t.organizationId, t.createdById),
+    index("work_item_creator_idx").on(t.organizationId, t.createdById),
     index("work_item_parent_idx").on(t.organizationId, t.parentId),
     index("work_item_assignee_idx").on(t.organizationId, t.assigneeId),
+    index("work_item_milestone_idx").on(t.organizationId, t.milestoneId),
+  ],
+);
+
+export const workItemLabel = pgTable(
+  "work_item_label",
+  {
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    labelId: text("label_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.labelId] }),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId],
+      foreignColumns: [workItem.organizationId, workItem.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.labelId],
+      foreignColumns: [label.organizationId, label.id],
+    }).onDelete("cascade"),
+    index("work_item_label_label_idx").on(t.organizationId, t.labelId),
   ],
 );
 
@@ -223,7 +315,7 @@ export const specificationRevision = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     number: integer("number").notNull(),
     title: text("title").notNull(),
     content: text("content").notNull(), // Markdown, including acceptance criteria.
@@ -252,7 +344,7 @@ export const review = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     responsibility: text("responsibility").notNull(),
     status: reviewStatus("status").default("requested").notNull(),
@@ -333,7 +425,7 @@ export const thread = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     reviewId: text("review_id"),
     authorId: actor("author_id"),
@@ -371,7 +463,7 @@ export const thread = pgTable(
         review.id,
       ],
     }).onDelete("restrict"),
-    index("thread_proposal_status_idx").on(
+    index("thread_item_status_idx").on(
       t.organizationId,
       t.workItemId,
       t.status,
@@ -419,7 +511,7 @@ export const suggestion = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     threadId: text("thread_id"),
     authorId: actor("author_id"),
@@ -479,7 +571,7 @@ export const approval = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     reviewId: text("review_id").notNull(),
     reviewerId: actor("reviewer_id"),
@@ -522,7 +614,7 @@ export const readinessCheck = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     key: text("key").notNull(),
     status: checkStatus("status").default("pending").notNull(),
@@ -563,7 +655,7 @@ export const decision = pgTable(
     id: id(),
     organizationId: organizationId(),
     productId: text("product_id").notNull(),
-    workItemId: text("proposal_id"),
+    workItemId: text("work_item_id"),
     revisionId: text("revision_id"),
     sourceThreadId: text("source_thread_id"),
     title: text("title").notNull(),
@@ -612,7 +704,7 @@ export const decision = pgTable(
       t.productId,
       t.createdAt,
     ),
-    index("decision_proposal_idx").on(t.organizationId, t.workItemId),
+    index("decision_item_idx").on(t.organizationId, t.workItemId),
   ],
 );
 
@@ -621,7 +713,7 @@ export const deliveryItem = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    workItemId: text("proposal_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     parentId: text("parent_id"),
     title: text("title").notNull(),

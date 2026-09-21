@@ -12,7 +12,8 @@ import { cn } from "~/lib/utils";
 import { relativeTime } from "~/lib/work-items";
 import type { EntityOf } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
-import { Popover, Picker } from "~/components/ui/popover";
+import { Popover } from "~/components/ui/popover";
+import { PeoplePicker } from "~/components/ui/people-picker";
 import { Avatar, Badge, SectionLabel } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useItem } from "~/components/items/item-context";
@@ -261,30 +262,28 @@ export function RequestReview({
 }: {
   trigger: Parameters<typeof Popover>[0]["trigger"];
 }) {
-  const { directory, userId } = useWorkspace();
+  const { directory, memberName, userId } = useWorkspace();
   const { mutate, base, reviews, current } = useItem();
   const [responsibility, setResponsibility] = useState("Engineering");
   const [target, setTarget] = useState<string>();
   const [required, setRequired] = useState(true);
   const [error, setError] = useState<string>();
-  const options = [
-    ...directory.groups.map((g) => ({
-      value: `group:${g.id}`,
-      label: `${g.name} (group)`,
-      hint: `${g.userIds.length} people`,
-    })),
-    ...directory.members
-      .filter((m) => m.id !== userId)
-      .map((m) => ({ value: `user:${m.id}`, label: m.name, hint: m.email })),
-    ...directory.members
-      .filter((m) => m.id === userId)
-      .map((m) => ({
-        value: `user:${m.id}`,
-        label: `${m.name} (me)`,
-        hint: m.email,
-      })),
-  ];
-  const selected = options.find((o) => o.value === target);
+  const groups = directory.groups.map((g) => ({
+    value: `group:${g.id}`,
+    label: `${g.name} (group)`,
+    hint: `${g.userIds.length} people`,
+    keywords: g.name,
+  }));
+  const selected = target?.startsWith("group:")
+    ? groups.find((g) => g.value === target)
+    : target?.startsWith("user:")
+      ? {
+          label:
+            target.slice(5) === userId
+              ? `${memberName(target.slice(5))} (me)`
+              : memberName(target.slice(5)),
+        }
+      : undefined;
   const used = new Set(
     reviews
       .filter((r) => r.revisionId === current?.id && r.status !== "cancelled")
@@ -363,10 +362,11 @@ export function RequestReview({
                 </button>
               )}
             >
-              <Picker
+              <PeoplePicker
                 title="Reviewer"
-                options={options}
+                extras={groups}
                 value={target}
+                memberValue={(member) => `user:${member.id}`}
                 onSelect={setTarget}
               />
             </Popover>

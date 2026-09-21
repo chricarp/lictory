@@ -16,13 +16,11 @@ import {
   Check,
   ChevronsUpDown,
   Inbox,
-  Layers,
   LogOut,
   Menu,
   Plus,
   Search,
   Settings,
-  SquareStack,
   UserRound,
   X,
 } from "lucide-react";
@@ -38,6 +36,7 @@ import { useWorkspace } from "./provider";
 import { CommandPalette } from "./command-palette";
 import { QuickCreate, type QuickCreateOptions } from "./quick-create";
 import { SyncStatus } from "./sync-status";
+import { KindIcon } from "~/components/items/icons";
 
 type Toast = {
   id: number;
@@ -415,14 +414,14 @@ function Sidebar({
               <NavLink
                 href={paths.list(org, product.key, "epics")}
                 active={active(paths.list(org, product.key, "epics"))}
-                icon={<Layers className="size-4" />}
+                icon={<KindIcon kind="epic" />}
               >
                 Epics
               </NavLink>
               <NavLink
                 href={paths.list(org, product.key, "stories")}
                 active={active(paths.list(org, product.key, "stories"))}
-                icon={<SquareStack className="size-4" />}
+                icon={<KindIcon kind="story" />}
               >
                 Stories
               </NavLink>

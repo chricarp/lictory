@@ -5,9 +5,11 @@ import {
   createSyncService,
   directory,
   DomainError,
+  searchMembers,
 } from "~/sync/server/service";
 import {
   checkpointSchema,
+  memberSearchSchema,
   mutationSchema,
   pageSchema,
   scopeSchema,
@@ -72,6 +74,20 @@ export async function GET(request: Request) {
         await directory(db, session.user.id, params.organizationId),
         { headers: { "Cache-Control": "no-store" } },
       );
+    if (params.members === "1") {
+      const query = memberSearchSchema.parse(params);
+      return Response.json(
+        await searchMembers(
+          db,
+          session.user.id,
+          query.organizationId,
+          query.q,
+          query.offset,
+          query.limit,
+        ),
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
     const scope = scopeSchema.parse(params);
     const cursor =
       params.cursor === undefined

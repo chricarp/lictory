@@ -6,9 +6,15 @@ and Markdown revisions. The application runs without AI or delivery integrations
 ## Work items
 
 Epics, Stories and Tasks are one entity, `workItem` (`kind`, optional `parentId`,
-per-product `number`, `status`, `priority`, `assigneeId`). The physical table is
-still named `proposal` with `proposal_id` foreign keys; the TypeScript schema and
-protocol use the domain vocabulary. Identifiers render as `KEY-number` from the
+per-product `number`, `status`, `priority`, `assigneeId`, `milestoneId`,
+`labelIds`, `position`). The physical table is `work_item` with `work_item_id`
+foreign keys (migration `0004` renamed the original `proposal` table and columns in
+place; nothing was copied or dropped). Labels (`label`, `work_item_label`) and
+milestones (`milestone`) are product-scoped, archivable, and synchronized as
+product-level entities in the organization scope. Assigning them is a
+non-material property change. Sibling order is a sparse integer `position`
+maintained by `reorderWorkItem` (place before a sibling, or last); collisions
+renumber the siblings in one transaction. Identifiers render as `KEY-number` from the
 product `key`; numbers are allocated under the organization lock. Stories belong
 to an Epic; Tasks belong to an Epic or a Story; Epics have no parent.
 
@@ -139,6 +145,9 @@ no service worker for a completely offline cold application launch.
 
 PostgreSQL `NOTIFY` fires after commit and a process-wide `LISTEN` connection fans
 out generic organization invalidations over SSE. It carries no document content.
+The same SSE stream forwards **presence** events (`lictory_presence`): a viewing
+tab posts `/api/presence` heartbeats (membership-checked) and the client expires
+entries after 45 seconds. Presence is never stored and never affects correctness.
 SSE fits Next route handlers without replacing the server with a WebSocket runtime.
 Connections are bounded to revalidate authentication; a heartbeat, focus/online
 handlers, and a 15-second recovery interval catch missed invalidations and sleeps.
@@ -185,9 +194,11 @@ The development-only sync inspector exposes cursor, connection/sync state, pendi
 count, entity count, last sync time and the latest error. Server logs contain metadata
 only, never specification/comment content. Normal UI errors retain actionable text.
 
-Jira, AI, SSO setup, billing, delivery decomposition, advanced policy configuration,
-SCIM, notification delivery, private products, group administration, labels and
-milestones, story reordering, CRDT editing, presence, service-worker offline launch,
-log compaction, pagination of organization-wide summaries and large histories are
-intentionally not implemented. Functional groups already in the domain database
+List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
+`/app/[org]/items/KEY-n` resolves any identifier to its product route. The Inbox
+renders in pages of 50. Jira, AI, SSO setup, billing, delivery decomposition,
+advanced policy configuration, SCIM, notification delivery, private products,
+group administration, CRDT editing, multiplayer cursors, service-worker offline
+launch, log compaction, and server-side pagination of organization-wide summaries
+and large histories are intentionally not implemented. Functional groups already in the domain database
 can receive reviews. No production UI pretends these deferred capabilities exist.

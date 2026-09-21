@@ -91,6 +91,17 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await expect(page.getByText("PAY-3")).toBeVisible();
   await expect(page.getByText("0/2 ready")).toBeVisible();
 
+  // Reorder stories: drag handle is keyboard-accessible (Alt+Arrow).
+  await page
+    .getByRole("button", { name: /Reorder Handle provider callback/ })
+    .focus();
+  await page.keyboard.press("Alt+ArrowUp");
+  await expect
+    .poll(async () =>
+      (await page.locator("section ul li a").allTextContents()).slice(0, 2),
+    )
+    .toEqual(["Handle provider callback", "Define cancellation API"]);
+
   // 4. Open a Story without losing context (Epic stays in breadcrumb).
   await page.getByRole("link", { name: "Define cancellation API" }).click();
   await expect(page).toHaveURL(/\/pay\/stories\/PAY-2$/);
@@ -108,12 +119,12 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     page.getByRole("button", { name: "Priority: High" }).first(),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: /^Assignee:/ })
+    .getByRole("combobox", { name: /^Assignee:/ })
     .first()
     .click();
   await page.getByRole("option", { name: /Alex Morgan \(me\)/ }).click();
   await expect(
-    page.getByRole("button", { name: "Assignee: Alex Morgan" }).first(),
+    page.getByRole("combobox", { name: "Assignee: Alex Morgan" }).first(),
   ).toBeVisible();
   await page
     .getByRole("button", { name: /^Status:/ })
@@ -122,6 +133,29 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await page.getByRole("option", { name: "In refinement" }).click();
   await expect(
     page.getByRole("button", { name: "Status: In refinement" }).first(),
+  ).toBeVisible();
+
+  // Labels and milestone (non-material properties) with inline creation.
+  await page.getByRole("button", { name: "Labels" }).first().click();
+  await page.getByRole("button", { name: "New label" }).click();
+  await page.getByRole("textbox", { name: "Label name" }).fill("payments");
+  await page.getByRole("radio", { name: "purple" }).click();
+  await page.getByRole("button", { name: "Create label" }).click();
+  await expect(
+    page.getByText("payments", { exact: true }).first(),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: /^Milestone:/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "New milestone" }).click();
+  await page
+    .getByRole("textbox", { name: "Milestone name" })
+    .fill("Q3 release");
+  await page.getByRole("button", { name: "Create milestone" }).click();
+  await expect(
+    page.getByRole("button", { name: "Milestone: Q3 release" }).first(),
   ).toBeVisible();
 
   // Write the story specification with acceptance criteria.
@@ -194,6 +228,14 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   ).toBeVisible();
   await reviewer.getByRole("link", { name: "Define cancellation API" }).click();
   await expect(reviewer).toHaveURL(/\/stories\/PAY-2$/);
+
+  // Presence: both are on PAY-2, so each sees the other.
+  await expect(page.getByTitle("Riley Chen", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(
+    reviewer.getByTitle("Alex Morgan", { exact: true }).first(),
+  ).toBeVisible({ timeout: 15_000 });
 
   // 7-8. Reviewer opens a blocking discussion anchored to the text; owner replies.
   await reviewer
@@ -285,6 +327,29 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await page.keyboard.press("j");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/stories\/PAY-(2|3)$/);
+  // URL-persisted filters: filter by label, reload, filter still applied.
+  await page.goto(storyUrl.replace(/\/PAY-2$/, "?label=") + "");
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("button", { name: "Labels" }).click();
+  await page.getByRole("option", { name: "payments" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/label=/);
+  await expect(
+    page.getByRole("link", { name: "Define cancellation API" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Handle provider callback" }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByRole("link", { name: "Handle provider callback" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Define cancellation API" }),
+  ).toBeVisible();
+  // Cross-product identifier route.
+  await page.goto(storyUrl.replace(/\/pay\/stories\/PAY-2$/, "/items/PAY-1"));
+  await expect(page).toHaveURL(/\/pay\/epics\/PAY-1$/);
   await page.keyboard.press("Meta+k");
   await page.getByRole("textbox", { name: "Search" }).fill("PAY-1");
   await page.keyboard.press("Enter");

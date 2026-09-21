@@ -29,6 +29,13 @@
       "when": 1790012674064,
       "tag": "0003_work_items",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790024090221,
+      "tag": "0004_work_item_rename",
+      "breakpoints": true
     }
   ]
 }

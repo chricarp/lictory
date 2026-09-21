@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Layers, SquareStack, X } from "lucide-react";
+import { X } from "lucide-react";
+import { KindIcon } from "~/components/items/icons";
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd } from "~/components/ui/primitives";
@@ -129,12 +130,12 @@ export function QuickCreate({
               {
                 value: "epic",
                 label: "Epic",
-                icon: <Layers className="size-3.5" />,
+                icon: <KindIcon kind="epic" />,
               },
               {
                 value: "story",
                 label: "Story",
-                icon: <SquareStack className="size-3.5" />,
+                icon: <KindIcon kind="story" />,
               },
             ]}
           />

@@ -28,6 +28,24 @@ export const workItemPriorities = [
 export type WorkItemKind = (typeof workItemKinds)[number];
 export type WorkItemStatus = (typeof workItemStatuses)[number];
 export type WorkItemPriority = (typeof workItemPriorities)[number];
+export const labelColors = [
+  "gray",
+  "blue",
+  "green",
+  "amber",
+  "red",
+  "purple",
+  "pink",
+  "teal",
+] as const;
+export type LabelColor = (typeof labelColors)[number];
+export const milestoneStatuses = [
+  "planned",
+  "active",
+  "completed",
+  "cancelled",
+] as const;
+export type MilestoneStatus = (typeof milestoneStatuses)[number];
 
 // Review information every list, inbox and filter needs without loading the
 // item's full history. Computed server-side from the current revision only.
@@ -58,6 +76,23 @@ export const entitySchema = z.discriminatedUnion("type", [
   }),
   z.object({
     ...base,
+    type: z.literal("label"),
+    productId: id,
+    name: z.string(),
+    color: z.enum(labelColors),
+    archivedAt: z.string().nullable(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("milestone"),
+    productId: id,
+    name: z.string(),
+    targetDate: z.string().nullable(),
+    status: z.enum(milestoneStatuses),
+    archivedAt: z.string().nullable(),
+  }),
+  z.object({
+    ...base,
     type: z.literal("workItem"),
     productId: id,
     parentId: id.nullable(),
@@ -67,6 +102,9 @@ export const entitySchema = z.discriminatedUnion("type", [
     status: z.enum(workItemStatuses),
     priority: z.enum(workItemPriorities),
     assigneeId: id.nullable(),
+    milestoneId: id.nullable(),
+    labelIds: z.array(id),
+    position: z.number().int(),
     createdById: id,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -198,6 +236,8 @@ export type Scope = z.infer<typeof scopeSchema>;
 export const checkpointSchema = z.string().regex(/^(0|[1-9]\d{0,18})$/);
 const entityTypes = z.enum([
   "product",
+  "label",
+  "milestone",
   "workItem",
   "revision",
   "review",
@@ -223,12 +263,29 @@ export const changeSchema = z.discriminatedUnion("operation", [
   }),
 ]);
 export type Change = z.infer<typeof changeSchema>;
+export const memberSchema = z.object({
+  id,
+  name: z.string(),
+  email: z.string(),
+});
+export type DirectoryMember = z.infer<typeof memberSchema>;
+export const memberSearchSchema = z.object({
+  organizationId: id,
+  q: z.string().max(120).optional().default(""),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export const memberPageSchema = z.object({
+  members: z.array(memberSchema),
+  hasMore: z.boolean(),
+});
+export type MemberPage = z.infer<typeof memberPageSchema>;
 export const directorySchema = z.object({
   organizations: z.array(
     z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),
   ),
   products: z.array(entitySchema.options[0]),
-  members: z.array(z.object({ id, name: z.string(), email: z.string() })),
+  members: z.array(memberSchema),
   groups: z.array(z.object({ id, name: z.string(), userIds: z.array(id) })),
 });
 export type Directory = z.infer<typeof directorySchema>;
@@ -277,6 +334,45 @@ export const commandSchema = z.discriminatedUnion("type", [
     priority: z.enum(workItemPriorities).optional(),
     assigneeId: id.nullable().optional(),
     parentId: id.nullable().optional(),
+    milestoneId: id.nullable().optional(),
+    labelIds: z.array(id).max(50).optional(),
+  }),
+  // Manual ordering among siblings: place before `beforeId` (null = last).
+  z.object({
+    type: z.literal("reorderWorkItem"),
+    ...itemCommand,
+    beforeId: id.nullable(),
+  }),
+  z.object({
+    type: z.literal("createLabel"),
+    productId: id,
+    labelId: z.uuid(),
+    name: text.max(60),
+    color: z.enum(labelColors),
+  }),
+  z.object({
+    type: z.literal("updateLabel"),
+    productId: id,
+    labelId: id,
+    name: text.max(60).optional(),
+    color: z.enum(labelColors).optional(),
+    archived: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("createMilestone"),
+    productId: id,
+    milestoneId: z.uuid(),
+    name: text.max(120),
+    targetDate: z.string().date().nullable(),
+  }),
+  z.object({
+    type: z.literal("updateMilestone"),
+    productId: id,
+    milestoneId: id,
+    name: text.max(120).optional(),
+    targetDate: z.string().date().nullable().optional(),
+    status: z.enum(milestoneStatuses).optional(),
+    archived: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("archiveWorkItem"),

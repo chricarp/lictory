@@ -2,6 +2,7 @@ import {
   PROTOCOL,
   directorySchema,
   errorSchema,
+  memberPageSchema,
   mutationSchema,
   pageSchema,
   resultSchema,
@@ -326,4 +327,26 @@ export async function loadDirectory(organizationId?: string) {
   const data: unknown = await response.json();
   if (!response.ok) throw new Error(errorSchema.parse(data).error.message);
   return directorySchema.parse(data);
+}
+export async function searchMembers(
+  organizationId: string,
+  query: string,
+  offset: number,
+  limit = 20,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    members: "1",
+    organizationId,
+    q: query,
+    offset: String(offset),
+    limit: String(limit),
+  });
+  const response = await fetch(`/api/sync?${params}`, {
+    cache: "no-store",
+    signal,
+  });
+  const data: unknown = await response.json();
+  if (!response.ok) throw new Error(errorSchema.parse(data).error.message);
+  return memberPageSchema.parse(data);
 }

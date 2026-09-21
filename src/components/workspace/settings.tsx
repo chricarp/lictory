@@ -7,6 +7,7 @@ import { Input } from "~/components/ui/input";
 import { Avatar, SectionLabel } from "~/components/ui/primitives";
 import { useWorkspace } from "./provider";
 import { CreateProduct } from "./onboarding";
+import { LabelsAndMilestones } from "./labels-settings";
 
 // Organization-level settings. Membership and invitations remain Better Auth
 // operations; products are organization-wide in this baseline.
@@ -55,6 +56,7 @@ export function Settings() {
               </Button>
             ))}
         </section>
+        <LabelsAndMilestones />
         <section className="space-y-3">
           <SectionLabel>People</SectionLabel>
           <div className="divide-y rounded-lg border">

@@ -13,7 +13,7 @@ import { ItemDetail } from "./item-detail";
 // Accepts a human identifier (PAY-12) or an item UUID (used right after
 // creation, before the server confirms the number) and normalizes the URL.
 export function ItemPage({ identifier: raw }: { identifier: string }) {
-  const { items, view, organization } = useWorkspace();
+  const { items, view, organization, products } = useWorkspace();
   const product = useProduct();
   const { setCurrentItem } = useShell();
   const router = useRouter();
@@ -36,6 +36,27 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
     setCurrentItem(item);
     return () => setCurrentItem(undefined);
   }, [item, setCurrentItem]);
+  // A key from another product: forward to that product's canonical route.
+  const otherProduct =
+    parsed && parsed.key !== product.key
+      ? products.find((p) => p.key === parsed.key)
+      : undefined;
+  const otherItem = otherProduct
+    ? items.find(
+        (i) => i.productId === otherProduct.id && i.number === parsed!.number,
+      )
+    : undefined;
+  useEffect(() => {
+    if (otherProduct && otherItem)
+      router.replace(
+        paths.item(
+          organization.slug,
+          otherProduct.key,
+          otherItem.kind === "epic" ? "epics" : "stories",
+          identifier(otherProduct, otherItem.number),
+        ),
+      );
+  }, [otherProduct, otherItem, router, organization.slug]);
   useEffect(() => {
     if (item && !parsed && !pendingCreate)
       router.replace(

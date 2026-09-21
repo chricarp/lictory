@@ -5,7 +5,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { and, eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as s from "../../db/schema";
-import { createSyncService, DomainError } from "./service";
+import { createSyncService, DomainError, searchMembers } from "./service";
 import { pageSchema, type Command, type Entity } from "../shared/protocol";
 import { reconcile, optimistic } from "../client/reconciliation";
 const adminUrl =
@@ -741,5 +741,208 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
       key: "PAY",
     }),
     /already used/,
+  );
+});
+
+void test("labels, milestones and manual ordering are product-scoped, non-material properties", async () => {
+  const f = await fixture();
+  const labelId = crypto.randomUUID();
+  const milestoneId = crypto.randomUUID();
+  await f.command({
+    type: "createLabel",
+    productId: f.productId,
+    labelId,
+    name: "Payments",
+    color: "blue",
+  });
+  await assert.rejects(
+    f.command({
+      type: "createLabel",
+      productId: f.productId,
+      labelId: crypto.randomUUID(),
+      name: "payments",
+      color: "red",
+    }),
+    /already exists/,
+  );
+  await f.command({
+    type: "createMilestone",
+    productId: f.productId,
+    milestoneId,
+    name: "Q3 release",
+    targetDate: "2026-09-30",
+  });
+  const first = await f.current();
+  await f.command({
+    type: "requestReview",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+    reviewId: crypto.randomUUID(),
+    responsibility: "QA",
+    target: { type: "user", id: f.reviewerId },
+    required: true,
+  });
+  const review = (await f.entities()).find((e) => e.type === "review")!;
+  await f.command(
+    {
+      type: "decideReview",
+      workItemId: f.proposalId,
+      baseRevisionId: first.id,
+      reviewId: review.id,
+      decision: "approve",
+    },
+    f.reviewerId,
+  );
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    labelIds: [labelId],
+    milestoneId,
+  });
+  let all = await f.entities();
+  let item = all.find((e) => e.type === "workItem" && e.id === f.proposalId)!;
+  assert.ok(
+    item.type === "workItem" &&
+      item.labelIds.includes(labelId) &&
+      item.milestoneId === milestoneId,
+  );
+  assert.ok(
+    all.some((e) => e.type === "approval" && e.status === "granted"),
+    "labels never stale approvals",
+  );
+  assert.ok(all.some((e) => e.type === "label" && e.id === labelId));
+  assert.ok(
+    all.some((e) => e.type === "activity" && e.action === "labels_changed"),
+  );
+  // Another product's label is rejected.
+  const otherProduct = crypto.randomUUID();
+  await f.command({
+    type: "createProduct",
+    productId: otherProduct,
+    name: "Other",
+    key: "OTH",
+  });
+  const foreignLabel = crypto.randomUUID();
+  await f.command({
+    type: "createLabel",
+    productId: otherProduct,
+    labelId: foreignLabel,
+    name: "Foreign",
+    color: "gray",
+  });
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      labelIds: [foreignLabel],
+    }),
+    /unavailable in this product/,
+  );
+  // Ordering among siblings of an epic.
+  const epicId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    productId: f.productId,
+    workItemId: epicId,
+    kind: "epic",
+    parentId: null,
+    title: "Epic",
+  });
+  const stories = [
+    crypto.randomUUID(),
+    crypto.randomUUID(),
+    crypto.randomUUID(),
+  ];
+  for (const [i, id] of stories.entries())
+    await f.command({
+      type: "createWorkItem",
+      productId: f.productId,
+      workItemId: id,
+      kind: "story",
+      parentId: epicId,
+      title: `S${i}`,
+    });
+  await f.command({
+    type: "reorderWorkItem",
+    workItemId: stories[2]!,
+    beforeId: stories[0]!,
+  });
+  all = await f.entities();
+  const order = all
+    .filter(
+      (e): e is Extract<typeof e, { type: "workItem" }> =>
+        e.type === "workItem" && e.parentId === epicId,
+    )
+    .sort((a, b) => a.position - b.position)
+    .map((e) => e.id);
+  assert.deepEqual(order, [stories[2], stories[0], stories[1]]);
+  await assert.rejects(
+    f.command({
+      type: "reorderWorkItem",
+      workItemId: stories[1]!,
+      beforeId: f.proposalId,
+    }),
+    /not a sibling/,
+  );
+  await f.command({
+    type: "updateMilestone",
+    productId: f.productId,
+    milestoneId,
+    status: "completed",
+  });
+  item = (await f.entities()).find(
+    (e) => e.type === "milestone" && e.id === milestoneId,
+  )!;
+  assert.equal(item.type === "milestone" && item.status, "completed");
+});
+void test("member search pages and filters without returning the full roster", async () => {
+  const f = await fixture();
+  const extra = Array.from({ length: 25 }, (_, i) => ({
+    id: crypto.randomUUID(),
+    name: i === 0 ? "Zelda Query" : `Member ${String(i).padStart(2, "0")}`,
+    email: `member${i}@example.test`,
+  }));
+  await db.insert(s.user).values(extra);
+  await db.insert(s.member).values(
+    extra.map((user) => ({
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      userId: user.id,
+      role: "member",
+      createdAt: new Date(),
+    })),
+  );
+  const first = await searchMembers(db, f.userId, f.organizationId, "", 0, 20);
+  assert.equal(first.members.length, 20);
+  assert.equal(first.hasMore, true);
+  assert.equal(first.members[0]?.id, f.userId);
+  const rest = await searchMembers(db, f.userId, f.organizationId, "", 20, 20);
+  assert.equal(rest.hasMore, false);
+  assert.ok(rest.members.length > 0);
+  const ids = new Set([
+    ...first.members.map((m) => m.id),
+    ...rest.members.map((m) => m.id),
+  ]);
+  assert.ok(ids.size > 20);
+  const named = await searchMembers(
+    db,
+    f.userId,
+    f.organizationId,
+    "Zelda",
+    0,
+    20,
+  );
+  assert.equal(named.members.length, 1);
+  assert.equal(named.members[0]?.name, "Zelda Query");
+  assert.equal(named.hasMore, false);
+  const outsider = crypto.randomUUID();
+  await db.insert(s.user).values({
+    id: outsider,
+    name: "Outsider",
+    email: `${outsider}@example.test`,
+  });
+  await assert.rejects(
+    () => searchMembers(db, outsider, f.organizationId),
+    /Organization access has been removed/,
   );
 });

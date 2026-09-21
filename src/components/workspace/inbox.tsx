@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Button } from "~/components/ui/button";
 import {
   CircleAlert,
   CircleCheckBig,
@@ -14,6 +15,7 @@ import type { WorkItem } from "~/sync/shared/protocol";
 import { useWorkspace } from "./provider";
 import { IssueIdentifier } from "~/components/items/identifier";
 import { StatusIcon } from "~/components/items/status";
+import { KindIcon } from "~/components/items/icons";
 
 type Entry = {
   item: WorkItem;
@@ -28,6 +30,10 @@ type Entry = {
 // items of mine that just became ready. No activity firehose.
 export function Inbox() {
   const { items, products, userId, groupIds, organization } = useWorkspace();
+  // Rendered incrementally: very large organizations can have thousands of
+  // items, but attention is scarce; the first page is what matters.
+  const PAGE = 50;
+  const [shown, setShown] = useState(PAGE);
   const entries = useMemo<Entry[]>(() => {
     const mine = (i: WorkItem) =>
       i.assigneeId === userId || i.createdById === userId;
@@ -102,7 +108,7 @@ export function Inbox() {
           </EmptyState>
         ) : (
           <ul className="divide-y">
-            {entries.map(({ item, reason, detail, icon }) => {
+            {entries.slice(0, shown).map(({ item, reason, detail, icon }) => {
               const product = products.find((p) => p.id === item.productId);
               return (
                 <li key={`${item.id}-${reason}`}>
@@ -126,6 +132,7 @@ export function Inbox() {
                       </div>
                       <div className="mt-0.5 flex items-center gap-2 text-[13px]">
                         <StatusIcon status={item.status} />
+                        <KindIcon kind={item.kind} />
                         <IssueIdentifier
                           product={product}
                           number={item.number}
@@ -141,6 +148,18 @@ export function Inbox() {
               );
             })}
           </ul>
+        )}
+        {entries.length > shown && (
+          <div className="flex items-center justify-center gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+            Showing {shown} of {entries.length}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShown((n) => n + PAGE)}
+            >
+              Show {Math.min(PAGE, entries.length - shown)} more
+            </Button>
+          </div>
         )}
       </div>
     </div>

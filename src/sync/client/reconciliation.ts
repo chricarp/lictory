@@ -60,6 +60,18 @@ export function optimistic(
           status: "draft",
           priority: "none",
           assigneeId: null,
+          milestoneId: null,
+          labelIds: [],
+          position:
+            Math.max(
+              0,
+              ...Object.values(next)
+                .filter(
+                  (e): e is WorkItem =>
+                    e.type === "workItem" && e.parentId === c.parentId,
+                )
+                .map((e) => e.position),
+            ) + 1000,
           createdById: userId,
           createdAt: now,
           updatedAt: now,

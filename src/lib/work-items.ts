@@ -2,6 +2,8 @@ import type {
   Directory,
   Entity,
   EntityOf,
+  LabelColor,
+  MilestoneStatus,
   WorkItem,
   WorkItemKind,
   WorkItemPriority,
@@ -191,6 +193,8 @@ export type Filters = {
   priority?: WorkItemPriority[];
   assignee?: string[]; // user ids, or "unassigned"
   parent?: string[];
+  label?: string[];
+  milestone?: string[]; // milestone ids, or "none"
   blocked?: boolean;
   needsReview?: boolean;
   search?: string;
@@ -214,6 +218,16 @@ export function applyFilters(
     if (
       filters.parent?.length &&
       !filters.parent.includes(item.parentId ?? "none")
+    )
+      return false;
+    if (
+      filters.label?.length &&
+      !filters.label.some((l) => item.labelIds.includes(l))
+    )
+      return false;
+    if (
+      filters.milestone?.length &&
+      !filters.milestone.includes(item.milestoneId ?? "none")
     )
       return false;
     if (filters.blocked && !isBlocked(item)) return false;
@@ -316,4 +330,65 @@ export function suggestKey(name: string) {
     : key.length === 1
       ? `${key}P`
       : "";
+}
+
+export type Label = EntityOf<"label">;
+export type Milestone = EntityOf<"milestone">;
+export const labelColorClasses: Record<
+  LabelColor,
+  { dot: string; chip: string }
+> = {
+  gray: {
+    dot: "bg-zinc-400",
+    chip: "bg-zinc-500/12 text-zinc-700 dark:text-zinc-300",
+  },
+  blue: {
+    dot: "bg-blue-500",
+    chip: "bg-blue-500/12 text-blue-700 dark:text-blue-300",
+  },
+  green: {
+    dot: "bg-emerald-500",
+    chip: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+  },
+  amber: {
+    dot: "bg-amber-500",
+    chip: "bg-amber-500/14 text-amber-800 dark:text-amber-300",
+  },
+  red: {
+    dot: "bg-red-500",
+    chip: "bg-red-500/12 text-red-700 dark:text-red-300",
+  },
+  purple: {
+    dot: "bg-violet-500",
+    chip: "bg-violet-500/12 text-violet-700 dark:text-violet-300",
+  },
+  pink: {
+    dot: "bg-pink-500",
+    chip: "bg-pink-500/12 text-pink-700 dark:text-pink-300",
+  },
+  teal: {
+    dot: "bg-teal-500",
+    chip: "bg-teal-500/12 text-teal-700 dark:text-teal-300",
+  },
+};
+export const milestoneStatusMeta: Record<MilestoneStatus, string> = {
+  planned: "Planned",
+  active: "Active",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+export function formatDate(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+}
+// Sibling order: manual position first, identifier as a stable tie-break.
+export function byPosition(a: WorkItem, b: WorkItem) {
+  return a.position - b.position || a.number - b.number;
 }

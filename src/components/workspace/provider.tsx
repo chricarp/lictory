@@ -17,7 +17,13 @@ import type {
   Entity,
   WorkItem,
 } from "~/sync/shared/protocol";
-import { byType, myGroupIds, type Product } from "~/lib/work-items";
+import {
+  byType,
+  myGroupIds,
+  type Label,
+  type Milestone,
+  type Product,
+} from "~/lib/work-items";
 
 type Organization = Directory["organizations"][number];
 
@@ -29,6 +35,8 @@ type WorkspaceContextValue = {
   directory: Directory;
   products: Product[];
   items: WorkItem[];
+  labels: Label[];
+  milestones: Milestone[];
   groupIds: string[];
   isAdmin: boolean;
   mutate: (command: Command) => Promise<string>;
@@ -130,6 +138,14 @@ export function WorkspaceProvider({
       directory,
       products: merged,
       items: byType(entities, "workItem"),
+      labels: byType(entities, "label").sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      milestones: byType(entities, "milestone").sort(
+        (a, b) =>
+          (a.targetDate ?? "9").localeCompare(b.targetDate ?? "9") ||
+          a.name.localeCompare(b.name),
+      ),
       groupIds: myGroupIds(directory, userId),
       isAdmin: organization.role
         .split(",")

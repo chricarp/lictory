@@ -29,6 +29,17 @@ export async function GET(request: Request) {
         if (event.organizationId === organizationId)
           send(JSON.stringify({ type: "invalidate" }));
       });
+      const unsubscribePresence = await realtime.subscribePresence((event) => {
+        if (event.organizationId === organizationId)
+          send(
+            JSON.stringify({
+              type: "presence",
+              workItemId: event.workItemId,
+              userId: event.userId,
+              at: event.at,
+            }),
+          );
+      });
       // Bounded connections revalidate session and membership. Heartbeats also
       // recover invalidations missed while a Postgres LISTEN connection reconnects.
       const heartbeat = setInterval(
@@ -42,6 +53,7 @@ export async function GET(request: Request) {
         if (closed) return;
         closed = true;
         unsubscribe();
+        unsubscribePresence();
         clearInterval(heartbeat);
         clearTimeout(expiry);
         controller.close();

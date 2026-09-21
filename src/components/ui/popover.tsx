@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Search } from "lucide-react";
+import { Check, Loader2, Search } from "lucide-react";
 import { cn } from "~/lib/utils";
 
 // Lightweight popover primitive: click/Enter opens, Escape or outside-click
@@ -203,6 +203,15 @@ export function Picker<T extends string>({
   multiple = false,
   title,
   footer,
+  searchable,
+  hideSearch = false,
+  loading = false,
+  hasMore = false,
+  onQueryChange,
+  onEndReached,
+  activeIndex,
+  onActiveIndexChange,
+  listboxId,
 }: {
   options: PickerOption<T>[];
   value?: T | T[] | null;
@@ -212,33 +221,71 @@ export function Picker<T extends string>({
   multiple?: boolean;
   title?: string;
   footer?: ReactNode;
+  searchable?: boolean;
+  hideSearch?: boolean;
+  loading?: boolean;
+  hasMore?: boolean;
+  onQueryChange?: (query: string) => void;
+  onEndReached?: () => void;
+  activeIndex?: number;
+  onActiveIndexChange?: (index: number) => void;
+  listboxId?: string;
 }) {
   const popover = usePopover();
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
+  const [uncontrolledActive, setUncontrolledActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const showSearch =
+    !hideSearch &&
+    (searchable ?? (options.length > 6 || Boolean(onQueryChange)));
+  const active = activeIndex ?? uncontrolledActive;
+  const setActive = (index: number | ((current: number) => number)) => {
+    const next = typeof index === "function" ? index(active) : index;
+    if (onActiveIndexChange) onActiveIndexChange(next);
+    else setUncontrolledActive(next);
+  };
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (showSearch) inputRef.current?.focus();
+  }, [showSearch]);
   const q = query.trim().toLowerCase();
   const [lastQuery, setLastQuery] = useState(q);
-  if (lastQuery !== q) {
+  if (activeIndex === undefined && lastQuery !== q) {
     setLastQuery(q);
-    setActive(0);
+    setUncontrolledActive(0);
+  } else if (lastQuery !== q) {
+    setLastQuery(q);
   }
-  const filtered = options.filter(
-    (o) =>
-      !q ||
-      o.label.toLowerCase().includes(q) ||
-      (o.keywords?.toLowerCase().includes(q) ?? false) ||
-      (o.hint?.toLowerCase().includes(q) ?? false),
-  );
+  const optionId = listboxId ?? (title ? undefined : popover?.labelId);
+  const filtered = onQueryChange
+    ? options
+    : options.filter(
+        (o) =>
+          !q ||
+          o.label.toLowerCase().includes(q) ||
+          (o.keywords?.toLowerCase().includes(q) ?? false) ||
+          (o.hint?.toLowerCase().includes(q) ?? false),
+      );
   useEffect(() => {
     listRef.current
       ?.querySelector<HTMLElement>("[data-active]")
       ?.scrollIntoView({ block: "nearest" });
   }, [active]);
+  useEffect(() => {
+    if (!onEndReached || !hasMore || loading) return;
+    const root = listRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onEndReached();
+      },
+      { root, rootMargin: "64px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [onEndReached, hasMore, filtered.length, loading]);
   const selected = new Set(Array.isArray(value) ? value : value ? [value] : []);
   const choose = (option: PickerOption<T>) => {
     onSelect(option.value);
@@ -263,26 +310,29 @@ export function Picker<T extends string>({
     >
       {title && (
         <div
-          id={popover?.labelId}
+          id={hideSearch ? undefined : popover?.labelId}
           className="px-3 pt-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
         >
           {title}
         </div>
       )}
-      {options.length > 6 && (
+      {showSearch ? (
         <div className="flex items-center gap-2 border-b px-3">
           <Search className="size-3.5 text-muted-foreground" />
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              onQueryChange?.(e.target.value);
+            }}
             placeholder={placeholder}
+            autoFocus
             aria-label={title ?? placeholder}
             className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
           />
         </div>
-      )}
-      {options.length <= 6 && (
+      ) : (
         <input
           ref={inputRef}
           aria-hidden
@@ -291,19 +341,27 @@ export function Picker<T extends string>({
           readOnly
         />
       )}
-      <div ref={listRef} role="listbox" className="overflow-y-auto p-1">
+      <div
+        ref={listRef}
+        id={optionId}
+        role="listbox"
+        className="max-h-72 min-h-0 flex-1 overflow-y-auto p-1"
+      >
         {filtered.length === 0 && (
           <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-            {emptyText}
+            {loading ? "Searching…" : emptyText}
           </p>
         )}
         {filtered.map((option, index) => (
           <button
+            id={optionId ? `${optionId}-option-${option.value}` : undefined}
             key={option.value}
             type="button"
             role="option"
             aria-selected={selected.has(option.value)}
             data-active={index === active || undefined}
+            tabIndex={-1}
+            onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActive(index)}
             onClick={() => choose(option)}
             className={cn(
@@ -318,7 +376,7 @@ export function Picker<T extends string>({
             )}
             <span className="min-w-0 flex-1 truncate">{option.label}</span>
             {option.hint && (
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">
                 {option.hint}
               </span>
             )}
@@ -327,6 +385,16 @@ export function Picker<T extends string>({
             )}
           </button>
         ))}
+        {hasMore && (
+          <div
+            ref={sentinelRef}
+            className="flex h-8 items-center justify-center"
+          >
+            {loading && (
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        )}
       </div>
       {footer && <div className="border-t p-1">{footer}</div>}
     </div>

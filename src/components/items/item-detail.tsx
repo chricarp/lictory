@@ -6,7 +6,6 @@ import {
   ArchiveRestore,
   ChevronRight,
   GitCompareArrows,
-  Layers,
   Link2,
   MoreHorizontal,
   PanelRight,
@@ -20,8 +19,11 @@ import { Popover } from "~/components/ui/popover";
 import { Badge, SectionLabel } from "~/components/ui/primitives";
 import { useItemEngine, useWorkspace } from "~/components/workspace/provider";
 import { IssueIdentifier } from "./identifier";
+import { KindIcon } from "./icons";
+import { Presence } from "./presence";
 import { IssueStatus } from "./status";
 import { AssigneePicker, IssuePriority, ParentPicker } from "./properties";
+import { LabelPicker, MilestonePicker } from "./labels";
 import { ItemContext, useItemContextValue } from "./item-context";
 import { Specification } from "./specification";
 import { EpicStories } from "./epic-stories";
@@ -129,6 +131,8 @@ export function ItemDetail({
     priority?: WorkItem["priority"];
     assigneeId?: string | null;
     parentId?: string | null;
+    milestoneId?: string | null;
+    labelIds?: string[];
   }) =>
     void ctx.mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const failing = ctx.readiness?.checks.filter((c) => !c.passed) ?? [];
@@ -167,6 +171,20 @@ export function ItemDetail({
           />
         </Property>
       )}
+      <Property label="Milestone">
+        <MilestonePicker
+          productId={item.productId}
+          milestoneId={item.milestoneId}
+          onChange={(milestoneId) => update({ milestoneId })}
+        />
+      </Property>
+      <Property label="Labels">
+        <LabelPicker
+          productId={item.productId}
+          labelIds={item.labelIds}
+          onChange={(labelIds) => update({ labelIds })}
+        />
+      </Property>
     </div>
   );
   const panel = (
@@ -206,12 +224,13 @@ export function ItemDetail({
                   className="flex min-w-0 items-center gap-1 hover:text-foreground"
                   title={parent.title}
                 >
-                  <Layers className="size-3.5 shrink-0" />
+                  <KindIcon kind="epic" />
                   <span className="truncate">{parent.title}</span>
                 </Link>
               </>
             )}
             <ChevronRight className="size-3.5 shrink-0" />
+            <KindIcon kind={item.kind} />
             <IssueIdentifier
               product={product}
               number={item.number}
@@ -220,6 +239,7 @@ export function ItemDetail({
             />
           </nav>
           {item.archivedAt && <Badge tone="warning">Archived</Badge>}
+          {!pendingCreate && <Presence itemId={item.id} />}
           <div className="ml-auto flex items-center gap-1">
             {mode.kind === "compare" ? (
               <Button

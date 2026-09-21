@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "../../db/schema";
@@ -140,6 +151,58 @@ export async function directory(
   }));
   return { organizations, products, members, groups };
 }
+export async function searchMembers(
+  db: Database | Tx,
+  userId: string,
+  organizationId: string,
+  query = "",
+  offset = 0,
+  limit = 20,
+) {
+  const organizations = await db
+    .select({ id: s.organization.id })
+    .from(s.organization)
+    .innerJoin(
+      s.member,
+      and(
+        eq(s.member.organizationId, s.organization.id),
+        eq(s.member.userId, userId),
+      ),
+    )
+    .where(eq(s.organization.id, organizationId));
+  requireValue(
+    organizations[0],
+    "Organization access has been removed.",
+    "forbidden",
+  );
+  const term = query.trim().replace(/[%_]/g, "");
+  const rows = await db
+    .select({ id: s.user.id, name: s.user.name, email: s.user.email })
+    .from(s.member)
+    .innerJoin(s.user, eq(s.member.userId, s.user.id))
+    .where(
+      and(
+        eq(s.member.organizationId, organizationId),
+        term
+          ? or(
+              ilike(s.user.name, `%${term}%`),
+              ilike(s.user.email, `%${term}%`),
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(
+      sql`case when ${s.user.id} = ${userId} then 0 else 1 end`,
+      asc(s.user.name),
+      asc(s.user.email),
+    )
+    .limit(limit + 1)
+    .offset(offset);
+  return {
+    members: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+  };
+}
 
 type ItemRow = typeof s.workItem.$inferSelect;
 type RevisionRow = typeof s.specificationRevision.$inferSelect;
@@ -164,6 +227,7 @@ async function loadItemContext(
       reviews: [] as ReviewRow[],
       assignments: [] as AssignmentRow[],
       approvals: [] as ApprovalRow[],
+      labels: [] as (typeof s.workItemLabel.$inferSelect)[],
     };
   const where = (t: { organizationId: AnyPgColumn; workItemId: AnyPgColumn }) =>
     and(eq(t.organizationId, organizationId), inArray(t.workItemId, ids));
@@ -207,7 +271,19 @@ async function loadItemContext(
         )
     : [];
   const approvals = await tx.select().from(s.approval).where(where(s.approval));
-  return { revisions, threads, suggestions, reviews, assignments, approvals };
+  const labels = await tx
+    .select()
+    .from(s.workItemLabel)
+    .where(where(s.workItemLabel));
+  return {
+    revisions,
+    threads,
+    suggestions,
+    reviews,
+    assignments,
+    approvals,
+    labels,
+  };
 }
 type ItemContext = Awaited<ReturnType<typeof loadItemContext>>;
 
@@ -240,6 +316,12 @@ function summarize(
     status: item.status,
     priority: item.priority,
     assigneeId: item.assigneeId,
+    milestoneId: item.milestoneId,
+    labelIds: ctx.labels
+      .filter((l) => l.workItemId === item.id)
+      .map((l) => l.labelId)
+      .sort(),
+    position: item.position,
     createdById: item.createdById,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -407,8 +489,24 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     )
     .orderBy(asc(s.workItem.createdAt));
   const ctx = await loadItemContext(tx, organizationId, items);
+  const productFilter = <
+    T extends { organizationId: AnyPgColumn; productId: AnyPgColumn },
+  >(
+    t: T,
+  ) =>
+    and(
+      eq(t.organizationId, organizationId),
+      productId ? eq(t.productId, productId) : undefined,
+    );
+  const labels = await tx.select().from(s.label).where(productFilter(s.label));
+  const milestones = await tx
+    .select()
+    .from(s.milestone)
+    .where(productFilter(s.milestone));
   const entities: Entity[] = [
     ...products.map((p) => serialize("product", p)),
+    ...labels.map((l) => serialize("label", l)),
+    ...milestones.map((m) => serialize("milestone", m)),
     ...items.map((item) => summarize(item, items, ctx)),
   ];
   if (!workItemId) return entities;
@@ -924,6 +1022,67 @@ export function createSyncService(db: Database) {
               patch.parentId = c.parentId;
               log("parent_changed", { from: item!.parentId, to: c.parentId });
             }
+            if (
+              c.milestoneId !== undefined &&
+              c.milestoneId !== item!.milestoneId
+            ) {
+              if (c.milestoneId)
+                requireValue(
+                  before.find(
+                    (e) =>
+                      e.type === "milestone" &&
+                      e.id === c.milestoneId &&
+                      e.productId === productId &&
+                      !e.archivedAt,
+                  ),
+                  "The milestone is unavailable in this product.",
+                );
+              patch.milestoneId = c.milestoneId;
+              log("milestone_changed", {
+                from: item!.milestoneId,
+                to: c.milestoneId,
+              });
+            }
+            if (c.labelIds !== undefined) {
+              const wanted = [...new Set(c.labelIds)];
+              for (const labelId of wanted)
+                requireValue(
+                  before.find(
+                    (e) =>
+                      e.type === "label" &&
+                      e.id === labelId &&
+                      e.productId === productId &&
+                      !e.archivedAt,
+                  ),
+                  "A label is unavailable in this product.",
+                );
+              const current = before.find(
+                (e) => e.type === "workItem" && e.id === workItemId,
+              );
+              const existing =
+                current?.type === "workItem" ? current.labelIds : [];
+              const added = wanted.filter((l) => !existing.includes(l));
+              const removed = existing.filter((l) => !wanted.includes(l));
+              if (removed.length)
+                await tx
+                  .delete(s.workItemLabel)
+                  .where(
+                    and(
+                      eq(s.workItemLabel.workItemId, workItemId!),
+                      inArray(s.workItemLabel.labelId, removed),
+                    ),
+                  );
+              if (added.length)
+                await tx.insert(s.workItemLabel).values(
+                  added.map((labelId) => ({
+                    organizationId,
+                    workItemId: workItemId!,
+                    labelId,
+                  })),
+                );
+              if (added.length || removed.length)
+                log("labels_changed", { added, removed });
+            }
             if (Object.keys(patch).length)
               await tx
                 .update(s.workItem)
@@ -934,6 +1093,166 @@ export function createSyncService(db: Database) {
                     eq(s.workItem.id, workItemId!),
                   ),
                 );
+            break;
+          }
+          case "reorderWorkItem": {
+            // Siblings share the parent; positions are sparse so a move only
+            // rewrites one row unless neighbours collide, then all siblings.
+            const siblings = before
+              .filter(
+                (e): e is EntityOf<"workItem"> =>
+                  e.type === "workItem" &&
+                  e.productId === productId &&
+                  e.parentId === item!.parentId &&
+                  !e.archivedAt &&
+                  e.id !== workItemId,
+              )
+              .sort((a, b) => a.position - b.position || a.number - b.number);
+            const index = c.beforeId
+              ? siblings.findIndex((x) => x.id === c.beforeId)
+              : siblings.length;
+            if (c.beforeId && index === -1)
+              throw new DomainError(
+                "validation",
+                "The target item is not a sibling.",
+              );
+            const prev = siblings[index - 1]?.position ?? 0;
+            const next = siblings[index]?.position;
+            let position: number;
+            if (next === undefined) position = prev + 1000;
+            else if (next - prev > 1) position = Math.floor((prev + next) / 2);
+            else {
+              const reordered = [
+                ...siblings.slice(0, index),
+                item!,
+                ...siblings.slice(index),
+              ];
+              for (const [i, sibling] of reordered.entries())
+                await tx
+                  .update(s.workItem)
+                  .set({ position: (i + 1) * 1000 })
+                  .where(
+                    and(
+                      eq(s.workItem.organizationId, organizationId),
+                      eq(s.workItem.id, sibling.id),
+                    ),
+                  );
+              position = (index + 1) * 1000;
+            }
+            await tx
+              .update(s.workItem)
+              .set({ position })
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.id, workItemId!),
+                ),
+              );
+            break;
+          }
+          case "createLabel":
+          case "updateLabel": {
+            if (c.type === "createLabel") {
+              const taken = before.some(
+                (e) =>
+                  e.type === "label" &&
+                  e.productId === productId &&
+                  e.name.toLowerCase() === c.name.toLowerCase() &&
+                  !e.archivedAt,
+              );
+              if (taken)
+                throw new DomainError(
+                  "validation",
+                  `A label named “${c.name}” already exists.`,
+                );
+              await tx.insert(s.label).values({
+                id: c.labelId,
+                organizationId,
+                productId,
+                name: c.name,
+                color: c.color,
+              });
+            } else {
+              requireValue(
+                before.find(
+                  (e) =>
+                    e.type === "label" &&
+                    e.id === c.labelId &&
+                    e.productId === productId,
+                ),
+              );
+              await tx
+                .update(s.label)
+                .set({
+                  ...(c.name !== undefined ? { name: c.name } : {}),
+                  ...(c.color !== undefined ? { color: c.color } : {}),
+                  ...(c.archived !== undefined
+                    ? { archivedAt: c.archived ? now : null }
+                    : {}),
+                })
+                .where(
+                  and(
+                    eq(s.label.organizationId, organizationId),
+                    eq(s.label.id, c.labelId),
+                  ),
+                );
+            }
+            break;
+          }
+          case "createMilestone":
+          case "updateMilestone": {
+            if (c.type === "createMilestone") {
+              const taken = before.some(
+                (e) =>
+                  e.type === "milestone" &&
+                  e.productId === productId &&
+                  e.name.toLowerCase() === c.name.toLowerCase() &&
+                  !e.archivedAt,
+              );
+              if (taken)
+                throw new DomainError(
+                  "validation",
+                  `A milestone named “${c.name}” already exists.`,
+                );
+              await tx.insert(s.milestone).values({
+                id: c.milestoneId,
+                organizationId,
+                productId,
+                name: c.name,
+                targetDate: c.targetDate ? new Date(c.targetDate) : null,
+              });
+            } else {
+              requireValue(
+                before.find(
+                  (e) =>
+                    e.type === "milestone" &&
+                    e.id === c.milestoneId &&
+                    e.productId === productId,
+                ),
+              );
+              await tx
+                .update(s.milestone)
+                .set({
+                  ...(c.name !== undefined ? { name: c.name } : {}),
+                  ...(c.targetDate !== undefined
+                    ? {
+                        targetDate: c.targetDate
+                          ? new Date(c.targetDate)
+                          : null,
+                      }
+                    : {}),
+                  ...(c.status !== undefined ? { status: c.status } : {}),
+                  ...(c.archived !== undefined
+                    ? { archivedAt: c.archived ? now : null }
+                    : {}),
+                })
+                .where(
+                  and(
+                    eq(s.milestone.organizationId, organizationId),
+                    eq(s.milestone.id, c.milestoneId),
+                  ),
+                );
+            }
             break;
           }
           case "archiveWorkItem":
@@ -1337,7 +1656,10 @@ export function createSyncService(db: Database) {
             cursor,
             productId,
             workItemId:
-              entity.type === "workItem" || entity.type === "product"
+              entity.type === "workItem" ||
+              entity.type === "product" ||
+              entity.type === "label" ||
+              entity.type === "milestone"
                 ? null
                 : workItemId,
             change,

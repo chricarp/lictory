@@ -13,10 +13,7 @@ import {
   ArrowRight,
   BookOpenCheck,
   Inbox,
-  Layers,
-  Plus,
   Settings,
-  SquareStack,
   UserRound,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -30,6 +27,7 @@ import {
 } from "~/lib/work-items";
 import { Kbd } from "~/components/ui/primitives";
 import { StatusIcon } from "~/components/items/status";
+import { KindIcon } from "~/components/items/icons";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
 
@@ -119,7 +117,7 @@ export function CommandPalette({
         id: "create-epic",
         label: "Create Epic",
         group: "Create",
-        icon: <Plus className="size-4" />,
+        icon: <KindIcon kind="epic" />,
         run: () => {
           onClose();
           openCreate({ kind: "epic", productId: currentProduct?.id });
@@ -129,7 +127,7 @@ export function CommandPalette({
         id: "create-story",
         label: "Create Story",
         group: "Create",
-        icon: <Plus className="size-4" />,
+        icon: <KindIcon kind="story" />,
         run: () => {
           onClose();
           openCreate({
@@ -160,7 +158,7 @@ export function CommandPalette({
           id: `epics-${p.id}`,
           label: `${p.name} · Epics`,
           group: "Navigate",
-          icon: <Layers className="size-4" />,
+          icon: <KindIcon kind="epic" />,
           keywords: "open product",
           run: () => go(paths.list(org, p.key, "epics")),
         },
@@ -168,7 +166,7 @@ export function CommandPalette({
           id: `stories-${p.id}`,
           label: `${p.name} · Stories`,
           group: "Navigate",
-          icon: <SquareStack className="size-4" />,
+          icon: <KindIcon kind="story" />,
           run: () => go(paths.list(org, p.key, "stories")),
         },
         {
@@ -220,7 +218,7 @@ export function CommandPalette({
         label: item.title,
         hint: identifier(product, item.number),
         group: "Items",
-        icon: <StatusIcon status={item.status} />,
+        icon: <KindIcon kind={item.kind} />,
         run: () =>
           go(
             paths.item(

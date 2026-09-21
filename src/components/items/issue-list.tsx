@@ -1,11 +1,22 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { readListState, writeListState } from "~/lib/list-params";
 import { ArrowUpDown, Filter, Plus, X } from "lucide-react";
 import { cn } from "~/lib/utils";
 import {
   applyFilters,
+  formatDate,
   identifier,
+  type Label,
+  type Milestone,
   priorityMeta,
   priorityOrder,
   sortItems,
@@ -18,12 +29,14 @@ import {
 import type { WorkItem, WorkItemStatus } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
+import { PeoplePicker } from "~/components/ui/people-picker";
 import { EmptyState, Kbd } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useShell } from "~/components/workspace/shell";
 import { IssueRow } from "./issue-row";
 import { StatusIcon } from "./status";
 import { PriorityIcon } from "./properties";
+import { ColorDot } from "./labels";
 
 export function IssueList({
   items,
@@ -59,21 +72,64 @@ export function IssueList({
     products,
     memberName,
     mutate,
-    directory,
     view,
+    labels: allLabels,
+    milestones: allMilestones,
   } = useWorkspace();
   const { openCreate } = useShell();
   const router = useRouter();
-  const [filters, setFilters] = useState<Filters>({});
-  const [sort, setSort] = useState<SortKey>("updated");
-  const [group, setGroup] = useState(!compact);
-  const [showArchived, setShowArchived] = useState(false);
+  // Filters, sort, grouping and the archived toggle are URL state.
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const defaultGroup = !compact;
+  const state = useMemo(
+    () => readListState(searchParams, defaultGroup),
+    [searchParams, defaultGroup],
+  );
+  const { filters, sort, group, archived: showArchived } = state;
+  const commit = useCallback(
+    (next: Partial<typeof state>) => {
+      const params = writeListState(
+        searchParams,
+        { ...state, ...next },
+        defaultGroup,
+      );
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [searchParams, state, defaultGroup, router, pathname],
+  );
+  const setFilters = (fn: (f: Filters) => Filters) =>
+    commit({ filters: fn(filters) });
+  const setSort = (value: SortKey) => commit({ sort: value });
+  const setGroup = (value: boolean) => commit({ group: value });
+  const setShowArchived = (value: boolean) => commit({ archived: value });
+  // Search is typed locally and written to the URL after a short pause.
+  const [search, setSearch] = useState(filters.search ?? "");
+  const [urlSearch, setUrlSearch] = useState(filters.search ?? "");
+  if (urlSearch !== (filters.search ?? "")) {
+    setUrlSearch(filters.search ?? "");
+    setSearch(filters.search ?? "");
+  }
+  useEffect(() => {
+    if (search === (filters.search ?? "")) return;
+    const timer = setTimeout(
+      () => setFilters((f) => ({ ...f, search: search || undefined })),
+      250,
+    );
+    return () => clearTimeout(timer);
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [focus, setFocus] = useState<string | undefined>(selectedId);
   const listRef = useRef<HTMLUListElement>(null);
   const visible = useMemo(() => {
     const scoped = items.filter((i) => showArchived || !i.archivedAt);
-    return sortItems(applyFilters(scoped, filters, products), sort);
-  }, [items, filters, sort, products, showArchived]);
+    return sortItems(
+      applyFilters(scoped, { ...filters, search }, products),
+      sort,
+    );
+  }, [items, filters, search, sort, products, showArchived]);
   const groups = useMemo(() => {
     if (!group)
       return [
@@ -138,6 +194,8 @@ export function IssueList({
     (filters.priority?.length ? 1 : 0) +
     (filters.assignee?.length ? 1 : 0) +
     (filters.parent?.length ? 1 : 0) +
+    (filters.label?.length ? 1 : 0) +
+    (filters.milestone?.length ? 1 : 0) +
     (filters.blocked ? 1 : 0) +
     (filters.needsReview ? 1 : 0);
   const epics = allItems.filter(
@@ -158,10 +216,8 @@ export function IssueList({
         {header}
         <div className="ml-auto flex items-center gap-1">
           <input
-            value={filters.search ?? ""}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, search: e.target.value }))
-            }
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter…"
             aria-label="Filter by title or identifier"
             className={cn(
@@ -187,9 +243,14 @@ export function IssueList({
             <FilterPanel
               filters={filters}
               setFilters={setFilters}
-              members={directory.members}
               epics={allowEpicFilter ? epics : []}
               product={product}
+              labels={allLabels.filter(
+                (l) => l.productId === product?.id && !l.archivedAt,
+              )}
+              milestones={allMilestones.filter(
+                (m) => m.productId === product?.id && !m.archivedAt,
+              )}
             />
           </Popover>
           <Popover
@@ -337,6 +398,34 @@ export function IssueList({
                   )}
             </Chip>
           ))}
+          {filters.label?.map((l) => (
+            <Chip
+              key={l}
+              onRemove={() =>
+                setFilters((f) => ({
+                  ...f,
+                  label: f.label?.filter((x) => x !== l),
+                }))
+              }
+            >
+              {allLabels.find((x) => x.id === l)?.name ?? "Label"}
+            </Chip>
+          ))}
+          {filters.milestone?.map((m) => (
+            <Chip
+              key={m}
+              onRemove={() =>
+                setFilters((f) => ({
+                  ...f,
+                  milestone: f.milestone?.filter((x) => x !== m),
+                }))
+              }
+            >
+              {m === "none"
+                ? "No milestone"
+                : (allMilestones.find((x) => x.id === m)?.name ?? "Milestone")}
+            </Chip>
+          ))}
           {filters.blocked && (
             <Chip
               onRemove={() => setFilters((f) => ({ ...f, blocked: false }))}
@@ -413,6 +502,14 @@ export function IssueList({
                           ? allItems.find((i) => i.id === item.parentId)
                           : undefined
                       }
+                      labels={allLabels.filter((l) =>
+                        item.labelIds.includes(l.id),
+                      )}
+                      milestone={
+                        item.milestoneId
+                          ? allMilestones.find((m) => m.id === item.milestoneId)
+                          : undefined
+                      }
                       href={hrefFor(item)}
                       selected={item.id === selectedId}
                       focused={item.id === focus}
@@ -456,23 +553,22 @@ function Chip({
 function FilterPanel({
   filters,
   setFilters,
-  members,
   epics,
   product,
+  labels,
+  milestones,
 }: {
   filters: Filters;
   setFilters: (fn: (f: Filters) => Filters) => void;
-  members: { id: string; name: string }[];
   epics: WorkItem[];
   product: Product | undefined;
+  labels: Label[];
+  milestones: Milestone[];
 }) {
-  const [section, setSection] = useState<
-    "menu" | "status" | "priority" | "assignee" | "parent"
-  >("menu");
-  const toggle = (
-    key: "status" | "priority" | "assignee" | "parent",
-    value: string,
-  ) =>
+  type Section =
+    "status" | "priority" | "assignee" | "parent" | "label" | "milestone";
+  const [section, setSection] = useState<"menu" | Section>("menu");
+  const toggle = (key: Section, value: string) =>
     setFilters((f) => {
       const current: string[] = f[key] ?? [];
       const next = current.includes(value)
@@ -510,13 +606,10 @@ function FilterPanel({
     );
   if (section === "assignee")
     return (
-      <Picker
+      <PeoplePicker
         multiple
         title="Assignee"
-        options={[
-          { value: "unassigned", label: "Unassigned" },
-          ...members.map((m) => ({ value: m.id, label: m.name })),
-        ]}
+        none={{ value: "unassigned", label: "Unassigned" }}
         value={filters.assignee ?? []}
         onSelect={(v) => toggle("assignee", v)}
       />
@@ -538,6 +631,46 @@ function FilterPanel({
         onSelect={(v) => toggle("parent", v)}
       />
     );
+  if (section === "label")
+    return (
+      <Picker
+        multiple
+        title="Labels"
+        options={labels.map((l) => ({
+          value: l.id,
+          label: l.name,
+          icon: <ColorDot color={l.color} />,
+        }))}
+        value={filters.label ?? []}
+        onSelect={(v) => toggle("label", v)}
+        emptyText="No labels in this product."
+      />
+    );
+  if (section === "milestone")
+    return (
+      <Picker
+        multiple
+        title="Milestone"
+        options={[
+          { value: "none", label: "No milestone" },
+          ...milestones.map((m) => ({
+            value: m.id,
+            label: m.name,
+            hint: m.targetDate ? formatDate(m.targetDate) : undefined,
+          })),
+        ]}
+        value={filters.milestone ?? []}
+        onSelect={(v) => toggle("milestone", v)}
+      />
+    );
+  const labelsFor: Record<Section, string> = {
+    status: "Status",
+    priority: "Priority",
+    assignee: "Assignee",
+    parent: "Epic",
+    label: "Labels",
+    milestone: "Milestone",
+  };
   return (
     <div className="p-1">
       <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
@@ -549,14 +682,16 @@ function FilterPanel({
           "priority",
           "assignee",
           ...(epics.length ? (["parent"] as const) : []),
-        ] as ("status" | "priority" | "assignee" | "parent")[]
+          ...(labels.length ? (["label"] as const) : []),
+          ...(milestones.length ? (["milestone"] as const) : []),
+        ] as Section[]
       ).map((key) => (
         <button
           key={key}
           onClick={() => setSection(key)}
           className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
         >
-          <span className="capitalize">{key === "parent" ? "Epic" : key}</span>
+          <span>{labelsFor[key]}</span>
           {(filters[key]?.length ?? 0) > 0 && (
             <span className="text-xs text-muted-foreground">
               {filters[key]!.length}
