@@ -2,10 +2,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { EmptyState } from "~/components/ui/primitives";
+import { FileSearch } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { MissingState } from "~/components/ui/status-page";
 import { paths } from "~/lib/paths";
 import { identifier, parseIdentifier } from "~/lib/work-items";
 import { useWorkspace } from "~/components/workspace/provider";
+import { SyncIssue, isSyncBlocked } from "~/components/workspace/sync-issue";
 
 export function ItemRedirect({ identifier: raw }: { identifier: string }) {
   const { items, projects, organization, view } = useWorkspace();
@@ -39,21 +42,21 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
         Opening {raw}…
       </div>
     );
+  if (isSyncBlocked(view.status))
+    return <SyncIssue status={view.status} error={view.error} />;
   return (
-    <EmptyState
+    <MissingState
+      icon={FileSearch}
       title={`${raw} was not found`}
       action={
-        <Link
-          href={paths.inbox(organization.slug)}
-          className="text-sm text-primary hover:underline"
-        >
-          Go to Inbox
+        <Link href={paths.inbox(organization.slug)} className="contents">
+          <Button variant="secondary">Go to Inbox</Button>
         </Link>
       }
     >
       {parsed && !project
         ? `No project uses the key ${parsed.key}.`
         : "Check the identifier and try again."}
-    </EmptyState>
+    </MissingState>
   );
 }

@@ -2,11 +2,14 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { EmptyState } from "~/components/ui/primitives";
+import { FileSearch } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { MissingState } from "~/components/ui/status-page";
 import { paths } from "~/lib/paths";
 import { identifier, parseIdentifier } from "~/lib/work-items";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
+import { SyncIssue, isSyncBlocked } from "~/components/workspace/sync-issue";
 import { useShell } from "~/components/workspace/shell";
 import { ItemDetail } from "./item-detail";
 
@@ -75,20 +78,23 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
           Opening {raw}…
         </div>
       );
+    if (isSyncBlocked(view.status))
+      return <SyncIssue status={view.status} error={view.error} />;
     return (
-      <EmptyState
+      <MissingState
+        icon={FileSearch}
         title={`${raw} was not found in ${project.name}`}
         action={
           <Link
             href={paths.list(organization.slug, project.key, "epics")}
-            className="text-sm text-primary hover:underline"
+            className="contents"
           >
-            Back to Epics
+            <Button variant="secondary">Back to Epics</Button>
           </Link>
         }
       >
         It may belong to another project, or the identifier is misspelled.
-      </EmptyState>
+      </MissingState>
     );
   }
   return (

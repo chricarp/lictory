@@ -233,3 +233,27 @@
 .animate-in {
   animation: lictory-in 90ms ease-out;
 }
+@keyframes lictory-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+.lictory-enter {
+  animation: lictory-enter 280ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.lictory-enter-delay-1 {
+  animation-delay: 100ms;
+}
+.lictory-enter-delay-2 {
+  animation-delay: 200ms;
+}
+.lictory-enter-delay-3 {
+  animation-delay: 300ms;
+}
