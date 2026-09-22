@@ -248,7 +248,7 @@ export function CommandPalette({
   let index = -1;
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[14vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[14vh] pb-4"
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
         if (e.key === "ArrowDown") {
@@ -273,9 +273,9 @@ export function CommandPalette({
       <div
         role="dialog"
         aria-label="Command palette"
-        className="relative w-full max-w-lg overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
+        className="relative flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
       >
-        <div className="flex items-center gap-2 border-b px-3">
+        <div className="flex shrink-0 items-center gap-2 border-b px-3">
           <input
             ref={inputRef}
             value={query}
@@ -289,7 +289,7 @@ export function CommandPalette({
         <div
           ref={listRef}
           role="listbox"
-          className="max-h-[50vh] overflow-y-auto p-1.5"
+          className="min-h-0 overflow-y-auto p-1.5"
         >
           {results.length === 0 && (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">

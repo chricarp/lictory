@@ -4,6 +4,7 @@ import {
   forwardRef,
   useCallback,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -35,6 +36,8 @@ type MarkdownEditorProps = Omit<
   onValueChange: (value: string) => void;
   containerClassName?: string;
   previewClassName?: string;
+  autoResize?: boolean;
+  maxAutoHeight?: number;
 };
 
 type Edit = { value: string; start: number; end: number };
@@ -49,6 +52,8 @@ export const MarkdownEditor = forwardRef<
     className,
     containerClassName,
     previewClassName,
+    autoResize = false,
+    maxAutoHeight = 320,
     onKeyDown,
     disabled,
     rows = 4,
@@ -59,6 +64,18 @@ export const MarkdownEditor = forwardRef<
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState(false);
   useImperativeHandle(forwardedRef, () => textareaRef.current!, []);
+  const resize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || !autoResize) return;
+    textarea.style.height = "auto";
+    const height = Math.min(textarea.scrollHeight, maxAutoHeight);
+    textarea.style.height = `${height}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxAutoHeight ? "auto" : "hidden";
+  }, [autoResize, maxAutoHeight]);
+  useLayoutEffect(() => {
+    if (!preview) resize();
+  }, [preview, resize, value]);
 
   const commit = useCallback(
     (edit: Edit) => {
@@ -271,6 +288,7 @@ export const MarkdownEditor = forwardRef<
           spellCheck
           className={cn(
             "min-h-28 w-full resize-y rounded-[inherit] bg-transparent px-3 pt-3 pb-14 text-[13px] leading-6 outline-none placeholder:text-muted-foreground/70",
+            autoResize && "resize-none overflow-y-hidden",
             className,
           )}
           {...props}

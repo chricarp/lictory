@@ -14,6 +14,7 @@ import type { DirectoryMember } from "~/sync/shared/protocol";
 import { useWorkspace } from "~/components/workspace/provider";
 import { Avatar } from "~/components/ui/primitives";
 import { Popover, Picker, type PickerOption } from "~/components/ui/popover";
+import { useDebouncedCallback } from "~/components/ui/use-debounced-callback";
 
 const PAGE_SIZE = 20;
 
@@ -436,27 +437,6 @@ function useMemberSearch(
     void load(false);
   }, [load]);
   return { members, loading, hasMore, loadMore, search };
-}
-
-function useDebouncedCallback(fn: (value: string) => void, delay: number) {
-  const fnRef = useRef(fn);
-  const timer = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    fnRef.current = fn;
-  }, [fn]);
-  useEffect(
-    () => () => {
-      if (timer.current) window.clearTimeout(timer.current);
-    },
-    [],
-  );
-  return useCallback(
-    (value: string) => {
-      if (timer.current) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => fnRef.current(value), delay);
-    },
-    [delay],
-  );
 }
 
 function mergeMembers(current: DirectoryMember[], next: DirectoryMember[]) {

@@ -5,7 +5,12 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { and, eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as s from "../../db/schema";
-import { createSyncService, DomainError, searchMembers } from "./service";
+import {
+  createSyncService,
+  DomainError,
+  searchEpics,
+  searchMembers,
+} from "./service";
 import { pageSchema, type Command, type Entity } from "../shared/protocol";
 import { reconcile, optimistic } from "../client/reconciliation";
 const adminUrl =
@@ -944,5 +949,99 @@ void test("member search pages and filters without returning the full roster", a
   await assert.rejects(
     () => searchMembers(db, outsider, f.organizationId),
     /Organization access has been removed/,
+  );
+});
+void test("epic search is paginated, project-scoped, searchable, and authorized", async () => {
+  const f = await fixture();
+  const epics = Array.from({ length: 25 }, (_, index) => ({
+    id: crypto.randomUUID(),
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    kind: "epic" as const,
+    number: index + 2,
+    title:
+      index === 0 ? "Zelda Query" : `Epic ${String(index).padStart(2, "0")}`,
+    createdById: f.userId,
+  }));
+  await db.insert(s.workItem).values(epics);
+  await db.insert(s.workItem).values({
+    id: crypto.randomUUID(),
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    kind: "epic",
+    number: 27,
+    title: "Archived epic",
+    createdById: f.userId,
+    archivedAt: new Date(),
+  });
+
+  const first = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    20,
+  );
+  assert.equal(first.epics.length, 20);
+  assert.equal(first.hasMore, true);
+  const rest = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    20,
+    20,
+  );
+  assert.equal(rest.epics.length, 5);
+  assert.equal(rest.hasMore, false);
+  assert.equal(
+    new Set([...first.epics, ...rest.epics].map((epic) => epic.id)).size,
+    25,
+  );
+  assert.ok(
+    [...first.epics, ...rest.epics].every(
+      (epic) => epic.title !== "Archived epic",
+    ),
+  );
+
+  const named = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "Zelda",
+  );
+  assert.deepEqual(
+    named.epics.map((epic) => epic.title),
+    ["Zelda Query"],
+  );
+  const identified = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "PAY-2",
+  );
+  assert.deepEqual(
+    identified.epics.map((epic) => epic.number),
+    [2],
+  );
+
+  const outsider = crypto.randomUUID();
+  await db.insert(s.user).values({
+    id: outsider,
+    name: "Epic Outsider",
+    email: `${outsider}@example.test`,
+  });
+  await assert.rejects(
+    () => searchEpics(db, outsider, f.organizationId, f.projectId, ""),
+    /Organization access has been removed/,
+  );
+  await assert.rejects(
+    () => searchEpics(db, f.userId, f.organizationId, crypto.randomUUID(), ""),
+    /unavailable/,
   );
 });

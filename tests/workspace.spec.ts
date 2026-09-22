@@ -77,12 +77,53 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await page.getByRole("button", { name: /Save revision 2/ }).click();
   await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
 
-  // 3. Create Stories inline within the Epic.
-  await page.getByRole("button", { name: "Add story" }).click();
+  // 3. Create a Story from the dialog, searching and linking its Epic inline.
+  await page.keyboard.press("c");
+  await page.getByRole("radio", { name: "Story" }).click();
   await page
-    .getByRole("textbox", { name: "New story title" })
+    .getByRole("textbox", { name: "Title", exact: true })
     .fill("Define cancellation API");
-  await page.keyboard.press("Enter");
+  const epicCombobox = page.getByRole("combobox", { name: "Epic: None" });
+  await epicCombobox.fill("Partial");
+  await page.getByRole("option", { name: /Partial cancellation/ }).click();
+  const description = page.getByRole("textbox", { name: "Description" });
+  const initialDescriptionHeight = await description.evaluate(
+    (textarea) => textarea.getBoundingClientRect().height,
+  );
+  await description.fill(
+    Array.from(
+      { length: 24 },
+      (_, index) =>
+        `Behavior note ${index + 1}: preserve cancellation context.`,
+    ).join("\n"),
+  );
+  await expect
+    .poll(() =>
+      description.evaluate(
+        (textarea) => textarea.getBoundingClientRect().height,
+      ),
+    )
+    .toBeGreaterThan(initialDescriptionHeight);
+  expect(
+    await description.evaluate((textarea) =>
+      Math.ceil(textarea.getBoundingClientRect().height),
+    ),
+  ).toBeLessThanOrEqual(320);
+  await page
+    .getByRole("dialog", { name: "Create story" })
+    .getByRole("button", { name: "Create Story", exact: true })
+    .click();
+  await expect(
+    page.getByText("Story “Define cancellation API” created"),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Create story" })
+    .getByRole("button", { name: "Close" })
+    .last()
+    .click();
+
+  // Create a second Story inline within the Epic.
+  await page.getByRole("button", { name: "Add story" }).click();
   await page
     .getByRole("textbox", { name: "New story title" })
     .fill("Handle provider callback");
@@ -372,13 +413,17 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await page.reload();
   await expect(page.getByText("Pending comment survives reload")).toBeVisible();
   await page.unroute("**/api/sync**");
-  await page.getByRole("status", { name: /Synchronization/ }).click();
-  await page.getByRole("button", { name: "Reconnect" }).click();
+  await page
+    .getByRole("button", {
+      name: /Everything is saved|Saving|could not be saved|Offline|Sync failed/,
+    })
+    .click();
+  await page.getByRole("button", { name: "Sync now" }).click();
   await expect(
     reviewer.getByText("Pending comment survives reload"),
   ).toBeVisible({ timeout: 30_000 });
   await expect(
-    page.getByRole("status", { name: /Synchronization: Synced/ }),
+    page.getByRole("button", { name: "Everything is saved" }),
   ).toBeVisible({ timeout: 30_000 });
 
   // Inbox for the owner mentions the item; archive/restore round trip.

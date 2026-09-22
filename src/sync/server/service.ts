@@ -203,6 +203,85 @@ export async function searchMembers(
     hasMore: rows.length > limit,
   };
 }
+export async function searchEpics(
+  db: Database | Tx,
+  userId: string,
+  organizationId: string,
+  projectId: string,
+  query = "",
+  offset = 0,
+  limit = 20,
+) {
+  const membership = await db
+    .select({ id: s.member.id })
+    .from(s.member)
+    .where(
+      and(
+        eq(s.member.organizationId, organizationId),
+        eq(s.member.userId, userId),
+      ),
+    );
+  requireValue(
+    membership[0],
+    "Organization access has been removed.",
+    "forbidden",
+  );
+  requireValue(
+    (
+      await db
+        .select({ id: s.project.id })
+        .from(s.project)
+        .where(
+          and(
+            eq(s.project.organizationId, organizationId),
+            eq(s.project.id, projectId),
+            isNull(s.project.archivedAt),
+          ),
+        )
+    )[0],
+  );
+  const term = query.trim().replace(/[%_]/g, "");
+  const numberText = /(?:^|-)(\d+)$/.exec(term)?.[1];
+  const candidateNumber = numberText ? Number(numberText) : undefined;
+  const numberMatch =
+    candidateNumber !== undefined &&
+    Number.isSafeInteger(candidateNumber) &&
+    candidateNumber > 0 &&
+    candidateNumber <= 2_147_483_647
+      ? candidateNumber
+      : undefined;
+  const rows = await db
+    .select({
+      id: s.workItem.id,
+      projectId: s.workItem.projectId,
+      number: s.workItem.number,
+      title: s.workItem.title,
+    })
+    .from(s.workItem)
+    .where(
+      and(
+        eq(s.workItem.organizationId, organizationId),
+        eq(s.workItem.projectId, projectId),
+        eq(s.workItem.kind, "epic"),
+        isNull(s.workItem.archivedAt),
+        term
+          ? or(
+              ilike(s.workItem.title, `%${term}%`),
+              numberMatch === undefined
+                ? undefined
+                : eq(s.workItem.number, numberMatch),
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(asc(s.workItem.title), asc(s.workItem.number))
+    .limit(limit + 1)
+    .offset(offset);
+  return {
+    epics: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+  };
+}
 
 type ItemRow = typeof s.workItem.$inferSelect;
 type RevisionRow = typeof s.specificationRevision.$inferSelect;

@@ -280,6 +280,25 @@ export const memberPageSchema = z.object({
   hasMore: z.boolean(),
 });
 export type MemberPage = z.infer<typeof memberPageSchema>;
+export const epicSummarySchema = z.object({
+  id,
+  projectId: id,
+  number: z.number().int().positive(),
+  title: z.string(),
+});
+export type EpicSummary = z.infer<typeof epicSummarySchema>;
+export const epicSearchSchema = z.object({
+  organizationId: id,
+  projectId: id,
+  q: z.string().max(120).optional().default(""),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export const epicPageSchema = z.object({
+  epics: z.array(epicSummarySchema),
+  hasMore: z.boolean(),
+});
+export type EpicPage = z.infer<typeof epicPageSchema>;
 export const directorySchema = z.object({
   organizations: z.array(
     z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),

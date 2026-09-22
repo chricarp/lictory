@@ -1,6 +1,7 @@
 import {
   PROTOCOL,
   directorySchema,
+  epicPageSchema,
   errorSchema,
   memberPageSchema,
   mutationSchema,
@@ -349,4 +350,28 @@ export async function searchMembers(
   const data: unknown = await response.json();
   if (!response.ok) throw new Error(errorSchema.parse(data).error.message);
   return memberPageSchema.parse(data);
+}
+export async function searchEpics(
+  organizationId: string,
+  projectId: string,
+  query: string,
+  offset: number,
+  limit = 20,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    epics: "1",
+    organizationId,
+    projectId,
+    q: query,
+    offset: String(offset),
+    limit: String(limit),
+  });
+  const response = await fetch(`/api/sync?${params}`, {
+    cache: "no-store",
+    signal,
+  });
+  const data: unknown = await response.json();
+  if (!response.ok) throw new Error(errorSchema.parse(data).error.message);
+  return epicPageSchema.parse(data);
 }

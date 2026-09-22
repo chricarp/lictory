@@ -117,6 +117,10 @@ Components issue typed domain commands; persistence, queue behavior, and optimis
 logic are below the UI boundary. IndexedDB is behind a `Persistence` interface.
 Data and its checkpoint are written in one IndexedDB transaction. Queue entries
 are separate records, so two tabs do not overwrite each other's pending work.
+Searchable member and Epic selectors use separate, membership-checked read queries
+with server-side filtering and 20-row pagination. These lookup reads do not produce
+changes, receipts, or checkpoints; selecting a value still goes through the normal
+domain mutation boundary.
 
 A command receives a client UUID, is durably queued, then gets an optimistic overlay.
 Item/project creation, property updates, archive, threads, replies, thread state,

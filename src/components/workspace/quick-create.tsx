@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { EpicPicker } from "~/components/items/epic-picker";
 import { KindIcon } from "~/components/items/icons";
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
@@ -10,7 +11,6 @@ import { Kbd } from "~/components/ui/primitives";
 import { Popover, Picker } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
-import { identifier } from "~/lib/work-items";
 import type { WorkItemKind } from "~/sync/shared/protocol";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
@@ -43,7 +43,6 @@ export function QuickCreate({
   );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [showDescription, setShowDescription] = useState(false);
   const [error, setError] = useState<string>();
   const [created, setCreated] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,8 +50,12 @@ export function QuickCreate({
     inputRef.current?.focus();
   }, []);
   const project = projects.find((p) => p.id === projectId);
-  const epics = items.filter(
-    (i) => i.kind === "epic" && i.projectId === projectId && !i.archivedAt,
+  const parent = items.find(
+    (item) =>
+      item.id === parentId &&
+      item.kind === "epic" &&
+      item.projectId === projectId &&
+      !item.archivedAt,
   );
   const submit = async (open: boolean) => {
     const trimmed = title.trim();
@@ -100,7 +103,7 @@ export function QuickCreate({
   };
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[12vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[12vh] pb-4"
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}
@@ -113,13 +116,13 @@ export function QuickCreate({
       <form
         role="dialog"
         aria-label={`Create ${kind}`}
-        className="relative w-full max-w-xl rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
+        className="relative flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
         onSubmit={(e) => {
           e.preventDefault();
           void submit(false);
         }}
       >
-        <div className="flex items-center gap-1.5 border-b px-3 py-2">
+        <div className="flex shrink-0 items-center gap-1.5 border-b px-3 py-2">
           <Segmented
             value={kind}
             onChange={(next) => {
@@ -166,35 +169,6 @@ export function QuickCreate({
               />
             </Popover>
           )}
-          {kind !== "epic" && (
-            <Popover
-              width={300}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  className="h-7 max-w-[220px] truncate rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
-                >
-                  {parentId
-                    ? `${identifier(project, epics.find((e) => e.id === parentId)?.number ?? 0)} · ${epics.find((e) => e.id === parentId)?.title ?? ""}`
-                    : "No epic"}
-                </button>
-              )}
-            >
-              <Picker
-                title="Epic"
-                options={[
-                  { value: "none", label: "No epic" },
-                  ...epics.map((e) => ({
-                    value: e.id,
-                    label: e.title,
-                    hint: identifier(project, e.number),
-                  })),
-                ]}
-                value={parentId ?? "none"}
-                onSelect={(id) => setParentId(id === "none" ? null : id)}
-              />
-            </Popover>
-          )}
           <button
             type="button"
             aria-label="Close"
@@ -204,7 +178,7 @@ export function QuickCreate({
             <X className="size-4" />
           </button>
         </div>
-        <div className="space-y-2 p-3">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
           <input
             ref={inputRef}
             value={title}
@@ -213,31 +187,55 @@ export function QuickCreate({
             aria-label="Title"
             className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
           />
-          {showDescription ? (
+          {kind !== "epic" && projectId && (
+            <div className="space-y-1.5 pt-1">
+              <p className="text-xs font-medium">Epic</p>
+              <EpicPicker
+                parentId={parentId}
+                projectId={projectId}
+                projectKey={project?.key}
+                selected={
+                  parent
+                    ? {
+                        id: parent.id,
+                        projectId: parent.projectId,
+                        number: parent.number,
+                        title: parent.title,
+                      }
+                    : undefined
+                }
+                onChange={setParentId}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Optional. Link this story to the epic it contributes to.
+              </p>
+            </div>
+          )}
+          <div className="space-y-1.5 pt-1">
+            <p className="text-xs font-medium">
+              Description{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </p>
             <MarkdownEditor
               value={description}
               onValueChange={setDescription}
               placeholder="Intent, problem or first draft of the behavior… (Markdown)"
               aria-label="Description"
               rows={5}
+              autoResize
+              maxAutoHeight={320}
               containerClassName="bg-muted/30"
             />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowDescription(true)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              + Add description
-            </button>
-          )}
+          </div>
           {error && (
             <p role="alert" className="text-xs text-destructive">
               {error}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
           {created > 0 && <span>{created} created</span>}
           <span className="ml-auto flex items-center gap-1">
             <Kbd>↵</Kbd> create
@@ -283,7 +281,7 @@ export function Segmented<T extends string>({
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
           className={cn(
-            "inline-flex h-6 items-center gap-1 rounded px-2 text-xs font-medium",
+            "inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium",
             value === o.value
               ? "bg-card text-foreground shadow-[var(--shadow-border)]"
               : "text-muted-foreground hover:text-foreground",

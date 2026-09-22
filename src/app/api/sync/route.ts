@@ -5,10 +5,12 @@ import {
   createSyncService,
   directory,
   DomainError,
+  searchEpics,
   searchMembers,
 } from "~/sync/server/service";
 import {
   checkpointSchema,
+  epicSearchSchema,
   memberSearchSchema,
   mutationSchema,
   pageSchema,
@@ -81,6 +83,21 @@ export async function GET(request: Request) {
           db,
           session.user.id,
           query.organizationId,
+          query.q,
+          query.offset,
+          query.limit,
+        ),
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (params.epics === "1") {
+      const query = epicSearchSchema.parse(params);
+      return Response.json(
+        await searchEpics(
+          db,
+          session.user.id,
+          query.organizationId,
+          query.projectId,
           query.q,
           query.offset,
           query.limit,

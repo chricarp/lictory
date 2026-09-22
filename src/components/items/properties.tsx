@@ -1,4 +1,5 @@
 "use client";
+import { EpicPicker } from "./epic-picker";
 import { PriorityIcon } from "./icons";
 export { PriorityIcon } from "./icons";
 export { AssigneePicker } from "~/components/ui/people-picker";
@@ -80,41 +81,22 @@ export function ParentPicker({
   );
   const parent = epics.find((e) => e.id === parentId);
   return (
-    <Popover
-      width={320}
-      trigger={(props) => (
-        <button
-          {...props}
-
-          aria-label={`Epic: ${parent?.title ?? "None"}`}
-          className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
-          {parent ? (
-            <>
-              <span className="font-mono text-xs text-muted-foreground">
-                {project?.key}-{parent.number}
-              </span>
-              <span className="truncate">{parent.title}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">No epic</span>
-          )}
-        </button>
-      )}
-    >
-      <Picker
-        title="Move to epic"
-        options={[
-          { value: "none", label: "No epic" },
-          ...epics.map((e) => ({
-            value: e.id,
-            label: e.title,
-            hint: `${project?.key}-${e.number}`,
-          })),
-        ]}
-        value={parentId ?? "none"}
-        onSelect={(v) => onChange(v === "none" ? null : v)}
-      />
-    </Popover>
+    <EpicPicker
+      parentId={parentId}
+      projectId={projectId}
+      projectKey={project?.key}
+      selected={
+        parent
+          ? {
+              id: parent.id,
+              projectId: parent.projectId,
+              number: parent.number,
+              title: parent.title,
+            }
+          : undefined
+      }
+      onChange={onChange}
+      className="h-7 border-transparent bg-transparent px-1.5 focus-within:bg-muted focus-within:ring-ring/60 hover:border-transparent hover:bg-muted"
+    />
   );
 }

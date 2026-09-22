@@ -13,11 +13,16 @@ import {
 } from "react";
 import {
   BookOpenCheck,
+  CircleCheckBig,
   Check,
   ChevronsUpDown,
+  FilePenLine,
+  History,
   Inbox,
   LogOut,
   Menu,
+  MessageSquareMore,
+  OctagonAlert,
   Plus,
   Search,
   Settings,
@@ -28,7 +33,12 @@ import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import { rememberProject, useLastProjectKey } from "~/lib/last-project";
-import { needsMyReview, views, type Project } from "~/lib/work-items";
+import {
+  needsMyReview,
+  views,
+  type Project,
+  type ViewId,
+} from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
@@ -460,6 +470,7 @@ function Sidebar({
                     key={v.id}
                     href={paths.view(org, project.key, v.id)}
                     active={active(paths.view(org, project.key, v.id))}
+                    icon={<ViewIcon view={v.id} />}
                   >
                     {v.label}
                   </NavLink>
@@ -525,6 +536,24 @@ function Sidebar({
       </div>
     </>
   );
+}
+
+function ViewIcon({ view }: { view: ViewId }) {
+  switch (view) {
+    case "needs-review":
+      return <MessageSquareMore aria-hidden className="size-4" />;
+    case "blocked":
+      return <OctagonAlert aria-hidden className="size-4" />;
+    case "ready":
+      return <CircleCheckBig aria-hidden className="size-4" />;
+    case "drafts":
+      return <FilePenLine aria-hidden className="size-4" />;
+    case "updated":
+      return <History aria-hidden className="size-4" />;
+    case "all":
+    case "needs-my-review":
+      return null;
+  }
 }
 
 function NavLink({
