@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   KeyRound,
@@ -117,6 +117,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
 }
 
 function EmailSection({ user }: Pick<AccountSettingsProps, "user">) {
+  const pathname = usePathname();
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -126,7 +127,7 @@ function EmailSection({ user }: Pick<AccountSettingsProps, "user">) {
     const newEmail = formValue(new FormData(event.currentTarget), "email");
     const result = await authClient.changeEmail({
       newEmail,
-      callbackURL: "/app/account",
+      callbackURL: pathname,
     });
     setMessage(
       result.error
@@ -244,8 +245,9 @@ function ConnectionsSection({
   providers,
   connectedProviders,
 }: Pick<AccountSettingsProps, "providers" | "connectedProviders">) {
+  const pathname = usePathname();
   async function connect(provider: "google" | "microsoft") {
-    await authClient.linkSocial({ provider, callbackURL: "/app/account" });
+    await authClient.linkSocial({ provider, callbackURL: pathname });
   }
 
   return (

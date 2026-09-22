@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { memo } from "react";
 import { cn } from "~/lib/utils";
-import { identifier, relativeTime, type Product } from "~/lib/work-items";
+import { identifier, relativeTime, type Project } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { Avatar } from "~/components/ui/primitives";
 import { IssueStatus } from "./status";
@@ -15,7 +15,7 @@ import type { Label, Milestone } from "~/lib/work-items";
 
 export const IssueRow = memo(function IssueRow({
   item,
-  product,
+  project,
   parent,
   labels,
   milestone,
@@ -28,7 +28,7 @@ export const IssueRow = memo(function IssueRow({
   onFocus,
 }: {
   item: WorkItem;
-  product: Product | undefined;
+  project: Project | undefined;
   parent?: WorkItem;
   labels: Label[];
   milestone?: Milestone;
@@ -77,7 +77,7 @@ export const IssueRow = memo(function IssueRow({
       </span>
       <KindIcon kind={item.kind} />
       <IssueIdentifier
-        product={product}
+        project={project}
         number={item.number}
         className="w-[4.5rem]"
       />
@@ -111,7 +111,7 @@ export const IssueRow = memo(function IssueRow({
           title={parent.title}
         >
           <KindIcon kind="epic" className="size-3 rounded-[3px]" />
-          <span className="truncate">{identifier(product, parent.number)}</span>
+          <span className="truncate">{identifier(project, parent.number)}</span>
         </span>
       )}
       {item.kind === "epic" && item.childCount > 0 && !compact && (

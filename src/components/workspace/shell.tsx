@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -27,7 +27,8 @@ import {
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
-import { needsMyReview, views, type Product } from "~/lib/work-items";
+import { rememberProject, useLastProjectKey } from "~/lib/last-project";
+import { needsMyReview, views, type Project } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
@@ -49,6 +50,8 @@ type ShellContextValue = {
   openCreate: (options?: QuickCreateOptions) => void;
   setCurrentItem: (item: WorkItem | undefined) => void;
   currentItem: WorkItem | undefined;
+  // The project in context: named by the route, or the last one visited.
+  project: Project | undefined;
 };
 const ShellContext = createContext<ShellContextValue | null>(null);
 export function useShell() {
@@ -76,7 +79,7 @@ export function Shell({
   user: { name: string; email: string };
   children: ReactNode;
 }) {
-  const { organization, products, items, userId, groupIds, directory } =
+  const { organization, projects, items, userId, groupIds, directory } =
     useWorkspace();
   const pathname = usePathname();
   const router = useRouter();
@@ -94,16 +97,28 @@ export function Shell({
     setToasts((t) => [...t, { id, text, action }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
   }, []);
-  const productKey = pathname.split("/")[3]?.toUpperCase();
-  const product = products.find((p) => p.key === productKey);
+  // The route names the project while browsing it. Organization-level surfaces
+  // (Inbox, settings, account) keep the last project in context instead of
+  // dropping the person out of it.
+  const params = useParams<{ project?: string }>();
+  const routeKey = params.project?.toUpperCase();
+  const lastKey = useLastProjectKey(organization.id);
+  const project =
+    projects.find((p) => p.key === routeKey) ??
+    projects.find((p) => p.key === lastKey) ??
+    projects[0];
+  useEffect(() => {
+    if (routeKey && projects.some((p) => p.key === routeKey))
+      rememberProject(organization.id, routeKey);
+  }, [routeKey, projects, organization.id]);
   const openCreate = useCallback(
     (options?: QuickCreateOptions) =>
       setCreate({
         kind: "story",
         ...options,
-        productId: options?.productId ?? product?.id,
+        projectId: options?.projectId ?? project?.id,
       }),
-    [product?.id],
+    [project?.id],
   );
   const openPalette = useCallback(
     (query = "") => setPalette({ open: true, query }),
@@ -123,7 +138,7 @@ export function Shell({
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTyping(event.target)) return;
-      if (event.key === "c" && product) {
+      if (event.key === "c" && project) {
         event.preventDefault();
         openCreate({ kind: pathname.includes("/epics") ? "epic" : "story" });
       } else if (event.key === "/") {
@@ -133,21 +148,28 @@ export function Shell({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [product, pathname, openCreate, openPalette]);
+  }, [project, pathname, openCreate, openPalette]);
   const inboxCount = useMemo(
     () => items.filter((i) => needsMyReview(i, userId, groupIds)).length,
     [items, userId, groupIds],
   );
   const shell = useMemo<ShellContextValue>(
-    () => ({ toast, openPalette, openCreate, setCurrentItem, currentItem }),
-    [toast, openPalette, openCreate, currentItem],
+    () => ({
+      toast,
+      openPalette,
+      openCreate,
+      setCurrentItem,
+      currentItem,
+      project,
+    }),
+    [toast, openPalette, openCreate, currentItem, project],
   );
   const sidebar = (
     <Sidebar
       organization={organization}
       organizations={directory.organizations}
-      products={products}
-      product={product}
+      projects={projects}
+      project={project}
       pathname={pathname}
       inboxCount={inboxCount}
       user={user}
@@ -189,7 +211,7 @@ export function Shell({
               <Menu className="size-4" />
             </Button>
             <span className="text-sm font-medium">
-              {product?.name ?? organization.name}
+              {project?.name ?? organization.name}
             </span>
             <div className="ml-auto flex items-center gap-1">
               <Button
@@ -200,7 +222,7 @@ export function Shell({
               >
                 <Search className="size-4" />
               </Button>
-              {product && (
+              {project && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -261,8 +283,8 @@ export function Shell({
 function Sidebar({
   organization,
   organizations,
-  products,
-  product,
+  projects,
+  project,
   pathname,
   inboxCount,
   user,
@@ -272,8 +294,8 @@ function Sidebar({
 }: {
   organization: { id: string; name: string; slug: string };
   organizations: { id: string; name: string; slug: string }[];
-  products: Product[];
-  product?: Product;
+  projects: Project[];
+  project?: Project;
   pathname: string;
   inboxCount: number;
   user: { name: string; email: string };
@@ -326,20 +348,6 @@ function Sidebar({
                   )}
                 </button>
               ))}
-              <div className="my-1 border-t" />
-              <Link
-                href="/app/account"
-                onClick={close}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
-              >
-                <UserRound className="size-3.5 text-muted-foreground" /> Account
-              </Link>
-              <button
-                onClick={onSignOut}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-              >
-                <LogOut className="size-3.5 text-muted-foreground" /> Sign out
-              </button>
             </div>
           )}
         </Popover>
@@ -358,7 +366,7 @@ function Sidebar({
           variant="secondary"
           className="w-full justify-start gap-2 text-muted-foreground"
           onClick={onCreate}
-          disabled={!product}
+          disabled={!project}
         >
           <Plus className="size-3.5" /> New item
           <Kbd>C</Kbd>
@@ -392,42 +400,42 @@ function Sidebar({
 
                   className="flex h-6 min-w-0 items-center gap-1 rounded px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground"
                 >
-                  <span className="truncate">{product?.name ?? "Product"}</span>
+                  <span className="truncate">{project?.name ?? "Project"}</span>
                   <ChevronsUpDown className="size-3" />
                 </button>
               )}
             >
               <Picker
-                title="Products"
-                options={products.map((p) => ({
+                title="Projects"
+                options={projects.map((p) => ({
                   value: p.key,
                   label: p.name,
                   hint: p.key,
                 }))}
-                value={product?.key ?? null}
+                value={project?.key ?? null}
                 onSelect={(key) => router.push(paths.list(org, key, "epics"))}
               />
             </Popover>
           </div>
-          {product ? (
+          {project ? (
             <div className="space-y-px">
               <NavLink
-                href={paths.list(org, product.key, "epics")}
-                active={active(paths.list(org, product.key, "epics"))}
+                href={paths.list(org, project.key, "epics")}
+                active={active(paths.list(org, project.key, "epics"))}
                 icon={<KindIcon kind="epic" />}
               >
                 Epics
               </NavLink>
               <NavLink
-                href={paths.list(org, product.key, "stories")}
-                active={active(paths.list(org, product.key, "stories"))}
+                href={paths.list(org, project.key, "stories")}
+                active={active(paths.list(org, project.key, "stories"))}
                 icon={<KindIcon kind="story" />}
               >
                 Stories
               </NavLink>
               <NavLink
-                href={paths.reviews(org, product.key)}
-                active={active(paths.reviews(org, product.key))}
+                href={paths.reviews(org, project.key)}
+                active={active(paths.reviews(org, project.key))}
                 icon={<BookOpenCheck className="size-4" />}
               >
                 Reviews
@@ -435,11 +443,11 @@ function Sidebar({
             </div>
           ) : (
             <p className="px-2 text-xs text-muted-foreground">
-              {products.length ? "Choose a product." : "No products yet."}
+              {projects.length ? "Choose a project." : "No projects yet."}
             </p>
           )}
         </div>
-        {product && (
+        {project && (
           <div>
             <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               Views
@@ -450,8 +458,8 @@ function Sidebar({
                 .map((v) => (
                   <NavLink
                     key={v.id}
-                    href={paths.view(org, product.key, v.id)}
-                    active={active(paths.view(org, product.key, v.id))}
+                    href={paths.view(org, project.key, v.id)}
+                    active={active(paths.view(org, project.key, v.id))}
                   >
                     {v.label}
                   </NavLink>
@@ -465,16 +473,55 @@ function Sidebar({
             active={active(paths.settings(org))}
             icon={<Settings className="size-4" />}
           >
-            Settings
+            Organization settings
           </NavLink>
         </div>
       </nav>
-      <div className="flex items-center gap-2 border-t px-3 py-2">
-        <Avatar name={user.name || user.email} size="md" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium">{user.name}</p>
-          <SyncStatus />
-        </div>
+      <div className="group/footer flex items-center gap-1 border-t px-3 py-2">
+        <Popover
+          width={240}
+          side="top"
+          trigger={(props) => (
+            <button
+              {...props}
+              aria-label="Account menu"
+              className="-ml-1 flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left hover:bg-sidebar-accent"
+            >
+              <Avatar name={user.name || user.email} size="sm" />
+              <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                {user.name}
+              </span>
+              <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
+            </button>
+          )}
+        >
+          {(close) => (
+            <div className="p-1">
+              <div className="px-2 py-1.5">
+                <p className="truncate text-[13px] font-medium">{user.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+              <div className="my-1 border-t" />
+              <Link
+                href={paths.account(org)}
+                onClick={close}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
+              >
+                <UserRound className="size-3.5 text-muted-foreground" /> Account
+                settings
+              </Link>
+              <button
+                onClick={onSignOut}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+              >
+                <LogOut className="size-3.5 text-muted-foreground" /> Sign out
+              </button>
+            </div>
+          )}
+        </Popover>
+        <SyncStatus />
       </div>
     </>
   );

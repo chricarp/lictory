@@ -6,16 +6,16 @@ and Markdown revisions. The application runs without AI or delivery integrations
 ## Work items
 
 Epics, Stories and Tasks are one entity, `workItem` (`kind`, optional `parentId`,
-per-product `number`, `status`, `priority`, `assigneeId`, `milestoneId`,
+per-project `number`, `status`, `priority`, `assigneeId`, `milestoneId`,
 `labelIds`, `position`). The physical table is `work_item` with `work_item_id`
 foreign keys (migration `0004` renamed the original `proposal` table and columns in
 place; nothing was copied or dropped). Labels (`label`, `work_item_label`) and
-milestones (`milestone`) are product-scoped, archivable, and synchronized as
-product-level entities in the organization scope. Assigning them is a
+milestones (`milestone`) are project-scoped, archivable, and synchronized as
+project-level entities in the organization scope. Assigning them is a
 non-material property change. Sibling order is a sparse integer `position`
 maintained by `reorderWorkItem` (place before a sibling, or last); collisions
 renumber the siblings in one transaction. Identifiers render as `KEY-number` from the
-product `key`; numbers are allocated under the organization lock. Stories belong
+project `key`; numbers are allocated under the organization lock. Stories belong
 to an Epic; Tasks belong to an Epic or a Story; Epics have no parent.
 
 Status is user-controlled among `backlog, draft, refinement, in_review, ready,
@@ -36,8 +36,8 @@ store without loading histories. Activity is structured (`action` + `detail`).
 `src/sync/server/service.ts` is the domain mutation boundary. Route handlers obtain
 the user from Better Auth, validate Zod protocol input, and require same-origin
 cookie-authenticated writes. Every command checks current Better Auth organization
-membership inside its transaction. Products are organization-wide in this baseline:
-there is deliberately no private-product ACL. Owners/admins manage products; members
+membership inside its transaction. Projects are organization-wide in this baseline:
+there is deliberately no private-project ACL. Owners/admins manage projects; members
 may refine, discuss, suggest, archive, and request reviews. Only an assigned user,
 or a current member of an explicitly assigned functional group, can decide a review.
 Group membership alone does not confer approval authority.
@@ -45,12 +45,12 @@ Group membership alone does not confer approval authority.
 Organization creation, naming, invitations and acceptance remain Better Auth
 operations. Settings create shareable invitation links; automated invitation email
 is not configured. The sync directory is a small, fresh projection of Better Auth
-organizations/members and domain products/groups, returned on every sync response.
+organizations/members and domain projects/groups, returned on every sync response.
 This also discovers membership and directory changes made through Better Auth.
 
-When adding private products, change **both** bootstrap and delta authorization,
+When adding private projects, change **both** bootstrap and delta authorization,
 and introduce access epochs/reset or scoped tombstones before enabling the UI.
-The existing organization-wide policy must never be mistaken for a private-product
+The existing organization-wide policy must never be mistaken for a private-project
 permission system. A denied sync clears all persisted caches and pending commands
 for that user/organization and tells other tabs to synchronize. Offline browsers
 cannot discover revocation until they reconnect. Caches are partitioned by user,
@@ -73,7 +73,7 @@ A forced log-write failure is covered by the integration suite.
 
 `sync_change` stores explicit versioned protocol projections of changed entities,
 not arbitrary database rows or full workspace snapshots. Each change has an
-organization, product, optional proposal context, cursor, and upsert/delete envelope.
+organization, project, optional proposal context, cursor, and upsert/delete envelope.
 A proposal archive is a reversible upsert with `archivedAt`, preserving history.
 The reconciliation protocol supports deletion tombstones; this slice exposes no
 hard-delete domain command. Future deletion commands must append tombstones in the
@@ -82,11 +82,11 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 2 has organization, product, and work item scopes, expressed by
-organization ID plus optional product and work item IDs. A work item scope requires
-a product. Organization bootstrap contains products and **every work item summary**
-in the organization (the browser's list store); product bootstrap narrows that to
-one product; work item bootstrap adds its revisions, discussions, suggestions,
+Protocol version 3 (projects were previously called products) has organization, project, and work item scopes, expressed by
+organization ID plus optional project and work item IDs. A work item scope requires
+a project. Organization bootstrap contains projects and **every work item summary**
+in the organization (the browser's list store); project bootstrap narrows that to
+one project; work item bootstrap adds its revisions, discussions, suggestions,
 reviews, assignments, approvals, readiness and activity. It does not send unrelated
 item histories. A child's mutation additionally emits its parent Epic's readiness
 projection, because `stories_ready` lives in the Epic's scope. Historical content is currently loaded for one proposal as a
@@ -119,7 +119,7 @@ Data and its checkpoint are written in one IndexedDB transaction. Queue entries
 are separate records, so two tabs do not overwrite each other's pending work.
 
 A command receives a client UUID, is durably queued, then gets an optimistic overlay.
-Item/product creation, property updates, archive, threads, replies, thread state,
+Item/project creation, property updates, archive, threads, replies, thread state,
 review requests and cancellations have centralized optimistic reducers (a created
 item predicts its number; the server's number replaces it). Revision changes,
 suggestions and review decisions await server validation.
@@ -195,9 +195,9 @@ count, entity count, last sync time and the latest error. Server logs contain me
 only, never specification/comment content. Normal UI errors retain actionable text.
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
-`/app/[org]/items/KEY-n` resolves any identifier to its product route. The Inbox
+`/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
 renders in pages of 50. Jira, AI, SSO setup, billing, delivery decomposition,
-advanced policy configuration, SCIM, notification delivery, private products,
+advanced policy configuration, SCIM, notification delivery, private projects,
 group administration, CRDT editing, multiplayer cursors, service-worker offline
 launch, log compaction, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. Functional groups already in the domain database

@@ -25,14 +25,14 @@ export const syncChange = pgTable(
       .notNull()
       .references(() => organization.id),
     cursor: bigint("cursor", { mode: "bigint" }).notNull(),
-    productId: text("product_id").notNull(),
+    projectId: text("project_id").notNull(),
     workItemId: text("work_item_id"),
     change: jsonb("change").$type<Change>().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.organizationId, t.cursor] }),
-    index("sync_scope_cursor_idx").on(t.organizationId, t.productId, t.cursor),
+    index("sync_scope_cursor_idx").on(t.organizationId, t.projectId, t.cursor),
   ],
 );
 export const syncMutation = pgTable(
@@ -56,7 +56,7 @@ export const activity = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    productId: text("product_id").notNull(),
+    projectId: text("project_id").notNull(),
     workItemId: text("work_item_id").notNull(),
     actorId: text("actor_id").notNull(),
     // Domain action key (e.g. status_changed) with structured detail for rendering.

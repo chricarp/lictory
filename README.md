@@ -79,7 +79,7 @@ bun run db:studio    # inspect local data
 bun run db:test      # verify migrations and constraints in a disposable local database
 ```
 
-## Production notes
+## production notes
 
 - Replace `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
 - Set `BETTER_AUTH_URL` to the canonical HTTPS origin.
@@ -93,7 +93,7 @@ suggestions, review requests, revision-bound approvals and computed readiness th
 persistent browser synchronization engine. See [the sync architecture](docs/synchronization.md)
 for the protocol, authorization, recovery guarantees and current boundaries.
 
-Start at `/app`: create an organization and product, then create a proposal. Organization
+Start at `/app`: create an organization and project, then create a proposal. Organization
 settings provide invitation links for teammates. Product philosophy, glossary, and
 engineering conventions live in [`AGENTS.md`](./AGENTS.md).
 
@@ -131,7 +131,7 @@ The app runs at http://localhost:3000.
 | Command                | Purpose                                     |
 | ---------------------- | ------------------------------------------- |
 | `bun run dev`          | Start the development server                |
-| `bun run build`        | Production build                            |
+| `bun run build`        | production build                            |
 | `bun run start`        | Serve the production build                  |
 | `bun run typecheck`    | TypeScript check without emitting files     |
 | `bun run lint`         | Run ESLint                                  |

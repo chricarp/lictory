@@ -6,7 +6,7 @@ import { paths } from "~/lib/paths";
 import { identifier } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { useWorkspace } from "~/components/workspace/provider";
-import { useProduct } from "~/components/workspace/product-gate";
+import { useProject } from "~/components/workspace/project-gate";
 import { IssueList } from "./issue-list";
 
 // List + detail side by side on wide screens. Both read from the organization
@@ -21,7 +21,7 @@ export function SplitView({
 }) {
   const segment = useSelectedLayoutSegment();
   const { items, organization } = useWorkspace();
-  const product = useProduct();
+  const project = useProject();
   const selected =
     segment && segment !== "__DEFAULT__"
       ? decodeURIComponent(segment)
@@ -30,16 +30,16 @@ export function SplitView({
     () =>
       items.filter(
         (i) =>
-          i.productId === product.id &&
+          i.projectId === project.id &&
           (kind === "epics" ? i.kind === "epic" : i.kind !== "epic"),
       ),
-    [items, product.id, kind],
+    [items, project.id, kind],
   );
   const selectedItem = selected
     ? scoped.find(
         (i) =>
           i.id === selected ||
-          identifier(product, i.number).toLowerCase() ===
+          identifier(project, i.number).toLowerCase() ===
             selected.toLowerCase(),
       )
     : undefined;
@@ -47,16 +47,16 @@ export function SplitView({
     (item: WorkItem) =>
       paths.item(
         organization.slug,
-        product.key,
+        project.key,
         kind,
-        identifier(product, item.number),
+        identifier(project, item.number),
       ),
-    [organization.slug, product, kind],
+    [organization.slug, project, kind],
   );
   const list = (compact: boolean) => (
     <IssueList
       items={scoped}
-      product={product}
+      project={project}
       hrefFor={hrefFor}
       selectedId={selectedItem?.id}
       compact={compact}
@@ -66,7 +66,7 @@ export function SplitView({
       emptyTitle={kind === "epics" ? "No epics yet" : "No stories yet"}
       emptyBody={
         kind === "epics"
-          ? "An Epic captures a product capability. Start with a title; refine it with your team."
+          ? "An Epic captures a project capability. Start with a title; refine it with your team."
           : "Stories describe concrete behavior engineering will implement. Create them from an Epic or here."
       }
     />

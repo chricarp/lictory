@@ -15,7 +15,7 @@ export function Onboarding({
   userName,
   canCreate = true,
 }: {
-  step: "organization" | "product";
+  step: "organization" | "project";
   userName?: string;
   canCreate?: boolean;
 }) {
@@ -29,24 +29,24 @@ export function Onboarding({
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Create an organization for your team. You can invite people and add
-            products afterwards.
+            projects afterwards.
           </p>
           <CreateOrganization />
         </>
       ) : (
         <>
           <h1 className="text-xl font-semibold tracking-tight">
-            Add your first product
+            Add your first project
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            A product groups Epics and Stories. Its key prefixes every item
+            A project groups Epics and Stories. Its key prefixes every item
             identifier, like <span className="font-mono">PAY-142</span>.
           </p>
           {canCreate ? (
-            <CreateProduct />
+            <CreateProject />
           ) : (
             <p className="mt-6 text-sm text-muted-foreground">
-              An organization administrator needs to create the first product.
+              An organization administrator needs to create the first project.
             </p>
           )}
         </>
@@ -105,7 +105,7 @@ function CreateOrganization() {
   );
 }
 
-export function CreateProduct({ onDone }: { onDone?: () => void }) {
+export function CreateProject({ onDone }: { onDone?: () => void }) {
   const router = useRouter();
   const { mutate, engine, organization } = useWorkspace();
   const [name, setName] = useState("");
@@ -130,8 +130,8 @@ export function CreateProduct({ onDone }: { onDone?: () => void }) {
         setError(undefined);
         try {
           const id = await mutate({
-            type: "createProduct",
-            productId: crypto.randomUUID(),
+            type: "createProject",
+            projectId: crypto.randomUUID(),
             name: submittedName,
             key: submittedKey,
           });
@@ -144,7 +144,7 @@ export function CreateProduct({ onDone }: { onDone?: () => void }) {
           router.push(paths.list(organization.slug, submittedKey, "epics"));
         } catch (err) {
           setError(
-            err instanceof Error ? err.message : "Could not create product.",
+            err instanceof Error ? err.message : "Could not create project.",
           );
         } finally {
           setPending(false);
@@ -152,7 +152,7 @@ export function CreateProduct({ onDone }: { onDone?: () => void }) {
       }}
     >
       <label className="block text-sm font-medium">
-        Product name
+        Project name
         <Input
           name="name"
           className="mt-1.5"
@@ -193,7 +193,7 @@ export function CreateProduct({ onDone }: { onDone?: () => void }) {
         </p>
       )}
       <Button type="submit" size="lg" disabled={pending}>
-        Create product
+        Create project
       </Button>
     </form>
   );

@@ -34,7 +34,7 @@ async function fixture() {
   const userId = crypto.randomUUID();
   const reviewerId = crypto.randomUUID();
   await db.insert(s.user).values([
-    { id: userId, name: "Product", email: `${userId}@example.test` },
+    { id: userId, name: "Project", email: `${userId}@example.test` },
     {
       id: reviewerId,
       name: "Engineering",
@@ -67,24 +67,24 @@ async function fixture() {
     command: Command,
     actor = userId,
     id = crypto.randomUUID(),
-  ) => service.mutate(actor, { protocol: 2, id, organizationId, command });
-  const productId = crypto.randomUUID();
+  ) => service.mutate(actor, { protocol: 3, id, organizationId, command });
+  const projectId = crypto.randomUUID();
   await command({
-    type: "createProduct",
-    productId,
+    type: "createProject",
+    projectId,
     name: "Payments",
     key: "PAY",
   });
-  const product = (
+  const project = (
     await db
       .select()
-      .from(s.product)
-      .where(eq(s.product.organizationId, organizationId))
+      .from(s.project)
+      .where(eq(s.project.organizationId, organizationId))
   )[0]!;
   const proposalId = crypto.randomUUID();
   await command({
     type: "createWorkItem",
-    productId: product.id,
+    projectId: project.id,
     workItemId: proposalId,
     kind: "story",
     parentId: null,
@@ -93,7 +93,7 @@ async function fixture() {
   });
   const scope = {
     organizationId,
-    productId: product.id,
+    projectId: project.id,
     workItemId: proposalId,
   };
   const read = async (cursor?: string, limit?: number) =>
@@ -111,7 +111,7 @@ async function fixture() {
     userId,
     reviewerId,
     proposalId,
-    productId: product.id,
+    projectId: project.id,
     scope,
     command,
     read,
@@ -294,7 +294,7 @@ void test("bootstrap, delta, and mutations reject foreign tenants and revoked me
     /access has been removed/,
   );
   await assert.rejects(
-    service.read(a.userId, { ...a.scope, productId: b.productId }),
+    service.read(a.userId, { ...a.scope, projectId: b.projectId }),
     DomainError,
   );
   await assert.rejects(
@@ -325,7 +325,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
     ["A", "B", "C"].map((title) =>
       f.command({
         type: "createWorkItem",
-        productId: f.productId,
+        projectId: f.projectId,
         workItemId: crypto.randomUUID(),
         kind: "epic",
         parentId: null,
@@ -336,7 +336,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
   const page = pageSchema.parse(
     await service.read(
       f.userId,
-      { organizationId: f.organizationId, productId: f.productId },
+      { organizationId: f.organizationId, projectId: f.projectId },
       before.nextCursor,
     ),
   );
@@ -353,7 +353,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
     await assert.rejects(
       f.command({
         type: "createWorkItem",
-        productId: f.productId,
+        projectId: f.projectId,
         workItemId: failedProposalId,
         kind: "epic",
         parentId: null,
@@ -444,7 +444,7 @@ void test("optimistic overlay is replayed over authoritative entities without mu
     state,
     [
       {
-        protocol: 2,
+        protocol: 3,
         id: crypto.randomUUID(),
         organizationId: "org",
         command: {
@@ -687,7 +687,7 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
   const epicId = crypto.randomUUID();
   await f.command({
     type: "createWorkItem",
-    productId: f.productId,
+    projectId: f.projectId,
     workItemId: epicId,
     kind: "epic",
     parentId: null,
@@ -701,7 +701,7 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
   await assert.rejects(
     f.command({
       type: "createWorkItem",
-      productId: f.productId,
+      projectId: f.projectId,
       workItemId: crypto.randomUUID(),
       kind: "story",
       parentId: f.proposalId, // a story, not an epic
@@ -716,7 +716,7 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
   });
   const epicScope = {
     organizationId: f.organizationId,
-    productId: f.productId,
+    projectId: f.projectId,
     workItemId: epicId,
   };
   const epic = pageSchema
@@ -735,8 +735,8 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
   );
   await assert.rejects(
     f.command({
-      type: "createProduct",
-      productId: crypto.randomUUID(),
+      type: "createProject",
+      projectId: crypto.randomUUID(),
       name: "Other",
       key: "PAY",
     }),
@@ -744,13 +744,13 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
   );
 });
 
-void test("labels, milestones and manual ordering are product-scoped, non-material properties", async () => {
+void test("labels, milestones and manual ordering are project-scoped, non-material properties", async () => {
   const f = await fixture();
   const labelId = crypto.randomUUID();
   const milestoneId = crypto.randomUUID();
   await f.command({
     type: "createLabel",
-    productId: f.productId,
+    projectId: f.projectId,
     labelId,
     name: "Payments",
     color: "blue",
@@ -758,7 +758,7 @@ void test("labels, milestones and manual ordering are product-scoped, non-materi
   await assert.rejects(
     f.command({
       type: "createLabel",
-      productId: f.productId,
+      projectId: f.projectId,
       labelId: crypto.randomUUID(),
       name: "payments",
       color: "red",
@@ -767,7 +767,7 @@ void test("labels, milestones and manual ordering are product-scoped, non-materi
   );
   await f.command({
     type: "createMilestone",
-    productId: f.productId,
+    projectId: f.projectId,
     milestoneId,
     name: "Q3 release",
     targetDate: "2026-09-30",
@@ -814,18 +814,18 @@ void test("labels, milestones and manual ordering are product-scoped, non-materi
   assert.ok(
     all.some((e) => e.type === "activity" && e.action === "labels_changed"),
   );
-  // Another product's label is rejected.
-  const otherProduct = crypto.randomUUID();
+  // Another project's label is rejected.
+  const otherProject = crypto.randomUUID();
   await f.command({
-    type: "createProduct",
-    productId: otherProduct,
+    type: "createProject",
+    projectId: otherProject,
     name: "Other",
     key: "OTH",
   });
   const foreignLabel = crypto.randomUUID();
   await f.command({
     type: "createLabel",
-    productId: otherProduct,
+    projectId: otherProject,
     labelId: foreignLabel,
     name: "Foreign",
     color: "gray",
@@ -836,13 +836,13 @@ void test("labels, milestones and manual ordering are product-scoped, non-materi
       workItemId: f.proposalId,
       labelIds: [foreignLabel],
     }),
-    /unavailable in this product/,
+    /unavailable in this project/,
   );
   // Ordering among siblings of an epic.
   const epicId = crypto.randomUUID();
   await f.command({
     type: "createWorkItem",
-    productId: f.productId,
+    projectId: f.projectId,
     workItemId: epicId,
     kind: "epic",
     parentId: null,
@@ -856,7 +856,7 @@ void test("labels, milestones and manual ordering are product-scoped, non-materi
   for (const [i, id] of stories.entries())
     await f.command({
       type: "createWorkItem",
-      productId: f.productId,
+      projectId: f.projectId,
       workItemId: id,
       kind: "story",
       parentId: epicId,
@@ -886,7 +886,7 @@ void test("labels, milestones and manual ordering are product-scoped, non-materi
   );
   await f.command({
     type: "updateMilestone",
-    productId: f.productId,
+    projectId: f.projectId,
     milestoneId,
     status: "completed",
   });

@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { paths } from "~/lib/paths";
-import { identifier, type Product } from "~/lib/work-items";
+import { identifier, type Project } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover } from "~/components/ui/popover";
@@ -46,15 +46,15 @@ const seenKey = (id: string) => `lictory:seen:${id}`;
 
 export function ItemDetail({
   item,
-  product,
+  project,
   pendingCreate,
 }: {
   item: WorkItem;
-  product: Product;
+  project: Project;
   pendingCreate: boolean;
 }) {
   const workspace = useWorkspace();
-  const itemEngine = useItemEngine(item.id, item.productId, !pendingCreate);
+  const itemEngine = useItemEngine(item.id, item.projectId, !pendingCreate);
   // While creation is still queued the organization store already holds the
   // optimistic item and its first revision; the item engine opens afterwards.
   const entities = itemEngine.engine
@@ -62,7 +62,7 @@ export function ItemDetail({
     : Object.values(workspace.view.entities);
   const ctx = useItemContextValue({
     item,
-    product,
+    project,
     entities,
     view: itemEngine.engine ? itemEngine.view : workspace.view,
     userId: workspace.userId,
@@ -123,7 +123,7 @@ export function ItemDetail({
     : undefined;
   const listHref = paths.list(
     workspace.organization.slug,
-    product.key,
+    project.key,
     item.kind === "epic" ? "epics" : "stories",
   );
   const update = (patch: {
@@ -165,22 +165,22 @@ export function ItemDetail({
         <Property label="Epic">
           <ParentPicker
             parentId={item.parentId}
-            productId={item.productId}
-            product={product}
+            projectId={item.projectId}
+            project={project}
             onChange={(parentId) => update({ parentId })}
           />
         </Property>
       )}
       <Property label="Milestone">
         <MilestonePicker
-          productId={item.productId}
+          projectId={item.projectId}
           milestoneId={item.milestoneId}
           onChange={(milestoneId) => update({ milestoneId })}
         />
       </Property>
       <Property label="Labels">
         <LabelPicker
-          productId={item.productId}
+          projectId={item.projectId}
           labelIds={item.labelIds}
           onChange={(labelIds) => update({ labelIds })}
         />
@@ -217,9 +217,9 @@ export function ItemDetail({
                 <Link
                   href={paths.item(
                     workspace.organization.slug,
-                    product.key,
+                    project.key,
                     "epics",
-                    identifier(product, parent.number),
+                    identifier(project, parent.number),
                   )}
                   className="flex min-w-0 items-center gap-1 hover:text-foreground"
                   title={parent.title}
@@ -232,7 +232,7 @@ export function ItemDetail({
             <ChevronRight className="size-3.5 shrink-0" />
             <KindIcon kind={item.kind} />
             <IssueIdentifier
-              product={product}
+              project={project}
               number={item.number}
               copyable
               className="text-foreground"

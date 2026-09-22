@@ -8,24 +8,24 @@ import { identifier, parseIdentifier } from "~/lib/work-items";
 import { useWorkspace } from "~/components/workspace/provider";
 
 export function ItemRedirect({ identifier: raw }: { identifier: string }) {
-  const { items, products, organization, view } = useWorkspace();
+  const { items, projects, organization, view } = useWorkspace();
   const router = useRouter();
   const parsed = parseIdentifier(raw);
-  const product = parsed
-    ? products.find((p) => p.key === parsed.key)
+  const project = parsed
+    ? projects.find((p) => p.key === parsed.key)
     : undefined;
   const item = parsed
     ? items.find(
-        (i) => i.productId === product?.id && i.number === parsed.number,
+        (i) => i.projectId === project?.id && i.number === parsed.number,
       )
     : items.find((i) => i.id === raw);
   const target = item
     ? paths.item(
         organization.slug,
-        products.find((p) => p.id === item.productId)?.key ?? "",
+        projects.find((p) => p.id === item.projectId)?.key ?? "",
         item.kind === "epic" ? "epics" : "stories",
         identifier(
-          products.find((p) => p.id === item.productId),
+          projects.find((p) => p.id === item.projectId),
           item.number,
         ),
       )
@@ -51,8 +51,8 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
         </Link>
       }
     >
-      {parsed && !product
-        ? `No product uses the key ${parsed.key}.`
+      {parsed && !project
+        ? `No project uses the key ${parsed.key}.`
         : "Check the identifier and try again."}
     </EmptyState>
   );

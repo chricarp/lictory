@@ -4,16 +4,19 @@ import { useRouter } from "next/navigation";
 import { useWorkspace } from "~/components/workspace/provider";
 import { Onboarding } from "~/components/workspace/onboarding";
 import { paths } from "~/lib/paths";
+import { useLastProjectKey } from "~/lib/last-project";
 
-// Organization root: open the first product's Epics, or create the first product.
+// Organization root: reopen the project this person last worked in (or the
+// first project), or create the first project.
 export default function OrganizationIndex() {
-  const { organization, products, view, isAdmin } = useWorkspace();
+  const { organization, projects, view, isAdmin } = useWorkspace();
   const router = useRouter();
-  const first = products[0];
+  const lastKey = useLastProjectKey(organization.id);
+  const target = projects.find((p) => p.key === lastKey) ?? projects[0];
   useEffect(() => {
-    if (first)
-      router.replace(paths.list(organization.slug, first.key, "epics"));
-  }, [first, organization.slug, router]);
-  if (first || view.status === "hydrating") return null;
-  return <Onboarding step="product" canCreate={isAdmin} />;
+    if (target)
+      router.replace(paths.list(organization.slug, target.key, "epics"));
+  }, [target, organization.slug, router]);
+  if (target || view.status === "hydrating") return null;
+  return <Onboarding step="project" canCreate={isAdmin} />;
 }

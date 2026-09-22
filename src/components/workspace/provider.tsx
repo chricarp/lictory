@@ -22,7 +22,7 @@ import {
   myGroupIds,
   type Label,
   type Milestone,
-  type Product,
+  type Project,
 } from "~/lib/work-items";
 
 type Organization = Directory["organizations"][number];
@@ -33,7 +33,7 @@ type WorkspaceContextValue = {
   engine: SyncEngine;
   view: View;
   directory: Directory;
-  products: Product[];
+  projects: Project[];
   items: WorkItem[];
   labels: Label[];
   milestones: Milestone[];
@@ -41,7 +41,7 @@ type WorkspaceContextValue = {
   isAdmin: boolean;
   mutate: (command: Command) => Promise<string>;
   memberName: (id: string | null | undefined) => string;
-  acquireItem: (itemId: string, productId: string) => SyncEngine;
+  acquireItem: (itemId: string, projectId: string) => SyncEngine;
   releaseItem: (itemId: string) => void;
 };
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -85,14 +85,14 @@ export function WorkspaceProvider({
     };
   }, []);
   const acquireItem = useCallback(
-    (itemId: string, productId: string) => {
+    (itemId: string, projectId: string) => {
       const cache = itemEngines.current;
       let entry = cache.get(itemId);
       if (!entry) {
         entry = {
           engine: new SyncEngine(userId, {
             organizationId: organization.id,
-            productId,
+            projectId,
             workItemId: itemId,
           }),
           refs: 0,
@@ -126,17 +126,17 @@ export function WorkspaceProvider({
     : initialDirectory;
   const value = useMemo<WorkspaceContextValue>(() => {
     const entities = Object.values(view.entities);
-    const products = byType(entities, "product")
+    const projects = byType(entities, "project")
       .filter((p) => !p.archivedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
-    const merged = products.length ? products : directory.products;
+    const merged = projects.length ? projects : directory.projects;
     return {
       userId,
       organization,
       engine,
       view,
       directory,
-      products: merged,
+      projects: merged,
       items: byType(entities, "workItem"),
       labels: byType(entities, "label").sort((a, b) =>
         a.name.localeCompare(b.name),
@@ -177,14 +177,14 @@ export function useWorkspace() {
 // the item; the organization engine still provides the summary for lists.
 export function useItemEngine(
   itemId: string,
-  productId: string,
+  projectId: string,
   enabled = true,
 ) {
   const { acquireItem, releaseItem } = useWorkspace();
   const [engine, setEngine] = useState<SyncEngine>();
   useEffect(() => {
     if (!enabled) return;
-    const e = acquireItem(itemId, productId);
+    const e = acquireItem(itemId, projectId);
     // Synchronizes with an external engine cache; the engine only exists
     // after acquisition, so it cannot be derived during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -193,7 +193,7 @@ export function useItemEngine(
       setEngine(undefined);
       releaseItem(itemId);
     };
-  }, [itemId, productId, enabled, acquireItem, releaseItem]);
+  }, [itemId, projectId, enabled, acquireItem, releaseItem]);
   const subscribe = useCallback(
     (listener: () => void) =>
       engine
@@ -223,7 +223,7 @@ export function useItemEngine(
 }
 const hydratingView: View = {
   entities: {},
-  directory: { organizations: [], products: [], members: [], groups: [] },
+  directory: { organizations: [], projects: [], members: [], groups: [] },
   pending: [],
   status: "hydrating",
 };

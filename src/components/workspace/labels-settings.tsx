@@ -20,17 +20,19 @@ import { SectionLabel } from "~/components/ui/primitives";
 import { Popover, Picker } from "~/components/ui/popover";
 import { ColorDot } from "~/components/items/labels";
 import { useWorkspace } from "./provider";
+import { useShell } from "./shell";
 
-// Product-scoped labels and milestones. Archiving is reversible and keeps every
+// Project-scoped labels and milestones. Archiving is reversible and keeps every
 // historical assignment; nothing here deletes.
 export function LabelsAndMilestones() {
-  const { products, labels, milestones, mutate, items } = useWorkspace();
-  const [productId, setProductId] = useState(products[0]?.id);
-  const product = products.find((p) => p.id === productId) ?? products[0];
-  if (!product) return null;
-  const productLabels = labels.filter((l) => l.productId === product.id);
-  const productMilestones = milestones.filter(
-    (m) => m.productId === product.id,
+  const { projects, labels, milestones, mutate, items } = useWorkspace();
+  const { project: current } = useShell();
+  const [projectId, setProjectId] = useState(current?.id ?? projects[0]?.id);
+  const project = projects.find((p) => p.id === projectId) ?? projects[0];
+  if (!project) return null;
+  const projectLabels = labels.filter((l) => l.projectId === project.id);
+  const projectMilestones = milestones.filter(
+    (m) => m.projectId === project.id,
   );
   const usage = (predicate: (i: (typeof items)[number]) => boolean) =>
     items.filter((i) => !i.archivedAt && predicate(i)).length;
@@ -38,14 +40,14 @@ export function LabelsAndMilestones() {
     <section className="space-y-6">
       <div className="flex items-center gap-2">
         <SectionLabel>Labels & milestones</SectionLabel>
-        {products.length > 1 && (
+        {projects.length > 1 && (
           <select
-            value={product.id}
-            onChange={(e) => setProductId(e.target.value)}
-            aria-label="Product"
+            value={project.id}
+            onChange={(e) => setProjectId(e.target.value)}
+            aria-label="Project"
             className="ml-auto h-7 rounded-md border bg-card px-2 text-xs"
           >
-            {products.map((p) => (
+            {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -56,12 +58,12 @@ export function LabelsAndMilestones() {
       <div className="space-y-2">
         <p className="text-[13px] font-medium">Labels</p>
         <div className="divide-y rounded-lg border">
-          {productLabels.length === 0 && (
+          {projectLabels.length === 0 && (
             <p className="p-3 text-[13px] text-muted-foreground">
               No labels yet.
             </p>
           )}
-          {productLabels.map((l) => (
+          {projectLabels.map((l) => (
             <LabelRow
               key={l.id}
               label={l}
@@ -69,7 +71,7 @@ export function LabelsAndMilestones() {
               update={(patch) =>
                 mutate({
                   type: "updateLabel",
-                  productId: product.id,
+                  projectId: project.id,
                   labelId: l.id,
                   ...patch,
                 })
@@ -77,17 +79,17 @@ export function LabelsAndMilestones() {
             />
           ))}
         </div>
-        <NewLabel productId={product.id} />
+        <NewLabel projectId={project.id} />
       </div>
       <div className="space-y-2">
         <p className="text-[13px] font-medium">Milestones</p>
         <div className="divide-y rounded-lg border">
-          {productMilestones.length === 0 && (
+          {projectMilestones.length === 0 && (
             <p className="p-3 text-[13px] text-muted-foreground">
               No milestones yet.
             </p>
           )}
-          {productMilestones.map((m) => (
+          {projectMilestones.map((m) => (
             <MilestoneRow
               key={m.id}
               milestone={m}
@@ -95,7 +97,7 @@ export function LabelsAndMilestones() {
               update={(patch) =>
                 mutate({
                   type: "updateMilestone",
-                  productId: product.id,
+                  projectId: project.id,
                   milestoneId: m.id,
                   ...patch,
                 })
@@ -103,7 +105,7 @@ export function LabelsAndMilestones() {
             />
           ))}
         </div>
-        <NewMilestone productId={product.id} />
+        <NewMilestone projectId={project.id} />
       </div>
     </section>
   );
@@ -184,7 +186,7 @@ function LabelRow({
   );
 }
 
-function NewLabel({ productId }: { productId: string }) {
+function NewLabel({ projectId }: { projectId: string }) {
   const { mutate } = useWorkspace();
   const [name, setName] = useState("");
   const [color, setColor] = useState<LabelColor>("blue");
@@ -199,7 +201,7 @@ function NewLabel({ productId }: { productId: string }) {
         try {
           await mutate({
             type: "createLabel",
-            productId,
+            projectId,
             labelId: crypto.randomUUID(),
             name: name.trim(),
             color,
@@ -338,7 +340,7 @@ function MilestoneRow({
   );
 }
 
-function NewMilestone({ productId }: { productId: string }) {
+function NewMilestone({ projectId }: { projectId: string }) {
   const { mutate } = useWorkspace();
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
@@ -353,7 +355,7 @@ function NewMilestone({ productId }: { productId: string }) {
         try {
           await mutate({
             type: "createMilestone",
-            productId,
+            projectId,
             milestoneId: crypto.randomUUID(),
             name: name.trim(),
             targetDate: date || null,

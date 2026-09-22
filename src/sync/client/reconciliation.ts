@@ -28,10 +28,10 @@ export function optimistic(
     const c = mutation.command;
     const organizationId = mutation.organizationId;
     switch (c.type) {
-      case "createProduct":
-        next[`product:${c.productId}`] = {
-          type: "product",
-          id: c.productId,
+      case "createProject":
+        next[`project:${c.projectId}`] = {
+          type: "project",
+          id: c.projectId,
           organizationId,
           name: c.name,
           slug: c.key.toLowerCase(),
@@ -44,7 +44,7 @@ export function optimistic(
         const numbers = Object.values(next)
           .filter(
             (e): e is WorkItem =>
-              e.type === "workItem" && e.productId === c.productId,
+              e.type === "workItem" && e.projectId === c.projectId,
           )
           .map((e) => e.number);
         const revisionId = `pending:${c.workItemId}`;
@@ -52,7 +52,7 @@ export function optimistic(
           type: "workItem",
           id: c.workItemId,
           organizationId,
-          productId: c.productId,
+          projectId: c.projectId,
           parentId: c.parentId,
           kind: c.kind,
           number: Math.max(0, ...numbers) + 1,

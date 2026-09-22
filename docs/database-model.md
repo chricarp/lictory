@@ -25,13 +25,13 @@ They do not confer permissions. Better Auth `member` is the sole source of
 organization membership. Review responsibilities are strings on reviews, not
 department columns or group roles. A review may have multiple individual/group
 assignments; each assignment targets exactly one kind. Withdrawing an assignment
-retains its record and permits reassignment. Product access rules and configurable
+retains its record and permits reassignment. Project access rules and configurable
 authorization policies are intentionally deferred.
 
 ## Tenancy and authorization
 
 All domain records have an explicit organization foreign key. Composite foreign
-keys include organization and, where necessary, proposal, product, and revision.
+keys include organization and, where necessary, proposal, project, and revision.
 They prevent attaching a review, comment, approval, suggestion, decision source,
 or delivery child to a different context, even if an ID is otherwise valid.
 Nullable provenance is constrained so a missing parent cannot bypass the
@@ -99,7 +99,7 @@ There is no generic workflow engine or preconfigured readiness policy.
 
 ## Decisions and delivery
 
-Decisions belong to a product, with optional proposal/revision/thread provenance.
+Decisions belong to a project, with optional proposal/revision/thread provenance.
 They can be archived without erasing the source discussion. Editable decisions
 are not themselves versioned in this initial model.
 
@@ -123,8 +123,8 @@ by the future adapter. Conflict resolution must precede any sync implementation.
 ## Retention
 
 Domain history and actor references use restrictive foreign keys. Deleting a
-product/proposal/organization with referenced history, or a referenced author,
-fails instead of silently cascading. Archive timestamps on products, proposals,
+project/proposal/organization with referenced history, or a referenced author,
+fails instead of silently cascading. Archive timestamps on projects, proposals,
 groups, decisions, and delivery items support reversible removal from active
 views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
@@ -155,6 +155,6 @@ server account with CREATE DATABASE permission if needed. It deliberately ignore
 reapply migrations, exercise Better Auth organization creation, and verify domain
 constraints. They do not modify the application database.
 
-Policies, product membership, integration configuration, AI, notifications,
+Policies, project membership, integration configuration, AI, notifications,
 realtime events, complete audit logging, editor-specific anchors, and application
 workflow services are deferred until concrete behavior requires them.

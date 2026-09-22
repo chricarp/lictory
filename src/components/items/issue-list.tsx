@@ -23,7 +23,7 @@ import {
   statusMeta,
   statusOrder,
   type Filters,
-  type Product,
+  type Project,
   type SortKey,
 } from "~/lib/work-items";
 import type { WorkItem, WorkItemStatus } from "~/sync/shared/protocol";
@@ -40,7 +40,7 @@ import { ColorDot } from "./labels";
 
 export function IssueList({
   items,
-  product,
+  project,
   hrefFor,
   selectedId,
   compact = false,
@@ -54,7 +54,7 @@ export function IssueList({
   header,
 }: {
   items: WorkItem[];
-  product: Product | undefined;
+  project: Project | undefined;
   hrefFor: (item: WorkItem) => string;
   selectedId?: string;
   compact?: boolean;
@@ -69,7 +69,7 @@ export function IssueList({
 }) {
   const {
     items: allItems,
-    products,
+    projects,
     memberName,
     mutate,
     view,
@@ -126,10 +126,10 @@ export function IssueList({
   const visible = useMemo(() => {
     const scoped = items.filter((i) => showArchived || !i.archivedAt);
     return sortItems(
-      applyFilters(scoped, { ...filters, search }, products),
+      applyFilters(scoped, { ...filters, search }, projects),
       sort,
     );
-  }, [items, filters, search, sort, products, showArchived]);
+  }, [items, filters, search, sort, projects, showArchived]);
   const groups = useMemo(() => {
     if (!group)
       return [
@@ -199,16 +199,11 @@ export function IssueList({
     (filters.blocked ? 1 : 0) +
     (filters.needsReview ? 1 : 0);
   const epics = allItems.filter(
-    (i) => i.kind === "epic" && i.productId === product?.id && !i.archivedAt,
+    (i) => i.kind === "epic" && i.projectId === project?.id && !i.archivedAt,
   );
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header
-        className={cn(
-          "flex shrink-0 items-center gap-2 border-b px-3",
-          compact ? "h-10" : "h-11",
-        )}
-      >
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
         <h1 className="truncate text-sm font-semibold">{title}</h1>
         <span className="text-xs text-muted-foreground tabular-nums">
           {visible.length}
@@ -244,12 +239,12 @@ export function IssueList({
               filters={filters}
               setFilters={setFilters}
               epics={allowEpicFilter ? epics : []}
-              product={product}
+              project={project}
               labels={allLabels.filter(
-                (l) => l.productId === product?.id && !l.archivedAt,
+                (l) => l.projectId === project?.id && !l.archivedAt,
               )}
               milestones={allMilestones.filter(
-                (m) => m.productId === product?.id && !m.archivedAt,
+                (m) => m.projectId === project?.id && !m.archivedAt,
               )}
             />
           </Popover>
@@ -320,11 +315,11 @@ export function IssueList({
               )}
             </div>
           </Popover>
-          {createKind && product && (
+          {createKind && project && (
             <Button
               size="sm"
               onClick={() =>
-                openCreate({ kind: createKind, productId: product.id })
+                openCreate({ kind: createKind, projectId: project.id })
               }
               aria-label={`New ${createKind}`}
             >
@@ -393,7 +388,7 @@ export function IssueList({
               {p === "none"
                 ? "No epic"
                 : identifier(
-                    product,
+                    project,
                     epics.find((e) => e.id === p)?.number ?? 0,
                   )}
             </Chip>
@@ -461,11 +456,11 @@ export function IssueList({
                 : emptyTitle
             }
             action={
-              createKind && product && !activeFilterCount && !filters.search ? (
+              createKind && project && !activeFilterCount && !filters.search ? (
                 <Button
                   variant="secondary"
                   onClick={() =>
-                    openCreate({ kind: createKind, productId: product.id })
+                    openCreate({ kind: createKind, projectId: project.id })
                   }
                 >
                   <Plus className="size-3.5" /> Create{" "}
@@ -496,7 +491,7 @@ export function IssueList({
                     <IssueRow
                       key={item.id}
                       item={item}
-                      product={product}
+                      project={project}
                       parent={
                         item.parentId
                           ? allItems.find((i) => i.id === item.parentId)
@@ -554,14 +549,14 @@ function FilterPanel({
   filters,
   setFilters,
   epics,
-  product,
+  project,
   labels,
   milestones,
 }: {
   filters: Filters;
   setFilters: (fn: (f: Filters) => Filters) => void;
   epics: WorkItem[];
-  product: Product | undefined;
+  project: Project | undefined;
   labels: Label[];
   milestones: Milestone[];
 }) {
@@ -624,7 +619,7 @@ function FilterPanel({
           ...epics.map((e) => ({
             value: e.id,
             label: e.title,
-            hint: identifier(product, e.number),
+            hint: identifier(project, e.number),
           })),
         ]}
         value={filters.parent ?? []}
@@ -643,7 +638,7 @@ function FilterPanel({
         }))}
         value={filters.label ?? []}
         onSelect={(v) => toggle("label", v)}
-        emptyText="No labels in this product."
+        emptyText="No labels in this project."
       />
     );
   if (section === "milestone")

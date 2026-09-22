@@ -51,7 +51,7 @@ export function CommandPalette({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const { organization, products, items, userId, mutate } = useWorkspace();
+  const { organization, projects, items, userId, mutate } = useWorkspace();
   const { openCreate, currentItem } = useShell();
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
@@ -68,17 +68,17 @@ export function CommandPalette({
     },
     [onClose, router],
   );
-  const productOf = useCallback(
-    (id: string) => products.find((p) => p.id === id),
-    [products],
+  const projectOf = useCallback(
+    (id: string) => projects.find((p) => p.id === id),
+    [projects],
   );
-  const currentProduct = currentItem
-    ? productOf(currentItem.productId)
+  const currentProject = currentItem
+    ? projectOf(currentItem.projectId)
     : undefined;
   const commands = useMemo<Item[]>(() => {
     const list: Item[] = [];
-    if (currentItem && currentProduct) {
-      const id = identifier(currentProduct, currentItem.number);
+    if (currentItem && currentProject) {
+      const id = identifier(currentProject, currentItem.number);
       if (currentItem.assigneeId !== userId)
         list.push({
           id: "assign-me",
@@ -120,7 +120,7 @@ export function CommandPalette({
         icon: <KindIcon kind="epic" />,
         run: () => {
           onClose();
-          openCreate({ kind: "epic", productId: currentProduct?.id });
+          openCreate({ kind: "epic", projectId: currentProject?.id });
         },
       },
       {
@@ -132,7 +132,7 @@ export function CommandPalette({
           onClose();
           openCreate({
             kind: "story",
-            productId: currentProduct?.id,
+            projectId: currentProject?.id,
             parentId: currentItem?.kind === "epic" ? currentItem.id : null,
           });
         },
@@ -152,14 +152,14 @@ export function CommandPalette({
         run: () => go(paths.settings(org)),
       },
     );
-    for (const p of products) {
+    for (const p of projects) {
       list.push(
         {
           id: `epics-${p.id}`,
           label: `${p.name} · Epics`,
           group: "Navigate",
           icon: <KindIcon kind="epic" />,
-          keywords: "open product",
+          keywords: "open project",
           run: () => go(paths.list(org, p.key, "epics")),
         },
         {
@@ -189,12 +189,12 @@ export function CommandPalette({
     return list;
   }, [
     currentItem,
-    currentProduct,
+    currentProject,
     userId,
     mutate,
     onClose,
     openCreate,
-    products,
+    projects,
     org,
     go,
   ]);
@@ -203,29 +203,29 @@ export function CommandPalette({
   const results = useMemo<Item[]>(() => {
     const matchedItems = items
       .filter((i) => !i.archivedAt)
-      .map((i) => ({ item: i, product: productOf(i.productId) }))
-      .filter(({ item, product }) => {
+      .map((i) => ({ item: i, project: projectOf(i.projectId) }))
+      .filter(({ item, project }) => {
         if (!q) return false;
-        const id = identifier(product, item.number).toLowerCase();
+        const id = identifier(project, item.number).toLowerCase();
         if (parsed)
-          return product?.key === parsed.key && item.number === parsed.number;
+          return project?.key === parsed.key && item.number === parsed.number;
         return id.includes(q) || item.title.toLowerCase().includes(q);
       })
       .sort((a, b) => b.item.updatedAt.localeCompare(a.item.updatedAt))
       .slice(0, 12)
-      .map<Item>(({ item, product }) => ({
+      .map<Item>(({ item, project }) => ({
         id: item.id,
         label: item.title,
-        hint: identifier(product, item.number),
+        hint: identifier(project, item.number),
         group: "Items",
         icon: <KindIcon kind={item.kind} />,
         run: () =>
           go(
             paths.item(
               org,
-              product?.key ?? "",
+              project?.key ?? "",
               item.kind === "epic" ? "epics" : "stories",
-              identifier(product, item.number),
+              identifier(project, item.number),
             ),
           ),
       }));
@@ -233,7 +233,7 @@ export function CommandPalette({
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
     return [...matchedItems, ...(q ? matchedCommands : commands.slice(0, 8))];
-  }, [items, q, parsed, commands, productOf, go, org]);
+  }, [items, q, parsed, commands, projectOf, go, org]);
   const [lastQuery, setLastQuery] = useState(q);
   if (lastQuery !== q) {
     setLastQuery(q);

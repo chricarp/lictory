@@ -10,7 +10,7 @@ import type {
   WorkItemStatus,
 } from "~/sync/shared/protocol";
 
-export type Product = EntityOf<"product">;
+export type Project = EntityOf<"project">;
 
 export const statusMeta: Record<
   WorkItemStatus,
@@ -62,10 +62,10 @@ export const kindMeta: Record<
 };
 
 export function identifier(
-  product: Pick<Product, "key"> | undefined,
+  project: Pick<Project, "key"> | undefined,
   n: number,
 ) {
-  return `${product?.key ?? "?"}-${n || "…"}`;
+  return `${project?.key ?? "?"}-${n || "…"}`;
 }
 export const identifierPattern = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/;
 export function parseIdentifier(value: string) {
@@ -203,7 +203,7 @@ export type SortKey = "updated" | "created" | "priority" | "status" | "number";
 export function applyFilters(
   items: WorkItem[],
   filters: Filters,
-  products: Product[],
+  projects: Project[],
 ) {
   const q = filters.search?.trim().toLowerCase();
   return items.filter((item) => {
@@ -239,8 +239,8 @@ export function applyFilters(
     )
       return false;
     if (q) {
-      const product = products.find((p) => p.id === item.productId);
-      const id = identifier(product, item.number).toLowerCase();
+      const project = projects.find((p) => p.id === item.projectId);
+      const id = identifier(project, item.number).toLowerCase();
       if (!item.title.toLowerCase().includes(q) && !id.includes(q) && id !== q)
         return false;
     }

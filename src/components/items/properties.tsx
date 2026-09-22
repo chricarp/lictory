@@ -3,7 +3,7 @@ import { PriorityIcon } from "./icons";
 export { PriorityIcon } from "./icons";
 export { AssigneePicker } from "~/components/ui/people-picker";
 import { cn } from "~/lib/utils";
-import { priorityMeta, priorityOrder, type Product } from "~/lib/work-items";
+import { priorityMeta, priorityOrder, type Project } from "~/lib/work-items";
 import type { WorkItemPriority } from "~/sync/shared/protocol";
 import { Popover, Picker } from "~/components/ui/popover";
 import { useWorkspace } from "~/components/workspace/provider";
@@ -65,18 +65,18 @@ export function IssuePriority({
 
 export function ParentPicker({
   parentId,
-  productId,
+  projectId,
   onChange,
-  product,
+  project,
 }: {
   parentId: string | null;
-  productId: string;
-  product?: Product;
+  projectId: string;
+  project?: Project;
   onChange: (parentId: string | null) => void;
 }) {
   const { items } = useWorkspace();
   const epics = items.filter(
-    (i) => i.kind === "epic" && i.productId === productId && !i.archivedAt,
+    (i) => i.kind === "epic" && i.projectId === projectId && !i.archivedAt,
   );
   const parent = epics.find((e) => e.id === parentId);
   return (
@@ -92,7 +92,7 @@ export function ParentPicker({
           {parent ? (
             <>
               <span className="font-mono text-xs text-muted-foreground">
-                {product?.key}-{parent.number}
+                {project?.key}-{parent.number}
               </span>
               <span className="truncate">{parent.title}</span>
             </>
@@ -109,7 +109,7 @@ export function ParentPicker({
           ...epics.map((e) => ({
             value: e.id,
             label: e.title,
-            hint: `${product?.key}-${e.number}`,
+            hint: `${project?.key}-${e.number}`,
           })),
         ]}
         value={parentId ?? "none"}

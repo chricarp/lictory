@@ -34,7 +34,7 @@ export type View = {
 };
 const emptyDirectory: Directory = {
   organizations: [],
-  products: [],
+  projects: [],
   members: [],
   groups: [],
 };
@@ -65,7 +65,7 @@ export class SyncEngine {
     private persistence: Persistence = new IndexedPersistence(),
   ) {
     this.owner = `${userId}:${scope.organizationId}`;
-    this.key = `${this.owner}:${scope.productId ?? "org"}:${scope.workItemId ?? "list"}`;
+    this.key = `${this.owner}:${scope.projectId ?? "org"}:${scope.workItemId ?? "list"}`;
   }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);

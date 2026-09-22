@@ -7,13 +7,13 @@ import type {
   EntityOf,
   WorkItem,
 } from "~/sync/shared/protocol";
-import { byType, type Product } from "~/lib/work-items";
+import { byType, type Project } from "~/lib/work-items";
 
 export type Revision = EntityOf<"revision">;
 
 export type ItemContextValue = {
   item: WorkItem;
-  product: Product;
+  project: Project;
   entities: Entity[];
   revisions: Revision[]; // newest first
   current: Revision | undefined;
@@ -46,7 +46,7 @@ export function useItem() {
 
 export function useItemContextValue(input: {
   item: WorkItem;
-  product: Product;
+  project: Project;
   entities: Entity[];
   view: View;
   userId: string;
@@ -57,7 +57,7 @@ export function useItemContextValue(input: {
 }): ItemContextValue {
   const {
     item,
-    product,
+    project,
     entities,
     view,
     userId,
@@ -76,7 +76,7 @@ export function useItemContextValue(input: {
     const current = revisions[0];
     return {
       item,
-      product,
+      project,
       entities: scoped,
       revisions,
       current,
@@ -113,7 +113,7 @@ export function useItemContextValue(input: {
     };
   }, [
     item,
-    product,
+    project,
     entities,
     view,
     userId,

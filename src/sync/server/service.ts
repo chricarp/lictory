@@ -112,19 +112,19 @@ export async function directory(
       ),
     );
   if (!organizationId)
-    return { organizations, products: [], members: [], groups: [] };
+    return { organizations, projects: [], members: [], groups: [] };
   requireValue(
     organizations.find((o) => o.id === organizationId),
     "Organization access has been removed.",
     "forbidden",
   );
-  const products = (
+  const projects = (
     await db
       .select()
-      .from(s.product)
-      .where(eq(s.product.organizationId, organizationId))
-      .orderBy(asc(s.product.createdAt))
-  ).map((row) => serialize("product", row));
+      .from(s.project)
+      .where(eq(s.project.organizationId, organizationId))
+      .orderBy(asc(s.project.createdAt))
+  ).map((row) => serialize("project", row));
   const members = await db
     .select({ id: s.user.id, name: s.user.name, email: s.user.email })
     .from(s.member)
@@ -149,7 +149,7 @@ export async function directory(
     name: g.name,
     userIds: memberships.filter((m) => m.groupId === g.id).map((m) => m.userId),
   }));
-  return { organizations, products, members, groups };
+  return { organizations, projects, members, groups };
 }
 export async function searchMembers(
   db: Database | Tx,
@@ -308,7 +308,7 @@ function summarize(
     type: "workItem",
     id: item.id,
     organizationId: item.organizationId,
-    productId: item.productId,
+    projectId: item.projectId,
     parentId: item.parentId,
     kind: item.kind,
     number: item.number,
@@ -467,44 +467,44 @@ function readiness(
 }
 
 export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
-  const { organizationId, productId, workItemId } = scope;
-  const products = await tx
+  const { organizationId, projectId, workItemId } = scope;
+  const projects = await tx
     .select()
-    .from(s.product)
+    .from(s.project)
     .where(
       and(
-        eq(s.product.organizationId, organizationId),
-        productId ? eq(s.product.id, productId) : undefined,
+        eq(s.project.organizationId, organizationId),
+        projectId ? eq(s.project.id, projectId) : undefined,
       ),
     );
-  if (productId) requireValue(products[0]);
+  if (projectId) requireValue(projects[0]);
   const items = await tx
     .select()
     .from(s.workItem)
     .where(
       and(
         eq(s.workItem.organizationId, organizationId),
-        productId ? eq(s.workItem.productId, productId) : undefined,
+        projectId ? eq(s.workItem.projectId, projectId) : undefined,
       ),
     )
     .orderBy(asc(s.workItem.createdAt));
   const ctx = await loadItemContext(tx, organizationId, items);
-  const productFilter = <
-    T extends { organizationId: AnyPgColumn; productId: AnyPgColumn },
+  const projectFilter = <
+    T extends { organizationId: AnyPgColumn; projectId: AnyPgColumn },
   >(
     t: T,
   ) =>
     and(
       eq(t.organizationId, organizationId),
-      productId ? eq(t.productId, productId) : undefined,
+      projectId ? eq(t.projectId, projectId) : undefined,
     );
-  const labels = await tx.select().from(s.label).where(productFilter(s.label));
+  const labels = await tx.select().from(s.label).where(projectFilter(s.label));
   const milestones = await tx
     .select()
     .from(s.milestone)
-    .where(productFilter(s.milestone));
+    .where(projectFilter(s.milestone));
   const entities: Entity[] = [
-    ...products.map((p) => serialize("product", p)),
+    ...projects.map((p) => serialize("project", p)),
     ...labels.map((l) => serialize("label", l)),
     ...milestones.map((m) => serialize("milestone", m)),
     ...items.map((item) => summarize(item, items, ctx)),
@@ -582,9 +582,9 @@ export function createSyncService(db: Database) {
             "Checkpoint is ahead of the server. Reset this workspace cache.",
           );
         const roster = await directory(tx, userId, scope.organizationId);
-        if (scope.productId !== undefined)
-          requireValue(roster.products.find((p) => p.id === scope.productId));
-        if (scope.workItemId && scope.productId)
+        if (scope.projectId !== undefined)
+          requireValue(roster.projects.find((p) => p.id === scope.projectId));
+        if (scope.workItemId && scope.projectId)
           requireValue(
             (
               await tx
@@ -593,7 +593,7 @@ export function createSyncService(db: Database) {
                 .where(
                   and(
                     eq(s.workItem.organizationId, scope.organizationId),
-                    eq(s.workItem.productId, scope.productId),
+                    eq(s.workItem.projectId, scope.projectId),
                     eq(s.workItem.id, scope.workItemId),
                   ),
                 )
@@ -617,9 +617,9 @@ export function createSyncService(db: Database) {
           .where(
             and(
               eq(s.syncChange.organizationId, scope.organizationId),
-              !scope.productId
+              !scope.projectId
                 ? undefined
-                : eq(s.syncChange.productId, scope.productId),
+                : eq(s.syncChange.projectId, scope.projectId),
               gt(s.syncChange.cursor, BigInt(cursor)),
               scope.workItemId
                 ? or(
@@ -678,13 +678,13 @@ export function createSyncService(db: Database) {
             cursor: previous.cursor.toString(),
           };
         }
-        const canManageProduct = membership.role
+        const canManageProject = membership.role
           .split(",")
           .some((r) => r === "owner" || r === "admin");
-        let productId: string;
+        let projectId: string;
         let workItemId: string | undefined;
         let item: ItemRow | undefined;
-        if ("productId" in c) productId = c.productId;
+        if ("projectId" in c) projectId = c.projectId;
         else {
           workItemId = c.workItemId;
           item = requireValue(
@@ -705,27 +705,27 @@ export function createSyncService(db: Database) {
               "conflict",
               "Restore this item before changing it.",
             );
-          productId = item.productId;
+          projectId = item.projectId;
         }
-        if (c.type !== "createProduct")
+        if (c.type !== "createProject")
           requireValue(
             (
               await tx
                 .select()
-                .from(s.product)
+                .from(s.project)
                 .where(
                   and(
-                    eq(s.product.organizationId, organizationId),
-                    eq(s.product.id, productId),
-                    isNull(s.product.archivedAt),
+                    eq(s.project.organizationId, organizationId),
+                    eq(s.project.id, projectId),
+                    isNull(s.project.archivedAt),
                   ),
                 )
             )[0],
           );
         if (c.type === "createWorkItem") workItemId = c.workItemId;
-        const scope = { organizationId, productId, workItemId };
+        const scope = { organizationId, projectId, workItemId };
         const before =
-          c.type === "createProduct"
+          c.type === "createProject"
             ? []
             : await snapshot(tx, {
                 ...scope,
@@ -857,13 +857,13 @@ export function createSyncService(db: Database) {
                 .where(
                   and(
                     eq(s.workItem.organizationId, organizationId),
-                    eq(s.workItem.productId, productId),
+                    eq(s.workItem.projectId, projectId),
                     eq(s.workItem.id, parentId),
                     isNull(s.workItem.archivedAt),
                   ),
                 )
             )[0],
-            "The parent item is unavailable in this product.",
+            "The parent item is unavailable in this project.",
           );
           if (parent.id === workItemId)
             throw new DomainError(
@@ -896,30 +896,30 @@ export function createSyncService(db: Database) {
           log("status_changed", { from, to: status, automatic });
         };
         switch (c.type) {
-          case "createProduct": {
-            if (!canManageProduct)
+          case "createProject": {
+            if (!canManageProject)
               throw new DomainError(
                 "forbidden",
-                "An organization administrator must create products.",
+                "An organization administrator must create projects.",
               );
             const taken = (
               await tx
-                .select({ id: s.product.id })
-                .from(s.product)
+                .select({ id: s.project.id })
+                .from(s.project)
                 .where(
                   and(
-                    eq(s.product.organizationId, organizationId),
-                    eq(s.product.key, c.key),
+                    eq(s.project.organizationId, organizationId),
+                    eq(s.project.key, c.key),
                   ),
                 )
             )[0];
             if (taken)
               throw new DomainError(
                 "validation",
-                `The key ${c.key} is already used by another product.`,
+                `The key ${c.key} is already used by another project.`,
               );
-            await tx.insert(s.product).values({
-              id: productId,
+            await tx.insert(s.project).values({
+              id: projectId,
               organizationId,
               name: c.name,
               slug: c.key.toLowerCase(),
@@ -928,19 +928,19 @@ export function createSyncService(db: Database) {
             });
             break;
           }
-          case "updateProduct":
-            if (!canManageProduct)
+          case "updateProject":
+            if (!canManageProject)
               throw new DomainError(
                 "forbidden",
-                "An organization administrator must update products.",
+                "An organization administrator must update projects.",
               );
             await tx
-              .update(s.product)
+              .update(s.project)
               .set({ name: c.name })
               .where(
                 and(
-                  eq(s.product.organizationId, organizationId),
-                  eq(s.product.id, productId),
+                  eq(s.project.organizationId, organizationId),
+                  eq(s.project.id, projectId),
                 ),
               );
             break;
@@ -954,13 +954,13 @@ export function createSyncService(db: Database) {
               .where(
                 and(
                   eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.productId, productId),
+                  eq(s.workItem.projectId, projectId),
                 ),
               )) as [{ next: number }];
             await tx.insert(s.workItem).values({
               id: workItemId!,
               organizationId,
-              productId,
+              projectId,
               parentId: c.parentId,
               kind: c.kind,
               number: Number(next),
@@ -1032,10 +1032,10 @@ export function createSyncService(db: Database) {
                     (e) =>
                       e.type === "milestone" &&
                       e.id === c.milestoneId &&
-                      e.productId === productId &&
+                      e.projectId === projectId &&
                       !e.archivedAt,
                   ),
-                  "The milestone is unavailable in this product.",
+                  "The milestone is unavailable in this project.",
                 );
               patch.milestoneId = c.milestoneId;
               log("milestone_changed", {
@@ -1051,10 +1051,10 @@ export function createSyncService(db: Database) {
                     (e) =>
                       e.type === "label" &&
                       e.id === labelId &&
-                      e.productId === productId &&
+                      e.projectId === projectId &&
                       !e.archivedAt,
                   ),
-                  "A label is unavailable in this product.",
+                  "A label is unavailable in this project.",
                 );
               const current = before.find(
                 (e) => e.type === "workItem" && e.id === workItemId,
@@ -1102,7 +1102,7 @@ export function createSyncService(db: Database) {
               .filter(
                 (e): e is EntityOf<"workItem"> =>
                   e.type === "workItem" &&
-                  e.productId === productId &&
+                  e.projectId === projectId &&
                   e.parentId === item!.parentId &&
                   !e.archivedAt &&
                   e.id !== workItemId,
@@ -1156,7 +1156,7 @@ export function createSyncService(db: Database) {
               const taken = before.some(
                 (e) =>
                   e.type === "label" &&
-                  e.productId === productId &&
+                  e.projectId === projectId &&
                   e.name.toLowerCase() === c.name.toLowerCase() &&
                   !e.archivedAt,
               );
@@ -1168,7 +1168,7 @@ export function createSyncService(db: Database) {
               await tx.insert(s.label).values({
                 id: c.labelId,
                 organizationId,
-                productId,
+                projectId,
                 name: c.name,
                 color: c.color,
               });
@@ -1178,7 +1178,7 @@ export function createSyncService(db: Database) {
                   (e) =>
                     e.type === "label" &&
                     e.id === c.labelId &&
-                    e.productId === productId,
+                    e.projectId === projectId,
                 ),
               );
               await tx
@@ -1205,7 +1205,7 @@ export function createSyncService(db: Database) {
               const taken = before.some(
                 (e) =>
                   e.type === "milestone" &&
-                  e.productId === productId &&
+                  e.projectId === projectId &&
                   e.name.toLowerCase() === c.name.toLowerCase() &&
                   !e.archivedAt,
               );
@@ -1217,7 +1217,7 @@ export function createSyncService(db: Database) {
               await tx.insert(s.milestone).values({
                 id: c.milestoneId,
                 organizationId,
-                productId,
+                projectId,
                 name: c.name,
                 targetDate: c.targetDate ? new Date(c.targetDate) : null,
               });
@@ -1227,7 +1227,7 @@ export function createSyncService(db: Database) {
                   (e) =>
                     e.type === "milestone" &&
                     e.id === c.milestoneId &&
-                    e.productId === productId,
+                    e.projectId === projectId,
                 ),
               );
               await tx
@@ -1583,7 +1583,7 @@ export function createSyncService(db: Database) {
             activities.map((a, index) => ({
               id: crypto.randomUUID(),
               organizationId,
-              productId,
+              projectId,
               workItemId: workItemId,
               actorId: userId,
               action: a.action,
@@ -1610,7 +1610,7 @@ export function createSyncService(db: Database) {
             .where(
               and(
                 eq(s.workItem.organizationId, organizationId),
-                eq(s.workItem.productId, productId),
+                eq(s.workItem.projectId, projectId),
               ),
             );
           const ctx = await loadItemContext(tx, organizationId, rows);
@@ -1638,7 +1638,7 @@ export function createSyncService(db: Database) {
           await tx.insert(s.syncChange).values({
             organizationId,
             cursor,
-            productId,
+            projectId,
             workItemId: parentId,
             change: { operation: "upsert", cursor: cursor.toString(), entity },
           });
@@ -1654,10 +1654,10 @@ export function createSyncService(db: Database) {
           await tx.insert(s.syncChange).values({
             organizationId,
             cursor,
-            productId,
+            projectId,
             workItemId:
               entity.type === "workItem" ||
-              entity.type === "product" ||
+              entity.type === "project" ||
               entity.type === "label" ||
               entity.type === "milestone"
                 ? null

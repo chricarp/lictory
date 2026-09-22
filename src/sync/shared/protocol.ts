@@ -67,7 +67,7 @@ export const readinessCheckSchema = z.object({
 export const entitySchema = z.discriminatedUnion("type", [
   z.object({
     ...base,
-    type: z.literal("product"),
+    type: z.literal("project"),
     name: z.string(),
     slug: z.string(),
     key: z.string(),
@@ -77,7 +77,7 @@ export const entitySchema = z.discriminatedUnion("type", [
   z.object({
     ...base,
     type: z.literal("label"),
-    productId: id,
+    projectId: id,
     name: z.string(),
     color: z.enum(labelColors),
     archivedAt: z.string().nullable(),
@@ -85,7 +85,7 @@ export const entitySchema = z.discriminatedUnion("type", [
   z.object({
     ...base,
     type: z.literal("milestone"),
-    productId: id,
+    projectId: id,
     name: z.string(),
     targetDate: z.string().nullable(),
     status: z.enum(milestoneStatuses),
@@ -94,7 +94,7 @@ export const entitySchema = z.discriminatedUnion("type", [
   z.object({
     ...base,
     type: z.literal("workItem"),
-    productId: id,
+    projectId: id,
     parentId: id.nullable(),
     kind: z.enum(workItemKinds),
     number: z.number().int(),
@@ -220,22 +220,22 @@ export type WorkItem = EntityOf<"workItem">;
 export type ReviewSummary = z.infer<typeof reviewSummarySchema>;
 export type ReadinessCheck = z.infer<typeof readinessCheckSchema>;
 
-// Organization scope: products and every work item summary. Item scope adds the
+// Organization scope: projects and every work item summary. Item scope adds the
 // item's revisions, discussions, suggestions, reviews, approvals and activity.
 export const scopeSchema = z
   .object({
     organizationId: id,
-    productId: id.optional(),
+    projectId: id.optional(),
     workItemId: id.optional(),
   })
   .refine(
-    (scope) => !scope.workItemId || Boolean(scope.productId),
-    "A work item scope requires a product.",
+    (scope) => !scope.workItemId || Boolean(scope.projectId),
+    "A work item scope requires a project.",
   );
 export type Scope = z.infer<typeof scopeSchema>;
 export const checkpointSchema = z.string().regex(/^(0|[1-9]\d{0,18})$/);
 const entityTypes = z.enum([
-  "product",
+  "project",
   "label",
   "milestone",
   "workItem",
@@ -284,12 +284,12 @@ export const directorySchema = z.object({
   organizations: z.array(
     z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),
   ),
-  products: z.array(entitySchema.options[0]),
+  projects: z.array(entitySchema.options[0]),
   members: z.array(memberSchema),
   groups: z.array(z.object({ id, name: z.string(), userIds: z.array(id) })),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 2 as const;
+export const PROTOCOL = 3 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -300,26 +300,26 @@ export const pageSchema = z.object({
 export type SyncPage = z.infer<typeof pageSchema>;
 const itemCommand = { workItemId: id };
 const revisionCommand = { ...itemCommand, baseRevisionId: id };
-const productKey = z
+const projectKey = z
   .string()
   .trim()
   .toUpperCase()
   .regex(/^[A-Z][A-Z0-9]{1,9}$/, "Use 2-10 letters or digits, e.g. PAY.");
 export const commandSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("createProduct"),
-    productId: z.uuid(),
+    type: z.literal("createProject"),
+    projectId: z.uuid(),
     name: text.max(120),
-    key: productKey,
+    key: projectKey,
   }),
   z.object({
-    type: z.literal("updateProduct"),
-    productId: id,
+    type: z.literal("updateProject"),
+    projectId: id,
     name: text.max(120),
   }),
   z.object({
     type: z.literal("createWorkItem"),
-    productId: id,
+    projectId: id,
     workItemId: z.uuid(),
     kind: z.enum(workItemKinds),
     parentId: id.nullable(),
@@ -345,14 +345,14 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("createLabel"),
-    productId: id,
+    projectId: id,
     labelId: z.uuid(),
     name: text.max(60),
     color: z.enum(labelColors),
   }),
   z.object({
     type: z.literal("updateLabel"),
-    productId: id,
+    projectId: id,
     labelId: id,
     name: text.max(60).optional(),
     color: z.enum(labelColors).optional(),
@@ -360,14 +360,14 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("createMilestone"),
-    productId: id,
+    projectId: id,
     milestoneId: z.uuid(),
     name: text.max(120),
     targetDate: z.string().date().nullable(),
   }),
   z.object({
     type: z.literal("updateMilestone"),
-    productId: id,
+    projectId: id,
     milestoneId: id,
     name: text.max(120).optional(),
     targetDate: z.string().date().nullable().optional(),

@@ -107,7 +107,7 @@ async function rejectsCode(operation: PromiseLike<unknown>, code: string) {
 async function fixture() {
   const organizationId = crypto.randomUUID();
   const userId = crypto.randomUUID();
-  const productId = crypto.randomUUID();
+  const projectId = crypto.randomUUID();
   const proposalId = crypto.randomUUID();
   const revisionId = crypto.randomUUID();
   const reviewId = crypto.randomUUID();
@@ -127,18 +127,18 @@ async function fixture() {
     userId,
     createdAt: new Date(),
   });
-  await db.insert(s.product).values({
-    id: productId,
+  await db.insert(s.project).values({
+    id: projectId,
     organizationId,
-    name: "Product",
-    slug: "product",
+    name: "Project",
+    slug: "project",
     key: "PRD",
     createdById: userId,
   });
   await db.insert(s.workItem).values({
     id: proposalId,
     organizationId,
-    productId,
+    projectId,
     number: 1,
     kind: "epic",
     title: "Proposal",
@@ -163,7 +163,7 @@ async function fixture() {
   await db
     .insert(s.thread)
     .values({ id: threadId, ...context, reviewId, authorId: userId });
-  return { ...context, userId, productId, reviewId, threadId };
+  return { ...context, userId, projectId, reviewId, threadId };
 }
 
 void test("migration preserves existing Better Auth records and its organization plugin works", async () => {
@@ -223,7 +223,7 @@ void test("composite foreign keys reject foreign organizations and mismatched pr
   await rejectsCode(
     db.insert(s.workItem).values({
       organizationId: a.organizationId,
-      productId: b.productId,
+      projectId: b.projectId,
       number: 2,
       title: "Invalid",
       createdById: a.userId,
@@ -495,7 +495,7 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
   const b = await fixture();
   const decision = {
     organizationId: a.organizationId,
-    productId: a.productId,
+    projectId: a.projectId,
     title: "Timeout decision",
     body: "Retry with the original ID",
     authorId: a.userId,

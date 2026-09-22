@@ -63,21 +63,21 @@ export function ColorDot({
   );
 }
 
-// Multi-select label picker with inline creation for the current product.
+// Multi-select label picker with inline creation for the current project.
 export function LabelPicker({
-  productId,
+  projectId,
   labelIds,
   onChange,
   compact = false,
 }: {
-  productId: string;
+  projectId: string;
   labelIds: string[];
   onChange: (labelIds: string[]) => void;
   compact?: boolean;
 }) {
   const { labels, mutate } = useWorkspace();
   const available = labels.filter(
-    (l) => l.productId === productId && !l.archivedAt,
+    (l) => l.projectId === projectId && !l.archivedAt,
   );
   const selected = available.filter((l) => labelIds.includes(l.id));
   const [creating, setCreating] = useState(false);
@@ -95,7 +95,7 @@ export function LabelPicker({
     const labelId = crypto.randomUUID();
     await mutate({
       type: "createLabel",
-      productId,
+      projectId,
       labelId,
       name: trimmed,
       color,
@@ -192,7 +192,7 @@ export function LabelPicker({
             }))}
             value={labelIds}
             onSelect={toggle}
-            emptyText="No labels in this product yet."
+            emptyText="No labels in this project yet."
             footer={
               <button
                 type="button"
@@ -210,17 +210,17 @@ export function LabelPicker({
 }
 
 export function MilestonePicker({
-  productId,
+  projectId,
   milestoneId,
   onChange,
 }: {
-  productId: string;
+  projectId: string;
   milestoneId: string | null;
   onChange: (milestoneId: string | null) => void;
 }) {
   const { milestones, mutate } = useWorkspace();
   const available = milestones.filter(
-    (m) => m.productId === productId && !m.archivedAt,
+    (m) => m.projectId === projectId && !m.archivedAt,
   );
   const current = available.find((m) => m.id === milestoneId);
   const [creating, setCreating] = useState(false);
@@ -231,7 +231,7 @@ export function MilestonePicker({
     const id = crypto.randomUUID();
     await mutate({
       type: "createMilestone",
-      productId,
+      projectId,
       milestoneId: id,
       name: name.trim(),
       targetDate: date || null,

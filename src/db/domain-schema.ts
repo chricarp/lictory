@@ -39,7 +39,7 @@ const updatedAt = () =>
     .$onUpdate(() => new Date())
     .notNull();
 
-// Product owns the workflow up to `ready`; later statuses may eventually be
+// Lictory owns the workflow up to `ready`; later statuses may eventually be
 // synchronized from a delivery system. `ready` is gated by readiness evidence.
 export const workItemStatus = pgEnum("work_item_status", [
   "backlog",
@@ -131,8 +131,8 @@ export const groupMember = pgTable(
   ],
 );
 
-export const product = pgTable(
-  "product",
+export const project = pgTable(
+  "project",
   {
     id: id(),
     organizationId: organizationId(),
@@ -147,10 +147,10 @@ export const product = pgTable(
     archivedAt: timestamp("archived_at"),
   },
   (t) => [
-    unique("product_org_id_unique").on(t.organizationId, t.id),
-    unique("product_org_slug_unique").on(t.organizationId, t.slug),
-    unique("product_org_key_unique").on(t.organizationId, t.key),
-    check("product_key_format", sql`${t.key} ~ '^[A-Z][A-Z0-9]{1,9}$'`),
+    unique("project_org_id_unique").on(t.organizationId, t.id),
+    unique("project_org_slug_unique").on(t.organizationId, t.slug),
+    unique("project_org_key_unique").on(t.organizationId, t.key),
+    check("project_key_format", sql`${t.key} ~ '^[A-Z][A-Z0-9]{1,9}$'`),
   ],
 );
 
@@ -161,14 +161,14 @@ export const milestoneStatus = pgEnum("milestone_status", [
   "cancelled",
 ]);
 
-// Labels are lightweight, product-scoped tags. Color is a small named palette
+// Labels are lightweight, project-scoped tags. Color is a small named palette
 // so meaning stays consistent rather than every label being a saturated hue.
 export const label = pgTable(
   "label",
   {
     id: id(),
     organizationId: organizationId(),
-    productId: text("product_id").notNull(),
+    projectId: text("project_id").notNull(),
     name: text("name").notNull(),
     color: text("color").default("gray").notNull(),
     createdAt: createdAt(),
@@ -177,14 +177,14 @@ export const label = pgTable(
   },
   (t) => [
     unique("label_org_id_unique").on(t.organizationId, t.id),
-    unique("label_product_name_unique").on(
+    unique("label_project_name_unique").on(
       t.organizationId,
-      t.productId,
+      t.projectId,
       t.name,
     ),
     foreignKey({
-      columns: [t.organizationId, t.productId],
-      foreignColumns: [product.organizationId, product.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
   ],
 );
@@ -195,7 +195,7 @@ export const milestone = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    productId: text("product_id").notNull(),
+    projectId: text("project_id").notNull(),
     name: text("name").notNull(),
     targetDate: timestamp("target_date"),
     status: milestoneStatus("status").default("planned").notNull(),
@@ -205,14 +205,14 @@ export const milestone = pgTable(
   },
   (t) => [
     unique("milestone_org_id_unique").on(t.organizationId, t.id),
-    unique("milestone_product_name_unique").on(
+    unique("milestone_project_name_unique").on(
       t.organizationId,
-      t.productId,
+      t.projectId,
       t.name,
     ),
     foreignKey({
-      columns: [t.organizationId, t.productId],
-      foreignColumns: [product.organizationId, product.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
   ],
 );
@@ -223,10 +223,10 @@ export const workItem = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    productId: text("product_id").notNull(),
+    projectId: text("project_id").notNull(),
     parentId: text("parent_id"),
     kind: workItemKind("kind").default("story").notNull(),
-    // Per-product sequence rendered as KEY-number. Allocated under the
+    // Per-project sequence rendered as KEY-number. Allocated under the
     // organization lock; the unique constraint arbitrates races.
     number: integer("number").notNull(),
     title: text("title").notNull(),
@@ -244,24 +244,24 @@ export const workItem = pgTable(
   },
   (t) => [
     unique("proposal_org_id_unique").on(t.organizationId, t.id),
-    unique("proposal_product_id_unique").on(
+    unique("work_item_project_id_unique").on(
       t.organizationId,
-      t.productId,
+      t.projectId,
       t.id,
     ),
-    unique("work_item_product_number_unique").on(
+    unique("work_item_project_number_unique").on(
       t.organizationId,
-      t.productId,
+      t.projectId,
       t.number,
     ),
     foreignKey({
-      columns: [t.organizationId, t.productId],
-      foreignColumns: [product.organizationId, product.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
     foreignKey({
       name: "work_item_parent_fk",
-      columns: [t.organizationId, t.productId, t.parentId],
-      foreignColumns: [t.organizationId, t.productId, t.id],
+      columns: [t.organizationId, t.projectId, t.parentId],
+      foreignColumns: [t.organizationId, t.projectId, t.id],
     }).onDelete("restrict"),
     foreignKey({
       name: "work_item_milestone_fk",
@@ -273,9 +273,9 @@ export const workItem = pgTable(
       sql`${t.parentId} IS NULL OR ${t.parentId} <> ${t.id}`,
     ),
     check("work_item_positive_number", sql`${t.number} > 0`),
-    index("work_item_product_status_idx").on(
+    index("work_item_project_status_idx").on(
       t.organizationId,
-      t.productId,
+      t.projectId,
       t.status,
       t.updatedAt,
     ),
@@ -654,7 +654,7 @@ export const decision = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    productId: text("product_id").notNull(),
+    projectId: text("project_id").notNull(),
     workItemId: text("work_item_id"),
     revisionId: text("revision_id"),
     sourceThreadId: text("source_thread_id"),
@@ -667,14 +667,14 @@ export const decision = pgTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.organizationId, t.productId],
-      foreignColumns: [product.organizationId, product.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.productId, t.workItemId],
+      columns: [t.organizationId, t.projectId, t.workItemId],
       foreignColumns: [
         workItem.organizationId,
-        workItem.productId,
+        workItem.projectId,
         workItem.id,
       ],
     }).onDelete("restrict"),
@@ -699,9 +699,9 @@ export const decision = pgTable(
       "decision_source_context",
       sql`(${t.revisionId} IS NULL OR ${t.workItemId} IS NOT NULL) AND (${t.sourceThreadId} IS NULL OR ${t.revisionId} IS NOT NULL)`,
     ),
-    index("decision_product_idx").on(
+    index("decision_project_idx").on(
       t.organizationId,
-      t.productId,
+      t.projectId,
       t.createdAt,
     ),
     index("decision_item_idx").on(t.organizationId, t.workItemId),

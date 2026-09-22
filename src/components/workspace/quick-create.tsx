@@ -18,7 +18,7 @@ import { useShell } from "./shell";
 export type QuickCreateOptions = {
   kind?: WorkItemKind;
   parentId?: string | null;
-  productId?: string;
+  projectId?: string;
 };
 
 // Title-first creation. Everything else is optional and can be refined later;
@@ -31,12 +31,12 @@ export function QuickCreate({
   options: QuickCreateOptions;
   onClose: () => void;
 }) {
-  const { products, items, mutate, organization } = useWorkspace();
+  const { projects, items, mutate, organization } = useWorkspace();
   const { toast } = useShell();
   const router = useRouter();
   const [kind, setKind] = useState<WorkItemKind>(options.kind ?? "story");
-  const [productId, setProductId] = useState(
-    options.productId ?? products[0]?.id,
+  const [projectId, setProjectId] = useState(
+    options.projectId ?? projects[0]?.id,
   );
   const [parentId, setParentId] = useState<string | null>(
     options.parentId ?? null,
@@ -50,13 +50,13 @@ export function QuickCreate({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-  const product = products.find((p) => p.id === productId);
+  const project = projects.find((p) => p.id === projectId);
   const epics = items.filter(
-    (i) => i.kind === "epic" && i.productId === productId && !i.archivedAt,
+    (i) => i.kind === "epic" && i.projectId === projectId && !i.archivedAt,
   );
   const submit = async (open: boolean) => {
     const trimmed = title.trim();
-    if (!trimmed || !product) return;
+    if (!trimmed || !project) return;
     const workItemId = crypto.randomUUID();
     const submittedDescription = description.trim();
     setError(undefined);
@@ -67,7 +67,7 @@ export function QuickCreate({
     try {
       await mutate({
         type: "createWorkItem",
-        productId: product.id,
+        projectId: project.id,
         workItemId,
         kind,
         parentId: kind === "epic" ? null : parentId,
@@ -82,7 +82,7 @@ export function QuickCreate({
     }
     const href = paths.item(
       organization.slug,
-      product.key,
+      project.key,
       kind === "epic" ? "epics" : "stories",
       workItemId,
     );
@@ -139,7 +139,7 @@ export function QuickCreate({
               },
             ]}
           />
-          {products.length > 1 && (
+          {projects.length > 1 && (
             <Popover
               width={220}
               trigger={(props) => (
@@ -147,20 +147,20 @@ export function QuickCreate({
                   {...props}
                   className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
                 >
-                  {product?.name ?? "Product"}
+                  {project?.name ?? "Project"}
                 </button>
               )}
             >
               <Picker
-                title="Product"
-                options={products.map((p) => ({
+                title="Project"
+                options={projects.map((p) => ({
                   value: p.id,
                   label: p.name,
                   hint: p.key,
                 }))}
-                value={productId}
+                value={projectId}
                 onSelect={(id) => {
-                  setProductId(id);
+                  setProjectId(id);
                   setParentId(null);
                 }}
               />
@@ -175,7 +175,7 @@ export function QuickCreate({
                   className="h-7 max-w-[220px] truncate rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
                 >
                   {parentId
-                    ? `${identifier(product, epics.find((e) => e.id === parentId)?.number ?? 0)} · ${epics.find((e) => e.id === parentId)?.title ?? ""}`
+                    ? `${identifier(project, epics.find((e) => e.id === parentId)?.number ?? 0)} · ${epics.find((e) => e.id === parentId)?.title ?? ""}`
                     : "No epic"}
                 </button>
               )}
@@ -187,7 +187,7 @@ export function QuickCreate({
                   ...epics.map((e) => ({
                     value: e.id,
                     label: e.title,
-                    hint: identifier(product, e.number),
+                    hint: identifier(project, e.number),
                   })),
                 ]}
                 value={parentId ?? "none"}

@@ -2,21 +2,21 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { cn } from "~/lib/utils";
-import { identifier, type Product } from "~/lib/work-items";
+import { identifier, type Project } from "~/lib/work-items";
 
 export function IssueIdentifier({
-  product,
+  project,
   number,
   className,
   copyable = false,
 }: {
-  product: Product | undefined;
+  project: Project | undefined;
   number: number;
   className?: string;
   copyable?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  const id = identifier(product, number);
+  const id = identifier(project, number);
   if (!copyable)
     return (
       <span

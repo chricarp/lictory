@@ -29,7 +29,7 @@ type Entry = {
 // narrow: review requests, blocked items I own, requested changes on my items,
 // items of mine that just became ready. No activity firehose.
 export function Inbox() {
-  const { items, products, userId, groupIds, organization } = useWorkspace();
+  const { items, projects, userId, groupIds, organization } = useWorkspace();
   // Rendered incrementally: very large organizations can have thousands of
   // items, but attention is scarce; the first page is what matters.
   const PAGE = 50;
@@ -109,15 +109,15 @@ export function Inbox() {
         ) : (
           <ul className="divide-y">
             {entries.slice(0, shown).map(({ item, reason, detail, icon }) => {
-              const product = products.find((p) => p.id === item.productId);
+              const project = projects.find((p) => p.id === item.projectId);
               return (
                 <li key={`${item.id}-${reason}`}>
                   <Link
                     href={paths.item(
                       organization.slug,
-                      product?.key ?? "",
+                      project?.key ?? "",
                       item.kind === "epic" ? "epics" : "stories",
-                      identifier(product, item.number),
+                      identifier(project, item.number),
                     )}
                     className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"
                   >
@@ -134,7 +134,7 @@ export function Inbox() {
                         <StatusIcon status={item.status} />
                         <KindIcon kind={item.kind} />
                         <IssueIdentifier
-                          product={product}
+                          project={project}
                           number={item.number}
                         />
                         <span className="truncate">{item.title}</span>

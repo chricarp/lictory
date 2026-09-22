@@ -19,7 +19,7 @@ import { useItem } from "./item-context";
 // creatable without leaving the Epic. Order is manual: drag the handle, or use
 // Alt+↑/↓ on a focused row. The server keeps sparse positions per parent.
 export function EpicStories() {
-  const { item, product, readOnly } = useItem();
+  const { item, project, readOnly } = useItem();
   const { items, organization, mutate } = useWorkspace();
   const [title, setTitle] = useState("");
   const [composing, setComposing] = useState(false);
@@ -62,7 +62,7 @@ export function EpicStories() {
     setTitle("");
     await mutate({
       type: "createWorkItem",
-      productId: item.productId,
+      projectId: item.projectId,
       workItemId: crypto.randomUUID(),
       kind: "story",
       parentId: item.id,
@@ -188,16 +188,16 @@ export function EpicStories() {
               </span>
               <KindIcon kind={story.kind} />
               <IssueIdentifier
-                product={product}
+                project={project}
                 number={story.number}
                 className="w-16"
               />
               <Link
                 href={paths.item(
                   organization.slug,
-                  product.key,
+                  project.key,
                   "stories",
-                  identifier(product, story.number),
+                  identifier(project, story.number),
                 )}
                 className="min-w-0 flex-1 truncate font-medium after:absolute after:inset-0 after:content-['']"
               >

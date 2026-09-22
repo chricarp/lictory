@@ -1,5 +1,5 @@
 import { ItemRedirect } from "~/components/items/item-redirect";
-// Product-agnostic deep link: /app/[org]/items/PAY-142 resolves the product from
+// Project-agnostic deep link: /app/[org]/items/PAY-142 resolves the project from
 // the identifier's key and forwards to the canonical route.
 export default async function Page({
   params,

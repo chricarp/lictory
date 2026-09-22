@@ -6,22 +6,22 @@ import { EmptyState } from "~/components/ui/primitives";
 import { paths } from "~/lib/paths";
 import { identifier, parseIdentifier } from "~/lib/work-items";
 import { useWorkspace } from "~/components/workspace/provider";
-import { useProduct } from "~/components/workspace/product-gate";
+import { useProject } from "~/components/workspace/project-gate";
 import { useShell } from "~/components/workspace/shell";
 import { ItemDetail } from "./item-detail";
 
 // Accepts a human identifier (PAY-12) or an item UUID (used right after
 // creation, before the server confirms the number) and normalizes the URL.
 export function ItemPage({ identifier: raw }: { identifier: string }) {
-  const { items, view, organization, products } = useWorkspace();
-  const product = useProduct();
+  const { items, view, organization, projects } = useWorkspace();
+  const project = useProject();
   const { setCurrentItem } = useShell();
   const router = useRouter();
   const parsed = parseIdentifier(raw);
   const item = items.find((i) =>
     parsed
-      ? i.productId === product.id &&
-        parsed.key === product.key &&
+      ? i.projectId === project.id &&
+        parsed.key === project.key &&
         i.number === parsed.number
       : i.id === raw,
   );
@@ -36,38 +36,38 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
     setCurrentItem(item);
     return () => setCurrentItem(undefined);
   }, [item, setCurrentItem]);
-  // A key from another product: forward to that product's canonical route.
-  const otherProduct =
-    parsed && parsed.key !== product.key
-      ? products.find((p) => p.key === parsed.key)
+  // A key from another project: forward to that project's canonical route.
+  const otherProject =
+    parsed && parsed.key !== project.key
+      ? projects.find((p) => p.key === parsed.key)
       : undefined;
-  const otherItem = otherProduct
+  const otherItem = otherProject
     ? items.find(
-        (i) => i.productId === otherProduct.id && i.number === parsed!.number,
+        (i) => i.projectId === otherProject.id && i.number === parsed!.number,
       )
     : undefined;
   useEffect(() => {
-    if (otherProduct && otherItem)
+    if (otherProject && otherItem)
       router.replace(
         paths.item(
           organization.slug,
-          otherProduct.key,
+          otherProject.key,
           otherItem.kind === "epic" ? "epics" : "stories",
-          identifier(otherProduct, otherItem.number),
+          identifier(otherProject, otherItem.number),
         ),
       );
-  }, [otherProduct, otherItem, router, organization.slug]);
+  }, [otherProject, otherItem, router, organization.slug]);
   useEffect(() => {
     if (item && !parsed && !pendingCreate)
       router.replace(
         paths.item(
           organization.slug,
-          product.key,
+          project.key,
           item.kind === "epic" ? "epics" : "stories",
-          identifier(product, item.number),
+          identifier(project, item.number),
         ),
       );
-  }, [item, parsed, pendingCreate, router, organization.slug, product]);
+  }, [item, parsed, pendingCreate, router, organization.slug, project]);
   if (!item) {
     if (view.status === "hydrating" || view.status === "syncing")
       return (
@@ -77,17 +77,17 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
       );
     return (
       <EmptyState
-        title={`${raw} was not found in ${product.name}`}
+        title={`${raw} was not found in ${project.name}`}
         action={
           <Link
-            href={paths.list(organization.slug, product.key, "epics")}
+            href={paths.list(organization.slug, project.key, "epics")}
             className="text-sm text-primary hover:underline"
           >
             Back to Epics
           </Link>
         }
       >
-        It may belong to another product, or the identifier is misspelled.
+        It may belong to another project, or the identifier is misspelled.
       </EmptyState>
     );
   }
@@ -95,7 +95,7 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
     <ItemDetail
       key={item.id}
       item={item}
-      product={product}
+      project={project}
       pendingCreate={pendingCreate}
     />
   );

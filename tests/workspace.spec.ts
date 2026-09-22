@@ -3,7 +3,7 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
-const email = "product@example.test";
+const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
 const password = "Local-test-password-123";
 test.beforeAll(async () => {
@@ -42,16 +42,16 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 }) => {
   test.setTimeout(180_000);
   await signIn(page);
-  // Onboarding: organization, then product with a key.
+  // Onboarding: organization, then project with a key.
   await page.getByLabel("Organization name").fill("Northstar");
   await page
     .getByRole("button", { name: "Create organization", exact: true })
     .click();
-  await page.getByLabel("Product name").fill("Payments");
+  await page.getByLabel("Project name").fill("Payments");
   await expect(page.getByLabel("Key")).toHaveValue("PAYM");
   await page.getByLabel("Key").fill("PAY");
   await page
-    .getByRole("button", { name: "Create product", exact: true })
+    .getByRole("button", { name: "Create project", exact: true })
     .click();
   await expect(page).toHaveURL(/\/pay\/epics$/);
 
@@ -190,7 +190,7 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   ).toBeVisible();
 
   // Invite the engineer so they can review.
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("link", { name: "Organization settings" }).click();
   await page.getByLabel("Teammate email").fill(reviewerEmail);
   await page.getByRole("button", { name: "Create link" }).click();
   const invitation = await page
@@ -347,7 +347,7 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await expect(
     page.getByRole("link", { name: "Define cancellation API" }),
   ).toBeVisible();
-  // Cross-product identifier route.
+  // Cross-project identifier route.
   await page.goto(storyUrl.replace(/\/pay\/stories\/PAY-2$/, "/items/PAY-1"));
   await expect(page).toHaveURL(/\/pay\/epics\/PAY-1$/);
   await page.keyboard.press("Meta+k");

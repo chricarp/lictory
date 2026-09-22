@@ -6,53 +6,56 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Avatar, SectionLabel } from "~/components/ui/primitives";
 import { useWorkspace } from "./provider";
-import { CreateProduct } from "./onboarding";
+import { CreateProject } from "./onboarding";
 import { LabelsAndMilestones } from "./labels-settings";
 
 // Organization-level settings. Membership and invitations remain Better Auth
-// operations; products are organization-wide in this baseline.
+// operations; projects are organization-wide in this baseline.
 export function Settings() {
-  const { organization, products, directory, isAdmin, mutate } = useWorkspace();
+  const { organization, projects, directory, isAdmin, mutate } = useWorkspace();
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-2xl space-y-10 px-6 py-8">
         <header>
-          <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+          <h1 className="text-lg font-semibold tracking-tight">
+            Organization settings
+          </h1>
           <p className="text-[13px] text-muted-foreground">
-            {organization.name}
+            {organization.name} · projects, labels, people and access shared by
+            everyone in the organization.
           </p>
         </header>
         <section className="space-y-3">
-          <SectionLabel>Products</SectionLabel>
+          <SectionLabel>Projects</SectionLabel>
           <div className="divide-y rounded-lg border">
-            {products.map((p) => (
-              <ProductRow
+            {projects.map((p) => (
+              <ProjectRow
                 key={p.id}
                 id={p.id}
                 name={p.name}
                 keyName={p.key}
                 canEdit={isAdmin}
                 rename={(name) =>
-                  mutate({ type: "updateProduct", productId: p.id, name })
+                  mutate({ type: "updateProject", projectId: p.id, name })
                 }
               />
             ))}
-            {products.length === 0 && (
+            {projects.length === 0 && (
               <p className="p-3 text-[13px] text-muted-foreground">
-                No products yet.
+                No projects yet.
               </p>
             )}
           </div>
           {isAdmin &&
             (showCreate ? (
               <div className="rounded-lg border p-4">
-                <CreateProduct onDone={() => setShowCreate(false)} />
+                <CreateProject onDone={() => setShowCreate(false)} />
               </div>
             ) : (
               <Button variant="secondary" onClick={() => setShowCreate(true)}>
-                Add product
+                Add project
               </Button>
             ))}
         </section>
@@ -106,7 +109,7 @@ export function Settings() {
   );
 }
 
-function ProductRow({
+function ProjectRow({
   name,
   keyName,
   canEdit,
@@ -140,7 +143,7 @@ function ProductRow({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             autoFocus
-            aria-label="Product name"
+            aria-label="Project name"
           />
           <Button type="submit" size="sm">
             Save
