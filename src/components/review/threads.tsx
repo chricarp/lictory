@@ -259,9 +259,12 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
 export function ThreadComposer({
   draft,
   onDraftChange,
+  suggestionId,
 }: {
   draft: Draft;
   onDraftChange: (d: Draft) => void;
+  // Discuss a suggestion's proposed text rather than the specification.
+  suggestionId?: string;
 }) {
   const { mutate, base, current } = useItem();
   const [body, setBody] = useState("");
@@ -284,6 +287,7 @@ export function ThreadComposer({
         blocking,
         section: draft?.section ?? "",
         quote: draft?.quote,
+        ...(suggestionId ? { suggestionId } : {}),
       });
       setBody("");
       setBlocking(false);
@@ -341,7 +345,7 @@ export function ThreadComposer({
             checked={blocking}
             onChange={(e) => setBlocking(e.target.checked)}
           />
-          Blocks readiness
+          {suggestionId ? "Blocks merging" : "Blocks readiness"}
         </label>
         <span className="text-[11px] text-muted-foreground">
           revision {current?.number}

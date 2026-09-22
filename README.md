@@ -35,13 +35,14 @@ For Resend, configure:
 
 ```bash
 RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=Lictory <auth@your-verified-domain.com>
+RESEND_FROM_EMAIL=Lictory <no-reply@email.lictory.com>
 ```
 
-`onboarding@resend.dev` is retained as the example sender for initial account
-testing. Use an address on a verified Resend domain before production. Resend
-requests include an idempotency key derived from the recipient, auth flow, and
-one-time action URL to avoid duplicate delivery when the same request retries.
+The sender defaults to `Lictory <no-reply@email.lictory.com>`, using the verified
+Resend domain. Override `RESEND_FROM_EMAIL` only when a deployment needs a
+different verified sender. Resend requests include an idempotency key derived
+from the recipient, auth flow, and one-time action URL to avoid duplicate
+delivery when the same request retries.
 
 ## Local development without the app container
 

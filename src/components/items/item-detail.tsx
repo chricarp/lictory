@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -36,6 +36,7 @@ import { EpicStories } from "./epic-stories";
 import { InlineTitle } from "./inline-title";
 import { Discussions } from "~/components/review/threads";
 import { Suggestions } from "~/components/review/suggestions";
+import { SuggestionView } from "~/components/review/suggestion-view";
 import { ReviewPanel } from "~/components/review/review-panel";
 import { Readiness } from "~/components/review/readiness";
 import { Activity } from "~/components/review/activity";
@@ -46,6 +47,7 @@ export type DetailMode =
   | { kind: "read" }
   | { kind: "edit" }
   | { kind: "suggest" }
+  | { kind: "suggestion"; id: string }
   | { kind: "compare"; from: string; to: string };
 
 const seenKey = (id: string) => `lictory:seen:${id}`;
@@ -61,6 +63,8 @@ export function ItemDetail({
 }) {
   const workspace = useWorkspace();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const itemEngine = useItemEngine(item.id, item.projectId, !pendingCreate);
   // While creation is still queued the organization store already holds the
   // optimistic item and its first revision; the item engine opens afterwards.
@@ -79,7 +83,24 @@ export function ItemDetail({
     capabilities: workspace.capabilities,
     mutate: itemEngine.engine ? itemEngine.mutate : workspace.mutate,
   });
-  const [mode, setMode] = useState<DetailMode>({ kind: "read" });
+  // A suggestion under review is linkable: `?suggestion=<id>` opens it.
+  const [mode, setModeState] = useState<DetailMode>(() => {
+    const id = searchParams.get("suggestion");
+    return id ? { kind: "suggestion", id } : { kind: "read" };
+  });
+  const setMode = useCallback(
+    (next: DetailMode) => {
+      setModeState(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next.kind === "suggestion") params.set("suggestion", next.id);
+      else params.delete("suggestion");
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
   const [panelOpen, setPanelOpen] = useState(false);
   const [draft, setDraft] = useState<{
     quote?: string;
@@ -442,25 +463,39 @@ export function ItemDetail({
                       setMode({ kind: "compare", from, to })
                     }
                   />
+                ) : mode.kind === "suggestion" ? (
+                  <SuggestionView
+                    suggestionId={mode.id}
+                    onClose={() => setMode({ kind: "read" })}
+                  />
                 ) : (
                   <Specification
                     mode={mode.kind}
                     setMode={(kind) => setMode({ kind })}
                     onQuote={(quote, section) => setDraft({ quote, section })}
+                    onSuggestionCreated={(id) =>
+                      setMode({ kind: "suggestion", id })
+                    }
                   />
                 )}
               </div>
-              {item.kind === "epic" && (
-                <section className="mt-10">
-                  <EpicStories />
-                </section>
+              {mode.kind !== "suggestion" && (
+                <>
+                  {item.kind === "epic" && (
+                    <section className="mt-10">
+                      <EpicStories />
+                    </section>
+                  )}
+                  <section className="mt-10">
+                    <Suggestions
+                      onOpen={(id) => setMode({ kind: "suggestion", id })}
+                    />
+                  </section>
+                  <section className="mt-10">
+                    <Discussions draft={draft} onDraftChange={setDraft} />
+                  </section>
+                </>
               )}
-              <section className="mt-10">
-                <Suggestions />
-              </section>
-              <section className="mt-10">
-                <Discussions draft={draft} onDraftChange={setDraft} />
-              </section>
               <section className="mt-10 mb-10">
                 <Activity />
               </section>

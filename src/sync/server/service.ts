@@ -17,6 +17,7 @@ import * as s from "../../db/schema";
 import {
   PROTOCOL,
   applicationRoleOf,
+  canReviewSuggestions,
   capabilitiesOf,
   entityKey,
   entitySchema,
@@ -61,6 +62,16 @@ export function serialize(type: Entity["type"], row: unknown): Entity {
   return entitySchema.parse({
     ...(JSON.parse(JSON.stringify(row)) as Record<string, unknown>),
     type,
+  });
+}
+// The suggestion row keeps legacy columns; the wire shape names the merge result.
+function serializeSuggestion(row: SuggestionRow): Entity {
+  const { anchor, threadId, acceptedRevisionId, ...rest } = row;
+  void anchor;
+  void threadId;
+  return serialize("suggestion", {
+    ...rest,
+    mergedRevisionId: acceptedRevisionId,
   });
 }
 export async function authorize(
@@ -348,6 +359,8 @@ type AssignmentRow = typeof s.reviewAssignment.$inferSelect;
 type ApprovalRow = typeof s.approval.$inferSelect;
 type ThreadRow = typeof s.thread.$inferSelect;
 type SuggestionRow = typeof s.suggestion.$inferSelect;
+type SuggestionReviewerRow = typeof s.suggestionReviewer.$inferSelect;
+type SuggestionDecisionRow = typeof s.suggestionDecision.$inferSelect;
 
 // Everything a list, inbox or readiness evaluation needs about a set of items.
 async function loadItemContext(
@@ -361,6 +374,8 @@ async function loadItemContext(
       revisions: new Map<string, RevisionRow[]>(),
       threads: [] as ThreadRow[],
       suggestions: [] as SuggestionRow[],
+      suggestionReviewers: [] as SuggestionReviewerRow[],
+      suggestionDecisions: [] as SuggestionDecisionRow[],
       reviews: [] as ReviewRow[],
       assignments: [] as AssignmentRow[],
       approvals: [] as ApprovalRow[],
@@ -394,6 +409,14 @@ async function loadItemContext(
     .select()
     .from(s.suggestion)
     .where(where(s.suggestion));
+  const suggestionReviewers = await tx
+    .select()
+    .from(s.suggestionReviewer)
+    .where(where(s.suggestionReviewer));
+  const suggestionDecisions = await tx
+    .select()
+    .from(s.suggestionDecision)
+    .where(where(s.suggestionDecision));
   const reviews = await tx.select().from(s.review).where(where(s.review));
   const reviewIds = reviews.map((r) => r.id);
   const assignments = reviewIds.length
@@ -416,6 +439,8 @@ async function loadItemContext(
     revisions,
     threads,
     suggestions,
+    suggestionReviewers,
+    suggestionDecisions,
     reviews,
     assignments,
     approvals,
@@ -424,13 +449,38 @@ async function loadItemContext(
 }
 type ItemContext = Awaited<ReturnType<typeof loadItemContext>>;
 
+// Reviewers of open suggestions still waiting to approve the current version.
+function pendingSuggestionReviewers(itemId: string, ctx: ItemContext) {
+  const ids = new Set<string>();
+  for (const x of ctx.suggestions)
+    if (x.workItemId === itemId && x.status === "open")
+      for (const r of ctx.suggestionReviewers)
+        if (
+          r.suggestionId === x.id &&
+          !r.withdrawnAt &&
+          !ctx.suggestionDecisions.some(
+            (d) =>
+              d.suggestionId === x.id &&
+              d.reviewerId === r.userId &&
+              d.version === x.version &&
+              d.decision === "approved" &&
+              !d.supersededAt,
+          )
+        )
+          ids.add(r.userId);
+  return [...ids].sort();
+}
+
 function summarize(
   item: ItemRow,
   all: ItemRow[],
   ctx: ItemContext,
 ): EntityOf<"workItem"> {
   const current = ctx.revisions.get(item.id)?.[0];
-  const threads = ctx.threads.filter((t) => t.workItemId === item.id);
+  // Discussions about a suggestion belong to that suggestion's review.
+  const threads = ctx.threads.filter(
+    (t) => t.workItemId === item.id && !t.suggestionId,
+  );
   const reviews = ctx.reviews.filter(
     (r) =>
       r.workItemId === item.id &&
@@ -468,9 +518,10 @@ function summarize(
     openThreads: threads.filter((t) => t.status === "open").length,
     blockingThreads: threads.filter((t) => t.status === "open" && t.blocking)
       .length,
-    pendingSuggestions: ctx.suggestions.filter(
-      (x) => x.workItemId === item.id && x.status === "pending",
+    openSuggestions: ctx.suggestions.filter(
+      (x) => x.workItemId === item.id && x.status === "open",
     ).length,
+    suggestionReviewerIds: pendingSuggestionReviewers(item.id, ctx),
     reviews: reviews.map((r) => ({
       id: r.id,
       responsibility: r.responsibility,
@@ -502,7 +553,9 @@ function readiness(
 ): ReadinessCheck[] {
   const current = ctx.revisions.get(item.id)?.[0];
   const content = current?.content ?? "";
-  const threads = ctx.threads.filter((t) => t.workItemId === item.id);
+  const threads = ctx.threads.filter(
+    (t) => t.workItemId === item.id && !t.suggestionId,
+  );
   const reviews = ctx.reviews.filter(
     (r) => r.workItemId === item.id && r.status !== "cancelled",
   );
@@ -682,12 +735,24 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ["review", reviews],
     ["thread", threads],
     ["approval", ctx.approvals.filter((a) => a.workItemId === workItemId)],
-    ["suggestion", ctx.suggestions.filter((x) => x.workItemId === workItemId)],
+    [
+      "suggestionReviewer",
+      ctx.suggestionReviewers.filter((r) => r.workItemId === workItemId),
+    ],
+    [
+      "suggestionDecision",
+      ctx.suggestionDecisions.filter((d) => d.workItemId === workItemId),
+    ],
     ["assignment", ctx.assignments.filter((a) => reviewIds.has(a.reviewId))],
     ["message", messages],
     ["activity", activity],
   ] as const)
     entities.push(...rows.map((row) => serialize(type, row)));
+  entities.push(
+    ...ctx.suggestions
+      .filter((x) => x.workItemId === workItemId)
+      .map(serializeSuggestion),
+  );
   entities.push({
     type: "readiness",
     id: workItemId,
@@ -1417,10 +1482,29 @@ export function createSyncService(db: Database) {
             requireCapability(capabilities, "editSpecifications");
             await revision(c.title, c.content, c.summary);
             break;
-          case "createThread":
+          case "createThread": {
+            let suggestionId: string | null = null;
+            if (c.suggestionId) {
+              const target = requireValue(
+                before.find(
+                  (e) => e.type === "suggestion" && e.id === c.suggestionId,
+                ),
+                "This suggestion is unavailable.",
+              );
+              if (
+                target.type !== "suggestion" ||
+                (target.status !== "open" && target.status !== "draft")
+              )
+                throw new DomainError(
+                  "conflict",
+                  "This suggestion is no longer open for discussion.",
+                );
+              suggestionId = target.id;
+            }
             await tx.insert(s.thread).values({
               id: c.threadId,
               ...context,
+              suggestionId,
               authorId: userId,
               blocking: c.blocking,
               anchor: {
@@ -1440,8 +1524,10 @@ export function createSyncService(db: Database) {
             log("thread_opened", {
               threadId: c.threadId,
               blocking: c.blocking,
+              ...(suggestionId ? { suggestionId } : {}),
             });
             break;
+          }
           case "replyToThread":
           case "setThreadState": {
             const thread = requireValue(
@@ -1496,60 +1582,293 @@ export function createSyncService(db: Database) {
               authorId: userId,
               replacement: c.replacement,
               rationale: c.rationale,
+              status: c.open ? "open" : "draft",
+              openedAt: c.open ? now : null,
             });
-            log("suggestion_created", { suggestionId: c.suggestionId });
+            log("suggestion_created", {
+              suggestionId: c.suggestionId,
+              draft: !c.open,
+            });
             break;
-          case "decideSuggestion": {
-            requireCapability(capabilities, "editSpecifications");
+          case "updateSuggestion":
+          case "setSuggestionState":
+          case "setSuggestionReviewer":
+          case "decideSuggestion":
+          case "mergeSuggestion": {
             const suggestion = requireValue(
               before.find(
                 (e) => e.type === "suggestion" && e.id === c.suggestionId,
               ),
+              "This suggestion is unavailable.",
             );
-            if (
-              suggestion.type !== "suggestion" ||
-              suggestion.status !== "pending"
-            )
-              throw new DomainError(
-                "conflict",
-                "This suggestion was already decided.",
-              );
-            if (c.accept && suggestion.revisionId !== latest?.id)
-              throw new DomainError(
-                "conflict",
-                "This suggestion targets an older revision. Create an updated suggestion.",
-                latest?.id,
-              );
-            if (c.accept && suggestion.replacement === latest?.content)
-              throw new DomainError(
-                "validation",
-                "This suggestion makes no content change.",
-              );
-            const acceptedRevisionId = c.accept
-              ? await revision(
-                  latest!.title,
+            if (suggestion.type !== "suggestion") break;
+            const isAuthor = suggestion.authorId === userId;
+            const reviewers = before.filter(
+              (e): e is EntityOf<"suggestionReviewer"> =>
+                e.type === "suggestionReviewer" &&
+                e.suggestionId === suggestion.id &&
+                !e.withdrawnAt,
+            );
+            const decisions = before.filter(
+              (e): e is EntityOf<"suggestionDecision"> =>
+                e.type === "suggestionDecision" &&
+                e.suggestionId === suggestion.id &&
+                !e.supersededAt,
+            );
+            const isReviewer = reviewers.some((r) => r.userId === userId);
+            const settled =
+              suggestion.status === "merged" || suggestion.status === "closed";
+            const patch = (values: Partial<SuggestionRow>) =>
+              tx
+                .update(s.suggestion)
+                .set(values)
+                .where(
+                  and(
+                    eq(s.suggestion.organizationId, organizationId),
+                    eq(s.suggestion.id, suggestion.id),
+                  ),
+                );
+            // Ends the reviewers' current decisions; a new version or a new
+            // decision by the same reviewer replaces rather than rewrites.
+            const supersede = async (reason: string, reviewerId?: string) => {
+              await tx
+                .update(s.suggestionDecision)
+                .set({ supersededAt: now, supersededReason: reason })
+                .where(
+                  and(
+                    eq(s.suggestionDecision.organizationId, organizationId),
+                    eq(s.suggestionDecision.suggestionId, suggestion.id),
+                    isNull(s.suggestionDecision.supersededAt),
+                    reviewerId
+                      ? eq(s.suggestionDecision.reviewerId, reviewerId)
+                      : undefined,
+                  ),
+                );
+            };
+            switch (c.type) {
+              case "updateSuggestion": {
+                require(isAuthor, "Only the author can update a suggestion.");
+                if (settled)
+                  throw new DomainError(
+                    "conflict",
+                    `This suggestion was ${suggestion.status}; open a new one.`,
+                  );
+                if (c.replacement === latest?.content)
+                  throw new DomainError(
+                    "validation",
+                    "This suggestion makes no content change.",
+                  );
+                const rebased = suggestion.revisionId !== latest!.id;
+                const changed = c.replacement !== suggestion.replacement;
+                const version = changed
+                  ? suggestion.version + 1
+                  : suggestion.version;
+                await patch({
+                  replacement: c.replacement,
+                  rationale: c.rationale,
+                  revisionId: latest!.id,
+                  version,
+                });
+                if (changed && decisions.length)
+                  await supersede(`Suggestion updated (version ${version})`);
+                if (changed || rebased)
+                  log("suggestion_updated", {
+                    suggestionId: suggestion.id,
+                    version,
+                    rebased,
+                    revision: latest!.number,
+                  });
+                break;
+              }
+              case "setSuggestionState": {
+                if (c.status === suggestion.status) break;
+                if (suggestion.status === "merged")
+                  throw new DomainError(
+                    "conflict",
+                    "A merged suggestion cannot change state.",
+                  );
+                if (c.status === "closed")
+                  require(isAuthor ||
+                    capabilities.editSpecifications, "Only the author or someone who can edit specifications can close a suggestion.");
+                else
+                  require(isAuthor, "Only the author can open or draft a suggestion.");
+                await patch({
+                  status: c.status,
+                  ...(c.status === "open" && !suggestion.openedAt
+                    ? { openedAt: now }
+                    : {}),
+                  resolvedAt: c.status === "closed" ? now : null,
+                  resolvedById: c.status === "closed" ? userId : null,
+                });
+                log(
+                  c.status === "closed"
+                    ? "suggestion_closed"
+                    : suggestion.status === "closed"
+                      ? "suggestion_reopened"
+                      : c.status === "open"
+                        ? "suggestion_opened"
+                        : "suggestion_drafted",
+                  {
+                    suggestionId: suggestion.id,
+                    authorId: suggestion.authorId,
+                  },
+                );
+                break;
+              }
+              case "setSuggestionReviewer": {
+                require(isAuthor, "Only the author can choose reviewers for a suggestion.");
+                if (settled)
+                  throw new DomainError(
+                    "conflict",
+                    `This suggestion was ${suggestion.status}.`,
+                  );
+                requireValue(
+                  roster.members.find((m) => m.id === c.userId),
+                  "That person is not a member of this organization.",
+                );
+                const existing = reviewers.find((r) => r.userId === c.userId);
+                if (c.assigned) {
+                  require(canReviewSuggestions(
+                    roster.roles,
+                    c.userId,
+                  ), "Suggestion reviewers need a role that can both edit Epics and Stories and be asked to review.", "validation");
+                  require(c.userId !==
+                    userId, "You cannot review your own suggestion.", "validation");
+                  if (existing) break;
+                  await tx.insert(s.suggestionReviewer).values({
+                    organizationId,
+                    workItemId: workItemId!,
+                    suggestionId: suggestion.id,
+                    userId: c.userId,
+                    assignedById: userId,
+                  });
+                  log("suggestion_reviewer_assigned", {
+                    suggestionId: suggestion.id,
+                    userId: c.userId,
+                  });
+                } else {
+                  if (!existing) break;
+                  await tx
+                    .update(s.suggestionReviewer)
+                    .set({ withdrawnAt: now })
+                    .where(
+                      and(
+                        eq(s.suggestionReviewer.organizationId, organizationId),
+                        eq(s.suggestionReviewer.id, existing.id),
+                      ),
+                    );
+                  log("suggestion_reviewer_unassigned", {
+                    suggestionId: suggestion.id,
+                    userId: c.userId,
+                  });
+                }
+                break;
+              }
+              case "decideSuggestion": {
+                require(isReviewer, "Only an assigned reviewer can decide this suggestion.");
+                if (suggestion.status !== "open")
+                  throw new DomainError(
+                    "conflict",
+                    "This suggestion is not open for review.",
+                  );
+                if (c.version !== suggestion.version)
+                  throw new DomainError(
+                    "conflict",
+                    `The suggestion changed (version ${suggestion.version}). Review the latest version.`,
+                  );
+                const mine = decisions.find((d) => d.reviewerId === userId);
+                if (c.decision === "revoke") {
+                  if (!mine) break;
+                  await supersede("Reviewer revoked their decision", userId);
+                  log("suggestion_decision_revoked", {
+                    suggestionId: suggestion.id,
+                    version: suggestion.version,
+                  });
+                  break;
+                }
+                const decision =
+                  c.decision === "approve" ? "approved" : "changes_requested";
+                if (mine?.decision === decision && mine.version === c.version)
+                  break;
+                if (mine) await supersede("Reviewer decision changed", userId);
+                await tx.insert(s.suggestionDecision).values({
+                  organizationId,
+                  workItemId: workItemId!,
+                  suggestionId: suggestion.id,
+                  reviewerId: userId,
+                  version: c.version,
+                  decision,
+                });
+                log(
+                  decision === "approved"
+                    ? "suggestion_approved"
+                    : "suggestion_changes_requested",
+                  {
+                    suggestionId: suggestion.id,
+                    version: c.version,
+                    authorId: suggestion.authorId,
+                  },
+                );
+                break;
+              }
+              case "mergeSuggestion": {
+                require(isReviewer, "Only an assigned reviewer can merge this suggestion.");
+                // Merging writes the mainline: the reviewer must still hold
+                // the editing capability they were chosen for.
+                requireCapability(capabilities, "editSpecifications");
+                if (suggestion.status !== "open")
+                  throw new DomainError(
+                    "conflict",
+                    "Only an open suggestion can be merged.",
+                  );
+                if (suggestion.revisionId !== latest?.id)
+                  throw new DomainError(
+                    "conflict",
+                    `The specification moved to revision ${latest?.number}. The author must update the suggestion before it can be merged.`,
+                    latest?.id,
+                  );
+                const approved = decisions.filter(
+                  (d) =>
+                    d.decision === "approved" &&
+                    d.version === suggestion.version &&
+                    reviewers.some((r) => r.userId === d.reviewerId),
+                );
+                require(approved.length >
+                  0, `Version ${suggestion.version} needs at least one reviewer approval before merging.`, "validation");
+                const blocking = before.filter(
+                  (e) =>
+                    e.type === "thread" &&
+                    e.suggestionId === suggestion.id &&
+                    e.status === "open" &&
+                    e.blocking,
+                );
+                require(blocking.length ===
+                  0, `${blocking.length} blocking ${blocking.length === 1 ? "discussion" : "discussions"} on this suggestion must be resolved before merging.`, "validation");
+                if (suggestion.replacement === latest.content)
+                  throw new DomainError(
+                    "validation",
+                    "This suggestion makes no content change.",
+                  );
+                const mergedRevisionId = await revision(
+                  latest.title,
                   suggestion.replacement,
-                  suggestion.rationale ?? "Accepted suggestion",
-                )
-              : null;
-            await tx
-              .update(s.suggestion)
-              .set({
-                status: c.accept ? "accepted" : "rejected",
-                resolvedAt: now,
-                resolvedById: userId,
-                acceptedRevisionId,
-              })
-              .where(
-                and(
-                  eq(s.suggestion.organizationId, organizationId),
-                  eq(s.suggestion.id, c.suggestionId),
-                ),
-              );
-            log(c.accept ? "suggestion_accepted" : "suggestion_rejected", {
-              suggestionId: c.suggestionId,
-              authorId: suggestion.authorId,
-            });
+                  suggestion.rationale ?? "Merged suggestion",
+                );
+                await patch({
+                  status: "merged",
+                  resolvedAt: now,
+                  resolvedById: userId,
+                  acceptedRevisionId: mergedRevisionId,
+                });
+                log("suggestion_merged", {
+                  suggestionId: suggestion.id,
+                  authorId: suggestion.authorId,
+                  version: suggestion.version,
+                  approvedBy: approved.map((d) => d.reviewerId).sort(),
+                });
+                break;
+              }
+            }
             break;
           }
           case "requestReview": {

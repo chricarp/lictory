@@ -1,9 +1,7 @@
-import { AccountPage } from "~/components/app/account-page";
+import { redirect } from "next/navigation";
 
-export default function WorkspaceAccountPage() {
-  return (
-    <div className="h-full overflow-y-auto">
-      <AccountPage />
-    </div>
-  );
+// Preserve old bookmarks while keeping personal settings outside organization
+// routing and organization-specific workspace state.
+export default function LegacyWorkspaceAccountPage() {
+  redirect("/app/account");
 }

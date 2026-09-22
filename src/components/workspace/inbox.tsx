@@ -47,10 +47,13 @@ export function Inbox() {
             r.status !== "cancelled" &&
             r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
         );
+        const suggestion = item.suggestionReviewerIds.includes(userId);
         list.push({
           item,
-          reason: "Review requested",
-          detail: `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}`,
+          reason: pending.length ? "Review requested" : "Suggestion to review",
+          detail: pending.length
+            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a suggestion awaits your approval" : ""}`
+            : "A suggestion awaits your approval to be merged",
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
         });

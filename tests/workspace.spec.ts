@@ -1,8 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
+import { paths } from "../src/lib/paths";
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
 const password = "Local-test-password-123";
@@ -36,6 +38,35 @@ async function signIn(page: Page, loginEmail = email) {
   // Dev-mode compilation can delay hydration; interact only once scripts settled.
   await page.waitForLoadState("networkidle");
 }
+
+test("account settings load outside an organization with an older session", async ({
+  page,
+}) => {
+  await signIn(page);
+
+  const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+  const db = drizzle(client);
+  const [user] = await db
+    .select({ id: s.user.id })
+    .from(s.user)
+    .where(eq(s.user.email, email));
+  await db
+    .update(s.session)
+    .set({ createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1_000) })
+    .where(eq(s.session.userId, user!.id));
+  await client.end();
+
+  await page.goto("/app/account");
+
+  await expect(page).toHaveURL(/\/app\/account$/);
+  await expect(
+    page.getByRole("heading", { name: "Account settings" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("1 active session", { exact: true }),
+  ).toBeVisible();
+});
+
 test("epic and story refinement: create, review, block, suggest, approve, stale, ready", async ({
   page,
   browser,
@@ -54,6 +85,17 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     .getByRole("button", { name: "Create project", exact: true })
     .click();
   await expect(page).toHaveURL(/\/pay\/epics$/);
+  const workspacePath = new URL(page.url()).pathname;
+
+  // Personal settings leave the organization shell without losing the return
+  // destination.
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("link", { name: "Account settings" }).click();
+  await expect(page).toHaveURL(
+    `http://localhost:3001${paths.account(workspacePath)}`,
+  );
+  await page.getByRole("link", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(`http://localhost:3001${workspacePath}`);
 
   // 1. Create an Epic through quick create (keyboard: c).
   await page.keyboard.press("c");
@@ -346,12 +388,27 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await reviewer
     .getByRole("textbox", { name: "Rationale" })
     .fill("Make timeout behavior explicit");
-  await reviewer.getByRole("button", { name: "Propose change" }).click();
-  await expect(page.getByText("Make timeout behavior explicit")).toBeVisible();
-  await page.getByRole("button", { name: "Accept suggestion" }).click();
+  await reviewer.getByRole("button", { name: "Open for review" }).click();
+  // The suggestion is reviewed like a pull request: the author asks the owner
+  // (Product: edits and reviews) to review; nobody can merge before approval.
+  await expect(reviewer).toHaveURL(/\?suggestion=/);
+  await expect(reviewer.getByText("Open for review").first()).toBeVisible();
+  await reviewer.getByRole("button", { name: "Add reviewer" }).click();
+  await reviewer.getByRole("option", { name: /Alex Morgan/ }).click();
+  await expect(reviewer.getByText("0 / 1 approved v1")).toBeVisible();
+  await page.getByText("Make timeout behavior explicit").click();
+  await expect(
+    page.getByRole("button", { name: /Merge as revision 3/ }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Approve v1" }).click();
+  await expect(page.getByText("1 / 1 approved v1")).toBeVisible();
+  await expect(reviewer.getByText("Approved · ready to merge")).toBeVisible();
+  await page.getByRole("button", { name: /Merge as revision 3/ }).click();
+  await expect(page.getByText(/Merged as revision 3/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Specification" }).click();
   await expect(page.getByText("Revision 3 ·").first()).toBeVisible();
-  await page.getByRole("button", { name: /Show 1 decided/ }).click();
-  await expect(page.getByText(/Accepted as revision 3/)).toBeVisible();
+  await page.getByRole("button", { name: /Show 1 merged or closed/ }).click();
+  await expect(page.getByText(/Merged as revision 3/)).toBeVisible();
 
   // 12. Reviewer approves revision 3.
   await reviewer.getByRole("button", { name: "Approve revision 3" }).click();

@@ -10,6 +10,9 @@ import { createAuthEmail, type AuthEmailMessage } from "~/emails/auth-email";
 
 const resendApiKey = process.env.RESEND_API_KEY?.trim();
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
+const resendFromEmail =
+  process.env.RESEND_FROM_EMAIL?.trim() ??
+  "Lictory <no-reply@email.lictory.com>";
 
 const smtpTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST ?? "localhost",
@@ -30,8 +33,7 @@ export async function sendAuthEmail(message: AuthEmailMessage) {
   if (resend) {
     const { error } = await resend.emails.send(
       {
-        from:
-          process.env.RESEND_FROM_EMAIL ?? "Lictory <onboarding@resend.dev>",
+        from: resendFromEmail,
         to: [message.to],
         subject: email.subject,
         react: email.react,

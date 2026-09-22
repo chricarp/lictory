@@ -67,10 +67,17 @@ export const reviewStatus = pgEnum("review_status", [
   "cancelled",
 ]);
 export const threadStatus = pgEnum("thread_status", ["open", "resolved"]);
+// A suggestion is reviewed like a pull request: drafted privately, opened for
+// review, then merged into the mainline as a new revision or closed.
 export const suggestionStatus = pgEnum("suggestion_status", [
-  "pending",
-  "accepted",
-  "rejected",
+  "draft",
+  "open",
+  "merged",
+  "closed",
+]);
+export const suggestionDecisionKind = pgEnum("suggestion_decision_kind", [
+  "approved",
+  "changes_requested",
 ]);
 export const approvalStatus = pgEnum("approval_status", [
   "granted",
@@ -440,6 +447,146 @@ export const reviewAssignment = pgTable(
   ],
 );
 
+// A proposed replacement of the specification, reviewed like a pull request.
+// `revisionId` is the mainline revision the replacement was written against;
+// updating the suggestion re-bases it onto the current revision. `version`
+// counts content updates so review decisions can name what they evaluated.
+export const suggestion = pgTable(
+  "suggestion",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    revisionId: text("revision_id").notNull(),
+    // Legacy, never written: discussions now reference the suggestion instead.
+    threadId: text("thread_id"),
+    authorId: actor("author_id"),
+    // Null anchor means replacement of the whole Markdown document.
+    anchor: jsonb("anchor").$type<Record<string, unknown>>(),
+    replacement: text("replacement").notNull(),
+    rationale: text("rationale"),
+    status: suggestionStatus("status").default("draft").notNull(),
+    version: integer("version").default(1).notNull(),
+    openedAt: timestamp("opened_at"),
+    resolvedById: optionalActor("resolved_by_id"),
+    resolvedAt: timestamp("resolved_at"),
+    // The mainline revision created by merging (column keeps its original name).
+    acceptedRevisionId: text("accepted_revision_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("suggestion_org_id_unique").on(t.organizationId, t.id),
+    unique("suggestion_context_unique").on(
+      t.organizationId,
+      t.workItemId,
+      t.id,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.revisionId],
+      foreignColumns: [
+        specificationRevision.organizationId,
+        specificationRevision.workItemId,
+        specificationRevision.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.acceptedRevisionId],
+      foreignColumns: [
+        specificationRevision.organizationId,
+        specificationRevision.workItemId,
+        specificationRevision.id,
+      ],
+    }).onDelete("restrict"),
+    index("suggestion_revision_status_idx").on(
+      t.organizationId,
+      t.workItemId,
+      t.revisionId,
+      t.status,
+    ),
+    check("suggestion_positive_version", sql`${t.version} > 0`),
+    check(
+      "suggestion_resolution_consistent",
+      sql`(${t.status} IN ('draft', 'open') AND ${t.resolvedAt} IS NULL AND ${t.resolvedById} IS NULL AND ${t.acceptedRevisionId} IS NULL) OR (${t.status} = 'closed' AND ${t.resolvedAt} IS NOT NULL AND ${t.resolvedById} IS NOT NULL AND ${t.acceptedRevisionId} IS NULL) OR (${t.status} = 'merged' AND ${t.resolvedAt} IS NOT NULL AND ${t.resolvedById} IS NOT NULL AND ${t.acceptedRevisionId} IS NOT NULL AND ${t.acceptedRevisionId} <> ${t.revisionId})`,
+    ),
+  ],
+);
+
+// People asked to review a suggestion. Only members of a role that can both
+// edit specifications and be asked to review may be assigned; the server
+// checks this at assignment time. Withdrawal keeps the record.
+export const suggestionReviewer = pgTable(
+  "suggestion_reviewer",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    suggestionId: text("suggestion_id").notNull(),
+    userId: actor("user_id"),
+    assignedById: actor("assigned_by_id"),
+    createdAt: createdAt(),
+    withdrawnAt: timestamp("withdrawn_at"),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.suggestionId],
+      foreignColumns: [
+        suggestion.organizationId,
+        suggestion.workItemId,
+        suggestion.id,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("suggestion_reviewer_active_unique")
+      .on(t.suggestionId, t.userId)
+      .where(sql`${t.withdrawnAt} IS NULL`),
+    index("suggestion_reviewer_user_idx").on(t.organizationId, t.userId),
+    index("suggestion_reviewer_suggestion_idx").on(
+      t.organizationId,
+      t.suggestionId,
+    ),
+  ],
+);
+
+// A reviewer's decision about one version of a suggestion. A later content
+// update or a new decision by the same reviewer supersedes it with a reason;
+// only unsuperseded approvals of the current version allow merging.
+export const suggestionDecision = pgTable(
+  "suggestion_decision",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    suggestionId: text("suggestion_id").notNull(),
+    reviewerId: actor("reviewer_id"),
+    version: integer("version").notNull(),
+    decision: suggestionDecisionKind("decision").notNull(),
+    createdAt: createdAt(),
+    supersededAt: timestamp("superseded_at"),
+    supersededReason: text("superseded_reason"),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.suggestionId],
+      foreignColumns: [
+        suggestion.organizationId,
+        suggestion.workItemId,
+        suggestion.id,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("suggestion_decision_active_unique")
+      .on(t.suggestionId, t.reviewerId)
+      .where(sql`${t.supersededAt} IS NULL`),
+    index("suggestion_decision_suggestion_idx").on(
+      t.organizationId,
+      t.suggestionId,
+    ),
+    check(
+      "suggestion_decision_supersede_consistent",
+      sql`(${t.supersededAt} IS NULL AND ${t.supersededReason} IS NULL) OR (${t.supersededAt} IS NOT NULL AND ${t.supersededReason} IS NOT NULL)`,
+    ),
+  ],
+);
+
 export const thread = pgTable(
   "thread",
   {
@@ -448,6 +595,10 @@ export const thread = pgTable(
     workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
     reviewId: text("review_id"),
+    // Set when the discussion is about a suggestion's proposed text rather
+    // than the mainline specification. Such threads block that suggestion's
+    // merge, not the work item's readiness.
+    suggestionId: text("suggestion_id"),
     authorId: actor("author_id"),
     status: threadStatus("status").default("open").notNull(),
     blocking: boolean("blocking").default(false).notNull(),
@@ -481,6 +632,14 @@ export const thread = pgTable(
         review.workItemId,
         review.revisionId,
         review.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.suggestionId],
+      foreignColumns: [
+        suggestion.organizationId,
+        suggestion.workItemId,
+        suggestion.id,
       ],
     }).onDelete("restrict"),
     index("thread_item_status_idx").on(
@@ -522,65 +681,6 @@ export const threadMessage = pgTable(
       t.threadId,
       t.createdAt,
       t.id,
-    ),
-  ],
-);
-
-export const suggestion = pgTable(
-  "suggestion",
-  {
-    id: id(),
-    organizationId: organizationId(),
-    workItemId: text("work_item_id").notNull(),
-    revisionId: text("revision_id").notNull(),
-    threadId: text("thread_id"),
-    authorId: actor("author_id"),
-    // Null anchor means replacement of the whole Markdown document.
-    anchor: jsonb("anchor").$type<Record<string, unknown>>(),
-    replacement: text("replacement").notNull(),
-    rationale: text("rationale"),
-    status: suggestionStatus("status").default("pending").notNull(),
-    resolvedById: optionalActor("resolved_by_id"),
-    resolvedAt: timestamp("resolved_at"),
-    acceptedRevisionId: text("accepted_revision_id"),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.workItemId, t.revisionId],
-      foreignColumns: [
-        specificationRevision.organizationId,
-        specificationRevision.workItemId,
-        specificationRevision.id,
-      ],
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [t.organizationId, t.workItemId, t.revisionId, t.threadId],
-      foreignColumns: [
-        thread.organizationId,
-        thread.workItemId,
-        thread.revisionId,
-        thread.id,
-      ],
-    }).onDelete("restrict"),
-    foreignKey({
-      columns: [t.organizationId, t.workItemId, t.acceptedRevisionId],
-      foreignColumns: [
-        specificationRevision.organizationId,
-        specificationRevision.workItemId,
-        specificationRevision.id,
-      ],
-    }).onDelete("restrict"),
-    index("suggestion_revision_status_idx").on(
-      t.organizationId,
-      t.workItemId,
-      t.revisionId,
-      t.status,
-    ),
-    check(
-      "suggestion_resolution_consistent",
-      sql`(${t.status} = 'pending' AND ${t.resolvedAt} IS NULL AND ${t.resolvedById} IS NULL AND ${t.acceptedRevisionId} IS NULL) OR (${t.status} = 'rejected' AND ${t.resolvedAt} IS NOT NULL AND ${t.resolvedById} IS NOT NULL AND ${t.acceptedRevisionId} IS NULL) OR (${t.status} = 'accepted' AND ${t.resolvedAt} IS NOT NULL AND ${t.resolvedById} IS NOT NULL AND ${t.acceptedRevisionId} IS NOT NULL AND ${t.acceptedRevisionId} <> ${t.revisionId})`,
     ),
   ],
 );

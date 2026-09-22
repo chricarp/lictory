@@ -47,6 +47,14 @@ export const milestoneStatuses = [
 ] as const;
 export type MilestoneStatus = (typeof milestoneStatuses)[number];
 
+export const suggestionStatuses = [
+  "draft",
+  "open",
+  "merged",
+  "closed",
+] as const;
+export type SuggestionStatus = (typeof suggestionStatuses)[number];
+
 // Review information every list, inbox and filter needs without loading the
 // item's full history. Computed server-side from the current revision only.
 export const reviewSummarySchema = z.object({
@@ -113,7 +121,10 @@ export const entitySchema = z.discriminatedUnion("type", [
     revisionNumber: z.number().int(),
     openThreads: z.number().int(),
     blockingThreads: z.number().int(),
-    pendingSuggestions: z.number().int(),
+    openSuggestions: z.number().int(),
+    // Reviewers of open suggestions who have not approved the current
+    // version yet; the client derives "needs my review" from it.
+    suggestionReviewerIds: z.array(id),
     reviews: z.array(reviewSummarySchema),
     readinessPassed: z.number().int(),
     readinessTotal: z.number().int(),
@@ -153,6 +164,9 @@ export const entitySchema = z.discriminatedUnion("type", [
     ...base,
     ...context,
     type: z.literal("thread"),
+    // Discussions about a suggestion's proposed text block that suggestion's
+    // merge rather than the work item's readiness.
+    suggestionId: id.nullable(),
     authorId: id,
     status: z.enum(["open", "resolved"]),
     blocking: z.boolean(),
@@ -176,6 +190,9 @@ export const entitySchema = z.discriminatedUnion("type", [
     body: z.string(),
     createdAt: z.string(),
   }),
+  // A proposed replacement of the specification, reviewed like a pull request.
+  // `revisionId` is the mainline revision it was written against; `version`
+  // increments on every content update so decisions can name what they saw.
   z.object({
     ...base,
     ...context,
@@ -183,9 +200,36 @@ export const entitySchema = z.discriminatedUnion("type", [
     authorId: id,
     replacement: z.string(),
     rationale: z.string().nullable(),
-    status: z.enum(["pending", "accepted", "rejected"]),
-    acceptedRevisionId: id.nullable(),
+    status: z.enum(suggestionStatuses),
+    version: z.number().int(),
+    openedAt: z.string().nullable(),
+    mergedRevisionId: id.nullable(),
+    resolvedById: id.nullable(),
+    resolvedAt: z.string().nullable(),
     createdAt: z.string(),
+    updatedAt: z.string(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("suggestionReviewer"),
+    workItemId: id,
+    suggestionId: id,
+    userId: id,
+    assignedById: id,
+    createdAt: z.string(),
+    withdrawnAt: z.string().nullable(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("suggestionDecision"),
+    workItemId: id,
+    suggestionId: id,
+    reviewerId: id,
+    version: z.number().int(),
+    decision: z.enum(["approved", "changes_requested"]),
+    createdAt: z.string(),
+    supersededAt: z.string().nullable(),
+    supersededReason: z.string().nullable(),
   }),
   z.object({
     ...base,
@@ -245,6 +289,8 @@ const entityTypes = z.enum([
   "thread",
   "message",
   "suggestion",
+  "suggestionReviewer",
+  "suggestionDecision",
   "approval",
   "readiness",
   "activity",
@@ -321,6 +367,17 @@ export function capabilitiesOf(roles: Role[], userId: string): Capabilities {
     review: mine.some((r) => r.capabilities.review),
   };
 }
+// Suggestion reviewers merge into the mainline, so they must hold an active
+// role that both edits specifications and can be asked to review.
+export function canReviewSuggestions(roles: Role[], userId: string) {
+  return roles.some(
+    (r) =>
+      !r.archivedAt &&
+      r.userIds.includes(userId) &&
+      r.capabilities.editSpecifications &&
+      r.capabilities.review,
+  );
+}
 export const memberSearchSchema = z.object({
   organizationId: id,
   q: z.string().max(120).optional().default(""),
@@ -360,7 +417,7 @@ export const directorySchema = z.object({
   roles: z.array(roleSchema),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 4 as const;
+export const PROTOCOL = 5 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -466,6 +523,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     blocking: z.boolean(),
     section: z.string().max(200),
     quote: z.string().max(2000).optional(),
+    // Discuss a suggestion's proposed text instead of the specification.
+    suggestionId: id.optional(),
   }),
   z.object({
     type: z.literal("replyToThread"),
@@ -481,18 +540,53 @@ export const commandSchema = z.discriminatedUnion("type", [
     resolved: z.boolean(),
     blocking: z.boolean(),
   }),
+  // Suggestions follow a pull-request lifecycle. Anyone in the organization
+  // can draft one; only the author manages it; only assigned reviewers (members
+  // of a role that can both edit specifications and review) approve and merge.
   z.object({
     type: z.literal("createSuggestion"),
     ...revisionCommand,
     suggestionId: z.uuid(),
     replacement: document,
     rationale: text.max(2000),
+    // Open for review immediately instead of saving a private draft.
+    open: z.boolean(),
+  }),
+  // Author updates the proposed text (and re-bases onto the current revision).
+  // A content change bumps the version and supersedes existing decisions.
+  z.object({
+    type: z.literal("updateSuggestion"),
+    ...revisionCommand,
+    suggestionId: id,
+    replacement: document,
+    rationale: text.max(2000),
+  }),
+  // draft ⇄ open, open/draft → closed, closed → draft/open. Never merged.
+  z.object({
+    type: z.literal("setSuggestionState"),
+    ...itemCommand,
+    suggestionId: id,
+    status: z.enum(["draft", "open", "closed"]),
+  }),
+  z.object({
+    type: z.literal("setSuggestionReviewer"),
+    ...itemCommand,
+    suggestionId: id,
+    userId: id,
+    assigned: z.boolean(),
   }),
   z.object({
     type: z.literal("decideSuggestion"),
+    ...itemCommand,
+    suggestionId: id,
+    version: z.number().int().positive(),
+    decision: z.enum(["approve", "changes_requested", "revoke"]),
+  }),
+  // Merging creates the next mainline revision from the suggestion text.
+  z.object({
+    type: z.literal("mergeSuggestion"),
     ...revisionCommand,
     suggestionId: id,
-    accept: z.boolean(),
   }),
   // Reviews are requested from a reviewer role; the role's name becomes the
   // review responsibility. Optionally a specific member of that role is asked.

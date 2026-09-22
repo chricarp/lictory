@@ -7,13 +7,22 @@ import {
   Link2,
   Mail,
   MonitorSmartphone,
+  Trash2,
   UserRound,
 } from "lucide-react";
 
-import { FormField, FormMessage } from "~/components/auth/form-field";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Badge } from "~/components/ui/primitives";
+import {
+  InlineError,
+  SettingsBody,
+  SettingsGroup,
+  SettingsList,
+  SettingsSection,
+} from "~/components/workspace/settings-section";
 import { authClient } from "~/lib/auth-client";
-import { formValue } from "~/lib/utils";
+import { cn, formValue } from "~/lib/utils";
 
 type AccountSettingsProps = {
   user: { name: string; email: string; emailVerified: boolean };
@@ -22,63 +31,130 @@ type AccountSettingsProps = {
   sessionCount: number;
 };
 
+// Personal settings, laid out like organization settings: an anchor nav on the
+// left and grouped cards on the right. Groups separate who you are from how
+// you sign in, with the irreversible action kept apart at the end.
 export function AccountSettings(props: AccountSettingsProps) {
   const hasPassword = props.connectedProviders.includes("credential");
+  const nav = [
+    { id: "profile", label: "Profile" },
+    { id: "email", label: "Email" },
+    ...(hasPassword ? [{ id: "password", label: "Password" }] : []),
+    { id: "connections", label: "Connected accounts" },
+    { id: "sessions", label: "Sessions" },
+    { id: "delete", label: "Delete account" },
+  ];
 
   return (
-    <div className="grid gap-6">
-      <ProfileSection user={props.user} />
-      <EmailSection user={props.user} />
-      {hasPassword ? <PasswordSection /> : null}
-      <ConnectionsSection
-        providers={props.providers}
-        connectedProviders={props.connectedProviders}
-      />
-      <SessionsSection sessionCount={props.sessionCount} />
-      <DeleteSection hasPassword={hasPassword} />
+    <div className="mt-8 gap-10 lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
+      <nav
+        aria-label="Settings sections"
+        className="hidden lg:sticky lg:top-0 lg:block lg:self-start"
+      >
+        <ul className="space-y-0.5">
+          {nav.map((n) => (
+            <li key={n.id}>
+              <a
+                href={`#${n.id}`}
+                className="block rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground"
+              >
+                {n.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div className="space-y-10">
+        <SettingsGroup
+          title="Identity"
+          description="How collaborators see you and where we reach you."
+        >
+          <ProfileSection user={props.user} />
+          <EmailSection user={props.user} />
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Sign-in & security"
+          description="The ways you sign in and the devices currently signed in."
+        >
+          {hasPassword && <PasswordSection />}
+          <ConnectionsSection
+            providers={props.providers}
+            connectedProviders={props.connectedProviders}
+          />
+          <SessionsSection sessionCount={props.sessionCount} />
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Danger zone"
+          description="Irreversible actions on this account."
+        >
+          <DeleteSection hasPassword={hasPassword} />
+        </SettingsGroup>
+      </div>
     </div>
   );
 }
 
-function Section({
-  icon,
-  title,
-  description,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  children: React.ReactNode;
+// Compact labelled field matching the organization settings forms.
+function Field({
+  label,
+  hint,
+  id,
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  hint?: string;
 }) {
   return (
-    <section className="rounded-2xl bg-card shadow-[var(--shadow-border)]">
-      <div className="flex gap-4 border-b border-border px-5 py-5 sm:px-6">
-        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
-          {icon}
-        </div>
-        <div>
-          <h2 className="font-semibold">{title}</h2>
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">
-            {description}
-          </p>
-        </div>
-      </div>
-      <div className="p-5 sm:p-6">{children}</div>
-    </section>
+    <label htmlFor={id} className="block text-[13px] font-medium">
+      <span className="flex items-center justify-between gap-3">
+        {label}
+        {hint && (
+          <span className="text-xs font-normal text-muted-foreground">
+            {hint}
+          </span>
+        )}
+      </span>
+      <Input
+        id={id}
+        className={cn("mt-1.5 h-8 rounded-md text-sm", className)}
+        {...props}
+      />
+    </label>
+  );
+}
+
+// Outcome of the last submit, in the same quiet register as InlineError.
+function Status({
+  children,
+  tone,
+}: {
+  children?: string | null;
+  tone: "success" | "error";
+}) {
+  if (!children) return null;
+  if (tone === "error") return <InlineError>{children}</InlineError>;
+  return (
+    <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">
+      {children}
+    </p>
   );
 }
 
 function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
   const router = useRouter();
+  const [value, setValue] = useState(user.name);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const dirty = value.trim() !== "" && value.trim() !== user.name;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    const name = formValue(new FormData(event.currentTarget), "name");
-    const result = await authClient.updateUser({ name });
+    const result = await authClient.updateUser({ name: value.trim() });
     setMessage(
       result.error
         ? (result.error.message ?? "Update failed.")
@@ -89,44 +165,55 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
   }
 
   return (
-    <Section
-      icon={<UserRound className="size-5" />}
+    <SettingsSection
+      id="profile"
+      icon={<UserRound />}
       title="Profile"
-      description="How your name appears to collaborators."
+      description="Your name, as shown to collaborators on threads and reviews."
     >
-      <form onSubmit={submit} className="grid max-w-lg gap-4">
-        <FormField
-          id="name"
-          name="name"
-          label="Full name"
-          defaultValue={user.name}
-          autoComplete="name"
-          required
-        />
-        <FormMessage
-          tone={message === "Profile updated." ? "success" : "error"}
-        >
-          {message}
-        </FormMessage>
-        <Button size="lg" type="submit" className="w-fit" disabled={pending}>
-          {pending ? "Saving…" : "Save profile"}
-        </Button>
-      </form>
-    </Section>
+      <SettingsBody>
+        <form onSubmit={submit} className="space-y-2">
+          <label className="block text-[13px] font-medium">
+            Full name
+            <div className="mt-1.5 flex gap-2">
+              <Input
+                name="name"
+                className="h-8 max-w-sm rounded-md text-sm"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                autoComplete="name"
+                required
+              />
+              <Button
+                type="submit"
+                variant="secondary"
+                disabled={pending || !dirty}
+              >
+                {pending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </label>
+          <Status tone={message === "Profile updated." ? "success" : "error"}>
+            {message}
+          </Status>
+        </form>
+      </SettingsBody>
+    </SettingsSection>
   );
 }
 
 function EmailSection({ user }: Pick<AccountSettingsProps, "user">) {
   const pathname = usePathname();
+  const [value, setValue] = useState(user.email);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const dirty = value.trim() !== "" && value.trim() !== user.email;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    const newEmail = formValue(new FormData(event.currentTarget), "email");
     const result = await authClient.changeEmail({
-      newEmail,
+      newEmail: value.trim(),
       callbackURL: pathname,
     });
     setMessage(
@@ -138,39 +225,48 @@ function EmailSection({ user }: Pick<AccountSettingsProps, "user">) {
   }
 
   return (
-    <Section
-      icon={<Mail className="size-5" />}
-      title="Email address"
-      description={
-        user.emailVerified
-          ? "Your current email is verified."
-          : "Your current email still needs verification."
+    <SettingsSection
+      id="email"
+      icon={<Mail />}
+      title="Email"
+      description="Sign-in address and where notifications are sent. A change takes effect once the new address is confirmed."
+      action={
+        user.emailVerified ? (
+          <Badge tone="good">Verified</Badge>
+        ) : (
+          <Badge tone="warning">Unverified</Badge>
+        )
       }
     >
-      <form onSubmit={submit} className="grid max-w-lg gap-4">
-        <FormField
-          id="account-email"
-          name="email"
-          label="Email"
-          defaultValue={user.email}
-          type="email"
-          autoComplete="email"
-          required
-        />
-        <FormMessage tone={message?.startsWith("Check") ? "success" : "error"}>
-          {message}
-        </FormMessage>
-        <Button
-          size="lg"
-          type="submit"
-          variant="secondary"
-          className="w-fit"
-          disabled={pending}
-        >
-          {pending ? "Sending…" : "Change email"}
-        </Button>
-      </form>
-    </Section>
+      <SettingsBody>
+        <form onSubmit={submit} className="space-y-2">
+          <label className="block text-[13px] font-medium">
+            Email address
+            <div className="mt-1.5 flex gap-2">
+              <Input
+                name="email"
+                type="email"
+                className="h-8 max-w-sm rounded-md text-sm"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                autoComplete="email"
+                required
+              />
+              <Button
+                type="submit"
+                variant="secondary"
+                disabled={pending || !dirty}
+              >
+                {pending ? "Sending…" : "Change"}
+              </Button>
+            </div>
+          </label>
+          <Status tone={message?.startsWith("Check") ? "success" : "error"}>
+            {message}
+          </Status>
+        </form>
+      </SettingsBody>
+    </SettingsSection>
   );
 }
 
@@ -198,48 +294,51 @@ function PasswordSection() {
   }
 
   return (
-    <Section
-      icon={<KeyRound className="size-5" />}
+    <SettingsSection
+      id="password"
+      icon={<KeyRound />}
       title="Password"
-      description="Changing it signs out your other sessions."
+      description="Changing it signs out every other session."
     >
-      <form onSubmit={submit} className="grid max-w-lg gap-4">
-        <FormField
-          id="current-password"
-          name="currentPassword"
-          label="Current password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-        <FormField
-          id="new-password"
-          name="newPassword"
-          label="New password"
-          hint="10 characters minimum"
-          type="password"
-          autoComplete="new-password"
-          minLength={10}
-          required
-        />
-        <FormMessage
-          tone={message?.startsWith("Password changed") ? "success" : "error"}
-        >
-          {message}
-        </FormMessage>
-        <Button
-          size="lg"
-          type="submit"
-          variant="secondary"
-          className="w-fit"
-          disabled={pending}
-        >
-          {pending ? "Updating…" : "Update password"}
-        </Button>
-      </form>
-    </Section>
+      <SettingsBody>
+        <form onSubmit={submit} className="max-w-sm space-y-3">
+          <Field
+            id="current-password"
+            name="currentPassword"
+            label="Current password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+          <Field
+            id="new-password"
+            name="newPassword"
+            label="New password"
+            hint="10 characters minimum"
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+          />
+          <div className="flex items-center gap-3 pt-1">
+            <Button type="submit" variant="secondary" disabled={pending}>
+              {pending ? "Updating…" : "Update password"}
+            </Button>
+            <Status
+              tone={
+                message?.startsWith("Password changed") ? "success" : "error"
+              }
+            >
+              {message}
+            </Status>
+          </div>
+        </form>
+      </SettingsBody>
+    </SettingsSection>
   );
 }
+
+const providerLabels = { google: "Google", microsoft: "Microsoft" } as const;
 
 function ConnectionsSection({
   providers,
@@ -251,43 +350,51 @@ function ConnectionsSection({
   }
 
   return (
-    <Section
-      icon={<Link2 className="size-5" />}
+    <SettingsSection
+      id="connections"
+      icon={<Link2 />}
       title="Connected accounts"
-      description="Use a trusted identity provider to sign in."
+      description="Sign in with an identity provider instead of, or alongside, a password."
     >
-      <div className="grid gap-3">
+      <SettingsList isEmpty={false} empty={null}>
         {(["google", "microsoft"] as const).map((provider) => {
           const connected = connectedProviders.includes(provider);
           const configured = providers[provider];
           return (
             <div
               key={provider}
-              className="flex items-center justify-between gap-4 rounded-xl bg-muted/60 px-4 py-3"
+              className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
             >
-              <div>
-                <p className="text-sm font-medium capitalize">{provider}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">
+                    {providerLabels[provider]}
+                  </span>
+                  {connected && <Badge tone="good">Connected</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground">
                   {connected
-                    ? "Connected"
+                    ? "You can sign in with this account."
                     : configured
-                      ? "Available to connect"
-                      : "OAuth credentials not configured"}
+                      ? "Not connected."
+                      : "Not available on this installation."}
                 </p>
               </div>
-              <Button
-                size="lg"
-                variant="secondary"
-                disabled={connected || !configured}
-                onClick={() => connect(provider)}
-              >
-                {connected ? "Connected" : "Connect"}
-              </Button>
+              {!connected && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!configured}
+                  onClick={() => connect(provider)}
+                >
+                  Connect
+                </Button>
+              )}
             </div>
           );
         })}
-      </div>
-    </Section>
+      </SettingsList>
+    </SettingsSection>
   );
 }
 
@@ -296,6 +403,7 @@ function SessionsSection({
 }: Pick<AccountSettingsProps, "sessionCount">) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const others = sessionCount - 1;
 
   async function revoke() {
     setPending(true);
@@ -309,31 +417,38 @@ function SessionsSection({
   }
 
   return (
-    <Section
-      icon={<MonitorSmartphone className="size-5" />}
+    <SettingsSection
+      id="sessions"
+      icon={<MonitorSmartphone />}
       title="Sessions"
-      description={`${sessionCount} active ${sessionCount === 1 ? "session" : "sessions"} for this account.`}
+      description="Browsers and devices currently signed in to this account, including this one."
+      action={
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {sessionCount} active {sessionCount === 1 ? "session" : "sessions"}
+        </span>
+      }
     >
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-          If you do not recognize recent activity, revoke every session except
-          this browser and change your password.
+      <SettingsBody className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-md text-[13px] leading-5 text-muted-foreground">
+          {others > 0
+            ? `Signs out ${others} other ${others === 1 ? "session" : "sessions"} and keeps this browser signed in. Change your password too if you do not recognize the activity.`
+            : "This browser is the only active session."}
         </p>
-        <Button
-          size="lg"
-          variant="secondary"
-          onClick={revoke}
-          disabled={pending || sessionCount <= 1}
-        >
-          {pending ? "Revoking…" : "Sign out other sessions"}
-        </Button>
-      </div>
-      <div className="mt-4">
-        <FormMessage tone={message?.startsWith("Other") ? "success" : "error"}>
-          {message}
-        </FormMessage>
-      </div>
-    </Section>
+        <div className="flex items-center gap-3">
+          <Status tone={message?.startsWith("Other") ? "success" : "error"}>
+            {message}
+          </Status>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={revoke}
+            disabled={pending || others <= 0}
+          >
+            {pending ? "Revoking…" : "Sign out other sessions"}
+          </Button>
+        </div>
+      </SettingsBody>
+    </SettingsSection>
   );
 }
 
@@ -361,51 +476,66 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
   }
 
   return (
-    <section className="rounded-2xl bg-card p-5 shadow-[var(--shadow-border)] sm:p-6">
-      <h2 className="font-semibold text-destructive">Delete account</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-        This permanently removes your account and active sessions. This action
-        cannot be undone.
-      </p>
-      {!open ? (
-        <Button
-          size="lg"
-          variant="danger"
-          className="mt-5"
-          onClick={() => setOpen(true)}
-        >
-          Delete my account
-        </Button>
+    <SettingsSection
+      id="delete"
+      icon={<Trash2 className="text-destructive" />}
+      title="Delete account"
+      description="Permanently removes your account and signs out every session. This cannot be undone."
+      action={
+        !open ? (
+          <Button size="sm" variant="danger" onClick={() => setOpen(true)}>
+            Delete account…
+          </Button>
+        ) : undefined
+      }
+      className={cn(open && "ring-1 ring-destructive/30")}
+    >
+      {open ? (
+        <SettingsBody className="bg-destructive/5">
+          <form onSubmit={submit} className="max-w-sm space-y-3">
+            {hasPassword ? (
+              <Field
+                id="delete-password"
+                name="password"
+                label="Confirm with your password"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                required
+              />
+            ) : (
+              <p className="text-[13px] text-muted-foreground">
+                Confirm below to permanently delete this account.
+              </p>
+            )}
+            <InlineError>{error ?? undefined}</InlineError>
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" variant="danger" disabled={pending}>
+                {pending ? "Deleting…" : "Delete permanently"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setOpen(false);
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </SettingsBody>
       ) : (
-        <form
-          onSubmit={submit}
-          className="mt-5 grid max-w-lg gap-4 rounded-xl bg-destructive/5 p-4"
-        >
-          {hasPassword ? (
-            <FormField
-              id="delete-password"
-              name="password"
-              label="Confirm with your password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          ) : (
-            <FormMessage tone="info">
-              Confirm below to permanently delete this social sign-in account.
-            </FormMessage>
-          )}
-          <FormMessage>{error}</FormMessage>
-          <div className="flex gap-3">
-            <Button size="lg" type="submit" variant="danger" disabled={pending}>
-              {pending ? "Deleting…" : "Delete permanently"}
-            </Button>
-            <Button size="lg" variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
+        <SettingsBody>
+          <p className="text-[13px] text-muted-foreground">
+            You will lose access to every organization you belong to.
+            {hasPassword
+              ? " You will be asked for your password to confirm."
+              : ""}
+          </p>
+        </SettingsBody>
       )}
-    </section>
+    </SettingsSection>
   );
 }

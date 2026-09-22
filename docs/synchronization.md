@@ -46,8 +46,8 @@ Administrators create/rename projects, invite people, change application roles
 in the UI) and manage organization roles. Application roles grant no workflow
 capability. **Organization roles** (`organization_role`, `organization_role_member`)
 are administrator-managed named member collections carrying four capabilities:
-`editSpecifications` (create items, save revisions, rename, accept/reject
-suggestions), `changeProperties` (status, priority, owner, epic, labels,
+`editSpecifications` (create items, save revisions, rename, close others'
+suggestions, merge suggestions once assigned as reviewer), `changeProperties` (status, priority, owner, epic, labels,
 milestones, ordering, archive, and the label/milestone lists), `requestReviews`
 (request/cancel) and `review` (the role or one of its members can be assigned a
 review). A person's effective capabilities are the union over the active roles
@@ -55,6 +55,9 @@ they hold; the server recomputes this from the database inside every mutation an
 rejects with a message naming the missing capability. Discussion and suggestions
 need only membership. Only an assigned user, or a current member of an assigned
 role, can decide a review; holding a role never grants approval by itself.
+Suggestion reviewers are individuals chosen by the suggestion's author and must
+hold one active role that grants **both** `editSpecifications` and `review`
+(`canReviewSuggestions`); the author cannot review their own suggestion.
 
 Every organization is seeded with Product (all capabilities), Engineering and QA
 (request + review) by the Better Auth `afterCreateOrganization` hook, and the
@@ -106,12 +109,12 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 4 (roles replaced functional groups; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 5 (suggestions gained a pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
-one project; work item bootstrap adds its revisions, discussions, suggestions,
-reviews, assignments, approvals, readiness and activity. It does not send unrelated
+one project; work item bootstrap adds its revisions, discussions, suggestions (with their
+reviewers and decisions), reviews, assignments, approvals, readiness and activity. It does not send unrelated
 item histories. A child's mutation additionally emits its parent Epic's readiness
 projection, because `stories_ready` lives in the Epic's scope. Historical content is currently loaded for one proposal as a
 whole; pagination of very long revision/message histories is future work.
@@ -150,7 +153,7 @@ A command receives a client UUID, is durably queued, then gets an optimistic ove
 Item/project creation, property updates, archive, threads, replies, thread state,
 review requests and cancellations have centralized optimistic reducers (a created
 item predicts its number; the server's number replaces it). Revision changes,
-suggestions and review decisions await server validation.
+every suggestion command and review decisions await server validation.
 The confirmed entity map stays separate from overlays: deltas update confirmed state,
 then pending overlays replay. On rejection the overlay is removed while the full
 command remains inspectable for retry or discard. Accepted commands synchronize
@@ -186,12 +189,34 @@ streaming and configure connection/time limits accordingly.
 ## Revisions, reviews and conflicts
 
 Every material title/content save inserts an immutable revision. No-op saves do not
-insert snapshots. Suggestions replace the whole Markdown document and acceptance
-uses that same revision helper. Commands carry the exact base revision; a stale save
-or stale suggestion acceptance returns a structured conflict with the current
-revision ID. There is no automatic text merge. The editor retains the user's text
-and offers the latest revision for inspection/reload; failed queued text can be
-inspected before discarding and submitting a corrected command.
+insert snapshots. Commands carry the exact base revision; a stale save or stale
+suggestion merge returns a structured conflict with the current revision ID. There
+is no automatic text merge. The editor retains the user's text and offers the
+latest revision for inspection/reload; failed queued text can be inspected before
+discarding and submitting a corrected command.
+
+## Suggestions
+
+A suggestion is a whole-document replacement reviewed like a pull request:
+`draft → open → merged | closed`, with `closed → draft | open` reversible and
+`merged` terminal. It records the mainline revision it was written against and a
+`version` that increments on every content update. Only the author updates it
+(`updateSuggestion`, which always re-bases onto the current revision; unchanged text
+keeps its approvals), changes its state (anyone with `editSpecifications` may also
+close it) and assigns or withdraws reviewers. Reviewers approve or request changes
+on a named version; a decision on another version is a conflict. A new version
+supersedes existing decisions with a reason; history is never deleted. Threads may
+target a suggestion instead of the specification: they are excluded from the work
+item's thread counts and readiness, and an open blocking one prevents merging.
+Merging requires an assigned reviewer who currently holds `editSpecifications`, an
+open suggestion based on the current revision, at least one unsuperseded approval of
+the current version and no open blocking suggestion thread; it inserts the next
+revision through the same helper as a direct save (staling approvals and
+re-requesting reviews) and records the merged revision on the suggestion. Work item
+summaries carry `openSuggestions` and `suggestionReviewerIds` (reviewers still
+awaiting the current version) so "Needs my review" and the Inbox include them.
+Migration `0008` mapped existing `pending/accepted/rejected` rows to
+`open/merged/closed`.
 
 Reviews are requested from a reviewer-capable role, optionally naming one of its
 members; the role's name is the review responsibility. Approvals belong to a

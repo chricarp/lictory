@@ -276,7 +276,7 @@ void test("composite foreign keys reject foreign organizations and mismatched pr
   );
 });
 
-void test("revision numbering is unique and accepted suggestions retain both snapshots", async () => {
+void test("revision numbering is unique and merged suggestions retain both snapshots", async () => {
   const a = await fixture();
   const revision = {
     organizationId: a.organizationId,
@@ -299,7 +299,7 @@ void test("revision numbering is unique and accepted suggestions retain both sna
     revisionId: a.revisionId,
     authorId: a.userId,
     replacement: "Replacement",
-    status: "accepted" as const,
+    status: "merged" as const,
     resolvedById: a.userId,
     resolvedAt: new Date(),
   };

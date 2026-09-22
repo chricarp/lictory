@@ -107,11 +107,14 @@ export function needsMyReview(
   roleIds: string[],
 ) {
   if (item.archivedAt) return false;
-  return item.reviews.some(
-    (r) =>
-      r.status !== "cancelled" &&
-      r.status !== "completed" &&
-      r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
+  return (
+    item.suggestionReviewerIds.includes(userId) ||
+    item.reviews.some(
+      (r) =>
+        r.status !== "cancelled" &&
+        r.status !== "completed" &&
+        r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
+    )
   );
 }
 export function isBlocked(item: WorkItem) {
@@ -131,7 +134,7 @@ export const views: { id: ViewId; label: string; description: string }[] = [
     id: "needs-my-review",
     label: "Needs my review",
     description:
-      "Reviews assigned to you or your roles on the current revision.",
+      "Reviews assigned to you or your roles on the current revision, and suggestions waiting for your approval.",
   },
   {
     id: "needs-review",

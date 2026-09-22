@@ -9,7 +9,10 @@ export const paths = {
   org: (org: string) => `/app/${org}`,
   inbox: (org: string) => `/app/${org}/inbox`,
   settings: (org: string) => `/app/${org}/settings`,
-  account: (org: string) => `/app/${org}/account`,
+  account: (returnTo?: string) =>
+    returnTo
+      ? `/app/account?returnTo=${encodeURIComponent(returnTo)}`
+      : "/app/account",
   project: (org: string, project: string) =>
     `/app/${org}/${project.toLowerCase()}`,
   list: (

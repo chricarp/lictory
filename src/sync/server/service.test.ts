@@ -265,23 +265,42 @@ void test("approvals target exact revisions, only assignments authorize, and sug
         e.status === "granted",
     ),
   );
+  // The reviewer proposes a change, asks the owner (Product: edit + review)
+  // to review it; the owner approves and merges. Merging is idempotent.
+  const suggestionId = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createSuggestion",
+      ...base,
+      suggestionId,
+      replacement:
+        "# Safe retries\n\nRetries reuse the original transaction ID.",
+      rationale: "Make idempotency explicit",
+      open: true,
+    },
+    f.reviewerId,
+  );
+  await f.command(
+    {
+      type: "setSuggestionReviewer",
+      workItemId: f.proposalId,
+      suggestionId,
+      userId: f.userId,
+      assigned: true,
+    },
+    f.reviewerId,
+  );
   await f.command({
-    type: "createSuggestion",
-    ...base,
-    suggestionId: crypto.randomUUID(),
-    replacement: "# Safe retries\n\nRetries reuse the original transaction ID.",
-    rationale: "Make idempotency explicit",
-  });
-  const suggestion = (await f.entities()).find((e) => e.type === "suggestion")!;
-  const id = crypto.randomUUID();
-  const accept: Command = {
     type: "decideSuggestion",
-    ...base,
-    suggestionId: suggestion.id,
-    accept: true,
-  };
-  await f.command(accept, f.userId, id);
-  await f.command(accept, f.userId, id);
+    workItemId: f.proposalId,
+    suggestionId,
+    version: 1,
+    decision: "approve",
+  });
+  const id = crypto.randomUUID();
+  const merge: Command = { type: "mergeSuggestion", ...base, suggestionId };
+  await f.command(merge, f.userId, id);
+  await f.command(merge, f.userId, id);
   const second = await f.current();
   assert.equal(second.number, 2);
   const all = await f.entities();
@@ -464,6 +483,7 @@ void test("optimistic overlay is replayed over authoritative entities without mu
     organizationId: "org",
     workItemId: "proposal",
     revisionId: "revision",
+    suggestionId: null,
     authorId: "user",
     status: "open",
     blocking: true,
@@ -1123,22 +1143,47 @@ void test("organization roles grant capabilities; administrators manage roles; r
       suggestionId,
       replacement: "Retries reuse the transaction ID.",
       rationale: "Idempotency was undefined.",
+      open: true,
     },
     f.reviewerId,
   );
+  // Nobody merges without being an assigned reviewer, not even an editor;
+  // the reviewer (Engineering/QA: no edit capability) cannot be assigned.
+  await assert.rejects(
+    f.command({ type: "mergeSuggestion", ...base, suggestionId }),
+    /assigned reviewer/,
+  );
   await assert.rejects(
     f.command(
-      { type: "decideSuggestion", ...base, suggestionId, accept: true },
+      {
+        type: "setSuggestionReviewer",
+        workItemId: f.proposalId,
+        suggestionId,
+        userId: f.reviewerId,
+        assigned: true,
+      },
       f.reviewerId,
     ),
-    /cannot edit specifications directly/,
+    /both edit Epics and Stories and be asked to review/,
+  );
+  await f.command(
+    {
+      type: "setSuggestionReviewer",
+      workItemId: f.proposalId,
+      suggestionId,
+      userId: f.userId,
+      assigned: true,
+    },
+    f.reviewerId,
   );
   await f.command({
     type: "decideSuggestion",
-    ...base,
+    workItemId: f.proposalId,
     suggestionId,
-    accept: true,
+    version: 1,
+    decision: "approve",
   });
+  await f.command({ type: "mergeSuggestion", ...base, suggestionId });
   const second = await f.current();
   assert.equal(second.number, 2);
   // Only administrators manage roles.
@@ -1282,4 +1327,266 @@ void test("organization roles grant capabilities; administrators manage roles; r
     ),
     /cannot request or cancel reviews/,
   );
+});
+
+void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibility, versioned approvals, rebase and merge gates", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  const base = { workItemId: f.proposalId, baseRevisionId: first.id };
+  const suggestionId = crypto.randomUUID();
+  const item = () => ({ workItemId: f.proposalId, suggestionId });
+  const suggestion = async () =>
+    (await f.entities()).find(
+      (e) => e.type === "suggestion" && e.id === suggestionId,
+    ) as Extract<Entity, { type: "suggestion" }>;
+  const summary = async () =>
+    (await f.entities()).find(
+      (e) => e.type === "workItem" && e.id === f.proposalId,
+    ) as Extract<Entity, { type: "workItem" }>;
+  // A draft is private work: it cannot receive reviewers' decisions and does
+  // not count as an open suggestion.
+  await f.command(
+    {
+      type: "createSuggestion",
+      ...base,
+      suggestionId,
+      replacement: "# Safe retries\n\nVersion one.",
+      rationale: "Define retries",
+      open: false,
+    },
+    f.reviewerId,
+  );
+  assert.equal((await suggestion()).status, "draft");
+  assert.equal((await summary()).openSuggestions, 0);
+  // Only the author manages the suggestion.
+  await assert.rejects(
+    f.command({ type: "setSuggestionState", ...item(), status: "open" }),
+    /Only the author/,
+  );
+  // Even an eligible author cannot review their own suggestion.
+  await f.command({
+    type: "setRoleMembership",
+    roleId: f.roles.Product,
+    userId: f.reviewerId,
+    member: true,
+  });
+  await assert.rejects(
+    f.command(
+      {
+        type: "setSuggestionReviewer",
+        ...item(),
+        userId: f.reviewerId,
+        assigned: true,
+      },
+      f.reviewerId,
+    ),
+    /cannot review your own/,
+  );
+  await f.command({
+    type: "setRoleMembership",
+    roleId: f.roles.Product,
+    userId: f.reviewerId,
+    member: false,
+  });
+  await f.command(
+    {
+      type: "setSuggestionReviewer",
+      ...item(),
+      userId: f.userId,
+      assigned: true,
+    },
+    f.reviewerId,
+  );
+  await assert.rejects(
+    f.command({
+      type: "decideSuggestion",
+      ...item(),
+      version: 1,
+      decision: "approve",
+    }),
+    /not open for review/,
+  );
+  await f.command(
+    { type: "setSuggestionState", ...item(), status: "open" },
+    f.reviewerId,
+  );
+  assert.equal((await summary()).openSuggestions, 1);
+  assert.deepEqual((await summary()).suggestionReviewerIds, [f.userId]);
+  // Merge needs an approval of the current version.
+  await assert.rejects(
+    f.command({ type: "mergeSuggestion", ...base, suggestionId }),
+    /at least one reviewer approval/,
+  );
+  await f.command({
+    type: "decideSuggestion",
+    ...item(),
+    version: 1,
+    decision: "approve",
+  });
+  assert.deepEqual((await summary()).suggestionReviewerIds, []);
+  // A blocking discussion on the suggestion blocks its merge, not readiness.
+  const threadId = crypto.randomUUID();
+  await f.command({
+    type: "createThread",
+    ...base,
+    threadId,
+    messageId: crypto.randomUUID(),
+    body: "What about partial failures?",
+    blocking: true,
+    section: "",
+    suggestionId,
+  });
+  assert.equal((await summary()).blockingThreads, 0);
+  await assert.rejects(
+    f.command({ type: "mergeSuggestion", ...base, suggestionId }),
+    /blocking discussion/,
+  );
+  await f.command({
+    type: "setThreadState",
+    workItemId: f.proposalId,
+    threadId,
+    resolved: true,
+    blocking: true,
+  });
+  // The author pushes a new version: the approval is superseded and the
+  // reviewer must look again; a decision on a stale version is a conflict.
+  await f.command(
+    {
+      type: "updateSuggestion",
+      ...base,
+      suggestionId,
+      replacement: "# Safe retries\n\nVersion two handles partial failures.",
+      rationale: "Define retries",
+    },
+    f.reviewerId,
+  );
+  assert.equal((await suggestion()).version, 2);
+  const decisions = (await f.entities()).filter(
+    (e) => e.type === "suggestionDecision",
+  );
+  assert.equal(decisions.length, 1);
+  assert.match(decisions[0]!.supersededReason ?? "", /version 2/);
+  assert.deepEqual((await summary()).suggestionReviewerIds, [f.userId]);
+  await assert.rejects(
+    f.command({
+      type: "decideSuggestion",
+      ...item(),
+      version: 1,
+      decision: "approve",
+    }),
+    /version 2/,
+  );
+  await assert.rejects(
+    f.command({ type: "mergeSuggestion", ...base, suggestionId }),
+    /at least one reviewer approval/,
+  );
+  await f.command({
+    type: "decideSuggestion",
+    ...item(),
+    version: 2,
+    decision: "approve",
+  });
+  // The mainline moves on: the suggestion is outdated until the author
+  // updates it against the new revision (which supersedes nothing when the
+  // text is unchanged, so the approval survives the rebase).
+  await f.command({
+    type: "updateSpecification",
+    ...base,
+    title: first.title,
+    content: "# Safe retries\n\nMainline changed.",
+    summary: "Mainline edit",
+  });
+  const second = await f.current();
+  await assert.rejects(
+    f.command({ type: "mergeSuggestion", ...base, suggestionId }),
+    /specification changed/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "mergeSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: second.id,
+      suggestionId,
+    }),
+    /author must update/,
+  );
+  await f.command(
+    {
+      type: "updateSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: second.id,
+      suggestionId,
+      replacement: "# Safe retries\n\nVersion two handles partial failures.",
+      rationale: "Define retries",
+    },
+    f.reviewerId,
+  );
+  assert.equal((await suggestion()).version, 2);
+  assert.equal((await suggestion()).revisionId, second.id);
+  await f.command({
+    type: "mergeSuggestion",
+    workItemId: f.proposalId,
+    baseRevisionId: second.id,
+    suggestionId,
+  });
+  const third = await f.current();
+  assert.equal(third.number, 3);
+  assert.equal(
+    third.content,
+    "# Safe retries\n\nVersion two handles partial failures.",
+  );
+  const merged = await suggestion();
+  assert.equal(merged.status, "merged");
+  assert.equal(merged.mergedRevisionId, third.id);
+  assert.equal(merged.resolvedById, f.userId);
+  // Merged is terminal; closing and reopening remain reversible otherwise.
+  await assert.rejects(
+    f.command(
+      { type: "setSuggestionState", ...item(), status: "closed" },
+      f.reviewerId,
+    ),
+    /merged suggestion/,
+  );
+  const other = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: third.id,
+      suggestionId: other,
+      replacement: "Something else",
+      rationale: "Try",
+      open: true,
+    },
+    f.reviewerId,
+  );
+  // An editor may close someone else's suggestion; only the author reopens.
+  await f.command({
+    type: "setSuggestionState",
+    workItemId: f.proposalId,
+    suggestionId: other,
+    status: "closed",
+  });
+  await assert.rejects(
+    f.command({
+      type: "setSuggestionState",
+      workItemId: f.proposalId,
+      suggestionId: other,
+      status: "open",
+    }),
+    /Only the author/,
+  );
+  await f.command(
+    {
+      type: "setSuggestionState",
+      workItemId: f.proposalId,
+      suggestionId: other,
+      status: "draft",
+    },
+    f.reviewerId,
+  );
+  const reopened = (await f.entities()).find(
+    (e) => e.type === "suggestion" && e.id === other,
+  );
+  assert.ok(reopened?.type === "suggestion" && reopened.status === "draft");
 });

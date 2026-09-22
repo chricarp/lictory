@@ -57,6 +57,13 @@
       "when": 1790084572280,
       "tag": "0007_default_organization_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790098692426,
+      "tag": "0008_suggestion_reviews",
+      "breakpoints": true
     }
   ]
 }

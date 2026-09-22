@@ -143,19 +143,93 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     case "suggestion_created":
-      body = <>proposed a change</>;
+      body = (
+        <>
+          {d.draft === true
+            ? "drafted a suggestion"
+            : "opened a suggestion for review"}
+        </>
+      );
       break;
+    case "suggestion_opened":
+      body = <>opened their suggestion for review</>;
+      break;
+    case "suggestion_drafted":
+      body = <>converted their suggestion back to a draft</>;
+      break;
+    case "suggestion_updated":
+      body = (
+        <>
+          {d.rebased === true
+            ? `updated their suggestion against revision ${num(d.revision)}`
+            : "updated their suggestion"}{" "}
+          <b>(v{num(d.version)})</b>
+        </>
+      );
+      break;
+    case "suggestion_closed":
+      body = (
+        <>
+          closed{" "}
+          {str(d.authorId) === entry.actorId ? (
+            "their"
+          ) : (
+            <>
+              <b>{memberName(str(d.authorId))}</b>’s
+            </>
+          )}{" "}
+          suggestion
+        </>
+      );
+      break;
+    case "suggestion_reopened":
+      body = <>reopened their suggestion</>;
+      break;
+    case "suggestion_reviewer_assigned":
+      body = (
+        <>
+          asked <b>{memberName(str(d.userId))}</b> to review their suggestion
+        </>
+      );
+      break;
+    case "suggestion_reviewer_unassigned":
+      body = (
+        <>
+          removed <b>{memberName(str(d.userId))}</b> as suggestion reviewer
+        </>
+      );
+      break;
+    case "suggestion_approved":
+      body = (
+        <>
+          <b className="text-emerald-700">approved</b> v{num(d.version)} of{" "}
+          <b>{memberName(str(d.authorId))}</b>’s suggestion
+        </>
+      );
+      break;
+    case "suggestion_changes_requested":
+      body = (
+        <>
+          <b className="text-amber-700">requested changes</b> on v
+          {num(d.version)} of <b>{memberName(str(d.authorId))}</b>’s suggestion
+        </>
+      );
+      break;
+    case "suggestion_decision_revoked":
+      body = <>revoked their suggestion decision</>;
+      break;
+    case "suggestion_merged":
     case "suggestion_accepted":
       body = (
         <>
-          accepted <b>{memberName(str(d.authorId))}</b>’s suggestion
+          merged <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;
     case "suggestion_rejected":
       body = (
         <>
-          rejected <b>{memberName(str(d.authorId))}</b>’s suggestion
+          closed <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;

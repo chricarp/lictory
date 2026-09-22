@@ -37,7 +37,7 @@ services:
       BETTER_AUTH_SECRET: local-development-secret-change-before-production
       DATABASE_URL: postgresql://lictory:lictory@postgres:5432/lictory
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Lictory <onboarding@resend.dev>}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Lictory <no-reply@email.lictory.com>}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_FROM: Lictory <no-reply@lictory.local>

@@ -18,9 +18,12 @@ export type ItemContextValue = {
   entities: Entity[];
   revisions: Revision[]; // newest first
   current: Revision | undefined;
-  threads: EntityOf<"thread">[];
+  threads: EntityOf<"thread">[]; // about the specification itself
+  suggestionThreads: EntityOf<"thread">[]; // about a suggestion's proposed text
   messages: EntityOf<"message">[];
   suggestions: EntityOf<"suggestion">[];
+  suggestionReviewers: EntityOf<"suggestionReviewer">[];
+  suggestionDecisions: EntityOf<"suggestionDecision">[];
   reviews: EntityOf<"review">[];
   assignments: EntityOf<"assignment">[];
   approvals: EntityOf<"approval">[];
@@ -85,20 +88,26 @@ export function useItemContextValue(input: {
     const current = revisions[0];
     const readOnly =
       Boolean(item.archivedAt) || !current || current.id.startsWith("pending:");
+    const allThreads = byType(scoped, "thread").sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    );
     return {
       item,
       project,
       entities: scoped,
       revisions,
       current,
-      threads: byType(scoped, "thread").sort((a, b) =>
-        a.createdAt.localeCompare(b.createdAt),
-      ),
+      threads: allThreads.filter((t) => !t.suggestionId),
+      suggestionThreads: allThreads.filter((t) => Boolean(t.suggestionId)),
       messages: byType(scoped, "message").sort((a, b) =>
         a.createdAt.localeCompare(b.createdAt),
       ),
       suggestions: byType(scoped, "suggestion").sort((a, b) =>
         b.createdAt.localeCompare(a.createdAt),
+      ),
+      suggestionReviewers: byType(scoped, "suggestionReviewer"),
+      suggestionDecisions: byType(scoped, "suggestionDecision").sort((a, b) =>
+        a.createdAt.localeCompare(b.createdAt),
       ),
       reviews: byType(scoped, "review"),
       assignments: byType(scoped, "assignment"),

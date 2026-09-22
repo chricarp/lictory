@@ -86,14 +86,14 @@ leave room for editor-specific ranges and quoted text without choosing an editor
 now. Resolution/reopening changes thread state without deleting messages; this
 initial model does not retain a separate audit event for every state transition.
 
-Suggestions contain replacement Markdown, an optional anchor, and optional thread
-context. A null anchor means whole-document replacement. An accepted suggestion
-must record the resolving user/time and a different resulting revision of the
-same proposal. Future acceptance must transactionally create a **later** snapshot
-and resolve the suggestion, validating the base content and handling concurrent
-changes; foreign keys alone cannot establish ordering or text correctness.
-Rejected suggestions retain their proposed text and resolution. No acceptance
-service is implemented.
+Suggestions contain replacement Markdown against a base revision, a status
+(`draft`, `open`, `merged`, `closed`), a version counter and, once merged, the
+resulting later revision (`accepted_revision_id`, kept under its original column
+name). `suggestion_reviewer` records who was asked (withdrawal keeps the row) and
+`suggestion_decision` records each reviewer's decision about one version; a later
+version or decision supersedes it with a reason rather than deleting it. Threads
+may reference a suggestion. The legacy `anchor` and `thread_id` columns are never
+written. Merge semantics live in the sync service (see synchronization.md).
 
 Readiness checks are revision-scoped evaluations with a key, evaluator identity,
 status, blocking flag, and explanation/metadata. Each rerun inserts a result;

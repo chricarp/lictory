@@ -33,10 +33,12 @@ export function Specification({
   mode,
   setMode,
   onQuote,
+  onSuggestionCreated,
 }: {
   mode: Mode;
   setMode: (mode: Mode) => void;
   onQuote: (quote: string, section: string) => void;
+  onSuggestionCreated: (suggestionId: string) => void;
 }) {
   const { current, readOnly, canEdit, memberName } = useItem();
   if (!current) return null;
@@ -56,8 +58,8 @@ export function Specification({
               onClick={() => setMode("suggest")}
               title={
                 canEdit
-                  ? "Propose a change for the owner to accept or reject"
-                  : "Your roles propose changes; a role that can edit accepts them"
+                  ? "Propose a change and have reviewers approve and merge it"
+                  : "Your roles propose changes; assigned reviewers approve and merge them"
               }
             >
               <WandSparkles className="size-3.5" /> Suggest
@@ -76,7 +78,11 @@ export function Specification({
           onEdit={() => (canEdit ? setMode("edit") : setMode("suggest"))}
         />
       ) : (
-        <Editor mode={mode} onDone={() => setMode("read")} />
+        <Editor
+          mode={mode}
+          onDone={() => setMode("read")}
+          onSuggestionCreated={onSuggestionCreated}
+        />
       )}
     </section>
   );
@@ -192,7 +198,7 @@ function Reader({
           <PenLine className="mb-2 size-4" />
           {canEdit
             ? "Describe the intent, the expected behavior and what is out of scope. Markdown is supported. Click to start writing."
-            : "Nothing written yet. Click to propose a first draft as a suggestion."}
+            : "Nothing written yet. Click to propose a first draft for review."}
         </button>
       ) : (
         <div
@@ -390,9 +396,11 @@ function AcceptanceCriteria({
 function Editor({
   mode,
   onDone,
+  onSuggestionCreated,
 }: {
   mode: "edit" | "suggest";
   onDone: () => void;
+  onSuggestionCreated: (suggestionId: string) => void;
 }) {
   const { current, mutate, base, revisions } = useItem();
   const [baseRevision] = useState(current!);
@@ -401,7 +409,8 @@ function Editor({
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const conflicted = current && current.id !== baseRevision.id;
-  const submit = async () => {
+  // A suggestion is saved privately as a draft or opened for review at once.
+  const submit = async (open = true) => {
     if (!current) return;
     if (mode === "suggest" && !summary.trim())
       return setError("Explain why this change should be made.");
@@ -419,15 +428,20 @@ function Editor({
           content,
           summary: summary.trim() || undefined,
         });
-      else
+      else {
+        const suggestionId = crypto.randomUUID();
         await mutate({
           type: "createSuggestion",
           workItemId: base.workItemId,
           baseRevisionId: baseRevision.id,
-          suggestionId: crypto.randomUUID(),
+          suggestionId,
           replacement: content,
           rationale: summary.trim(),
+          open,
         });
+        onSuggestionCreated(suggestionId);
+        return;
+      }
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
@@ -493,6 +507,17 @@ function Editor({
         <Button variant="ghost" size="md" onClick={onDone}>
           Cancel
         </Button>
+        {mode === "suggest" && (
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => void submit(false)}
+            disabled={pending}
+            title="Keep working on it privately before asking for review"
+          >
+            Save as draft
+          </Button>
+        )}
         <Button
           size="md"
           onClick={() => void submit()}
@@ -500,7 +525,7 @@ function Editor({
         >
           {mode === "edit"
             ? `Save revision ${(revisions[0]?.number ?? 0) + 1}`
-            : "Propose change"}
+            : "Open for review"}
           <Kbd>⌘↵</Kbd>
         </Button>
       </div>
@@ -512,7 +537,7 @@ function Editor({
       <p className="text-xs text-muted-foreground">
         {mode === "edit"
           ? "Saving creates an immutable revision. Existing approvals are marked outdated and reviews are re-requested."
-          : "A suggestion replaces the document when accepted, creating a new revision. Reviewers see it as a diff."}
+          : "Reviewers see the proposal as a diff, discuss it and approve it; an assigned reviewer then merges it as the next revision."}
       </p>
     </div>
   );
