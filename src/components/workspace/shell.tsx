@@ -32,6 +32,7 @@ import {
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
+import { workspaceTitle } from "~/lib/document-title";
 import { rememberProject, useLastProjectKey } from "~/lib/last-project";
 import {
   needsMyReview,
@@ -121,14 +122,20 @@ export function Shell({
   const params = useParams<{ project?: string }>();
   const routeKey = params.project?.toUpperCase();
   const lastKey = useLastProjectKey(organization.id);
+  const routeProject = projects.find((p) => p.key === routeKey);
   const project =
-    projects.find((p) => p.key === routeKey) ??
-    projects.find((p) => p.key === lastKey) ??
-    projects[0];
+    routeProject ?? projects.find((p) => p.key === lastKey) ?? projects[0];
   useEffect(() => {
-    if (routeKey && projects.some((p) => p.key === routeKey))
-      rememberProject(organization.id, routeKey);
-  }, [routeKey, projects, organization.id]);
+    if (routeProject) rememberProject(organization.id, routeProject.key);
+  }, [routeProject, organization.id]);
+  // The shell owns the document title: it stays mounted across in-workspace
+  // navigations, so React updates the hoisted <title> in place instead of the
+  // route metadata swapping the node on every page change.
+  const title = workspaceTitle(pathname, {
+    organization,
+    project: routeProject,
+    item: currentItem,
+  });
   // Creation is authoring: every entry point (button, shortcut, palette)
   // funnels here so a role without the capability gets one clear message.
   const openCreate = useCallback(
@@ -209,6 +216,7 @@ export function Shell({
   );
   return (
     <ShellContext.Provider value={shell}>
+      <title>{title}</title>
       <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
         <aside className="hidden w-[232px] shrink-0 flex-col border-r bg-sidebar lg:flex">
           {sidebar}

@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AuthHeading } from "~/components/auth/auth-layout";
 import { SignInForm } from "~/components/auth/sign-in-form";
 import { AuthDivider, SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
+
+export const metadata: Metadata = { title: "Sign in" };
 
 export default async function SignInPage({
   searchParams,

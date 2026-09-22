@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { VerificationStatus } from "~/components/auth/verification-status";
+
+export const metadata: Metadata = { title: "Verify your email" };
 
 export default async function VerifyEmailPage({
   searchParams,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth";
@@ -5,6 +6,8 @@ import { db } from "~/db";
 import { directory } from "~/sync/server/service";
 import { paths } from "~/lib/paths";
 import { Onboarding } from "~/components/workspace/onboarding";
+
+export const metadata: Metadata = { title: "Create your organization" };
 
 // Entry point: land in the first organization, or create one.
 export default async function AppIndex() {

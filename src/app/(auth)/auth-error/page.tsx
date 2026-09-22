@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CircleAlert } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+
+export const metadata: Metadata = { title: "Sign-in interrupted" };
 
 export default async function AuthErrorPage({
   searchParams,

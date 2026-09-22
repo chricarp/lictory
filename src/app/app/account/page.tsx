@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { AccountPage } from "~/components/app/account-page";
+
+export const metadata: Metadata = { title: "Account" };
 
 // Standalone fallback for people without an organization; inside a workspace
 // the same page lives at /app/[org]/account so the sidebar stays in place.

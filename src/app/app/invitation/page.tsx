@@ -1,4 +1,8 @@
+import type { Metadata } from "next";
 import { Invitation } from "~/components/app/invitation";
+
+export const metadata: Metadata = { title: "Invitation" };
+
 export default async function InvitationPage({
   searchParams,
 }: {
