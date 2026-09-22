@@ -464,6 +464,7 @@ export const suggestion = pgTable(
     // Null anchor means replacement of the whole Markdown document.
     anchor: jsonb("anchor").$type<Record<string, unknown>>(),
     replacement: text("replacement").notNull(),
+    title: text("title"),
     rationale: text("rationale"),
     status: suggestionStatus("status").default("draft").notNull(),
     version: integer("version").default(1).notNull(),

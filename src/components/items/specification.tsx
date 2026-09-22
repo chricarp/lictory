@@ -23,6 +23,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd, SectionLabel } from "~/components/ui/primitives";
+import { SuggestionDetailsFields } from "~/components/review/suggestion-details";
 import { Markdown } from "./markdown";
 import { RevisionDiff } from "./diff";
 import { useItem } from "./item-context";
@@ -406,14 +407,17 @@ function Editor({
   const [baseRevision] = useState(current!);
   const [content, setContent] = useState(current?.content ?? "");
   const [summary, setSummary] = useState("");
+  const [suggestionTitle, setSuggestionTitle] = useState("");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const conflicted = current && current.id !== baseRevision.id;
   // A suggestion is saved privately as a draft or opened for review at once.
   const submit = async (open = true) => {
     if (!current) return;
+    if (mode === "suggest" && !suggestionTitle.trim())
+      return setError("Give this proposal a title.");
     if (mode === "suggest" && !summary.trim())
-      return setError("Explain why this change should be made.");
+      return setError("Describe why this change is needed.");
     if (content === baseRevision.content && mode === "suggest")
       return setError("The suggestion is identical to the current text.");
     setPending(true);
@@ -436,6 +440,7 @@ function Editor({
           baseRevisionId: baseRevision.id,
           suggestionId,
           replacement: content,
+          title: suggestionTitle.trim(),
           rationale: summary.trim(),
           open,
         });
@@ -471,8 +476,16 @@ function Editor({
           </Button>
         </div>
       )}
+      {mode === "suggest" && (
+        <SuggestionDetailsFields
+          title={suggestionTitle}
+          description={summary}
+          onTitleChange={setSuggestionTitle}
+          onDescriptionChange={setSummary}
+        />
+      )}
       <MarkdownEditor
-        autoFocus
+        autoFocus={mode === "edit"}
         value={content}
         onValueChange={setContent}
         onKeyDown={(e) => {
@@ -492,18 +505,16 @@ function Editor({
         previewClassName="min-h-[320px] px-4 pt-4"
         style={{ fieldSizing: "content" }}
       />
-      <div className="flex flex-wrap items-center gap-2">
+      {mode === "edit" && (
         <input
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          placeholder={
-            mode === "edit"
-              ? "What changed? (optional)"
-              : "Why this change? (required)"
-          }
-          aria-label={mode === "edit" ? "Change summary" : "Rationale"}
-          className="h-8 min-w-0 flex-1 rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60"
+          placeholder="What changed? (optional)"
+          aria-label="Change summary"
+          className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60"
         />
+      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="ghost" size="md" onClick={onDone}>
           Cancel
         </Button>

@@ -64,6 +64,13 @@
       "when": 1790098692426,
       "tag": "0008_suggestion_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790115116978,
+      "tag": "0009_fearless_blizzard",
+      "breakpoints": true
     }
   ]
 }

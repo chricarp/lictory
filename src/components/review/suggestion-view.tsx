@@ -25,6 +25,7 @@ import { Markdown } from "~/components/items/markdown";
 import { useItem } from "~/components/items/item-context";
 import { Thread, ThreadComposer } from "./threads";
 import { SuggestionStatusBadge, useSuggestionState } from "./suggestions";
+import { SuggestionDetailsFields } from "./suggestion-details";
 
 // A suggestion is reviewed like a pull request: the author drafts, opens for
 // review, chooses reviewers and pushes new versions; reviewers approve or ask
@@ -128,7 +129,7 @@ function SuggestionBody({
       </div>
       <header>
         <h2 className="text-lg font-semibold tracking-tight">
-          {suggestion.rationale ?? "Proposed change"}
+          {suggestion.title ?? suggestion.rationale ?? "Proposed change"}
         </h2>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <Avatar name={memberName(suggestion.authorId)} size="xs" />
@@ -148,6 +149,15 @@ function SuggestionBody({
           )}
         </p>
       </header>
+
+      {suggestion.title && suggestion.rationale && !editing && (
+        <section className="rounded-lg border bg-card p-4">
+          <SectionLabel>Description</SectionLabel>
+          <p className="mt-2 text-[13px] leading-relaxed whitespace-pre-wrap">
+            {suggestion.rationale}
+          </p>
+        </section>
+      )}
 
       {state.outdated && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]">
@@ -588,6 +598,9 @@ function SuggestionEditor({
   const { current, revisions, mutate, item } = useItem();
   const [content, setContent] = useState(suggestion.replacement);
   const [rationale, setRationale] = useState(suggestion.rationale ?? "");
+  const [title, setTitle] = useState(
+    suggestion.title ?? suggestion.rationale ?? "",
+  );
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const target = revisions.find((r) => r.id === suggestion.revisionId);
@@ -595,8 +608,9 @@ function SuggestionEditor({
   const changed = content !== suggestion.replacement;
   const submit = async () => {
     if (!current) return;
+    if (!title.trim()) return setError("Give this proposal a title.");
     if (!rationale.trim())
-      return setError("Explain why this change should be made.");
+      return setError("Describe why this change is needed.");
     if (content === current.content)
       return setError(
         "The proposal is identical to the current specification.",
@@ -610,6 +624,7 @@ function SuggestionEditor({
         baseRevisionId: current.id,
         suggestionId: suggestion.id,
         replacement: content,
+        title: title.trim(),
         rationale: rationale.trim(),
       });
       onDone();
@@ -633,8 +648,13 @@ function SuggestionEditor({
           </div>
         </details>
       )}
+      <SuggestionDetailsFields
+        title={title}
+        description={rationale}
+        onTitleChange={setTitle}
+        onDescriptionChange={setRationale}
+      />
       <MarkdownEditor
-        autoFocus
         value={content}
         onValueChange={setContent}
         onKeyDown={(e) => {
@@ -649,14 +669,7 @@ function SuggestionEditor({
         previewClassName="min-h-[320px] px-4 pt-4"
         style={{ fieldSizing: "content" }}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={rationale}
-          onChange={(e) => setRationale(e.target.value)}
-          placeholder="Why this change? (required)"
-          aria-label="Rationale"
-          className="h-8 min-w-0 flex-1 rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60"
-        />
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="ghost" size="md" onClick={onDone}>
           Cancel
         </Button>

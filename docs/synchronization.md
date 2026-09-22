@@ -109,7 +109,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 5 (suggestions gained a pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 6 (suggestions gained distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
@@ -198,6 +198,10 @@ discarding and submitting a corrected command.
 ## Suggestions
 
 A suggestion is a whole-document replacement reviewed like a pull request:
+its short title identifies it in lists, and its description explains the reason
+and context for reviewers. Existing suggestions without a title still use their
+legacy rationale as a heading. Changing only these details does not change the
+proposed specification version or invalidate review decisions. Its lifecycle is
 `draft → open → merged | closed`, with `closed → draft | open` reversible and
 `merged` terminal. It records the mainline revision it was written against and a
 `version` that increments on every content update. Only the author updates it

@@ -381,6 +381,15 @@ function Sidebar({
                   )}
                 </button>
               ))}
+              <div className="my-1 border-t" />
+              <Link
+                href={paths.newOrganization}
+                onClick={close}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Create organization
+              </Link>
             </div>
           )}
         </Popover>

@@ -275,6 +275,7 @@ void test("approvals target exact revisions, only assignments authorize, and sug
       suggestionId,
       replacement:
         "# Safe retries\n\nRetries reuse the original transaction ID.",
+      title: "Make idempotency explicit",
       rationale: "Make idempotency explicit",
       open: true,
     },
@@ -1142,6 +1143,7 @@ void test("organization roles grant capabilities; administrators manage roles; r
       ...base,
       suggestionId,
       replacement: "Retries reuse the transaction ID.",
+      title: "Idempotency was undefined.",
       rationale: "Idempotency was undefined.",
       open: true,
     },
@@ -1351,6 +1353,7 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
       ...base,
       suggestionId,
       replacement: "# Safe retries\n\nVersion one.",
+      title: "Define retries",
       rationale: "Define retries",
       open: false,
     },
@@ -1424,6 +1427,24 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
     decision: "approve",
   });
   assert.deepEqual((await summary()).suggestionReviewerIds, []);
+  await f.command(
+    {
+      type: "updateSuggestion",
+      ...base,
+      suggestionId,
+      replacement: "# Safe retries\n\nVersion one.",
+      title: "Clarify retry behavior",
+      rationale: "Review the idempotency behavior before implementation.",
+    },
+    f.reviewerId,
+  );
+  assert.equal((await suggestion()).version, 1);
+  assert.equal((await suggestion()).title, "Clarify retry behavior");
+  assert.equal(
+    (await suggestion()).rationale,
+    "Review the idempotency behavior before implementation.",
+  );
+  assert.deepEqual((await summary()).suggestionReviewerIds, []);
   // A blocking discussion on the suggestion blocks its merge, not readiness.
   const threadId = crypto.randomUUID();
   await f.command({
@@ -1456,6 +1477,7 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
       ...base,
       suggestionId,
       replacement: "# Safe retries\n\nVersion two handles partial failures.",
+      title: "Define retries",
       rationale: "Define retries",
     },
     f.reviewerId,
@@ -1517,6 +1539,7 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
       baseRevisionId: second.id,
       suggestionId,
       replacement: "# Safe retries\n\nVersion two handles partial failures.",
+      title: "Define retries",
       rationale: "Define retries",
     },
     f.reviewerId,
@@ -1555,6 +1578,7 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
       baseRevisionId: third.id,
       suggestionId: other,
       replacement: "Something else",
+      title: "Try",
       rationale: "Try",
       open: true,
     },

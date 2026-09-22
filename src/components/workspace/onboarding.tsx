@@ -55,7 +55,7 @@ export function Onboarding({
   );
 }
 
-function CreateOrganization() {
+export function CreateOrganization() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [error, setError] = useState<string>();

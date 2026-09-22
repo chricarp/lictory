@@ -19,7 +19,29 @@ import {
 
 const service = createSyncService(db);
 export const dynamic = "force-dynamic";
-function failure(error: unknown) {
+type RequestContext = {
+  operation: "read" | "mutation" | "directory" | "members" | "epics";
+  organization?: string;
+  user: string;
+  mutationId?: string;
+  mutationType?: string;
+};
+function describe(error: unknown) {
+  if (error instanceof Error)
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      // postgres.js attaches SQL diagnostics (code, detail, table, constraint) to the error.
+      code: (error as { code?: unknown }).code,
+      detail: (error as { detail?: unknown }).detail,
+      constraint: (error as { constraint?: unknown }).constraint,
+      table: (error as { table?: unknown }).table,
+      cause: error.cause instanceof Error ? error.cause.message : error.cause,
+    };
+  return { message: String(error) };
+}
+function failure(error: unknown, context: RequestContext) {
   if (error instanceof DomainError)
     return Response.json(
       {
@@ -40,12 +62,31 @@ function failure(error: unknown) {
                 : 409,
       },
     );
-  if (error instanceof z.ZodError)
+  if (error instanceof z.ZodError) {
+    console.warn(
+      JSON.stringify({
+        event: "sync.invalid",
+        ...context,
+        issues: error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          code: issue.code,
+          message: issue.message,
+        })),
+      }),
+    );
     return Response.json(
       { error: { category: "validation", message: "Invalid sync request." } },
       { status: 400 },
     );
-  console.error(JSON.stringify({ event: "sync.error", category: "server" }));
+  }
+  console.error(
+    JSON.stringify({
+      event: "sync.error",
+      category: "server",
+      ...context,
+      error: describe(error),
+    }),
+  );
   return Response.json(
     {
       error: {
@@ -69,14 +110,19 @@ export async function GET(request: Request) {
       },
       { status: 401 },
     );
+  const context: RequestContext = { operation: "read", user: session.user.id };
   try {
     const params = Object.fromEntries(new URL(request.url).searchParams);
-    if (params.directory === "1")
+    context.organization = params.organizationId;
+    if (params.directory === "1") {
+      context.operation = "directory";
       return Response.json(
         await directory(db, session.user.id, params.organizationId),
         { headers: { "Cache-Control": "no-store" } },
       );
+    }
     if (params.members === "1") {
+      context.operation = "members";
       const query = memberSearchSchema.parse(params);
       return Response.json(
         await searchMembers(
@@ -91,6 +137,7 @@ export async function GET(request: Request) {
       );
     }
     if (params.epics === "1") {
+      context.operation = "epics";
       const query = epicSearchSchema.parse(params);
       return Response.json(
         await searchEpics(
@@ -125,7 +172,7 @@ export async function GET(request: Request) {
     );
     return Response.json(page, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    return failure(error);
+    return failure(error, context);
   }
 }
 export async function POST(request: Request) {
@@ -150,8 +197,15 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   const start = Date.now();
+  const context: RequestContext = {
+    operation: "mutation",
+    user: session.user.id,
+  };
   try {
     const mutation = mutationSchema.parse(await request.json());
+    context.organization = mutation.organizationId;
+    context.mutationId = mutation.id;
+    context.mutationType = mutation.command.type;
     const result = await service.mutate(session.user.id, mutation);
     console.info(
       JSON.stringify({
@@ -169,6 +223,6 @@ export async function POST(request: Request) {
     );
     return Response.json(result);
   } catch (error) {
-    return failure(error);
+    return failure(error, context);
   }
 }

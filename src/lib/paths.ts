@@ -7,6 +7,7 @@ const withSearchParams = (path: string, searchParams?: SearchParams) => {
 
 export const paths = {
   org: (org: string) => `/app/${org}`,
+  newOrganization: "/app/new-organization",
   inbox: (org: string) => `/app/${org}/inbox`,
   settings: (org: string) => `/app/${org}/settings`,
   account: (returnTo?: string) =>

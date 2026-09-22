@@ -187,7 +187,7 @@ function SuggestionRow({
       >
         <FileDiff className="size-4 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 truncate font-medium">
-          {suggestion.rationale ?? "Proposed change"}
+          {suggestion.title ?? suggestion.rationale ?? "Proposed change"}
         </span>
         <SuggestionStatusBadge suggestion={suggestion} />
         <span className="flex w-full items-center gap-2 pl-7 text-xs text-muted-foreground">

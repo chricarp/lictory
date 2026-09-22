@@ -7,6 +7,7 @@ import * as s from "../src/db/schema";
 import { paths } from "../src/lib/paths";
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
+const multiOrgEmail = "multi-org@example.test";
 const password = "Local-test-password-123";
 test.beforeAll(async () => {
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
@@ -14,6 +15,7 @@ test.beforeAll(async () => {
   for (const [name, mail] of [
     ["Alex Morgan", email],
     ["Riley Chen", reviewerEmail],
+    ["Taylor Rivera", multiOrgEmail],
   ] as const) {
     const id = crypto.randomUUID();
     await db
@@ -28,6 +30,32 @@ test.beforeAll(async () => {
     });
   }
   await client.end();
+});
+
+test("an existing member can create and switch to another organization", async ({
+  page,
+}) => {
+  await signIn(page, multiOrgEmail);
+  await page.getByLabel("Organization name").fill("First Team");
+  await page.getByRole("button", { name: "Create organization" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Add your first project" }),
+  ).toBeVisible();
+  const firstOrganization = new URL(page.url()).pathname;
+
+  await page.getByRole("button", { name: "First Team" }).click();
+  await page.getByRole("link", { name: "Create organization" }).click();
+  await expect(page).toHaveURL(/\/app\/new-organization$/);
+  await page.getByLabel("Organization name").fill("Second Team");
+  await page.getByRole("button", { name: "Create organization" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Add your first project" }),
+  ).toBeVisible();
+  expect(new URL(page.url()).pathname).not.toBe(firstOrganization);
+
+  await page.getByRole("button", { name: "Second Team" }).click();
+  await page.getByRole("button", { name: "First Team" }).click();
+  await expect(page).toHaveURL(new RegExp(`${firstOrganization}$`));
 });
 async function signIn(page: Page, loginEmail = email) {
   await page.goto("/sign-in");
@@ -386,17 +414,45 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
       "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
     );
   await reviewer
-    .getByRole("textbox", { name: "Rationale" })
-    .fill("Make timeout behavior explicit");
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Define cancellation timeout behavior");
+  await reviewer
+    .getByRole("textbox", { name: "Description" })
+    .fill(
+      "Make timeout behavior explicit.\n\nReview how late provider responses are reconciled.",
+    );
   await reviewer.getByRole("button", { name: "Open for review" }).click();
   // The suggestion is reviewed like a pull request: the author asks the owner
   // (Product: edits and reviews) to review; nobody can merge before approval.
   await expect(reviewer).toHaveURL(/\?suggestion=/);
   await expect(reviewer.getByText("Open for review").first()).toBeVisible();
+  await expect(
+    reviewer.getByText(/Review how late provider responses are reconciled/),
+  ).toBeVisible();
+  await reviewer.getByRole("button", { name: "Edit proposal" }).click();
+  await reviewer
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Clarify cancellation timeouts and retries");
+  await reviewer
+    .getByRole("textbox", { name: "Description" })
+    .fill(
+      "Define what happens after the client times out.\n\nReview late provider responses and duplicate callbacks.",
+    );
+  await reviewer.getByRole("button", { name: /^Save/ }).click();
+  await expect(
+    reviewer.getByRole("heading", {
+      name: "Clarify cancellation timeouts and retries",
+    }),
+  ).toBeVisible();
+  await expect(
+    reviewer.getByText(
+      /Review late provider responses and duplicate callbacks/,
+    ),
+  ).toBeVisible();
   await reviewer.getByRole("button", { name: "Add reviewer" }).click();
   await reviewer.getByRole("option", { name: /Alex Morgan/ }).click();
   await expect(reviewer.getByText("0 / 1 approved v1")).toBeVisible();
-  await page.getByText("Make timeout behavior explicit").click();
+  await page.getByText("Clarify cancellation timeouts and retries").click();
   await expect(
     page.getByRole("button", { name: /Merge as revision 3/ }),
   ).toBeDisabled();

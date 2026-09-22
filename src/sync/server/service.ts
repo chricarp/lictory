@@ -1581,6 +1581,7 @@ export function createSyncService(db: Database) {
               ...context,
               authorId: userId,
               replacement: c.replacement,
+              title: c.title,
               rationale: c.rationale,
               status: c.open ? "open" : "draft",
               openedAt: c.open ? now : null,
@@ -1660,18 +1661,22 @@ export function createSyncService(db: Database) {
                   );
                 const rebased = suggestion.revisionId !== latest!.id;
                 const changed = c.replacement !== suggestion.replacement;
+                const detailsChanged =
+                  c.title !== suggestion.title ||
+                  c.rationale !== suggestion.rationale;
                 const version = changed
                   ? suggestion.version + 1
                   : suggestion.version;
                 await patch({
                   replacement: c.replacement,
+                  title: c.title,
                   rationale: c.rationale,
                   revisionId: latest!.id,
                   version,
                 });
                 if (changed && decisions.length)
                   await supersede(`Suggestion updated (version ${version})`);
-                if (changed || rebased)
+                if (changed || rebased || detailsChanged)
                   log("suggestion_updated", {
                     suggestionId: suggestion.id,
                     version,
@@ -1852,7 +1857,9 @@ export function createSyncService(db: Database) {
                 const mergedRevisionId = await revision(
                   latest.title,
                   suggestion.replacement,
-                  suggestion.rationale ?? "Merged suggestion",
+                  suggestion.title ??
+                    suggestion.rationale ??
+                    "Merged suggestion",
                 );
                 await patch({
                   status: "merged",

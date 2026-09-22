@@ -199,6 +199,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     type: z.literal("suggestion"),
     authorId: id,
     replacement: z.string(),
+    title: z.string().nullable(),
     rationale: z.string().nullable(),
     status: z.enum(suggestionStatuses),
     version: z.number().int(),
@@ -417,7 +418,7 @@ export const directorySchema = z.object({
   roles: z.array(roleSchema),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 5 as const;
+export const PROTOCOL = 6 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -548,7 +549,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...revisionCommand,
     suggestionId: z.uuid(),
     replacement: document,
-    rationale: text.max(2000),
+    title: text.max(120),
+    rationale: text.max(10_000),
     // Open for review immediately instead of saving a private draft.
     open: z.boolean(),
   }),
@@ -559,7 +561,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...revisionCommand,
     suggestionId: id,
     replacement: document,
-    rationale: text.max(2000),
+    title: text.max(120),
+    rationale: text.max(10_000),
   }),
   // draft ⇄ open, open/draft → closed, closed → draft/open. Never merged.
   z.object({
