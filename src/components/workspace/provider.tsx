@@ -11,15 +11,18 @@ import {
   type ReactNode,
 } from "react";
 import { SyncEngine, type View } from "~/sync/client/engine";
-import type {
-  Command,
-  Directory,
-  Entity,
-  WorkItem,
+import {
+  applicationRoleOf,
+  capabilitiesOf,
+  type Capabilities,
+  type Command,
+  type Directory,
+  type Entity,
+  type WorkItem,
 } from "~/sync/shared/protocol";
 import {
   byType,
-  myGroupIds,
+  myRoleIds,
   type Label,
   type Milestone,
   type Project,
@@ -37,10 +40,14 @@ type WorkspaceContextValue = {
   items: WorkItem[];
   labels: Label[];
   milestones: Milestone[];
-  groupIds: string[];
+  // Active organization roles I hold, and the union of their capabilities.
+  roleIds: string[];
+  capabilities: Capabilities;
+  // Application role: administrators manage the organization, projects and roles.
   isAdmin: boolean;
   mutate: (command: Command) => Promise<string>;
   memberName: (id: string | null | undefined) => string;
+  roleName: (id: string | null | undefined) => string;
   acquireItem: (itemId: string, projectId: string) => SyncEngine;
   releaseItem: (itemId: string) => void;
 };
@@ -146,16 +153,17 @@ export function WorkspaceProvider({
           (a.targetDate ?? "9").localeCompare(b.targetDate ?? "9") ||
           a.name.localeCompare(b.name),
       ),
-      groupIds: myGroupIds(directory, userId),
-      isAdmin: organization.role
-        .split(",")
-        .some((r) => r === "owner" || r === "admin"),
+      roleIds: myRoleIds(directory, userId),
+      capabilities: capabilitiesOf(directory.roles, userId),
+      isAdmin: applicationRoleOf(organization.role) === "admin",
       mutate: (command) => engine.mutate(command),
       memberName: (id) =>
         id
           ? (directory.members.find((m) => m.id === id)?.name ??
             "Former member")
           : "Unassigned",
+      roleName: (id) =>
+        directory.roles.find((r) => r.id === id)?.name ?? "Role",
       acquireItem,
       releaseItem,
     };
@@ -223,7 +231,7 @@ export function useItemEngine(
 }
 const hydratingView: View = {
   entities: {},
-  directory: { organizations: [], projects: [], members: [], groups: [] },
+  directory: { organizations: [], projects: [], members: [], roles: [] },
   pending: [],
   status: "hydrating",
 };

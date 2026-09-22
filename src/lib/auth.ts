@@ -3,11 +3,13 @@ import "server-only";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
 import { nextCookies } from "better-auth/next-js";
+import { organization } from "better-auth/plugins";
 
 import { db } from "~/db";
 import * as schema from "~/db/auth-schema";
 import { authSchemaOptions } from "~/lib/auth-schema-options";
 import { deliverAuthEmail } from "~/lib/email";
+import { seedDefaultRoles } from "~/sync/server/roles";
 
 const googleEnabled = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
@@ -86,7 +88,19 @@ export const auth = betterAuth({
   onAPIError: {
     errorURL: "/auth-error",
   },
-  plugins: [...authSchemaOptions.plugins, nextCookies()],
+  plugins: [
+    // Same schema as `authSchemaOptions`; hooks do not affect generation.
+    organization({
+      organizationHooks: {
+        // Every organization starts with Product, Engineering and QA roles and
+        // its creator (the first administrator) in Product.
+        afterCreateOrganization: async ({ organization, user }) => {
+          await seedDefaultRoles(db, organization.id, user.id);
+        },
+      },
+    }),
+    nextCookies(),
+  ],
 });
 
 export const authProviders = {

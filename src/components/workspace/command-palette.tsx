@@ -51,7 +51,8 @@ export function CommandPalette({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const { organization, projects, items, userId, mutate } = useWorkspace();
+  const { organization, projects, items, userId, mutate, capabilities } =
+    useWorkspace();
   const { openCreate, currentItem } = useShell();
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
@@ -77,7 +78,7 @@ export function CommandPalette({
     : undefined;
   const commands = useMemo<Item[]>(() => {
     const list: Item[] = [];
-    if (currentItem && currentProject) {
+    if (currentItem && currentProject && capabilities.changeProperties) {
       const id = identifier(currentProject, currentItem.number);
       if (currentItem.assigneeId !== userId)
         list.push({
@@ -112,31 +113,34 @@ export function CommandPalette({
             },
           });
     }
+    if (capabilities.editSpecifications)
+      list.push(
+        {
+          id: "create-epic",
+          label: "Create Epic",
+          group: "Create",
+          icon: <KindIcon kind="epic" />,
+          run: () => {
+            onClose();
+            openCreate({ kind: "epic", projectId: currentProject?.id });
+          },
+        },
+        {
+          id: "create-story",
+          label: "Create Story",
+          group: "Create",
+          icon: <KindIcon kind="story" />,
+          run: () => {
+            onClose();
+            openCreate({
+              kind: "story",
+              projectId: currentProject?.id,
+              parentId: currentItem?.kind === "epic" ? currentItem.id : null,
+            });
+          },
+        },
+      );
     list.push(
-      {
-        id: "create-epic",
-        label: "Create Epic",
-        group: "Create",
-        icon: <KindIcon kind="epic" />,
-        run: () => {
-          onClose();
-          openCreate({ kind: "epic", projectId: currentProject?.id });
-        },
-      },
-      {
-        id: "create-story",
-        label: "Create Story",
-        group: "Create",
-        icon: <KindIcon kind="story" />,
-        run: () => {
-          onClose();
-          openCreate({
-            kind: "story",
-            projectId: currentProject?.id,
-            parentId: currentItem?.kind === "epic" ? currentItem.id : null,
-          });
-        },
-      },
       {
         id: "inbox",
         label: "Go to Inbox",
@@ -191,6 +195,7 @@ export function CommandPalette({
     currentItem,
     currentProject,
     userId,
+    capabilities,
     mutate,
     onClose,
     openCreate,

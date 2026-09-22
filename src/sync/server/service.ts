@@ -16,17 +16,25 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "../../db/schema";
 import {
   PROTOCOL,
+  applicationRoleOf,
+  capabilitiesOf,
   entityKey,
   entitySchema,
+  isRoleCommand,
+  type Capabilities,
+  type Directory,
   type Entity,
   type EntityOf,
   type Mutation,
   type ReadinessCheck,
+  type Role,
+  type RoleCommand,
   type Scope,
   type Change,
   type WorkItemStatus,
 } from "../shared/protocol";
 import { hasAcceptanceCriteria } from "../shared/specification";
+import { roleColumns } from "./roles";
 
 type Database = PostgresJsDatabase<typeof s>;
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -112,7 +120,7 @@ export async function directory(
       ),
     );
   if (!organizationId)
-    return { organizations, projects: [], members: [], groups: [] };
+    return { organizations, projects: [], members: [], roles: [] };
   requireValue(
     organizations.find((o) => o.id === organizationId),
     "Organization access has been removed.",
@@ -124,32 +132,82 @@ export async function directory(
       .from(s.project)
       .where(eq(s.project.organizationId, organizationId))
       .orderBy(asc(s.project.createdAt))
-  ).map((row) => serialize("project", row));
-  const members = await db
-    .select({ id: s.user.id, name: s.user.name, email: s.user.email })
-    .from(s.member)
-    .innerJoin(s.user, eq(s.member.userId, s.user.id))
-    .where(eq(s.member.organizationId, organizationId));
+  ).map((row) => serialize("project", row)) as Directory["projects"];
+  const members = (
+    await db
+      .select({
+        id: s.user.id,
+        name: s.user.name,
+        email: s.user.email,
+        memberId: s.member.id,
+        rawRole: s.member.role,
+      })
+      .from(s.member)
+      .innerJoin(s.user, eq(s.member.userId, s.user.id))
+      .where(eq(s.member.organizationId, organizationId))
+      .orderBy(asc(s.user.name), asc(s.user.email))
+  ).map(({ rawRole, ...m }) => ({
+    ...m,
+    role: applicationRoleOf(rawRole),
+    owner: rawRole.split(",").includes("owner"),
+  }));
+  const memberIds = new Set(members.map((m) => m.id));
   const memberships = await db
     .select()
-    .from(s.groupMember)
-    .where(eq(s.groupMember.organizationId, organizationId));
-  const groups = (
+    .from(s.organizationRoleMember)
+    .where(eq(s.organizationRoleMember.organizationId, organizationId));
+  // Archived roles stay in the directory so historical assignments keep their
+  // name and an administrator can restore them; they grant nothing.
+  const roles: Role[] = (
     await db
       .select()
-      .from(s.group)
-      .where(
-        and(
-          eq(s.group.organizationId, organizationId),
-          isNull(s.group.archivedAt),
-        ),
-      )
-  ).map((g) => ({
-    id: g.id,
-    name: g.name,
-    userIds: memberships.filter((m) => m.groupId === g.id).map((m) => m.userId),
+      .from(s.organizationRole)
+      .where(eq(s.organizationRole.organizationId, organizationId))
+      .orderBy(asc(s.organizationRole.createdAt))
+  ).map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    capabilities: {
+      editSpecifications: r.canEditSpecifications,
+      changeProperties: r.canChangeProperties,
+      requestReviews: r.canRequestReviews,
+      review: r.canReview,
+    },
+    // Role membership never outlives organization membership.
+    userIds: memberships
+      .filter((m) => m.roleId === r.id && memberIds.has(m.userId))
+      .map((m) => m.userId)
+      .sort(),
+    archivedAt: r.archivedAt?.toISOString() ?? null,
   }));
-  return { organizations, projects, members, groups };
+  return { organizations, projects, members, roles };
+}
+export function isAdmin(membership: { role: string }) {
+  return applicationRoleOf(membership.role) === "admin";
+}
+function require(
+  allowed: boolean,
+  message: string,
+  category: "forbidden" | "validation" = "forbidden",
+) {
+  if (!allowed) throw new DomainError(category, message);
+}
+// Capability failures name the missing capability so an administrator knows
+// which role to adjust, rather than a generic "not allowed".
+const capabilityMessages: Record<keyof Capabilities, string> = {
+  editSpecifications:
+    "Your roles cannot edit specifications directly. Propose the change as a suggestion instead.",
+  changeProperties:
+    "Your roles cannot change item properties such as status, priority, owner, labels or milestones.",
+  requestReviews: "Your roles cannot request or cancel reviews.",
+  review: "Your roles cannot be asked to review.",
+};
+function requireCapability(
+  capabilities: Capabilities,
+  key: keyof Capabilities,
+) {
+  require(capabilities[key], capabilityMessages[key]);
 }
 export async function searchMembers(
   db: Database | Tx,
@@ -420,7 +478,7 @@ function summarize(
       required: r.required,
       assigneeIds: ctx.assignments
         .filter((a) => a.reviewId === r.id && !a.withdrawnAt)
-        .map((a) => a.userId ?? a.groupId!)
+        .map((a) => a.userId ?? a.roleId!)
         .filter(Boolean),
       approved: ctx.approvals.some(
         (a) => a.reviewId === r.id && a.status === "granted",
@@ -757,9 +815,21 @@ export function createSyncService(db: Database) {
             cursor: previous.cursor.toString(),
           };
         }
-        const canManageProject = membership.role
-          .split(",")
-          .some((r) => r === "owner" || r === "admin");
+        const admin = isAdmin(membership);
+        const roster = await directory(tx, userId, organizationId);
+        const capabilities = capabilitiesOf(roster.roles, userId);
+        if (isRoleCommand(c)) {
+          require(admin, "An organization administrator must manage roles.");
+          await applyRoleCommand(tx, organizationId, roster, c);
+          return commit(
+            tx,
+            organizationId,
+            mutation.id,
+            userId,
+            fingerprint,
+            await clock(tx, organizationId),
+          );
+        }
         let projectId: string;
         let workItemId: string | undefined;
         let item: ItemRow | undefined;
@@ -910,7 +980,7 @@ export function createSyncService(db: Database) {
                     reviewId,
                     assignedById: userId,
                     userId: t.userId,
-                    groupId: t.groupId,
+                    roleId: t.roleId,
                   })),
                 );
             }
@@ -976,11 +1046,7 @@ export function createSyncService(db: Database) {
         };
         switch (c.type) {
           case "createProject": {
-            if (!canManageProject)
-              throw new DomainError(
-                "forbidden",
-                "An organization administrator must create projects.",
-              );
+            require(admin, "An organization administrator must create projects.");
             const taken = (
               await tx
                 .select({ id: s.project.id })
@@ -1008,11 +1074,7 @@ export function createSyncService(db: Database) {
             break;
           }
           case "updateProject":
-            if (!canManageProject)
-              throw new DomainError(
-                "forbidden",
-                "An organization administrator must update projects.",
-              );
+            require(admin, "An organization administrator must update projects.");
             await tx
               .update(s.project)
               .set({ name: c.name })
@@ -1024,6 +1086,7 @@ export function createSyncService(db: Database) {
               );
             break;
           case "createWorkItem": {
+            requireCapability(capabilities, "editSpecifications");
             await validateParent(c.parentId, c.kind);
             const [{ next }] = (await tx
               .select({
@@ -1052,6 +1115,7 @@ export function createSyncService(db: Database) {
             break;
           }
           case "updateWorkItem": {
+            requireCapability(capabilities, "changeProperties");
             const patch: Partial<ItemRow> = {};
             if (c.status !== undefined && c.status !== item!.status) {
               if (c.status === "ready") {
@@ -1084,7 +1148,6 @@ export function createSyncService(db: Database) {
               c.assigneeId !== item!.assigneeId
             ) {
               if (c.assigneeId) {
-                const roster = await directory(tx, userId, organizationId);
                 requireValue(
                   roster.members.find((m) => m.id === c.assigneeId),
                   "Assignee is outside this organization.",
@@ -1175,6 +1238,7 @@ export function createSyncService(db: Database) {
             break;
           }
           case "reorderWorkItem": {
+            requireCapability(capabilities, "changeProperties");
             // Siblings share the parent; positions are sparse so a move only
             // rewrites one row unless neighbours collide, then all siblings.
             const siblings = before
@@ -1231,6 +1295,7 @@ export function createSyncService(db: Database) {
           }
           case "createLabel":
           case "updateLabel": {
+            requireCapability(capabilities, "changeProperties");
             if (c.type === "createLabel") {
               const taken = before.some(
                 (e) =>
@@ -1280,6 +1345,7 @@ export function createSyncService(db: Database) {
           }
           case "createMilestone":
           case "updateMilestone": {
+            requireCapability(capabilities, "changeProperties");
             if (c.type === "createMilestone") {
               const taken = before.some(
                 (e) =>
@@ -1335,6 +1401,7 @@ export function createSyncService(db: Database) {
             break;
           }
           case "archiveWorkItem":
+            requireCapability(capabilities, "changeProperties");
             await tx
               .update(s.workItem)
               .set({ archivedAt: c.archived ? now : null })
@@ -1347,6 +1414,7 @@ export function createSyncService(db: Database) {
             log(c.archived ? "archived" : "restored");
             break;
           case "updateSpecification":
+            requireCapability(capabilities, "editSpecifications");
             await revision(c.title, c.content, c.summary);
             break;
           case "createThread":
@@ -1432,6 +1500,7 @@ export function createSyncService(db: Database) {
             log("suggestion_created", { suggestionId: c.suggestionId });
             break;
           case "decideSuggestion": {
+            requireCapability(capabilities, "editSpecifications");
             const suggestion = requireValue(
               before.find(
                 (e) => e.type === "suggestion" && e.id === c.suggestionId,
@@ -1484,17 +1553,21 @@ export function createSyncService(db: Database) {
             break;
           }
           case "requestReview": {
-            const roster = await directory(tx, userId, organizationId);
-            requireValue(
-              (c.target.type === "user" ? roster.members : roster.groups).find(
-                (t) => t.id === c.target.id,
-              ),
-              "Reviewer is outside this organization.",
+            requireCapability(capabilities, "requestReviews");
+            const role = requireValue(
+              roster.roles.find((r) => r.id === c.roleId && !r.archivedAt),
+              "The reviewer role is unavailable in this organization.",
             );
+            require(role.capabilities
+              .review, `${role.name} cannot be asked to review. An administrator can change the role's capabilities.`, "validation");
+            if (c.userId)
+              require(role.userIds.includes(
+                c.userId,
+              ), `The chosen reviewer is not a member of ${role.name}.`, "validation");
             await tx.insert(s.review).values({
               id: c.reviewId,
               ...context,
-              responsibility: c.responsibility,
+              responsibility: role.name,
               required: c.required,
               requestedById: userId,
             });
@@ -1502,14 +1575,14 @@ export function createSyncService(db: Database) {
               organizationId,
               reviewId: c.reviewId,
               assignedById: userId,
-              userId: c.target.type === "user" ? c.target.id : null,
-              groupId: c.target.type === "group" ? c.target.id : null,
+              userId: c.userId,
+              roleId: c.userId ? null : c.roleId,
             });
             log("review_requested", {
               reviewId: c.reviewId,
-              responsibility: c.responsibility,
-              targetType: c.target.type,
-              targetId: c.target.id,
+              responsibility: role.name,
+              targetType: c.userId ? "user" : "role",
+              targetId: c.userId ?? c.roleId,
               required: c.required,
             });
             if (
@@ -1521,6 +1594,7 @@ export function createSyncService(db: Database) {
             break;
           }
           case "cancelReview": {
+            requireCapability(capabilities, "requestReviews");
             const review = requireValue(
               before.find((e) => e.type === "review" && e.id === c.reviewId),
             );
@@ -1553,15 +1627,17 @@ export function createSyncService(db: Database) {
               );
             if (review.status === "cancelled")
               throw new DomainError("conflict", "This review was cancelled.");
-            const roster = await directory(tx, userId, organizationId);
             const canReviewSpecification = before.some(
               (e) =>
                 e.type === "assignment" &&
                 e.reviewId === c.reviewId &&
                 !e.withdrawnAt &&
                 (e.userId === userId ||
-                  roster.groups.some(
-                    (g) => g.id === e.groupId && g.userIds.includes(userId),
+                  roster.roles.some(
+                    (r) =>
+                      r.id === e.roleId &&
+                      !r.archivedAt &&
+                      r.userIds.includes(userId),
                   )),
             );
             if (!canReviewSpecification)
@@ -1744,30 +1820,145 @@ export function createSyncService(db: Database) {
             change,
           });
         }
-        await tx
-          .insert(s.syncClock)
-          .values({ organizationId, cursor })
-          .onConflictDoUpdate({
-            target: s.syncClock.organizationId,
-            set: { cursor },
-          });
-        await tx.insert(s.syncMutation).values({
+        return commit(
+          tx,
           organizationId,
-          id: mutation.id,
+          mutation.id,
           userId,
           fingerprint,
           cursor,
-        });
-        // PostgreSQL delivers NOTIFY only after COMMIT. It is an invalidation, never data.
-        await tx.execute(
-          sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: cursor.toString() })})`,
         );
-        return {
-          protocol: PROTOCOL,
-          mutationId: mutation.id,
-          cursor: cursor.toString(),
-        };
       });
     },
   };
+}
+
+// Clock, receipt and invalidation commit together with the domain writes.
+async function commit(
+  tx: Tx,
+  organizationId: string,
+  mutationId: string,
+  userId: string,
+  fingerprint: string,
+  cursor: bigint,
+) {
+  await tx
+    .insert(s.syncClock)
+    .values({ organizationId, cursor })
+    .onConflictDoUpdate({
+      target: s.syncClock.organizationId,
+      set: { cursor },
+    });
+  await tx.insert(s.syncMutation).values({
+    organizationId,
+    id: mutationId,
+    userId,
+    fingerprint,
+    cursor,
+  });
+  // PostgreSQL delivers NOTIFY only after COMMIT. It is an invalidation, never data.
+  await tx.execute(
+    sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: cursor.toString() })})`,
+  );
+  return {
+    protocol: PROTOCOL,
+    mutationId,
+    cursor: cursor.toString(),
+  };
+}
+
+const blankToNull = (value: string | null | undefined) =>
+  value?.trim().length ? value.trim() : null;
+// Roles live in the directory, which every sync response refreshes, so these
+// writes emit no entity changes; the invalidation still wakes other clients.
+async function applyRoleCommand(
+  tx: Tx,
+  organizationId: string,
+  roster: Directory,
+  c: RoleCommand,
+) {
+  const nameTaken = (name: string, exceptId?: string) =>
+    roster.roles.some(
+      (r) =>
+        r.id !== exceptId &&
+        !r.archivedAt &&
+        r.name.toLowerCase() === name.toLowerCase(),
+    );
+  switch (c.type) {
+    case "createRole":
+      require(!nameTaken(
+        c.name,
+      ), `A role named “${c.name}” already exists.`, "validation");
+      await tx.insert(s.organizationRole).values({
+        id: c.roleId,
+        organizationId,
+        name: c.name,
+        description: blankToNull(c.description),
+        ...roleColumns(c.capabilities),
+      });
+      break;
+    case "updateRole": {
+      const role = requireValue(
+        roster.roles.find((r) => r.id === c.roleId),
+        "This role is unavailable.",
+      );
+      if (c.name !== undefined)
+        require(!nameTaken(
+          c.name,
+          role.id,
+        ), `A role named “${c.name}” already exists.`, "validation");
+      if (c.archived === false)
+        require(!nameTaken(
+          c.name ?? role.name,
+          role.id,
+        ), `Rename the active role named “${c.name ?? role.name}” before restoring this one.`, "validation");
+      await tx
+        .update(s.organizationRole)
+        .set({
+          ...(c.name !== undefined ? { name: c.name } : {}),
+          ...(c.description !== undefined
+            ? { description: blankToNull(c.description) }
+            : {}),
+          ...(c.capabilities ? roleColumns(c.capabilities) : {}),
+          ...(c.archived !== undefined
+            ? { archivedAt: c.archived ? new Date() : null }
+            : {}),
+        })
+        .where(
+          and(
+            eq(s.organizationRole.organizationId, organizationId),
+            eq(s.organizationRole.id, c.roleId),
+          ),
+        );
+      break;
+    }
+    case "setRoleMembership": {
+      const role = requireValue(
+        roster.roles.find((r) => r.id === c.roleId && !r.archivedAt),
+        "This role is unavailable.",
+      );
+      requireValue(
+        roster.members.find((m) => m.id === c.userId),
+        "That person is not a member of this organization.",
+      );
+      if (c.member) {
+        if (!role.userIds.includes(c.userId))
+          await tx.insert(s.organizationRoleMember).values({
+            organizationId,
+            roleId: c.roleId,
+            userId: c.userId,
+          });
+      } else
+        await tx
+          .delete(s.organizationRoleMember)
+          .where(
+            and(
+              eq(s.organizationRoleMember.organizationId, organizationId),
+              eq(s.organizationRoleMember.roleId, c.roleId),
+              eq(s.organizationRoleMember.userId, c.userId),
+            ),
+          );
+      break;
+    }
+  }
 }

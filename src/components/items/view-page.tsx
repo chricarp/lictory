@@ -9,7 +9,7 @@ import { IssueList } from "./issue-list";
 
 // System views derive from real domain state; nothing here is a saved query.
 export function ViewPage({ view }: { view: ViewId }) {
-  const { items, organization, userId, groupIds } = useWorkspace();
+  const { items, organization, userId, roleIds } = useWorkspace();
   const project = useProject();
   const meta = views.find((v) => v.id === view)!;
   const scoped = useMemo(
@@ -18,9 +18,9 @@ export function ViewPage({ view }: { view: ViewId }) {
         (i) =>
           i.projectId === project.id &&
           !i.archivedAt &&
-          matchesView(i, view, userId, groupIds),
+          matchesView(i, view, userId, roleIds),
       ),
-    [items, project.id, view, userId, groupIds],
+    [items, project.id, view, userId, roleIds],
   );
   const hrefFor = useCallback(
     (item: WorkItem) =>

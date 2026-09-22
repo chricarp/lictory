@@ -2,13 +2,14 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { IndexedPersistence, type Queued } from "./persistence";
+import { PROTOCOL } from "../shared/protocol";
 import { retryDelay } from "./reconciliation";
 void test("IndexedDB persists checkpoint with entities, queue survives reload, and identities stay isolated", async () => {
   const a = new IndexedPersistence();
   const owner = crypto.randomUUID();
   const item: Queued = {
     mutation: {
-      protocol: 3,
+      protocol: PROTOCOL,
       id: crypto.randomUUID(),
       organizationId: "org",
       command: {
@@ -28,7 +29,7 @@ void test("IndexedDB persists checkpoint with entities, queue survives reload, a
   await a.save(owner, {
     cursor: "9007199254740993",
     entities: {},
-    directory: { organizations: [], projects: [], members: [], groups: [] },
+    directory: { organizations: [], projects: [], members: [], roles: [] },
   });
   const reloaded = new IndexedPersistence();
   assert.deepEqual(await reloaded.queue(owner), [item]);
@@ -63,14 +64,14 @@ void test("access revocation purges every scope and pending command for only the
   const cache = {
     cursor: "2",
     entities: {},
-    directory: { organizations: [], projects: [], members: [], groups: [] },
+    directory: { organizations: [], projects: [], members: [], roles: [] },
   };
   await store.save(`${owner}:one`, cache);
   await store.save(`${owner}:two`, cache);
   await store.save(`different:${owner}`, cache);
   const item: Queued = {
     mutation: {
-      protocol: 3,
+      protocol: PROTOCOL,
       id: crypto.randomUUID(),
       organizationId: "org",
       command: {

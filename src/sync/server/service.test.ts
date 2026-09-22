@@ -11,8 +11,14 @@ import {
   searchEpics,
   searchMembers,
 } from "./service";
-import { pageSchema, type Command, type Entity } from "../shared/protocol";
+import {
+  PROTOCOL,
+  pageSchema,
+  type Command,
+  type Entity,
+} from "../shared/protocol";
 import { reconcile, optimistic } from "../client/reconciliation";
+import { seedDefaultRoles } from "./roles";
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
   "postgresql://lictory:lictory@localhost:5432/postgres";
@@ -68,11 +74,30 @@ async function fixture() {
       createdAt: new Date(),
     },
   ]);
+  // A small team: the owner holds every default role, the reviewer holds the
+  // two reviewer-only roles (Engineering, QA).
+  await seedDefaultRoles(db, organizationId, userId);
+  const roleRows = await db
+    .select()
+    .from(s.organizationRole)
+    .where(eq(s.organizationRole.organizationId, organizationId));
+  const roles = Object.fromEntries(roleRows.map((r) => [r.name, r.id])) as {
+    Product: string;
+    Engineering: string;
+    QA: string;
+  };
+  await db.insert(s.organizationRoleMember).values([
+    { organizationId, roleId: roles.Engineering, userId },
+    { organizationId, roleId: roles.QA, userId },
+    { organizationId, roleId: roles.Engineering, userId: reviewerId },
+    { organizationId, roleId: roles.QA, userId: reviewerId },
+  ]);
   const command = async (
     command: Command,
     actor = userId,
     id = crypto.randomUUID(),
-  ) => service.mutate(actor, { protocol: 3, id, organizationId, command });
+  ) =>
+    service.mutate(actor, { protocol: PROTOCOL, id, organizationId, command });
   const projectId = crypto.randomUUID();
   await command({
     type: "createProject",
@@ -115,6 +140,7 @@ async function fixture() {
     organizationId,
     userId,
     reviewerId,
+    roles,
     proposalId,
     projectId: project.id,
     scope,
@@ -213,8 +239,8 @@ void test("approvals target exact revisions, only assignments authorize, and sug
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    responsibility: "Engineering",
-    target: { type: "user", id: f.reviewerId },
+    roleId: f.roles.Engineering,
+    userId: f.reviewerId,
     required: true,
   });
   const review = (await f.entities()).find((e) => e.type === "review")!;
@@ -449,7 +475,7 @@ void test("optimistic overlay is replayed over authoritative entities without mu
     state,
     [
       {
-        protocol: 3,
+        protocol: PROTOCOL,
         id: crypto.randomUUID(),
         organizationId: "org",
         command: {
@@ -471,25 +497,16 @@ void test("optimistic overlay is replayed over authoritative entities without mu
   assert.deepEqual(optimistic(state, [], "user"), state);
 });
 
-void test("functional membership grants a review decision only after explicit group assignment", async () => {
+void test("role membership grants a review decision only after explicit role assignment", async () => {
   const f = await fixture();
-  const groupId = crypto.randomUUID();
-  await db
-    .insert(s.group)
-    .values({ id: groupId, organizationId: f.organizationId, name: "QA" });
-  await db.insert(s.groupMember).values({
-    organizationId: f.organizationId,
-    groupId,
-    userId: f.reviewerId,
-  });
   const current = await f.current();
   const base = { workItemId: f.proposalId, baseRevisionId: current.id };
   await f.command({
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    responsibility: "QA",
-    target: { type: "user", id: f.userId },
+    roleId: f.roles.QA,
+    userId: f.userId,
     required: true,
   });
   const unassigned = (await f.entities()).find((e) => e.type === "review")!;
@@ -509,8 +526,8 @@ void test("functional membership grants a review decision only after explicit gr
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    responsibility: "QA",
-    target: { type: "group", id: groupId },
+    roleId: f.roles.QA,
+    userId: null,
     required: true,
   });
   const assigned = (await f.entities()).find(
@@ -552,16 +569,16 @@ void test("every current required review must complete, even when responsibiliti
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    responsibility: "Engineering",
-    target: { type: "user", id: f.userId },
+    roleId: f.roles.Engineering,
+    userId: f.userId,
     required: true,
   });
   await f.command({
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    responsibility: "Engineering",
-    target: { type: "user", id: f.reviewerId },
+    roleId: f.roles.Engineering,
+    userId: f.reviewerId,
     required: true,
   });
   const reviews = (await f.entities()).filter((e) => e.type === "review");
@@ -614,8 +631,8 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
     type: "requestReview",
     ...base2,
     reviewId: crypto.randomUUID(),
-    responsibility: "Engineering",
-    target: { type: "user", id: f.reviewerId },
+    roleId: f.roles.Engineering,
+    userId: f.reviewerId,
     required: true,
   });
   let item = (await f.entities()).find((e) => e.type === "workItem")!;
@@ -783,8 +800,8 @@ void test("labels, milestones and manual ordering are project-scoped, non-materi
     workItemId: f.proposalId,
     baseRevisionId: first.id,
     reviewId: crypto.randomUUID(),
-    responsibility: "QA",
-    target: { type: "user", id: f.reviewerId },
+    roleId: f.roles.QA,
+    userId: f.reviewerId,
     required: true,
   });
   const review = (await f.entities()).find((e) => e.type === "review")!;
@@ -1043,5 +1060,226 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
   await assert.rejects(
     () => searchEpics(db, f.userId, f.organizationId, crypto.randomUUID(), ""),
     /unavailable/,
+  );
+});
+
+void test("organization roles grant capabilities; administrators manage roles; reviews target reviewer roles", async () => {
+  const f = await fixture();
+  const revision = await f.current();
+  const base = { workItemId: f.proposalId, baseRevisionId: revision.id };
+  // The reviewer holds Engineering and QA only: no editing, no properties,
+  // but discussion, suggestions and review requests remain available.
+  await assert.rejects(
+    f.command(
+      {
+        type: "updateSpecification",
+        ...base,
+        title: "Safe retries",
+        content: "Rewritten",
+      },
+      f.reviewerId,
+    ),
+    /cannot edit specifications directly/,
+  );
+  await assert.rejects(
+    f.command(
+      {
+        type: "createWorkItem",
+        projectId: f.projectId,
+        workItemId: crypto.randomUUID(),
+        kind: "story",
+        parentId: null,
+        title: "Another",
+      },
+      f.reviewerId,
+    ),
+    /cannot edit specifications directly/,
+  );
+  await assert.rejects(
+    f.command(
+      { type: "updateWorkItem", workItemId: f.proposalId, priority: "high" },
+      f.reviewerId,
+    ),
+    /cannot change item properties/,
+  );
+  await assert.rejects(
+    f.command(
+      {
+        type: "createLabel",
+        projectId: f.projectId,
+        labelId: crypto.randomUUID(),
+        name: "api",
+        color: "blue",
+      },
+      f.reviewerId,
+    ),
+    /cannot change item properties/,
+  );
+  const suggestionId = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createSuggestion",
+      ...base,
+      suggestionId,
+      replacement: "Retries reuse the transaction ID.",
+      rationale: "Idempotency was undefined.",
+    },
+    f.reviewerId,
+  );
+  await assert.rejects(
+    f.command(
+      { type: "decideSuggestion", ...base, suggestionId, accept: true },
+      f.reviewerId,
+    ),
+    /cannot edit specifications directly/,
+  );
+  await f.command({
+    type: "decideSuggestion",
+    ...base,
+    suggestionId,
+    accept: true,
+  });
+  const second = await f.current();
+  assert.equal(second.number, 2);
+  // Only administrators manage roles.
+  const roleId = crypto.randomUUID();
+  const securityRole = {
+    type: "createRole" as const,
+    roleId,
+    name: "Security",
+    capabilities: {
+      editSpecifications: false,
+      changeProperties: false,
+      requestReviews: false,
+      review: false,
+    },
+  };
+  await assert.rejects(
+    f.command(securityRole, f.reviewerId),
+    /administrator must manage roles/,
+  );
+  await f.command(securityRole);
+  await assert.rejects(
+    f.command({
+      ...securityRole,
+      roleId: crypto.randomUUID(),
+      name: "security",
+    }),
+    /already exists/,
+  );
+  // A role that cannot review cannot be asked, and a person can only be asked
+  // through a role they hold.
+  const base2 = { workItemId: f.proposalId, baseRevisionId: second.id };
+  await assert.rejects(
+    f.command({
+      type: "requestReview",
+      ...base2,
+      reviewId: crypto.randomUUID(),
+      roleId,
+      userId: null,
+      required: true,
+    }),
+    /cannot be asked to review/,
+  );
+  await f.command({
+    type: "setRoleMembership",
+    roleId,
+    userId: f.reviewerId,
+    member: true,
+  });
+  await f.command({
+    type: "updateRole",
+    roleId,
+    capabilities: { ...securityRole.capabilities, review: true },
+  });
+  await assert.rejects(
+    f.command({
+      type: "requestReview",
+      ...base2,
+      reviewId: crypto.randomUUID(),
+      roleId,
+      userId: f.userId,
+      required: true,
+    }),
+    /not a member of Security/,
+  );
+  const reviewId = crypto.randomUUID();
+  await f.command({
+    type: "requestReview",
+    ...base2,
+    reviewId,
+    roleId,
+    userId: null,
+    required: true,
+  });
+  const page = await f.read();
+  const review = page.changes
+    .flatMap((c) => (c.operation === "upsert" ? [c.entity] : []))
+    .find((e) => e.type === "review" && e.id === reviewId);
+  assert.ok(review?.type === "review" && review.responsibility === "Security");
+  assert.deepEqual(page.directory.roles.find((r) => r.id === roleId)?.userIds, [
+    f.reviewerId,
+  ]);
+  assert.equal(
+    page.directory.members.find((m) => m.id === f.userId)?.role,
+    "admin",
+  );
+  assert.equal(
+    page.directory.members.find((m) => m.id === f.reviewerId)?.role,
+    "member",
+  );
+  await f.command(
+    { type: "decideReview", ...base2, reviewId, decision: "approve" },
+    f.reviewerId,
+  );
+  // Archiving a role removes its capabilities and hides it from requests but
+  // keeps the historical assignment legible; restoring brings it back.
+  await f.command({ type: "updateRole", roleId, archived: true });
+  const archived = (await f.read()).directory.roles.find(
+    (r) => r.id === roleId,
+  );
+  assert.ok(archived?.archivedAt);
+  await assert.rejects(
+    f.command({
+      type: "requestReview",
+      ...base2,
+      reviewId: crypto.randomUUID(),
+      roleId,
+      userId: null,
+      required: false,
+    }),
+    /unavailable/,
+  );
+  await f.command({ type: "updateRole", roleId, archived: false });
+  assert.equal(
+    (await f.read()).directory.roles.find((r) => r.id === roleId)?.archivedAt,
+    null,
+  );
+  // Removing a person from every capable role revokes their access immediately.
+  await f.command({
+    type: "setRoleMembership",
+    roleId: f.roles.Engineering,
+    userId: f.reviewerId,
+    member: false,
+  });
+  await f.command({
+    type: "setRoleMembership",
+    roleId: f.roles.QA,
+    userId: f.reviewerId,
+    member: false,
+  });
+  await assert.rejects(
+    f.command(
+      {
+        type: "requestReview",
+        ...base2,
+        reviewId: crypto.randomUUID(),
+        roleId: f.roles.Product,
+        userId: null,
+        required: false,
+      },
+      f.reviewerId,
+    ),
+    /cannot request or cancel reviews/,
   );
 });

@@ -89,8 +89,16 @@ export function Shell({
   user: { name: string; email: string };
   children: ReactNode;
 }) {
-  const { organization, projects, items, userId, groupIds, directory } =
-    useWorkspace();
+  const {
+    organization,
+    projects,
+    items,
+    userId,
+    roleIds,
+    directory,
+    capabilities,
+  } = useWorkspace();
+  const canCreate = capabilities.editSpecifications;
   const pathname = usePathname();
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -121,14 +129,21 @@ export function Shell({
     if (routeKey && projects.some((p) => p.key === routeKey))
       rememberProject(organization.id, routeKey);
   }, [routeKey, projects, organization.id]);
+  // Creation is authoring: every entry point (button, shortcut, palette)
+  // funnels here so a role without the capability gets one clear message.
   const openCreate = useCallback(
-    (options?: QuickCreateOptions) =>
+    (options?: QuickCreateOptions) => {
+      if (!canCreate)
+        return toast(
+          "Your roles cannot create Epics or Stories. Ask an administrator for a role that can edit specifications.",
+        );
       setCreate({
         kind: "story",
         ...options,
         projectId: options?.projectId ?? project?.id,
-      }),
-    [project?.id],
+      });
+    },
+    [project?.id, canCreate, toast],
   );
   const openPalette = useCallback(
     (query = "") => setPalette({ open: true, query }),
@@ -160,8 +175,8 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey);
   }, [project, pathname, openCreate, openPalette]);
   const inboxCount = useMemo(
-    () => items.filter((i) => needsMyReview(i, userId, groupIds)).length,
-    [items, userId, groupIds],
+    () => items.filter((i) => needsMyReview(i, userId, roleIds)).length,
+    [items, userId, roleIds],
   );
   const shell = useMemo<ShellContextValue>(
     () => ({
@@ -183,7 +198,7 @@ export function Shell({
       pathname={pathname}
       inboxCount={inboxCount}
       user={user}
-      onCreate={() => openCreate()}
+      onCreate={canCreate ? () => openCreate() : undefined}
       onSearch={() => openPalette()}
       onSignOut={async () => {
         await authClient.signOut();
@@ -232,7 +247,7 @@ export function Shell({
               >
                 <Search className="size-4" />
               </Button>
-              {project && (
+              {project && canCreate && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -309,7 +324,7 @@ function Sidebar({
   pathname: string;
   inboxCount: number;
   user: { name: string; email: string };
-  onCreate: () => void;
+  onCreate?: () => void;
   onSearch: () => void;
   onSignOut: () => void;
 }) {
@@ -371,17 +386,19 @@ function Sidebar({
           <Search className="size-4" />
         </Button>
       </div>
-      <div className="px-2 pb-2">
-        <Button
-          variant="secondary"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={onCreate}
-          disabled={!project}
-        >
-          <Plus className="size-3.5" /> New item
-          <Kbd>C</Kbd>
-        </Button>
-      </div>
+      {onCreate && (
+        <div className="px-2 pb-2">
+          <Button
+            variant="secondary"
+            className="w-full justify-start gap-2 text-muted-foreground"
+            onClick={onCreate}
+            disabled={!project}
+          >
+            <Plus className="size-3.5" /> New item
+            <Kbd>C</Kbd>
+          </Button>
+        </div>
+      )}
       <nav
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pb-2"
         aria-label="Workspace"

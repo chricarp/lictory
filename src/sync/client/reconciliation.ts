@@ -21,6 +21,8 @@ export function optimistic(
   entities: Entities,
   mutations: Mutation[],
   userId: string,
+  // The server names the review after its role; predict from the directory.
+  roleName: (roleId: string) => string = () => "Review",
 ): Entities {
   const next = { ...entities };
   const now = new Date().toISOString();
@@ -181,7 +183,7 @@ export function optimistic(
           organizationId,
           workItemId: c.workItemId,
           revisionId: c.baseRevisionId,
-          responsibility: c.responsibility,
+          responsibility: roleName(c.roleId),
           status: "requested",
           required: c.required,
           requestedById: userId,
@@ -192,8 +194,8 @@ export function optimistic(
           id: `pending:${c.reviewId}`,
           organizationId,
           reviewId: c.reviewId,
-          userId: c.target.type === "user" ? c.target.id : null,
-          groupId: c.target.type === "group" ? c.target.id : null,
+          userId: c.userId,
+          roleId: c.userId ? null : c.roleId,
           withdrawnAt: null,
         };
         break;

@@ -12,21 +12,10 @@ import { cn } from "~/lib/utils";
 import { relativeTime } from "~/lib/work-items";
 import type { EntityOf } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
-import { Popover } from "~/components/ui/popover";
-import { PeoplePicker } from "~/components/ui/people-picker";
+import { Picker, Popover } from "~/components/ui/popover";
 import { Avatar, Badge, SectionLabel } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useItem } from "~/components/items/item-context";
-
-const responsibilitySuggestions = [
-  "Product",
-  "Engineering",
-  "QA",
-  "Architecture",
-  "Security",
-  "UX",
-  "SRE",
-];
 
 // Reviews live on the item. Each row is one responsibility on the current
 // revision; decisions are only offered to assigned reviewers and always name
@@ -38,13 +27,14 @@ export function ReviewPanel() {
     approvals,
     current,
     userId,
-    groupIds,
+    roleIds,
     mutate,
     base,
     item,
     memberName,
-    groupName,
+    roleName,
     readOnly,
+    canRequestReviews,
     revisionNumber,
   } = useItem();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -61,7 +51,7 @@ export function ReviewPanel() {
     assignments.filter((a) => a.reviewId === review.id && !a.withdrawnAt);
   const canDecide = (review: EntityOf<"review">) =>
     assigneesOf(review).some(
-      (a) => a.userId === userId || (a.groupId && groupIds.includes(a.groupId)),
+      (a) => a.userId === userId || (a.roleId && roleIds.includes(a.roleId)),
     );
   return (
     <section>
@@ -79,7 +69,7 @@ export function ReviewPanel() {
             {approved} / {active.length} approved
           </span>
         )}
-        {!readOnly && (
+        {canRequestReviews && (
           <RequestReview
             trigger={(props) => (
               <Button
@@ -138,7 +128,7 @@ export function ReviewPanel() {
                         ? "Changes requested"
                         : "Requested"}
                   </span>
-                  {!readOnly && review.status !== "completed" && (
+                  {canRequestReviews && review.status !== "completed" && (
                     <button
                       aria-label={`Cancel ${review.responsibility} review`}
                       title="Cancel this review request"
@@ -163,7 +153,7 @@ export function ReviewPanel() {
                       ) : null}
                       {a.userId
                         ? memberName(a.userId)
-                        : `${groupName(a.groupId)} (group)`}
+                        : `Anyone in ${roleName(a.roleId)}`}
                     </span>
                   ))}
                   {granted.map((a) => (
@@ -264,26 +254,22 @@ export function RequestReview({
 }) {
   const { directory, memberName, userId } = useWorkspace();
   const { mutate, base, reviews, current } = useItem();
-  const [responsibility, setResponsibility] = useState("Engineering");
-  const [target, setTarget] = useState<string>();
+  // Only roles an administrator marked as reviewers can be asked.
+  const reviewerRoles = directory.roles.filter(
+    (r) => !r.archivedAt && r.capabilities.review,
+  );
+  const [roleId, setRoleId] = useState<string | undefined>(
+    () =>
+      reviewerRoles.find((r) => !r.userIds.includes(userId))?.id ??
+      reviewerRoles[0]?.id,
+  );
+  const [reviewer, setReviewer] = useState<string>("any");
   const [required, setRequired] = useState(true);
   const [error, setError] = useState<string>();
-  const groups = directory.groups.map((g) => ({
-    value: `group:${g.id}`,
-    label: `${g.name} (group)`,
-    hint: `${g.userIds.length} people`,
-    keywords: g.name,
-  }));
-  const selected = target?.startsWith("group:")
-    ? groups.find((g) => g.value === target)
-    : target?.startsWith("user:")
-      ? {
-          label:
-            target.slice(5) === userId
-              ? `${memberName(target.slice(5))} (me)`
-              : memberName(target.slice(5)),
-        }
-      : undefined;
+  const role = reviewerRoles.find((r) => r.id === roleId);
+  const people = (role?.userIds ?? [])
+    .map((id) => directory.members.find((m) => m.id === id))
+    .filter((m): m is NonNullable<typeof m> => Boolean(m));
   const used = new Set(
     reviews
       .filter((r) => r.revisionId === current?.id && r.status !== "cancelled")
@@ -296,15 +282,14 @@ export function RequestReview({
           className="space-y-3 p-3 text-[13px]"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!target) return setError("Choose a reviewer or group.");
-            const [type, id] = target.split(":") as ["user" | "group", string];
+            if (!role) return setError("Choose a reviewer role.");
             try {
               await mutate({
                 type: "requestReview",
                 ...base,
                 reviewId: crypto.randomUUID(),
-                responsibility: responsibility.trim(),
-                target: { type, id },
+                roleId: role.id,
+                userId: reviewer === "any" ? null : reviewer,
                 required,
               });
               close();
@@ -320,57 +305,109 @@ export function RequestReview({
           <p className="font-medium">
             Request review of revision {current?.number}
           </p>
-          <label className="block">
-            <span className="text-xs text-muted-foreground">
-              Responsibility
-            </span>
-            <input
-              list="responsibilities"
-              value={responsibility}
-              onChange={(e) => setResponsibility(e.target.value)}
-              className="mt-1 h-8 w-full rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60"
-              aria-label="Responsibility"
-              required
-            />
-            <datalist id="responsibilities">
-              {responsibilitySuggestions.map((r) => (
-                <option key={r} value={r} />
-              ))}
-            </datalist>
-            {used.has(responsibility.trim()) && (
-              <span className="mt-1 block text-[11px] text-amber-700">
-                A {responsibility.trim()} review already exists on this
-                revision; another reviewer will be added.
-              </span>
-            )}
-          </label>
-          <div>
-            <span className="text-xs text-muted-foreground">Reviewer</span>
-            <Popover
-              width="trigger"
-              trigger={(props) => (
-                <button
-                  {...props}
-                  type="button"
-                  className="mt-1 flex h-8 w-full items-center justify-between rounded-md border bg-card px-2 text-left text-sm hover:bg-muted"
-                  aria-label="Reviewer"
+          {reviewerRoles.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No role can be asked to review yet. An administrator can enable
+              “Can be asked to review” on a role in Settings.
+            </p>
+          ) : (
+            <>
+              <div>
+                <span className="text-xs text-muted-foreground">Role</span>
+                <Popover
+                  width="trigger"
+                  trigger={(props) => (
+                    <button
+                      {...props}
+                      type="button"
+                      className="mt-1 flex h-8 w-full items-center justify-between rounded-md border bg-card px-2 text-left text-sm hover:bg-muted"
+                      aria-label="Reviewer role"
+                    >
+                      <span className={cn(!role && "text-muted-foreground")}>
+                        {role?.name ?? "Choose a role…"}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </button>
+                  )}
                 >
-                  <span className={cn(!selected && "text-muted-foreground")}>
-                    {selected?.label ?? "Choose a person or group…"}
+                  {(closeRole) => (
+                    <Picker
+                      title="Reviewer role"
+                      hideSearch={reviewerRoles.length < 8}
+                      options={reviewerRoles.map((r) => ({
+                        value: r.id,
+                        label: r.name,
+                        hint: `${r.userIds.length} ${r.userIds.length === 1 ? "person" : "people"}`,
+                      }))}
+                      value={roleId}
+                      onSelect={(id) => {
+                        setRoleId(id);
+                        setReviewer("any");
+                        closeRole();
+                      }}
+                    />
+                  )}
+                </Popover>
+                {role && used.has(role.name) && (
+                  <span className="mt-1 block text-[11px] text-amber-700">
+                    A {role.name} review already exists on this revision;
+                    another reviewer will be added.
                   </span>
-                  <ChevronDown className="size-3.5 text-muted-foreground" />
-                </button>
-              )}
-            >
-              <PeoplePicker
-                title="Reviewer"
-                extras={groups}
-                value={target}
-                memberValue={(member) => `user:${member.id}`}
-                onSelect={setTarget}
-              />
-            </Popover>
-          </div>
+                )}
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Reviewer</span>
+                <Popover
+                  width="trigger"
+                  trigger={(props) => (
+                    <button
+                      {...props}
+                      type="button"
+                      className="mt-1 flex h-8 w-full items-center justify-between rounded-md border bg-card px-2 text-left text-sm hover:bg-muted"
+                      aria-label="Reviewer"
+                    >
+                      <span>
+                        {reviewer === "any"
+                          ? `Anyone in ${role?.name ?? "the role"}`
+                          : reviewer === userId
+                            ? `${memberName(reviewer)} (me)`
+                            : memberName(reviewer)}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </button>
+                  )}
+                >
+                  {(closeReviewer) => (
+                    <Picker
+                      title="Reviewer"
+                      hideSearch={people.length < 8}
+                      options={[
+                        {
+                          value: "any",
+                          label: `Anyone in ${role?.name ?? "the role"}`,
+                          hint: people.length
+                            ? `${people.length} ${people.length === 1 ? "person" : "people"}`
+                            : "No members yet",
+                        },
+                        ...people.map((m) => ({
+                          value: m.id,
+                          label: m.id === userId ? `${m.name} (me)` : m.name,
+                          hint: m.email,
+                          keywords: m.email,
+                          icon: <Avatar name={m.name} size="xs" />,
+                        })),
+                      ]}
+                      value={reviewer}
+                      onSelect={(v) => {
+                        setReviewer(v);
+                        closeReviewer();
+                      }}
+                    />
+                  )}
+                </Popover>
+              </div>
+            </>
+          )}
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -388,7 +425,7 @@ export function RequestReview({
             <Button type="button" size="sm" variant="ghost" onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">
+            <Button type="submit" size="sm" disabled={!role}>
               Request review
             </Button>
           </div>

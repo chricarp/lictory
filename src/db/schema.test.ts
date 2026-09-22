@@ -335,16 +335,37 @@ void test("revision numbering is unique and accepted suggestions retain both sna
   );
 });
 
-void test("group membership grants no approval; assignments have exactly one tenant-scoped target", async () => {
+void test("role membership grants no approval; assignments have exactly one tenant-scoped target", async () => {
   const a = await fixture();
   const b = await fixture();
-  const groupId = crypto.randomUUID();
+  const roleId = crypto.randomUUID();
+  await db.insert(s.organizationRole).values({
+    id: roleId,
+    organizationId: a.organizationId,
+    name: "QA",
+    canReview: true,
+  });
   await db
-    .insert(s.group)
-    .values({ id: groupId, organizationId: a.organizationId, name: "QA" });
-  await db
-    .insert(s.groupMember)
-    .values({ organizationId: a.organizationId, groupId, userId: a.userId });
+    .insert(s.organizationRoleMember)
+    .values({ organizationId: a.organizationId, roleId, userId: a.userId });
+  // Active role names are unique per organization, case-insensitively; an
+  // archived role releases its name.
+  await rejectsCode(
+    db.insert(s.organizationRole).values({
+      organizationId: a.organizationId,
+      name: "qa",
+    }),
+    "23505",
+  );
+  await db.insert(s.organizationRole).values({
+    organizationId: a.organizationId,
+    name: "Archived QA",
+    archivedAt: new Date(),
+  });
+  await db.insert(s.organizationRole).values({
+    organizationId: a.organizationId,
+    name: "archived qa",
+  });
   const assignment = {
     organizationId: a.organizationId,
     reviewId: a.reviewId,
@@ -354,7 +375,7 @@ void test("group membership grants no approval; assignments have exactly one ten
   await rejectsCode(
     db
       .insert(s.reviewAssignment)
-      .values({ ...assignment, groupId, userId: a.userId }),
+      .values({ ...assignment, roleId, userId: a.userId }),
     "23514",
   );
   await rejectsCode(
@@ -362,13 +383,13 @@ void test("group membership grants no approval; assignments have exactly one ten
       ...assignment,
       organizationId: b.organizationId,
       reviewId: b.reviewId,
-      groupId,
+      roleId,
     }),
     "23503",
   );
-  await db.insert(s.reviewAssignment).values({ ...assignment, groupId });
+  await db.insert(s.reviewAssignment).values({ ...assignment, roleId });
   await rejectsCode(
-    db.insert(s.reviewAssignment).values({ ...assignment, groupId }),
+    db.insert(s.reviewAssignment).values({ ...assignment, roleId }),
     "23505",
   );
   assert.equal(
@@ -566,5 +587,54 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
       .insert(s.deliveryExternalLink)
       .values({ ...link, organizationId: b.organizationId }),
     "23503",
+  );
+});
+
+void test("existing organizations receive the default roles and their administrators join Product", async () => {
+  const a = await fixture();
+  await db
+    .update(s.member)
+    .set({ role: "owner" })
+    .where(eq(s.member.organizationId, a.organizationId));
+  // Replays the data statements of the custom migration for an organization
+  // that existed before roles; the migration itself ran on an empty database.
+  const statements = (
+    await readFile("drizzle/0007_default_organization_roles.sql", "utf8")
+  )
+    .split("--> statement-breakpoint")
+    .filter((statement) => statement.includes("INSERT INTO"));
+  assert.equal(statements.length, 2);
+  for (const statement of statements) await client.unsafe(statement);
+  for (const statement of statements) await client.unsafe(statement);
+  const roles = await db
+    .select()
+    .from(s.organizationRole)
+    .where(eq(s.organizationRole.organizationId, a.organizationId));
+  assert.deepEqual(roles.map((r) => r.name).sort(), [
+    "Engineering",
+    "Product",
+    "QA",
+  ]);
+  const product = roles.find((r) => r.name === "Product")!;
+  assert.ok(
+    product.canEditSpecifications &&
+      product.canChangeProperties &&
+      product.canRequestReviews &&
+      product.canReview,
+  );
+  const engineering = roles.find((r) => r.name === "Engineering")!;
+  assert.ok(
+    !engineering.canEditSpecifications &&
+      !engineering.canChangeProperties &&
+      engineering.canRequestReviews &&
+      engineering.canReview,
+  );
+  const members = await db
+    .select()
+    .from(s.organizationRoleMember)
+    .where(eq(s.organizationRoleMember.organizationId, a.organizationId));
+  assert.deepEqual(
+    members.map((m) => [m.roleId, m.userId]),
+    [[product.id, a.userId]],
   );
 });

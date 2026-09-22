@@ -19,7 +19,7 @@ import { useItem } from "./item-context";
 // creatable without leaving the Epic. Order is manual: drag the handle, or use
 // Alt+↑/↓ on a focused row. The server keeps sparse positions per parent.
 export function EpicStories() {
-  const { item, project, readOnly } = useItem();
+  const { item, project, canEdit, canChangeProperties } = useItem();
   const { items, organization, mutate } = useWorkspace();
   const [title, setTitle] = useState("");
   const [composing, setComposing] = useState(false);
@@ -78,7 +78,7 @@ export function EpicStories() {
             {ready}/{stories.length} ready
           </span>
         )}
-        {!readOnly && !composing && (
+        {canEdit && !composing && (
           <Button
             variant="ghost"
             size="sm"
@@ -100,7 +100,7 @@ export function EpicStories() {
           {stories.map((story) => (
             <li
               key={story.id}
-              draggable={!readOnly}
+              draggable={canChangeProperties}
               onDragStart={(e) => {
                 setDragging(story.id);
                 e.dataTransfer.effectAllowed = "move";
@@ -153,7 +153,7 @@ export function EpicStories() {
                   "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
               )}
             >
-              {!readOnly && (
+              {canChangeProperties && (
                 <button
                   type="button"
                   aria-label={`Reorder ${story.title} (Alt+Arrow keys)`}
@@ -177,12 +177,15 @@ export function EpicStories() {
                 <IssueStatus
                   status={story.status}
                   compact
-                  onChange={(status) =>
-                    void mutate({
-                      type: "updateWorkItem",
-                      workItemId: story.id,
-                      status,
-                    })
+                  onChange={
+                    canChangeProperties
+                      ? (status) =>
+                          void mutate({
+                            type: "updateWorkItem",
+                            workItemId: story.id,
+                            status,
+                          })
+                      : undefined
                   }
                 />
               </span>
@@ -198,6 +201,7 @@ export function EpicStories() {
                   project.key,
                   "stories",
                   identifier(project, story.number),
+                  new URLSearchParams({ epic: item.id }),
                 )}
                 className="min-w-0 flex-1 truncate font-medium after:absolute after:inset-0 after:content-['']"
               >
@@ -208,12 +212,15 @@ export function EpicStories() {
                 <AssigneePicker
                   assigneeId={story.assigneeId}
                   compact
-                  onChange={(assigneeId) =>
-                    void mutate({
-                      type: "updateWorkItem",
-                      workItemId: story.id,
-                      assigneeId,
-                    })
+                  onChange={
+                    canChangeProperties
+                      ? (assigneeId) =>
+                          void mutate({
+                            type: "updateWorkItem",
+                            workItemId: story.id,
+                            assigneeId,
+                          })
+                      : undefined
                   }
                 />
               </span>

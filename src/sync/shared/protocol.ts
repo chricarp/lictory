@@ -54,7 +54,7 @@ export const reviewSummarySchema = z.object({
   responsibility: z.string(),
   status: z.string(),
   required: z.boolean(),
-  // Users and groups currently assigned; the client derives "needs my review".
+  // Users and roles currently assigned; the client derives "needs my review".
   assigneeIds: z.array(id),
   approved: z.boolean(),
 });
@@ -146,7 +146,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     type: z.literal("assignment"),
     reviewId: id,
     userId: id.nullable(),
-    groupId: id.nullable(),
+    roleId: id.nullable(),
     withdrawnAt: z.string().nullable(),
   }),
   z.object({
@@ -263,12 +263,64 @@ export const changeSchema = z.discriminatedUnion("operation", [
   }),
 ]);
 export type Change = z.infer<typeof changeSchema>;
+// Fixed application roles. `admin` (Better Auth owner/admin) manages the
+// organization, its projects and roles; `member` has every other feature.
+// Workflow capabilities come only from organization roles, never from these.
+export const applicationRoles = ["admin", "member"] as const;
+export type ApplicationRole = (typeof applicationRoles)[number];
+export function applicationRoleOf(raw: string): ApplicationRole {
+  return raw.split(",").some((r) => r === "owner" || r === "admin")
+    ? "admin"
+    : "member";
+}
 export const memberSchema = z.object({
   id,
   name: z.string(),
   email: z.string(),
 });
 export type DirectoryMember = z.infer<typeof memberSchema>;
+export const directoryMemberSchema = memberSchema.extend({
+  // Better Auth member row, needed to change the application role.
+  memberId: id,
+  role: z.enum(applicationRoles),
+  owner: z.boolean(),
+});
+// Workflow capabilities an organization role grants to its members.
+export const capabilitySchema = z.object({
+  editSpecifications: z.boolean(),
+  changeProperties: z.boolean(),
+  requestReviews: z.boolean(),
+  review: z.boolean(),
+});
+export type Capabilities = z.infer<typeof capabilitySchema>;
+export const capabilityKeys = Object.keys(
+  capabilitySchema.shape,
+) as (keyof Capabilities)[];
+export const noCapabilities: Capabilities = {
+  editSpecifications: false,
+  changeProperties: false,
+  requestReviews: false,
+  review: false,
+};
+export const roleSchema = z.object({
+  id,
+  name: z.string(),
+  description: z.string().nullable(),
+  capabilities: capabilitySchema,
+  userIds: z.array(id),
+  archivedAt: z.string().nullable(),
+});
+export type Role = z.infer<typeof roleSchema>;
+// Union of capabilities over the active roles a user holds.
+export function capabilitiesOf(roles: Role[], userId: string): Capabilities {
+  const mine = roles.filter((r) => !r.archivedAt && r.userIds.includes(userId));
+  return {
+    editSpecifications: mine.some((r) => r.capabilities.editSpecifications),
+    changeProperties: mine.some((r) => r.capabilities.changeProperties),
+    requestReviews: mine.some((r) => r.capabilities.requestReviews),
+    review: mine.some((r) => r.capabilities.review),
+  };
+}
 export const memberSearchSchema = z.object({
   organizationId: id,
   q: z.string().max(120).optional().default(""),
@@ -304,11 +356,11 @@ export const directorySchema = z.object({
     z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),
   ),
   projects: z.array(entitySchema.options[0]),
-  members: z.array(memberSchema),
-  groups: z.array(z.object({ id, name: z.string(), userIds: z.array(id) })),
+  members: z.array(directoryMemberSchema),
+  roles: z.array(roleSchema),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 3 as const;
+export const PROTOCOL = 4 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -442,15 +494,14 @@ export const commandSchema = z.discriminatedUnion("type", [
     suggestionId: id,
     accept: z.boolean(),
   }),
+  // Reviews are requested from a reviewer role; the role's name becomes the
+  // review responsibility. Optionally a specific member of that role is asked.
   z.object({
     type: z.literal("requestReview"),
     ...revisionCommand,
     reviewId: z.uuid(),
-    responsibility: text.max(120),
-    target: z.discriminatedUnion("type", [
-      z.object({ type: z.literal("user"), id }),
-      z.object({ type: z.literal("group"), id }),
-    ]),
+    roleId: id,
+    userId: id.nullable(),
     required: z.boolean(),
   }),
   z.object({
@@ -464,7 +515,40 @@ export const commandSchema = z.discriminatedUnion("type", [
     reviewId: id,
     decision: z.enum(["approve", "changes_requested", "revoke"]),
   }),
+  // Organization role administration (application-role admins only).
+  z.object({
+    type: z.literal("createRole"),
+    roleId: z.uuid(),
+    name: text.max(60),
+    description: z.string().trim().max(500).optional(),
+    capabilities: capabilitySchema,
+  }),
+  z.object({
+    type: z.literal("updateRole"),
+    roleId: id,
+    name: text.max(60).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    capabilities: capabilitySchema.optional(),
+    archived: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("setRoleMembership"),
+    roleId: id,
+    userId: id,
+    member: z.boolean(),
+  }),
 ]);
+export type RoleCommand = Extract<
+  Command,
+  { type: "createRole" | "updateRole" | "setRoleMembership" }
+>;
+export function isRoleCommand(c: Command): c is RoleCommand {
+  return (
+    c.type === "createRole" ||
+    c.type === "updateRole" ||
+    c.type === "setRoleMembership"
+  );
+}
 export type Command = z.infer<typeof commandSchema>;
 export const mutationSchema = z.object({
   protocol: z.literal(PROTOCOL),

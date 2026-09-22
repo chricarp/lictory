@@ -37,16 +37,40 @@ store without loading histories. Activity is structured (`action` + `detail`).
 the user from Better Auth, validate Zod protocol input, and require same-origin
 cookie-authenticated writes. Every command checks current Better Auth organization
 membership inside its transaction. Projects are organization-wide in this baseline:
-there is deliberately no private-project ACL. Owners/admins manage projects; members
-may refine, discuss, suggest, archive, and request reviews. Only an assigned user,
-or a current member of an explicitly assigned functional group, can decide a review.
-Group membership alone does not confer approval authority.
+there is deliberately no private-project ACL.
+
+Two kinds of role exist and must not be conflated. **Application roles** are fixed:
+Better Auth `member.role` owner/admin is `ADMIN` and everything else is `MEMBER`.
+Administrators create/rename projects, invite people, change application roles
+(through Better Auth `updateMemberRole`; the last administrator cannot be demoted
+in the UI) and manage organization roles. Application roles grant no workflow
+capability. **Organization roles** (`organization_role`, `organization_role_member`)
+are administrator-managed named member collections carrying four capabilities:
+`editSpecifications` (create items, save revisions, rename, accept/reject
+suggestions), `changeProperties` (status, priority, owner, epic, labels,
+milestones, ordering, archive, and the label/milestone lists), `requestReviews`
+(request/cancel) and `review` (the role or one of its members can be assigned a
+review). A person's effective capabilities are the union over the active roles
+they hold; the server recomputes this from the database inside every mutation and
+rejects with a message naming the missing capability. Discussion and suggestions
+need only membership. Only an assigned user, or a current member of an assigned
+role, can decide a review; holding a role never grants approval by itself.
+
+Every organization is seeded with Product (all capabilities), Engineering and QA
+(request + review) by the Better Auth `afterCreateOrganization` hook, and the
+creator joins Product (`src/sync/server/roles.ts`; migration `0007` did the same for
+pre-existing organizations). Roles archive rather than delete: an archived role
+grants nothing and cannot be requested, keeps its name on historical assignments,
+releases its name for reuse, and can be restored. Role commands (`createRole`,
+`updateRole`, `setRoleMembership`) run through the same locked transaction and
+receipt path but emit no entity changes; roles live in the directory.
 
 Organization creation, naming, invitations and acceptance remain Better Auth
 operations. Settings create shareable invitation links; automated invitation email
 is not configured. The sync directory is a small, fresh projection of Better Auth
-organizations/members and domain projects/groups, returned on every sync response.
-This also discovers membership and directory changes made through Better Auth.
+organizations/members (with application role) and domain projects/roles, returned
+on every sync response. This also discovers membership and directory changes made
+through Better Auth; a client that changes an application role calls `sync()`.
 
 When adding private projects, change **both** bootstrap and delta authorization,
 and introduce access epochs/reset or scoped tombstones before enabling the UI.
@@ -82,7 +106,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 3 (projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 4 (roles replaced functional groups; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
@@ -169,7 +193,9 @@ revision ID. There is no automatic text merge. The editor retains the user's tex
 and offers the latest revision for inspection/reload; failed queued text can be
 inspected before discarding and submitting a corrected command.
 
-Approvals belong to a review/revision and an assigned reviewer. A material revision
+Reviews are requested from a reviewer-capable role, optionally naming one of its
+members; the role's name is the review responsibility. Approvals belong to a
+review/revision and an assigned reviewer. A material revision
 ends granted approvals as stale with an actor, timestamp, and reason, and
 **re-requests every active review on the new revision with the same assignments**;
 the old review rows remain historical. An old completed review cannot satisfy
@@ -202,7 +228,7 @@ List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…
 `/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
 renders in pages of 50. Jira, AI, SSO setup, billing, delivery decomposition,
 advanced policy configuration, SCIM, notification delivery, private projects,
-group administration, CRDT editing, multiplayer cursors, service-worker offline
+CRDT editing, multiplayer cursors, service-worker offline
 launch, log compaction, and server-side pagination of organization-wide summaries
-and large histories are intentionally not implemented. Functional groups already in the domain database
-can receive reviews. No production UI pretends these deferred capabilities exist.
+and large histories are intentionally not implemented. No production UI pretends
+these deferred capabilities exist.

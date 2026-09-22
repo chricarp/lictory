@@ -82,7 +82,7 @@ export function PeoplePicker({
     return [
       ...(none && matchesQuery(none, q) ? [none] : []),
       ...extraOptions,
-      ...pinned
+      ...(pinned as DirectoryMember[])
         .concat(members)
         .filter((member) => matchesMember(member, query))
         .map((member) => memberOption(member, memberValue, userId)),

@@ -20,13 +20,16 @@ follow the existing timestamp-without-time-zone convention; application values
 are UTC. `updatedAt` uses Drizzle's application-side update hook, not a database
 trigger.
 
-Functional groups are named organization-owned collections of Better Auth users.
-They do not confer permissions. Better Auth `member` is the sole source of
-organization membership. Review responsibilities are strings on reviews, not
-department columns or group roles. A review may have multiple individual/group
-assignments; each assignment targets exactly one kind. Withdrawing an assignment
-retains its record and permits reassignment. Project access rules and configurable
-authorization policies are intentionally deferred.
+Organization roles (`organization_role`, formerly `functional_group`) are named
+organization-owned collections of Better Auth users carrying workflow capability
+flags; see [synchronization.md](synchronization.md) for their semantics. Better
+Auth `member` is the sole source of organization membership and of the fixed
+application role. Review responsibilities are strings on reviews (the requested
+role's name at request time), not foreign keys. A review may have multiple
+individual/role assignments; each assignment targets exactly one kind. Withdrawing
+an assignment retains its record and permits reassignment. Active role names are
+unique per organization case-insensitively; archived roles keep their rows so
+history stays legible. Project access rules are intentionally deferred.
 
 ## Tenancy and authorization
 
@@ -42,9 +45,10 @@ writes. No PostgreSQL row-level security or domain API is introduced here. Futur
 server queries must scope by an organization validated against the authenticated
 Better Auth member, before fetching data. User references preserve attribution,
 not proof of current membership. The server must validate current membership and
-responsibility when assigning groups/reviews or performing domain actions. Group
+responsibility when assigning roles/reviews or performing domain actions. Role
 membership and old assignments must never grant access after organization
-membership has been removed. Historical actor references deliberately survive
+membership has been removed; the directory filters role membership through
+current organization membership. Historical actor references deliberately survive
 removal of a Better Auth membership.
 
 ## Specification history
@@ -125,13 +129,13 @@ by the future adapter. Conflict resolution must precede any sync implementation.
 Domain history and actor references use restrictive foreign keys. Deleting a
 project/proposal/organization with referenced history, or a referenced author,
 fails instead of silently cascading. Archive timestamps on projects, proposals,
-groups, decisions, and delivery items support reversible removal from active
+roles, decisions, and delivery items support reversible removal from active
 views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
 history exists. A future account erasure/anonymization policy and actionable error
 handling must account for this. Removing an organization membership remains
-possible and does not delete reviews or approvals. Only functional group
-membership rows cascade with their parent group/user.
+possible and does not delete reviews or approvals. Only organization role
+membership rows cascade with their parent role/user.
 
 ## Generation and verification
 

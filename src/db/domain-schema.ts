@@ -92,42 +92,62 @@ export const deliverySyncStatus = pgEnum("delivery_sync_status", [
   "conflict",
 ]);
 
-export const group = pgTable(
-  "functional_group",
+// Organization roles are named, administrator-managed collections of members
+// that carry workflow capabilities (Product, Engineering, QA by default). They
+// are distinct from the fixed application roles on Better Auth `member.role`
+// (owner/admin = ADMIN manages the organization; member = MEMBER), which never
+// grant workflow capabilities. A user may hold several organization roles; the
+// union of their capabilities applies. Archiving keeps history and can be undone.
+export const organizationRole = pgTable(
+  "organization_role",
   {
     id: id(),
     organizationId: organizationId(),
     name: text("name").notNull(),
     description: text("description"),
+    // Edit specifications (and create items) directly, not only via suggestion.
+    canEditSpecifications: boolean("can_edit_specifications")
+      .default(false)
+      .notNull(),
+    // Change status, priority, owner, epic, labels and milestones.
+    canChangeProperties: boolean("can_change_properties")
+      .default(false)
+      .notNull(),
+    canRequestReviews: boolean("can_request_reviews").default(false).notNull(),
+    // The role (or one of its members) can be asked to review.
+    canReview: boolean("can_review").default(false).notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: timestamp("archived_at"),
   },
   (t) => [
-    unique("group_org_id_unique").on(t.organizationId, t.id),
-    unique("group_org_name_unique").on(t.organizationId, t.name),
+    unique("role_org_id_unique").on(t.organizationId, t.id),
+    uniqueIndex("role_org_active_name_unique")
+      .on(t.organizationId, sql`lower(${t.name})`)
+      .where(sql`${t.archivedAt} IS NULL`),
+    check("role_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );
 
-// Functional membership only. Better Auth member remains the authority for
+// Role membership only. Better Auth member remains the authority for
 // organization access; the server must validate it before assigning a user.
-export const groupMember = pgTable(
-  "group_member",
+export const organizationRoleMember = pgTable(
+  "organization_role_member",
   {
     organizationId: organizationId(),
-    groupId: text("group_id").notNull(),
+    roleId: text("role_id").notNull(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
   },
   (t) => [
-    primaryKey({ columns: [t.groupId, t.userId] }),
+    primaryKey({ columns: [t.roleId, t.userId] }),
     foreignKey({
-      columns: [t.organizationId, t.groupId],
-      foreignColumns: [group.organizationId, group.id],
+      columns: [t.organizationId, t.roleId],
+      foreignColumns: [organizationRole.organizationId, organizationRole.id],
     }).onDelete("cascade"),
-    index("group_member_org_user_idx").on(t.organizationId, t.userId),
+    index("role_member_org_user_idx").on(t.organizationId, t.userId),
   ],
 );
 
@@ -338,7 +358,7 @@ export const specificationRevision = pgTable(
   ],
 );
 
-// One responsibility per review; multiple people/groups can be assigned below.
+// One responsibility per review; multiple people/roles can be assigned below.
 export const review = pgTable(
   "review",
   {
@@ -390,7 +410,7 @@ export const reviewAssignment = pgTable(
     organizationId: organizationId(),
     reviewId: text("review_id").notNull(),
     userId: optionalActor("user_id"),
-    groupId: text("group_id"),
+    roleId: text("role_id"),
     assignedById: actor("assigned_by_id"),
     createdAt: createdAt(),
     withdrawnAt: timestamp("withdrawn_at"),
@@ -401,21 +421,21 @@ export const reviewAssignment = pgTable(
       foreignColumns: [review.organizationId, review.id],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.groupId],
-      foreignColumns: [group.organizationId, group.id],
+      columns: [t.organizationId, t.roleId],
+      foreignColumns: [organizationRole.organizationId, organizationRole.id],
     }).onDelete("restrict"),
     check(
       "review_assignment_one_target",
-      sql`(${t.userId} IS NOT NULL) <> (${t.groupId} IS NOT NULL)`,
+      sql`(${t.userId} IS NOT NULL) <> (${t.roleId} IS NOT NULL)`,
     ),
     uniqueIndex("review_assignment_active_user_unique")
       .on(t.reviewId, t.userId)
       .where(sql`${t.withdrawnAt} IS NULL`),
-    uniqueIndex("review_assignment_active_group_unique")
-      .on(t.reviewId, t.groupId)
+    uniqueIndex("review_assignment_active_role_unique")
+      .on(t.reviewId, t.roleId)
       .where(sql`${t.withdrawnAt} IS NULL`),
     index("review_assignment_user_idx").on(t.organizationId, t.userId),
-    index("review_assignment_group_idx").on(t.organizationId, t.groupId),
+    index("review_assignment_role_idx").on(t.organizationId, t.roleId),
     index("review_assignment_review_idx").on(t.organizationId, t.reviewId),
   ],
 );

@@ -29,7 +29,7 @@ type Entry = {
 // narrow: review requests, blocked items I own, requested changes on my items,
 // items of mine that just became ready. No activity firehose.
 export function Inbox() {
-  const { items, projects, userId, groupIds, organization } = useWorkspace();
+  const { items, projects, userId, roleIds, organization } = useWorkspace();
   // Rendered incrementally: very large organizations can have thousands of
   // items, but attention is scarce; the first page is what matters.
   const PAGE = 50;
@@ -40,12 +40,12 @@ export function Inbox() {
     const list: Entry[] = [];
     for (const item of items) {
       if (item.archivedAt) continue;
-      if (needsMyReview(item, userId, groupIds)) {
+      if (needsMyReview(item, userId, roleIds)) {
         const pending = item.reviews.filter(
           (r) =>
             r.status !== "completed" &&
             r.status !== "cancelled" &&
-            r.assigneeIds.some((id) => id === userId || groupIds.includes(id)),
+            r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
         );
         list.push({
           item,
@@ -91,7 +91,7 @@ export function Inbox() {
       (a, b) =>
         a.weight - b.weight || b.item.updatedAt.localeCompare(a.item.updatedAt),
     );
-  }, [items, userId, groupIds]);
+  }, [items, userId, roleIds]);
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b px-4">

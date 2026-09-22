@@ -37,7 +37,8 @@ export const IssueRow = memo(function IssueRow({
   focused: boolean;
   compact: boolean;
   memberName: (id: string | null) => string;
-  onUpdate: (patch: {
+  // Absent when the viewer's roles cannot change properties.
+  onUpdate?: (patch: {
     status?: WorkItem["status"];
     priority?: WorkItem["priority"];
     assigneeId?: string | null;
@@ -64,7 +65,7 @@ export const IssueRow = memo(function IssueRow({
           <IssuePriority
             priority={item.priority}
             compact
-            onChange={(priority) => onUpdate({ priority })}
+            onChange={onUpdate && ((priority) => onUpdate({ priority }))}
           />
         </span>
       )}
@@ -72,7 +73,7 @@ export const IssueRow = memo(function IssueRow({
         <IssueStatus
           status={item.status}
           compact
-          onChange={(status) => onUpdate({ status })}
+          onChange={onUpdate && ((status) => onUpdate({ status }))}
         />
       </span>
       <KindIcon kind={item.kind} />
@@ -131,7 +132,7 @@ export const IssueRow = memo(function IssueRow({
           <AssigneePicker
             assigneeId={item.assigneeId}
             compact
-            onChange={(assigneeId) => onUpdate({ assigneeId })}
+            onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
           />
         </span>
       ) : (

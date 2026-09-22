@@ -75,8 +75,10 @@ export function IssueList({
     view,
     labels: allLabels,
     milestones: allMilestones,
+    capabilities,
   } = useWorkspace();
   const { openCreate } = useShell();
+  const canCreate = capabilities.editSpecifications;
   const router = useRouter();
   // Filters, sort, grouping and the archived toggle are URL state.
   const searchParams = useSearchParams();
@@ -187,7 +189,9 @@ export function IssueList({
   }, [focus]);
   const update = (
     item: WorkItem,
-    patch: Parameters<Parameters<typeof IssueRow>[0]["onUpdate"]>[0],
+    patch: Parameters<
+      NonNullable<Parameters<typeof IssueRow>[0]["onUpdate"]>
+    >[0],
   ) => void mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const activeFilterCount =
     (filters.status?.length ? 1 : 0) +
@@ -315,7 +319,7 @@ export function IssueList({
               )}
             </div>
           </Popover>
-          {createKind && project && (
+          {createKind && project && canCreate && (
             <Button
               size="sm"
               onClick={() =>
@@ -456,7 +460,11 @@ export function IssueList({
                 : emptyTitle
             }
             action={
-              createKind && project && !activeFilterCount && !filters.search ? (
+              createKind &&
+              project &&
+              canCreate &&
+              !activeFilterCount &&
+              !filters.search ? (
                 <Button
                   variant="secondary"
                   onClick={() =>
@@ -510,7 +518,11 @@ export function IssueList({
                       focused={item.id === focus}
                       compact={compact}
                       memberName={memberName}
-                      onUpdate={(patch) => update(item, patch)}
+                      onUpdate={
+                        capabilities.changeProperties
+                          ? (patch) => update(item, patch)
+                          : undefined
+                      }
                       onFocus={() => setFocus(item.id)}
                     />
                   ))}

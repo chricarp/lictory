@@ -6,7 +6,7 @@ import { useItem } from "./item-context";
 // Click the title to edit it. Enter saves, Escape cancels. A title change is
 // part of the revision (approvals go stale), so the intent is shown on hover.
 export function InlineTitle() {
-  const { item, current, mutate, base, readOnly } = useItem();
+  const { item, current, mutate, base, canEdit } = useItem();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(item.title);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -54,11 +54,11 @@ export function InlineTitle() {
     <h1
       className={cn(
         "-mx-1 rounded px-1 text-2xl leading-tight font-semibold tracking-tight",
-        !readOnly && "cursor-text hover:bg-muted/60",
+        canEdit && "cursor-text hover:bg-muted/60",
       )}
-      title={readOnly ? undefined : "Click to rename (creates a revision)"}
+      title={canEdit ? "Click to rename (creates a revision)" : undefined}
       onClick={() => {
-        if (readOnly) return;
+        if (!canEdit) return;
         setValue(item.title);
         setEditing(true);
       }}

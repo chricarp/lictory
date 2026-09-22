@@ -145,10 +145,20 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // 4. Open a Story without losing context (Epic stays in breadcrumb).
   await page.getByRole("link", { name: "Define cancellation API" }).click();
-  await expect(page).toHaveURL(/\/pay\/stories\/PAY-2$/);
+  await expect(page).toHaveURL(/\/pay\/stories\/PAY-2\?epic=[0-9a-f-]{36}$/);
   await expect(
     page.getByRole("navigation", { name: "Breadcrumb" }),
   ).toContainText("Partial cancellation");
+  const epicFilter = new URL(page.url()).searchParams.get("epic");
+  expect(epicFilter).toMatch(/^[0-9a-f-]{36}$/);
+  await page.getByRole("link", { name: "Handle provider callback" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/pay/stories/PAY-3\\?epic=${epicFilter}$`),
+  );
+  await page.getByRole("link", { name: "Define cancellation API" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/pay/stories/PAY-2\\?epic=${epicFilter}$`),
+  );
 
   // 5. Inline status/priority/owner.
   await page
@@ -244,6 +254,16 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await reviewer.getByRole("button", { name: "Accept invitation" }).click();
   await expect(reviewer).toHaveURL(/\/app\/northstar/);
 
+  // The administrator gives the engineer the Engineering role. Until then the
+  // new member holds no role and cannot even be asked to review.
+  await page.reload();
+  await expect(page.getByText("Riley Chen")).toBeVisible();
+  await page.getByRole("button", { name: "Add person to Engineering" }).click();
+  await page.getByRole("option", { name: /Riley Chen/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Remove Riley Chen from Engineering" }),
+  ).toBeVisible();
+
   // 6. Request Engineering review from the story page.
   const storyUrl =
     "/app/" +
@@ -251,7 +271,10 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     "/pay/stories/PAY-2";
   await page.goto(storyUrl);
   await page.getByRole("button", { name: "Request review" }).click();
-  await page.getByRole("button", { name: "Reviewer" }).click();
+  await expect(
+    page.getByRole("button", { name: "Reviewer role" }),
+  ).toContainText("Engineering");
+  await page.getByRole("button", { name: "Reviewer", exact: true }).click();
   await page.getByRole("option", { name: /Riley Chen/ }).click();
   await page
     .getByRole("dialog")
@@ -306,6 +329,14 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   ).toBeVisible();
 
   // 9-11. Reviewer proposes a suggestion; owner accepts it → revision 3.
+  // Engineering cannot edit directly or change properties: no Edit button, and
+  // the status control is read-only.
+  await expect(
+    reviewer.getByRole("button", { name: "Edit", exact: true }),
+  ).toHaveCount(0);
+  await expect(reviewer.getByRole("button", { name: /^Status:/ })).toHaveCount(
+    0,
+  );
   await reviewer.getByRole("button", { name: "Suggest", exact: true }).click();
   await reviewer
     .getByRole("textbox", { name: "Proposed specification" })

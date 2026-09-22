@@ -45,7 +45,7 @@ export function Activity() {
 }
 
 export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
-  const { memberName, groupName } = useItem();
+  const { memberName, roleName } = useItem();
   const d = entry.detail ?? {};
   const actor = memberName(entry.actorId);
   const auto = d.automatic === true;
@@ -164,8 +164,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         <>
           requested <b>{str(d.responsibility)}</b> review from{" "}
           <b>
-            {d.targetType === "group"
-              ? groupName(str(d.targetId))
+            {d.targetType === "role" || d.targetType === "group"
+              ? roleName(str(d.targetId))
               : memberName(str(d.targetId))}
           </b>
         </>

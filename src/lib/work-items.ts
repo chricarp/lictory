@@ -94,24 +94,24 @@ export function approvalsCount(item: WorkItem) {
   };
 }
 
-// A review "needs me" when I am assigned directly or through a group and I have
+// A review "needs me" when I am assigned directly or through a role and I have
 // not approved the current revision yet. The server still enforces authority.
-export function myGroupIds(directory: Directory, userId: string) {
-  return directory.groups
-    .filter((g) => g.userIds.includes(userId))
-    .map((g) => g.id);
+export function myRoleIds(directory: Directory, userId: string) {
+  return directory.roles
+    .filter((r) => !r.archivedAt && r.userIds.includes(userId))
+    .map((r) => r.id);
 }
 export function needsMyReview(
   item: WorkItem,
   userId: string,
-  groupIds: string[],
+  roleIds: string[],
 ) {
   if (item.archivedAt) return false;
   return item.reviews.some(
     (r) =>
       r.status !== "cancelled" &&
       r.status !== "completed" &&
-      r.assigneeIds.some((id) => id === userId || groupIds.includes(id)),
+      r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
   );
 }
 export function isBlocked(item: WorkItem) {
@@ -131,7 +131,7 @@ export const views: { id: ViewId; label: string; description: string }[] = [
     id: "needs-my-review",
     label: "Needs my review",
     description:
-      "Reviews assigned to you or your groups on the current revision.",
+      "Reviews assigned to you or your roles on the current revision.",
   },
   {
     id: "needs-review",
@@ -163,13 +163,13 @@ export function matchesView(
   item: WorkItem,
   view: ViewId,
   userId: string,
-  groupIds: string[],
+  roleIds: string[],
 ) {
   switch (view) {
     case "all":
       return true;
     case "needs-my-review":
-      return needsMyReview(item, userId, groupIds);
+      return needsMyReview(item, userId, roleIds);
     case "needs-review":
       return item.reviews.some(
         (r) => r.status === "requested" || r.status === "in_progress",

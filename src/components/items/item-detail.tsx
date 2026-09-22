@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
@@ -23,7 +24,12 @@ import { KindIcon } from "./icons";
 import { Presence } from "./presence";
 import { IssueStatus } from "./status";
 import { AssigneePicker, IssuePriority, ParentPicker } from "./properties";
-import { LabelPicker, MilestonePicker } from "./labels";
+import {
+  LabelChip,
+  LabelPicker,
+  MilestoneBadge,
+  MilestonePicker,
+} from "./labels";
 import { ItemContext, useItemContextValue } from "./item-context";
 import { Specification } from "./specification";
 import { EpicStories } from "./epic-stories";
@@ -54,6 +60,7 @@ export function ItemDetail({
   pendingCreate: boolean;
 }) {
   const workspace = useWorkspace();
+  const searchParams = useSearchParams();
   const itemEngine = useItemEngine(item.id, item.projectId, !pendingCreate);
   // While creation is still queued the organization store already holds the
   // optimistic item and its first revision; the item engine opens afterwards.
@@ -66,9 +73,10 @@ export function ItemDetail({
     entities,
     view: itemEngine.engine ? itemEngine.view : workspace.view,
     userId: workspace.userId,
-    groupIds: workspace.groupIds,
+    roleIds: workspace.roleIds,
     memberName: workspace.memberName,
-    groups: workspace.directory.groups,
+    roleName: workspace.roleName,
+    capabilities: workspace.capabilities,
     mutate: itemEngine.engine ? itemEngine.mutate : workspace.mutate,
   });
   const [mode, setMode] = useState<DetailMode>({ kind: "read" });
@@ -125,6 +133,7 @@ export function ItemDetail({
     workspace.organization.slug,
     project.key,
     item.kind === "epic" ? "epics" : "stories",
+    searchParams,
   );
   const update = (patch: {
     status?: WorkItem["status"];
@@ -136,12 +145,19 @@ export function ItemDetail({
   }) =>
     void ctx.mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const failing = ctx.readiness?.checks.filter((c) => !c.passed) ?? [];
+  // Without the "change properties" capability the panel is informative only;
+  // the server rejects the command regardless of what the UI renders.
+  const canChange = ctx.canChangeProperties;
+  const milestone = workspace.milestones.find((m) => m.id === item.milestoneId);
+  const itemLabels = workspace.labels.filter((l) =>
+    item.labelIds.includes(l.id),
+  );
   const properties = (
     <div className="space-y-1">
       <Property label="Status">
         <IssueStatus
           status={item.status}
-          onChange={(status) => update({ status })}
+          onChange={canChange ? (status) => update({ status }) : undefined}
           readyHint={
             failing.length
               ? `${failing.length} check${failing.length > 1 ? "s" : ""} failing`
@@ -152,38 +168,64 @@ export function ItemDetail({
       <Property label="Priority">
         <IssuePriority
           priority={item.priority}
-          onChange={(priority) => update({ priority })}
+          onChange={canChange ? (priority) => update({ priority }) : undefined}
         />
       </Property>
       <Property label="Owner">
         <AssigneePicker
           assigneeId={item.assigneeId}
-          onChange={(assigneeId) => update({ assigneeId })}
+          onChange={
+            canChange ? (assigneeId) => update({ assigneeId }) : undefined
+          }
         />
       </Property>
       {item.kind !== "epic" && (
         <Property label="Epic">
-          <ParentPicker
-            parentId={item.parentId}
-            projectId={item.projectId}
-            project={project}
-            onChange={(parentId) => update({ parentId })}
-          />
+          {canChange ? (
+            <ParentPicker
+              parentId={item.parentId}
+              projectId={item.projectId}
+              project={project}
+              onChange={(parentId) => update({ parentId })}
+            />
+          ) : (
+            <span className="truncate px-1.5 text-[13px]">
+              {parent
+                ? `${identifier(project, parent.number)} ${parent.title}`
+                : "No epic"}
+            </span>
+          )}
         </Property>
       )}
       <Property label="Milestone">
-        <MilestonePicker
-          projectId={item.projectId}
-          milestoneId={item.milestoneId}
-          onChange={(milestoneId) => update({ milestoneId })}
-        />
+        {canChange ? (
+          <MilestonePicker
+            projectId={item.projectId}
+            milestoneId={item.milestoneId}
+            onChange={(milestoneId) => update({ milestoneId })}
+          />
+        ) : milestone ? (
+          <MilestoneBadge milestone={milestone} />
+        ) : (
+          <span className="px-1.5 text-[13px] text-muted-foreground">None</span>
+        )}
       </Property>
       <Property label="Labels">
-        <LabelPicker
-          projectId={item.projectId}
-          labelIds={item.labelIds}
-          onChange={(labelIds) => update({ labelIds })}
-        />
+        {canChange ? (
+          <LabelPicker
+            projectId={item.projectId}
+            labelIds={item.labelIds}
+            onChange={(labelIds) => update({ labelIds })}
+          />
+        ) : itemLabels.length ? (
+          <div className="flex flex-wrap gap-1">
+            {itemLabels.map((l) => (
+              <LabelChip key={l.id} label={l} />
+            ))}
+          </div>
+        ) : (
+          <span className="px-1.5 text-[13px] text-muted-foreground">None</span>
+        )}
       </Property>
     </div>
   );
@@ -296,7 +338,13 @@ export function ItemDetail({
                     link
                   </button>
                   <button
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
+                    disabled={!workspace.capabilities.changeProperties}
+                    title={
+                      workspace.capabilities.changeProperties
+                        ? undefined
+                        : "Your roles cannot archive or restore items."
+                    }
                     onClick={() => {
                       close();
                       void ctx.mutate({
@@ -366,15 +414,23 @@ export function ItemDetail({
               <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
                 <IssueStatus
                   status={item.status}
-                  onChange={(status) => update({ status })}
+                  onChange={
+                    canChange ? (status) => update({ status }) : undefined
+                  }
                 />
                 <IssuePriority
                   priority={item.priority}
-                  onChange={(priority) => update({ priority })}
+                  onChange={
+                    canChange ? (priority) => update({ priority }) : undefined
+                  }
                 />
                 <AssigneePicker
                   assigneeId={item.assigneeId}
-                  onChange={(assigneeId) => update({ assigneeId })}
+                  onChange={
+                    canChange
+                      ? (assigneeId) => update({ assigneeId })
+                      : undefined
+                  }
                 />
               </div>
               <div className="mt-6">

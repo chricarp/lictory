@@ -1,5 +1,5 @@
 "use client";
-import { useSelectedLayoutSegment } from "next/navigation";
+import { useSearchParams, useSelectedLayoutSegment } from "next/navigation";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
@@ -20,6 +20,7 @@ export function SplitView({
   children: ReactNode;
 }) {
   const segment = useSelectedLayoutSegment();
+  const searchParams = useSearchParams();
   const { items, organization } = useWorkspace();
   const project = useProject();
   const selected =
@@ -50,8 +51,9 @@ export function SplitView({
         project.key,
         kind,
         identifier(project, item.number),
+        searchParams,
       ),
-    [organization.slug, project, kind],
+    [organization.slug, project, kind, searchParams],
   );
   const list = (compact: boolean) => (
     <IssueList

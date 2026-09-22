@@ -18,7 +18,7 @@ export function Suggestions() {
     mutate,
     base,
     memberName,
-    readOnly,
+    canEdit,
     revisionNumber,
   } = useItem();
   const [showDecided, setShowDecided] = useState(false);
@@ -90,7 +90,7 @@ export function Suggestions() {
                   after={s.replacement}
                 />
               </div>
-              {s.status === "pending" && !readOnly && (
+              {s.status === "pending" && canEdit && (
                 <footer className="flex items-center gap-1 border-t px-2 py-1.5">
                   <Button
                     size="sm"

@@ -2,6 +2,7 @@
 import { createContext, useContext, useMemo } from "react";
 import type { View } from "~/sync/client/engine";
 import type {
+  Capabilities,
   Command,
   Entity,
   EntityOf,
@@ -27,11 +28,17 @@ export type ItemContextValue = {
   activity: EntityOf<"activity">[];
   view: View;
   userId: string;
-  groupIds: string[];
+  roleIds: string[];
   memberName: (id: string | null | undefined) => string;
-  groupName: (id: string | null | undefined) => string;
+  roleName: (id: string | null | undefined) => string;
   mutate: (command: Command) => Promise<string>;
+  // Archived or not yet confirmed: nothing about the item can change.
   readOnly: boolean;
+  // What my organization roles allow on this item; the server re-checks.
+  canEdit: boolean; // specification text, title, creation of children
+  canChangeProperties: boolean; // status, priority, owner, epic, labels, milestone
+  canRequestReviews: boolean;
+  capabilities: Capabilities;
   // Commands that must target the exact current revision.
   base: { workItemId: string; baseRevisionId: string };
   revisionNumber: (id: string) => number | undefined;
@@ -50,9 +57,10 @@ export function useItemContextValue(input: {
   entities: Entity[];
   view: View;
   userId: string;
-  groupIds: string[];
+  roleIds: string[];
   memberName: ItemContextValue["memberName"];
-  groups: { id: string; name: string }[];
+  roleName: ItemContextValue["roleName"];
+  capabilities: Capabilities;
   mutate: ItemContextValue["mutate"];
 }): ItemContextValue {
   const {
@@ -61,9 +69,10 @@ export function useItemContextValue(input: {
     entities,
     view,
     userId,
-    groupIds,
+    roleIds,
     memberName,
-    groups,
+    roleName,
+    capabilities,
     mutate,
   } = input;
   return useMemo(() => {
@@ -74,6 +83,8 @@ export function useItemContextValue(input: {
       (a, b) => b.number - a.number,
     );
     const current = revisions[0];
+    const readOnly =
+      Boolean(item.archivedAt) || !current || current.id.startsWith("pending:");
     return {
       item,
       project,
@@ -100,14 +111,15 @@ export function useItemContextValue(input: {
       ),
       view,
       userId,
-      groupIds,
+      roleIds,
       memberName,
-      groupName: (id) => groups.find((g) => g.id === id)?.name ?? "Group",
+      roleName,
       mutate,
-      readOnly:
-        Boolean(item.archivedAt) ||
-        !current ||
-        current.id.startsWith("pending:"),
+      readOnly,
+      canEdit: !readOnly && capabilities.editSpecifications,
+      canChangeProperties: !readOnly && capabilities.changeProperties,
+      canRequestReviews: !readOnly && capabilities.requestReviews,
+      capabilities,
       base: { workItemId: item.id, baseRevisionId: current?.id ?? "" },
       revisionNumber: (id) => revisions.find((r) => r.id === id)?.number,
     };
@@ -117,9 +129,10 @@ export function useItemContextValue(input: {
     entities,
     view,
     userId,
-    groupIds,
+    roleIds,
     memberName,
-    groups,
+    roleName,
+    capabilities,
     mutate,
   ]);
 }

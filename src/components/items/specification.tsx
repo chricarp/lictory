@@ -38,7 +38,7 @@ export function Specification({
   setMode: (mode: Mode) => void;
   onQuote: (quote: string, section: string) => void;
 }) {
-  const { current, readOnly, memberName } = useItem();
+  const { current, readOnly, canEdit, memberName } = useItem();
   if (!current) return null;
   return (
     <section>
@@ -51,21 +51,30 @@ export function Specification({
         {mode === "read" && !readOnly && (
           <div className="ml-auto flex items-center gap-1">
             <Button
-              variant="ghost"
+              variant={canEdit ? "ghost" : "secondary"}
               size="sm"
               onClick={() => setMode("suggest")}
-              title="Propose a change for the owner to accept or reject"
+              title={
+                canEdit
+                  ? "Propose a change for the owner to accept or reject"
+                  : "Your roles propose changes; a role that can edit accepts them"
+              }
             >
               <WandSparkles className="size-3.5" /> Suggest
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setMode("edit")}>
-              <Pencil className="size-3.5" /> Edit
-            </Button>
+            {canEdit && (
+              <Button variant="ghost" size="sm" onClick={() => setMode("edit")}>
+                <Pencil className="size-3.5" /> Edit
+              </Button>
+            )}
           </div>
         )}
       </div>
       {mode === "read" ? (
-        <Reader onQuote={onQuote} onEdit={() => !readOnly && setMode("edit")} />
+        <Reader
+          onQuote={onQuote}
+          onEdit={() => (canEdit ? setMode("edit") : setMode("suggest"))}
+        />
       ) : (
         <Editor mode={mode} onDone={() => setMode("read")} />
       )}
@@ -95,7 +104,7 @@ function Reader({
   onQuote: (quote: string, section: string) => void;
   onEdit: () => void;
 }) {
-  const { current, threads, readOnly, mutate, base } = useItem();
+  const { current, threads, readOnly, canEdit, mutate, base } = useItem();
   const rootRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{
     x: number;
@@ -181,8 +190,9 @@ function Reader({
           className="w-full rounded-md border border-dashed px-4 py-8 text-left text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground disabled:pointer-events-none"
         >
           <PenLine className="mb-2 size-4" />
-          Describe the intent, the expected behavior and what is out of scope.
-          Markdown is supported. Click to start writing.
+          {canEdit
+            ? "Describe the intent, the expected behavior and what is out of scope. Markdown is supported. Click to start writing."
+            : "Nothing written yet. Click to propose a first draft as a suggestion."}
         </button>
       ) : (
         <div
@@ -217,7 +227,7 @@ function Reader({
       )}
       <AcceptanceCriteria
         criteria={criteria}
-        readOnly={readOnly}
+        readOnly={!canEdit}
         onAdd={(text) =>
           current
             ? mutate({

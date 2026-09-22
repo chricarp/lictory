@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Archive, ArchiveRestore, Flag } from "lucide-react";
+import { Archive, ArchiveRestore, Flag, Tags } from "lucide-react";
 import { cn } from "~/lib/utils";
 import {
   formatDate,
@@ -16,11 +16,15 @@ import {
 } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { SectionLabel } from "~/components/ui/primitives";
 import { Popover, Picker } from "~/components/ui/popover";
 import { ColorDot } from "~/components/items/labels";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
+import {
+  SettingsList,
+  SettingsSection,
+  SettingsSubheading,
+} from "./settings-section";
 
 // Project-scoped labels and milestones. Archiving is reversible and keeps every
 // historical assignment; nothing here deletes.
@@ -37,15 +41,22 @@ export function LabelsAndMilestones() {
   const usage = (predicate: (i: (typeof items)[number]) => boolean) =>
     items.filter((i) => !i.archivedAt && predicate(i)).length;
   return (
-    <section className="space-y-6">
-      <div className="flex items-center gap-2">
-        <SectionLabel>Labels & milestones</SectionLabel>
-        {projects.length > 1 && (
+    <SettingsSection
+      id="labels"
+      icon={<Tags />}
+      title="Labels & milestones"
+      description={
+        projects.length > 1
+          ? "Scoped to one project. Archiving keeps every historical assignment; nothing here deletes."
+          : `Scoped to ${project.name}. Archiving keeps every historical assignment; nothing here deletes.`
+      }
+      action={
+        projects.length > 1 ? (
           <select
             value={project.id}
             onChange={(e) => setProjectId(e.target.value)}
             aria-label="Project"
-            className="ml-auto h-7 rounded-md border bg-card px-2 text-xs"
+            className="h-7 rounded-md border border-border bg-card px-2 text-xs"
           >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
@@ -53,42 +64,37 @@ export function LabelsAndMilestones() {
               </option>
             ))}
           </select>
-        )}
-      </div>
-      <div className="space-y-2">
-        <p className="text-[13px] font-medium">Labels</p>
-        <div className="divide-y rounded-lg border">
-          {projectLabels.length === 0 && (
-            <p className="p-3 text-[13px] text-muted-foreground">
-              No labels yet.
-            </p>
-          )}
-          {projectLabels.map((l) => (
-            <LabelRow
-              key={l.id}
-              label={l}
-              count={usage((i) => i.labelIds.includes(l.id))}
-              update={(patch) =>
-                mutate({
-                  type: "updateLabel",
-                  projectId: project.id,
-                  labelId: l.id,
-                  ...patch,
-                })
-              }
-            />
-          ))}
-        </div>
+        ) : undefined
+      }
+    >
+      <SettingsSubheading>Labels</SettingsSubheading>
+      <SettingsList isEmpty={projectLabels.length === 0} empty="No labels yet.">
+        {projectLabels.map((l) => (
+          <LabelRow
+            key={l.id}
+            label={l}
+            count={usage((i) => i.labelIds.includes(l.id))}
+            update={(patch) =>
+              mutate({
+                type: "updateLabel",
+                projectId: project.id,
+                labelId: l.id,
+                ...patch,
+              })
+            }
+          />
+        ))}
+      </SettingsList>
+      <div className="px-5 pt-2 pb-4">
         <NewLabel projectId={project.id} />
       </div>
-      <div className="space-y-2">
-        <p className="text-[13px] font-medium">Milestones</p>
-        <div className="divide-y rounded-lg border">
-          {projectMilestones.length === 0 && (
-            <p className="p-3 text-[13px] text-muted-foreground">
-              No milestones yet.
-            </p>
-          )}
+
+      <div className="border-t border-border">
+        <SettingsSubheading>Milestones</SettingsSubheading>
+        <SettingsList
+          isEmpty={projectMilestones.length === 0}
+          empty="No milestones yet."
+        >
           {projectMilestones.map((m) => (
             <MilestoneRow
               key={m.id}
@@ -104,10 +110,12 @@ export function LabelsAndMilestones() {
               }
             />
           ))}
+        </SettingsList>
+        <div className="px-5 pt-2 pb-4">
+          <NewMilestone projectId={project.id} />
         </div>
-        <NewMilestone projectId={project.id} />
       </div>
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -128,7 +136,7 @@ function LabelRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-3 py-1.5 text-[13px]",
+        "flex items-center gap-2 px-5 py-1.5 text-[13px]",
         label.archivedAt && "opacity-60",
       )}
     >
@@ -221,7 +229,7 @@ function NewLabel({ projectId }: { projectId: string }) {
             {...props}
             type="button"
             aria-label={`Color: ${color}`}
-            className="grid size-8 place-items-center rounded-md border bg-card hover:bg-muted"
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-card hover:bg-muted"
           >
             <ColorDot color={color} />
           </button>
@@ -239,7 +247,7 @@ function NewLabel({ projectId }: { projectId: string }) {
         />
       </Popover>
       <Input
-        className="h-8 text-sm"
+        className="h-8 max-w-xs rounded-md text-sm"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="New label"
@@ -276,7 +284,7 @@ function MilestoneRow({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 px-3 py-1.5 text-[13px]",
+        "flex flex-wrap items-center gap-2 px-5 py-1.5 text-[13px]",
         milestone.archivedAt && "opacity-60",
       )}
     >
@@ -370,7 +378,7 @@ function NewMilestone({ projectId }: { projectId: string }) {
       }}
     >
       <Input
-        className="h-8 flex-1 text-sm"
+        className="h-8 flex-1 rounded-md text-sm"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="New milestone (e.g. Q3 release)"
