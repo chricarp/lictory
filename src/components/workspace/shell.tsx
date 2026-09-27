@@ -494,7 +494,7 @@ function Sidebar({
             </p>
           )}
         </div>
-        <TeamsNav active={active} />
+        <TeamsNav active={active} pathname={pathname} />
         {project && (
           <div>
             <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
@@ -577,8 +577,16 @@ function Sidebar({
 }
 
 // Teams I belong to first; everyone sees all teams (membership is not access).
-function TeamsNav({ active }: { active: (href: string) => boolean }) {
+function TeamsNav({
+  active,
+  pathname,
+}: {
+  active: (href: string) => boolean;
+  pathname: string;
+}) {
   const { delivery, organization, userId } = useWorkspace();
+  const router = useRouter();
+  const [chosenId, setChosenId] = useState<string | null>(null);
   const org = organization.slug;
   const teams = [...delivery.teams.values()]
     .filter((t) => !t.archivedAt && t.deliveryMode === "native")
@@ -588,38 +596,58 @@ function TeamsNav({ active }: { active: (href: string) => boolean }) {
           Number(a.memberIds.includes(userId)) || a.name.localeCompare(b.name),
     );
   if (!teams.length) return null;
+  // The team in the URL wins; otherwise the last one picked, then my first team.
+  const routeTeamId = /\/teams\/([^/]+)/.exec(pathname)?.[1];
+  const t =
+    teams.find((x) => x.id === routeTeamId) ??
+    teams.find((x) => x.id === chosenId) ??
+    teams[0]!;
   return (
     <div>
-      <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-        Teams
-      </p>
-      <div className="space-y-2">
-        {teams.map((t) => (
-          <div key={t.id} className="space-y-px">
-            <p className="flex h-6 items-center gap-2 px-2 text-[13px] font-medium">
-              <Users className="size-3.5 text-muted-foreground" />
+      <div className="mb-1 flex items-center px-2">
+        <Popover
+          width={220}
+          trigger={(props) => (
+            <button
+              {...props}
+              className="flex h-6 min-w-0 items-center gap-1 rounded px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <Users className="size-3" aria-hidden />
               <span className="truncate">{t.name}</span>
-            </p>
-            <NavLink
-              href={paths.board(org, t.id)}
-              active={active(paths.board(org, t.id))}
-              icon={<KanbanSquare className="size-4" />}
-            >
-              Board
-            </NavLink>
-            <NavLink
-              href={paths.backlog(org, t.id)}
-              active={active(paths.backlog(org, t.id))}
-              icon={<ListOrdered className="size-4" />}
-            >
-              {t.iterationMode === "manual"
-                ? "Backlog & sprints"
-                : t.iterationMode === "automatic"
-                  ? "Backlog & cycles"
-                  : "Backlog"}
-            </NavLink>
-          </div>
-        ))}
+              <ChevronsUpDown className="size-3" />
+            </button>
+          )}
+        >
+          <Picker
+            title="Teams"
+            options={teams.map((x) => ({ value: x.id, label: x.name }))}
+            value={t.id}
+            onSelect={(id) => {
+              setChosenId(id);
+              router.push(paths.board(org, id));
+            }}
+          />
+        </Popover>
+      </div>
+      <div className="space-y-px">
+        <NavLink
+          href={paths.board(org, t.id)}
+          active={active(paths.board(org, t.id))}
+          icon={<KanbanSquare className="size-4" />}
+        >
+          Board
+        </NavLink>
+        <NavLink
+          href={paths.backlog(org, t.id)}
+          active={active(paths.backlog(org, t.id))}
+          icon={<ListOrdered className="size-4" />}
+        >
+          {t.iterationMode === "manual"
+            ? "Backlog & sprints"
+            : t.iterationMode === "automatic"
+              ? "Backlog & cycles"
+              : "Backlog"}
+        </NavLink>
       </div>
     </div>
   );
