@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleAlert } from "lucide-react";
 
+import { AuthHeading } from "~/components/auth/auth-layout";
 import { Button } from "~/components/ui/button";
 
 export const metadata: Metadata = { title: "Sign-in interrupted" };
@@ -16,21 +16,16 @@ export default async function AuthErrorPage({
       : "The authentication request could not be completed.";
 
   return (
-    <div className="grid gap-6 text-center">
-      <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-destructive/10 text-destructive">
-        <CircleAlert className="size-7" />
-      </div>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Sign-in interrupted
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground capitalize">
-          {message}
-        </p>
-      </div>
+    <>
+      <AuthHeading
+        title="Sign-in interrupted"
+        description={<span className="capitalize">{message}</span>}
+      />
       <Link href="/sign-in" className="contents">
-        <Button className="w-full">Try again</Button>
+        <Button size="lg" className="w-full">
+          Try again
+        </Button>
       </Link>
-    </div>
+    </>
   );
 }

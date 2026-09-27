@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { AuthHeading } from "~/components/auth/auth-layout";
+import {
+  AuthFooter,
+  AuthHeading,
+  AuthLink,
+} from "~/components/auth/auth-layout";
 import { SignInForm } from "~/components/auth/sign-in-form";
-import { AuthDivider, SocialButtons } from "~/components/auth/social-buttons";
+import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -20,23 +23,12 @@ export default async function SignInPage({
 
   return (
     <>
-      <AuthHeading
-        title="Welcome back"
-        description={
-          <>
-            New to Lictory?{" "}
-            <Link
-              href="/sign-up"
-              className="font-medium text-primary hover:underline"
-            >
-              Create an account
-            </Link>
-          </>
-        }
-      />
+      <AuthHeading title="Sign in to Lictory" />
       <SocialButtons providers={authProviders} callbackURL={callbackURL} />
-      <AuthDivider />
       <SignInForm callbackURL={callbackURL} />
+      <AuthFooter>
+        New to Lictory? <AuthLink href="/sign-up">Create an account</AuthLink>
+      </AuthFooter>
     </>
   );
 }

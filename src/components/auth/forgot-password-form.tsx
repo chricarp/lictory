@@ -35,7 +35,7 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <div className="grid gap-5">
+      <div className="grid gap-4">
         <FormMessage tone="success">
           If an account exists for that address, a password reset link is on its
           way.
@@ -53,7 +53,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5">
+    <form onSubmit={onSubmit} className="grid gap-4">
       <FormField
         id="email"
         name="email"
@@ -65,7 +65,12 @@ export function ForgotPasswordForm() {
         autoFocus
       />
       <FormMessage>{error}</FormMessage>
-      <Button size="lg" type="submit" className="w-full" disabled={pending}>
+      <Button
+        size="lg"
+        type="submit"
+        className="mt-1 w-full"
+        disabled={pending}
+      >
         {pending ? "Sending link…" : "Send reset link"}
       </Button>
     </form>

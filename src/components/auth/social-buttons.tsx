@@ -5,7 +5,16 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
 
-type ProviderState = { google: boolean; microsoft: boolean };
+type Provider = "google" | "microsoft";
+type ProviderState = Record<Provider, boolean>;
+
+const providerMeta: Record<
+  Provider,
+  { label: string; icon: () => React.JSX.Element }
+> = {
+  google: { label: "Google", icon: GoogleIcon },
+  microsoft: { label: "Microsoft", icon: MicrosoftIcon },
+};
 
 export function SocialButtons({
   providers,
@@ -14,47 +23,41 @@ export function SocialButtons({
   providers: ProviderState;
   callbackURL: string;
 }) {
-  const [pending, setPending] = useState<"google" | "microsoft" | null>(null);
+  const [pending, setPending] = useState<Provider | null>(null);
+  const enabled = (Object.keys(providerMeta) as Provider[]).filter(
+    (provider) => providers[provider],
+  );
 
-  async function signIn(provider: "google" | "microsoft") {
+  if (enabled.length === 0) return null;
+
+  async function signIn(provider: Provider) {
     setPending(provider);
     await authClient.signIn.social({ provider, callbackURL });
     setPending(null);
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Button
-        size="lg"
-        variant="secondary"
-        className="w-full"
-        disabled={!providers.google || pending !== null}
-        title={
-          providers.google
-            ? undefined
-            : "Add Google OAuth credentials to enable"
-        }
-        onClick={() => signIn("google")}
-      >
-        <GoogleIcon />
-        {pending === "google" ? "Connecting…" : "Google"}
-      </Button>
-      <Button
-        size="lg"
-        variant="secondary"
-        className="w-full"
-        disabled={!providers.microsoft || pending !== null}
-        title={
-          providers.microsoft
-            ? undefined
-            : "Add Microsoft OAuth credentials to enable"
-        }
-        onClick={() => signIn("microsoft")}
-      >
-        <MicrosoftIcon />
-        {pending === "microsoft" ? "Connecting…" : "Microsoft"}
-      </Button>
-    </div>
+    <>
+      <div className="grid gap-2.5">
+        {enabled.map((provider) => {
+          const { label, icon: Icon } = providerMeta[provider];
+          return (
+            <Button
+              key={provider}
+              size="lg"
+              variant="secondary"
+              className="w-full gap-2.5"
+              disabled={pending !== null}
+              onClick={() => signIn(provider)}
+            >
+              <Icon />
+              {pending === provider ? "Redirecting…" : `Continue with ${label}`}
+            </Button>
+          );
+        })}
+      </div>
+      <AuthDivider />
+    </>
   );
 }
 
@@ -92,11 +95,14 @@ function MicrosoftIcon() {
   );
 }
 
-export function AuthDivider() {
+function AuthDivider() {
   return (
-    <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+    <div
+      role="separator"
+      className="my-6 flex items-center gap-3 text-xs text-muted-foreground"
+    >
       <span className="h-px flex-1 bg-border" />
-      or continue with email
+      or
       <span className="h-px flex-1 bg-border" />
     </div>
   );

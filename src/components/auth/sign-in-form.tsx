@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { FormField, FormMessage } from "~/components/auth/form-field";
+import { PasswordInput } from "~/components/auth/password-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
 import { formValue } from "~/lib/utils";
@@ -47,38 +48,32 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5">
+    <form onSubmit={onSubmit} className="grid gap-4">
       <FormField
         id="email"
         name="email"
-        label="Work email"
+        label="Email"
         type="email"
         autoComplete="email"
         placeholder="you@company.com"
         required
       />
-      <div className="grid gap-2">
-        <div className="flex items-center justify-between">
-          <label htmlFor="password" className="text-sm font-medium">
-            Password
-          </label>
+      <PasswordInput
+        id="password"
+        name="password"
+        label="Password"
+        autoComplete="current-password"
+        required
+        hint={
           <Link
             href="/forgot-password"
-            className="rounded text-xs font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             Forgot password?
           </Link>
-        </div>
-        <FormField
-          id="password"
-          name="password"
-          label=""
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-      </div>
-      <label className="flex min-h-6 cursor-pointer items-center gap-2.5 text-sm text-muted-foreground">
+        }
+      />
+      <label className="flex min-h-5 cursor-pointer items-center gap-2 text-[13px] text-muted-foreground select-none">
         <input
           type="checkbox"
           name="rememberMe"
@@ -88,7 +83,12 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
         Keep me signed in
       </label>
       <FormMessage>{error}</FormMessage>
-      <Button size="lg" type="submit" className="w-full" disabled={pending}>
+      <Button
+        size="lg"
+        type="submit"
+        className="mt-1 w-full"
+        disabled={pending}
+      >
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

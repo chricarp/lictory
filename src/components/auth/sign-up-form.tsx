@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { FormField, FormMessage } from "~/components/auth/form-field";
+import { NewPasswordFields } from "~/components/auth/password-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
 import { formValue } from "~/lib/utils";
@@ -45,7 +46,7 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5">
+    <form onSubmit={onSubmit} className="grid gap-4">
       <FormField
         id="name"
         name="name"
@@ -63,33 +64,16 @@ export function SignUpForm() {
         placeholder="you@company.com"
         required
       />
-      <FormField
-        id="password"
-        name="password"
-        label="Password"
-        hint="10 characters minimum"
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
-      />
-      <FormField
-        id="confirmation"
-        name="confirmation"
-        label="Confirm password"
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
-      />
+      <NewPasswordFields />
       <FormMessage>{error}</FormMessage>
-      <Button size="lg" type="submit" className="w-full" disabled={pending}>
+      <Button
+        size="lg"
+        type="submit"
+        className="mt-1 w-full"
+        disabled={pending}
+      >
         {pending ? "Creating account…" : "Create account"}
       </Button>
-      <p className="text-center text-xs leading-5 text-muted-foreground">
-        By creating an account, you agree to keep your organization&apos;s
-        information secure.
-      </p>
     </form>
   );
 }

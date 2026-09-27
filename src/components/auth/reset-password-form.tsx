@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { FormField, FormMessage } from "~/components/auth/form-field";
+import { FormMessage } from "~/components/auth/form-field";
+import { NewPasswordFields } from "~/components/auth/password-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
 import { formValue } from "~/lib/utils";
@@ -49,7 +50,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
 
   if (complete) {
     return (
-      <div className="grid gap-5">
+      <div className="grid gap-4">
         <FormMessage tone="success">
           Your password has been updated.
         </FormMessage>
@@ -63,26 +64,11 @@ export function ResetPasswordForm({ token }: { token?: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5">
-      <FormField
-        id="password"
-        name="password"
-        label="New password"
-        hint="10 characters minimum"
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
+    <form onSubmit={onSubmit} className="grid gap-4">
+      <NewPasswordFields
         autoFocus
-      />
-      <FormField
-        id="confirmation"
-        name="confirmation"
-        label="Confirm new password"
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
+        passwordLabel="New password"
+        confirmationLabel="Confirm new password"
       />
       <FormMessage>{error}</FormMessage>
       <Button
