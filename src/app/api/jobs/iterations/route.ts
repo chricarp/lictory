@@ -1,10 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 import { db } from "~/db";
+import { createDeliveryService } from "~/delivery/service";
 import { advanceSchedules } from "~/sync/server/service";
 
 export const dynamic = "force-dynamic";
 
-// Advances automatic cycles. Called by a scheduler (Trigger.dev, Vercel cron,
+// Advances automatic cycles and resumes interrupted delivery exports. Called by a scheduler (Trigger.dev, Vercel cron,
 // or `bun scripts/iteration-worker.ts`). Idempotent, so retries and
 // overlapping runs are safe. Disabled unless CRON_SECRET is configured.
 function authorized(request: Request) {
@@ -31,7 +32,11 @@ async function run(request: Request) {
     );
   const result = await advanceSchedules(db);
   console.info(JSON.stringify({ event: "jobs.iterations", ...result }));
-  return Response.json(result);
+  // Resume delivery exports left running (deferred create confirmations,
+  // interrupted workers).
+  const delivery = await createDeliveryService(db).processPending();
+  console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
+  return Response.json({ ...result, delivery });
 }
 
 export const GET = run;

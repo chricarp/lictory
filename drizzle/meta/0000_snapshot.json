@@ -1,5 +1,5 @@
 {
-  "id": "6972bced-387b-47e5-b5d3-cc6a8d1754cb",
+  "id": "8f92fedb-07ad-4990-9fda-5578763abb4d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1022,6 +1022,492 @@
       },
       "isRLSEnabled": false
     },
+    "public.delivery_connection": {
+      "name": "delivery_connection",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "delivery_provider_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_label": {
+          "name": "account_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encrypted_credential": {
+          "name": "encrypted_credential",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "delivery_connection_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_verified_at": {
+          "name": "last_verified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "delivery_connection_active_site_unique": {
+          "name": "delivery_connection_active_site_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "base_url",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"delivery_connection\".\"archived_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "delivery_connection_organization_id_organization_id_fk": {
+          "name": "delivery_connection_organization_id_organization_id_fk",
+          "tableFrom": "delivery_connection",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "delivery_connection_created_by_id_user_id_fk": {
+          "name": "delivery_connection_created_by_id_user_id_fk",
+          "tableFrom": "delivery_connection",
+          "tableTo": "user",
+          "columnsFrom": ["created_by_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "delivery_connection_org_id_unique": {
+          "name": "delivery_connection_org_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["organization_id", "id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "delivery_connection_name_present": {
+          "name": "delivery_connection_name_present",
+          "value": "length(trim(\"delivery_connection\".\"name\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.delivery_publication": {
+      "name": "delivery_publication",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_by_id": {
+          "name": "requested_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "root_item_id": {
+          "name": "root_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_ids": {
+          "name": "item_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "overwrite_item_ids": {
+          "name": "overwrite_item_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "results": {
+          "name": "results",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "status": {
+          "name": "status",
+          "type": "delivery_publication_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'running'"
+        },
+        "lease_until": {
+          "name": "lease_until",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "delivery_publication_running_idx": {
+          "name": "delivery_publication_running_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lease_until",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "delivery_publication_project_idx": {
+          "name": "delivery_publication_project_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "delivery_publication_organization_id_organization_id_fk": {
+          "name": "delivery_publication_organization_id_organization_id_fk",
+          "tableFrom": "delivery_publication",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "delivery_publication_requested_by_id_user_id_fk": {
+          "name": "delivery_publication_requested_by_id_user_id_fk",
+          "tableFrom": "delivery_publication",
+          "tableTo": "user",
+          "columnsFrom": ["requested_by_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "delivery_publication_organization_id_project_id_project_organization_id_id_fk": {
+          "name": "delivery_publication_organization_id_project_id_project_organization_id_id_fk",
+          "tableFrom": "delivery_publication",
+          "tableTo": "project",
+          "columnsFrom": ["organization_id", "project_id"],
+          "columnsTo": ["organization_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "delivery_publication_organization_id_connection_id_delivery_connection_organization_id_id_fk": {
+          "name": "delivery_publication_organization_id_connection_id_delivery_connection_organization_id_id_fk",
+          "tableFrom": "delivery_publication",
+          "tableTo": "delivery_connection",
+          "columnsFrom": ["organization_id", "connection_id"],
+          "columnsTo": ["organization_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.delivery_target": {
+      "name": "delivery_target",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_project_id": {
+          "name": "external_project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_project_key": {
+          "name": "external_project_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type_mapping": {
+          "name": "type_mapping",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "delivery_target_org_default_unique": {
+          "name": "delivery_target_org_default_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"delivery_target\".\"team_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "delivery_target_team_unique": {
+          "name": "delivery_target_team_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"delivery_target\".\"team_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "delivery_target_organization_id_organization_id_fk": {
+          "name": "delivery_target_organization_id_organization_id_fk",
+          "tableFrom": "delivery_target",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "delivery_target_organization_id_connection_id_delivery_connection_organization_id_id_fk": {
+          "name": "delivery_target_organization_id_connection_id_delivery_connection_organization_id_id_fk",
+          "tableFrom": "delivery_target",
+          "tableTo": "delivery_connection",
+          "columnsFrom": ["organization_id", "connection_id"],
+          "columnsTo": ["organization_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "delivery_target_organization_id_team_id_team_organization_id_id_fk": {
+          "name": "delivery_target_organization_id_team_id_team_organization_id_id_fk",
+          "tableFrom": "delivery_target",
+          "tableTo": "team",
+          "columnsFrom": ["organization_id", "team_id"],
+          "columnsTo": ["organization_id", "id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "delivery_target_org_id_unique": {
+          "name": "delivery_target_org_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["organization_id", "id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.iteration": {
       "name": "iteration",
       "schema": "",
@@ -1556,6 +2042,13 @@
         },
         "can_review": {
           "name": "can_review",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "can_publish_delivery": {
+          "name": "can_publish_delivery",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -4220,14 +4713,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "external_namespace": {
-          "name": "external_namespace",
+        "connection_id": {
+          "name": "connection_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -4250,6 +4737,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "external_status": {
+          "name": "external_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "delivery_sync_status",
@@ -4258,9 +4751,27 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
+        "published_revision_id": {
+          "name": "published_revision_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_updated_at": {
+          "name": "external_updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "create_attempted_at": {
+          "name": "create_attempted_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -4332,6 +4843,28 @@
           "columnsTo": ["organization_id", "id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
+        },
+        "work_item_external_link_organization_id_connection_id_delivery_connection_organization_id_id_fk": {
+          "name": "work_item_external_link_organization_id_connection_id_delivery_connection_organization_id_id_fk",
+          "tableFrom": "work_item_external_link",
+          "tableTo": "delivery_connection",
+          "columnsFrom": ["organization_id", "connection_id"],
+          "columnsTo": ["organization_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "work_item_external_link_organization_id_work_item_id_published_revision_id_specification_revision_organization_id_work_item_id_id_fk": {
+          "name": "work_item_external_link_organization_id_work_item_id_published_revision_id_specification_revision_organization_id_work_item_id_id_fk",
+          "tableFrom": "work_item_external_link",
+          "tableTo": "specification_revision",
+          "columnsFrom": [
+            "organization_id",
+            "work_item_id",
+            "published_revision_id"
+          ],
+          "columnsTo": ["organization_id", "work_item_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -4339,22 +4872,12 @@
         "external_link_destination_unique": {
           "name": "external_link_destination_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "work_item_id",
-            "provider",
-            "external_namespace"
-          ]
+          "columns": ["organization_id", "work_item_id", "connection_id"]
         },
         "external_link_identity_unique": {
           "name": "external_link_identity_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "provider",
-            "external_namespace",
-            "external_id"
-          ]
+          "columns": ["organization_id", "connection_id", "external_id"]
         }
       },
       "policies": {},
@@ -5166,10 +5689,25 @@
       "schema": "public",
       "values": ["pending", "running", "passed", "failed", "error", "skipped"]
     },
+    "public.delivery_connection_status": {
+      "name": "delivery_connection_status",
+      "schema": "public",
+      "values": ["active", "invalid"]
+    },
     "public.delivery_mode": {
       "name": "delivery_mode",
       "schema": "public",
       "values": ["native", "external"]
+    },
+    "public.delivery_provider_kind": {
+      "name": "delivery_provider_kind",
+      "schema": "public",
+      "values": ["jira_cloud"]
+    },
+    "public.delivery_publication_status": {
+      "name": "delivery_publication_status",
+      "schema": "public",
+      "values": ["running", "completed", "partial", "failed"]
     },
     "public.delivery_sync_status": {
       "name": "delivery_sync_status",

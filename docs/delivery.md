@@ -35,8 +35,7 @@ replacement: its items move explicitly and each move is recorded in activity.
 ## Readiness policy
 
 Readiness connects refinement to delivery. The team policy decides what happens
-when a spec-backed item that is not `ready` moves into a `started` status (native
-mode) or would be published (external mode):
+when a spec-backed item that is not `ready` moves into a `started` status:
 
 - `off`: readiness is informative only.
 - `warn` (default): the move succeeds and the activity records the failing checks.
@@ -87,8 +86,34 @@ Nothing in the domain depends on a scheduler vendor.
 
 ## External delivery
 
-In external mode a team refines in Lictory and publishes to a delivery system
-through a provider adapter. Exactly one system owns delivery state for a given
-item: Lictory does not plan iterations for external teams, and external status
-will be read-only metadata on `work_item_external_link`. Publishing itself is
-not implemented yet.
+In external mode a team refines in Lictory and exports to a delivery system
+through a provider adapter (`src/delivery/provider.ts`; Jira Cloud first).
+Exactly one system owns delivery state for a given item: Lictory does not plan
+iterations for external teams. Any team may export; external teams get it as
+the primary action.
+
+Export is explicit and evidence-gated, independent of the readiness policy:
+
+- Only `ready` spec-backed items are exported. Exporting an item with its
+  subtree refuses entirely when the root is not ready; not-ready descendants
+  (and everything under them) are skipped. Plain items (tasks, subtasks) go
+  along only under an exported parent.
+- Lictory owns summary, description (latest revision, including acceptance
+  criteria) and labels, pushed one-way on each export. Labels added in Jira
+  are kept. Status, assignee, sprint and comments are Jira's; status is copied
+  back read-only on each export.
+- Unchanged items (same payload hash) are not written. Items whose owned
+  fields were edited in Jira since the last export, and items linked to an
+  existing issue but never exported, are held as conflicts until the
+  requester confirms overwriting that item.
+- Every export is a `delivery_publication` with a result per item. Parents go
+  first; a failed parent skips its subtree. Failed items are exported again
+  by themselves.
+- No duplicates: links are reserved before the first call, a create attempt
+  is committed before it is made, and the `lictory.item` issue property lets a
+  crashed create be found and adopted. A recent attempt that cannot be
+  confirmed yet is left running and resumed by the scheduled job.
+- Network calls never run inside the organization lock; each item's outcome
+  commits with its change-log entries and an `exported` activity.
+- Only administrators connect Jira and choose the project and type mapping;
+  exporting and linking require the "Export to delivery tools" capability.

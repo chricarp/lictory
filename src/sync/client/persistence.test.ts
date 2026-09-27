@@ -37,6 +37,7 @@ void test("IndexedDB persists checkpoint with entities, queue survives reload, a
       teams: [],
       types: [],
       iterations: [],
+      delivery: { connections: [], targets: [] },
     },
   });
   const reloaded = new IndexedPersistence();
@@ -80,6 +81,7 @@ void test("access revocation purges every scope and pending command for only the
       teams: [],
       types: [],
       iterations: [],
+      delivery: { connections: [], targets: [] },
     },
   };
   await store.save(`${owner}:one`, cache);

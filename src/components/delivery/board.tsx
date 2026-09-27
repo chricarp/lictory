@@ -374,7 +374,8 @@ export function Board() {
       {team.deliveryMode === "external" && (
         <p className="border-b bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
           {team.name} tracks delivery in an external tool. This board is a
-          read-mostly view; publish work instead of moving it here.
+          read-mostly view; export ready work to Jira from each item instead of
+          moving it here.
         </p>
       )}
       {usesIterations && iterationParam !== "all" && !iteration ? (

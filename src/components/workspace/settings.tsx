@@ -13,6 +13,7 @@ import {
   TeamsSection,
   TypesSection,
 } from "~/components/delivery/team-settings";
+import { JiraSection } from "~/components/delivery/delivery-settings";
 import { Popover, Picker } from "~/components/ui/popover";
 import {
   InlineError,
@@ -36,6 +37,7 @@ export function Settings() {
     { id: "projects", label: "Projects" },
     { id: "teams", label: "Teams" },
     { id: "work-item-types", label: "Work item types" },
+    { id: "jira", label: "Jira" },
     ...(showLabels ? [{ id: "labels", label: "Labels & milestones" }] : []),
     { id: "people", label: "Members" },
     { id: "roles", label: "Roles" },
@@ -97,6 +99,7 @@ export function Settings() {
             >
               <TeamsSection />
               <TypesSection />
+              <JiraSection />
             </SettingsGroup>
 
             <SettingsGroup

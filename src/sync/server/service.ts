@@ -44,8 +44,8 @@ import { rankBetween } from "../shared/rank";
 import { hasAcceptanceCriteria } from "../shared/specification";
 import { roleColumns } from "./roles";
 
-type Database = PostgresJsDatabase<typeof s>;
-type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Database = PostgresJsDatabase<typeof s>;
+export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError } from "./errors";
 import {
   advanceTeamSchedule,
@@ -101,12 +101,12 @@ export async function authorize(
     "forbidden",
   );
 }
-async function lock(tx: Tx, organizationId: string) {
+export async function lock(tx: Tx, organizationId: string) {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended(${organizationId}, 0))`,
   );
 }
-async function clock(tx: Tx, organizationId: string) {
+export async function clock(tx: Tx, organizationId: string) {
   return (
     (
       await tx
@@ -145,6 +145,7 @@ export async function directory(
       teams: [],
       types: [],
       iterations: [],
+      delivery: { connections: [], targets: [] },
     };
   requireValue(
     organizations.find((o) => o.id === organizationId),
@@ -198,6 +199,7 @@ export async function directory(
       changeProperties: r.canChangeProperties,
       requestReviews: r.canRequestReviews,
       review: r.canReview,
+      publishDelivery: r.canPublishDelivery,
     },
     // Role membership never outlives organization membership.
     userIds: memberships
@@ -211,7 +213,58 @@ export async function directory(
     organizationId,
     memberIds,
   );
-  return { organizations, projects, members, roles, teams, types, iterations };
+  const delivery = await deliveryConfiguration(db, organizationId);
+  return {
+    organizations,
+    projects,
+    members,
+    roles,
+    teams,
+    types,
+    iterations,
+    delivery,
+  };
+}
+
+// Connections and targets, never credentials.
+async function deliveryConfiguration(
+  db: Database | Tx,
+  organizationId: string,
+): Promise<Directory["delivery"]> {
+  const connections = await db
+    .select({
+      id: s.deliveryConnection.id,
+      provider: s.deliveryConnection.provider,
+      name: s.deliveryConnection.name,
+      baseUrl: s.deliveryConnection.baseUrl,
+      accountLabel: s.deliveryConnection.accountLabel,
+      status: s.deliveryConnection.status,
+      lastError: s.deliveryConnection.lastError,
+    })
+    .from(s.deliveryConnection)
+    .where(
+      and(
+        eq(s.deliveryConnection.organizationId, organizationId),
+        isNull(s.deliveryConnection.archivedAt),
+      ),
+    )
+    .orderBy(asc(s.deliveryConnection.createdAt));
+  const active = new Set(connections.map((c) => c.id));
+  const targets = (
+    await db
+      .select({
+        id: s.deliveryTarget.id,
+        connectionId: s.deliveryTarget.connectionId,
+        teamId: s.deliveryTarget.teamId,
+        externalProjectId: s.deliveryTarget.externalProjectId,
+        externalProjectKey: s.deliveryTarget.externalProjectKey,
+        typeMapping: s.deliveryTarget.typeMapping,
+      })
+      .from(s.deliveryTarget)
+      .where(eq(s.deliveryTarget.organizationId, organizationId))
+      .orderBy(asc(s.deliveryTarget.createdAt))
+  ).filter((t) => active.has(t.connectionId));
+  return { connections, targets };
 }
 
 // Delivery configuration is small and read on every sync, like roles, so its
@@ -335,6 +388,8 @@ const capabilityMessages: Record<keyof Capabilities, string> = {
     "Your roles cannot change item properties such as status, priority, owner, labels or milestones.",
   requestReviews: "Your roles cannot request or cancel reviews.",
   review: "Your roles cannot be asked to review.",
+  publishDelivery:
+    "Your roles cannot export work to external delivery systems. Ask an administrator to grant “Export to delivery tools”.",
 };
 function requireCapability(
   capabilities: Capabilities,
@@ -882,6 +937,9 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
       .where(eq(s.workItemRelation.organizationId, organizationId))
       .orderBy(asc(s.workItemRelation.createdAt))
   ).filter((r) => itemProject.has(r.fromId));
+  const links = await externalLinks(tx, organizationId, {
+    projectId,
+  });
   const entities: Entity[] = [
     ...projects.map((p) => serialize("project", p)),
     ...labels.map((l) => serialize("label", l)),
@@ -890,6 +948,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ...relations.map((r) =>
       serialize("relation", { ...r, projectId: itemProject.get(r.fromId) }),
     ),
+    ...links,
   ];
   if (!workItemId) return entities;
   const item = requireValue(items.find((p) => p.id === workItemId));
@@ -953,6 +1012,73 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     checks: readiness(item, items, ctx),
   });
   return entities;
+}
+
+// External links as sync entities, optionally narrowed to items.
+export async function externalLinks(
+  tx: Tx,
+  organizationId: string,
+  filter: { projectId?: string; workItemIds?: string[] },
+): Promise<EntityOf<"externalLink">[]> {
+  if (filter.workItemIds?.length === 0) return [];
+  const rows = await tx
+    .select({
+      link: s.workItemExternalLink,
+      projectId: s.workItem.projectId,
+      revisionNumber: s.specificationRevision.number,
+    })
+    .from(s.workItemExternalLink)
+    .innerJoin(
+      s.workItem,
+      and(
+        eq(s.workItem.organizationId, s.workItemExternalLink.organizationId),
+        eq(s.workItem.id, s.workItemExternalLink.workItemId),
+      ),
+    )
+    .leftJoin(
+      s.specificationRevision,
+      and(
+        eq(
+          s.specificationRevision.organizationId,
+          s.workItemExternalLink.organizationId,
+        ),
+        eq(
+          s.specificationRevision.id,
+          s.workItemExternalLink.publishedRevisionId,
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(s.workItemExternalLink.organizationId, organizationId),
+        filter.projectId
+          ? eq(s.workItem.projectId, filter.projectId)
+          : undefined,
+        filter.workItemIds
+          ? inArray(s.workItemExternalLink.workItemId, filter.workItemIds)
+          : undefined,
+      ),
+    )
+    .orderBy(asc(s.workItemExternalLink.createdAt));
+  return rows.map(
+    ({ link, projectId, revisionNumber }) =>
+      entitySchema.parse({
+        type: "externalLink",
+        id: link.id,
+        organizationId: link.organizationId,
+        projectId,
+        workItemId: link.workItemId,
+        connectionId: link.connectionId,
+        externalKey: link.externalKey,
+        externalUrl: link.externalUrl,
+        externalStatus: link.externalStatus,
+        status: link.status,
+        publishedRevisionId: link.publishedRevisionId,
+        publishedRevisionNumber: revisionNumber ?? null,
+        lastError: link.lastError,
+        syncedAt: link.syncedAt?.toISOString() ?? null,
+      }) as EntityOf<"externalLink">,
+  );
 }
 
 const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
@@ -2829,6 +2955,7 @@ const projectLevel = new Set<Entity["type"]>([
   "milestone",
   "workItem",
   "relation",
+  "externalLink",
 ]);
 function projectOf(entity: Entity) {
   if (entity.type === "project") return entity.id;
@@ -2837,7 +2964,7 @@ function projectOf(entity: Entity) {
 }
 // Diff two snapshots into change-log rows: changed entities become upserts and
 // vanished ones become tombstones, in the same transaction as the writes.
-async function emitChanges(
+export async function emitChanges(
   tx: Tx,
   organizationId: string,
   before: Entity[],
@@ -2994,7 +3121,7 @@ export async function iterationReport(
   });
 }
 
-async function publish(tx: Tx, organizationId: string, cursor: bigint) {
+export async function publish(tx: Tx, organizationId: string, cursor: bigint) {
   await tx
     .insert(s.syncClock)
     .values({ organizationId, cursor })

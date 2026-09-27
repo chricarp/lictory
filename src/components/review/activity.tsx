@@ -380,6 +380,49 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    case "exported": {
+      const key = str(d.key);
+      const link = key ? (
+        str(d.url) ? (
+          <a
+            href={str(d.url)}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium underline-offset-2 hover:underline"
+          >
+            {key}
+          </a>
+        ) : (
+          <b>{key}</b>
+        )
+      ) : (
+        "Jira"
+      );
+      body = (
+        <>
+          {d.outcome === "created" ? "exported this to " : "updated "}
+          {link}
+          {num(d.revision) !== undefined && (
+            <> from revision {num(d.revision)}</>
+          )}
+        </>
+      );
+      break;
+    }
+    case "external_linked":
+      body = (
+        <>
+          linked this to <b>{str(d.key)}</b>
+        </>
+      );
+      break;
+    case "external_unlinked":
+      body = (
+        <>
+          unlinked <b>{str(d.key)}</b>
+        </>
+      );
+      break;
     default:
       body = <>{entry.action.replaceAll("_", " ")}</>;
   }

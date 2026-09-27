@@ -269,6 +269,7 @@ const hydratingView: View = {
     teams: [],
     types: [],
     iterations: [],
+    delivery: { connections: [], targets: [] },
   },
   pending: [],
   status: "hydrating",

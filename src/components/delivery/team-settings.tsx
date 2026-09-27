@@ -182,18 +182,12 @@ function DeliverySection({ team, canEdit }: { team: Team; canEdit: boolean }) {
               {
                 value: "external",
                 label: "External tool",
-                description: "Refine here, publish to Jira or Linear.",
+                description: "Refine here, export ready work to Jira.",
               },
             ]}
           />
         </Field>
-        <Field
-          label={
-            team.deliveryMode === "native"
-              ? "Starting work before the specification is ready"
-              : "Publishing before the specification is ready"
-          }
-        >
+        <Field label="Starting work before the specification is ready">
           <Choice
             value={team.readinessPolicy}
             disabled={!canEdit}

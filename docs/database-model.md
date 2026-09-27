@@ -115,15 +115,22 @@ relations and iteration events inside one organization. One active iteration per
 team is a partial unique index; iteration state and its timestamps are
 constrained together.
 
-External identifiers, URLs, remote namespace, synchronization state, and metadata
-live in `work_item_external_link`. The namespace identifies a provider
-installation or workspace; provider-specific project/issue mappings belong in its
-metadata or a future integration configuration. An item has at most one link
-per provider/namespace, and an external identity maps to at most one local item,
-so a retried publish cannot create duplicate delivery work. A pending link can be
-reserved before it has an external ID. There are no credentials, network calls,
-or implicit bidirectional sync yet. Local content is owned here; external
-identity and sync outcomes are owned by the future adapter.
+A `delivery_connection` is an organization's authenticated access to one
+external installation (a Jira Cloud site). Its base URL is the namespace and
+never changes; the credential is AES-GCM encrypted with the organization id as
+associated data and never leaves the server. A `delivery_target` maps an
+external project and work item types to external types, as an organization
+default or a team override.
+
+`work_item_external_link` records where an item was exported: at most one link
+per item and connection, and an external identity maps to at most one local
+item, so a retried export cannot create duplicate delivery work. A pending link
+can be reserved before it has an external ID. The link remembers the revision
+and payload hash last pushed and the external last-modified time right after
+that push, so re-exports skip unchanged items and detect external edits.
+Title, content and labels are owned here and pushed one-way on explicit export;
+external status is a read-only copy. Adapters live behind
+`src/delivery/provider.ts`; nothing else may know provider-specific shapes.
 
 ## Retention
 

@@ -25,6 +25,13 @@ export const statusCategories = [
 ] as const;
 export type StatusCategory = (typeof statusCategories)[number];
 export const deliveryModes = ["native", "external"] as const;
+export const deliverySyncStatuses = [
+  "pending",
+  "synced",
+  "failed",
+  "conflict",
+] as const;
+export type DeliverySyncStatus = (typeof deliverySyncStatuses)[number];
 export const readinessPolicies = ["off", "warn", "block"] as const;
 export const iterationModes = ["off", "manual", "automatic"] as const;
 export const iterationStates = ["planned", "active", "completed"] as const;
@@ -298,6 +305,24 @@ export const entitySchema = z.discriminatedUnion("type", [
     workItemId: id,
     checks: z.array(readinessCheckSchema),
   }),
+  // Where a work item was exported. Travels with the item's project so
+  // lists and boards can show the external key without loading the item.
+  z.object({
+    ...base,
+    type: z.literal("externalLink"),
+    projectId: id,
+    workItemId: id,
+    connectionId: id,
+    externalKey: z.string().nullable(),
+    externalUrl: z.string().nullable(),
+    // Read-only copy of the external status, refreshed on each export.
+    externalStatus: z.string().nullable(),
+    status: z.enum(deliverySyncStatuses),
+    publishedRevisionId: id.nullable(),
+    publishedRevisionNumber: z.number().int().nullable(),
+    lastError: z.string().nullable(),
+    syncedAt: z.string().nullable(),
+  }),
   z.object({
     ...base,
     type: z.literal("activity"),
@@ -345,6 +370,7 @@ const entityTypes = z.enum([
   "suggestionDecision",
   "approval",
   "readiness",
+  "externalLink",
   "activity",
 ]);
 export const changeSchema = z.discriminatedUnion("operation", [
@@ -389,6 +415,7 @@ export const capabilitySchema = z.object({
   changeProperties: z.boolean(),
   requestReviews: z.boolean(),
   review: z.boolean(),
+  publishDelivery: z.boolean(),
 });
 export type Capabilities = z.infer<typeof capabilitySchema>;
 export const capabilityKeys = Object.keys(
@@ -399,6 +426,7 @@ export const noCapabilities: Capabilities = {
   changeProperties: false,
   requestReviews: false,
   review: false,
+  publishDelivery: false,
 };
 export const roleSchema = z.object({
   id,
@@ -417,6 +445,7 @@ export function capabilitiesOf(roles: Role[], userId: string): Capabilities {
     changeProperties: mine.some((r) => r.capabilities.changeProperties),
     requestReviews: mine.some((r) => r.capabilities.requestReviews),
     review: mine.some((r) => r.capabilities.review),
+    publishDelivery: mine.some((r) => r.capabilities.publishDelivery),
   };
 }
 // Suggestion reviewers merge into the mainline, so they must hold an active
@@ -576,6 +605,30 @@ export const iterationReportSchema = z.object({
   ),
 });
 export type IterationReport = z.infer<typeof iterationReportSchema>;
+// Delivery connections carry no secret; only administrators see the full list
+// of targets' type mappings, but they are not sensitive either.
+export const deliveryConnectionSchema = z.object({
+  id,
+  provider: z.enum(["jira_cloud"]),
+  name: z.string(),
+  baseUrl: z.string(),
+  accountLabel: z.string(),
+  status: z.enum(["active", "invalid"]),
+  lastError: z.string().nullable(),
+});
+export type DeliveryConnectionSummary = z.infer<
+  typeof deliveryConnectionSchema
+>;
+export const deliveryTargetSchema = z.object({
+  id,
+  connectionId: id,
+  // Null: organization default.
+  teamId: id.nullable(),
+  externalProjectId: z.string(),
+  externalProjectKey: z.string(),
+  typeMapping: z.record(z.string(), z.string()),
+});
+export type DeliveryTargetSummary = z.infer<typeof deliveryTargetSchema>;
 export const directorySchema = z.object({
   organizations: z.array(
     z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),
@@ -587,9 +640,13 @@ export const directorySchema = z.object({
   types: z.array(workItemTypeSchema),
   // Planned and active iterations plus recent completed ones.
   iterations: z.array(iterationSchema),
+  delivery: z.object({
+    connections: z.array(deliveryConnectionSchema),
+    targets: z.array(deliveryTargetSchema),
+  }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 7 as const;
+export const PROTOCOL = 8 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),

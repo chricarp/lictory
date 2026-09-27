@@ -127,7 +127,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 7 (teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 8 (external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
@@ -146,6 +146,14 @@ moves items (archiving a status with a replacement, completing an iteration
 with carry-over, automatic cycles) diffs the organization snapshot and emits the
 affected work items like any other change. Iteration reports are read on demand
 (`?iteration=1`) and replay recorded events on the server.
+
+Delivery exports (`/api/delivery`, see [delivery.md](delivery.md)) are
+online-only and never enter the durable client mutation queue: they call
+external systems, and tokens must not reach browser storage. Like
+`advanceSchedules`, they take the organization lock for each local write,
+emit `externalLink` (and `activity`) changes and advance the clock without a
+mutation receipt; external calls run between those short transactions, never
+inside them.
 
 Automatic cycles are advanced by `advanceSchedules`, an idempotent server job
 invoked by a scheduler (see [delivery.md](delivery.md)). It takes each
@@ -289,7 +297,7 @@ only, never specification/comment content. Normal UI errors retain actionable te
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
 `/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
-renders in pages of 50. Jira publishing, AI, SSO setup, billing, custom fields,
+renders in pages of 50. AI, SSO setup, billing, custom fields,
 comments on items without a specification, saved views, advanced policy
 configuration, SCIM, notification delivery, private projects,
 CRDT editing, multiplayer cursors, service-worker offline

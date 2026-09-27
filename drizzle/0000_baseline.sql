@@ -1,6 +1,9 @@
 CREATE TYPE "public"."approval_status" AS ENUM('granted', 'revoked', 'stale');--> statement-breakpoint
 CREATE TYPE "public"."check_status" AS ENUM('pending', 'running', 'passed', 'failed', 'error', 'skipped');--> statement-breakpoint
+CREATE TYPE "public"."delivery_connection_status" AS ENUM('active', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."delivery_mode" AS ENUM('native', 'external');--> statement-breakpoint
+CREATE TYPE "public"."delivery_provider_kind" AS ENUM('jira_cloud');--> statement-breakpoint
+CREATE TYPE "public"."delivery_publication_status" AS ENUM('running', 'completed', 'partial', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."delivery_sync_status" AS ENUM('pending', 'synced', 'failed', 'conflict');--> statement-breakpoint
 CREATE TYPE "public"."estimate_scale" AS ENUM('none', 'fibonacci', 'linear', 'tshirt');--> statement-breakpoint
 CREATE TYPE "public"."iteration_event_kind" AS ENUM('added', 'removed', 'estimate_changed', 'completed', 'reopened');--> statement-breakpoint
@@ -125,6 +128,54 @@ CREATE TABLE "decision" (
 	CONSTRAINT "decision_source_context" CHECK (("decision"."revision_id" IS NULL OR "decision"."work_item_id" IS NOT NULL) AND ("decision"."source_thread_id" IS NULL OR "decision"."revision_id" IS NOT NULL))
 );
 --> statement-breakpoint
+CREATE TABLE "delivery_connection" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"provider" "delivery_provider_kind" NOT NULL,
+	"name" text NOT NULL,
+	"base_url" text NOT NULL,
+	"account_label" text NOT NULL,
+	"encrypted_credential" text NOT NULL,
+	"status" "delivery_connection_status" DEFAULT 'active' NOT NULL,
+	"last_error" text,
+	"last_verified_at" timestamp NOT NULL,
+	"created_by_id" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"archived_at" timestamp,
+	CONSTRAINT "delivery_connection_org_id_unique" UNIQUE("organization_id","id"),
+	CONSTRAINT "delivery_connection_name_present" CHECK (length(trim("delivery_connection"."name")) > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "delivery_publication" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"project_id" text NOT NULL,
+	"connection_id" text NOT NULL,
+	"requested_by_id" text NOT NULL,
+	"root_item_id" text,
+	"item_ids" jsonb NOT NULL,
+	"overwrite_item_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"results" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"status" "delivery_publication_status" DEFAULT 'running' NOT NULL,
+	"lease_until" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"finished_at" timestamp
+);
+--> statement-breakpoint
+CREATE TABLE "delivery_target" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"connection_id" text NOT NULL,
+	"team_id" text,
+	"external_project_id" text NOT NULL,
+	"external_project_key" text NOT NULL,
+	"type_mapping" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "delivery_target_org_id_unique" UNIQUE("organization_id","id")
+);
+--> statement-breakpoint
 CREATE TABLE "iteration" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -194,6 +245,7 @@ CREATE TABLE "organization_role" (
 	"can_change_properties" boolean DEFAULT false NOT NULL,
 	"can_request_reviews" boolean DEFAULT false NOT NULL,
 	"can_review" boolean DEFAULT false NOT NULL,
+	"can_publish_delivery" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"archived_at" timestamp,
@@ -440,19 +492,22 @@ CREATE TABLE "work_item_external_link" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
 	"work_item_id" text NOT NULL,
-	"provider" text NOT NULL,
-	"external_namespace" text NOT NULL,
+	"connection_id" text NOT NULL,
 	"external_id" text,
 	"external_key" text,
 	"external_url" text,
+	"external_status" text,
 	"status" "delivery_sync_status" DEFAULT 'pending' NOT NULL,
-	"metadata" jsonb,
+	"published_revision_id" text,
+	"payload_hash" text,
+	"external_updated_at" timestamp,
+	"create_attempted_at" timestamp,
 	"last_error" text,
 	"synced_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "external_link_destination_unique" UNIQUE("organization_id","work_item_id","provider","external_namespace"),
-	CONSTRAINT "external_link_identity_unique" UNIQUE("organization_id","provider","external_namespace","external_id"),
+	CONSTRAINT "external_link_destination_unique" UNIQUE("organization_id","work_item_id","connection_id"),
+	CONSTRAINT "external_link_identity_unique" UNIQUE("organization_id","connection_id","external_id"),
 	CONSTRAINT "external_link_synced_identity" CHECK ("work_item_external_link"."status" <> 'synced' OR ("work_item_external_link"."external_id" IS NOT NULL AND "work_item_external_link"."synced_at" IS NOT NULL))
 );
 --> statement-breakpoint
@@ -561,6 +616,15 @@ ALTER TABLE "decision" ADD CONSTRAINT "decision_organization_id_project_id_proje
 ALTER TABLE "decision" ADD CONSTRAINT "decision_organization_id_project_id_work_item_id_work_item_organization_id_project_id_id_fk" FOREIGN KEY ("organization_id","project_id","work_item_id") REFERENCES "public"."work_item"("organization_id","project_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "decision" ADD CONSTRAINT "decision_organization_id_work_item_id_revision_id_specification_revision_organization_id_work_item_id_id_fk" FOREIGN KEY ("organization_id","work_item_id","revision_id") REFERENCES "public"."specification_revision"("organization_id","work_item_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "decision" ADD CONSTRAINT "decision_organization_id_work_item_id_revision_id_source_thread_id_thread_organization_id_work_item_id_revision_id_id_fk" FOREIGN KEY ("organization_id","work_item_id","revision_id","source_thread_id") REFERENCES "public"."thread"("organization_id","work_item_id","revision_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_connection" ADD CONSTRAINT "delivery_connection_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_connection" ADD CONSTRAINT "delivery_connection_created_by_id_user_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."user"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_publication" ADD CONSTRAINT "delivery_publication_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_publication" ADD CONSTRAINT "delivery_publication_requested_by_id_user_id_fk" FOREIGN KEY ("requested_by_id") REFERENCES "public"."user"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_publication" ADD CONSTRAINT "delivery_publication_organization_id_project_id_project_organization_id_id_fk" FOREIGN KEY ("organization_id","project_id") REFERENCES "public"."project"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_publication" ADD CONSTRAINT "delivery_publication_organization_id_connection_id_delivery_connection_organization_id_id_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."delivery_connection"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_target" ADD CONSTRAINT "delivery_target_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_target" ADD CONSTRAINT "delivery_target_organization_id_connection_id_delivery_connection_organization_id_id_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."delivery_connection"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_target" ADD CONSTRAINT "delivery_target_organization_id_team_id_team_organization_id_id_fk" FOREIGN KEY ("organization_id","team_id") REFERENCES "public"."team"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "iteration" ADD CONSTRAINT "iteration_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "iteration" ADD CONSTRAINT "iteration_organization_id_team_id_team_organization_id_id_fk" FOREIGN KEY ("organization_id","team_id") REFERENCES "public"."team"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "iteration_event" ADD CONSTRAINT "iteration_event_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -631,6 +695,8 @@ ALTER TABLE "work_item" ADD CONSTRAINT "work_item_parent_fk" FOREIGN KEY ("organ
 ALTER TABLE "work_item" ADD CONSTRAINT "work_item_milestone_fk" FOREIGN KEY ("organization_id","milestone_id") REFERENCES "public"."milestone"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_item_external_link" ADD CONSTRAINT "work_item_external_link_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_item_external_link" ADD CONSTRAINT "work_item_external_link_organization_id_work_item_id_work_item_organization_id_id_fk" FOREIGN KEY ("organization_id","work_item_id") REFERENCES "public"."work_item"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "work_item_external_link" ADD CONSTRAINT "work_item_external_link_organization_id_connection_id_delivery_connection_organization_id_id_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."delivery_connection"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "work_item_external_link" ADD CONSTRAINT "work_item_external_link_organization_id_work_item_id_published_revision_id_specification_revision_organization_id_work_item_id_id_fk" FOREIGN KEY ("organization_id","work_item_id","published_revision_id") REFERENCES "public"."specification_revision"("organization_id","work_item_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_item_label" ADD CONSTRAINT "work_item_label_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_item_label" ADD CONSTRAINT "work_item_label_organization_id_work_item_id_work_item_organization_id_id_fk" FOREIGN KEY ("organization_id","work_item_id") REFERENCES "public"."work_item"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_item_label" ADD CONSTRAINT "work_item_label_organization_id_label_id_label_organization_id_id_fk" FOREIGN KEY ("organization_id","label_id") REFERENCES "public"."label"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -657,6 +723,11 @@ CREATE INDEX "approval_revision_status_idx" ON "approval" USING btree ("organiza
 CREATE INDEX "approval_reviewer_idx" ON "approval" USING btree ("organization_id","reviewer_id");--> statement-breakpoint
 CREATE INDEX "decision_project_idx" ON "decision" USING btree ("organization_id","project_id","created_at");--> statement-breakpoint
 CREATE INDEX "decision_item_idx" ON "decision" USING btree ("organization_id","work_item_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "delivery_connection_active_site_unique" ON "delivery_connection" USING btree ("organization_id","provider","base_url") WHERE "delivery_connection"."archived_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "delivery_publication_running_idx" ON "delivery_publication" USING btree ("status","lease_until");--> statement-breakpoint
+CREATE INDEX "delivery_publication_project_idx" ON "delivery_publication" USING btree ("organization_id","project_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "delivery_target_org_default_unique" ON "delivery_target" USING btree ("organization_id") WHERE "delivery_target"."team_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "delivery_target_team_unique" ON "delivery_target" USING btree ("organization_id","team_id") WHERE "delivery_target"."team_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "iteration_one_active_per_team" ON "iteration" USING btree ("organization_id","team_id") WHERE "iteration"."state" = 'active';--> statement-breakpoint
 CREATE INDEX "iteration_event_iteration_idx" ON "iteration_event" USING btree ("organization_id","iteration_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "role_org_active_name_unique" ON "organization_role" USING btree ("organization_id",lower("name")) WHERE "organization_role"."archived_at" IS NULL;--> statement-breakpoint

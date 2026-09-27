@@ -563,11 +563,30 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
     db.insert(s.decision).values({ ...decision, workItemId: b.workItemId }),
     "23503",
   );
+  const connection = {
+    organizationId: a.organizationId,
+    provider: "jira_cloud" as const,
+    name: "Acme Jira",
+    baseUrl: "https://acme.atlassian.net",
+    accountLabel: "bot@acme.test",
+    encryptedCredential: "v1:opaque",
+    lastVerifiedAt: new Date(),
+    createdById: a.userId,
+  };
+  const connectionId = await db
+    .insert(s.deliveryConnection)
+    .values(connection)
+    .returning({ id: s.deliveryConnection.id })
+    .then((rows) => rows[0]!.id);
+  // One active connection per external site.
+  await rejectsCode(
+    db.insert(s.deliveryConnection).values(connection),
+    "23505",
+  );
   const link = {
     organizationId: a.organizationId,
     workItemId: a.workItemId,
-    provider: "example",
-    externalNamespace: "workspace",
+    connectionId,
     externalId: "123",
   };
   await db.insert(s.workItemExternalLink).values(link);

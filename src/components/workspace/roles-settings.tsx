@@ -55,6 +55,11 @@ export const capabilityMeta: Record<
     description:
       "This role, or one of its members, can be assigned a review and approve it.",
   },
+  publishDelivery: {
+    label: "Export to delivery tools",
+    description:
+      "Export ready Epics and Stories to Jira, and link items to existing Jira issues.",
+  },
 };
 
 // People: fixed application roles (Admin / Member) plus the organization roles

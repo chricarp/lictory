@@ -1218,6 +1218,7 @@ void test("organization roles grant capabilities; administrators manage roles; r
       changeProperties: false,
       requestReviews: false,
       review: false,
+      publishDelivery: false,
     },
   };
   await assert.rejects(

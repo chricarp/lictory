@@ -16,6 +16,7 @@ export const defaultRoles: { name: string; capabilities: Capabilities }[] = [
       changeProperties: true,
       requestReviews: true,
       review: true,
+      publishDelivery: true,
     },
   },
   {
@@ -25,6 +26,7 @@ export const defaultRoles: { name: string; capabilities: Capabilities }[] = [
       changeProperties: false,
       requestReviews: true,
       review: true,
+      publishDelivery: false,
     },
   },
   {
@@ -34,6 +36,7 @@ export const defaultRoles: { name: string; capabilities: Capabilities }[] = [
       changeProperties: false,
       requestReviews: true,
       review: true,
+      publishDelivery: false,
     },
   },
 ];
@@ -44,6 +47,7 @@ export function roleColumns(c: Capabilities) {
     canChangeProperties: c.changeProperties,
     canRequestReviews: c.requestReviews,
     canReview: c.review,
+    canPublishDelivery: c.publishDelivery,
   };
 }
 

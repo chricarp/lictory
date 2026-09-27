@@ -10,6 +10,7 @@ import {
   Link2,
   MoreHorizontal,
   PanelRight,
+  Upload,
   X,
 } from "lucide-react";
 import { paths } from "~/lib/paths";
@@ -56,6 +57,11 @@ import { Readiness } from "~/components/review/readiness";
 import { Activity } from "~/components/review/activity";
 import { RevisionPanel, CompareRevisions } from "~/components/review/revisions";
 import { diffStats } from "./diff";
+import {
+  ExportDialog,
+  ExternalDelivery,
+  useExportAvailability,
+} from "~/components/delivery/export";
 
 export type DetailMode =
   | { kind: "read" }
@@ -119,6 +125,15 @@ export function ItemDetail({
     [pathname, router, searchParams],
   );
   const [panelOpen, setPanelOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportAvailability = useExportAvailability(item);
+  // Export is offered for ready specifications; teams delivering in an
+  // external tool get it as a header action, others find it in the menu.
+  const canExport =
+    type.hasSpecification &&
+    exportAvailability.configured &&
+    exportAvailability.allowed &&
+    !item.archivedAt;
   const [draft, setDraft] = useState<{
     quote?: string;
     section: string;
@@ -331,6 +346,7 @@ export function ItemDetail({
         <SectionLabel className="mb-2">Properties</SectionLabel>
         {properties}
       </section>
+      {type.hasSpecification && <ExternalDelivery item={item} />}
       {ctx.reviewable ? (
         <>
           <ReviewPanel />
@@ -414,6 +430,21 @@ export function ItemDetail({
                 </Button>
               )
             )}
+            {canExport && exportAvailability.external && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={item.refinementState !== "ready"}
+                title={
+                  item.refinementState === "ready"
+                    ? `Export to ${exportAvailability.connection?.name ?? "Jira"}`
+                    : "Only ready items can be exported."
+                }
+                onClick={() => setExporting(true)}
+              >
+                <Upload className="size-3.5" /> Export to Jira
+              </Button>
+            )}
             <Popover
               width={200}
               align="end"
@@ -442,6 +473,24 @@ export function ItemDetail({
                     <Link2 className="size-3.5 text-muted-foreground" /> Copy
                     link
                   </button>
+                  {canExport && !exportAvailability.external && (
+                    <button
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
+                      disabled={item.refinementState !== "ready"}
+                      title={
+                        item.refinementState === "ready"
+                          ? undefined
+                          : "Only ready items can be exported."
+                      }
+                      onClick={() => {
+                        close();
+                        setExporting(true);
+                      }}
+                    >
+                      <Upload className="size-3.5 text-muted-foreground" />
+                      Export to Jira…
+                    </button>
+                  )}
                   <button
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
                     disabled={!workspace.capabilities.changeProperties}
@@ -620,6 +669,9 @@ export function ItemDetail({
           )}
         </div>
       </div>
+      {exporting && (
+        <ExportDialog item={item} onClose={() => setExporting(false)} />
+      )}
     </ItemContext.Provider>
   );
 }

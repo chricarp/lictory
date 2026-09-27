@@ -161,6 +161,10 @@ export const organizationRole = pgTable(
     canRequestReviews: boolean("can_request_reviews").default(false).notNull(),
     // The role (or one of its members) can be asked to review.
     canReview: boolean("can_review").default(false).notNull(),
+    // Export ready work to external delivery systems (Jira).
+    canPublishDelivery: boolean("can_publish_delivery")
+      .default(false)
+      .notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: timestamp("archived_at"),
@@ -1164,22 +1168,113 @@ export const decision = pgTable(
   ],
 );
 
-// External namespace is the remote installation/workspace, not a secret or project key.
-// In external delivery mode, published work items are linked here. Fields are
-// owned in Lictory and pushed one-way; external status is read-only metadata.
+export const deliveryProviderKind = pgEnum("delivery_provider_kind", [
+  "jira_cloud",
+]);
+export const deliveryConnectionStatus = pgEnum("delivery_connection_status", [
+  "active",
+  "invalid",
+]);
+
+// An organization's authenticated access to one external delivery system
+// installation (a Jira Cloud site). The credential is encrypted at rest
+// (src/delivery/credentials.ts) and never leaves the server. `baseUrl` is the
+// external namespace: it never changes for a connection, so links stay valid.
+export const deliveryConnection = pgTable(
+  "delivery_connection",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    provider: deliveryProviderKind("provider").notNull(),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull(),
+    // Who the credential acts as in the external system (display only).
+    accountLabel: text("account_label").notNull(),
+    encryptedCredential: text("encrypted_credential").notNull(),
+    status: deliveryConnectionStatus("status").default("active").notNull(),
+    lastError: text("last_error"),
+    lastVerifiedAt: timestamp("last_verified_at").notNull(),
+    createdById: actor("created_by_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("delivery_connection_org_id_unique").on(t.organizationId, t.id),
+    uniqueIndex("delivery_connection_active_site_unique")
+      .on(t.organizationId, t.provider, t.baseUrl)
+      .where(sql`${t.archivedAt} IS NULL`),
+    check("delivery_connection_name_present", sql`length(trim(${t.name})) > 0`),
+  ],
+);
+
+// Where exported work lands: an external project plus the mapping from
+// Lictory work item types to external types. `teamId` null is the
+// organization default; a team row overrides it.
+export const deliveryTarget = pgTable(
+  "delivery_target",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    connectionId: text("connection_id").notNull(),
+    teamId: text("team_id"),
+    externalProjectId: text("external_project_id").notNull(),
+    externalProjectKey: text("external_project_key").notNull(),
+    // Lictory work item type id → external issue type id.
+    typeMapping: jsonb("type_mapping")
+      .$type<Record<string, string>>()
+      .default({})
+      .notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("delivery_target_org_id_unique").on(t.organizationId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.connectionId],
+      foreignColumns: [
+        deliveryConnection.organizationId,
+        deliveryConnection.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("cascade"),
+    uniqueIndex("delivery_target_org_default_unique")
+      .on(t.organizationId)
+      .where(sql`${t.teamId} IS NULL`),
+    uniqueIndex("delivery_target_team_unique")
+      .on(t.organizationId, t.teamId)
+      .where(sql`${t.teamId} IS NOT NULL`),
+  ],
+);
+
+// A work item exported to (or adopted from) an external system. Summary,
+// description and labels are owned in Lictory and pushed one-way on explicit
+// export; external status is a read-only copy refreshed on each export.
 export const workItemExternalLink = pgTable(
   "work_item_external_link",
   {
     id: id(),
     organizationId: organizationId(),
     workItemId: text("work_item_id").notNull(),
-    provider: text("provider").notNull(),
-    externalNamespace: text("external_namespace").notNull(),
+    connectionId: text("connection_id").notNull(),
     externalId: text("external_id"),
     externalKey: text("external_key"),
     externalUrl: text("external_url"),
+    externalStatus: text("external_status"),
     status: deliverySyncStatus("status").default("pending").notNull(),
-    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    // Revision whose content was last pushed, and a hash of the pushed
+    // payload so unchanged items are skipped on re-export.
+    publishedRevisionId: text("published_revision_id"),
+    payloadHash: text("payload_hash"),
+    // External system's own last-modified time right after Lictory's last
+    // write; changes after it (in the external clock) are external edits.
+    externalUpdatedAt: timestamp("external_updated_at"),
+    // Set (and committed) right before an external create, so a crash
+    // between the create and recording it is recovered, not duplicated.
+    createAttemptedAt: timestamp("create_attempted_at"),
     lastError: text("last_error"),
     syncedAt: timestamp("synced_at"),
     createdAt: createdAt(),
@@ -1190,22 +1285,112 @@ export const workItemExternalLink = pgTable(
       columns: [t.organizationId, t.workItemId],
       foreignColumns: [workItem.organizationId, workItem.id],
     }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.connectionId],
+      foreignColumns: [
+        deliveryConnection.organizationId,
+        deliveryConnection.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.publishedRevisionId],
+      foreignColumns: [
+        specificationRevision.organizationId,
+        specificationRevision.workItemId,
+        specificationRevision.id,
+      ],
+    }).onDelete("restrict"),
     unique("external_link_destination_unique").on(
       t.organizationId,
       t.workItemId,
-      t.provider,
-      t.externalNamespace,
+      t.connectionId,
     ),
     unique("external_link_identity_unique").on(
       t.organizationId,
-      t.provider,
-      t.externalNamespace,
+      t.connectionId,
       t.externalId,
     ),
     index("external_link_sync_idx").on(t.organizationId, t.status),
     check(
       "external_link_synced_identity",
       sql`${t.status} <> 'synced' OR (${t.externalId} IS NOT NULL AND ${t.syncedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const deliveryPublicationStatus = pgEnum("delivery_publication_status", [
+  "running",
+  "completed",
+  "partial",
+  "failed",
+]);
+
+export type DeliveryItemOutcome =
+  | "pending"
+  | "created"
+  | "updated"
+  | "unchanged"
+  | "conflict"
+  | "failed"
+  | "skipped";
+
+// One explicit export run: who asked, what, and what happened to each item.
+// Links hold the current external state; publications are the audit trail
+// ("why was this published", "which revision went out") and survive re-exports.
+export const deliveryPublication = pgTable(
+  "delivery_publication",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    projectId: text("project_id").notNull(),
+    connectionId: text("connection_id").notNull(),
+    requestedById: actor("requested_by_id"),
+    // Item exported with its subtree, or null for a hand-picked selection.
+    rootItemId: text("root_item_id"),
+    // Parents before children; the worker processes in this order.
+    itemIds: jsonb("item_ids").$type<string[]>().notNull(),
+    // Items the requester confirmed may overwrite external edits.
+    overwriteItemIds: jsonb("overwrite_item_ids")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    results: jsonb("results")
+      .$type<
+        Record<
+          string,
+          {
+            outcome: DeliveryItemOutcome;
+            message?: string;
+            externalKey?: string;
+            revisionNumber?: number;
+          }
+        >
+      >()
+      .default({})
+      .notNull(),
+    status: deliveryPublicationStatus("status").default("running").notNull(),
+    // Worker lease: only one process advances a publication at a time.
+    leaseUntil: timestamp("lease_until"),
+    createdAt: createdAt(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.connectionId],
+      foreignColumns: [
+        deliveryConnection.organizationId,
+        deliveryConnection.id,
+      ],
+    }).onDelete("restrict"),
+    index("delivery_publication_running_idx").on(t.status, t.leaseUntil),
+    index("delivery_publication_project_idx").on(
+      t.organizationId,
+      t.projectId,
+      t.createdAt,
     ),
   ],
 );
