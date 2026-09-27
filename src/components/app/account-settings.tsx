@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  AtSign,
   KeyRound,
   Link2,
   Mail,
@@ -11,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { HandleForm } from "~/components/auth/handle-form";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/primitives";
@@ -25,7 +27,12 @@ import { authClient } from "~/lib/auth-client";
 import { cn, formValue } from "~/lib/utils";
 
 type AccountSettingsProps = {
-  user: { name: string; email: string; emailVerified: boolean };
+  user: {
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    handle: string;
+  };
   providers: { google: boolean; microsoft: boolean };
   connectedProviders: string[];
   sessionCount: number;
@@ -38,6 +45,7 @@ export function AccountSettings(props: AccountSettingsProps) {
   const hasPassword = props.connectedProviders.includes("credential");
   const nav = [
     { id: "profile", label: "Profile" },
+    { id: "handle", label: "Handle" },
     { id: "email", label: "Email" },
     ...(hasPassword ? [{ id: "password", label: "Password" }] : []),
     { id: "connections", label: "Connected accounts" },
@@ -71,6 +79,7 @@ export function AccountSettings(props: AccountSettingsProps) {
           description="How collaborators see you and where we reach you."
         >
           <ProfileSection user={props.user} />
+          <HandleSection handle={props.user.handle} />
           <EmailSection user={props.user} />
         </SettingsGroup>
 
@@ -197,6 +206,32 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
             {message}
           </Status>
         </form>
+      </SettingsBody>
+    </SettingsSection>
+  );
+}
+
+function HandleSection({ handle }: { handle: string }) {
+  const [saved, setSaved] = useState<string | null>(null);
+  return (
+    <SettingsSection
+      id="handle"
+      icon={<AtSign />}
+      title="Handle"
+      description="Unique across Lictory. People type it to mention and find you; existing mentions keep pointing to you when it changes."
+    >
+      <SettingsBody>
+        <div className="max-w-sm space-y-2">
+          <HandleForm
+            key={handle}
+            initial={handle}
+            current={handle}
+            suggestions={[]}
+            submitLabel="Save handle"
+            onSaved={(h) => setSaved(`Your handle is now @${h}.`)}
+          />
+          <Status tone="success">{saved}</Status>
+        </div>
       </SettingsBody>
     </SettingsSection>
   );

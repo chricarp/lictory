@@ -166,6 +166,7 @@ export async function directory(
         id: s.user.id,
         name: s.user.name,
         email: s.user.email,
+        handle: s.user.handle,
         memberId: s.member.id,
         rawRole: s.member.role,
       })
@@ -422,19 +423,30 @@ export async function searchMembers(
     "Organization access has been removed.",
     "forbidden",
   );
-  const term = query.trim().replace(/[%_]/g, "");
+  const raw = query.trim();
+  // "@alex" searches handles only; plain text also matches name and email.
+  const handleOnly = raw.startsWith("@");
+  const term = raw.replace(/^@+/, "").replace(/[%_\\]/g, (c) => `\\${c}`);
   const rows = await db
-    .select({ id: s.user.id, name: s.user.name, email: s.user.email })
+    .select({
+      id: s.user.id,
+      name: s.user.name,
+      email: s.user.email,
+      handle: s.user.handle,
+    })
     .from(s.member)
     .innerJoin(s.user, eq(s.member.userId, s.user.id))
     .where(
       and(
         eq(s.member.organizationId, organizationId),
         term
-          ? or(
-              ilike(s.user.name, `%${term}%`),
-              ilike(s.user.email, `%${term}%`),
-            )
+          ? handleOnly
+            ? ilike(s.user.handle, `${term}%`)
+            : or(
+                ilike(s.user.handle, `${term}%`),
+                ilike(s.user.name, `%${term}%`),
+                ilike(s.user.email, `%${term}%`),
+              )
           : undefined,
       ),
     )

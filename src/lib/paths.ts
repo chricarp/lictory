@@ -51,3 +51,10 @@ export const paths = {
   teamSettings: (org: string, team: string) =>
     `/app/${org}/teams/${team}/settings`,
 };
+
+// Only in-app destinations are allowed as post-step redirects.
+export function safeAppPath(value: string | null | undefined) {
+  return value && /^\/app(?:[/?#]|$)/.test(value) && !value.startsWith("//")
+    ? value
+    : "/app";
+}

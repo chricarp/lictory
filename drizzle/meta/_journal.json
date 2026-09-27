@@ -15,6 +15,13 @@
       "when": 1790537716069,
       "tag": "0001_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790539356877,
+      "tag": "0002_user_handles",
+      "breakpoints": true
     }
   ]
 }

@@ -33,7 +33,13 @@ export default async function OrganizationLayout({
       organization={organization}
       initialDirectory={roster}
     >
-      <Shell user={{ name: session.user.name, email: session.user.email }}>
+      <Shell
+        user={{
+          name: session.user.name,
+          email: session.user.email,
+          handle: session.user.handle ?? null,
+        }}
+      >
         {children}
       </Shell>
     </WorkspaceProvider>

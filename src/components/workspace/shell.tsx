@@ -91,7 +91,7 @@ export function Shell({
   user,
   children,
 }: {
-  user: { name: string; email: string };
+  user: { name: string; email: string; handle: string | null };
   children: ReactNode;
 }) {
   const {
@@ -335,7 +335,7 @@ function Sidebar({
   project?: Project;
   pathname: string;
   inboxCount: number;
-  user: { name: string; email: string };
+  user: { name: string; email: string; handle: string | null };
   onCreate?: () => void;
   onSearch: () => void;
   onSignOut: () => void;
@@ -544,7 +544,7 @@ function Sidebar({
               <div className="px-2 py-1.5">
                 <p className="truncate text-[13px] font-medium">{user.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {user.email}
+                  {user.handle ? `@${user.handle} · ${user.email}` : user.email}
                 </p>
               </div>
               <div className="my-1 border-t" />

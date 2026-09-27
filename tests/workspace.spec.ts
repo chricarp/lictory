@@ -12,16 +12,17 @@ const password = "Local-test-password-123";
 test.beforeAll(async () => {
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
-  for (const [name, mail] of [
-    ["Alex Morgan", email],
-    ["Riley Chen", reviewerEmail],
-    ["Taylor Rivera", multiOrgEmail],
+  // Taylor has no handle yet, so signing in must pass the handle step.
+  for (const [name, mail, handle] of [
+    ["Alex Morgan", email, "alex_morgan"],
+    ["Riley Chen", reviewerEmail, "riley_chen"],
+    ["Taylor Rivera", multiOrgEmail, null],
   ] as const) {
     const id = crypto.randomUUID();
     // A worker restarted after a failure re-runs this hook on the same database.
     const inserted = await db
       .insert(s.user)
-      .values({ id, name, email: mail, emailVerified: true })
+      .values({ id, name, email: mail, emailVerified: true, handle })
       .onConflictDoNothing()
       .returning({ id: s.user.id });
     if (!inserted.length) continue;
@@ -40,6 +41,18 @@ test("an existing member can create and switch to another organization", async (
   page,
 }) => {
   await signIn(page, multiOrgEmail);
+  // Choosing a handle is required before entering the app.
+  await expect(page).toHaveURL(/\/welcome\?next=/);
+  const handle = page.getByLabel("Handle");
+  await expect(handle).toHaveValue("taylor_rivera");
+  await handle.fill("riley_chen");
+  await expect(page.getByText("That handle is already taken.")).toBeVisible();
+  await handle.fill("@Taylor_R");
+  await expect(page.getByText("@taylor_r is available.")).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/\/app$/);
+  await page.goto("/welcome");
+  await expect(page).toHaveURL(/\/app$/);
   await page.getByLabel("Organization name").fill("First Team");
   await page.getByRole("button", { name: "Create organization" }).click();
   await expect(
@@ -66,7 +79,7 @@ async function signIn(page: Page, loginEmail = email) {
   await page.getByLabel("Email", { exact: true }).fill(loginEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(/\/(app|welcome)/);
   // Dev-mode compilation can delay hydration; interact only once scripts settled.
   await page.waitForLoadState("networkidle");
 }
@@ -405,16 +418,22 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     "Late answers are acknowledged and reconciled against the original ID. cc ",
   );
   // Typing @ offers members; choosing one stores a mention token.
-  await replyBox.pressSequentially("@Ril");
+  await replyBox.pressSequentially("@ril");
+  await expect(page.getByRole("option", { name: /@riley_chen/ })).toBeVisible();
   await page.getByRole("option", { name: /Riley Chen/ }).click();
-  await expect(replyBox).toHaveValue(/@\[Riley Chen\]\(mention:[^)]+\) $/);
+  await expect(replyBox).toHaveValue(/@\[riley_chen\]\(mention:[^)]+\) $/);
+  // Typing a full handle links it without using the list.
+  await replyBox.pressSequentially("and @alex_morgan ");
+  await expect(replyBox).toHaveValue(
+    /@\[riley_chen\]\(mention:[^)]+\) and @\[alex_morgan\]\(mention:[^)]+\) $/,
+  );
   await page.getByRole("button", { name: "Reply", exact: true }).click();
   await expect(
     reviewer.getByText(
       "Late answers are acknowledged and reconciled against the original ID.",
     ),
   ).toBeVisible();
-  await expect(reviewer.getByText("@Riley Chen").first()).toBeVisible();
+  await expect(reviewer.getByText("@riley_chen").first()).toBeVisible();
 
   // Inbox updates: the owner hears about the blocking discussion; the
   // reviewer about the review request and the mention (not also a reply).

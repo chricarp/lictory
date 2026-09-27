@@ -127,6 +127,12 @@ export function People() {
                   )}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
+                  {m.handle && (
+                    <>
+                      @{m.handle}
+                      <span className="mx-1.5 text-muted-foreground/50">·</span>
+                    </>
+                  )}
                   {m.email}
                   <span className="mx-1.5 text-muted-foreground/50">·</span>
                   {held.length > 0

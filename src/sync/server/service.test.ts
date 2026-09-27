@@ -953,10 +953,12 @@ void test("labels, milestones and manual ordering are project-scoped, non-materi
 });
 void test("member search pages and filters without returning the full roster", async () => {
   const f = await fixture();
+  const tag = crypto.randomUUID().slice(0, 8).replace(/-/g, "");
   const extra = Array.from({ length: 25 }, (_, i) => ({
     id: crypto.randomUUID(),
     name: i === 0 ? "Zelda Query" : `Member ${String(i).padStart(2, "0")}`,
     email: `member${i}@example.test`,
+    handle: i === 0 ? `zq${tag}` : null,
   }));
   await db.insert(s.user).values(extra);
   await db.insert(s.member).values(
@@ -991,6 +993,31 @@ void test("member search pages and filters without returning the full roster", a
   assert.equal(named.members.length, 1);
   assert.equal(named.members[0]?.name, "Zelda Query");
   assert.equal(named.hasMore, false);
+  // Handles are searchable, with or without "@", and "_" is not a wildcard.
+  const byHandle = await searchMembers(
+    db,
+    f.userId,
+    f.organizationId,
+    `@ZQ${tag}`,
+  );
+  assert.deepEqual(
+    byHandle.members.map((m) => m.handle),
+    [`zq${tag}`],
+  );
+  assert.equal(
+    (await searchMembers(db, f.userId, f.organizationId, `zq${tag}`)).members
+      .length,
+    1,
+  );
+  assert.equal(
+    (await searchMembers(db, f.userId, f.organizationId, "@z_")).members.length,
+    0,
+  );
+  assert.equal(
+    (await searchMembers(db, f.userId, f.organizationId, "@zelda")).members
+      .length,
+    0,
+  );
   const outsider = crypto.randomUUID();
   await db.insert(s.user).values({
     id: outsider,

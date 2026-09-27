@@ -401,6 +401,8 @@ export const memberSchema = z.object({
   id,
   name: z.string(),
   email: z.string(),
+  // Platform-wide handle; null only for accounts that have not chosen one.
+  handle: z.string().nullable(),
 });
 export type DirectoryMember = z.infer<typeof memberSchema>;
 export const directoryMemberSchema = memberSchema.extend({
@@ -646,7 +648,7 @@ export const directorySchema = z.object({
   }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 8 as const;
+export const PROTOCOL = 9 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),

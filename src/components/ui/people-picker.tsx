@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { UserRound } from "lucide-react";
+import { matchesPerson } from "~/lib/handles";
 import { cn } from "~/lib/utils";
 import { searchMembers } from "~/sync/client/engine";
 import type { DirectoryMember } from "~/sync/shared/protocol";
@@ -349,8 +350,8 @@ function memberOption(
   return {
     value: memberValue(member),
     label: member.id === userId ? `${member.name} (me)` : member.name,
-    hint: member.email,
-    keywords: `${member.name} ${member.email}`,
+    hint: member.handle ? `@${member.handle}` : member.email,
+    keywords: `${member.name} ${member.handle ? `@${member.handle}` : ""} ${member.email}`,
     icon: <Avatar name={member.name} size="xs" />,
   };
 }
@@ -454,12 +455,7 @@ function matchesQuery(option: PickerOption<string>, query: string) {
 }
 
 function matchesMember(member: DirectoryMember, query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return (
-    member.name.toLowerCase().includes(q) ||
-    member.email.toLowerCase().includes(q)
-  );
+  return matchesPerson(member, query);
 }
 
 function compareMembers(

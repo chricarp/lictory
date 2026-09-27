@@ -28,9 +28,15 @@ import {
 import { Markdown } from "~/components/items/markdown";
 import { Avatar } from "~/components/ui/primitives";
 import { cn } from "~/lib/utils";
+import { matchesPerson } from "~/lib/handles";
 import { mentionToken } from "~/notifications/mentions";
 
-export type Mentionable = { id: string; name: string; email?: string };
+export type Mentionable = {
+  id: string;
+  name: string;
+  email?: string;
+  handle?: string | null;
+};
 
 type MarkdownEditorProps = Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -80,13 +86,13 @@ export const MarkdownEditor = forwardRef<
   const matches =
     mention && mentions
       ? mentions
-          .filter((m) => {
-            const q = mention.query.toLowerCase();
-            return (
-              m.name.toLowerCase().includes(q) ||
-              (m.email?.toLowerCase().startsWith(q) ?? false)
-            );
-          })
+          .filter((m) => matchesPerson(m, mention.query))
+          // Handle-prefix matches first: that is what people type after @.
+          .sort(
+            (a, b) =>
+              Number(!a.handle?.startsWith(mention.query.toLowerCase())) -
+              Number(!b.handle?.startsWith(mention.query.toLowerCase())),
+          )
           .slice(0, 6)
       : [];
   const detectMention = (text: string, caret: number) => {
@@ -111,13 +117,22 @@ export const MarkdownEditor = forwardRef<
     if (!preview) resize();
   }, [preview, resize, value]);
 
+  // Caret to restore once the edited value has rendered. Applied in a layout
+  // effect (not a later frame) so fast typing cannot land before it.
+  const pendingSelection = useRef<Edit | null>(null);
+  useLayoutEffect(() => {
+    const edit = pendingSelection.current;
+    const textarea = textareaRef.current;
+    if (!edit || textarea?.value !== edit.value) return;
+    pendingSelection.current = null;
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(edit.start, edit.end);
+  }, [value]);
+
   const commit = useCallback(
     (edit: Edit) => {
+      pendingSelection.current = edit;
       onValueChange(edit.value);
-      requestAnimationFrame(() => {
-        textareaRef.current?.focus({ preventScroll: true });
-        textareaRef.current?.setSelectionRange(edit.start, edit.end);
-      });
     },
     [onValueChange],
   );
@@ -352,6 +367,16 @@ export const MarkdownEditor = forwardRef<
           ref={textareaRef}
           value={value}
           onChange={(event) => {
+            const linked = linkTypedHandle(
+              event.target.value,
+              event.target.selectionStart ?? event.target.value.length,
+              mentions,
+            );
+            if (linked) {
+              setMention(null);
+              commit(linked);
+              return;
+            }
             onValueChange(event.target.value);
             detectMention(
               event.target.value,
@@ -396,9 +421,9 @@ export const MarkdownEditor = forwardRef<
               >
                 <Avatar name={m.name} size="xs" />
                 <span className="truncate">{m.name}</span>
-                {m.email && (
+                {(m.handle ?? m.email) && (
                   <span className="ml-auto truncate text-[11px] text-muted-foreground">
-                    {m.email}
+                    {m.handle ? `@${m.handle}` : m.email}
                   </span>
                 )}
               </button>
@@ -460,3 +485,28 @@ export const MarkdownEditor = forwardRef<
     </div>
   );
 });
+
+// Typing "@handle" followed by a space or punctuation links it to that person,
+// so a mention works without picking from the list.
+function linkTypedHandle(
+  text: string,
+  caret: number,
+  mentions: Mentionable[] | undefined,
+): Edit | null {
+  if (!mentions?.length) return null;
+  const match = /(^|\s)@([A-Za-z0-9_]{3,30})([\s.,;:!?)])$/.exec(
+    text.slice(0, caret),
+  );
+  if (!match) return null;
+  const person = mentions.find(
+    (m) => m.handle && m.handle === match[2]!.toLowerCase(),
+  );
+  if (!person) return null;
+  const start = caret - match[2]!.length - match[3]!.length - 1;
+  const token = mentionToken(person) + match[3]!;
+  return {
+    value: text.slice(0, start) + token + text.slice(caret),
+    start: start + token.length,
+    end: start + token.length,
+  };
+}

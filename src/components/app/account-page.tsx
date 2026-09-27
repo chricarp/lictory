@@ -74,7 +74,7 @@ export async function AccountPage({ returnTo }: { returnTo?: string }) {
             Account settings
           </h1>
           <p className="truncate text-[13px] text-muted-foreground">
-            {session.user.name} · {session.user.email} · applies to you
+            {session.user.name} · @{session.user.handle} · applies to you
             everywhere, not to one organization
           </p>
         </div>
@@ -85,6 +85,7 @@ export async function AccountPage({ returnTo }: { returnTo?: string }) {
           name: session.user.name,
           email: session.user.email,
           emailVerified: session.user.emailVerified,
+          handle: session.user.handle ?? "",
         }}
         providers={authProviders}
         connectedProviders={accounts.map((account) => account.providerId)}

@@ -4,9 +4,14 @@ import { useId, useState, type InputHTMLAttributes } from "react";
 import { Check, Eye, EyeOff } from "lucide-react";
 
 import { Input } from "~/components/ui/input";
+import {
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  stripWhitespace,
+} from "~/lib/password-policy";
 import { cn } from "~/lib/utils";
 
-export const MIN_PASSWORD_LENGTH = 10;
+export { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH };
 
 type PasswordInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -14,12 +19,15 @@ type PasswordInputProps = Omit<
 > & {
   label: string;
   hint?: React.ReactNode;
+  /** Decoration rendered over the input, e.g. a strength meter. */
+  overlay?: React.ReactNode;
 };
 
 /** Password input with a show/hide toggle. */
 export function PasswordInput({
   label,
   hint,
+  overlay,
   id,
   className,
   ...props
@@ -52,6 +60,7 @@ export function PasswordInput({
         >
           {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
         </button>
+        {overlay}
       </div>
     </div>
   );
@@ -110,6 +119,19 @@ const meterColor: Record<Strength["score"], string> = {
   4: "bg-emerald-500",
 };
 
+const meterText: Record<Strength["score"], string> = {
+  0: "text-destructive",
+  1: "text-destructive",
+  2: "text-amber-600 dark:text-amber-400",
+  3: "text-emerald-600 dark:text-emerald-400",
+  4: "text-emerald-600 dark:text-emerald-400",
+};
+
+/** Drops whitespace (typed or pasted) and caps the length. */
+function sanitize(value: string): string {
+  return stripWhitespace(value).slice(0, MAX_PASSWORD_LENGTH);
+}
+
 /**
  * Password + confirmation pair for account creation and password reset.
  * Shows live strength guidance and confirms the two entries match.
@@ -129,56 +151,74 @@ export function NewPasswordFields({
   const matchId = useId();
 
   const strength = assessPassword(password);
+  const hasPassword = password.length > 0;
   const showConfirmationState = confirmation.length > 0;
   const matches = password === confirmation;
 
   return (
     <>
-      <div className="grid gap-2">
-        <PasswordInput
-          id="password"
-          name="password"
-          label={passwordLabel}
-          hint={`${MIN_PASSWORD_LENGTH} characters minimum`}
-          autoComplete="new-password"
-          minLength={MIN_PASSWORD_LENGTH}
-          required
-          autoFocus={autoFocus}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          aria-describedby={feedbackId}
-        />
-        <div
-          id={feedbackId}
-          aria-live="polite"
-          className={cn(
-            "grid gap-1.5 transition-opacity duration-150",
-            password ? "opacity-100" : "opacity-0",
-          )}
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="flex flex-1 gap-1" aria-hidden>
-              {[1, 2, 3, 4].map((step) => (
-                <span
-                  key={step}
-                  className={cn(
-                    "h-1 flex-1 rounded-full transition-colors duration-200",
-                    step <= Math.max(strength.score, password ? 1 : 0)
-                      ? meterColor[strength.score]
-                      : "bg-border",
-                  )}
-                />
-              ))}
-            </div>
-            <span className="min-w-14 text-right text-xs font-medium tabular-nums">
+      <PasswordInput
+        id="password"
+        name="password"
+        label={passwordLabel}
+        hint={
+          // Swaps in place of the minimum-length hint so nothing reflows.
+          <span className="relative inline-grid justify-items-end">
+            <span
+              aria-hidden={hasPassword}
+              className={cn(
+                "col-start-1 row-start-1 transition-[opacity,transform] duration-200 ease-out",
+                hasPassword && "-translate-y-1 opacity-0",
+              )}
+            >
+              {MIN_PASSWORD_LENGTH}–{MAX_PASSWORD_LENGTH} characters, no spaces
+            </span>
+            <span
+              aria-hidden
+              title={strength.hint}
+              className={cn(
+                "col-start-1 row-start-1 font-medium transition-[opacity,transform,color] duration-200 ease-out",
+                meterText[strength.score],
+                hasPassword ? "opacity-100" : "translate-y-1 opacity-0",
+              )}
+            >
               {strength.label}
             </span>
+          </span>
+        }
+        overlay={
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-5 bottom-1 flex gap-1 transition-[opacity,transform] duration-200 ease-out",
+              hasPassword ? "opacity-100" : "scale-x-95 opacity-0",
+            )}
+          >
+            {[1, 2, 3, 4].map((step) => (
+              <span
+                key={step}
+                className={cn(
+                  "h-0.5 flex-1 rounded-full transition-colors duration-300",
+                  step <= Math.max(strength.score, 1)
+                    ? meterColor[strength.score]
+                    : "bg-border",
+                )}
+              />
+            ))}
           </div>
-          <p className="text-xs leading-5 text-muted-foreground">
-            {strength.hint || "\u00a0"}
-          </p>
-        </div>
-      </div>
+        }
+        autoComplete="new-password"
+        minLength={MIN_PASSWORD_LENGTH}
+        maxLength={MAX_PASSWORD_LENGTH}
+        required
+        autoFocus={autoFocus}
+        value={password}
+        onChange={(event) => setPassword(sanitize(event.target.value))}
+        aria-describedby={feedbackId}
+      />
+      <span id={feedbackId} aria-live="polite" className="sr-only">
+        {hasPassword ? `${strength.label}. ${strength.hint}` : ""}
+      </span>
 
       <PasswordInput
         id="confirmation"
@@ -186,9 +226,10 @@ export function NewPasswordFields({
         label={confirmationLabel}
         autoComplete="new-password"
         minLength={MIN_PASSWORD_LENGTH}
+        maxLength={MAX_PASSWORD_LENGTH}
         required
         value={confirmation}
-        onChange={(event) => setConfirmation(event.target.value)}
+        onChange={(event) => setConfirmation(sanitize(event.target.value))}
         aria-describedby={matchId}
         aria-invalid={showConfirmationState && !matches ? true : undefined}
         hint={

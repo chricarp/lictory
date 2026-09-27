@@ -62,11 +62,8 @@ before(async () => {
       join(baseline, `${first.tag}.sql`),
     );
     await migrate(db, { migrationsFolder: baseline });
-    await db.insert(s.user).values({
-      id: legacyUserId,
-      name: "Existing user",
-      email: "legacy@example.test",
-    });
+    // Raw insert: the baseline predates later user columns (such as handle).
+    await client`INSERT INTO "user" (id, name, email) VALUES (${legacyUserId}, 'Existing user', 'legacy@example.test')`;
     await db.insert(s.account).values({
       id: "legacy-account",
       userId: legacyUserId,
