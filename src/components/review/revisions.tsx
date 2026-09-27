@@ -134,8 +134,8 @@ export function CompareRevisions({
         <ArrowRight className="size-3.5 text-muted-foreground" />
         {select(to, (id) => onChange(from, id))}
         <span className="text-xs tabular-nums">
-          <span className="text-emerald-700">+{stats.added}</span>{" "}
-          <span className="text-red-700">−{stats.removed}</span> lines
+          <span className="text-success">+{stats.added}</span>{" "}
+          <span className="text-destructive">−{stats.removed}</span> lines
         </span>
         <span className="ml-auto text-xs text-muted-foreground">
           {memberName(b.authorId)} · {relativeTime(b.createdAt)}
@@ -144,8 +144,8 @@ export function CompareRevisions({
       </div>
       {a.title !== b.title && (
         <p className="mb-2 text-[13px]">
-          Title: <span className="text-red-700 line-through">{a.title}</span> →{" "}
-          <span className="text-emerald-700">{b.title}</span>
+          Title: <span className="text-destructive line-through">{a.title}</span> →{" "}
+          <span className="text-success">{b.title}</span>
         </p>
       )}
       <RevisionDiff before={a.content} after={b.content} />

@@ -26,7 +26,7 @@ export function Button({
         variant === "primary" &&
           "bg-primary text-primary-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.12),0_1px_1px_oklch(0_0_0/0.08)] hover:bg-primary/90",
         variant === "secondary" &&
-          "bg-card text-foreground shadow-[var(--shadow-border)] hover:bg-muted",
+          "bg-card text-foreground shadow-(--shadow-border) hover:bg-muted",
         variant === "outline" &&
           "border bg-transparent text-foreground hover:bg-muted",
         variant === "danger" &&

@@ -44,7 +44,7 @@ export function IssueIdentifier({
     >
       {id}
       {copied ? (
-        <Check className="size-3 text-emerald-600" />
+        <Check className="size-3 text-success" />
       ) : (
         <Copy className="size-3 opacity-0 group-hover:opacity-100" />
       )}

@@ -224,7 +224,7 @@ function Reader({
               role="toolbar"
               aria-label="Selection actions"
               style={{ left: selection.x, top: selection.y - 40 }}
-              className="absolute z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-[var(--shadow-panel)]"
+              className="absolute z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
             >
               <Button
                 size="sm"

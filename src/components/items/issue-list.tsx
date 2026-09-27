@@ -536,7 +536,7 @@ export function IssueList({
             {groups.map((g) => (
               <li key={g.status ?? "all"}>
                 {g.status && (
-                  <div className="sticky top-0 z-[1] flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs font-medium backdrop-blur">
+                  <div className="sticky top-0 z-1 flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs font-medium backdrop-blur">
                     <StatusIcon category={g.status} />
                     {categoryMeta[g.status].label}
                     <span className="text-muted-foreground tabular-nums">

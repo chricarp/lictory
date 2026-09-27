@@ -10,6 +10,14 @@ export const authSchemaOptions = {
       // workspace access. Only settable through the handle endpoint, which
       // validates it, never through Better Auth's generic user update.
       handle: { type: "string", required: false, unique: true, input: false },
+      // "system" | "light" | "dark" (see `~/lib/appearance`). Set only through
+      // the appearance endpoint, which validates the value.
+      appearance: {
+        type: "string",
+        required: true,
+        defaultValue: "system",
+        input: false,
+      },
     },
   },
   plugins: [organization()],

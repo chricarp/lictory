@@ -80,7 +80,7 @@ export function useAttention() {
             .filter((r) => r.status === "changes_requested")
             .map((r) => r.responsibility)
             .join(", "),
-          icon: <MessageSquareWarning className="size-4 text-amber-600" />,
+          icon: <MessageSquareWarning className="size-4 text-warning" />,
           weight: 1,
         });
       else if (mine(item) && item.blockingThreads > 0)
@@ -88,7 +88,7 @@ export function useAttention() {
           item,
           reason: "Blocked",
           detail: `${item.blockingThreads} blocking discussion${item.blockingThreads > 1 ? "s" : ""} open`,
-          icon: <CircleAlert className="size-4 text-red-600" />,
+          icon: <CircleAlert className="size-4 text-destructive" />,
           weight: 2,
         });
       else if (
@@ -102,7 +102,7 @@ export function useAttention() {
           item,
           reason: "Ready for development",
           detail: `${item.readinessPassed}/${item.readinessTotal} checks pass`,
-          icon: <CircleCheckBig className="size-4 text-emerald-600" />,
+          icon: <CircleCheckBig className="size-4 text-success" />,
           weight: 3,
         });
     }

@@ -4,6 +4,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   AtSign,
+  Monitor,
+  Moon,
+  Palette,
+  Sun,
   KeyRound,
   Link2,
   Mail,
@@ -12,6 +16,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { useAppearance } from "~/components/app/appearance-provider";
 import { HandleForm } from "~/components/auth/handle-form";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -23,6 +28,7 @@ import {
   SettingsList,
   SettingsSection,
 } from "~/components/workspace/settings-section";
+import type { Appearance } from "~/lib/appearance";
 import { authClient } from "~/lib/auth-client";
 import { cn, formValue } from "~/lib/utils";
 
@@ -47,6 +53,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "profile", label: "Profile" },
     { id: "handle", label: "Handle" },
     { id: "email", label: "Email" },
+    { id: "appearance", label: "Appearance" },
     ...(hasPassword ? [{ id: "password", label: "Password" }] : []),
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
@@ -81,6 +88,13 @@ export function AccountSettings(props: AccountSettingsProps) {
           <ProfileSection user={props.user} />
           <HandleSection handle={props.user.handle} />
           <EmailSection user={props.user} />
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Preferences"
+          description="How Lictory looks for you, on every device you sign in to."
+        >
+          <AppearanceSection />
         </SettingsGroup>
 
         <SettingsGroup
@@ -429,6 +443,106 @@ function ConnectionsSection({
           );
         })}
       </SettingsList>
+    </SettingsSection>
+  );
+}
+
+const appearanceOptions: {
+  value: Appearance;
+  label: string;
+  icon: typeof Sun;
+}[] = [
+  { value: "system", label: "System", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+];
+
+function AppearanceSection() {
+  const { appearance, setAppearance } = useAppearance();
+  const [error, setError] = useState<string | null>(null);
+
+  // Applied immediately; saved in the background and reverted if it fails.
+  async function choose(next: Appearance) {
+    if (next === appearance) return;
+    const previous = appearance;
+    setAppearance(next);
+    setError(null);
+    const response = await fetch("/api/appearance", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ appearance: next }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setAppearance(previous);
+      const body = (await response?.json().catch(() => null)) as {
+        error?: { message?: string };
+      } | null;
+      setError(
+        body?.error?.message ??
+          "Appearance was not saved. Check your connection and try again.",
+      );
+    }
+  }
+
+  return (
+    <SettingsSection
+      id="appearance"
+      icon={<Palette />}
+      title="Appearance"
+      description="System follows your device and switches automatically when it does."
+    >
+      <SettingsBody className="space-y-2">
+        <div
+          role="radiogroup"
+          aria-label="Appearance"
+          className="inline-flex rounded-lg bg-muted p-0.5"
+          onKeyDown={(event) => {
+            const step =
+              event.key === "ArrowRight" || event.key === "ArrowDown"
+                ? 1
+                : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                  ? -1
+                  : 0;
+            if (!step) return;
+            event.preventDefault();
+            const count = appearanceOptions.length;
+            const index = appearanceOptions.findIndex(
+              (o) => o.value === appearance,
+            );
+            const next = appearanceOptions[(index + step + count) % count];
+            if (next) void choose(next.value);
+            const buttons =
+              event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                "[role=radio]",
+              );
+            buttons[(index + step + count) % count]?.focus();
+          }}
+        >
+          {appearanceOptions.map(({ value, label, icon: Icon }) => {
+            const selected = appearance === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => choose(value)}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                  selected
+                    ? "bg-card font-medium text-foreground shadow-(--shadow-border)"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon aria-hidden className="size-3.5" strokeWidth={1.75} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <Status tone="error">{error}</Status>
+      </SettingsBody>
     </SettingsSection>
   );
 }

@@ -264,7 +264,7 @@ export function NotificationSettings() {
               <section
                 key={category}
                 aria-labelledby={`category-${category}`}
-                className="rounded-xl bg-card shadow-[var(--shadow-border)]"
+                className="rounded-xl bg-card shadow-(--shadow-border)"
               >
                 <div className="flex items-center gap-3 border-b px-4 py-2.5">
                   <h2

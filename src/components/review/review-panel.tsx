@@ -62,7 +62,7 @@ export function ReviewPanel() {
             className={cn(
               "text-xs tabular-nums",
               approved === active.length
-                ? "text-emerald-600"
+                ? "text-success"
                 : "text-muted-foreground",
             )}
           >
@@ -113,9 +113,9 @@ export function ReviewPanel() {
               >
                 <div className="flex items-center gap-2">
                   {review.status === "completed" ? (
-                    <ShieldCheck className="size-4 text-emerald-600" />
+                    <ShieldCheck className="size-4 text-success" />
                   ) : review.status === "changes_requested" ? (
-                    <ShieldX className="size-4 text-amber-600" />
+                    <ShieldX className="size-4 text-warning" />
                   ) : (
                     <span className="grid size-4 place-items-center rounded-full border border-dashed border-muted-foreground/60" />
                   )}
@@ -159,7 +159,7 @@ export function ReviewPanel() {
                   {granted.map((a) => (
                     <span
                       key={a.id}
-                      className="inline-flex items-center gap-1 text-emerald-700"
+                      className="inline-flex items-center gap-1 text-success"
                     >
                       <Check className="size-3" /> {memberName(a.reviewerId)} ·
                       revision {revisionNumber(a.revisionId)}
@@ -224,7 +224,7 @@ export function ReviewPanel() {
                     {memberName(a.reviewerId)} approved revision{" "}
                     {revisionNumber(a.revisionId)} ·{" "}
                     <span
-                      className={a.status === "stale" ? "text-amber-700" : ""}
+                      className={a.status === "stale" ? "text-warning" : ""}
                     >
                       {a.status === "stale"
                         ? `outdated (${a.endReason ?? "specification revised"})`
@@ -349,7 +349,7 @@ export function RequestReview({
                   )}
                 </Popover>
                 {role && used.has(role.name) && (
-                  <span className="mt-1 block text-[11px] text-amber-700">
+                  <span className="mt-1 block text-[11px] text-warning">
                     A {role.name} review already exists on this revision;
                     another reviewer will be added.
                   </span>

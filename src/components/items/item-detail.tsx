@@ -553,10 +553,10 @@ export function ItemDetail({
                     {changedSinceSeen.from.number} →{" "}
                     {changedSinceSeen.to.number}
                     {" · "}
-                    <span className="text-emerald-700">
+                    <span className="text-success">
                       +{changedSinceSeen.added}
                     </span>{" "}
-                    <span className="text-red-700">
+                    <span className="text-destructive">
                       −{changedSinceSeen.removed}
                     </span>{" "}
                     lines

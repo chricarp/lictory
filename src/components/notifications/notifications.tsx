@@ -439,9 +439,9 @@ function Row({
           className={cn(
             "mt-0.5 grid size-5 shrink-0 place-items-center",
             urgent
-              ? "text-red-600"
+              ? "text-destructive"
               : n.kind === "item_ready"
-                ? "text-emerald-600"
+                ? "text-success"
                 : "text-muted-foreground",
           )}
         >

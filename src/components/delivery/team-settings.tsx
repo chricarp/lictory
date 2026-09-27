@@ -129,7 +129,7 @@ function Choice<T extends string>({
           disabled={disabled}
           onClick={() => onChange(o.value)}
           className={cn(
-            "rounded-lg px-3 py-2 text-left text-[13px] shadow-[var(--shadow-border)] disabled:cursor-default",
+            "rounded-lg px-3 py-2 text-left text-[13px] shadow-(--shadow-border) disabled:cursor-default",
             value === o.value
               ? "bg-primary/6 ring-1 ring-primary/40"
               : "hover:bg-muted/60",

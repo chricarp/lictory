@@ -169,7 +169,7 @@ export function Popover({
                 maxHeight: position?.maxHeight,
               }}
               className={cn(
-                "fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[var(--shadow-panel)]",
+                "fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-(--shadow-panel)",
                 position ? "animate-in" : "invisible",
                 className,
               )}

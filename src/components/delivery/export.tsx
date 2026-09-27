@@ -195,7 +195,7 @@ export function ExportDialog({
         role="dialog"
         aria-modal
         aria-label="Export to Jira"
-        className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
+        className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
       >
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
@@ -376,7 +376,7 @@ function summary(p: Publication) {
 
 function ActionIcon({ entry }: { entry: PlanEntry }) {
   if (entry.conflict?.length)
-    return <AlertTriangle className="size-4 text-amber-600" />;
+    return <AlertTriangle className="size-4 text-warning" />;
   if (entry.action === "create" || entry.action === "update")
     return <Upload className="size-4 text-primary" />;
   if (entry.action === "unchanged")
@@ -405,10 +405,10 @@ function ActionBadge({ entry }: { entry: PlanEntry }) {
 
 function OutcomeIcon({ outcome }: { outcome: Outcome }) {
   if (outcome === "created" || outcome === "updated" || outcome === "unchanged")
-    return <CheckCircle2 className="size-4 text-emerald-600" />;
+    return <CheckCircle2 className="size-4 text-success" />;
   if (outcome === "conflict")
-    return <AlertTriangle className="size-4 text-amber-600" />;
-  if (outcome === "failed") return <XCircle className="size-4 text-red-600" />;
+    return <AlertTriangle className="size-4 text-warning" />;
+  if (outcome === "failed") return <XCircle className="size-4 text-destructive" />;
   if (outcome === "pending")
     return <CircleDashed className="size-4 text-muted-foreground" />;
   return <CircleSlash className="size-4 text-muted-foreground" />;

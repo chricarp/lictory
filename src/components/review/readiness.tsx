@@ -19,7 +19,7 @@ export function Readiness() {
             className={cn(
               "text-xs tabular-nums",
               passed === checks.length
-                ? "text-emerald-600"
+                ? "text-success"
                 : "text-muted-foreground",
             )}
           >
@@ -37,7 +37,7 @@ export function Readiness() {
               className="flex items-start gap-2 text-[13px] leading-5"
             >
               {c.passed ? (
-                <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
               ) : (
                 <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               )}

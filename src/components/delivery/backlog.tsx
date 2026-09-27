@@ -172,7 +172,7 @@ export function Backlog() {
       key={id}
       aria-label={id === "backlog" ? "Backlog" : "Iteration"}
       className={cn(
-        "rounded-xl bg-card shadow-[var(--shadow-border)]",
+        "rounded-xl bg-card shadow-(--shadow-border)",
         over?.section === id && "ring-1 ring-primary/40",
       )}
       onDragOver={(e) => {

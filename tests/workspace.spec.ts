@@ -112,6 +112,55 @@ test("account settings load outside an organization with an older session", asyn
   ).toBeVisible();
 });
 
+test("appearance preference applies immediately, persists, and follows the system", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await signIn(page, reviewerEmail);
+  await page.goto("/app/account");
+  const html = page.locator("html");
+  const appearance = page.getByRole("radiogroup", { name: "Appearance" });
+  await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
+  await expect(html).not.toHaveClass(/\bdark\b/);
+
+  // System follows the OS as it changes.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(html).toHaveClass(/\bdark\b/);
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(html).not.toHaveClass(/\bdark\b/);
+
+  const saved = page.waitForResponse("**/api/appearance");
+  await appearance.getByRole("radio", { name: "Dark" }).click();
+  await expect(html).toHaveClass(/\bdark\b/);
+  expect((await saved).ok()).toBe(true);
+
+  // Stored on the account: a fresh browser context without local state gets it.
+  const other = await page.context().browser()!.newContext();
+  const fresh = await other.newPage();
+  await signIn(fresh, reviewerEmail);
+  await fresh.goto("/app/account");
+  await expect(fresh.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(
+    fresh
+      .getByRole("radiogroup", { name: "Appearance" })
+      .getByRole("radio", { name: "Dark" }),
+  ).toBeChecked();
+  await other.close();
+
+  // Keyboard: arrow keys move the selection.
+  await appearance.getByRole("radio", { name: "Dark" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(appearance.getByRole("radio", { name: "Light" })).toBeChecked();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(html).not.toHaveClass(/\bdark\b/);
+
+  // Reset for other tests sharing this user.
+  const reset = page.waitForResponse("**/api/appearance");
+  await page.keyboard.press("ArrowLeft");
+  await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
+  await reset;
+});
+
 test("epic and story refinement: create, review, block, suggest, approve, stale, ready", async ({
   page,
   browser,

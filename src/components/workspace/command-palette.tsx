@@ -295,7 +295,7 @@ export function CommandPalette({
       <div
         role="dialog"
         aria-label="Command palette"
-        className="relative flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
+        className="relative flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
       >
         <div className="flex shrink-0 items-center gap-2 border-b px-3">
           <input

@@ -30,7 +30,7 @@ export function ReviewSignal({
     >
       {item.blockingThreads > 0 && (
         <span
-          className="inline-flex items-center gap-0.5 text-red-600"
+          className="inline-flex items-center gap-0.5 text-destructive"
           title={`${item.blockingThreads} blocking discussion${item.blockingThreads > 1 ? "s" : ""}`}
         >
           <CircleAlert className="size-3.5" />
@@ -50,8 +50,8 @@ export function ReviewSignal({
         <span
           className={cn(
             "inline-flex items-center gap-0.5",
-            state === "approved" && "text-emerald-600",
-            state === "changes_requested" && "text-amber-600",
+            state === "approved" && "text-success",
+            state === "changes_requested" && "text-warning",
           )}
           title={
             state === "approved"

@@ -144,7 +144,7 @@ export function QuickCreate({
       <form
         role="dialog"
         aria-label={`Create ${name.toLowerCase()}`}
-        className="relative flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
+        className="relative flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
         onSubmit={(e) => {
           e.preventDefault();
           void submit(false);
@@ -349,7 +349,7 @@ export function Segmented<T extends string>({
           className={cn(
             "inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium",
             value === o.value
-              ? "bg-card text-foreground shadow-[var(--shadow-border)]"
+              ? "bg-card text-foreground shadow-(--shadow-border)"
               : "text-muted-foreground hover:text-foreground",
           )}
         >

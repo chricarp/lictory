@@ -153,7 +153,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         </blockquote>
       )}
       {thread.anchor?.quote && !quoteStillPresent && (
-        <p className="mx-3 mt-1 text-[11px] text-amber-700">
+        <p className="mx-3 mt-1 text-[11px] text-warning">
           The quoted text changed in a later revision.
         </p>
       )}

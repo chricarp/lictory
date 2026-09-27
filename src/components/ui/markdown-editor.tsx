@@ -403,7 +403,7 @@ export const MarkdownEditor = forwardRef<
         <ul
           role="listbox"
           aria-label="Mention someone"
-          className="absolute right-2 bottom-12 left-2 z-20 max-w-72 overflow-hidden rounded-lg bg-popover p-1 shadow-[var(--shadow-panel)]"
+          className="absolute right-2 bottom-12 left-2 z-20 max-w-72 overflow-hidden rounded-lg bg-popover p-1 shadow-(--shadow-panel)"
         >
           {matches.map((m, i) => (
             <li key={m.id} role="option" aria-selected={i === mentionIndex}>
@@ -434,7 +434,7 @@ export const MarkdownEditor = forwardRef<
       <div
         role="toolbar"
         aria-label="Markdown formatting"
-        className="absolute right-2 bottom-2 left-2 flex h-9 items-center rounded-lg bg-popover p-1 text-muted-foreground shadow-[var(--shadow-panel)]"
+        className="absolute right-2 bottom-2 left-2 flex h-9 items-center rounded-lg bg-popover p-1 text-muted-foreground shadow-(--shadow-panel)"
       >
         <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
           <div className="flex min-w-max items-center">

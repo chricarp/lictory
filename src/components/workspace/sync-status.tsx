@@ -79,8 +79,8 @@ export function SyncStatus() {
             "grid size-6 shrink-0 place-items-center rounded-md transition-[opacity,background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
             presentation === "idle" && "text-muted-foreground/70",
             presentation === "busy" && "text-muted-foreground",
-            presentation === "offline" && "text-amber-600",
-            presentation === "attention" && "text-red-600",
+            presentation === "offline" && "text-warning",
+            presentation === "attention" && "text-destructive",
           )}
         >
           {presentation === "offline" ? (

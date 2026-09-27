@@ -302,7 +302,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_approved":
       body = (
         <>
-          <b className="text-emerald-700">approved</b> v{num(d.version)} of{" "}
+          <b className="text-success">approved</b> v{num(d.version)} of{" "}
           <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
@@ -310,7 +310,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_changes_requested":
       body = (
         <>
-          <b className="text-amber-700">requested changes</b> on v
+          <b className="text-warning">requested changes</b> on v
           {num(d.version)} of <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
@@ -355,7 +355,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "approved":
       body = (
         <>
-          <b className="text-emerald-700">approved</b> revision{" "}
+          <b className="text-success">approved</b> revision{" "}
           {num(d.revision)} for {str(d.responsibility)}
         </>
       );
@@ -363,7 +363,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "changes_requested":
       body = (
         <>
-          <b className="text-amber-700">requested changes</b> on revision{" "}
+          <b className="text-warning">requested changes</b> on revision{" "}
           {num(d.revision)} ({str(d.responsibility)})
         </>
       );

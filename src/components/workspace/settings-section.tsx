@@ -55,7 +55,7 @@ export function SettingsSection({
       id={id}
       aria-labelledby={`${id}-title`}
       className={cn(
-        "scroll-mt-6 rounded-xl bg-card shadow-[var(--shadow-border)]",
+        "scroll-mt-6 rounded-xl bg-card shadow-(--shadow-border)",
         className,
       )}
     >

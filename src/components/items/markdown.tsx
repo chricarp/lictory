@@ -144,7 +144,7 @@ const components: Components = {
       src={src}
       alt={alt ?? ""}
       loading="lazy"
-      className="my-4 max-h-[32rem] max-w-full rounded-md object-contain shadow-[0_0_0_1px_oklch(0_0_0/0.1)]"
+      className="my-4 max-h-128 max-w-full rounded-md object-contain shadow-[0_0_0_1px_oklch(0_0_0/0.1)]"
     />
   ),
   del: ({ children }) => (

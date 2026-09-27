@@ -55,9 +55,9 @@ function CtaLink({
         variant === "primary" &&
           "bg-foreground text-background hover:bg-foreground/90",
         variant === "secondary" &&
-          "bg-white/[0.04] text-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.1)] hover:bg-white/[0.08]",
+          "bg-white/4 text-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.1)] hover:bg-white/8",
         variant === "ghost" &&
-          "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
+          "text-muted-foreground hover:bg-white/5 hover:text-foreground",
         className,
       )}
     >
@@ -158,19 +158,19 @@ function Hero({ user }: { user: LandingUser }) {
     <section className="relative px-5 pt-36 pb-24 sm:px-8 sm:pt-44">
       <div
         aria-hidden
-        className="pointer-events-none absolute top-[-200px] left-1/2 -z-0 h-[640px] w-[1100px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,oklch(0.58_0.2_265/0.28),transparent)]"
+        className="pointer-events-none absolute top-[-200px] left-1/2 z-0 h-[640px] w-[1100px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,oklch(0.58_0.2_265/0.28),transparent)]"
       />
       <div className="relative mx-auto max-w-6xl">
         <a
           href="#features"
-          className="mx-auto flex w-fit items-center gap-2 rounded-full bg-white/[0.04] px-3 py-1 text-xs text-muted-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)] transition-colors hover:text-foreground"
+          className="mx-auto flex w-fit items-center gap-2 rounded-full bg-white/4 px-3 py-1 text-xs text-muted-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)] transition-colors hover:text-foreground"
         >
           <span className="size-1.5 rounded-full bg-emerald-400" />
           Requirements, reviewed like code
           <ArrowRight className="size-3" />
         </a>
         <h1 className="mx-auto mt-7 max-w-4xl text-center text-5xl leading-[1.02] font-semibold tracking-[-0.045em] text-balance sm:text-6xl lg:text-[80px]">
-          <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
+          <span className="bg-linear-to-b from-white to-white/60 bg-clip-text text-transparent">
             From product intent to engineering commitment.
           </span>
         </h1>
@@ -219,10 +219,10 @@ function ProductMock() {
     <div className="relative mx-auto mt-20 max-w-5xl">
       <div
         aria-hidden
-        className="absolute inset-x-10 -top-px h-px bg-gradient-to-r from-transparent via-white/40 to-transparent"
+        className="absolute inset-x-10 -top-px h-px bg-linear-to-r from-transparent via-white/40 to-transparent"
       />
       <div className="overflow-hidden rounded-xl bg-card/80 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08),0_40px_120px_-40px_oklch(0.58_0.2_265/0.5)]">
-        <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 border-b border-white/6 px-4 py-2.5 text-xs text-muted-foreground">
           <span className="font-mono text-foreground/80">PAY-142</span>
           <span>/</span>
           <span className="truncate text-foreground">
@@ -231,7 +231,7 @@ function ProductMock() {
           <span className="ml-auto hidden items-center gap-1.5 rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-300 sm:flex">
             <CircleDashed className="size-3" /> In review
           </span>
-          <span className="hidden rounded-full bg-white/[0.05] px-2 py-0.5 sm:block">
+          <span className="hidden rounded-full bg-white/5 px-2 py-0.5 sm:block">
             Revision 14
           </span>
         </div>
@@ -283,7 +283,7 @@ function ProductMock() {
               </p>
             </div>
           </div>
-          <aside className="space-y-4 border-t border-white/[0.06] p-5 text-[13px] md:border-t-0 md:border-l">
+          <aside className="space-y-4 border-t border-white/6 p-5 text-[13px] md:border-t-0 md:border-l">
             <div>
               <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                 Approvals
@@ -309,7 +309,7 @@ function ProductMock() {
                 <MockRow tone="fail" label="Failure behavior" />
               </ul>
             </div>
-            <div className="rounded-lg bg-white/[0.03] p-3 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.06)]">
+            <div className="rounded-lg bg-white/3 p-3 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.06)]">
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="grid size-4 place-items-center rounded-full bg-sky-500/80 text-[9px] font-bold text-white">
                   M
@@ -400,7 +400,7 @@ function Section({
     <section
       id={id}
       className={cn(
-        "scroll-mt-20 border-t border-white/[0.06] px-5 py-24 sm:px-8 sm:py-32",
+        "scroll-mt-20 border-t border-white/6 px-5 py-24 sm:px-8 sm:py-32",
         className,
       )}
     >
@@ -423,11 +423,11 @@ function Card({
   return (
     <div
       className={cn(
-        "rounded-xl bg-white/[0.025] p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)] transition-colors hover:bg-white/[0.04]",
+        "rounded-xl bg-white/2.5 p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)] transition-colors hover:bg-white/4",
         className,
       )}
     >
-      <div className="grid size-8 place-items-center rounded-lg bg-white/[0.05] text-foreground/80 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)] [&_svg]:size-4">
+      <div className="grid size-8 place-items-center rounded-lg bg-white/5 text-foreground/80 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)] [&_svg]:size-4">
         {icon}
       </div>
       <h3 className="mt-5 text-[15px] font-medium">{title}</h3>
@@ -546,7 +546,7 @@ function Readiness() {
               2 of 6 passing
             </span>
           </div>
-          <ul className="divide-y divide-white/[0.05] rounded-lg bg-white/[0.02]">
+          <ul className="divide-y divide-white/5 rounded-lg bg-white/2">
             {checks.map(([label, tone]) => (
               <li
                 key={label}
@@ -616,7 +616,7 @@ function AiSection() {
         ].map(([kind, text]) => (
           <div
             key={kind}
-            className="rounded-xl bg-violet-400/[0.04] p-5 shadow-[inset_0_0_0_1px_oklch(0.7_0.15_290/0.15)]"
+            className="rounded-xl bg-violet-400/4 p-5 shadow-[inset_0_0_0_1px_oklch(0.7_0.15_290/0.15)]"
           >
             <p className="flex items-center gap-1.5 text-xs font-medium text-violet-300">
               <Bot className="size-3.5" />
@@ -654,7 +654,7 @@ function Delivery() {
         for each piece of work.
       </SectionHeading>
       <div className="mt-14 grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl bg-white/[0.025] p-7 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
+        <div className="rounded-xl bg-white/2.5 p-7 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
           <div className="flex items-center gap-2 text-sm font-medium">
             <KanbanSquare className="size-4 text-sky-300" />
             Native delivery
@@ -684,10 +684,7 @@ function Delivery() {
               ["Started", ["PAY-142"]],
               ["Done", ["PAY-120", "PAY-133"]],
             ].map(([col, items]) => (
-              <div
-                key={col as string}
-                className="rounded-lg bg-white/[0.03] p-2"
-              >
+              <div key={col as string} className="rounded-lg bg-white/3 p-2">
                 <p className="px-1 pb-2 text-muted-foreground">{col}</p>
                 <div className="space-y-1.5">
                   {(items as string[]).map((i) => (
@@ -703,7 +700,7 @@ function Delivery() {
             ))}
           </div>
         </div>
-        <div className="rounded-xl bg-white/[0.025] p-7 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
+        <div className="rounded-xl bg-white/2.5 p-7 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Split className="size-4 text-emerald-300" />
             Refinement + publish
@@ -725,7 +722,7 @@ function Delivery() {
               </li>
             ))}
           </ul>
-          <div className="mt-7 space-y-1.5 rounded-lg bg-white/[0.03] p-3 font-mono text-[11px]">
+          <div className="mt-7 space-y-1.5 rounded-lg bg-white/3 p-3 font-mono text-[11px]">
             <p className="text-muted-foreground">Publish · PAY-142 rev 14</p>
             <p className="text-emerald-300/90">✓ Story 1 → JIRA-8812</p>
             <p className="text-emerald-300/90">✓ Story 2 → JIRA-8813</p>
@@ -777,7 +774,7 @@ function UseCases() {
         {roles.map((r) => (
           <div
             key={r.who}
-            className="rounded-xl bg-white/[0.025] p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]"
+            className="rounded-xl bg-white/2.5 p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]"
           >
             <h3 className="text-[15px] font-medium">{r.who}</h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -923,11 +920,11 @@ function Comparison() {
       <div className="mx-auto mt-14 max-w-4xl overflow-x-auto rounded-xl shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)]">
         <table className="w-full min-w-[560px] text-sm">
           <thead>
-            <tr className="border-b border-white/[0.06] text-[13px]">
+            <tr className="border-b border-white/6 text-[13px]">
               <th className="px-5 py-4 text-left font-medium text-muted-foreground">
                 Capability
               </th>
-              <th className="w-32 bg-violet-400/[0.06] px-3 py-4 font-medium">
+              <th className="w-32 bg-violet-400/6 px-3 py-4 font-medium">
                 Lictory
               </th>
               <th className="w-32 px-3 py-4 font-medium text-muted-foreground">
@@ -938,13 +935,13 @@ function Comparison() {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.05]">
+          <tbody className="divide-y divide-white/5">
             {comparisonRows.map((row) => (
               <tr key={row.feature}>
                 <td className="px-5 py-3.5 text-foreground/85">
                   {row.feature}
                 </td>
-                <td className="bg-violet-400/[0.06] px-3 py-3.5 text-center">
+                <td className="bg-violet-400/6 px-3 py-3.5 text-center">
                   <CellValue value={row.lictory} highlight />
                 </td>
                 <td className="px-3 py-3.5 text-center">
@@ -959,7 +956,7 @@ function Comparison() {
         </table>
       </div>
       <div className="mx-auto mt-10 grid max-w-4xl gap-3 md:grid-cols-2">
-        <div className="rounded-xl bg-white/[0.025] p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
+        <div className="rounded-xl bg-white/2.5 p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
           <h3 className="text-[15px] font-medium">Lictory vs Jira</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Jira tracks issues through configurable workflows, and it usually
@@ -969,7 +966,7 @@ function Comparison() {
             want less configuration.
           </p>
         </div>
-        <div className="rounded-xl bg-white/[0.025] p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
+        <div className="rounded-xl bg-white/2.5 p-6 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]">
           <h3 className="text-[15px] font-medium">Lictory vs Linear</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Linear sets the bar for fast, focused issue tracking. Lictory shares
@@ -1050,7 +1047,7 @@ function Faq() {
     <Section id="faq">
       <div className="grid gap-12 lg:grid-cols-[1fr_1.4fr]">
         <SectionHeading eyebrow="FAQ" title="Questions, answered." />
-        <div className="divide-y divide-white/[0.06] border-y border-white/[0.06]">
+        <div className="divide-y divide-white/6 border-y border-white/6">
           {items.map(([q, a]) => (
             <details key={q} className="group py-5">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-medium [&::-webkit-details-marker]:hidden">
@@ -1110,7 +1107,7 @@ function FinalCta({ user }: { user: LandingUser }) {
 
 function Footer() {
   return (
-    <footer className="border-t border-white/[0.06] px-5 py-10 sm:px-8">
+    <footer className="border-t border-white/6 px-5 py-10 sm:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center">
         <Logo className="text-sm text-foreground" />
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">

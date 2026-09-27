@@ -161,7 +161,7 @@ function SuggestionBody({
 
       {state.outdated && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]">
-          <CircleAlert className="size-4 shrink-0 text-amber-700" />
+          <CircleAlert className="size-4 shrink-0 text-warning" />
           <span>
             The specification moved to revision {current?.number} since this was
             written against revision {target?.number}.{" "}
@@ -395,7 +395,7 @@ function Reviewers({
             className={cn(
               "text-xs tabular-nums",
               state.approvals.length > 0
-                ? "text-emerald-600"
+                ? "text-success"
                 : "text-muted-foreground",
             )}
           >
@@ -477,9 +477,9 @@ function Reviewers({
                 className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-[13px]"
               >
                 {decision?.decision === "approved" && !stale ? (
-                  <Check className="size-4 text-emerald-600" />
+                  <Check className="size-4 text-success" />
                 ) : decision?.decision === "changes_requested" && !stale ? (
-                  <CircleAlert className="size-4 text-amber-600" />
+                  <CircleAlert className="size-4 text-warning" />
                 ) : (
                   <span className="grid size-4 place-items-center rounded-full border border-dashed border-muted-foreground/60" />
                 )}
@@ -573,7 +573,7 @@ function Reviewers({
                     ? "approved"
                     : "requested changes on"}{" "}
                   v{d.version} ·{" "}
-                  <span className="text-amber-700">
+                  <span className="text-warning">
                     {d.supersededReason?.toLowerCase()}
                   </span>
                 </li>

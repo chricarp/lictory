@@ -90,7 +90,7 @@ export const IssueRow = memo(function IssueRow({
       <IssueIdentifier
         project={project}
         number={item.number}
-        className="w-[4.5rem]"
+        className="w-18"
       />
       <Link
         href={href}

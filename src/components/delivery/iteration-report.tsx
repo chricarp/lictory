@@ -65,7 +65,7 @@ export function IterationReportPage() {
         ) : (
           <>
             <Totals report={report} usePoints={usePoints} />
-            <section className="rounded-xl bg-card p-4 shadow-[var(--shadow-border)]">
+            <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
               <h2 className="mb-3 text-sm font-semibold">Burndown</h2>
               <Burndown report={report} usePoints={usePoints} />
               <p className="mt-2 text-xs text-muted-foreground">
@@ -75,7 +75,7 @@ export function IterationReportPage() {
               </p>
             </section>
             {report.velocity.length > 0 && usePoints && (
-              <section className="rounded-xl bg-card p-4 shadow-[var(--shadow-border)]">
+              <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
                 <h2 className="mb-3 text-sm font-semibold">Velocity</h2>
                 <Velocity report={report} />
               </section>
@@ -111,7 +111,7 @@ function Totals({
       {cells.map(([label, value]) => (
         <div
           key={label}
-          className="rounded-xl bg-card px-3 py-2.5 shadow-[var(--shadow-border)]"
+          className="rounded-xl bg-card px-3 py-2.5 shadow-(--shadow-border)"
         >
           <dt className="text-xs text-muted-foreground">{label}</dt>
           <dd className="mt-0.5 text-sm font-semibold tabular-nums">{value}</dd>

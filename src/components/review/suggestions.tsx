@@ -199,8 +199,8 @@ function SuggestionRow({
             {revisionNumber(suggestion.revisionId) ?? "?"}
           </span>
           <span className="tabular-nums">
-            <span className="text-emerald-700">+{stats.added}</span>{" "}
-            <span className="text-red-700">−{stats.removed}</span>
+            <span className="text-success">+{stats.added}</span>{" "}
+            <span className="text-destructive">−{stats.removed}</span>
           </span>
           {open > 0 && (
             <span>

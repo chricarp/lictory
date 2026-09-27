@@ -26,13 +26,13 @@ import { useDelivery } from "~/components/workspace/provider";
 
 const tint: Record<LabelColor, string> = {
   gray: "text-muted-foreground",
-  blue: "text-blue-600",
-  green: "text-emerald-600",
-  amber: "text-amber-600",
-  red: "text-red-600",
-  purple: "text-violet-600",
-  pink: "text-pink-600",
-  teal: "text-teal-600",
+  blue: "text-blue-600 dark:text-blue-400",
+  green: "text-success",
+  amber: "text-warning",
+  red: "text-destructive",
+  purple: "text-violet-600 dark:text-violet-400",
+  pink: "text-pink-600 dark:text-pink-400",
+  teal: "text-teal-600 dark:text-teal-400",
 };
 
 // The glyph shape comes from the fixed category so every team's workflow reads
@@ -151,13 +151,13 @@ export function RefinementIcon({
       );
     case "refinement":
       return (
-        <CircleDotDashed className={cn(base, "text-amber-600")} aria-hidden />
+        <CircleDotDashed className={cn(base, "text-warning")} aria-hidden />
       );
     case "in_review":
       return <Eye className={cn(base, "text-primary")} aria-hidden />;
     case "ready":
       return (
-        <CircleCheck className={cn(base, "text-emerald-600")} aria-hidden />
+        <CircleCheck className={cn(base, "text-success")} aria-hidden />
       );
   }
 }

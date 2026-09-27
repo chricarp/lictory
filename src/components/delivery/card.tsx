@@ -92,7 +92,7 @@ export const ItemCard = memo(function ItemCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group relative rounded-lg bg-card p-2.5 text-[13px] shadow-[var(--shadow-border)] transition-shadow hover:shadow-[var(--shadow-panel)]",
+        "group relative rounded-lg bg-card p-2.5 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-panel)",
         draggable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-40",
       )}
@@ -148,7 +148,7 @@ export const ItemCard = memo(function ItemCard({
         )}
         {item.blockingThreads > 0 && (
           <span
-            className="inline-flex items-center gap-1 text-red-600"
+            className="inline-flex items-center gap-1 text-destructive"
             title="Open blocking discussions"
           >
             <CircleAlert className="size-3" />

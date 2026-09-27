@@ -290,9 +290,9 @@ export function Shell({
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="pointer-events-auto flex items-center gap-3 rounded-lg border bg-popover px-3 py-2 text-[13px] shadow-[var(--shadow-panel)]"
+            className="pointer-events-auto flex items-center gap-3 rounded-lg border bg-popover px-3 py-2 text-[13px] shadow-(--shadow-panel)"
           >
-            <Check className="size-3.5 text-emerald-600" />
+            <Check className="size-3.5 text-success" />
             <span>{t.text}</span>
             {t.action && (
               <Link
