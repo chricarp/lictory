@@ -158,7 +158,7 @@ function Hero({ user }: { user: LandingUser }) {
     <section className="relative px-5 pt-36 pb-24 sm:px-8 sm:pt-44">
       <div
         aria-hidden
-        className="pointer-events-none absolute top-[-200px] left-1/2 z-0 h-[640px] w-[1100px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,oklch(0.58_0.2_265/0.28),transparent)]"
+        className="pointer-events-none absolute -top-50 left-1/2 z-0 h-160 w-275 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,oklch(0.58_0.2_265/0.28),transparent)]"
       />
       <div className="relative mx-auto max-w-6xl">
         <a
@@ -918,7 +918,7 @@ function Comparison() {
         hand it to them.
       </SectionHeading>
       <div className="mx-auto mt-14 max-w-4xl overflow-x-auto rounded-xl shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)]">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-140 text-sm">
           <thead>
             <tr className="border-b border-white/6 text-[13px]">
               <th className="px-5 py-4 text-left font-medium text-muted-foreground">
@@ -1072,7 +1072,7 @@ function FinalCta({ user }: { user: LandingUser }) {
     <Section className="relative text-center">
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-0 left-1/2 h-[400px] w-[900px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,oklch(0.58_0.2_265/0.2),transparent)]"
+        className="pointer-events-none absolute bottom-0 left-1/2 h-100 w-225 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,oklch(0.58_0.2_265/0.2),transparent)]"
       />
       <div className="relative">
         <h2 className="mx-auto max-w-3xl text-4xl leading-[1.05] font-semibold tracking-[-0.04em] text-balance sm:text-6xl">

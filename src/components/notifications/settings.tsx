@@ -372,7 +372,7 @@ function Toggle({
           aria-hidden
           className={cn(
             "inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
-            checked ? "translate-x-[18px]" : "translate-x-0.5",
+            checked ? "translate-x-4.5" : "translate-x-0.5",
           )}
         />
       </button>
