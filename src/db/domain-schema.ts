@@ -39,19 +39,57 @@ const updatedAt = () =>
     .$onUpdate(() => new Date())
     .notNull();
 
-// Lictory owns the workflow up to `ready`; later statuses may eventually be
-// synchronized from a delivery system. `ready` is gated by readiness evidence.
-export const workItemStatus = pgEnum("work_item_status", [
-  "backlog",
+// Refinement state exists only on spec-backed items. `ready` is gated by
+// readiness evidence and set/cleared automatically by the server.
+export const refinementState = pgEnum("refinement_state", [
   "draft",
   "refinement",
   "in_review",
   "ready",
-  "in_progress",
-  "done",
-  "cancelled",
 ]);
-export const workItemKind = pgEnum("work_item_kind", ["epic", "story", "task"]);
+// Fixed categories give meaning to team-defined statuses (boards, burndown,
+// readiness gating) without a workflow builder.
+export const statusCategory = pgEnum("status_category", [
+  "backlog",
+  "unstarted",
+  "started",
+  "done",
+  "canceled",
+]);
+export const deliveryMode = pgEnum("delivery_mode", ["native", "external"]);
+export const readinessPolicy = pgEnum("readiness_policy", [
+  "off",
+  "warn",
+  "block",
+]);
+export const iterationMode = pgEnum("iteration_mode", [
+  "off",
+  "manual",
+  "automatic",
+]);
+export const iterationState = pgEnum("iteration_state", [
+  "planned",
+  "active",
+  "completed",
+]);
+export const estimateScale = pgEnum("estimate_scale", [
+  "none",
+  "fibonacci",
+  "linear",
+  "tshirt",
+]);
+export const relationKind = pgEnum("relation_kind", [
+  "blocks",
+  "relates",
+  "duplicates",
+]);
+export const iterationEventKind = pgEnum("iteration_event_kind", [
+  "added",
+  "removed",
+  "estimate_changed",
+  "completed",
+  "reopened",
+]);
 export const workItemPriority = pgEnum("work_item_priority", [
   "none",
   "low",
@@ -168,6 +206,8 @@ export const project = pgTable(
     // Short uppercase identifier prefix for work items, e.g. PAY in PAY-142.
     key: text("key").notNull(),
     description: text("description"),
+    // Team that new items of this project land in unless another is chosen.
+    defaultTeamId: text("default_team_id"),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -177,6 +217,11 @@ export const project = pgTable(
     unique("project_org_id_unique").on(t.organizationId, t.id),
     unique("project_org_slug_unique").on(t.organizationId, t.slug),
     unique("project_org_key_unique").on(t.organizationId, t.key),
+    foreignKey({
+      name: "project_default_team_fk",
+      columns: [t.organizationId, t.defaultTeamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
     check("project_key_format", sql`${t.key} ~ '^[A-Z][A-Z0-9]{1,9}$'`),
   ],
 );
@@ -244,26 +289,218 @@ export const milestone = pgTable(
   ],
 );
 
-// Work items are Epics, Stories and Tasks.
+// A team owns how work is delivered: workflow, enabled types, estimates,
+// iterations, board and readiness policy. Items keep their project key when
+// they move between teams. Team membership is organizational, not permission.
+export const team = pgTable(
+  "team",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    name: text("name").notNull(),
+    description: text("description"),
+    deliveryMode: deliveryMode("delivery_mode").default("native").notNull(),
+    readinessPolicy: readinessPolicy("readiness_policy")
+      .default("warn")
+      .notNull(),
+    estimateScale: estimateScale("estimate_scale")
+      .default("fibonacci")
+      .notNull(),
+    iterationMode: iterationMode("iteration_mode").default("manual").notNull(),
+    iterationWeeks: integer("iteration_weeks").default(2).notNull(),
+    // 0 = Sunday … 6 = Saturday; used by automatic cycles.
+    iterationStartDay: integer("iteration_start_day").default(1).notNull(),
+    upcomingIterations: integer("upcoming_iterations").default(2).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("team_org_id_unique").on(t.organizationId, t.id),
+    uniqueIndex("team_org_active_name_unique")
+      .on(t.organizationId, sql`lower(${t.name})`)
+      .where(sql`${t.archivedAt} IS NULL`),
+    check("team_name_present", sql`length(trim(${t.name})) > 0`),
+    check("team_iteration_weeks", sql`${t.iterationWeeks} BETWEEN 1 AND 8`),
+    check("team_start_day", sql`${t.iterationStartDay} BETWEEN 0 AND 6`),
+    check("team_upcoming", sql`${t.upcomingIterations} BETWEEN 0 AND 6`),
+  ],
+);
+
+export const teamMember = pgTable(
+  "team_member",
+  {
+    organizationId: organizationId(),
+    teamId: text("team_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.teamId, t.userId] }),
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("cascade"),
+    index("team_member_org_user_idx").on(t.organizationId, t.userId),
+  ],
+);
+
+// Organization-wide type registry. Hierarchy level orders parents above
+// children (Epic 2, Story/Task/Bug 1, Subtask 0). Spec-backed types carry
+// revisions, reviews, approvals and readiness; others are plain work.
+export const workItemType = pgTable(
+  "work_item_type",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    name: text("name").notNull(),
+    icon: text("icon").notNull(),
+    color: text("color").default("gray").notNull(),
+    level: integer("level").notNull(),
+    hasSpecification: boolean("has_specification").default(false).notNull(),
+    position: integer("position").default(0).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("work_item_type_org_id_unique").on(t.organizationId, t.id),
+    uniqueIndex("work_item_type_org_active_name_unique")
+      .on(t.organizationId, sql`lower(${t.name})`)
+      .where(sql`${t.archivedAt} IS NULL`),
+    check("work_item_type_level", sql`${t.level} BETWEEN 0 AND 3`),
+    check("work_item_type_name_present", sql`length(trim(${t.name})) > 0`),
+  ],
+);
+
+export const teamWorkItemType = pgTable(
+  "team_work_item_type",
+  {
+    organizationId: organizationId(),
+    teamId: text("team_id").notNull(),
+    typeId: text("type_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.teamId, t.typeId] }),
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.typeId],
+      foreignColumns: [workItemType.organizationId, workItemType.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+// Team workflow. Any transition is allowed; categories carry the meaning.
+export const workflowStatus = pgTable(
+  "workflow_status",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    teamId: text("team_id").notNull(),
+    name: text("name").notNull(),
+    color: text("color").default("gray").notNull(),
+    category: statusCategory("category").notNull(),
+    position: integer("position").default(0).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("workflow_status_org_id_unique").on(t.organizationId, t.id),
+    unique("workflow_status_team_id_unique").on(
+      t.organizationId,
+      t.teamId,
+      t.id,
+    ),
+    uniqueIndex("workflow_status_team_active_name_unique")
+      .on(t.organizationId, t.teamId, sql`lower(${t.name})`)
+      .where(sql`${t.archivedAt} IS NULL`),
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
+    check("workflow_status_name_present", sql`length(trim(${t.name})) > 0`),
+  ],
+);
+
+// Sprints (manual) and cycles (automatic) are the same concept.
+export const iteration = pgTable(
+  "iteration",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    teamId: text("team_id").notNull(),
+    number: integer("number").notNull(),
+    name: text("name"),
+    goal: text("goal"),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    state: iterationState("state").default("planned").notNull(),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    // Frozen at completion so reports never change retroactively.
+    summary: jsonb("summary").$type<Record<string, unknown>>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("iteration_org_id_unique").on(t.organizationId, t.id),
+    unique("iteration_team_id_unique").on(t.organizationId, t.teamId, t.id),
+    unique("iteration_team_number_unique").on(
+      t.organizationId,
+      t.teamId,
+      t.number,
+    ),
+    uniqueIndex("iteration_one_active_per_team")
+      .on(t.organizationId, t.teamId)
+      .where(sql`${t.state} = 'active'`),
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
+    check("iteration_dates", sql`${t.endsAt} > ${t.startsAt}`),
+    check(
+      "iteration_state_consistent",
+      sql`(${t.state} = 'planned' AND ${t.startedAt} IS NULL AND ${t.completedAt} IS NULL) OR (${t.state} = 'active' AND ${t.startedAt} IS NOT NULL AND ${t.completedAt} IS NULL) OR (${t.state} = 'completed' AND ${t.startedAt} IS NOT NULL AND ${t.completedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+// Work items belong to exactly one project (key and number) and one team
+// (workflow and delivery). Refinement and delivery state are orthogonal.
 export const workItem = pgTable(
   "work_item",
   {
     id: id(),
     organizationId: organizationId(),
     projectId: text("project_id").notNull(),
+    teamId: text("team_id").notNull(),
+    typeId: text("type_id").notNull(),
     parentId: text("parent_id"),
-    kind: workItemKind("kind").default("story").notNull(),
     // Per-project sequence rendered as KEY-number. Allocated under the
     // organization lock; the unique constraint arbitrates races.
     number: integer("number").notNull(),
     title: text("title").notNull(),
     problemStatement: text("problem_statement"),
-    status: workItemStatus("status").default("draft").notNull(),
+    statusId: text("status_id").notNull(),
+    // Null for types without a specification.
+    refinementState: refinementState("refinement_state"),
     priority: workItemPriority("priority").default("none").notNull(),
     assigneeId: optionalActor("assignee_id"),
     milestoneId: text("milestone_id"),
-    // Manual ordering among siblings (stories inside an epic). Sparse integers.
+    iterationId: text("iteration_id"),
+    estimate: integer("estimate"),
+    // Manual ordering among siblings (children of one parent). Sparse integers.
     position: integer("position").default(0).notNull(),
+    // Fractional rank for backlog and board order; a move rewrites one row.
+    rank: text("rank").notNull(),
+    // Revision of the parent specification this item was decomposed from.
+    sourceRevisionId: text("source_revision_id"),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -286,6 +523,35 @@ export const workItem = pgTable(
       foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
     foreignKey({
+      name: "work_item_team_fk",
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "work_item_type_fk",
+      columns: [t.organizationId, t.typeId],
+      foreignColumns: [workItemType.organizationId, workItemType.id],
+    }).onDelete("restrict"),
+    // The status must belong to the item's team.
+    foreignKey({
+      name: "work_item_status_fk",
+      columns: [t.organizationId, t.teamId, t.statusId],
+      foreignColumns: [
+        workflowStatus.organizationId,
+        workflowStatus.teamId,
+        workflowStatus.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "work_item_iteration_fk",
+      columns: [t.organizationId, t.teamId, t.iterationId],
+      foreignColumns: [
+        iteration.organizationId,
+        iteration.teamId,
+        iteration.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
       name: "work_item_parent_fk",
       columns: [t.organizationId, t.projectId, t.parentId],
       foreignColumns: [t.organizationId, t.projectId, t.id],
@@ -300,16 +566,85 @@ export const workItem = pgTable(
       sql`${t.parentId} IS NULL OR ${t.parentId} <> ${t.id}`,
     ),
     check("work_item_positive_number", sql`${t.number} > 0`),
-    index("work_item_project_status_idx").on(
+    check(
+      "work_item_estimate_range",
+      sql`${t.estimate} IS NULL OR ${t.estimate} BETWEEN 0 AND 1000`,
+    ),
+    index("work_item_project_idx").on(
       t.organizationId,
       t.projectId,
-      t.status,
       t.updatedAt,
     ),
+    index("work_item_team_rank_idx").on(t.organizationId, t.teamId, t.rank),
+    index("work_item_iteration_idx").on(t.organizationId, t.iterationId),
     index("work_item_creator_idx").on(t.organizationId, t.createdById),
     index("work_item_parent_idx").on(t.organizationId, t.parentId),
     index("work_item_assignee_idx").on(t.organizationId, t.assigneeId),
     index("work_item_milestone_idx").on(t.organizationId, t.milestoneId),
+  ],
+);
+
+// Directed relation; inverses (blocked by, duplicated by) are derived.
+export const workItemRelation = pgTable(
+  "work_item_relation",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    fromId: text("from_id").notNull(),
+    toId: text("to_id").notNull(),
+    kind: relationKind("kind").notNull(),
+    createdById: actor("created_by_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("work_item_relation_unique").on(
+      t.organizationId,
+      t.fromId,
+      t.toId,
+      t.kind,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.fromId],
+      foreignColumns: [workItem.organizationId, workItem.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.toId],
+      foreignColumns: [workItem.organizationId, workItem.id],
+    }).onDelete("cascade"),
+    check("work_item_relation_not_self", sql`${t.fromId} <> ${t.toId}`),
+    index("work_item_relation_to_idx").on(t.organizationId, t.toId),
+  ],
+);
+
+// Recorded, never reconstructed: burndown, scope change and velocity derive
+// from these rows, written in the same transaction as the change.
+export const iterationEvent = pgTable(
+  "iteration_event",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    iterationId: text("iteration_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
+    kind: iterationEventKind("kind").notNull(),
+    // Estimate after the event (points), or the delta for estimate_changed.
+    points: integer("points").default(0).notNull(),
+    actorId: text("actor_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.iterationId],
+      foreignColumns: [iteration.organizationId, iteration.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId],
+      foreignColumns: [workItem.organizationId, workItem.id],
+    }).onDelete("restrict"),
+    index("iteration_event_iteration_idx").on(
+      t.organizationId,
+      t.iterationId,
+      t.createdAt,
+    ),
   ],
 );
 
@@ -829,67 +1164,15 @@ export const decision = pgTable(
   ],
 );
 
-export const deliveryItem = pgTable(
-  "delivery_item",
+// External namespace is the remote installation/workspace, not a secret or project key.
+// In external delivery mode, published work items are linked here. Fields are
+// owned in Lictory and pushed one-way; external status is read-only metadata.
+export const workItemExternalLink = pgTable(
+  "work_item_external_link",
   {
     id: id(),
     organizationId: organizationId(),
     workItemId: text("work_item_id").notNull(),
-    revisionId: text("revision_id").notNull(),
-    parentId: text("parent_id"),
-    title: text("title").notNull(),
-    description: text("description"),
-    category: text("category").notNull(), // Product vocabulary, not provider issue types.
-    position: integer("position").default(0).notNull(),
-    createdById: actor("created_by_id"),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-    archivedAt: timestamp("archived_at"),
-  },
-  (t) => [
-    unique("delivery_item_org_id_unique").on(t.organizationId, t.id),
-    unique("delivery_item_context_unique").on(
-      t.organizationId,
-      t.workItemId,
-      t.revisionId,
-      t.id,
-    ),
-    foreignKey({
-      columns: [t.organizationId, t.workItemId, t.revisionId],
-      foreignColumns: [
-        specificationRevision.organizationId,
-        specificationRevision.workItemId,
-        specificationRevision.id,
-      ],
-    }).onDelete("restrict"),
-    foreignKey({
-      name: "delivery_item_parent_context_fk",
-      columns: [t.organizationId, t.workItemId, t.revisionId, t.parentId],
-      foreignColumns: [t.organizationId, t.workItemId, t.revisionId, t.id],
-    }).onDelete("restrict"),
-    check(
-      "delivery_item_not_own_parent",
-      sql`${t.parentId} IS NULL OR ${t.parentId} <> ${t.id}`,
-    ),
-    check("delivery_item_position_nonnegative", sql`${t.position} >= 0`),
-    index("delivery_item_hierarchy_idx").on(
-      t.organizationId,
-      t.workItemId,
-      t.revisionId,
-      t.parentId,
-      t.position,
-    ),
-  ],
-);
-
-// External namespace is the remote installation/workspace, not a secret or project key.
-// Connection configuration, credentials and provider field mappings come later.
-export const deliveryExternalLink = pgTable(
-  "delivery_external_link",
-  {
-    id: id(),
-    organizationId: organizationId(),
-    deliveryItemId: text("delivery_item_id").notNull(),
     provider: text("provider").notNull(),
     externalNamespace: text("external_namespace").notNull(),
     externalId: text("external_id"),
@@ -904,24 +1187,24 @@ export const deliveryExternalLink = pgTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.organizationId, t.deliveryItemId],
-      foreignColumns: [deliveryItem.organizationId, deliveryItem.id],
+      columns: [t.organizationId, t.workItemId],
+      foreignColumns: [workItem.organizationId, workItem.id],
     }).onDelete("restrict"),
-    unique("delivery_external_destination_unique").on(
+    unique("external_link_destination_unique").on(
       t.organizationId,
-      t.deliveryItemId,
+      t.workItemId,
       t.provider,
       t.externalNamespace,
     ),
-    unique("delivery_external_identity_unique").on(
+    unique("external_link_identity_unique").on(
       t.organizationId,
       t.provider,
       t.externalNamespace,
       t.externalId,
     ),
-    index("delivery_external_sync_idx").on(t.organizationId, t.status),
+    index("external_link_sync_idx").on(t.organizationId, t.status),
     check(
-      "delivery_external_synced_identity",
+      "external_link_synced_identity",
       sql`${t.status} <> 'synced' OR (${t.externalId} IS NOT NULL AND ${t.syncedAt} IS NOT NULL)`,
     ),
   ],

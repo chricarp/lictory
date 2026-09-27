@@ -18,9 +18,13 @@ test.beforeAll(async () => {
     ["Taylor Rivera", multiOrgEmail],
   ] as const) {
     const id = crypto.randomUUID();
-    await db
+    // A worker restarted after a failure re-runs this hook on the same database.
+    const inserted = await db
       .insert(s.user)
-      .values({ id, name, email: mail, emailVerified: true });
+      .values({ id, name, email: mail, emailVerified: true })
+      .onConflictDoNothing()
+      .returning({ id: s.user.id });
+    if (!inserted.length) continue;
     await db.insert(s.account).values({
       id: crypto.randomUUID(),
       userId: id,
@@ -59,7 +63,7 @@ test("an existing member can create and switch to another organization", async (
 });
 async function signIn(page: Page, loginEmail = email) {
   await page.goto("/sign-in");
-  await page.getByLabel("Work email", { exact: true }).fill(loginEmail);
+  await page.getByLabel("Email", { exact: true }).fill(loginEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app/);
@@ -127,7 +131,11 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // 1. Create an Epic through quick create (keyboard: c).
   await page.keyboard.press("c");
-  await page.getByRole("radio", { name: "Epic" }).click();
+  await page
+    .getByRole("dialog", { name: /^Create/ })
+    .getByRole("button", { name: /^Type:/ })
+    .click();
+  await page.getByRole("option", { name: /^Epic/ }).click();
   await page
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Partial cancellation");
@@ -149,7 +157,11 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // 3. Create a Story from the dialog, searching and linking its Epic inline.
   await page.keyboard.press("c");
-  await page.getByRole("radio", { name: "Story" }).click();
+  await page
+    .getByRole("dialog", { name: /^Create/ })
+    .getByRole("button", { name: /^Type:/ })
+    .click();
+  await page.getByRole("option", { name: /^Story/ }).click();
   await page
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Define cancellation API");
@@ -247,13 +259,15 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await expect(
     page.getByRole("combobox", { name: "Assignee: Alex Morgan" }).first(),
   ).toBeVisible();
+  // Refinement is the specification's lifecycle, separate from the team's
+  // delivery status.
   await page
-    .getByRole("button", { name: /^Status:/ })
+    .getByRole("button", { name: /^Refinement:/ })
     .first()
     .click();
   await page.getByRole("option", { name: "In refinement" }).click();
   await expect(
-    page.getByRole("button", { name: "Status: In refinement" }).first(),
+    page.getByRole("button", { name: "Refinement: In refinement" }).first(),
   ).toBeVisible();
 
   // Labels and milestone (non-material properties) with inline creation.
@@ -352,7 +366,7 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     .click();
   await expect(page.getByText("Requested", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Status: In review" }).first(),
+    page.getByRole("button", { name: "Refinement: In review" }).first(),
   ).toBeVisible();
 
   // 18. Reviewer uses Needs my review; row shows the request.
@@ -407,6 +421,9 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await expect(reviewer.getByRole("button", { name: /^Status:/ })).toHaveCount(
     0,
   );
+  await expect(
+    reviewer.getByRole("button", { name: /^Refinement:/ }),
+  ).toHaveCount(0);
   await reviewer.getByRole("button", { name: "Suggest", exact: true }).click();
   await reviewer
     .getByRole("textbox", { name: "Proposed specification" })
@@ -500,10 +517,12 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await reviewer.getByRole("button", { name: "Approve revision 4" }).click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Status: Ready" }).first(),
+    page.getByRole("button", { name: "Refinement: Ready" }).first(),
   ).toBeVisible();
   await expect(
-    page.getByText("All checks pass; this item is ready for development."),
+    page.getByText(
+      "All checks pass; this specification is ready for development.",
+    ),
   ).toBeVisible();
 
   // 17. Navigate quickly between stories via keyboard in the split view.
@@ -590,4 +609,109 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   ).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "/tmp/lictory-story-mobile.png" });
   await reviewerContext.close();
+});
+
+test("native delivery: plan a sprint, move cards on the board, readiness gates starting, complete with carry-over", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signIn(page, multiOrgEmail);
+  await page.getByRole("button", { name: /First Team|Second Team/ }).click();
+  await page.getByRole("link", { name: "Create organization" }).click();
+  await page.getByLabel("Organization name").fill("Delivery Co");
+  await page.getByRole("button", { name: "Create organization" }).click();
+  await page.getByLabel("Project name").fill("Checkout");
+  await page.getByLabel("Key").fill("CHK");
+  await page
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/chk\/epics$/);
+
+  // A Task (plain work) and a Story (specification) through quick create.
+  for (const [type, title] of [
+    ["Task", "Add payment method column"],
+    ["Story", "Save a card for later"],
+  ] as const) {
+    await page.keyboard.press("c");
+    await page
+      .getByRole("dialog", { name: /^Create/ })
+      .getByRole("button", { name: /^Type:/ })
+      .click();
+    await page.getByRole("option", { name: new RegExp(`^${type}`) }).click();
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
+    await page
+      .getByRole("button", { name: `Create ${type}`, exact: true })
+      .click();
+    await expect(page.getByText(`${type} “${title}” created`)).toBeVisible();
+    await page.keyboard.press("Escape");
+  }
+
+  // Plan: create a sprint and drag both items into it, then start it.
+  await page.getByRole("link", { name: "Backlog & sprints" }).click();
+  await page.getByRole("button", { name: "New sprint" }).click();
+  const sprint = page.locator("section[aria-label='Iteration']").first();
+  await expect(sprint.getByText("Iteration 1")).toBeVisible();
+  for (const title of ["Add payment method column", "Save a card for later"]) {
+    await page.locator("[data-row]", { hasText: title }).dragTo(sprint);
+    await expect(sprint.getByText(title)).toBeVisible();
+  }
+  await sprint.getByRole("button", { name: "Start" }).click();
+  await expect(sprint.getByText("Active", { exact: true })).toBeVisible();
+
+  // Board: a second member session sees the same board state.
+  await page.setViewportSize({ width: 1800, height: 900 });
+  await page.getByRole("link", { name: "Board" }).click();
+  const column = (name: string) =>
+    page.locator("div.w-\\[272px\\]").filter({
+      has: page.locator("span.truncate", {
+        hasText: new RegExp(`^${name}$`),
+      }),
+    });
+  await page
+    .locator("[data-card]", { hasText: "Add payment method column" })
+    .dragTo(column("In Progress"));
+  await expect(
+    column("In Progress").getByText("Add payment method column"),
+  ).toBeVisible();
+  // Warn (default): the Story starts, and the early start is surfaced.
+  await page
+    .locator("[data-card]", { hasText: "Save a card for later" })
+    .dragTo(column("In Progress"));
+  await expect(
+    page.getByText(/started before its specification is ready/),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    column("In Progress").getByText("Save a card for later"),
+  ).toBeVisible();
+
+  // Block: the team now requires a ready specification to start work.
+  await page.getByRole("button", { name: "Team settings" }).click();
+  await page.getByRole("radio", { name: /Block/ }).click();
+  await page.getByRole("link", { name: /board$/ }).click();
+  await page
+    .locator("[data-card]", { hasText: "Save a card for later" })
+    .dragTo(column("Todo"));
+  await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
+  await page
+    .locator("[data-card]", { hasText: "Save a card for later" })
+    .dragTo(column("In Progress"));
+  await expect(page.getByText(/requires a ready specification/)).toBeVisible();
+  await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
+
+  // Finish the task, complete the sprint, carry the story to the backlog.
+  await page
+    .locator("[data-card]", { hasText: "Add payment method column" })
+    .dragTo(column("Done"));
+  await expect(
+    column("Done").getByText("Add payment method column"),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Backlog & sprints" }).click();
+  await page.getByRole("button", { name: "Complete" }).click();
+  await page.getByRole("option", { name: "Backlog" }).click();
+  const backlog = page.locator("section[aria-label='Backlog']");
+  await expect(backlog.getByText("Save a card for later")).toBeVisible();
+  await page.getByRole("link", { name: /Iteration 1/ }).click();
+  await expect(page.getByRole("heading", { name: "Burndown" })).toBeVisible();
+  await expect(page.getByText("Carried over")).toBeVisible();
 });

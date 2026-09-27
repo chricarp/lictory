@@ -1,1 +1,0 @@
-ALTER TABLE "suggestion" ADD COLUMN "title" text;

@@ -4,7 +4,16 @@ import { useMemo, useState } from "react";
 import { GripVertical, Plus } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
-import { byPosition, identifier } from "~/lib/work-items";
+import {
+  byPosition,
+  enabledTypes,
+  identifier,
+  isClosedCategory,
+  categoryOf,
+  segmentOf,
+  typeOf,
+} from "~/lib/work-items";
+import { Popover, Picker } from "~/components/ui/popover";
 import { Button } from "~/components/ui/button";
 import { SectionLabel } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
@@ -12,15 +21,27 @@ import { IssueStatus } from "./status";
 import { IssueIdentifier } from "./identifier";
 import { ReviewSignal } from "./signals";
 import { AssigneePicker } from "./properties";
-import { KindIcon } from "./icons";
+import { TypeIcon } from "./icons";
 import { useItem } from "./item-context";
 
-// Stories inside an Epic: compact, information-dense, editable in place, and
-// creatable without leaving the Epic. Order is manual: drag the handle, or use
-// Alt+↑/↓ on a focused row. The server keeps sparse positions per parent.
+// Children of an item (Stories in an Epic, Subtasks in a Task): compact,
+// editable in place, and creatable without leaving the parent. Order is manual:
+// drag the handle, or use Alt+↑/↓ on a focused row. Decomposing a
+// specification records the revision each child was derived from.
 export function EpicStories() {
   const { item, project, canEdit, canChangeProperties } = useItem();
-  const { items, organization, mutate } = useWorkspace();
+  const { items, organization, mutate, delivery } = useWorkspace();
+  const parentType = typeOf(delivery, item);
+  const childTypes = enabledTypes(
+    delivery,
+    delivery.teams.get(item.teamId),
+  ).filter((t) => t.level < parentType.level);
+  // Default to the richest child type one level down (Story under Epic).
+  const [childTypeId, setChildTypeId] = useState<string>();
+  const childType =
+    childTypes.find((t) => t.id === childTypeId) ??
+    childTypes.find((t) => t.level === parentType.level - 1) ??
+    childTypes[0];
   const [title, setTitle] = useState("");
   const [composing, setComposing] = useState(false);
   const stories = useMemo(
@@ -52,48 +73,68 @@ export function EpicStories() {
       direction === -1 ? swap.id : (stories[index + 2]?.id ?? null),
     );
   };
-  const ready = stories.filter((s) =>
-    ["ready", "in_progress", "done"].includes(s.status),
+  const done = stories.filter((s) =>
+    isClosedCategory(categoryOf(delivery, s)),
+  ).length;
+  const specs = stories.filter((s) => s.refinementState !== null);
+  const ready = specs.filter((s) => s.refinementState === "ready").length;
+  const stale = stories.filter(
+    (s) =>
+      s.sourceRevisionId &&
+      item.revisionId &&
+      s.sourceRevisionId !== item.revisionId,
   ).length;
   const create = async () => {
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed || !childType) return;
     // Clear before awaiting so a title typed meanwhile is never wiped.
     setTitle("");
     await mutate({
       type: "createWorkItem",
       projectId: item.projectId,
       workItemId: crypto.randomUUID(),
-      kind: "story",
+      typeId: childType.id,
+      teamId: item.teamId,
       parentId: item.id,
       title: trimmed,
     });
   };
+  if (!childTypes.length && stories.length === 0) return null;
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <SectionLabel>Stories</SectionLabel>
+        <SectionLabel>Children</SectionLabel>
         {stories.length > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">
-            {ready}/{stories.length} ready
+            {done}/{stories.length} done
+            {specs.length > 0 && ` · ${ready}/${specs.length} ready`}
+            {item.childEstimate > 0 && ` · ${item.childEstimate} pts`}
           </span>
         )}
-        {canEdit && !composing && (
+        {stale > 0 && (
+          <span
+            className="text-xs text-amber-700 dark:text-amber-400"
+            title="These children were derived from an earlier revision of this specification. Review whether they still match."
+          >
+            {stale} from an earlier revision
+          </span>
+        )}
+        {canEdit && !composing && childType && (
           <Button
             variant="ghost"
             size="sm"
             className="ml-auto"
             onClick={() => setComposing(true)}
           >
-            <Plus className="size-3.5" /> Add story
+            <Plus className="size-3.5" /> Add {childType.name.toLowerCase()}
           </Button>
         )}
       </div>
       <div className="overflow-hidden rounded-md border">
         {stories.length === 0 && !composing && (
           <p className="px-3 py-4 text-[13px] text-muted-foreground">
-            No stories yet. Break the Epic into concrete behavior engineering
-            can implement.
+            Nothing here yet. Break this {parentType.name.toLowerCase()} into
+            concrete work the team can implement.
           </p>
         )}
         <ul className="divide-y">
@@ -175,21 +216,22 @@ export function EpicStories() {
               )}
               <span className="relative z-10">
                 <IssueStatus
-                  status={story.status}
+                  teamId={story.teamId}
+                  statusId={story.statusId}
                   compact
                   onChange={
                     canChangeProperties
-                      ? (status) =>
+                      ? (statusId) =>
                           void mutate({
                             type: "updateWorkItem",
                             workItemId: story.id,
-                            status,
+                            statusId,
                           })
                       : undefined
                   }
                 />
               </span>
-              <KindIcon kind={story.kind} />
+              <TypeIcon type={typeOf(delivery, story)} />
               <IssueIdentifier
                 project={project}
                 number={story.number}
@@ -199,7 +241,7 @@ export function EpicStories() {
                 href={paths.item(
                   organization.slug,
                   project.key,
-                  "stories",
+                  segmentOf(typeOf(delivery, story)),
                   identifier(project, story.number),
                   new URLSearchParams({ epic: item.id }),
                 )}
@@ -235,6 +277,32 @@ export function EpicStories() {
               void create();
             }}
           >
+            {childTypes.length > 1 && childType && (
+              <Popover
+                width={200}
+                trigger={(props) => (
+                  <button
+                    {...props}
+                    type="button"
+                    aria-label={`Type: ${childType.name}`}
+                    className="grid size-7 place-items-center rounded-md hover:bg-muted"
+                  >
+                    <TypeIcon type={childType} />
+                  </button>
+                )}
+              >
+                <Picker
+                  title="Type"
+                  options={childTypes.map((t) => ({
+                    value: t.id,
+                    label: t.name,
+                    icon: <TypeIcon type={t} />,
+                  }))}
+                  value={childType.id}
+                  onSelect={setChildTypeId}
+                />
+              </Popover>
+            )}
             <input
               autoFocus
               value={title}
@@ -245,8 +313,8 @@ export function EpicStories() {
                   setTitle("");
                 }
               }}
-              placeholder="Story title — Enter to add another, Esc to finish"
-              aria-label="New story title"
+              placeholder={`${childType?.name ?? "Item"} title — Enter to add another, Esc to finish`}
+              aria-label={`New ${childType?.name.toLowerCase() ?? "item"} title`}
               className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
             />
             <Button type="submit" size="sm" disabled={!title.trim()}>

@@ -38,6 +38,9 @@ const emptyDirectory: Directory = {
   projects: [],
   members: [],
   roles: [],
+  teams: [],
+  types: [],
+  iterations: [],
 };
 export class SyncEngine {
   private cache: Cache = { entities: {}, directory: emptyDirectory };
@@ -84,6 +87,7 @@ export class SyncEngine {
         (roleId) =>
           this.cache.directory.roles.find((r) => r.id === roleId)?.name ??
           "Review",
+        this.cache.directory,
       ),
       directory: this.cache.directory,
       pending: this.queue,

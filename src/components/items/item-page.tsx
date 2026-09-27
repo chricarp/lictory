@@ -6,7 +6,12 @@ import { FileSearch } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { MissingState } from "~/components/ui/status-page";
 import { paths } from "~/lib/paths";
-import { identifier, parseIdentifier } from "~/lib/work-items";
+import {
+  identifier,
+  parseIdentifier,
+  segmentOf,
+  typeOf,
+} from "~/lib/work-items";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
 import { SyncIssue, isSyncBlocked } from "~/components/workspace/sync-issue";
@@ -16,7 +21,7 @@ import { ItemDetail } from "./item-detail";
 // Accepts a human identifier (PAY-12) or an item UUID (used right after
 // creation, before the server confirms the number) and normalizes the URL.
 export function ItemPage({ identifier: raw }: { identifier: string }) {
-  const { items, view, organization, projects } = useWorkspace();
+  const { items, view, organization, projects, delivery } = useWorkspace();
   const project = useProject();
   const { setCurrentItem } = useShell();
   const router = useRouter();
@@ -55,22 +60,30 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
         paths.item(
           organization.slug,
           otherProject.key,
-          otherItem.kind === "epic" ? "epics" : "stories",
+          segmentOf(typeOf(delivery, otherItem)),
           identifier(otherProject, otherItem.number),
         ),
       );
-  }, [otherProject, otherItem, router, organization.slug]);
+  }, [otherProject, otherItem, router, organization.slug, delivery]);
   useEffect(() => {
     if (item && !parsed && !pendingCreate)
       router.replace(
         paths.item(
           organization.slug,
           project.key,
-          item.kind === "epic" ? "epics" : "stories",
+          segmentOf(typeOf(delivery, item)),
           identifier(project, item.number),
         ),
       );
-  }, [item, parsed, pendingCreate, router, organization.slug, project]);
+  }, [
+    item,
+    parsed,
+    pendingCreate,
+    router,
+    organization.slug,
+    project,
+    delivery,
+  ]);
   if (!item) {
     if (view.status === "hydrating" || view.status === "syncing")
       return (

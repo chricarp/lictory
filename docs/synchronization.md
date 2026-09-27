@@ -5,31 +5,49 @@ and Markdown revisions. The application runs without AI or delivery integrations
 
 ## Work items
 
-Epics, Stories and Tasks are one entity, `workItem` (`kind`, optional `parentId`,
-per-project `number`, `status`, `priority`, `assigneeId`, `milestoneId`,
-`labelIds`, `position`). The physical table is `work_item` with `work_item_id`
-foreign keys (migration `0004` renamed the original `proposal` table and columns in
-place; nothing was copied or dropped). Labels (`label`, `work_item_label`) and
-milestones (`milestone`) are project-scoped, archivable, and synchronized as
-project-level entities in the organization scope. Assigning them is a
-non-material property change. Sibling order is a sparse integer `position`
-maintained by `reorderWorkItem` (place before a sibling, or last); collisions
-renumber the siblings in one transaction. Identifiers render as `KEY-number` from the
-project `key`; numbers are allocated under the organization lock. Stories belong
-to an Epic; Tasks belong to an Epic or a Story; Epics have no parent.
+Every kind of work is one entity, `workItem`. It belongs to exactly one
+**project** (key and per-project `number`, rendered `KEY-number`; numbers are
+allocated under the organization lock) and exactly one **team** (workflow and
+delivery). Moving an item between teams never changes its identifier. Its
+`typeId` points into the organization's type registry (see
+[delivery.md](delivery.md)); hierarchy follows type levels, so a parent's level is
+strictly above its child's (Epic 2 > Story/Task/Bug 1 > Subtask 0), and the
+server rejects any other parent or type change. Labels and milestones are
+project-scoped and archivable. Sibling order under a parent is a sparse integer
+`position` (`reorderWorkItem`); backlog and board order is a fractional `rank`
+(`rankWorkItem` places between two neighbours and rewrites one row).
 
-Status is user-controlled among `backlog, draft, refinement, in_review, ready,
-in_progress, done, cancelled`. `ready` is evidence-gated: the server rejects a
-manual move to `ready` while a readiness check fails, promotes an item to `ready`
-automatically when every check passes (only from pre-ready statuses) and drops it
-back to `in_review` when readiness is lost. Requesting a review moves a backlog/
-draft/refinement item to `in_review`. Later statuses are never touched
-automatically. Property changes (status, priority, owner, epic) are non-material:
-they create no revision and never stale approvals.
+Two orthogonal states exist:
+
+- `statusId` is the delivery status from the item's team workflow. Any transition
+  is allowed; each status has a fixed category (`backlog`, `unstarted`,
+  `started`, `done`, `canceled`) that gives it meaning everywhere.
+- `refinementState` (`draft`, `refinement`, `in_review`, `ready`) exists only on
+  items whose type has a specification, and is `null` otherwise. `ready` is
+  evidence-gated and never set by hand: the server promotes an item to `ready`
+  when every readiness check passes and drops it back to `in_review` when
+  readiness is lost. Requesting a review moves `draft`/`refinement` to
+  `in_review`.
+
+A team's readiness policy (`off`, `warn`, `block`) decides whether a spec-backed
+item may move into a `started` status before it is ready. `block` rejects the
+command with the failing checks; `warn` allows it and records
+`startedBeforeReady` in the activity. Types without a specification are never
+gated and have no readiness checks, reviews, suggestions or discussions; their
+description is still stored as revisions, so history survives a type change.
+
+Property changes (status, refinement moves before ready, type, team, iteration,
+estimate, priority, owner, parent, labels, milestone) are non-material: they
+create no revision and never stale approvals. A child created under a
+spec-backed parent records the parent's current revision in `sourceRevisionId`,
+so clients can show work derived from an older revision.
 
 Every work item summary carries derived review, thread, suggestion, readiness and
-child counts so lists, Inbox and "Needs my review" work from the organization
-store without loading histories. Activity is structured (`action` + `detail`).
+child counts (`childDoneCount`, `childReadyCount`, `childEstimate`) so lists,
+boards, Inbox and "Needs my review" work from the organization store without
+loading histories. Activity is structured (`action` + `detail`); status changes
+record the status names at the time, so renaming or archiving a status never
+rewrites history.
 
 ## Server authority and authorization
 
@@ -109,14 +127,30 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 6 (suggestions gained distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 7 (teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
 one project; work item bootstrap adds its revisions, discussions, suggestions (with their
 reviewers and decisions), reviews, assignments, approvals, readiness and activity. It does not send unrelated
-item histories. A child's mutation additionally emits its parent Epic's readiness
-projection, because `stories_ready` lives in the Epic's scope. Historical content is currently loaded for one proposal as a
+item histories. A child's mutation additionally emits its parent's readiness
+projection, because `children_ready` lives in the parent's scope. Relations are
+project-level entities routed with their source item's project; removing one
+writes a tombstone (`delete` change) in the same transaction.
+
+Delivery configuration (teams with their members, enabled types and statuses;
+the type registry; planned, active and the most recent completed iterations) is
+part of the **directory**, like roles, and is refreshed on every read. Its
+commands therefore write no configuration entities, but a command that also
+moves items (archiving a status with a replacement, completing an iteration
+with carry-over, automatic cycles) diffs the organization snapshot and emits the
+affected work items like any other change. Iteration reports are read on demand
+(`?iteration=1`) and replay recorded events on the server.
+
+Automatic cycles are advanced by `advanceSchedules`, an idempotent server job
+invoked by a scheduler (see [delivery.md](delivery.md)). It takes each
+organization's lock, writes change-log rows and advances the clock exactly like a
+command, but writes no mutation receipt. Historical content is currently loaded for one proposal as a
 whole; pagination of very long revision/message histories is future work.
 
 A request without a checkpoint bootstraps under the lock. Delta requests return
@@ -255,8 +289,9 @@ only, never specification/comment content. Normal UI errors retain actionable te
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
 `/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
-renders in pages of 50. Jira, AI, SSO setup, billing, delivery decomposition,
-advanced policy configuration, SCIM, notification delivery, private projects,
+renders in pages of 50. Jira publishing, AI, SSO setup, billing, custom fields,
+comments on items without a specification, saved views, advanced policy
+configuration, SCIM, notification delivery, private projects,
 CRDT editing, multiplayer cursors, service-worker offline
 launch, log compaction, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. No production UI pretends

@@ -4,35 +4,147 @@ import {
   Circle,
   CircleCheck,
   CircleDashed,
-  CircleDot,
   CircleDotDashed,
   CircleSlash,
   Eye,
   Loader,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
-import { statusMeta, statusOrder } from "~/lib/work-items";
-import type { WorkItemStatus } from "~/sync/shared/protocol";
+import {
+  activeStatuses,
+  categoryMeta,
+  refinementMeta,
+  refinementOrder,
+} from "~/lib/work-items";
+import type {
+  LabelColor,
+  RefinementState,
+  StatusCategory,
+} from "~/sync/shared/protocol";
 import { Popover, Picker } from "~/components/ui/popover";
+import { useDelivery } from "~/components/workspace/provider";
 
-// Color is reserved for meaning: neutral until review, primary while in review,
-// green when ready/done, muted when cancelled.
+const tint: Record<LabelColor, string> = {
+  gray: "text-muted-foreground",
+  blue: "text-blue-600",
+  green: "text-emerald-600",
+  amber: "text-amber-600",
+  red: "text-red-600",
+  purple: "text-violet-600",
+  pink: "text-pink-600",
+  teal: "text-teal-600",
+};
+
+// The glyph shape comes from the fixed category so every team's workflow reads
+// the same way; the team-chosen color only tints it.
 export function StatusIcon({
-  status,
+  category,
+  color = "gray",
   className,
 }: {
-  status: WorkItemStatus;
+  category: StatusCategory | undefined;
+  color?: LabelColor;
+  className?: string;
+}) {
+  const base = cn("size-3.5 shrink-0", tint[color], className);
+  switch (category) {
+    case "backlog":
+      return <CircleDashed className={cn(base, "opacity-80")} aria-hidden />;
+    case "unstarted":
+      return <Circle className={base} aria-hidden />;
+    case "started":
+      return <Loader className={base} aria-hidden />;
+    case "done":
+      return (
+        <CircleCheck className={cn(base, "fill-current/15")} aria-hidden />
+      );
+    case "canceled":
+      return <CircleSlash className={cn(base, "opacity-70")} aria-hidden />;
+    default:
+      return <CircleDashed className={base} aria-hidden />;
+  }
+}
+
+// Delivery status from the item's team workflow.
+export function IssueStatus({
+  teamId,
+  statusId,
+  onChange,
+  compact = false,
+  disabled,
+  hint,
+}: {
+  teamId: string;
+  statusId: string;
+  onChange?: (statusId: string) => void;
+  compact?: boolean;
+  disabled?: boolean;
+  // Explains the readiness policy next to started statuses.
+  hint?: string;
+}) {
+  const delivery = useDelivery();
+  const team = delivery.teams.get(teamId);
+  const status = delivery.statuses.get(statusId);
+  const label = status?.name ?? "Unknown status";
+  const content: ReactNode = (
+    <>
+      <StatusIcon category={status?.category} color={status?.color} />
+      {!compact && <span>{label}</span>}
+    </>
+  );
+  if (!onChange)
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-[13px]"
+        title={label}
+      >
+        {content}
+      </span>
+    );
+  return (
+    <Popover
+      width={220}
+      disabled={disabled}
+      trigger={(props) => (
+        <button
+          {...props}
+          aria-label={`Status: ${label}`}
+          className={cn(
+            "inline-flex h-7 items-center gap-1.5 rounded-md text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none",
+            compact ? "w-7 justify-center" : "px-1.5",
+          )}
+        >
+          {content}
+        </button>
+      )}
+    >
+      <Picker
+        title="Change status"
+        options={activeStatuses(team).map((x) => ({
+          value: x.id,
+          label: x.name,
+          icon: <StatusIcon category={x.category} color={x.color} />,
+          hint:
+            x.category === "started" && hint
+              ? hint
+              : categoryMeta[x.category].label,
+        }))}
+        value={statusId}
+        onSelect={onChange}
+      />
+    </Popover>
+  );
+}
+
+export function RefinementIcon({
+  state,
+  className,
+}: {
+  state: RefinementState;
   className?: string;
 }) {
   const base = cn("size-3.5 shrink-0", className);
-  switch (status) {
-    case "backlog":
-      return (
-        <CircleDashed
-          className={cn(base, "text-muted-foreground/70")}
-          aria-hidden
-        />
-      );
+  switch (state) {
     case "draft":
       return (
         <Circle className={cn(base, "text-muted-foreground")} aria-hidden />
@@ -47,83 +159,65 @@ export function StatusIcon({
       return (
         <CircleCheck className={cn(base, "text-emerald-600")} aria-hidden />
       );
-    case "in_progress":
-      return <Loader className={cn(base, "text-primary")} aria-hidden />;
-    case "done":
-      return (
-        <CircleCheck
-          className={cn(base, "fill-emerald-500/20 text-emerald-700")}
-          aria-hidden
-        />
-      );
-    case "cancelled":
-      return (
-        <CircleSlash
-          className={cn(base, "text-muted-foreground/70")}
-          aria-hidden
-        />
-      );
-    default:
-      return <CircleDot className={base} aria-hidden />;
   }
 }
 
-export function IssueStatus({
-  status,
+// Refinement state of a specification. `ready` is evidence-driven: it cannot
+// be picked, only reached when every readiness check passes.
+export function RefinementStatus({
+  state,
   onChange,
-  compact = false,
   disabled,
   readyHint,
 }: {
-  status: WorkItemStatus;
-  onChange?: (status: WorkItemStatus) => void;
-  compact?: boolean;
+  state: RefinementState;
+  onChange?: (state: Exclude<RefinementState, "ready">) => void;
   disabled?: boolean;
   readyHint?: string;
 }) {
-  const content: ReactNode = (
+  const content = (
     <>
-      <StatusIcon status={status} />
-      {!compact && <span>{statusMeta[status].label}</span>}
+      <RefinementIcon state={state} />
+      <span>{refinementMeta[state].label}</span>
     </>
   );
   if (!onChange)
     return (
-      <span
-        className="inline-flex items-center gap-1.5 text-[13px]"
-        title={statusMeta[status].label}
-      >
+      <span className="inline-flex items-center gap-1.5 text-[13px]">
         {content}
       </span>
     );
   return (
     <Popover
-      width={220}
+      width={240}
       disabled={disabled}
       trigger={(props) => (
         <button
           {...props}
-
-          aria-label={`Status: ${statusMeta[status].label}`}
-          className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-md text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none",
-            compact ? "w-7 justify-center" : "px-1.5",
-          )}
+          aria-label={`Refinement: ${refinementMeta[state].label}`}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none"
         >
           {content}
         </button>
       )}
     >
       <Picker
-        title="Change status"
-        options={statusOrder.map((s) => ({
-          value: s,
-          label: statusMeta[s].label,
-          icon: <StatusIcon status={s} />,
-          hint: s === "ready" && readyHint ? readyHint : undefined,
-        }))}
-        value={status}
+        title="Refinement"
+        options={refinementOrder
+          .filter((x) => x !== "ready")
+          .map((x) => ({
+            value: x,
+            label: refinementMeta[x].label,
+            icon: <RefinementIcon state={x} />,
+          }))}
+        value={state === "ready" ? undefined : state}
         onSelect={onChange}
+        footer={
+          <p className="px-3 py-2 text-xs text-muted-foreground">
+            {readyHint ??
+              "Ready is set automatically when every readiness check passes."}
+          </p>
+        }
       />
     </Popover>
   );

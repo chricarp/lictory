@@ -5,12 +5,14 @@ import {
   createSyncService,
   directory,
   DomainError,
+  iterationReport,
   searchEpics,
   searchMembers,
 } from "~/sync/server/service";
 import {
   checkpointSchema,
   epicSearchSchema,
+  iterationReportQuerySchema,
   memberSearchSchema,
   mutationSchema,
   pageSchema,
@@ -20,7 +22,8 @@ import {
 const service = createSyncService(db);
 export const dynamic = "force-dynamic";
 type RequestContext = {
-  operation: "read" | "mutation" | "directory" | "members" | "epics";
+  operation:
+    "read" | "mutation" | "directory" | "members" | "epics" | "iteration";
   organization?: string;
   user: string;
   mutationId?: string;
@@ -148,6 +151,19 @@ export async function GET(request: Request) {
           query.q,
           query.offset,
           query.limit,
+        ),
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (params.iteration === "1") {
+      context.operation = "iteration";
+      const query = iterationReportQuerySchema.parse(params);
+      return Response.json(
+        await iterationReport(
+          db,
+          session.user.id,
+          query.organizationId,
+          query.iterationId,
         ),
         { headers: { "Cache-Control": "no-store" } },
       );

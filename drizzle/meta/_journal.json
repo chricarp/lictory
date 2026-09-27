@@ -5,71 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1789997841614,
-      "tag": "0000_third_punisher",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790007580819,
-      "tag": "0001_reflective_marvel_zombies",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790009412880,
-      "tag": "0002_tearful_rawhide_kid",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790012674064,
-      "tag": "0003_work_items",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790024090221,
-      "tag": "0004_work_item_rename",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1790040000000,
-      "tag": "0005_project_rename",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1790084556485,
-      "tag": "0006_organization_roles",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1790084572280,
-      "tag": "0007_default_organization_roles",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1790098692426,
-      "tag": "0008_suggestion_reviews",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1790115116978,
-      "tag": "0009_fearless_blizzard",
+      "when": 1790517098166,
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]

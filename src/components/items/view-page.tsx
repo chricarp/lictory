@@ -1,7 +1,14 @@
 "use client";
 import { useCallback, useMemo } from "react";
 import { paths } from "~/lib/paths";
-import { identifier, matchesView, views, type ViewId } from "~/lib/work-items";
+import {
+  type ViewId,
+  identifier,
+  matchesView,
+  segmentOf,
+  typeOf,
+  views,
+} from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
@@ -9,7 +16,7 @@ import { IssueList } from "./issue-list";
 
 // System views derive from real domain state; nothing here is a saved query.
 export function ViewPage({ view }: { view: ViewId }) {
-  const { items, organization, userId, roleIds } = useWorkspace();
+  const { items, organization, userId, roleIds, delivery } = useWorkspace();
   const project = useProject();
   const meta = views.find((v) => v.id === view)!;
   const scoped = useMemo(
@@ -27,10 +34,10 @@ export function ViewPage({ view }: { view: ViewId }) {
       paths.item(
         organization.slug,
         project.key,
-        item.kind === "epic" ? "epics" : "stories",
+        segmentOf(typeOf(delivery, item)),
         identifier(project, item.number),
       ),
-    [organization.slug, project],
+    [organization.slug, project, delivery],
   );
   return (
     <IssueList

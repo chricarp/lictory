@@ -13,16 +13,30 @@ import {
   X,
 } from "lucide-react";
 import { paths } from "~/lib/paths";
-import { identifier, type Project } from "~/lib/work-items";
+import {
+  identifier,
+  isTopLevel,
+  refinementMeta,
+  segmentOf,
+  typeOf,
+  type Project,
+} from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover } from "~/components/ui/popover";
 import { Badge, SectionLabel } from "~/components/ui/primitives";
 import { useItemEngine, useWorkspace } from "~/components/workspace/provider";
 import { IssueIdentifier } from "./identifier";
-import { KindIcon } from "./icons";
+import { TypeIcon } from "./icons";
 import { Presence } from "./presence";
-import { IssueStatus } from "./status";
+import { IssueStatus, RefinementStatus } from "./status";
+import {
+  EstimatePicker,
+  IterationPicker,
+  Relations,
+  TeamPicker,
+  TypePicker,
+} from "./delivery-properties";
 import { AssigneePicker, IssuePriority, ParentPicker } from "./properties";
 import {
   LabelChip,
@@ -71,8 +85,11 @@ export function ItemDetail({
   const entities = itemEngine.engine
     ? itemEngine.entities
     : Object.values(workspace.view.entities);
+  const type = typeOf(workspace.delivery, item);
+  const team = workspace.delivery.teams.get(item.teamId);
   const ctx = useItemContextValue({
     item,
+    type,
     project,
     entities,
     view: itemEngine.engine ? itemEngine.view : workspace.view,
@@ -153,19 +170,27 @@ export function ItemDetail({
   const listHref = paths.list(
     workspace.organization.slug,
     project.key,
-    item.kind === "epic" ? "epics" : "stories",
+    segmentOf(type),
     searchParams,
   );
-  const update = (patch: {
-    status?: WorkItem["status"];
-    priority?: WorkItem["priority"];
-    assigneeId?: string | null;
-    parentId?: string | null;
-    milestoneId?: string | null;
-    labelIds?: string[];
-  }) =>
+  const update = (
+    patch: Omit<
+      Extract<Parameters<typeof ctx.mutate>[0], { type: "updateWorkItem" }>,
+      "type" | "workItemId"
+    >,
+  ) =>
     void ctx.mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const failing = ctx.readiness?.checks.filter((c) => !c.passed) ?? [];
+  // Readiness policy of the team, surfaced next to started statuses.
+  const startHint =
+    type.hasSpecification &&
+    item.refinementState !== "ready" &&
+    team &&
+    team.readinessPolicy !== "off"
+      ? team.readinessPolicy === "block"
+        ? "Blocked until the specification is ready"
+        : "Specification not ready yet"
+      : undefined;
   // Without the "change properties" capability the panel is informative only;
   // the server rejects the command regardless of what the UI renders.
   const canChange = ctx.canChangeProperties;
@@ -177,15 +202,65 @@ export function ItemDetail({
     <div className="space-y-1">
       <Property label="Status">
         <IssueStatus
-          status={item.status}
-          onChange={canChange ? (status) => update({ status }) : undefined}
-          readyHint={
-            failing.length
-              ? `${failing.length} check${failing.length > 1 ? "s" : ""} failing`
-              : undefined
-          }
+          teamId={item.teamId}
+          statusId={item.statusId}
+          onChange={canChange ? (statusId) => update({ statusId }) : undefined}
+          hint={startHint}
         />
       </Property>
+      {item.refinementState && (
+        <Property label="Refinement">
+          <RefinementStatus
+            state={item.refinementState}
+            onChange={
+              canChange
+                ? (refinementState) => update({ refinementState })
+                : undefined
+            }
+            readyHint={
+              item.refinementState === "ready"
+                ? "Every readiness check passes."
+                : failing.length
+                  ? `${failing.length} readiness check${failing.length > 1 ? "s" : ""} failing. ${refinementMeta.ready.label} is set automatically when they pass.`
+                  : undefined
+            }
+          />
+        </Property>
+      )}
+      <Property label="Type">
+        <TypePicker
+          item={item}
+          onChange={canChange ? (typeId) => update({ typeId }) : undefined}
+        />
+      </Property>
+      <Property label="Team">
+        <TeamPicker
+          teamId={item.teamId}
+          onChange={canChange ? (teamId) => update({ teamId }) : undefined}
+        />
+      </Property>
+      {team && team.iterationMode !== "off" && (
+        <Property
+          label={team.iterationMode === "automatic" ? "Cycle" : "Sprint"}
+        >
+          <IterationPicker
+            item={item}
+            onChange={
+              canChange ? (iterationId) => update({ iterationId }) : undefined
+            }
+          />
+        </Property>
+      )}
+      {team && team.estimateScale !== "none" && (
+        <Property label="Estimate">
+          <EstimatePicker
+            item={item}
+            onChange={
+              canChange ? (estimate) => update({ estimate }) : undefined
+            }
+          />
+        </Property>
+      )}
       <Property label="Priority">
         <IssuePriority
           priority={item.priority}
@@ -200,7 +275,7 @@ export function ItemDetail({
           }
         />
       </Property>
-      {item.kind !== "epic" && (
+      {type.level === 1 && (
         <Property label="Epic">
           {canChange ? (
             <ParentPicker
@@ -256,11 +331,20 @@ export function ItemDetail({
         <SectionLabel className="mb-2">Properties</SectionLabel>
         {properties}
       </section>
-      <ReviewPanel />
-      <Readiness />
-      <RevisionPanel
-        onCompare={(from, to) => setMode({ kind: "compare", from, to })}
-      />
+      {ctx.reviewable ? (
+        <>
+          <ReviewPanel />
+          <Readiness />
+          <RevisionPanel
+            onCompare={(from, to) => setMode({ kind: "compare", from, to })}
+          />
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {type.name} items are plain work: no reviews or readiness checks.
+          Change the type to one with a specification to refine it.
+        </p>
+      )}
     </div>
   );
   return (
@@ -272,7 +356,7 @@ export function ItemDetail({
             className="flex min-w-0 items-center gap-1 text-muted-foreground"
           >
             <Link href={listHref} className="shrink-0 hover:text-foreground">
-              {item.kind === "epic" ? "Epics" : "Stories"}
+              {isTopLevel(type) ? "Epics" : "Work items"}
             </Link>
             {parent && (
               <>
@@ -281,19 +365,19 @@ export function ItemDetail({
                   href={paths.item(
                     workspace.organization.slug,
                     project.key,
-                    "epics",
+                    segmentOf(typeOf(workspace.delivery, parent)),
                     identifier(project, parent.number),
                   )}
                   className="flex min-w-0 items-center gap-1 hover:text-foreground"
                   title={parent.title}
                 >
-                  <KindIcon kind="epic" />
+                  <TypeIcon type={typeOf(workspace.delivery, parent)} />
                   <span className="truncate">{parent.title}</span>
                 </Link>
               </>
             )}
             <ChevronRight className="size-3.5 shrink-0" />
-            <KindIcon kind={item.kind} />
+            <TypeIcon type={type} />
             <IssueIdentifier
               project={project}
               number={item.number}
@@ -434,10 +518,12 @@ export function ItemDetail({
               <InlineTitle />
               <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
                 <IssueStatus
-                  status={item.status}
+                  teamId={item.teamId}
+                  statusId={item.statusId}
                   onChange={
-                    canChange ? (status) => update({ status }) : undefined
+                    canChange ? (statusId) => update({ statusId }) : undefined
                   }
+                  hint={startHint}
                 />
                 <IssuePriority
                   priority={item.priority}
@@ -481,19 +567,24 @@ export function ItemDetail({
               </div>
               {mode.kind !== "suggestion" && (
                 <>
-                  {item.kind === "epic" && (
-                    <section className="mt-10">
-                      <EpicStories />
-                    </section>
+                  <section className="mt-10">
+                    <EpicStories />
+                  </section>
+                  <section className="mt-10">
+                    <Relations item={item} canChange={canChange} />
+                  </section>
+                  {ctx.reviewable && (
+                    <>
+                      <section className="mt-10">
+                        <Suggestions
+                          onOpen={(id) => setMode({ kind: "suggestion", id })}
+                        />
+                      </section>
+                      <section className="mt-10">
+                        <Discussions draft={draft} onDraftChange={setDraft} />
+                      </section>
+                    </>
                   )}
-                  <section className="mt-10">
-                    <Suggestions
-                      onOpen={(id) => setMode({ kind: "suggestion", id })}
-                    />
-                  </section>
-                  <section className="mt-10">
-                    <Discussions draft={draft} onDraftChange={setDraft} />
-                  </section>
                 </>
               )}
               <section className="mt-10 mb-10">
@@ -542,7 +633,7 @@ function Property({
 }) {
   return (
     <div className="flex min-h-7 items-center gap-2 text-[13px]">
-      <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
+      <span className="w-20 shrink-0 text-muted-foreground">{label}</span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

@@ -22,10 +22,13 @@ import {
 } from "~/sync/shared/protocol";
 import {
   byType,
+  deliveryIndex,
   myRoleIds,
+  type Delivery,
   type Label,
   type Milestone,
   type Project,
+  type Relation,
 } from "~/lib/work-items";
 
 type Organization = Directory["organizations"][number];
@@ -40,6 +43,9 @@ type WorkspaceContextValue = {
   items: WorkItem[];
   labels: Label[];
   milestones: Milestone[];
+  relations: Relation[];
+  // Teams, types, statuses and iterations indexed from the directory.
+  delivery: Delivery;
   // Active organization roles I hold, and the union of their capabilities.
   roleIds: string[];
   capabilities: Capabilities;
@@ -52,6 +58,14 @@ type WorkspaceContextValue = {
   releaseItem: (itemId: string) => void;
 };
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+// Delivery configuration changes far less often than entities; a separate
+// context keeps memoized rows from re-rendering on every sync.
+const DeliveryContext = createContext<Delivery | null>(null);
+export function useDelivery() {
+  const value = useContext(DeliveryContext);
+  if (!value) throw new Error("useDelivery requires WorkspaceProvider.");
+  return value;
+}
 
 // Keeps recently opened item engines alive so moving between Stories only
 // selects data that already exists locally. Each engine has its own IndexedDB
@@ -131,6 +145,7 @@ export function WorkspaceProvider({
   const directory = view.directory.organizations.length
     ? view.directory
     : initialDirectory;
+  const delivery = useMemo(() => deliveryIndex(directory), [directory]);
   const value = useMemo<WorkspaceContextValue>(() => {
     const entities = Object.values(view.entities);
     const projects = byType(entities, "project")
@@ -153,24 +168,39 @@ export function WorkspaceProvider({
           (a.targetDate ?? "9").localeCompare(b.targetDate ?? "9") ||
           a.name.localeCompare(b.name),
       ),
+      relations: byType(entities, "relation"),
+      delivery,
       roleIds: myRoleIds(directory, userId),
       capabilities: capabilitiesOf(directory.roles, userId),
       isAdmin: applicationRoleOf(organization.role) === "admin",
       mutate: (command) => engine.mutate(command),
       memberName: (id) =>
-        id
-          ? (directory.members.find((m) => m.id === id)?.name ??
-            "Former member")
-          : "Unassigned",
+        id === "system"
+          ? "Lictory"
+          : id
+            ? (directory.members.find((m) => m.id === id)?.name ??
+              "Former member")
+            : "Unassigned",
       roleName: (id) =>
         directory.roles.find((r) => r.id === id)?.name ?? "Role",
       acquireItem,
       releaseItem,
     };
-  }, [view, directory, userId, organization, engine, acquireItem, releaseItem]);
+  }, [
+    view,
+    directory,
+    delivery,
+    userId,
+    organization,
+    engine,
+    acquireItem,
+    releaseItem,
+  ]);
   return (
     <WorkspaceContext.Provider value={value}>
-      {children}
+      <DeliveryContext.Provider value={delivery}>
+        {children}
+      </DeliveryContext.Provider>
     </WorkspaceContext.Provider>
   );
 }
@@ -231,7 +261,15 @@ export function useItemEngine(
 }
 const hydratingView: View = {
   entities: {},
-  directory: { organizations: [], projects: [], members: [], roles: [] },
+  directory: {
+    organizations: [],
+    projects: [],
+    members: [],
+    roles: [],
+    teams: [],
+    types: [],
+    iterations: [],
+  },
   pending: [],
   status: "hydrating",
 };

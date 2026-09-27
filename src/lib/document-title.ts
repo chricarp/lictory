@@ -44,7 +44,7 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
       if (second === undefined) parts.push(context);
       else if (second === "epics" || second === "stories") {
         if (third === undefined)
-          parts.push(second === "epics" ? "Epics" : "Stories", context);
+          parts.push(second === "epics" ? "Epics" : "Work items", context);
         else {
           const title = itemTitle(third, ctx);
           if (title) parts.push(title);

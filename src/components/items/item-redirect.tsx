@@ -6,12 +6,17 @@ import { FileSearch } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { MissingState } from "~/components/ui/status-page";
 import { paths } from "~/lib/paths";
-import { identifier, parseIdentifier } from "~/lib/work-items";
+import {
+  identifier,
+  parseIdentifier,
+  segmentOf,
+  typeOf,
+} from "~/lib/work-items";
 import { useWorkspace } from "~/components/workspace/provider";
 import { SyncIssue, isSyncBlocked } from "~/components/workspace/sync-issue";
 
 export function ItemRedirect({ identifier: raw }: { identifier: string }) {
-  const { items, projects, organization, view } = useWorkspace();
+  const { items, projects, organization, view, delivery } = useWorkspace();
   const router = useRouter();
   const parsed = parseIdentifier(raw);
   const project = parsed
@@ -26,7 +31,7 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
     ? paths.item(
         organization.slug,
         projects.find((p) => p.id === item.projectId)?.key ?? "",
-        item.kind === "epic" ? "epics" : "stories",
+        segmentOf(typeOf(delivery, item)),
         identifier(
           projects.find((p) => p.id === item.projectId),
           item.number,

@@ -36,7 +36,7 @@ void test("project surfaces name the project", () => {
     title("/app/northstar/pay/stories?status=draft".split("?")[0]!, {
       project,
     }),
-    "Stories · Payments · Lictory",
+    "Work items · Payments · Lictory",
   );
   assert.equal(
     title("/app/northstar/pay/reviews", { project }),

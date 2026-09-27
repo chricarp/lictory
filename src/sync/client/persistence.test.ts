@@ -29,7 +29,15 @@ void test("IndexedDB persists checkpoint with entities, queue survives reload, a
   await a.save(owner, {
     cursor: "9007199254740993",
     entities: {},
-    directory: { organizations: [], projects: [], members: [], roles: [] },
+    directory: {
+      organizations: [],
+      projects: [],
+      members: [],
+      roles: [],
+      teams: [],
+      types: [],
+      iterations: [],
+    },
   });
   const reloaded = new IndexedPersistence();
   assert.deepEqual(await reloaded.queue(owner), [item]);
@@ -64,7 +72,15 @@ void test("access revocation purges every scope and pending command for only the
   const cache = {
     cursor: "2",
     entities: {},
-    directory: { organizations: [], projects: [], members: [], roles: [] },
+    directory: {
+      organizations: [],
+      projects: [],
+      members: [],
+      roles: [],
+      teams: [],
+      types: [],
+      iterations: [],
+    },
   };
   await store.save(`${owner}:one`, cache);
   await store.save(`${owner}:two`, cache);

@@ -1,14 +1,17 @@
 "use client";
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { relativeTime, statusMeta, priorityMeta } from "~/lib/work-items";
+import { relativeTime, priorityMeta, refinementMeta } from "~/lib/work-items";
 import type {
   EntityOf,
+  RefinementState,
+  StatusCategory,
   WorkItemPriority,
-  WorkItemStatus,
 } from "~/sync/shared/protocol";
+import { iterationLabel } from "~/sync/shared/protocol";
 import { Avatar, SectionLabel } from "~/components/ui/primitives";
-import { StatusIcon } from "~/components/items/status";
+import { RefinementIcon, StatusIcon } from "~/components/items/status";
+import { useDelivery } from "~/components/workspace/provider";
 import { useItem } from "~/components/items/item-context";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
@@ -46,13 +49,20 @@ export function Activity() {
 
 export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   const { memberName, roleName } = useItem();
+  const delivery = useDelivery();
+  const iterationName = (id: string | undefined) => {
+    const it = id ? delivery.iterations.get(id) : undefined;
+    return it ? iterationLabel(it) : "an earlier iteration";
+  };
   const d = entry.detail ?? {};
   const actor = memberName(entry.actorId);
   const auto = d.automatic === true;
   let body: ReactNode;
   switch (entry.action) {
     case "created":
-      body = <>created this {str(d.kind) ?? "item"}</>;
+      body = (
+        <>created this {(str(d.type) ?? str(d.kind) ?? "item").toLowerCase()}</>
+      );
       break;
     case "revised":
       body = (
@@ -62,25 +72,58 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    // Status names are recorded at the time of the change, so history keeps
+    // reading correctly after a team renames or archives a status.
     case "status_changed": {
-      const from = str(d.from) as WorkItemStatus | undefined;
-      const to = str(d.to) as WorkItemStatus | undefined;
+      const to = str(d.to);
+      const category = str(d.category) as StatusCategory | undefined;
+      const early = Array.isArray(d.startedBeforeReady);
       body = (
         <>
-          {auto ? "status became" : "changed status"}{" "}
-          {from && statusMeta[from] && (
+          moved this{" "}
+          {str(d.from) && (
+            <span className="text-muted-foreground">from {str(d.from)} </span>
+          )}
+          to{" "}
+          <span className="inline-flex items-center gap-1">
+            {category && <StatusIcon category={category} />}
+            <b>{to}</b>
+          </span>
+          {d.reason === "status_archived" && (
+            <span className="text-muted-foreground">
+              {" "}
+              (the previous status was archived)
+            </span>
+          )}
+          {early && (
+            <span className="text-amber-700 dark:text-amber-400">
+              {" "}
+              before the specification was ready
+            </span>
+          )}
+        </>
+      );
+      break;
+    }
+    case "refinement_changed": {
+      const from = str(d.from) as RefinementState | undefined;
+      const to = str(d.to) as RefinementState | undefined;
+      body = (
+        <>
+          {auto ? "refinement became" : "changed refinement"}{" "}
+          {from && refinementMeta[from] && (
             <>
               <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <StatusIcon status={from} />
-                {statusMeta[from].label}
+                <RefinementIcon state={from} />
+                {refinementMeta[from].label}
               </span>{" "}
               →{" "}
             </>
           )}
-          {to && statusMeta[to] && (
+          {to && refinementMeta[to] && (
             <span className="inline-flex items-center gap-1">
-              <StatusIcon status={to} />
-              {statusMeta[to].label}
+              <RefinementIcon state={to} />
+              {refinementMeta[to].label}
             </span>
           )}
           {auto && (
@@ -90,6 +133,63 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     }
+    case "type_changed":
+      body = (
+        <>
+          changed the type from {str(d.from)} to <b>{str(d.to)}</b>
+        </>
+      );
+      break;
+    case "team_changed":
+      body = (
+        <>
+          moved this to{" "}
+          <b>{delivery.teams.get(str(d.to) ?? "")?.name ?? "another team"}</b>
+        </>
+      );
+      break;
+    case "iteration_changed":
+      body = str(d.to) ? (
+        <>
+          {d.reason === "carried_over"
+            ? "carried this over to"
+            : "planned this for"}{" "}
+          <b>{iterationName(str(d.to))}</b>
+        </>
+      ) : (
+        <>
+          {d.reason === "carried_over"
+            ? "returned unfinished work to the backlog"
+            : "moved this to the backlog"}
+        </>
+      );
+      break;
+    case "estimate_changed":
+      body =
+        d.to === null ? (
+          <>removed the estimate</>
+        ) : (
+          <>
+            estimated this at <b>{num(d.to)}</b>
+          </>
+        );
+      break;
+    case "relation_added":
+      body = (
+        <>
+          linked a{" "}
+          {str(d.kind) === "blocks"
+            ? "blocked"
+            : str(d.kind) === "duplicates"
+              ? "duplicate"
+              : "related"}{" "}
+          item
+        </>
+      );
+      break;
+    case "relation_removed":
+      body = <>removed a relation</>;
+      break;
     case "priority_changed":
       body = (
         <>

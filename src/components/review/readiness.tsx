@@ -52,9 +52,9 @@ export function Readiness() {
         </ul>
       )}
       <p className="mt-2 text-[11px] text-muted-foreground">
-        {item.status === "ready"
-          ? "All checks pass; this item is ready for development."
-          : "The item becomes Ready automatically when every check passes."}
+        {item.refinementState === "ready"
+          ? "All checks pass; this specification is ready for development."
+          : "The specification becomes Ready automatically when every check passes."}
       </p>
     </section>
   );

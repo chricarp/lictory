@@ -32,22 +32,28 @@ import {
   type RoleCommand,
   type Scope,
   type Change,
-  type WorkItemStatus,
+  type Iteration,
+  type IterationReport,
+  type RefinementState,
+  type StatusCategory,
+  type Team,
+  type WorkItemType,
+  isTeamCommand,
 } from "../shared/protocol";
+import { rankBetween } from "../shared/rank";
 import { hasAcceptanceCriteria } from "../shared/specification";
 import { roleColumns } from "./roles";
 
 type Database = PostgresJsDatabase<typeof s>;
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
-export class DomainError extends Error {
-  constructor(
-    public category: "forbidden" | "unavailable" | "conflict" | "validation",
-    message: string,
-    public currentRevisionId?: string,
-  ) {
-    super(message);
-  }
-}
+import { DomainError } from "./errors";
+import {
+  advanceTeamSchedule,
+  applyTeamCommand,
+  automaticTeams,
+  iterationReportRows,
+} from "./delivery";
+export { DomainError };
 // Missing or out-of-scope entities are "unavailable" (404) so a stale link never
 // looks like a revoked membership. Organization access failures stay forbidden.
 function requireValue<T>(
@@ -131,7 +137,15 @@ export async function directory(
       ),
     );
   if (!organizationId)
-    return { organizations, projects: [], members: [], roles: [] };
+    return {
+      organizations,
+      projects: [],
+      members: [],
+      roles: [],
+      teams: [],
+      types: [],
+      iterations: [],
+    };
   requireValue(
     organizations.find((o) => o.id === organizationId),
     "Organization access has been removed.",
@@ -192,7 +206,115 @@ export async function directory(
       .sort(),
     archivedAt: r.archivedAt?.toISOString() ?? null,
   }));
-  return { organizations, projects, members, roles };
+  const { teams, types, iterations } = await deliveryDirectory(
+    db,
+    organizationId,
+    memberIds,
+  );
+  return { organizations, projects, members, roles, teams, types, iterations };
+}
+
+// Delivery configuration is small and read on every sync, like roles, so its
+// commands need no entity changes: the refreshed directory carries them.
+async function deliveryDirectory(
+  db: Database | Tx,
+  organizationId: string,
+  memberIds: Set<string>,
+) {
+  const teamRows = await db
+    .select()
+    .from(s.team)
+    .where(eq(s.team.organizationId, organizationId))
+    .orderBy(asc(s.team.createdAt), asc(s.team.name));
+  const teamMembers = await db
+    .select()
+    .from(s.teamMember)
+    .where(eq(s.teamMember.organizationId, organizationId));
+  const teamTypes = await db
+    .select()
+    .from(s.teamWorkItemType)
+    .where(eq(s.teamWorkItemType.organizationId, organizationId));
+  const statuses = await db
+    .select()
+    .from(s.workflowStatus)
+    .where(eq(s.workflowStatus.organizationId, organizationId))
+    .orderBy(asc(s.workflowStatus.position), asc(s.workflowStatus.createdAt));
+  const typeRows = await db
+    .select()
+    .from(s.workItemType)
+    .where(eq(s.workItemType.organizationId, organizationId))
+    .orderBy(asc(s.workItemType.position), asc(s.workItemType.createdAt));
+  // Completed iterations are bounded to the most recent per team; reports for
+  // older ones are fetched on demand.
+  const iterationRows = await db
+    .select()
+    .from(s.iteration)
+    .where(
+      and(
+        eq(s.iteration.organizationId, organizationId),
+        or(
+          sql`${s.iteration.state} <> 'completed'`,
+          sql`${s.iteration.number} > (select coalesce(max(i2.number), 0) - 12 from ${s.iteration} i2 where i2.organization_id = ${s.iteration.organizationId} and i2.team_id = ${s.iteration.teamId} and i2.state = 'completed')`,
+        ),
+      ),
+    )
+    .orderBy(asc(s.iteration.teamId), asc(s.iteration.number));
+  const iso = (d: Date | null) => d?.toISOString() ?? null;
+  return {
+    teams: teamRows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      deliveryMode: t.deliveryMode,
+      readinessPolicy: t.readinessPolicy,
+      estimateScale: t.estimateScale,
+      iterationMode: t.iterationMode,
+      iterationWeeks: t.iterationWeeks,
+      iterationStartDay: t.iterationStartDay,
+      upcomingIterations: t.upcomingIterations,
+      memberIds: teamMembers
+        .filter((m) => m.teamId === t.id && memberIds.has(m.userId))
+        .map((m) => m.userId)
+        .sort(),
+      typeIds: teamTypes
+        .filter((x) => x.teamId === t.id)
+        .map((x) => x.typeId)
+        .sort(),
+      statuses: statuses
+        .filter((x) => x.teamId === t.id)
+        .map((x) => ({
+          id: x.id,
+          name: x.name,
+          color: x.color as Team["statuses"][number]["color"],
+          category: x.category,
+          position: x.position,
+          archivedAt: iso(x.archivedAt),
+        })),
+      archivedAt: iso(t.archivedAt),
+    })) satisfies Team[],
+    types: typeRows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      icon: t.icon as WorkItemType["icon"],
+      color: t.color as WorkItemType["color"],
+      level: t.level,
+      hasSpecification: t.hasSpecification,
+      position: t.position,
+      archivedAt: iso(t.archivedAt),
+    })) satisfies WorkItemType[],
+    iterations: iterationRows.map((i) => ({
+      id: i.id,
+      teamId: i.teamId,
+      number: i.number,
+      name: i.name,
+      goal: i.goal,
+      startsAt: i.startsAt.toISOString(),
+      endsAt: i.endsAt.toISOString(),
+      state: i.state,
+      startedAt: iso(i.startedAt),
+      completedAt: iso(i.completedAt),
+    })) satisfies Iteration[],
+  };
 }
 export function isAdmin(membership: { role: string }) {
   return applicationRoleOf(membership.role) === "admin";
@@ -331,7 +453,18 @@ export async function searchEpics(
       and(
         eq(s.workItem.organizationId, organizationId),
         eq(s.workItem.projectId, projectId),
-        eq(s.workItem.kind, "epic"),
+        inArray(
+          s.workItem.typeId,
+          db
+            .select({ id: s.workItemType.id })
+            .from(s.workItemType)
+            .where(
+              and(
+                eq(s.workItemType.organizationId, organizationId),
+                eq(s.workItemType.level, 2),
+              ),
+            ),
+        ),
         isNull(s.workItem.archivedAt),
         term
           ? or(
@@ -369,8 +502,29 @@ async function loadItemContext(
   items: ItemRow[],
 ) {
   const ids = items.map((i) => i.id);
+  const types = new Map(
+    (
+      await tx
+        .select()
+        .from(s.workItemType)
+        .where(eq(s.workItemType.organizationId, organizationId))
+    ).map((t) => [t.id, t]),
+  );
+  const categories = new Map(
+    (
+      await tx
+        .select({
+          id: s.workflowStatus.id,
+          category: s.workflowStatus.category,
+        })
+        .from(s.workflowStatus)
+        .where(eq(s.workflowStatus.organizationId, organizationId))
+    ).map((x) => [x.id, x.category]),
+  );
   if (ids.length === 0)
     return {
+      types,
+      categories,
       revisions: new Map<string, RevisionRow[]>(),
       threads: [] as ThreadRow[],
       suggestions: [] as SuggestionRow[],
@@ -436,6 +590,8 @@ async function loadItemContext(
     .from(s.workItemLabel)
     .where(where(s.workItemLabel));
   return {
+    types,
+    categories,
     revisions,
     threads,
     suggestions,
@@ -448,6 +604,22 @@ async function loadItemContext(
   };
 }
 type ItemContext = Awaited<ReturnType<typeof loadItemContext>>;
+const closedCategories: StatusCategory[] = ["done", "canceled"];
+function isSpecBacked(item: ItemRow, ctx: ItemContext) {
+  return ctx.types.get(item.typeId)?.hasSpecification ?? false;
+}
+function isClosed(item: ItemRow, ctx: ItemContext) {
+  const category = ctx.categories.get(item.statusId);
+  return category !== undefined && closedCategories.includes(category);
+}
+function activeChildren(item: ItemRow, all: ItemRow[], ctx: ItemContext) {
+  return all.filter(
+    (c) =>
+      c.parentId === item.id &&
+      !c.archivedAt &&
+      ctx.categories.get(c.statusId) !== "canceled",
+  );
+}
 
 // Reviewers of open suggestions still waiting to approve the current version.
 function pendingSuggestionReviewers(itemId: string, ctx: ItemContext) {
@@ -487,28 +659,32 @@ function summarize(
       r.status !== "cancelled" &&
       r.revisionId === current?.id,
   );
-  const children = all.filter(
-    (c) => c.parentId === item.id && !c.archivedAt && c.status !== "cancelled",
-  );
+  const children = activeChildren(item, all, ctx);
   const checks = readiness(item, all, ctx);
   return entitySchema.parse({
     type: "workItem",
     id: item.id,
     organizationId: item.organizationId,
     projectId: item.projectId,
+    teamId: item.teamId,
+    typeId: item.typeId,
     parentId: item.parentId,
-    kind: item.kind,
     number: item.number,
     title: item.title,
-    status: item.status,
+    statusId: item.statusId,
+    refinementState: item.refinementState,
     priority: item.priority,
     assigneeId: item.assigneeId,
     milestoneId: item.milestoneId,
+    iterationId: item.iterationId,
+    estimate: item.estimate,
     labelIds: ctx.labels
       .filter((l) => l.workItemId === item.id)
       .map((l) => l.labelId)
       .sort(),
     position: item.position,
+    rank: item.rank,
+    sourceRevisionId: item.sourceRevisionId,
     createdById: item.createdById,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -538,9 +714,10 @@ function summarize(
     readinessPassed: checks.filter((c) => c.passed).length,
     readinessTotal: checks.length,
     childCount: children.length,
-    childReadyCount: children.filter((c) =>
-      ["ready", "in_progress", "done"].includes(c.status),
-    ).length,
+    childReadyCount: children.filter((c) => c.refinementState === "ready")
+      .length,
+    childDoneCount: children.filter((c) => isClosed(c, ctx)).length,
+    childEstimate: children.reduce((sum, c) => sum + (c.estimate ?? 0), 0),
   }) as EntityOf<"workItem">;
 }
 
@@ -551,6 +728,9 @@ function readiness(
   all: ItemRow[],
   ctx: ItemContext,
 ): ReadinessCheck[] {
+  // Readiness is evidence about a specification; plain work has none.
+  if (!isSpecBacked(item, ctx)) return [];
+  const level = ctx.types.get(item.typeId)?.level ?? 1;
   const current = ctx.revisions.get(item.id)?.[0];
   const content = current?.content ?? "";
   const threads = ctx.threads.filter(
@@ -587,11 +767,12 @@ function readiness(
     (r) => !approvedResponsibilities.includes(r),
   );
   const blocking = threads.filter((t) => t.status === "open" && t.blocking);
-  const children = all.filter(
-    (c) => c.parentId === item.id && !c.archivedAt && c.status !== "cancelled",
+  // Only spec-backed children carry readiness; plain tasks never block it.
+  const children = activeChildren(item, all, ctx).filter((c) =>
+    isSpecBacked(c, ctx),
   );
   const childrenNotReady = children.filter(
-    (c) => !["ready", "in_progress", "done"].includes(c.status),
+    (c) => c.refinementState !== "ready",
   );
   const checks: ReadinessCheck[] = [
     {
@@ -601,7 +782,7 @@ function readiness(
       detail: content.trim() ? undefined : "The description is empty.",
     },
   ];
-  if (item.kind !== "epic")
+  if (level <= 1)
     checks.push({
       key: "acceptance_criteria",
       label: "Acceptance criteria defined",
@@ -639,13 +820,13 @@ function readiness(
             : undefined,
     },
   );
-  if (item.kind === "epic" && children.length > 0)
+  if (children.length > 0)
     checks.push({
-      key: "stories_ready",
-      label: "Every story is ready",
+      key: "children_ready",
+      label: "Every child specification is ready",
       passed: childrenNotReady.length === 0,
       detail: childrenNotReady.length
-        ? `${childrenNotReady.length} of ${children.length} stories are not ready.`
+        ? `${childrenNotReady.length} of ${children.length} child specifications are not ready.`
         : undefined,
     });
   // Keep the projection JSON-stable: bootstrap and delta must compare equal.
@@ -693,11 +874,22 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     .select()
     .from(s.milestone)
     .where(projectFilter(s.milestone));
+  const itemProject = new Map(items.map((i) => [i.id, i.projectId]));
+  const relations = (
+    await tx
+      .select()
+      .from(s.workItemRelation)
+      .where(eq(s.workItemRelation.organizationId, organizationId))
+      .orderBy(asc(s.workItemRelation.createdAt))
+  ).filter((r) => itemProject.has(r.fromId));
   const entities: Entity[] = [
     ...projects.map((p) => serialize("project", p)),
     ...labels.map((l) => serialize("label", l)),
     ...milestones.map((m) => serialize("milestone", m)),
     ...items.map((item) => summarize(item, items, ctx)),
+    ...relations.map((r) =>
+      serialize("relation", { ...r, projectId: itemProject.get(r.fromId) }),
+    ),
   ];
   if (!workItemId) return entities;
   const item = requireValue(items.find((p) => p.id === workItemId));
@@ -763,12 +955,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
   return entities;
 }
 
-const preReadyStatuses: WorkItemStatus[] = [
-  "backlog",
-  "draft",
-  "refinement",
-  "in_review",
-];
+const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
 
 export function createSyncService(db: Database) {
   return {
@@ -895,7 +1082,34 @@ export function createSyncService(db: Database) {
             await clock(tx, organizationId),
           );
         }
+        if (isTeamCommand(c)) {
+          // Team configuration and iteration planning can touch items across
+          // projects (carry-over, status replacement): diff the whole org.
+          const before = await snapshot(tx, { organizationId });
+          await applyTeamCommand(
+            tx,
+            { organizationId, userId, admin, capabilities, roster },
+            c,
+          );
+          const after = await snapshot(tx, { organizationId });
+          const cursor = await emitChanges(
+            tx,
+            organizationId,
+            before,
+            after,
+            await clock(tx, organizationId),
+          );
+          return commit(
+            tx,
+            organizationId,
+            mutation.id,
+            userId,
+            fingerprint,
+            cursor,
+          );
+        }
         let projectId: string;
+        let projectRow: typeof s.project.$inferSelect | undefined;
         let workItemId: string | undefined;
         let item: ItemRow | undefined;
         if ("projectId" in c) projectId = c.projectId;
@@ -920,9 +1134,15 @@ export function createSyncService(db: Database) {
               "Restore this item before changing it.",
             );
           projectId = item.projectId;
+          const itemType = roster.types.find((t) => t.id === item!.typeId);
+          if (specCommands.has(c.type) && !itemType?.hasSpecification)
+            throw new DomainError(
+              "validation",
+              `${itemType?.name ?? "This type"} items have no specification to review. Change the type to one with a specification first.`,
+            );
         }
         if (c.type !== "createProject")
-          requireValue(
+          projectRow = requireValue(
             (
               await tx
                 .select()
@@ -1056,13 +1276,19 @@ export function createSyncService(db: Database) {
           }
           return revisionId;
         };
+        const typeOf = (typeId: string) =>
+          requireValue(
+            roster.types.find((t) => t.id === typeId),
+            "The work item type is unavailable.",
+          );
+        // Hierarchy follows type levels: a parent sits strictly above its
+        // children (Epic > Story/Task/Bug > Subtask).
         const validateParent = async (
           parentId: string | null,
-          kind: string,
+          typeId: string,
         ) => {
           if (!parentId) return;
-          if (kind === "epic")
-            throw new DomainError("validation", "Epics cannot have a parent.");
+          const child = typeOf(typeId);
           const parent = requireValue(
             (
               await tx
@@ -1084,34 +1310,79 @@ export function createSyncService(db: Database) {
               "validation",
               "An item cannot be its own parent.",
             );
-          if (kind === "story" && parent.kind !== "epic")
-            throw new DomainError("validation", "Stories belong to an Epic.");
-          if (kind === "task" && parent.kind === "task")
+          const parentType = typeOf(parent.typeId);
+          if (parentType.level <= child.level)
             throw new DomainError(
               "validation",
-              "Tasks belong to an Epic or a Story.",
+              `A ${child.name} cannot be placed under a ${parentType.name}.`,
             );
+          return parent;
         };
-        const setStatus = async (
-          status: WorkItemStatus,
-          from: WorkItemStatus,
+        const teamOf = (teamId: string) =>
+          requireValue(
+            roster.teams.find((t) => t.id === teamId && !t.archivedAt),
+            "The team is unavailable.",
+          );
+        const iterationEvent = async (
+          iterationId: string | null,
+          kind: (typeof s.iterationEvent.$inferInsert)["kind"],
+          points: number | null,
+          at = now,
+        ) => {
+          if (!iterationId) return;
+          // Completed iterations are history: later edits never change them.
+          const known = roster.iterations.find((i) => i.id === iterationId);
+          if (!known || known.state === "completed") return;
+          await tx.insert(s.iterationEvent).values({
+            organizationId,
+            iterationId,
+            workItemId: workItemId!,
+            kind,
+            points: points ?? 0,
+            actorId: userId,
+            createdAt: at,
+          });
+        };
+        const openIteration = (teamId: string, iterationId: string) => {
+          const found = requireValue(
+            roster.iterations.find(
+              (i) => i.id === iterationId && i.teamId === teamId,
+            ),
+            "The iteration is unavailable for this team.",
+          );
+          if (found.state === "completed")
+            throw new DomainError(
+              "validation",
+              "That iteration is completed. Choose an active or planned one.",
+            );
+          return found;
+        };
+        const setRefinement = async (
+          state: RefinementState,
+          from: RefinementState | null,
           automatic = false,
         ) => {
-          if (status === from) return;
+          if (state === from || from === null) return;
           await tx
             .update(s.workItem)
-            .set({ status })
+            .set({ refinementState: state })
             .where(
               and(
                 eq(s.workItem.organizationId, organizationId),
                 eq(s.workItem.id, workItemId!),
               ),
             );
-          log("status_changed", { from, to: status, automatic });
+          log("refinement_changed", { from, to: state, automatic });
         };
         switch (c.type) {
           case "createProject": {
             require(admin, "An organization administrator must create projects.");
+            // Keys become URL segments beside fixed workspace routes.
+            if (reservedKeys.has(c.key))
+              throw new DomainError(
+                "validation",
+                `${c.key} is reserved by Lictory. Choose another key.`,
+              );
             const taken = (
               await tx
                 .select({ id: s.project.id })
@@ -1134,15 +1405,21 @@ export function createSyncService(db: Database) {
               name: c.name,
               slug: c.key.toLowerCase(),
               key: c.key,
+              defaultTeamId:
+                roster.teams.find((t) => !t.archivedAt)?.id ?? null,
               createdById: userId,
             });
             break;
           }
           case "updateProject":
             require(admin, "An organization administrator must update projects.");
+            if (c.defaultTeamId) teamOf(c.defaultTeamId);
             await tx
               .update(s.project)
-              .set({ name: c.name })
+              .set({
+                name: c.name,
+                ...(c.defaultTeamId ? { defaultTeamId: c.defaultTeamId } : {}),
+              })
               .where(
                 and(
                   eq(s.project.organizationId, organizationId),
@@ -1152,7 +1429,45 @@ export function createSyncService(db: Database) {
             break;
           case "createWorkItem": {
             requireCapability(capabilities, "editSpecifications");
-            await validateParent(c.parentId, c.kind);
+            const type = typeOf(c.typeId);
+            if (type.archivedAt)
+              throw new DomainError(
+                "validation",
+                `${type.name} is archived. Restore it or choose another type.`,
+              );
+            const teamId = c.teamId ?? projectRow!.defaultTeamId;
+            if (!teamId)
+              throw new DomainError(
+                "validation",
+                "Choose a team for this item; the project has no default team.",
+              );
+            const team = teamOf(teamId);
+            if (!team.typeIds.includes(type.id))
+              throw new DomainError(
+                "validation",
+                `${team.name} does not use ${type.name} items. Enable the type in team settings.`,
+              );
+            const parent = await validateParent(c.parentId, c.typeId);
+            const statuses = team.statuses.filter((x) => !x.archivedAt);
+            const status = c.statusId
+              ? requireValue(
+                  statuses.find((x) => x.id === c.statusId),
+                  "The status is unavailable for this team.",
+                )
+              : (statuses.find((x) => x.category === "backlog") ??
+                statuses.find((x) => x.category === "unstarted") ??
+                statuses[0]);
+            if (!status)
+              throw new DomainError(
+                "validation",
+                `${team.name} has no workflow statuses.`,
+              );
+            if (c.iterationId) openIteration(team.id, c.iterationId);
+            if (c.assigneeId)
+              requireValue(
+                roster.members.find((m) => m.id === c.assigneeId),
+                "Assignee is outside this organization.",
+              );
             const [{ next }] = (await tx
               .select({
                 next: sql<number>`coalesce(max(${s.workItem.number}), 0) + 1`,
@@ -1164,45 +1479,242 @@ export function createSyncService(db: Database) {
                   eq(s.workItem.projectId, projectId),
                 ),
               )) as [{ next: number }];
+            const [{ last }] = (await tx
+              .select({ last: sql<string | null>`max(${s.workItem.rank})` })
+              .from(s.workItem)
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.teamId, team.id),
+                ),
+              )) as [{ last: string | null }];
+            // Decomposition keeps traceability: a child of a specification
+            // records which parent revision it was derived from.
+            const parentRevision =
+              parent && typeOf(parent.typeId).hasSpecification
+                ? (
+                    await tx
+                      .select({ id: s.specificationRevision.id })
+                      .from(s.specificationRevision)
+                      .where(
+                        and(
+                          eq(
+                            s.specificationRevision.organizationId,
+                            organizationId,
+                          ),
+                          eq(s.specificationRevision.workItemId, parent.id),
+                        ),
+                      )
+                      .orderBy(desc(s.specificationRevision.number))
+                      .limit(1)
+                  )[0]?.id
+                : undefined;
             await tx.insert(s.workItem).values({
               id: workItemId!,
               organizationId,
               projectId,
+              teamId: team.id,
+              typeId: type.id,
               parentId: c.parentId,
-              kind: c.kind,
               number: Number(next),
               title: c.title,
-              status: "draft",
+              statusId: status.id,
+              refinementState: type.hasSpecification ? "draft" : null,
+              iterationId: c.iterationId ?? null,
+              assigneeId: c.assigneeId ?? null,
+              rank: rankBetween(last, null),
+              sourceRevisionId: parentRevision ?? null,
               createdById: userId,
             });
             await revision(c.title, c.description ?? "", "Created", undefined);
-            log("created", { kind: c.kind, number: Number(next) });
+            await iterationEvent(c.iterationId ?? null, "added", null);
+            log("created", {
+              type: type.name,
+              number: Number(next),
+              ...(parentRevision ? { sourceRevisionId: parentRevision } : {}),
+            });
             break;
           }
           case "updateWorkItem": {
             requireCapability(capabilities, "changeProperties");
             const patch: Partial<ItemRow> = {};
-            if (c.status !== undefined && c.status !== item!.status) {
-              if (c.status === "ready") {
-                const checks = before.find(
-                  (e) => e.type === "readiness" && e.id === workItemId,
+            const failingChecks = () => {
+              const checks = before.find(
+                (e) => e.type === "readiness" && e.id === workItemId,
+              );
+              return checks?.type === "readiness"
+                ? checks.checks.filter((k) => !k.passed)
+                : [];
+            };
+            // Team change: the key stays, the workflow follows the new team.
+            let teamId = item!.teamId;
+            let statusId = item!.statusId;
+            let iterationId = item!.iterationId;
+            let typeId = item!.typeId;
+            if (c.typeId !== undefined && c.typeId !== item!.typeId) {
+              const to = typeOf(c.typeId);
+              const from = typeOf(item!.typeId);
+              if (to.archivedAt)
+                throw new DomainError("validation", `${to.name} is archived.`);
+              await validateParent(item!.parentId, to.id);
+              const children = before.filter(
+                (e): e is EntityOf<"workItem"> =>
+                  e.type === "workItem" &&
+                  e.parentId === workItemId &&
+                  !e.archivedAt,
+              );
+              if (children.some((ch) => typeOf(ch.typeId).level >= to.level))
+                throw new DomainError(
+                  "validation",
+                  `This item has children that cannot sit under a ${to.name}.`,
                 );
-                const failing =
-                  checks?.type === "readiness"
-                    ? checks.checks.filter((k) => !k.passed)
-                    : [];
-                if (failing.length)
+              typeId = to.id;
+              patch.typeId = to.id;
+              // Revisions are never deleted; they reappear if the type
+              // regains a specification.
+              if (to.hasSpecification && !from.hasSpecification)
+                patch.refinementState = "draft";
+              if (!to.hasSpecification) patch.refinementState = null;
+              log("type_changed", { from: from.name, to: to.name });
+            }
+            if (c.teamId !== undefined && c.teamId !== item!.teamId) {
+              const to = teamOf(c.teamId);
+              const category = roster.teams
+                .find((t) => t.id === item!.teamId)
+                ?.statuses.find((x) => x.id === item!.statusId)?.category;
+              const statuses = to.statuses.filter((x) => !x.archivedAt);
+              const mapped =
+                statuses.find((x) => x.category === category) ?? statuses[0];
+              if (!mapped)
+                throw new DomainError(
+                  "validation",
+                  `${to.name} has no workflow statuses.`,
+                );
+              teamId = to.id;
+              statusId = mapped.id;
+              patch.teamId = to.id;
+              patch.statusId = mapped.id;
+              if (item!.iterationId) {
+                await iterationEvent(
+                  item!.iterationId,
+                  "removed",
+                  item!.estimate,
+                );
+                iterationId = null;
+                patch.iterationId = null;
+              }
+              log("team_changed", {
+                from: item!.teamId,
+                to: to.id,
+                statusId: mapped.id,
+              });
+            }
+            const team = teamOf(teamId);
+            if (!team.typeIds.includes(typeId))
+              throw new DomainError(
+                "validation",
+                `${team.name} does not use ${typeOf(typeId).name} items.`,
+              );
+            if (c.statusId !== undefined && c.statusId !== statusId) {
+              const to = requireValue(
+                team.statuses.find((x) => x.id === c.statusId && !x.archivedAt),
+                "The status is unavailable for this team.",
+              );
+              const from = team.statuses.find((x) => x.id === statusId);
+              // Readiness gates starting spec-backed work, per team policy.
+              // `warn` lets the move through but records the override.
+              let override: string[] | undefined;
+              if (
+                to.category === "started" &&
+                from?.category !== "started" &&
+                typeOf(typeId).hasSpecification &&
+                item!.refinementState !== "ready" &&
+                team.readinessPolicy !== "off"
+              ) {
+                const failing = failingChecks().map((k) => k.label);
+                if (team.readinessPolicy === "block")
                   throw new DomainError(
                     "validation",
-                    `Not ready yet: ${failing.map((k) => k.label.toLowerCase()).join("; ")}.`,
+                    `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.map((f) => f.toLowerCase()).join("; ")}` : ""}.`,
                   );
+                override = failing;
               }
-              patch.status = c.status;
+              const wasClosed = closedCategories.includes(
+                from?.category ?? "backlog",
+              );
+              const nowClosed = closedCategories.includes(to.category);
+              if (wasClosed !== nowClosed)
+                await iterationEvent(
+                  iterationId,
+                  nowClosed ? "completed" : "reopened",
+                  item!.estimate,
+                );
+              patch.statusId = to.id;
               log("status_changed", {
-                from: item!.status,
-                to: c.status,
+                from: from?.name ?? null,
+                to: to.name,
+                category: to.category,
+                ...(override ? { startedBeforeReady: override } : {}),
+              });
+            }
+            if (
+              c.refinementState !== undefined &&
+              c.refinementState !== item!.refinementState
+            ) {
+              if (item!.refinementState === null)
+                throw new DomainError(
+                  "validation",
+                  "This item has no specification to refine.",
+                );
+              patch.refinementState = c.refinementState;
+              log("refinement_changed", {
+                from: item!.refinementState,
+                to: c.refinementState,
                 automatic: false,
               });
+            }
+            if (c.iterationId !== undefined && c.iterationId !== iterationId) {
+              if (c.iterationId) {
+                if (team.deliveryMode === "external")
+                  throw new DomainError(
+                    "validation",
+                    `${team.name} tracks delivery in an external tool; plan iterations there.`,
+                  );
+                openIteration(teamId, c.iterationId);
+              }
+              await iterationEvent(iterationId, "removed", item!.estimate);
+              await iterationEvent(c.iterationId, "added", item!.estimate);
+              // Already-finished work counts as completed scope, not remaining.
+              const category = team.statuses.find(
+                (x) => x.id === (patch.statusId ?? statusId),
+              )?.category;
+              if (category && closedCategories.includes(category))
+                await iterationEvent(
+                  c.iterationId,
+                  "completed",
+                  item!.estimate,
+                );
+              patch.iterationId = c.iterationId;
+              log("iteration_changed", {
+                from: iterationId,
+                to: c.iterationId,
+              });
+              iterationId = c.iterationId;
+            }
+            if (c.estimate !== undefined && c.estimate !== item!.estimate) {
+              if (team.estimateScale === "none")
+                throw new DomainError(
+                  "validation",
+                  `${team.name} does not estimate work.`,
+                );
+              if (iterationId && c.iterationId === undefined)
+                await iterationEvent(
+                  iterationId,
+                  "estimate_changed",
+                  (c.estimate ?? 0) - (item!.estimate ?? 0),
+                );
+              patch.estimate = c.estimate;
+              log("estimate_changed", { from: item!.estimate, to: c.estimate });
             }
             if (c.priority !== undefined && c.priority !== item!.priority) {
               patch.priority = c.priority;
@@ -1225,7 +1737,7 @@ export function createSyncService(db: Database) {
               });
             }
             if (c.parentId !== undefined && c.parentId !== item!.parentId) {
-              await validateParent(c.parentId, item!.kind);
+              await validateParent(c.parentId, typeId);
               patch.parentId = c.parentId;
               log("parent_changed", { from: item!.parentId, to: c.parentId });
             }
@@ -1356,6 +1868,152 @@ export function createSyncService(db: Database) {
                   eq(s.workItem.id, workItemId!),
                 ),
               );
+            break;
+          }
+          case "rankWorkItem": {
+            requireCapability(capabilities, "changeProperties");
+            const neighbour = (id: string | null) =>
+              id === null
+                ? null
+                : requireValue(
+                    before.find(
+                      (e): e is EntityOf<"workItem"> =>
+                        e.type === "workItem" && e.id === id,
+                    ),
+                    "The neighbouring item is unavailable.",
+                  ).rank;
+            let low = neighbour(c.afterId);
+            let high = neighbour(c.beforeId);
+            // Stale neighbours (another client moved them) must not produce
+            // an invalid range; fall back to placing after `afterId`.
+            if (low !== null && high !== null && low >= high) high = null;
+            if (low === null && high === null)
+              low =
+                before
+                  .filter(
+                    (e): e is EntityOf<"workItem"> =>
+                      e.type === "workItem" && e.id !== workItemId,
+                  )
+                  .map((e) => e.rank)
+                  .sort()
+                  .at(-1) ?? null;
+            await tx
+              .update(s.workItem)
+              .set({ rank: rankBetween(low, high) })
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.id, workItemId!),
+                ),
+              );
+            break;
+          }
+          case "addRelation": {
+            requireCapability(capabilities, "changeProperties");
+            if (c.toId === workItemId)
+              throw new DomainError(
+                "validation",
+                "An item cannot relate to itself.",
+              );
+            // Relations may cross projects and teams, never organizations.
+            const target = requireValue(
+              (
+                await tx
+                  .select({ id: s.workItem.id })
+                  .from(s.workItem)
+                  .where(
+                    and(
+                      eq(s.workItem.organizationId, organizationId),
+                      eq(s.workItem.id, c.toId),
+                    ),
+                  )
+              )[0],
+              "The related item is unavailable.",
+            );
+            const existing = await tx
+              .select({ id: s.workItemRelation.id })
+              .from(s.workItemRelation)
+              .where(
+                and(
+                  eq(s.workItemRelation.organizationId, organizationId),
+                  eq(s.workItemRelation.kind, c.kind),
+                  or(
+                    and(
+                      eq(s.workItemRelation.fromId, workItemId!),
+                      eq(s.workItemRelation.toId, target.id),
+                    ),
+                    c.kind === "blocks"
+                      ? undefined
+                      : and(
+                          eq(s.workItemRelation.fromId, target.id),
+                          eq(s.workItemRelation.toId, workItemId!),
+                        ),
+                  ),
+                ),
+              );
+            if (existing.length) break;
+            if (c.kind === "blocks") {
+              const reverse = await tx
+                .select({ id: s.workItemRelation.id })
+                .from(s.workItemRelation)
+                .where(
+                  and(
+                    eq(s.workItemRelation.organizationId, organizationId),
+                    eq(s.workItemRelation.kind, "blocks"),
+                    eq(s.workItemRelation.fromId, target.id),
+                    eq(s.workItemRelation.toId, workItemId!),
+                  ),
+                );
+              if (reverse.length)
+                throw new DomainError(
+                  "validation",
+                  "These items already block each other the other way round.",
+                );
+            }
+            await tx.insert(s.workItemRelation).values({
+              id: c.relationId,
+              organizationId,
+              fromId: workItemId!,
+              toId: target.id,
+              kind: c.kind,
+              createdById: userId,
+            });
+            log("relation_added", { kind: c.kind, toId: target.id });
+            break;
+          }
+          case "removeRelation": {
+            requireCapability(capabilities, "changeProperties");
+            const relation = requireValue(
+              (
+                await tx
+                  .select()
+                  .from(s.workItemRelation)
+                  .where(
+                    and(
+                      eq(s.workItemRelation.organizationId, organizationId),
+                      eq(s.workItemRelation.id, c.relationId),
+                      or(
+                        eq(s.workItemRelation.fromId, workItemId!),
+                        eq(s.workItemRelation.toId, workItemId!),
+                      ),
+                    ),
+                  )
+              )[0],
+              "The relation is unavailable.",
+            );
+            await tx
+              .delete(s.workItemRelation)
+              .where(
+                and(
+                  eq(s.workItemRelation.organizationId, organizationId),
+                  eq(s.workItemRelation.id, relation.id),
+                ),
+              );
+            log("relation_removed", {
+              kind: relation.kind,
+              fromId: relation.fromId,
+              toId: relation.toId,
+            });
             break;
           }
           case "createLabel":
@@ -1912,11 +2570,10 @@ export function createSyncService(db: Database) {
               required: c.required,
             });
             if (
-              (["backlog", "draft", "refinement"] as string[]).includes(
-                item!.status,
-              )
+              item!.refinementState === "draft" ||
+              item!.refinementState === "refinement"
             )
-              await setStatus("in_review", item!.status, true);
+              await setRefinement("in_review", item!.refinementState, true);
             break;
           }
           case "cancelReview": {
@@ -2047,15 +2704,18 @@ export function createSyncService(db: Database) {
           itemState?.type === "workItem" &&
           !itemState.archivedAt
         ) {
-          const ready = readinessState.checks.every((check) => check.passed);
-          const next: WorkItemStatus | undefined =
-            ready && preReadyStatuses.includes(itemState.status)
+          const state = itemState.refinementState;
+          const ready =
+            readinessState.checks.length > 0 &&
+            readinessState.checks.every((check) => check.passed);
+          const next: RefinementState | undefined =
+            state && ready && preReadyStates.includes(state)
               ? "ready"
-              : !ready && itemState.status === "ready"
+              : !ready && state === "ready"
                 ? "in_review"
                 : undefined;
           if (next) {
-            await setStatus(next, itemState.status, true);
+            await setRefinement(next, state, true);
             after = await snapshot(tx, scope);
           }
         }
@@ -2110,9 +2770,6 @@ export function createSyncService(db: Database) {
               });
           }
         }
-        const old = new Map(
-          before.map((e) => [entityKey(e), JSON.stringify(e)]),
-        );
         let cursor = await clock(tx, organizationId);
         for (const { workItemId: parentId, entity } of parentReadiness) {
           cursor++;
@@ -2124,28 +2781,10 @@ export function createSyncService(db: Database) {
             change: { operation: "upsert", cursor: cursor.toString(), entity },
           });
         }
-        for (const entity of after) {
-          if (old.get(entityKey(entity)) === JSON.stringify(entity)) continue;
-          cursor++;
-          const change: Change = {
-            operation: "upsert",
-            cursor: cursor.toString(),
-            entity,
-          };
-          await tx.insert(s.syncChange).values({
-            organizationId,
-            cursor,
-            projectId,
-            workItemId:
-              entity.type === "workItem" ||
-              entity.type === "project" ||
-              entity.type === "label" ||
-              entity.type === "milestone"
-                ? null
-                : workItemId,
-            change,
-          });
-        }
+        cursor = await emitChanges(tx, organizationId, before, after, cursor, {
+          projectId,
+          workItemId,
+        });
         return commit(
           tx,
           organizationId,
@@ -2159,6 +2798,216 @@ export function createSyncService(db: Database) {
   };
 }
 
+const reservedKeys = new Set([
+  "INBOX",
+  "SETTINGS",
+  "ACCOUNT",
+  "ITEMS",
+  "TEAMS",
+]);
+// Commands that operate on a specification and its review. Types without a
+// specification still keep a revisioned description, but are not reviewed.
+const specCommands = new Set<string>([
+  "createThread",
+  "replyToThread",
+  "setThreadState",
+  "createSuggestion",
+  "updateSuggestion",
+  "setSuggestionState",
+  "setSuggestionReviewer",
+  "decideSuggestion",
+  "mergeSuggestion",
+  "requestReview",
+  "cancelReview",
+  "decideReview",
+]);
+
+// Entities listed in every project-level scope (workItemId = null).
+const projectLevel = new Set<Entity["type"]>([
+  "project",
+  "label",
+  "milestone",
+  "workItem",
+  "relation",
+]);
+function projectOf(entity: Entity) {
+  if (entity.type === "project") return entity.id;
+  if ("projectId" in entity) return entity.projectId;
+  return undefined;
+}
+// Diff two snapshots into change-log rows: changed entities become upserts and
+// vanished ones become tombstones, in the same transaction as the writes.
+async function emitChanges(
+  tx: Tx,
+  organizationId: string,
+  before: Entity[],
+  after: Entity[],
+  start: bigint,
+  fallback?: { projectId: string; workItemId?: string },
+) {
+  let cursor = start;
+  const old = new Map(before.map((e) => [entityKey(e), e]));
+  const seen = new Set<string>();
+  const route = (entity: Entity) => {
+    const projectId = projectOf(entity) ?? fallback?.projectId;
+    if (!projectId)
+      throw new Error(`No sync scope for ${entity.type}:${entity.id}.`);
+    return {
+      projectId,
+      workItemId: projectLevel.has(entity.type)
+        ? null
+        : (fallback?.workItemId ?? null),
+    };
+  };
+  for (const entity of after) {
+    const key = entityKey(entity);
+    seen.add(key);
+    const previous = old.get(key);
+    if (previous && JSON.stringify(previous) === JSON.stringify(entity))
+      continue;
+    cursor++;
+    await tx.insert(s.syncChange).values({
+      organizationId,
+      cursor,
+      ...route(entity),
+      change: { operation: "upsert", cursor: cursor.toString(), entity },
+    });
+  }
+  for (const [key, entity] of old) {
+    if (seen.has(key)) continue;
+    cursor++;
+    const change: Change = {
+      operation: "delete",
+      cursor: cursor.toString(),
+      type: entity.type,
+      id: entity.id,
+    };
+    await tx.insert(s.syncChange).values({
+      organizationId,
+      cursor,
+      ...route(entity),
+      change,
+    });
+  }
+  return cursor;
+}
+
+// Scheduled job (Trigger.dev, cron route or the Bun worker): starts and
+// completes automatic cycles. Idempotent; each organization commits
+// separately under its lock with the same change-log guarantees as commands.
+export async function advanceSchedules(db: Database, now = new Date()) {
+  const teams = await automaticTeams(db);
+  const byOrganization = new Map<string, string[]>();
+  for (const t of teams)
+    byOrganization.set(t.organizationId, [
+      ...(byOrganization.get(t.organizationId) ?? []),
+      t.teamId,
+    ]);
+  let changedOrganizations = 0;
+  for (const [organizationId, teamIds] of byOrganization)
+    await db.transaction(async (tx) => {
+      await lock(tx, organizationId);
+      const before = await snapshot(tx, { organizationId });
+      let changed = false;
+      for (const teamId of teamIds)
+        changed =
+          (await advanceTeamSchedule(tx, organizationId, teamId, now)) ||
+          changed;
+      if (!changed) return;
+      changedOrganizations++;
+      const after = await snapshot(tx, { organizationId });
+      const cursor = await emitChanges(
+        tx,
+        organizationId,
+        before,
+        after,
+        await clock(tx, organizationId),
+      );
+      await publish(tx, organizationId, cursor);
+    });
+  return { teams: teams.length, changedOrganizations };
+}
+
+export async function iterationReport(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  iterationId: string,
+) {
+  return db.transaction(async (tx) => {
+    await authorize(tx, userId, organizationId);
+    const it = requireValue(
+      (
+        await tx
+          .select()
+          .from(s.iteration)
+          .where(
+            and(
+              eq(s.iteration.organizationId, organizationId),
+              eq(s.iteration.id, iterationId),
+            ),
+          )
+      )[0],
+      "The iteration is unavailable.",
+    );
+    const { series, totals } = await iterationReportRows(
+      tx,
+      organizationId,
+      it,
+    );
+    const history = await tx
+      .select()
+      .from(s.iteration)
+      .where(
+        and(
+          eq(s.iteration.organizationId, organizationId),
+          eq(s.iteration.teamId, it.teamId),
+          eq(s.iteration.state, "completed"),
+        ),
+      )
+      .orderBy(desc(s.iteration.number))
+      .limit(8);
+    const tallyOf = (v: unknown) =>
+      (v as { points?: number } | undefined)?.points ?? 0;
+    return {
+      iterationId,
+      series,
+      // A completed iteration reports what was frozen at completion.
+      totals: (it.summary
+        ? {
+            atStart: it.summary.atStart,
+            final: it.summary.final,
+            completed: it.summary.completed,
+            addedAfterStart: it.summary.addedAfterStart,
+            removedAfterStart: it.summary.removedAfterStart,
+          }
+        : totals) as IterationReport["totals"],
+      summary: (it.summary ?? null) as IterationReport["summary"],
+      velocity: history.reverse().map((h) => ({
+        iterationId: h.id,
+        number: h.number,
+        name: h.name,
+        committed: tallyOf(h.summary?.atStart),
+        completed: tallyOf(h.summary?.completed),
+      })),
+    } satisfies IterationReport;
+  });
+}
+
+async function publish(tx: Tx, organizationId: string, cursor: bigint) {
+  await tx
+    .insert(s.syncClock)
+    .values({ organizationId, cursor })
+    .onConflictDoUpdate({
+      target: s.syncClock.organizationId,
+      set: { cursor },
+    });
+  // PostgreSQL delivers NOTIFY only after COMMIT. It is an invalidation, never data.
+  await tx.execute(
+    sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: cursor.toString() })})`,
+  );
+}
+
 // Clock, receipt and invalidation commit together with the domain writes.
 async function commit(
   tx: Tx,
@@ -2168,13 +3017,6 @@ async function commit(
   fingerprint: string,
   cursor: bigint,
 ) {
-  await tx
-    .insert(s.syncClock)
-    .values({ organizationId, cursor })
-    .onConflictDoUpdate({
-      target: s.syncClock.organizationId,
-      set: { cursor },
-    });
   await tx.insert(s.syncMutation).values({
     organizationId,
     id: mutationId,
@@ -2182,10 +3024,7 @@ async function commit(
     fingerprint,
     cursor,
   });
-  // PostgreSQL delivers NOTIFY only after COMMIT. It is an invalidation, never data.
-  await tx.execute(
-    sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: cursor.toString() })})`,
-  );
+  await publish(tx, organizationId, cursor);
   return {
     protocol: PROTOCOL,
     mutationId,

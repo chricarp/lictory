@@ -1,5 +1,9 @@
 import type { Filters, SortKey } from "./work-items";
-import type { WorkItemPriority, WorkItemStatus } from "~/sync/shared/protocol";
+import type {
+  RefinementState,
+  StatusCategory,
+  WorkItemPriority,
+} from "~/sync/shared/protocol";
 
 // List state lives in the URL so views are shareable and survive reloads.
 // Only non-default values are written, keeping URLs short.
@@ -26,7 +30,11 @@ export function readListState(
   const sort = params.get("sort");
   return {
     filters: {
-      status: list(params.get("status")) as WorkItemStatus[] | undefined,
+      status: list(params.get("status")) as StatusCategory[] | undefined,
+      refinement: list(params.get("refinement")) as
+        RefinementState[] | undefined,
+      type: list(params.get("type")),
+      team: list(params.get("team")),
       priority: list(params.get("priority")) as WorkItemPriority[] | undefined,
       assignee: list(params.get("assignee")),
       parent: list(params.get("epic")),
@@ -54,6 +62,9 @@ export function writeListState(
   };
   const f = state.filters;
   set("status", f.status?.join(","));
+  set("refinement", f.refinement?.join(","));
+  set("type", f.type?.join(","));
+  set("team", f.team?.join(","));
   set("priority", f.priority?.join(","));
   set("assignee", f.assignee?.join(","));
   set("epic", f.parent?.join(","));

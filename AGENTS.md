@@ -1,8 +1,19 @@
 # Lictory
 
-Lictory is a collaborative requirements and engineering-readiness platform.
+Lictory is a work-management platform for software teams whose distinguishing
+feature is collaborative, review-driven requirements refinement.
 
-The product exists to solve the gap between:
+Teams can use Lictory in two ways, on the same data model:
+
+1. **Refinement + export.** Refine and approve specifications in Lictory, decompose
+   them, and publish the resulting work into Jira, Linear or another delivery system.
+2. **Full stack.** Refine specifications and also run delivery natively: custom work
+   item types, team workflows, boards, backlog, sprints/cycles, estimates, relations.
+
+Delivery mode is a per-team setting, not a different product. Both modes must keep
+working; a feature for one mode must not degrade the other.
+
+The product exists, first of all, to solve the gap between:
 
 > “Product wants to build this.”
 
@@ -12,9 +23,7 @@ and:
 
 Product requirements are treated similarly to code changes: they are drafted, reviewed, discussed, revised, approved, versioned, and eventually promoted into delivery work.
 
-The platform is not intended to replace Jira, Linear, Azure DevOps, or other delivery systems. It sits before them.
-
-A Product Owner should be able to create a rough feature proposal, invite or automatically involve the right people, collaborate asynchronously with engineering and QA, resolve ambiguity, reach an agreed specification, decompose that specification into delivery work, and then publish the resulting work into Jira or another delivery platform.
+A Product Owner should be able to create a rough feature proposal, invite or automatically involve the right people, collaborate asynchronously with engineering and QA, resolve ambiguity, reach an agreed specification, decompose that specification into delivery work, and then either deliver that work in Lictory or publish it into Jira or another delivery platform.
 
 ---
 
@@ -165,34 +174,34 @@ The workflow should surface the right concerns for the feature being reviewed.
 
 ---
 
-## 5. Jira is downstream
+## 5. Delivery is native or external, never both at once for the same work
 
-Do not recreate Jira.
+Lictory can run delivery natively (boards, backlog, sprints/cycles, estimates,
+relations) or hand it off to Jira, Linear or another delivery system. Each team
+chooses. The refinement workflow is identical in both modes.
 
-The product should be excellent at:
+Native delivery should cover what small and medium software teams need to work
+every day, with Linear-like simplicity:
 
-- specification
-- review
-- decisions
-- approvals
-- engineering readiness
-- decomposition
-- traceability
+- configurable work item types (Epic, Story, Task, Bug, Subtask by default)
+- per-team workflow statuses grouped into fixed categories
+- kanban board and ranked backlog
+- sprints (manual) and cycles (automatic)
+- estimates, burndown, velocity, sprint reports
+- subtasks and relations (blocks, relates, duplicates)
 
-It should not gradually become another:
+It should not grow into:
 
-- sprint planner
-- kanban system
-- time tracker
-- issue tracker
-- capacity planner
-- roadmap suite
+- a time tracker
+- a capacity planner or resource scheduler
+- a portfolio/roadmap suite
+- an arbitrary workflow builder with transition rules
 
-Once work is implementation-ready, delivery systems take over.
+Readiness connects the two worlds: a spec-backed item's refinement state gates
+starting work (native mode, per team policy) or publishing (external mode).
 
-Integration should be deep.
-
-Duplication should be minimal.
+For the same piece of work, exactly one system owns delivery state. Do not create
+ambiguous dual tracking.
 
 ---
 
@@ -510,18 +519,58 @@ When a long thread contains an important conclusion, the product should make it 
 
 ## Delivery item
 
-A unit of implementation work produced from an approved specification.
+A unit of implementation work. Delivery items are ordinary work items: an
+approved specification is decomposed into child items (Stories, Tasks, Subtasks)
+that record the revision they were derived from.
 
-Examples:
+In native mode they are delivered in Lictory. In external mode they are published
+to systems such as Jira.
 
-- Epic
-- Story
-- Task
-- Bug
-- QA task
-- Technical task
+---
 
-Delivery items may eventually be synchronized to systems such as Jira.
+## Team
+
+A group of people who deliver work together. A team owns its workflow, enabled
+work item types, estimate scale, iterations, board, delivery mode and readiness
+policy.
+
+A team is not a permission boundary. Roles grant capabilities.
+
+Work items belong to exactly one project (identity: `PAY-142`) and one team
+(delivery). Moving an item between teams never changes its identifier.
+
+---
+
+## Work item type
+
+An organization-wide kind of work (Epic, Story, Task, Bug, Subtask by default).
+
+A type has a hierarchy level and states whether it carries a specification.
+Only spec-backed types are refined, reviewed and checked for readiness.
+
+---
+
+## Workflow status
+
+A team-defined delivery status in a fixed category: backlog, unstarted,
+started, done, canceled.
+
+Refinement state (draft, refinement, in review, ready) is separate from delivery
+status. Never merge them back into one field.
+
+---
+
+## Iteration
+
+A time-box of planned work: a sprint (started and completed by hand) or a cycle
+(scheduled automatically). One iteration per team is active at a time. Reports
+come from recorded events and are frozen at completion.
+
+---
+
+## Relation
+
+A directed link between work items: blocks, relates, duplicates.
 
 ---
 
@@ -560,7 +609,7 @@ Delivery Review
    ↓
 Ready
    ↓
-Publish
+Deliver natively (board, iterations)  or  Publish to an external system
 ```
 
 Do not assume that the workflow is perfectly linear.
@@ -1361,7 +1410,9 @@ When uncertain about a feature, ask:
 
 If yes, it probably belongs here.
 
-If it primarily helps teams manage implementation after that point, it probably belongs in Jira or another delivery system.
+If it helps teams deliver that work with the everyday essentials small and medium software teams need (types, workflows, boards, backlog, iterations, estimates, relations), it belongs in native delivery, as long as it stays simple and keeps the external-delivery mode working.
+
+If it turns Lictory into a time tracker, capacity planner, portfolio suite or workflow builder, it probably does not belong.
 
 If it adds process without improving clarity, collaboration, traceability, or readiness, it probably should not exist.
 
@@ -1377,7 +1428,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Implemented synchronization boundary
 
-Read [the synchronization architecture](docs/synchronization.md) before adding domain
+Read [the synchronization architecture](docs/synchronization.md) and
+[the delivery model](docs/delivery.md) before adding domain
 writes or synchronized entities. All workspace commands must preserve the shared
 organization transaction lock, domain/change-log/receipt atomicity, scope-local
 checkpoints, Better Auth membership checks, and immutable revision semantics.

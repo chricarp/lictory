@@ -10,12 +10,20 @@ import {
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/primitives";
 import { paths } from "~/lib/paths";
-import { identifier, needsMyReview, relativeTime } from "~/lib/work-items";
+import {
+  identifier,
+  categoryOf,
+  statusOf,
+  needsMyReview,
+  relativeTime,
+  segmentOf,
+  typeOf,
+} from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { useWorkspace } from "./provider";
 import { IssueIdentifier } from "~/components/items/identifier";
 import { StatusIcon } from "~/components/items/status";
-import { KindIcon } from "~/components/items/icons";
+import { TypeIcon } from "~/components/items/icons";
 
 type Entry = {
   item: WorkItem;
@@ -29,7 +37,8 @@ type Entry = {
 // narrow: review requests, blocked items I own, requested changes on my items,
 // items of mine that just became ready. No activity firehose.
 export function Inbox() {
-  const { items, projects, userId, roleIds, organization } = useWorkspace();
+  const { items, projects, userId, roleIds, organization, delivery } =
+    useWorkspace();
   // Rendered incrementally: very large organizations can have thousands of
   // items, but attention is scarce; the first page is what matters.
   const PAGE = 50;
@@ -81,7 +90,13 @@ export function Inbox() {
           icon: <CircleAlert className="size-4 text-red-600" />,
           weight: 2,
         });
-      else if (mine(item) && item.status === "ready")
+      else if (
+        mine(item) &&
+        item.refinementState === "ready" &&
+        !["started", "done", "canceled"].includes(
+          categoryOf(delivery, item) ?? "",
+        )
+      )
         list.push({
           item,
           reason: "Ready for development",
@@ -94,7 +109,7 @@ export function Inbox() {
       (a, b) =>
         a.weight - b.weight || b.item.updatedAt.localeCompare(a.item.updatedAt),
     );
-  }, [items, userId, roleIds]);
+  }, [items, userId, roleIds, delivery]);
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
@@ -119,7 +134,7 @@ export function Inbox() {
                     href={paths.item(
                       organization.slug,
                       project?.key ?? "",
-                      item.kind === "epic" ? "epics" : "stories",
+                      segmentOf(typeOf(delivery, item)),
                       identifier(project, item.number),
                     )}
                     className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"
@@ -134,8 +149,11 @@ export function Inbox() {
                         </span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-2 text-[13px]">
-                        <StatusIcon status={item.status} />
-                        <KindIcon kind={item.kind} />
+                        <StatusIcon
+                          category={categoryOf(delivery, item)}
+                          color={statusOf(delivery, item)?.color}
+                        />
+                        <TypeIcon type={typeOf(delivery, item)} />
                         <IssueIdentifier
                           project={project}
                           number={item.number}

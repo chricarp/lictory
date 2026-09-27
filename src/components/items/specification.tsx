@@ -41,30 +41,37 @@ export function Specification({
   onQuote: (quote: string, section: string) => void;
   onSuggestionCreated: (suggestionId: string) => void;
 }) {
-  const { current, readOnly, canEdit, memberName } = useItem();
+  const { current, readOnly, canEdit, memberName, reviewable } = useItem();
   if (!current) return null;
+  // Plain work (tasks, bugs) has a description that is edited directly; only
+  // specifications are reviewed through suggestions and anchored discussions.
+  if (!reviewable && mode === "suggest") mode = canEdit ? "edit" : "read";
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
-        <SectionLabel>Specification</SectionLabel>
+        <SectionLabel>
+          {reviewable ? "Specification" : "Description"}
+        </SectionLabel>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           Revision {current.number} · {memberName(current.authorId)} ·{" "}
           {relativeTime(current.createdAt)}
         </span>
         {mode === "read" && !readOnly && (
           <div className="ml-auto flex items-center gap-1">
-            <Button
-              variant={canEdit ? "ghost" : "secondary"}
-              size="sm"
-              onClick={() => setMode("suggest")}
-              title={
-                canEdit
-                  ? "Propose a change and have reviewers approve and merge it"
-                  : "Your roles propose changes; assigned reviewers approve and merge them"
-              }
-            >
-              <WandSparkles className="size-3.5" /> Suggest
-            </Button>
+            {reviewable && (
+              <Button
+                variant={canEdit ? "ghost" : "secondary"}
+                size="sm"
+                onClick={() => setMode("suggest")}
+                title={
+                  canEdit
+                    ? "Propose a change and have reviewers approve and merge it"
+                    : "Your roles propose changes; assigned reviewers approve and merge them"
+                }
+              >
+                <WandSparkles className="size-3.5" /> Suggest
+              </Button>
+            )}
             {canEdit && (
               <Button variant="ghost" size="sm" onClick={() => setMode("edit")}>
                 <Pencil className="size-3.5" /> Edit
@@ -76,7 +83,9 @@ export function Specification({
       {mode === "read" ? (
         <Reader
           onQuote={onQuote}
-          onEdit={() => (canEdit ? setMode("edit") : setMode("suggest"))}
+          onEdit={() =>
+            canEdit ? setMode("edit") : reviewable && setMode("suggest")
+          }
         />
       ) : (
         <Editor
@@ -111,7 +120,8 @@ function Reader({
   onQuote: (quote: string, section: string) => void;
   onEdit: () => void;
 }) {
-  const { current, threads, readOnly, canEdit, mutate, base } = useItem();
+  const { current, threads, readOnly, canEdit, mutate, base, reviewable } =
+    useItem();
   const rootRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{
     x: number;
@@ -209,7 +219,7 @@ function Reader({
           className="relative"
         >
           <Markdown source={body} />
-          {selection && !readOnly && (
+          {selection && !readOnly && reviewable && (
             <div
               role="toolbar"
               aria-label="Selection actions"
@@ -302,11 +312,12 @@ function AcceptanceCriteria({
   readOnly: boolean;
   onAdd: (text: string) => Promise<unknown>;
 }) {
-  const { item } = useItem();
+  const { type, reviewable } = useItem();
   const [adding, setAdding] = useState(false);
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
-  if (item.kind === "epic" && criteria.length === 0) return null;
+  // Criteria are a readiness check for specifications below the top level.
+  if ((!reviewable || type.level >= 2) && criteria.length === 0) return null;
   return (
     <div className="mt-8">
       <div className="mb-2 flex items-center gap-2">
@@ -317,7 +328,8 @@ function AcceptanceCriteria({
       </div>
       {criteria.length === 0 && !adding && (
         <p className="mb-2 text-[13px] text-muted-foreground">
-          None yet. Criteria make the Story testable and are a readiness check.
+          None yet. Criteria make the {type.name.toLowerCase()} testable and are
+          a readiness check.
         </p>
       )}
       <ul className="space-y-1">

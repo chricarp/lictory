@@ -10,6 +10,11 @@ import { CreateProject } from "./onboarding";
 import { LabelsAndMilestones } from "./labels-settings";
 import { People, Roles } from "./roles-settings";
 import {
+  TeamsSection,
+  TypesSection,
+} from "~/components/delivery/team-settings";
+import { Popover, Picker } from "~/components/ui/popover";
+import {
   InlineError,
   SettingsBody,
   SettingsGroup,
@@ -29,6 +34,8 @@ export function Settings() {
   const nav = [
     { id: "general", label: "General" },
     { id: "projects", label: "Projects" },
+    { id: "teams", label: "Teams" },
+    { id: "work-item-types", label: "Work item types" },
     ...(showLabels ? [{ id: "labels", label: "Labels & milestones" }] : []),
     { id: "people", label: "Members" },
     { id: "roles", label: "Roles" },
@@ -85,6 +92,14 @@ export function Settings() {
             </SettingsGroup>
 
             <SettingsGroup
+              title="Delivery"
+              description="Teams, their workflows, and the kinds of work items the organization uses."
+            >
+              <TeamsSection />
+              <TypesSection />
+            </SettingsGroup>
+
+            <SettingsGroup
               title="People & access"
               description="Who belongs here, who administers it, and what each role may do."
             >
@@ -133,14 +148,15 @@ function GeneralSection() {
 }
 
 function ProjectsSection() {
-  const { projects, isAdmin, mutate } = useWorkspace();
+  const { projects, isAdmin, mutate, delivery } = useWorkspace();
+  const teams = [...delivery.teams.values()].filter((t) => !t.archivedAt);
   const [showCreate, setShowCreate] = useState(false);
   return (
     <SettingsSection
       id="projects"
       icon={<FolderKanban />}
       title="Projects"
-      description="Each project groups Epics and Stories; its key prefixes every item identifier."
+      description="Each project groups work items; its key prefixes every identifier. New items land in the project's default team."
       action={
         isAdmin && !showCreate ? (
           <Button
@@ -163,6 +179,37 @@ function ProjectsSection() {
             canEdit={isAdmin}
             rename={(name) =>
               mutate({ type: "updateProject", projectId: p.id, name })
+            }
+            team={
+              <Popover
+                width={220}
+                align="end"
+                disabled={!isAdmin}
+                trigger={(props) => (
+                  <button
+                    {...props}
+                    className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted disabled:pointer-events-none"
+                    title="Team new items land in"
+                  >
+                    {delivery.teams.get(p.defaultTeamId ?? "")?.name ??
+                      "No default team"}
+                  </button>
+                )}
+              >
+                <Picker
+                  title="Default team"
+                  options={teams.map((t) => ({ value: t.id, label: t.name }))}
+                  value={p.defaultTeamId}
+                  onSelect={(defaultTeamId) =>
+                    void mutate({
+                      type: "updateProject",
+                      projectId: p.id,
+                      name: p.name,
+                      defaultTeamId,
+                    })
+                  }
+                />
+              </Popover>
             }
           />
         ))}
@@ -193,12 +240,14 @@ function ProjectRow({
   keyName,
   canEdit,
   rename,
+  team,
 }: {
   id: string;
   name: string;
   keyName: string;
   canEdit: boolean;
   rename: (name: string) => Promise<unknown>;
+  team: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
@@ -242,6 +291,7 @@ function ProjectRow({
       ) : (
         <>
           <span className="flex-1 truncate font-medium">{name}</span>
+          {team}
           {canEdit && (
             <Button
               size="sm"

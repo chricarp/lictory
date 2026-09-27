@@ -4,21 +4,26 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { EpicPicker } from "~/components/items/epic-picker";
-import { KindIcon } from "~/components/items/icons";
+import { TypeIcon } from "~/components/items/icons";
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd } from "~/components/ui/primitives";
 import { Popover, Picker } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
-import type { WorkItemKind } from "~/sync/shared/protocol";
+import { enabledTypes, isTopLevel, segmentOf, typeOf } from "~/lib/work-items";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
 
 export type QuickCreateOptions = {
-  kind?: WorkItemKind;
+  // Where creation starts: an Epic list suggests a top-level type.
+  kind?: "epic" | "story";
+  typeId?: string;
   parentId?: string | null;
   projectId?: string;
+  teamId?: string;
+  statusId?: string;
+  iterationId?: string | null;
 };
 
 // Title-first creation. Everything else is optional and can be refined later;
@@ -31,13 +36,27 @@ export function QuickCreate({
   options: QuickCreateOptions;
   onClose: () => void;
 }) {
-  const { projects, items, mutate, organization } = useWorkspace();
+  const { projects, items, mutate, organization, delivery } = useWorkspace();
   const { toast } = useShell();
   const router = useRouter();
-  const [kind, setKind] = useState<WorkItemKind>(options.kind ?? "story");
   const [projectId, setProjectId] = useState(
     options.projectId ?? projects[0]?.id,
   );
+  const project = projects.find((p) => p.id === projectId);
+  const activeTeams = [...delivery.teams.values()].filter((t) => !t.archivedAt);
+  const [teamId, setTeamId] = useState(options.teamId);
+  const team =
+    delivery.teams.get(teamId ?? project?.defaultTeamId ?? "") ??
+    activeTeams[0];
+  const types = enabledTypes(delivery, team);
+  const [typeId, setTypeId] = useState(options.typeId);
+  const type =
+    types.find((t) => t.id === typeId) ??
+    (options.kind === "epic"
+      ? types.find(isTopLevel)
+      : (types.find((t) => t.level === 1 && t.hasSpecification) ??
+        types.find((t) => t.level === 1))) ??
+    types[0];
   const [parentId, setParentId] = useState<string | null>(
     options.parentId ?? null,
   );
@@ -49,17 +68,18 @@ export function QuickCreate({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-  const project = projects.find((p) => p.id === projectId);
   const parent = items.find(
     (item) =>
       item.id === parentId &&
-      item.kind === "epic" &&
+      type !== undefined &&
+      typeOf(delivery, item).level > type.level &&
       item.projectId === projectId &&
       !item.archivedAt,
   );
+  const name = type?.name ?? "item";
   const submit = async (open: boolean) => {
     const trimmed = title.trim();
-    if (!trimmed || !project) return;
+    if (!trimmed || !project || !type || !team) return;
     const workItemId = crypto.randomUUID();
     const submittedDescription = description.trim();
     setError(undefined);
@@ -72,10 +92,18 @@ export function QuickCreate({
         type: "createWorkItem",
         projectId: project.id,
         workItemId,
-        kind,
-        parentId: kind === "epic" ? null : parentId,
+        typeId: type.id,
+        teamId: team.id,
+        parentId: parent?.id ?? null,
         title: trimmed,
         description: submittedDescription || undefined,
+        ...(options.statusId && team.id === (options.teamId ?? team.id)
+          ? { statusId: options.statusId }
+          : {}),
+        ...(options.iterationId !== undefined &&
+        team.id === (options.teamId ?? team.id)
+          ? { iterationId: options.iterationId }
+          : {}),
       });
     } catch (e) {
       setTitle(trimmed);
@@ -86,7 +114,7 @@ export function QuickCreate({
     const href = paths.item(
       organization.slug,
       project.key,
-      kind === "epic" ? "epics" : "stories",
+      segmentOf(type),
       workItemId,
     );
     if (open) {
@@ -94,7 +122,7 @@ export function QuickCreate({
       onClose();
       return;
     }
-    toast(`${kind === "epic" ? "Epic" : "Story"} “${trimmed}” created`, {
+    toast(`${name} “${trimmed}” created`, {
       label: "Open",
       href,
     });
@@ -115,7 +143,7 @@ export function QuickCreate({
       />
       <form
         role="dialog"
-        aria-label={`Create ${kind}`}
+        aria-label={`Create ${name.toLowerCase()}`}
         className="relative flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border bg-popover shadow-[var(--shadow-panel)]"
         onSubmit={(e) => {
           e.preventDefault();
@@ -123,25 +151,58 @@ export function QuickCreate({
         }}
       >
         <div className="flex shrink-0 items-center gap-1.5 border-b px-3 py-2">
-          <Segmented
-            value={kind}
-            onChange={(next) => {
-              setKind(next);
-              if (next === "epic") setParentId(null);
-            }}
-            options={[
-              {
-                value: "epic",
-                label: "Epic",
-                icon: <KindIcon kind="epic" />,
-              },
-              {
-                value: "story",
-                label: "Story",
-                icon: <KindIcon kind="story" />,
-              },
-            ]}
-          />
+          {type && (
+            <Popover
+              width={220}
+              trigger={(props) => (
+                <button
+                  {...props}
+                  type="button"
+                  aria-label={`Type: ${type.name}`}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 text-xs font-medium hover:bg-muted/70"
+                >
+                  <TypeIcon type={type} />
+                  {type.name}
+                </button>
+              )}
+            >
+              <Picker
+                title="Type"
+                options={types.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                  icon: <TypeIcon type={t} />,
+                  hint: t.hasSpecification ? "Specification" : undefined,
+                }))}
+                value={type.id}
+                onSelect={setTypeId}
+              />
+            </Popover>
+          )}
+          {activeTeams.length > 1 && team && (
+            <Popover
+              width={220}
+              trigger={(props) => (
+                <button
+                  {...props}
+                  type="button"
+                  className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
+                >
+                  {team.name}
+                </button>
+              )}
+            >
+              <Picker
+                title="Team"
+                options={activeTeams.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                }))}
+                value={team.id}
+                onSelect={setTeamId}
+              />
+            </Popover>
+          )}
           {projects.length > 1 && (
             <Popover
               width={220}
@@ -183,11 +244,11 @@ export function QuickCreate({
             ref={inputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={kind === "epic" ? "Epic title" : "Story title"}
+            placeholder={`${name} title`}
             aria-label="Title"
             className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
           />
-          {kind !== "epic" && projectId && (
+          {type?.level === 1 && projectId && (
             <div className="space-y-1.5 pt-1">
               <p className="text-xs font-medium">Epic</p>
               <EpicPicker
@@ -207,7 +268,8 @@ export function QuickCreate({
                 onChange={setParentId}
               />
               <p className="text-[11px] text-muted-foreground">
-                Optional. Link this story to the epic it contributes to.
+                Optional. Link this {name.toLowerCase()} to the epic it
+                contributes to.
               </p>
             </div>
           )}
@@ -221,7 +283,11 @@ export function QuickCreate({
             <MarkdownEditor
               value={description}
               onValueChange={setDescription}
-              placeholder="Intent, problem or first draft of the behavior… (Markdown)"
+              placeholder={
+                type?.hasSpecification
+                  ? "Intent, problem or first draft of the behavior… (Markdown)"
+                  : "What needs to be done… (Markdown)"
+              }
               aria-label="Description"
               rows={5}
               autoResize
@@ -250,7 +316,7 @@ export function QuickCreate({
             Create & open
           </Button>
           <Button type="submit" size="sm" disabled={!title.trim()}>
-            Create {kind === "epic" ? "Epic" : "Story"}
+            Create {name}
           </Button>
         </div>
       </form>

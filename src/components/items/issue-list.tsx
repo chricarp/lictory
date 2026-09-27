@@ -20,13 +20,22 @@ import {
   priorityMeta,
   priorityOrder,
   sortItems,
-  statusMeta,
-  statusOrder,
+  categoryMeta,
+  categoryOrder,
+  categoryOf,
+  isTopLevel,
+  refinementMeta,
+  refinementOrder,
+  typeOf,
   type Filters,
   type Project,
   type SortKey,
 } from "~/lib/work-items";
-import type { WorkItem, WorkItemStatus } from "~/sync/shared/protocol";
+import type {
+  StatusCategory,
+  WorkItem,
+  WorkItemType,
+} from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
 import { PeoplePicker } from "~/components/ui/people-picker";
@@ -34,7 +43,8 @@ import { EmptyState, Kbd } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useShell } from "~/components/workspace/shell";
 import { IssueRow } from "./issue-row";
-import { StatusIcon } from "./status";
+import { RefinementIcon, StatusIcon } from "./status";
+import { TypeIcon } from "./icons";
 import { PriorityIcon } from "./properties";
 import { ColorDot } from "./labels";
 
@@ -76,6 +86,7 @@ export function IssueList({
     labels: allLabels,
     milestones: allMilestones,
     capabilities,
+    delivery,
   } = useWorkspace();
   const { openCreate } = useShell();
   const canCreate = capabilities.editSpecifications;
@@ -128,22 +139,25 @@ export function IssueList({
   const visible = useMemo(() => {
     const scoped = items.filter((i) => showArchived || !i.archivedAt);
     return sortItems(
-      applyFilters(scoped, { ...filters, search }, projects),
+      applyFilters(scoped, { ...filters, search }, projects, delivery),
       sort,
+      delivery,
     );
-  }, [items, filters, search, sort, projects, showArchived]);
+  }, [items, filters, search, sort, projects, showArchived, delivery]);
+  // Grouping uses status categories: items of several teams share them even
+  // when their workflows differ.
   const groups = useMemo(() => {
     if (!group)
       return [
-        { status: undefined as WorkItemStatus | undefined, items: visible },
+        { status: undefined as StatusCategory | undefined, items: visible },
       ];
-    return statusOrder
+    return categoryOrder
       .map((status) => ({
         status,
-        items: visible.filter((i) => i.status === status),
+        items: visible.filter((i) => categoryOf(delivery, i) === status),
       }))
       .filter((g) => g.items.length);
-  }, [group, visible]);
+  }, [group, visible, delivery]);
   const order = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const [lastSelected, setLastSelected] = useState(selectedId);
   if (lastSelected !== selectedId) {
@@ -195,6 +209,8 @@ export function IssueList({
   ) => void mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const activeFilterCount =
     (filters.status?.length ? 1 : 0) +
+    (filters.refinement?.length ? 1 : 0) +
+    (filters.type?.length ? 1 : 0) +
     (filters.priority?.length ? 1 : 0) +
     (filters.assignee?.length ? 1 : 0) +
     (filters.parent?.length ? 1 : 0) +
@@ -203,7 +219,13 @@ export function IssueList({
     (filters.blocked ? 1 : 0) +
     (filters.needsReview ? 1 : 0);
   const epics = allItems.filter(
-    (i) => i.kind === "epic" && i.projectId === project?.id && !i.archivedAt,
+    (i) =>
+      isTopLevel(typeOf(delivery, i)) &&
+      i.projectId === project?.id &&
+      !i.archivedAt,
+  );
+  const types = [...delivery.types.values()].filter(
+    (t) => !t.archivedAt && items.some((i) => i.typeId === t.id),
   );
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -243,6 +265,7 @@ export function IssueList({
               filters={filters}
               setFilters={setFilters}
               epics={allowEpicFilter ? epics : []}
+              types={types}
               project={project}
               labels={allLabels.filter(
                 (l) => l.projectId === project?.id && !l.archivedAt,
@@ -328,7 +351,7 @@ export function IssueList({
               aria-label={`New ${createKind}`}
             >
               <Plus className="size-3.5" />
-              {!compact && (createKind === "epic" ? "New Epic" : "New Story")}
+              {!compact && (createKind === "epic" ? "New Epic" : "New item")}
             </Button>
           )}
         </div>
@@ -350,7 +373,33 @@ export function IssueList({
                 }))
               }
             >
-              <StatusIcon status={s} /> {statusMeta[s].label}
+              <StatusIcon category={s} /> {categoryMeta[s].label}
+            </Chip>
+          ))}
+          {filters.refinement?.map((r) => (
+            <Chip
+              key={r}
+              onRemove={() =>
+                setFilters((f) => ({
+                  ...f,
+                  refinement: f.refinement?.filter((x) => x !== r),
+                }))
+              }
+            >
+              <RefinementIcon state={r} /> {refinementMeta[r].label}
+            </Chip>
+          ))}
+          {filters.type?.map((t) => (
+            <Chip
+              key={t}
+              onRemove={() =>
+                setFilters((f) => ({
+                  ...f,
+                  type: f.type?.filter((x) => x !== t),
+                }))
+              }
+            >
+              {delivery.types.get(t)?.name ?? "Type"}
             </Chip>
           ))}
           {filters.priority?.map((p) => (
@@ -472,7 +521,8 @@ export function IssueList({
                   }
                 >
                   <Plus className="size-3.5" /> Create{" "}
-                  {createKind === "epic" ? "an Epic" : "a Story"} <Kbd>C</Kbd>
+                  {createKind === "epic" ? "an Epic" : "a work item"}{" "}
+                  <Kbd>C</Kbd>
                 </Button>
               ) : undefined
             }
@@ -487,8 +537,8 @@ export function IssueList({
               <li key={g.status ?? "all"}>
                 {g.status && (
                   <div className="sticky top-0 z-[1] flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs font-medium backdrop-blur">
-                    <StatusIcon status={g.status} />
-                    {statusMeta[g.status].label}
+                    <StatusIcon category={g.status} />
+                    {categoryMeta[g.status].label}
                     <span className="text-muted-foreground tabular-nums">
                       {g.items.length}
                     </span>
@@ -561,6 +611,7 @@ function FilterPanel({
   filters,
   setFilters,
   epics,
+  types,
   project,
   labels,
   milestones,
@@ -568,12 +619,20 @@ function FilterPanel({
   filters: Filters;
   setFilters: (fn: (f: Filters) => Filters) => void;
   epics: WorkItem[];
+  types: WorkItemType[];
   project: Project | undefined;
   labels: Label[];
   milestones: Milestone[];
 }) {
   type Section =
-    "status" | "priority" | "assignee" | "parent" | "label" | "milestone";
+    | "status"
+    | "refinement"
+    | "type"
+    | "priority"
+    | "assignee"
+    | "parent"
+    | "label"
+    | "milestone";
   const [section, setSection] = useState<"menu" | Section>("menu");
   const toggle = (key: Section, value: string) =>
     setFilters((f) => {
@@ -588,13 +647,41 @@ function FilterPanel({
       <Picker
         multiple
         title="Status"
-        options={statusOrder.map((s) => ({
+        options={categoryOrder.map((s) => ({
           value: s,
-          label: statusMeta[s].label,
-          icon: <StatusIcon status={s} />,
+          label: categoryMeta[s].label,
+          icon: <StatusIcon category={s} />,
         }))}
         value={filters.status ?? []}
         onSelect={(v) => toggle("status", v)}
+      />
+    );
+  if (section === "refinement")
+    return (
+      <Picker
+        multiple
+        title="Refinement"
+        options={refinementOrder.map((r) => ({
+          value: r,
+          label: refinementMeta[r].label,
+          icon: <RefinementIcon state={r} />,
+        }))}
+        value={filters.refinement ?? []}
+        onSelect={(v) => toggle("refinement", v)}
+      />
+    );
+  if (section === "type")
+    return (
+      <Picker
+        multiple
+        title="Type"
+        options={types.map((t) => ({
+          value: t.id,
+          label: t.name,
+          icon: <TypeIcon type={t} />,
+        }))}
+        value={filters.type ?? []}
+        onSelect={(v) => toggle("type", v)}
       />
     );
   if (section === "priority")
@@ -672,6 +759,8 @@ function FilterPanel({
     );
   const labelsFor: Record<Section, string> = {
     status: "Status",
+    refinement: "Refinement",
+    type: "Type",
     priority: "Priority",
     assignee: "Assignee",
     parent: "Epic",
@@ -686,6 +775,8 @@ function FilterPanel({
       {(
         [
           "status",
+          "refinement",
+          ...(types.length > 1 ? (["type"] as const) : []),
           "priority",
           "assignee",
           ...(epics.length ? (["parent"] as const) : []),

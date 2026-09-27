@@ -2,6 +2,7 @@
 import { createContext, useContext, useMemo } from "react";
 import type { View } from "~/sync/client/engine";
 import type {
+  WorkItemType,
   Capabilities,
   Command,
   Entity,
@@ -38,6 +39,11 @@ export type ItemContextValue = {
   // Archived or not yet confirmed: nothing about the item can change.
   readOnly: boolean;
   // What my organization roles allow on this item; the server re-checks.
+  // Configured type; `reviewable` when it carries a specification (revisions,
+  // suggestions, threads, reviews, readiness). Other types keep a plain,
+  // revisioned description.
+  type: WorkItemType;
+  reviewable: boolean;
   canEdit: boolean; // specification text, title, creation of children
   canChangeProperties: boolean; // status, priority, owner, epic, labels, milestone
   canRequestReviews: boolean;
@@ -56,6 +62,7 @@ export function useItem() {
 
 export function useItemContextValue(input: {
   item: WorkItem;
+  type: WorkItemType;
   project: Project;
   entities: Entity[];
   view: View;
@@ -68,6 +75,7 @@ export function useItemContextValue(input: {
 }): ItemContextValue {
   const {
     item,
+    type,
     project,
     entities,
     view,
@@ -93,6 +101,8 @@ export function useItemContextValue(input: {
     );
     return {
       item,
+      type,
+      reviewable: type.hasSpecification,
       project,
       entities: scoped,
       revisions,
@@ -134,6 +144,7 @@ export function useItemContextValue(input: {
     };
   }, [
     item,
+    type,
     project,
     entities,
     view,

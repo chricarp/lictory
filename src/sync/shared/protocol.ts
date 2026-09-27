@@ -7,16 +7,44 @@ const document = z.string().max(200_000);
 const base = { id, organizationId: id };
 const context = { workItemId: id, revisionId: id };
 
-export const workItemKinds = ["epic", "story", "task"] as const;
-export const workItemStatuses = [
-  "backlog",
+// Refinement state of spec-backed items; `ready` is server-gated by readiness.
+export const refinementStates = [
   "draft",
   "refinement",
   "in_review",
   "ready",
-  "in_progress",
+] as const;
+export type RefinementState = (typeof refinementStates)[number];
+// Fixed categories that give meaning to team-defined workflow statuses.
+export const statusCategories = [
+  "backlog",
+  "unstarted",
+  "started",
   "done",
-  "cancelled",
+  "canceled",
+] as const;
+export type StatusCategory = (typeof statusCategories)[number];
+export const deliveryModes = ["native", "external"] as const;
+export const readinessPolicies = ["off", "warn", "block"] as const;
+export const iterationModes = ["off", "manual", "automatic"] as const;
+export const iterationStates = ["planned", "active", "completed"] as const;
+export const estimateScales = [
+  "none",
+  "fibonacci",
+  "linear",
+  "tshirt",
+] as const;
+export type EstimateScale = (typeof estimateScales)[number];
+export const relationKinds = ["blocks", "relates", "duplicates"] as const;
+export type RelationKind = (typeof relationKinds)[number];
+export const typeIcons = [
+  "epic",
+  "story",
+  "task",
+  "bug",
+  "subtask",
+  "spike",
+  "chore",
 ] as const;
 export const workItemPriorities = [
   "none",
@@ -25,8 +53,6 @@ export const workItemPriorities = [
   "high",
   "urgent",
 ] as const;
-export type WorkItemKind = (typeof workItemKinds)[number];
-export type WorkItemStatus = (typeof workItemStatuses)[number];
 export type WorkItemPriority = (typeof workItemPriorities)[number];
 export const labelColors = [
   "gray",
@@ -80,6 +106,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     slug: z.string(),
     key: z.string(),
     description: z.string().nullable(),
+    defaultTeamId: id.nullable(),
     archivedAt: z.string().nullable(),
   }),
   z.object({
@@ -103,16 +130,23 @@ export const entitySchema = z.discriminatedUnion("type", [
     ...base,
     type: z.literal("workItem"),
     projectId: id,
+    teamId: id,
+    typeId: id,
     parentId: id.nullable(),
-    kind: z.enum(workItemKinds),
     number: z.number().int(),
     title: z.string(),
-    status: z.enum(workItemStatuses),
+    statusId: id,
+    // Null for types without a specification.
+    refinementState: z.enum(refinementStates).nullable(),
     priority: z.enum(workItemPriorities),
     assigneeId: id.nullable(),
     milestoneId: id.nullable(),
+    iterationId: id.nullable(),
+    estimate: z.number().int().nullable(),
     labelIds: z.array(id),
     position: z.number().int(),
+    rank: z.string(),
+    sourceRevisionId: id.nullable(),
     createdById: id,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -129,7 +163,23 @@ export const entitySchema = z.discriminatedUnion("type", [
     readinessPassed: z.number().int(),
     readinessTotal: z.number().int(),
     childCount: z.number().int(),
+    // Spec-backed children whose refinement is ready.
     childReadyCount: z.number().int(),
+    // Children in a done or canceled status category.
+    childDoneCount: z.number().int(),
+    // Sum of children's estimates (rollup, never stored).
+    childEstimate: z.number().int(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("relation"),
+    // Project of the source item: relations travel with it in sync scopes.
+    projectId: id,
+    fromId: id,
+    toId: id,
+    kind: z.enum(relationKinds),
+    createdById: id,
+    createdAt: z.string(),
   }),
   z.object({
     ...base,
@@ -284,6 +334,7 @@ const entityTypes = z.enum([
   "label",
   "milestone",
   "workItem",
+  "relation",
   "revision",
   "review",
   "assignment",
@@ -409,6 +460,122 @@ export const epicPageSchema = z.object({
   hasMore: z.boolean(),
 });
 export type EpicPage = z.infer<typeof epicPageSchema>;
+export const workflowStatusSchema = z.object({
+  id,
+  name: z.string(),
+  color: z.enum(labelColors),
+  category: z.enum(statusCategories),
+  position: z.number().int(),
+  archivedAt: z.string().nullable(),
+});
+export type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
+export const teamSchema = z.object({
+  id,
+  name: z.string(),
+  description: z.string().nullable(),
+  deliveryMode: z.enum(deliveryModes),
+  readinessPolicy: z.enum(readinessPolicies),
+  estimateScale: z.enum(estimateScales),
+  iterationMode: z.enum(iterationModes),
+  iterationWeeks: z.number().int(),
+  iterationStartDay: z.number().int(),
+  upcomingIterations: z.number().int(),
+  memberIds: z.array(id),
+  typeIds: z.array(id),
+  statuses: z.array(workflowStatusSchema),
+  archivedAt: z.string().nullable(),
+});
+export type Team = z.infer<typeof teamSchema>;
+export const workItemTypeSchema = z.object({
+  id,
+  name: z.string(),
+  icon: z.enum(typeIcons),
+  color: z.enum(labelColors),
+  level: z.number().int(),
+  hasSpecification: z.boolean(),
+  position: z.number().int(),
+  archivedAt: z.string().nullable(),
+});
+export type WorkItemType = z.infer<typeof workItemTypeSchema>;
+export const iterationSchema = z.object({
+  id,
+  teamId: id,
+  number: z.number().int(),
+  name: z.string().nullable(),
+  goal: z.string().nullable(),
+  startsAt: z.string(),
+  endsAt: z.string(),
+  state: z.enum(iterationStates),
+  startedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+});
+export type Iteration = z.infer<typeof iterationSchema>;
+export function iterationLabel(i: Pick<Iteration, "name" | "number">) {
+  return i.name?.trim().length ? i.name.trim() : `Iteration ${i.number}`;
+}
+// Estimate values offered per scale. T-shirt sizes are stored as points.
+export const estimateOptions: Record<
+  EstimateScale,
+  { value: number; label: string }[]
+> = {
+  none: [],
+  fibonacci: [0, 1, 2, 3, 5, 8, 13, 21].map((v) => ({
+    value: v,
+    label: String(v),
+  })),
+  linear: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((v) => ({
+    value: v,
+    label: String(v),
+  })),
+  tshirt: [
+    { value: 1, label: "XS" },
+    { value: 2, label: "S" },
+    { value: 3, label: "M" },
+    { value: 5, label: "L" },
+    { value: 8, label: "XL" },
+  ],
+};
+export const iterationReportQuerySchema = z.object({
+  organizationId: id,
+  iterationId: id,
+});
+const tally = z.object({ count: z.number().int(), points: z.number().int() });
+export const iterationReportSchema = z.object({
+  iterationId: id,
+  // Daily samples from start to end (or now), replayed from recorded events.
+  series: z.array(
+    z.object({
+      at: z.string(),
+      scope: z.number().int(),
+      remaining: z.number().int(),
+      scopeCount: z.number().int(),
+      remainingCount: z.number().int(),
+    }),
+  ),
+  totals: z.object({
+    atStart: tally,
+    final: tally,
+    completed: tally,
+    addedAfterStart: tally,
+    removedAfterStart: tally,
+  }),
+  // Frozen at completion; null while the iteration is open.
+  summary: z
+    .object({ carriedOver: tally, carriedOverTo: id.nullable() })
+    .passthrough()
+    .nullable(),
+  // Completed points of the team's recent iterations, oldest first.
+  velocity: z.array(
+    z.object({
+      iterationId: id,
+      number: z.number().int(),
+      name: z.string().nullable(),
+      committed: z.number().int(),
+      completed: z.number().int(),
+    }),
+  ),
+});
+export type IterationReport = z.infer<typeof iterationReportSchema>;
 export const directorySchema = z.object({
   organizations: z.array(
     z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),
@@ -416,9 +583,13 @@ export const directorySchema = z.object({
   projects: z.array(entitySchema.options[0]),
   members: z.array(directoryMemberSchema),
   roles: z.array(roleSchema),
+  teams: z.array(teamSchema),
+  types: z.array(workItemTypeSchema),
+  // Planned and active iterations plus recent completed ones.
+  iterations: z.array(iterationSchema),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 6 as const;
+export const PROTOCOL = 7 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -445,26 +616,58 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("updateProject"),
     projectId: id,
     name: text.max(120),
+    defaultTeamId: id.optional(),
   }),
   z.object({
     type: z.literal("createWorkItem"),
     projectId: id,
     workItemId: z.uuid(),
-    kind: z.enum(workItemKinds),
+    typeId: id,
+    // Defaults to the project's default team.
+    teamId: id.optional(),
     parentId: id.nullable(),
     title: text.max(240),
     description: document.optional(),
+    statusId: id.optional(),
+    iterationId: id.nullable().optional(),
+    assigneeId: id.nullable().optional(),
   }),
   // Non-material properties: they never create a revision or stale approvals.
+  // `refinementState` accepts manual moves before ready; `ready` itself is
+  // derived from readiness checks.
   z.object({
     type: z.literal("updateWorkItem"),
     ...itemCommand,
-    status: z.enum(workItemStatuses).optional(),
+    statusId: id.optional(),
+    refinementState: z.enum(["draft", "refinement", "in_review"]).optional(),
+    typeId: id.optional(),
+    teamId: id.optional(),
     priority: z.enum(workItemPriorities).optional(),
     assigneeId: id.nullable().optional(),
     parentId: id.nullable().optional(),
     milestoneId: id.nullable().optional(),
+    iterationId: id.nullable().optional(),
+    estimate: z.number().int().min(0).max(1000).nullable().optional(),
     labelIds: z.array(id).max(50).optional(),
+  }),
+  // Backlog/board order: place between two neighbours (null = open end).
+  z.object({
+    type: z.literal("rankWorkItem"),
+    ...itemCommand,
+    afterId: id.nullable(),
+    beforeId: id.nullable(),
+  }),
+  z.object({
+    type: z.literal("addRelation"),
+    ...itemCommand,
+    relationId: z.uuid(),
+    toId: id,
+    kind: z.enum(relationKinds),
+  }),
+  z.object({
+    type: z.literal("removeRelation"),
+    ...itemCommand,
+    relationId: id,
   }),
   // Manual ordering among siblings: place before `beforeId` (null = last).
   z.object({
@@ -612,6 +815,112 @@ export const commandSchema = z.discriminatedUnion("type", [
     reviewId: id,
     decision: z.enum(["approve", "changes_requested", "revoke"]),
   }),
+  // Team configuration (application-role admins only).
+  z.object({
+    type: z.literal("createTeam"),
+    teamId: z.uuid(),
+    name: text.max(60),
+  }),
+  z.object({
+    type: z.literal("updateTeam"),
+    teamId: id,
+    name: text.max(60).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    deliveryMode: z.enum(deliveryModes).optional(),
+    readinessPolicy: z.enum(readinessPolicies).optional(),
+    estimateScale: z.enum(estimateScales).optional(),
+    iterationMode: z.enum(iterationModes).optional(),
+    iterationWeeks: z.number().int().min(1).max(8).optional(),
+    iterationStartDay: z.number().int().min(0).max(6).optional(),
+    upcomingIterations: z.number().int().min(0).max(6).optional(),
+    archived: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("setTeamMembership"),
+    teamId: id,
+    userId: id,
+    member: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("setTeamType"),
+    teamId: id,
+    typeId: id,
+    enabled: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("createStatus"),
+    teamId: id,
+    statusId: z.uuid(),
+    name: text.max(40),
+    color: z.enum(labelColors),
+    category: z.enum(statusCategories),
+  }),
+  z.object({
+    type: z.literal("updateStatus"),
+    teamId: id,
+    statusId: id,
+    name: text.max(40).optional(),
+    color: z.enum(labelColors).optional(),
+    category: z.enum(statusCategories).optional(),
+    // Place before this status (null = last).
+    beforeId: id.nullable().optional(),
+  }),
+  // Archiving moves the status's items explicitly; never a silent default.
+  z.object({
+    type: z.literal("archiveStatus"),
+    teamId: id,
+    statusId: id,
+    replacementId: id,
+  }),
+  z.object({
+    type: z.literal("createType"),
+    typeId: z.uuid(),
+    name: text.max(40),
+    icon: z.enum(typeIcons),
+    color: z.enum(labelColors),
+    level: z.number().int().min(0).max(3),
+    hasSpecification: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("updateType"),
+    typeId: id,
+    name: text.max(40).optional(),
+    icon: z.enum(typeIcons).optional(),
+    color: z.enum(labelColors).optional(),
+    hasSpecification: z.boolean().optional(),
+    archived: z.boolean().optional(),
+  }),
+  // Iteration planning (roles that change properties).
+  z.object({
+    type: z.literal("createIteration"),
+    teamId: id,
+    iterationId: z.uuid(),
+    name: z.string().trim().max(80).nullable(),
+    goal: z.string().trim().max(500).nullable(),
+    startsAt: z.string().date(),
+    endsAt: z.string().date(),
+  }),
+  z.object({
+    type: z.literal("updateIteration"),
+    teamId: id,
+    iterationId: id,
+    name: z.string().trim().max(80).nullable().optional(),
+    goal: z.string().trim().max(500).nullable().optional(),
+    startsAt: z.string().date().optional(),
+    endsAt: z.string().date().optional(),
+  }),
+  z.object({
+    type: z.literal("startIteration"),
+    teamId: id,
+    iterationId: id,
+  }),
+  // Unfinished items move to the chosen iteration or back to the backlog.
+  z.object({
+    type: z.literal("completeIteration"),
+    teamId: id,
+    iterationId: id,
+    carryOverTo: id.nullable(),
+  }),
   // Organization role administration (application-role admins only).
   z.object({
     type: z.literal("createRole"),
@@ -639,6 +948,43 @@ export type RoleCommand = Extract<
   Command,
   { type: "createRole" | "updateRole" | "setRoleMembership" }
 >;
+export type TeamCommand = Extract<
+  Command,
+  {
+    type:
+      | "createTeam"
+      | "updateTeam"
+      | "setTeamMembership"
+      | "setTeamType"
+      | "createStatus"
+      | "updateStatus"
+      | "archiveStatus"
+      | "createType"
+      | "updateType"
+      | "createIteration"
+      | "updateIteration"
+      | "startIteration"
+      | "completeIteration";
+  }
+>;
+const teamCommandTypes = new Set<string>([
+  "createTeam",
+  "updateTeam",
+  "setTeamMembership",
+  "setTeamType",
+  "createStatus",
+  "updateStatus",
+  "archiveStatus",
+  "createType",
+  "updateType",
+  "createIteration",
+  "updateIteration",
+  "startIteration",
+  "completeIteration",
+]);
+export function isTeamCommand(c: Command): c is TeamCommand {
+  return teamCommandTypes.has(c.type);
+}
 export function isRoleCommand(c: Command): c is RoleCommand {
   return (
     c.type === "createRole" ||

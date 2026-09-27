@@ -107,29 +107,30 @@ Decisions belong to a project, with optional proposal/revision/thread provenance
 They can be archived without erasing the source discussion. Editable decisions
 are not themselves versioned in this initial model.
 
-Delivery items are provider-neutral drafts tied to a source revision, with free
-text category, Markdown description, order, and a parent in the same revision.
-The database rejects self-parenting and cross-context parents; future hierarchy
-writes must also reject longer cycles. Delivery-plan versioning and approval are
-not implemented, so these records alone cannot authorize publication.
+Delivery work is ordinary work items (see [delivery.md](delivery.md)); there is
+no separate delivery-item table. Composite foreign keys keep a work item's
+status inside its own team (`organization_id, team_id, status_id`) and its
+iteration inside the same team, and keep teams, types, statuses, iterations,
+relations and iteration events inside one organization. One active iteration per
+team is a partial unique index; iteration state and its timestamps are
+constrained together.
 
 External identifiers, URLs, remote namespace, synchronization state, and metadata
-live in a separate link table. The namespace identifies a provider installation
-or workspace; provider-specific project/issue mappings belong in its metadata or
-a future integration configuration. External identity is unique within an
-organization/provider/namespace, and a draft can reserve a pending link before it
-has an external ID. The link ID can serve as a stable operation identity, but the
-schema alone does not implement publication idempotency or partial-failure
-recovery. There are no credentials, network calls, or implicit bidirectional sync.
-Local draft content is owned here; external identity and sync outcomes are owned
-by the future adapter. Conflict resolution must precede any sync implementation.
+live in `work_item_external_link`. The namespace identifies a provider
+installation or workspace; provider-specific project/issue mappings belong in its
+metadata or a future integration configuration. An item has at most one link
+per provider/namespace, and an external identity maps to at most one local item,
+so a retried publish cannot create duplicate delivery work. A pending link can be
+reserved before it has an external ID. There are no credentials, network calls,
+or implicit bidirectional sync yet. Local content is owned here; external
+identity and sync outcomes are owned by the future adapter.
 
 ## Retention
 
 Domain history and actor references use restrictive foreign keys. Deleting a
 project/proposal/organization with referenced history, or a referenced author,
 fails instead of silently cascading. Archive timestamps on projects, proposals,
-roles, decisions, and delivery items support reversible removal from active
+roles, teams, types, statuses, and decisions support reversible removal from active
 views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
 history exists. A future account erasure/anonymization policy and actionable error

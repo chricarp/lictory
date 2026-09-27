@@ -41,4 +41,12 @@ export const paths = {
     `/app/${org}/${project.toLowerCase()}/reviews`,
   view: (org: string, project: string, view: string) =>
     `/app/${org}/${project.toLowerCase()}/views/${view}`,
+  // Teams are addressed by id: names may change and are not unique forever.
+  board: (org: string, team: string, searchParams?: SearchParams) =>
+    withSearchParams(`/app/${org}/teams/${team}/board`, searchParams),
+  backlog: (org: string, team: string) => `/app/${org}/teams/${team}/backlog`,
+  iteration: (org: string, team: string, iteration: string) =>
+    `/app/${org}/teams/${team}/iterations/${iteration}`,
+  teamSettings: (org: string, team: string) =>
+    `/app/${org}/teams/${team}/settings`,
 };

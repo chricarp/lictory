@@ -28,6 +28,9 @@ import {
   Settings,
   UserRound,
   X,
+  KanbanSquare,
+  ListOrdered,
+  Users,
 } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -48,7 +51,7 @@ import { useWorkspace } from "./provider";
 import { CommandPalette } from "./command-palette";
 import { QuickCreate, type QuickCreateOptions } from "./quick-create";
 import { SyncStatus } from "./sync-status";
-import { KindIcon } from "~/components/items/icons";
+import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
 
 type Toast = {
   id: number;
@@ -466,16 +469,16 @@ function Sidebar({
               <NavLink
                 href={paths.list(org, project.key, "epics")}
                 active={active(paths.list(org, project.key, "epics"))}
-                icon={<KindIcon kind="epic" />}
+                icon={<TypeIcon type={epicGlyph} />}
               >
                 Epics
               </NavLink>
               <NavLink
                 href={paths.list(org, project.key, "stories")}
                 active={active(paths.list(org, project.key, "stories"))}
-                icon={<KindIcon kind="story" />}
+                icon={<TypeIcon type={storyGlyph} />}
               >
-                Stories
+                Work items
               </NavLink>
               <NavLink
                 href={paths.reviews(org, project.key)}
@@ -491,6 +494,7 @@ function Sidebar({
             </p>
           )}
         </div>
+        <TeamsNav active={active} />
         {project && (
           <div>
             <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
@@ -569,6 +573,55 @@ function Sidebar({
         <SyncStatus />
       </div>
     </>
+  );
+}
+
+// Teams I belong to first; everyone sees all teams (membership is not access).
+function TeamsNav({ active }: { active: (href: string) => boolean }) {
+  const { delivery, organization, userId } = useWorkspace();
+  const org = organization.slug;
+  const teams = [...delivery.teams.values()]
+    .filter((t) => !t.archivedAt && t.deliveryMode === "native")
+    .sort(
+      (a, b) =>
+        Number(b.memberIds.includes(userId)) -
+          Number(a.memberIds.includes(userId)) || a.name.localeCompare(b.name),
+    );
+  if (!teams.length) return null;
+  return (
+    <div>
+      <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        Teams
+      </p>
+      <div className="space-y-2">
+        {teams.map((t) => (
+          <div key={t.id} className="space-y-px">
+            <p className="flex h-6 items-center gap-2 px-2 text-[13px] font-medium">
+              <Users className="size-3.5 text-muted-foreground" />
+              <span className="truncate">{t.name}</span>
+            </p>
+            <NavLink
+              href={paths.board(org, t.id)}
+              active={active(paths.board(org, t.id))}
+              icon={<KanbanSquare className="size-4" />}
+            >
+              Board
+            </NavLink>
+            <NavLink
+              href={paths.backlog(org, t.id)}
+              active={active(paths.backlog(org, t.id))}
+              icon={<ListOrdered className="size-4" />}
+            >
+              {t.iterationMode === "manual"
+                ? "Backlog & sprints"
+                : t.iterationMode === "automatic"
+                  ? "Backlog & cycles"
+                  : "Backlog"}
+            </NavLink>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

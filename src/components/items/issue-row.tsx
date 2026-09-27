@@ -2,14 +2,21 @@
 import Link from "next/link";
 import { memo } from "react";
 import { cn } from "~/lib/utils";
-import { identifier, relativeTime, type Project } from "~/lib/work-items";
+import {
+  identifier,
+  isTopLevel,
+  relativeTime,
+  typeOf,
+  type Project,
+} from "~/lib/work-items";
+import { useDelivery } from "~/components/workspace/provider";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { Avatar } from "~/components/ui/primitives";
 import { IssueStatus } from "./status";
 import { AssigneePicker, IssuePriority } from "./properties";
 import { IssueIdentifier } from "./identifier";
 import { ReadinessBar, ReviewSignal } from "./signals";
-import { KindIcon } from "./icons";
+import { TypeIcon, epicGlyph } from "./icons";
 import { LabelChip, MilestoneBadge } from "./labels";
 import type { Label, Milestone } from "~/lib/work-items";
 
@@ -39,12 +46,14 @@ export const IssueRow = memo(function IssueRow({
   memberName: (id: string | null) => string;
   // Absent when the viewer's roles cannot change properties.
   onUpdate?: (patch: {
-    status?: WorkItem["status"];
+    statusId?: string;
     priority?: WorkItem["priority"];
     assigneeId?: string | null;
   }) => void;
   onFocus: () => void;
 }) {
+  const delivery = useDelivery();
+  const type = typeOf(delivery, item);
   return (
     <li
       data-item-row
@@ -71,12 +80,13 @@ export const IssueRow = memo(function IssueRow({
       )}
       <span className="relative z-10">
         <IssueStatus
-          status={item.status}
+          teamId={item.teamId}
+          statusId={item.statusId}
           compact
-          onChange={onUpdate && ((status) => onUpdate({ status }))}
+          onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}
         />
       </span>
-      <KindIcon kind={item.kind} />
+      <TypeIcon type={type} />
       <IssueIdentifier
         project={project}
         number={item.number}
@@ -111,16 +121,27 @@ export const IssueRow = memo(function IssueRow({
           className="hidden max-w-[180px] items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
           title={parent.title}
         >
-          <KindIcon kind="epic" className="size-3 rounded-[3px]" />
+          <TypeIcon
+            type={delivery.types.get(parent.typeId) ?? epicGlyph}
+            className="size-3 rounded-[3px]"
+          />
           <span className="truncate">{identifier(project, parent.number)}</span>
         </span>
       )}
-      {item.kind === "epic" && item.childCount > 0 && !compact && (
+      {isTopLevel(type) && item.childCount > 0 && !compact && (
         <span
           className="text-xs text-muted-foreground tabular-nums"
-          title={`${item.childReadyCount} of ${item.childCount} stories ready`}
+          title={`${item.childDoneCount} of ${item.childCount} children done, ${item.childReadyCount} specifications ready`}
         >
-          {item.childReadyCount}/{item.childCount} stories
+          {item.childDoneCount}/{item.childCount} done
+        </span>
+      )}
+      {!compact && item.estimate !== null && (
+        <span
+          className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
+          title="Estimate"
+        >
+          {item.estimate}
         </span>
       )}
       <ReviewSignal item={item} />

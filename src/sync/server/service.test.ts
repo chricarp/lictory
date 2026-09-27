@@ -8,6 +8,9 @@ import * as s from "../../db/schema";
 import {
   createSyncService,
   DomainError,
+  advanceSchedules,
+  directory,
+  iterationReport,
   searchEpics,
   searchMembers,
 } from "./service";
@@ -111,12 +114,27 @@ async function fixture() {
       .from(s.project)
       .where(eq(s.project.organizationId, organizationId))
   )[0]!;
+  const dir = await directory(db, userId, organizationId);
+  const types = Object.fromEntries(dir.types.map((t) => [t.name, t.id])) as {
+    Epic: string;
+    Story: string;
+    Task: string;
+    Bug: string;
+    Subtask: string;
+  };
+  const team = dir.teams[0]!;
+  const statuses = Object.fromEntries(
+    team.statuses.map((x) => [x.name, x.id]),
+  ) as Record<
+    "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled",
+    string
+  >;
   const proposalId = crypto.randomUUID();
   await command({
     type: "createWorkItem",
     projectId: project.id,
     workItemId: proposalId,
-    kind: "story",
+    typeId: types.Story,
     parentId: null,
     title: "Safe retries",
     description: "Avoid duplicate payments after timeout.",
@@ -141,6 +159,9 @@ async function fixture() {
     userId,
     reviewerId,
     roles,
+    types,
+    teamId: team.id,
+    statuses,
     proposalId,
     projectId: project.id,
     scope,
@@ -378,7 +399,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
         type: "createWorkItem",
         projectId: f.projectId,
         workItemId: crypto.randomUUID(),
-        kind: "epic",
+        typeId: f.types.Epic,
         parentId: null,
         title,
       }),
@@ -406,7 +427,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
         type: "createWorkItem",
         projectId: f.projectId,
         workItemId: failedProposalId,
-        kind: "epic",
+        typeId: f.types.Epic,
         parentId: null,
         title: "Rollback",
       }),
@@ -640,14 +661,6 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
   });
   const second = await f.current();
   const base2 = { workItemId: f.proposalId, baseRevisionId: second.id };
-  await assert.rejects(
-    f.command({
-      type: "updateWorkItem",
-      workItemId: f.proposalId,
-      status: "ready",
-    }),
-    /Not ready yet/,
-  );
   await f.command({
     type: "requestReview",
     ...base2,
@@ -657,7 +670,7 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
     required: true,
   });
   let item = (await f.entities()).find((e) => e.type === "workItem")!;
-  assert.equal(item.type === "workItem" && item.status, "in_review");
+  assert.equal(item.type === "workItem" && item.refinementState, "in_review");
   const review = (await f.entities()).find((e) => e.type === "review")!;
   await f.command(
     {
@@ -669,7 +682,7 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
     f.reviewerId,
   );
   item = (await f.entities()).find((e) => e.type === "workItem")!;
-  assert.equal(item.type === "workItem" && item.status, "ready");
+  assert.equal(item.type === "workItem" && item.refinementState, "ready");
   // Non-material: priority/assignee keep approvals and readiness intact.
   await f.command({
     type: "updateWorkItem",
@@ -682,7 +695,7 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
   item = all.find((e) => e.type === "workItem")!;
   assert.ok(
     item.type === "workItem" &&
-      item.status === "ready" &&
+      item.refinementState === "ready" &&
       item.priority === "high",
   );
   // Material: a new revision stales the approval, re-requests the review with
@@ -714,14 +727,14 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
   item = all.find((e) => e.type === "workItem")!;
   assert.ok(
     item.type === "workItem" &&
-      item.status === "in_review" &&
+      item.refinementState === "in_review" &&
       item.reviews.length === 1,
   );
   assert.deepEqual(item.type === "workItem" && item.reviews[0]!.assigneeIds, [
     f.reviewerId,
   ]);
   assert.ok(
-    all.some((e) => e.type === "activity" && e.action === "status_changed"),
+    all.some((e) => e.type === "activity" && e.action === "refinement_changed"),
   );
 });
 
@@ -732,7 +745,7 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
     type: "createWorkItem",
     projectId: f.projectId,
     workItemId: epicId,
-    kind: "epic",
+    typeId: f.types.Epic,
     parentId: null,
     title: "Cancellation",
   });
@@ -746,11 +759,11 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
       type: "createWorkItem",
       projectId: f.projectId,
       workItemId: crypto.randomUUID(),
-      kind: "story",
+      typeId: f.types.Story,
       parentId: f.proposalId, // a story, not an epic
       title: "Invalid parent",
     }),
-    /belong to an Epic/,
+    /cannot be placed under a Story/,
   );
   await f.command({
     type: "updateWorkItem",
@@ -774,7 +787,7 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
   const readiness = epic.find((e) => e.type === "readiness")!;
   assert.ok(
     readiness.type === "readiness" &&
-      readiness.checks.some((c) => c.key === "stories_ready" && !c.passed),
+      readiness.checks.some((c) => c.key === "children_ready" && !c.passed),
   );
   await assert.rejects(
     f.command({
@@ -887,7 +900,7 @@ void test("labels, milestones and manual ordering are project-scoped, non-materi
     type: "createWorkItem",
     projectId: f.projectId,
     workItemId: epicId,
-    kind: "epic",
+    typeId: f.types.Epic,
     parentId: null,
     title: "Epic",
   });
@@ -901,7 +914,7 @@ void test("labels, milestones and manual ordering are project-scoped, non-materi
       type: "createWorkItem",
       projectId: f.projectId,
       workItemId: id,
-      kind: "story",
+      typeId: f.types.Story,
       parentId: epicId,
       title: `S${i}`,
     });
@@ -995,7 +1008,10 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     id: crypto.randomUUID(),
     organizationId: f.organizationId,
     projectId: f.projectId,
-    kind: "epic" as const,
+    teamId: f.teamId,
+    typeId: f.types.Epic,
+    statusId: f.statuses.Backlog,
+    rank: `r${String(index).padStart(3, "0")}`,
     number: index + 2,
     title:
       index === 0 ? "Zelda Query" : `Epic ${String(index).padStart(2, "0")}`,
@@ -1006,7 +1022,10 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     id: crypto.randomUUID(),
     organizationId: f.organizationId,
     projectId: f.projectId,
-    kind: "epic",
+    teamId: f.teamId,
+    typeId: f.types.Epic,
+    statusId: f.statuses.Backlog,
+    rank: "z",
     number: 27,
     title: "Archived epic",
     createdById: f.userId,
@@ -1108,7 +1127,7 @@ void test("organization roles grant capabilities; administrators manage roles; r
         type: "createWorkItem",
         projectId: f.projectId,
         workItemId: crypto.randomUUID(),
-        kind: "story",
+        typeId: f.types.Story,
         parentId: null,
         title: "Another",
       },
@@ -1613,4 +1632,424 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
     (e) => e.type === "suggestion" && e.id === other,
   );
   assert.ok(reopened?.type === "suggestion" && reopened.status === "draft");
+});
+
+// ---------------------------------------------------------------------------
+// Native delivery: types, workflows, iterations, relations.
+// ---------------------------------------------------------------------------
+const orgScope = (f: Awaited<ReturnType<typeof fixture>>) => ({
+  organizationId: f.organizationId,
+});
+async function orgItems(f: Awaited<ReturnType<typeof fixture>>) {
+  const page = pageSchema.parse(await service.read(f.userId, orgScope(f)));
+  return page;
+}
+async function itemOf(f: Awaited<ReturnType<typeof fixture>>, id: string) {
+  const page = await orgItems(f);
+  const found = page.changes.find(
+    (c) =>
+      c.operation === "upsert" &&
+      c.entity.type === "workItem" &&
+      c.entity.id === id,
+  );
+  assert.ok(found?.operation === "upsert" && found.entity.type === "workItem");
+  return found.entity;
+}
+async function create(
+  f: Awaited<ReturnType<typeof fixture>>,
+  typeId: string,
+  extra: Partial<Extract<Command, { type: "createWorkItem" }>> = {},
+) {
+  const workItemId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId,
+    typeId,
+    parentId: null,
+    title: "Item",
+    ...extra,
+  });
+  return workItemId;
+}
+
+void test("type hierarchy follows levels and only spec-backed types are reviewed", async () => {
+  const f = await fixture();
+  const epic = await create(f, f.types.Epic);
+  const task = await create(f, f.types.Task, { parentId: epic });
+  await assert.rejects(
+    create(f, f.types.Story, { parentId: task }),
+    /cannot be placed under a Task/,
+  );
+  const subtask = await create(f, f.types.Subtask, { parentId: task });
+  const taskItem = await itemOf(f, task);
+  assert.equal(taskItem.refinementState, null);
+  assert.equal(taskItem.readinessTotal, 0);
+  assert.equal((await itemOf(f, subtask)).parentId, task);
+  // Plain work has no specification to review.
+  const revision = (
+    await db
+      .select()
+      .from(s.specificationRevision)
+      .where(eq(s.specificationRevision.workItemId, task))
+  )[0]!;
+  await assert.rejects(
+    f.command({
+      type: "requestReview",
+      workItemId: task,
+      baseRevisionId: revision.id,
+      reviewId: crypto.randomUUID(),
+      roleId: f.roles.Engineering,
+      userId: null,
+      required: true,
+    }),
+    /no specification to review/,
+  );
+  // A type with children cannot be demoted below them.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: task,
+      typeId: f.types.Subtask,
+    }),
+    /cannot be placed under|children that cannot sit/,
+  );
+  // Decomposition records the parent revision it was derived from.
+  const story = await create(f, f.types.Story, { parentId: epic });
+  const epicRevision = (
+    await db
+      .select()
+      .from(s.specificationRevision)
+      .where(eq(s.specificationRevision.workItemId, epic))
+  )[0]!;
+  assert.equal((await itemOf(f, story)).sourceRevisionId, epicRevision.id);
+});
+
+void test("readiness gates starting spec-backed work according to team policy", async () => {
+  const f = await fixture();
+  // Default policy warns: the move succeeds and the override is recorded.
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses["In Progress"],
+  });
+  const warned = (await f.entities()).find(
+    (e) =>
+      e.type === "activity" &&
+      e.action === "status_changed" &&
+      Array.isArray(e.detail?.startedBeforeReady),
+  );
+  assert.ok(warned, "override recorded in activity");
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Todo,
+  });
+  await f.command({
+    type: "updateTeam",
+    teamId: f.teamId,
+    readinessPolicy: "block",
+  });
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /PAY-1 is not ready to start: .*acceptance criteria/,
+  );
+  // Plain tasks are never gated.
+  const task = await create(f, f.types.Task);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: task,
+    statusId: f.statuses["In Progress"],
+  });
+  // Only administrators configure teams.
+  await assert.rejects(
+    f.command(
+      { type: "updateTeam", teamId: f.teamId, readinessPolicy: "off" },
+      f.reviewerId,
+    ),
+    /administrator/,
+  );
+});
+
+void test("moving an item between teams keeps its key and maps the workflow", async () => {
+  const f = await fixture();
+  const other = crypto.randomUUID();
+  await f.command({ type: "createTeam", teamId: other, name: "Platform" });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Done,
+  });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    teamId: other,
+  });
+  const moved = await itemOf(f, f.proposalId);
+  const page = await orgItems(f);
+  const platform = page.directory.teams.find((t) => t.id === other)!;
+  assert.equal(moved.teamId, other);
+  assert.equal(moved.number, 1);
+  assert.equal(
+    platform.statuses.find((x) => x.id === moved.statusId)?.category,
+    "done",
+  );
+  // Statuses of another team are rejected.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      statusId: f.statuses.Todo,
+    }),
+    /unavailable for this team/,
+  );
+});
+
+void test("archiving a status requires a replacement and moves its items explicitly", async () => {
+  const f = await fixture();
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses["In Review"],
+  });
+  await assert.rejects(
+    f.command({
+      type: "archiveStatus",
+      teamId: f.teamId,
+      statusId: f.statuses["In Review"],
+      replacementId: f.statuses["In Review"],
+    }),
+    /another active status/,
+  );
+  await f.command({
+    type: "archiveStatus",
+    teamId: f.teamId,
+    statusId: f.statuses["In Review"],
+    replacementId: f.statuses["In Progress"],
+  });
+  assert.equal(
+    (await itemOf(f, f.proposalId)).statusId,
+    f.statuses["In Progress"],
+  );
+  const history = await db
+    .select()
+    .from(s.activity)
+    .where(eq(s.activity.workItemId, f.proposalId));
+  assert.ok(
+    history.some(
+      (a) =>
+        a.action === "status_changed" && a.detail?.reason === "status_archived",
+    ),
+  );
+});
+
+void test("sprints: one active per team, carry-over on completion, frozen reports from recorded events", async () => {
+  const f = await fixture();
+  const sprint = crypto.randomUUID();
+  const next = crypto.randomUUID();
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  for (const [iterationId, from, to] of [
+    [sprint, -1, 13],
+    [next, 13, 27],
+  ] as const)
+    await f.command({
+      type: "createIteration",
+      teamId: f.teamId,
+      iterationId,
+      name: null,
+      goal: "Ship retries",
+      startsAt: day(from),
+      endsAt: day(to),
+    });
+  const done = await create(f, f.types.Task, { iterationId: sprint });
+  const open = await create(f, f.types.Task, { iterationId: sprint });
+  for (const [id, estimate] of [
+    [done, 3],
+    [open, 5],
+  ] as const)
+    await f.command({ type: "updateWorkItem", workItemId: id, estimate });
+  await f.command({
+    type: "startIteration",
+    teamId: f.teamId,
+    iterationId: sprint,
+  });
+  await assert.rejects(
+    f.command({ type: "startIteration", teamId: f.teamId, iterationId: next }),
+    /already has an active iteration/,
+  );
+  // Mid-sprint scope change is visible in the report.
+  const late = await create(f, f.types.Bug, { iterationId: sprint });
+  await f.command({ type: "updateWorkItem", workItemId: late, estimate: 2 });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: done,
+    statusId: f.statuses.Done,
+  });
+  const report = await iterationReport(db, f.userId, f.organizationId, sprint);
+  assert.deepEqual(report.totals.atStart, { count: 2, points: 8 });
+  assert.deepEqual(report.totals.addedAfterStart, { count: 1, points: 2 });
+  assert.deepEqual(report.totals.completed, { count: 1, points: 3 });
+  assert.equal(report.series.at(-1)!.remaining, 7);
+  await f.command({
+    type: "completeIteration",
+    teamId: f.teamId,
+    iterationId: sprint,
+    carryOverTo: next,
+  });
+  assert.equal((await itemOf(f, open)).iterationId, next);
+  assert.equal((await itemOf(f, late)).iterationId, next);
+  assert.equal((await itemOf(f, done)).iterationId, sprint);
+  const frozen = await iterationReport(db, f.userId, f.organizationId, sprint);
+  assert.deepEqual(frozen.summary?.carriedOver, { count: 2, points: 7 });
+  // Later edits never rewrite a completed iteration's report.
+  await f.command({ type: "updateWorkItem", workItemId: done, estimate: 13 });
+  const after = await iterationReport(db, f.userId, f.organizationId, sprint);
+  assert.deepEqual(after.totals, frozen.totals);
+  assert.deepEqual(after.summary, frozen.summary);
+  // Completed iterations cannot receive work.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: open,
+      iterationId: sprint,
+    }),
+    /is completed/,
+  );
+  // Planning requires a role that changes properties.
+  await assert.rejects(
+    f.command(
+      { type: "startIteration", teamId: f.teamId, iterationId: next },
+      f.reviewerId,
+    ),
+    /cannot plan iterations/,
+  );
+  assert.equal(
+    (await iterationReport(db, f.userId, f.organizationId, next)).velocity.at(
+      -1,
+    )?.completed,
+    3,
+  );
+});
+
+void test("automatic cycles are scheduled idempotently and roll unfinished work over", async () => {
+  const f = await fixture();
+  await f.command({
+    type: "updateTeam",
+    teamId: f.teamId,
+    iterationMode: "automatic",
+    iterationWeeks: 1,
+    upcomingIterations: 2,
+  });
+  const cycles = async () =>
+    db
+      .select()
+      .from(s.iteration)
+      .where(eq(s.iteration.teamId, f.teamId))
+      .orderBy(s.iteration.number);
+  let rows = await cycles();
+  assert.equal(rows.filter((r) => r.state === "active").length, 1);
+  assert.equal(rows.filter((r) => r.state === "planned").length, 2);
+  const active = rows.find((r) => r.state === "active")!;
+  const item = await create(f, f.types.Task, { iterationId: active.id });
+  const first = await advanceSchedules(db, new Date());
+  assert.equal(first.changedOrganizations, 0, "already up to date");
+  // Two weeks later: the active cycle completes and the next one starts.
+  const later = new Date(active.endsAt.getTime() + 8 * 86_400_000);
+  await advanceSchedules(db, later);
+  const again = await advanceSchedules(db, later);
+  assert.equal(again.changedOrganizations, 0);
+  rows = await cycles();
+  assert.equal(rows.filter((r) => r.state === "active").length, 1);
+  assert.equal(rows.filter((r) => r.state === "planned").length, 2);
+  const current = rows.find((r) => r.state === "active")!;
+  assert.ok(current.startsAt <= later && current.endsAt > later);
+  assert.equal((await itemOf(f, item)).iterationId, current.id);
+  // Scheduled changes reach clients through the change log.
+  const moved = (await orgItems(f)).changes.some(
+    (c) => c.operation === "upsert" && c.entity.type === "workItem",
+  );
+  assert.ok(moved);
+});
+
+void test("relations stay inside the organization, reject reverse blocks, and tombstone on removal", async () => {
+  const f = await fixture();
+  const g = await fixture();
+  const a = await create(f, f.types.Task);
+  await assert.rejects(
+    f.command({
+      type: "addRelation",
+      workItemId: a,
+      relationId: crypto.randomUUID(),
+      toId: g.proposalId,
+      kind: "relates",
+    }),
+    /unavailable/,
+  );
+  const relationId = crypto.randomUUID();
+  await f.command({
+    type: "addRelation",
+    workItemId: a,
+    relationId,
+    toId: f.proposalId,
+    kind: "blocks",
+  });
+  await assert.rejects(
+    f.command({
+      type: "addRelation",
+      workItemId: f.proposalId,
+      relationId: crypto.randomUUID(),
+      toId: a,
+      kind: "blocks",
+    }),
+    /other way round/,
+  );
+  const before = await orgItems(f);
+  assert.ok(
+    before.changes.some(
+      (c) => c.operation === "upsert" && c.entity.id === relationId,
+    ),
+  );
+  await f.command({
+    type: "removeRelation",
+    workItemId: f.proposalId,
+    relationId,
+  });
+  const delta = pageSchema.parse(
+    await service.read(f.userId, orgScope(f), before.nextCursor),
+  );
+  assert.ok(
+    delta.changes.some(
+      (c) =>
+        c.operation === "delete" &&
+        c.type === "relation" &&
+        c.id === relationId,
+    ),
+  );
+  // Foreign teams are unavailable too (tenant isolation on new references).
+  await assert.rejects(
+    create(f, f.types.Task, { teamId: g.teamId }),
+    /team is unavailable/,
+  );
+});
+
+void test("ranks order the backlog with single-row moves", async () => {
+  const f = await fixture();
+  const a = await create(f, f.types.Task);
+  const b = await create(f, f.types.Task);
+  await f.command({
+    type: "rankWorkItem",
+    workItemId: b,
+    afterId: null,
+    beforeId: f.proposalId,
+  });
+  const ranks = await Promise.all(
+    [f.proposalId, a, b].map((id) => itemOf(f, id)),
+  );
+  const [p, ra, rb] = ranks.map((r) => r.rank);
+  assert.ok(rb! < p! && p! < ra!);
 });

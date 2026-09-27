@@ -4,7 +4,13 @@ import { PriorityIcon } from "./icons";
 export { PriorityIcon } from "./icons";
 export { AssigneePicker } from "~/components/ui/people-picker";
 import { cn } from "~/lib/utils";
-import { priorityMeta, priorityOrder, type Project } from "~/lib/work-items";
+import {
+  type Project,
+  isTopLevel,
+  priorityMeta,
+  priorityOrder,
+  typeOf,
+} from "~/lib/work-items";
 import type { WorkItemPriority } from "~/sync/shared/protocol";
 import { Popover, Picker } from "~/components/ui/popover";
 import { useWorkspace } from "~/components/workspace/provider";
@@ -75,9 +81,12 @@ export function ParentPicker({
   project?: Project;
   onChange: (parentId: string | null) => void;
 }) {
-  const { items } = useWorkspace();
+  const { items, delivery } = useWorkspace();
   const epics = items.filter(
-    (i) => i.kind === "epic" && i.projectId === projectId && !i.archivedAt,
+    (i) =>
+      isTopLevel(typeOf(delivery, i)) &&
+      i.projectId === projectId &&
+      !i.archivedAt,
   );
   const parent = epics.find((e) => e.id === parentId);
   return (

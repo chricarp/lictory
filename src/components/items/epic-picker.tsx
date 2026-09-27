@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { KindIcon } from "~/components/items/icons";
+import { TypeIcon, epicGlyph } from "~/components/items/icons";
 import { Picker, Popover, type PickerOption } from "~/components/ui/popover";
 import { useDebouncedCallback } from "~/components/ui/use-debounced-callback";
 import { useWorkspace } from "~/components/workspace/provider";
@@ -101,7 +101,7 @@ export function EpicPicker({
           }}
         >
           <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
-            <KindIcon kind="epic" />
+            <TypeIcon type={epicGlyph} />
           </span>
           <input
             ref={inputRef}
@@ -219,7 +219,7 @@ function EpicOptions({
         value: epic.id,
         label: epic.title,
         hint: `${projectKey ? `${projectKey}-` : ""}${epic.number}`,
-        icon: <KindIcon kind="epic" />,
+        icon: <TypeIcon type={epicGlyph} />,
       })),
     ];
   }, [epics, projectKey, query, selected]);

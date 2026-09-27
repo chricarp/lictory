@@ -19,15 +19,17 @@ import {
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import {
+  activeStatuses,
   identifier,
+  isTopLevel,
   parseIdentifier,
-  statusMeta,
-  statusOrder,
+  segmentOf,
+  typeOf,
   views,
 } from "~/lib/work-items";
 import { Kbd } from "~/components/ui/primitives";
 import { StatusIcon } from "~/components/items/status";
-import { KindIcon } from "~/components/items/icons";
+import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
 
@@ -51,8 +53,15 @@ export function CommandPalette({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const { organization, projects, items, userId, mutate, capabilities } =
-    useWorkspace();
+  const {
+    organization,
+    projects,
+    items,
+    userId,
+    mutate,
+    capabilities,
+    delivery,
+  } = useWorkspace();
   const { openCreate, currentItem } = useShell();
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
@@ -95,20 +104,24 @@ export function CommandPalette({
             });
           },
         });
-      for (const status of statusOrder)
-        if (status !== currentItem.status)
+      for (const status of activeStatuses(
+        delivery.teams.get(currentItem.teamId),
+      ))
+        if (status.id !== currentItem.statusId)
           list.push({
-            id: `status-${status}`,
-            label: `Set status: ${statusMeta[status].label}`,
+            id: `status-${status.id}`,
+            label: `Set status: ${status.name}`,
             group: "Current item",
-            icon: <StatusIcon status={status} />,
+            icon: (
+              <StatusIcon category={status.category} color={status.color} />
+            ),
             keywords: "status change move",
             run: () => {
               onClose();
               void mutate({
                 type: "updateWorkItem",
                 workItemId: currentItem.id,
-                status,
+                statusId: status.id,
               });
             },
           });
@@ -119,7 +132,7 @@ export function CommandPalette({
           id: "create-epic",
           label: "Create Epic",
           group: "Create",
-          icon: <KindIcon kind="epic" />,
+          icon: <TypeIcon type={epicGlyph} />,
           run: () => {
             onClose();
             openCreate({ kind: "epic", projectId: currentProject?.id });
@@ -127,15 +140,18 @@ export function CommandPalette({
         },
         {
           id: "create-story",
-          label: "Create Story",
+          label: "Create work item",
           group: "Create",
-          icon: <KindIcon kind="story" />,
+          icon: <TypeIcon type={storyGlyph} />,
           run: () => {
             onClose();
             openCreate({
               kind: "story",
               projectId: currentProject?.id,
-              parentId: currentItem?.kind === "epic" ? currentItem.id : null,
+              parentId:
+                currentItem && isTopLevel(typeOf(delivery, currentItem))
+                  ? currentItem.id
+                  : null,
             });
           },
         },
@@ -162,15 +178,15 @@ export function CommandPalette({
           id: `epics-${p.id}`,
           label: `${p.name} · Epics`,
           group: "Navigate",
-          icon: <KindIcon kind="epic" />,
+          icon: <TypeIcon type={epicGlyph} />,
           keywords: "open project",
           run: () => go(paths.list(org, p.key, "epics")),
         },
         {
           id: `stories-${p.id}`,
-          label: `${p.name} · Stories`,
+          label: `${p.name} · Work items`,
           group: "Navigate",
-          icon: <KindIcon kind="story" />,
+          icon: <TypeIcon type={storyGlyph} />,
           run: () => go(paths.list(org, p.key, "stories")),
         },
         {
@@ -202,6 +218,7 @@ export function CommandPalette({
     projects,
     org,
     go,
+    delivery,
   ]);
   const q = query.trim().toLowerCase();
   const parsed = parseIdentifier(query);
@@ -223,13 +240,13 @@ export function CommandPalette({
         label: item.title,
         hint: identifier(project, item.number),
         group: "Items",
-        icon: <KindIcon kind={item.kind} />,
+        icon: <TypeIcon type={typeOf(delivery, item)} />,
         run: () =>
           go(
             paths.item(
               org,
               project?.key ?? "",
-              item.kind === "epic" ? "epics" : "stories",
+              segmentOf(typeOf(delivery, item)),
               identifier(project, item.number),
             ),
           ),
@@ -238,7 +255,7 @@ export function CommandPalette({
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
     return [...matchedItems, ...(q ? matchedCommands : commands.slice(0, 8))];
-  }, [items, q, parsed, commands, projectOf, go, org]);
+  }, [items, q, parsed, commands, projectOf, go, org, delivery]);
   const [lastQuery, setLastQuery] = useState(q);
   if (lastQuery !== q) {
     setLastQuery(q);

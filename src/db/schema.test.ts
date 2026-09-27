@@ -13,7 +13,7 @@ import { after, before, test } from "node:test";
 
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -21,6 +21,8 @@ import postgres from "postgres";
 import { authSchemaOptions } from "../lib/auth-schema-options";
 import * as authSchema from "./auth-schema";
 import * as s from "./schema";
+import { seedDefaultRoles } from "../sync/server/roles";
+import { seedDelivery } from "../sync/server/delivery";
 
 // Never use DATABASE_URL: create and remove an isolated database, even locally.
 const adminUrl =
@@ -127,20 +129,41 @@ async function fixture() {
     userId,
     createdAt: new Date(),
   });
+  const teamId = await seedDelivery(db, organizationId, "Team", [userId]);
+  const [epic] = await db
+    .select()
+    .from(s.workItemType)
+    .where(
+      and(
+        eq(s.workItemType.organizationId, organizationId),
+        eq(s.workItemType.name, "Epic"),
+      ),
+    );
+  const [backlog] = await db
+    .select()
+    .from(s.workflowStatus)
+    .where(eq(s.workflowStatus.teamId, teamId));
   await db.insert(s.project).values({
     id: projectId,
     organizationId,
     name: "Project",
     slug: "project",
     key: "PRD",
+    defaultTeamId: teamId,
     createdById: userId,
   });
+  const delivery = {
+    teamId,
+    typeId: epic!.id,
+    statusId: backlog!.id,
+  };
   await db.insert(s.workItem).values({
     id: proposalId,
     organizationId,
     projectId,
     number: 1,
-    kind: "epic",
+    ...delivery,
+    rank: "i",
     title: "Proposal",
     createdById: userId,
   });
@@ -163,7 +186,7 @@ async function fixture() {
   await db
     .insert(s.thread)
     .values({ id: threadId, ...context, reviewId, authorId: userId });
-  return { ...context, userId, projectId, reviewId, threadId };
+  return { ...context, ...delivery, userId, projectId, reviewId, threadId };
 }
 
 void test("migration preserves existing Better Auth records and its organization plugin works", async () => {
@@ -224,6 +247,10 @@ void test("composite foreign keys reject foreign organizations and mismatched pr
     db.insert(s.workItem).values({
       organizationId: a.organizationId,
       projectId: b.projectId,
+      teamId: a.teamId,
+      typeId: a.typeId,
+      statusId: a.statusId,
+      rank: "j",
       number: 2,
       title: "Invalid",
       createdById: a.userId,
@@ -536,105 +563,134 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
     db.insert(s.decision).values({ ...decision, workItemId: b.workItemId }),
     "23503",
   );
-  const item = {
-    organizationId: a.organizationId,
-    workItemId: a.workItemId,
-    revisionId: a.revisionId,
-    title: "Implement timeout",
-    category: "story",
-    createdById: a.userId,
-  };
-  const parentId = crypto.randomUUID();
-  await db
-    .insert(s.deliveryItem)
-    .values({ ...item, id: parentId, category: "epic" });
-  const childId = crypto.randomUUID();
-  await db.insert(s.deliveryItem).values({ ...item, id: childId, parentId });
-  await rejectsCode(
-    db.insert(s.deliveryItem).values({
-      ...item,
-      id: crypto.randomUUID(),
-      organizationId: b.organizationId,
-      workItemId: b.workItemId,
-      revisionId: b.revisionId,
-      parentId,
-    }),
-    "23503",
-  );
-  await rejectsCode(
-    db
-      .update(s.deliveryItem)
-      .set({ parentId })
-      .where(eq(s.deliveryItem.id, parentId)),
-    "23514",
-  );
   const link = {
     organizationId: a.organizationId,
-    deliveryItemId: parentId,
+    workItemId: a.workItemId,
     provider: "example",
     externalNamespace: "workspace",
     externalId: "123",
   };
-  await db.insert(s.deliveryExternalLink).values(link);
+  await db.insert(s.workItemExternalLink).values(link);
+  // One destination per item and one local item per external identity:
+  // retried publishes cannot duplicate delivery work.
   await rejectsCode(
-    db
-      .insert(s.deliveryExternalLink)
-      .values({ ...link, deliveryItemId: childId }),
+    db.insert(s.workItemExternalLink).values({ ...link, externalId: "124" }),
     "23505",
   );
   await rejectsCode(
     db
-      .insert(s.deliveryExternalLink)
+      .insert(s.workItemExternalLink)
       .values({ ...link, organizationId: b.organizationId }),
     "23503",
   );
+  await rejectsCode(
+    db
+      .insert(s.workItemExternalLink)
+      .values({ ...link, externalId: null, status: "synced" }),
+    "23514",
+  );
 });
 
-void test("existing organizations receive the default roles and their administrators join Product", async () => {
-  const a = await fixture();
+void test("new organizations are seeded idempotently with roles, types and a working team", async () => {
+  const organizationId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
   await db
-    .update(s.member)
-    .set({ role: "owner" })
-    .where(eq(s.member.organizationId, a.organizationId));
-  // Replays the data statements of the custom migration for an organization
-  // that existed before roles; the migration itself ran on an empty database.
-  const statements = (
-    await readFile("drizzle/0007_default_organization_roles.sql", "utf8")
-  )
-    .split("--> statement-breakpoint")
-    .filter((statement) => statement.includes("INSERT INTO"));
-  assert.equal(statements.length, 2);
-  for (const statement of statements) await client.unsafe(statement);
-  for (const statement of statements) await client.unsafe(statement);
+    .insert(s.user)
+    .values({ id: userId, name: "Owner", email: `${userId}@example.test` });
+  await db.insert(s.organization).values({
+    id: organizationId,
+    name: "Acme",
+    slug: organizationId,
+    createdAt: new Date(),
+  });
+  await seedDefaultRoles(db, organizationId, userId);
+  await seedDefaultRoles(db, organizationId, userId);
   const roles = await db
     .select()
     .from(s.organizationRole)
-    .where(eq(s.organizationRole.organizationId, a.organizationId));
+    .where(eq(s.organizationRole.organizationId, organizationId));
   assert.deepEqual(roles.map((r) => r.name).sort(), [
     "Engineering",
     "Product",
     "QA",
   ]);
-  const product = roles.find((r) => r.name === "Product")!;
-  assert.ok(
-    product.canEditSpecifications &&
-      product.canChangeProperties &&
-      product.canRequestReviews &&
-      product.canReview,
+  const types = await db
+    .select()
+    .from(s.workItemType)
+    .where(eq(s.workItemType.organizationId, organizationId));
+  assert.deepEqual(
+    types.map((t) => [t.name, t.level, t.hasSpecification]).sort(),
+    [
+      ["Bug", 1, false],
+      ["Epic", 2, true],
+      ["Story", 1, true],
+      ["Subtask", 0, false],
+      ["Task", 1, false],
+    ],
   );
-  const engineering = roles.find((r) => r.name === "Engineering")!;
-  assert.ok(
-    !engineering.canEditSpecifications &&
-      !engineering.canChangeProperties &&
-      engineering.canRequestReviews &&
-      engineering.canReview,
+  const teams = await db
+    .select()
+    .from(s.team)
+    .where(eq(s.team.organizationId, organizationId));
+  assert.deepEqual(
+    teams.map((t) => t.name),
+    ["Acme"],
   );
+  const statuses = await db
+    .select()
+    .from(s.workflowStatus)
+    .where(eq(s.workflowStatus.teamId, teams[0]!.id));
+  assert.deepEqual([...new Set(statuses.map((x) => x.category))].sort(), [
+    "backlog",
+    "canceled",
+    "done",
+    "started",
+    "unstarted",
+  ]);
   const members = await db
     .select()
-    .from(s.organizationRoleMember)
-    .where(eq(s.organizationRoleMember.organizationId, a.organizationId));
+    .from(s.teamMember)
+    .where(eq(s.teamMember.teamId, teams[0]!.id));
   assert.deepEqual(
-    members.map((m) => [m.roleId, m.userId]),
-    [[product.id, a.userId]],
+    members.map((m) => m.userId),
+    [userId],
+  );
+});
+
+void test("a work item's status must belong to its team and only one iteration is active per team", async () => {
+  const a = await fixture();
+  // Moving teams without remapping the status violates the composite key.
+  const otherTeamId = crypto.randomUUID();
+  await db.insert(s.team).values({
+    id: otherTeamId,
+    organizationId: a.organizationId,
+    name: "Platform",
+  });
+  await rejectsCode(
+    db
+      .update(s.workItem)
+      .set({ teamId: otherTeamId })
+      .where(eq(s.workItem.id, a.workItemId)),
+    "23503",
+  );
+  const iteration = (number: number, state: "planned" | "active") => ({
+    organizationId: a.organizationId,
+    teamId: a.teamId,
+    number,
+    startsAt: new Date("2026-01-01"),
+    endsAt: new Date("2026-01-15"),
+    state,
+    startedAt: state === "active" ? new Date() : null,
+  });
+  await db.insert(s.iteration).values(iteration(1, "active"));
+  await rejectsCode(
+    db.insert(s.iteration).values(iteration(2, "active")),
+    "23505",
+  );
+  await rejectsCode(
+    db
+      .insert(s.iteration)
+      .values({ ...iteration(3, "planned"), startedAt: new Date() }),
+    "23514",
   );
 });

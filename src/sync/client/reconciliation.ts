@@ -1,10 +1,12 @@
 import {
   entityKey,
   type Change,
+  type Directory,
   type Entity,
   type Mutation,
   type WorkItem,
 } from "../shared/protocol";
+import { rankBetween } from "../shared/rank";
 export type Entities = Record<string, Entity>;
 export function reconcile(entities: Entities, changes: Change[]): Entities {
   const next = { ...entities };
@@ -23,6 +25,8 @@ export function optimistic(
   userId: string,
   // The server names the review after its role; predict from the directory.
   roleName: (roleId: string) => string = () => "Review",
+  // Teams and types predict the workflow of new or moved items.
+  directory?: Pick<Directory, "teams" | "types" | "projects">,
 ): Entities {
   const next = { ...entities };
   const now = new Date().toISOString();
@@ -39,10 +43,35 @@ export function optimistic(
           slug: c.key.toLowerCase(),
           key: c.key,
           description: null,
+          defaultTeamId:
+            directory?.teams.find((t) => !t.archivedAt)?.id ?? null,
           archivedAt: null,
         };
         break;
       case "createWorkItem": {
+        const project = next[`project:${c.projectId}`];
+        const teamId =
+          c.teamId ??
+          (project?.type === "project" ? project.defaultTeamId : null);
+        const team = directory?.teams.find((t) => t.id === teamId);
+        const type = directory?.types.find((t) => t.id === c.typeId);
+        const statuses = team?.statuses.filter((x) => !x.archivedAt) ?? [];
+        const statusId =
+          c.statusId ??
+          (
+            statuses.find((x) => x.category === "backlog") ??
+            statuses.find((x) => x.category === "unstarted") ??
+            statuses[0]
+          )?.id;
+        // Without the team's workflow the server's answer is awaited instead.
+        if (!teamId || !statusId || !type) break;
+        const lastRank = Object.values(next)
+          .filter(
+            (e): e is WorkItem => e.type === "workItem" && e.teamId === teamId,
+          )
+          .map((e) => e.rank)
+          .sort()
+          .at(-1);
         const numbers = Object.values(next)
           .filter(
             (e): e is WorkItem =>
@@ -55,14 +84,20 @@ export function optimistic(
           id: c.workItemId,
           organizationId,
           projectId: c.projectId,
+          teamId,
+          typeId: c.typeId,
           parentId: c.parentId,
-          kind: c.kind,
           number: Math.max(0, ...numbers) + 1,
           title: c.title,
-          status: "draft",
+          statusId,
+          refinementState: type.hasSpecification ? "draft" : null,
           priority: "none",
-          assigneeId: null,
+          assigneeId: c.assigneeId ?? null,
           milestoneId: null,
+          iterationId: c.iterationId ?? null,
+          estimate: null,
+          rank: rankBetween(lastRank ?? null, null),
+          sourceRevisionId: null,
           labelIds: [],
           position:
             Math.max(
@@ -89,6 +124,8 @@ export function optimistic(
           readinessTotal: 0,
           childCount: 0,
           childReadyCount: 0,
+          childDoneCount: 0,
+          childEstimate: 0,
         };
         next[`revision:${revisionId}`] = {
           type: "revision",
@@ -109,15 +146,53 @@ export function optimistic(
         if (old?.type !== "workItem") break;
         next[entityKey(old)] = {
           ...old,
-          status: c.status ?? old.status,
+          // Team moves remap the status on the server; wait for it.
+          statusId: c.teamId ? old.statusId : (c.statusId ?? old.statusId),
+          refinementState: c.refinementState ?? old.refinementState,
           priority: c.priority ?? old.priority,
           assigneeId:
             c.assigneeId === undefined ? old.assigneeId : c.assigneeId,
           parentId: c.parentId === undefined ? old.parentId : c.parentId,
+          iterationId:
+            c.iterationId === undefined ? old.iterationId : c.iterationId,
+          estimate: c.estimate === undefined ? old.estimate : c.estimate,
           updatedAt: now,
         };
         break;
       }
+      case "rankWorkItem": {
+        const old = next[`workItem:${c.workItemId}`];
+        if (old?.type !== "workItem") break;
+        const rankOf = (id: string | null) => {
+          const e = id ? next[`workItem:${id}`] : undefined;
+          return e?.type === "workItem" ? e.rank : null;
+        };
+        const low = rankOf(c.afterId);
+        const high = rankOf(c.beforeId);
+        if (low !== null && high !== null && low >= high) break;
+        if (low === null && high === null) break;
+        next[entityKey(old)] = { ...old, rank: rankBetween(low, high) };
+        break;
+      }
+      case "addRelation": {
+        const from = next[`workItem:${c.workItemId}`];
+        if (from?.type !== "workItem") break;
+        next[`relation:${c.relationId}`] = {
+          type: "relation",
+          id: c.relationId,
+          organizationId,
+          projectId: from.projectId,
+          fromId: c.workItemId,
+          toId: c.toId,
+          kind: c.kind,
+          createdById: userId,
+          createdAt: now,
+        };
+        break;
+      }
+      case "removeRelation":
+        delete next[`relation:${c.relationId}`];
+        break;
       case "archiveWorkItem": {
         const old = next[`workItem:${c.workItemId}`];
         if (old?.type !== "workItem") break;

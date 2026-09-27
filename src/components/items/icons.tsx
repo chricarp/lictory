@@ -1,46 +1,86 @@
 "use client";
 import type { ReactNode } from "react";
-import { Bookmark, SquareCheck, Zap } from "lucide-react";
+import {
+  Bookmark,
+  Bug,
+  FlaskConical,
+  ListTree,
+  SquareCheck,
+  Wrench,
+  Zap,
+} from "lucide-react";
 import { cn } from "~/lib/utils";
-import { kindMeta } from "~/lib/work-items";
-import type { WorkItemKind, WorkItemPriority } from "~/sync/shared/protocol";
+import type {
+  LabelColor,
+  WorkItemPriority,
+  WorkItemType,
+} from "~/sync/shared/protocol";
 
-// Jira-style kind glyphs: a small filled square whose color identifies the type.
-// Epic purple, Story green, Task blue. Kept small so rows stay calm.
-export function KindIcon({
-  kind,
+// Type glyphs: a small filled square whose color identifies the type. Types
+// are configurable, so the glyph and color come from the type registry.
+const typeBackground: Record<LabelColor, string> = {
+  gray: "bg-zinc-500",
+  blue: "bg-sky-600",
+  green: "bg-emerald-600",
+  amber: "bg-amber-500",
+  red: "bg-red-600",
+  purple: "bg-violet-600",
+  pink: "bg-pink-600",
+  teal: "bg-teal-600",
+};
+const typeGlyph: Record<
+  WorkItemType["icon"],
+  { icon: typeof Zap; filled: boolean }
+> = {
+  epic: { icon: Zap, filled: true },
+  story: { icon: Bookmark, filled: true },
+  task: { icon: SquareCheck, filled: false },
+  bug: { icon: Bug, filled: false },
+  subtask: { icon: ListTree, filled: false },
+  spike: { icon: FlaskConical, filled: false },
+  chore: { icon: Wrench, filled: false },
+};
+export function TypeIcon({
+  type,
   className,
   size = "sm",
 }: {
-  kind: WorkItemKind;
+  type: Pick<WorkItemType, "icon" | "color" | "name">;
   className?: string;
   size?: "sm" | "md";
 }) {
   const box = size === "md" ? "size-5 rounded-[5px]" : "size-4 rounded-[4px]";
   const glyph = size === "md" ? "size-3.5" : "size-2.5";
+  const { icon: Glyph, filled } = typeGlyph[type.icon] ?? typeGlyph.task;
   return (
     <span
-      aria-label={kindMeta[kind].label}
-      title={kindMeta[kind].label}
+      aria-label={type.name}
+      title={type.name}
       className={cn(
         "inline-grid shrink-0 place-items-center text-white",
         box,
-        kind === "epic" && "bg-violet-600",
-        kind === "story" && "bg-emerald-600",
-        kind === "task" && "bg-sky-600",
+        typeBackground[type.color] ?? typeBackground.gray,
         className,
       )}
     >
-      {kind === "epic" ? (
-        <Zap className={cn(glyph, "fill-current")} strokeWidth={2.5} />
-      ) : kind === "story" ? (
-        <Bookmark className={cn(glyph, "fill-current")} strokeWidth={2.5} />
-      ) : (
-        <SquareCheck className={glyph} strokeWidth={2.5} />
-      )}
+      <Glyph
+        className={cn(glyph, filled && "fill-current")}
+        strokeWidth={2.5}
+      />
     </span>
   );
 }
+// Static glyphs for navigation that is not tied to one configured type.
+export const epicGlyph = {
+  icon: "epic",
+  color: "purple",
+  name: "Epics",
+} as const;
+export const storyGlyph = {
+  icon: "story",
+  color: "green",
+  name: "Work items",
+} as const;
 
 // Jira-style priority: stacked chevrons whose color, count, and weight encode
 // rank. Urgent/high point up in warm colors; low points down in blue; medium

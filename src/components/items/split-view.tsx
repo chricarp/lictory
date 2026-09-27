@@ -3,7 +3,7 @@ import { useSearchParams, useSelectedLayoutSegment } from "next/navigation";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
-import { identifier } from "~/lib/work-items";
+import { identifier, isTopLevel, typeOf } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
@@ -21,7 +21,7 @@ export function SplitView({
 }) {
   const segment = useSelectedLayoutSegment();
   const searchParams = useSearchParams();
-  const { items, organization } = useWorkspace();
+  const { items, organization, delivery } = useWorkspace();
   const project = useProject();
   const selected =
     segment && segment !== "__DEFAULT__"
@@ -32,9 +32,9 @@ export function SplitView({
       items.filter(
         (i) =>
           i.projectId === project.id &&
-          (kind === "epics" ? i.kind === "epic" : i.kind !== "epic"),
+          (kind === "epics") === isTopLevel(typeOf(delivery, i)),
       ),
-    [items, project.id, kind],
+    [items, project.id, kind, delivery],
   );
   const selectedItem = selected
     ? scoped.find(
@@ -62,10 +62,10 @@ export function SplitView({
       hrefFor={hrefFor}
       selectedId={selectedItem?.id}
       compact={compact}
-      title={kind === "epics" ? "Epics" : "Stories"}
+      title={kind === "epics" ? "Epics" : "Work items"}
       createKind={kind === "epics" ? "epic" : "story"}
       allowEpicFilter={kind === "stories"}
-      emptyTitle={kind === "epics" ? "No epics yet" : "No stories yet"}
+      emptyTitle={kind === "epics" ? "No epics yet" : "No work items yet"}
       emptyBody={
         kind === "epics"
           ? "An Epic captures a project capability. Start with a title; refine it with your team."

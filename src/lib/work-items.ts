@@ -2,39 +2,114 @@ import type {
   Directory,
   Entity,
   EntityOf,
+  Iteration,
   LabelColor,
   MilestoneStatus,
+  RefinementState,
+  StatusCategory,
+  Team,
+  WorkflowStatus,
   WorkItem,
-  WorkItemKind,
   WorkItemPriority,
-  WorkItemStatus,
+  WorkItemType,
 } from "~/sync/shared/protocol";
 
 export type Project = EntityOf<"project">;
+export type Relation = EntityOf<"relation">;
 
-export const statusMeta: Record<
-  WorkItemStatus,
-  { label: string; group: "todo" | "active" | "done" }
-> = {
-  backlog: { label: "Backlog", group: "todo" },
-  draft: { label: "Draft", group: "todo" },
-  refinement: { label: "In refinement", group: "active" },
-  in_review: { label: "In review", group: "active" },
-  ready: { label: "Ready", group: "active" },
-  in_progress: { label: "In progress", group: "active" },
-  done: { label: "Done", group: "done" },
-  cancelled: { label: "Cancelled", group: "done" },
+// Refinement is the specification's own lifecycle; `ready` is derived from
+// readiness checks by the server and never chosen by hand.
+export const refinementMeta: Record<RefinementState, { label: string }> = {
+  draft: { label: "Draft" },
+  refinement: { label: "In refinement" },
+  in_review: { label: "In review" },
+  ready: { label: "Ready" },
 };
-export const statusOrder: WorkItemStatus[] = [
-  "backlog",
+export const refinementOrder: RefinementState[] = [
   "draft",
   "refinement",
   "in_review",
   "ready",
-  "in_progress",
-  "done",
-  "cancelled",
 ];
+export const categoryMeta: Record<StatusCategory, { label: string }> = {
+  backlog: { label: "Backlog" },
+  unstarted: { label: "Unstarted" },
+  started: { label: "Started" },
+  done: { label: "Done" },
+  canceled: { label: "Canceled" },
+};
+export const categoryOrder: StatusCategory[] = [
+  "backlog",
+  "unstarted",
+  "started",
+  "done",
+  "canceled",
+];
+export const isClosedCategory = (c: StatusCategory | undefined) =>
+  c === "done" || c === "canceled";
+
+// Directory lookups for delivery configuration. Built once per directory.
+export type TeamStatus = WorkflowStatus & { teamId: string };
+export type Delivery = {
+  types: Map<string, WorkItemType>;
+  teams: Map<string, Team>;
+  statuses: Map<string, TeamStatus>;
+  iterations: Map<string, Iteration>;
+};
+export function deliveryIndex(
+  directory: Pick<Directory, "types" | "teams" | "iterations">,
+): Delivery {
+  const statuses = new Map<string, TeamStatus>();
+  for (const team of directory.teams)
+    for (const status of team.statuses)
+      statuses.set(status.id, { ...status, teamId: team.id });
+  return {
+    types: new Map(directory.types.map((t) => [t.id, t])),
+    teams: new Map(directory.teams.map((t) => [t.id, t])),
+    statuses,
+    iterations: new Map(directory.iterations.map((i) => [i.id, i])),
+  };
+}
+const unknownType: WorkItemType = {
+  id: "",
+  name: "Item",
+  icon: "task",
+  color: "gray",
+  level: 1,
+  hasSpecification: false,
+  position: 0,
+  archivedAt: null,
+};
+export function typeOf(d: Delivery, item: Pick<WorkItem, "typeId">) {
+  return d.types.get(item.typeId) ?? unknownType;
+}
+export function statusOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
+  return d.statuses.get(item.statusId);
+}
+export function categoryOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
+  return d.statuses.get(item.statusId)?.category;
+}
+// Top-level types (Epic by default) group specification work; their pages
+// live under /epics, everything else under /stories.
+export const isTopLevel = (type: Pick<WorkItemType, "level">) =>
+  type.level >= 2;
+export function segmentOf(type: Pick<WorkItemType, "level">) {
+  return isTopLevel(type) ? "epics" : "stories";
+}
+export function activeStatuses(team: Team | undefined) {
+  return (team?.statuses ?? [])
+    .filter((x) => !x.archivedAt)
+    .sort((a, b) => a.position - b.position);
+}
+export function enabledTypes(d: Delivery, team: Team | undefined) {
+  return [...d.types.values()]
+    .filter((t) => !t.archivedAt && (!team || team.typeIds.includes(t.id)))
+    .sort((a, b) => b.level - a.level || a.position - b.position);
+}
+// Parents sit strictly above children in the type hierarchy.
+export function canParent(parent: WorkItemType, child: WorkItemType) {
+  return parent.level > child.level;
+}
 export const priorityMeta: Record<
   WorkItemPriority,
   { label: string; rank: number }
@@ -52,14 +127,6 @@ export const priorityOrder: WorkItemPriority[] = [
   "low",
   "none",
 ];
-export const kindMeta: Record<
-  WorkItemKind,
-  { label: string; plural: string; segment: string }
-> = {
-  epic: { label: "Epic", plural: "Epics", segment: "epics" },
-  story: { label: "Story", plural: "Stories", segment: "stories" },
-  task: { label: "Task", plural: "Tasks", segment: "stories" },
-};
 
 export function identifier(
   project: Pick<Project, "key"> | undefined,
@@ -149,12 +216,12 @@ export const views: { id: ViewId; label: string; description: string }[] = [
   {
     id: "ready",
     label: "Ready for development",
-    description: "Items whose readiness checks all pass.",
+    description: "Specifications whose readiness checks all pass.",
   },
   {
     id: "drafts",
     label: "Drafts",
-    description: "Backlog and draft items without a review yet.",
+    description: "Draft specifications without a review yet.",
   },
   {
     id: "updated",
@@ -180,19 +247,20 @@ export function matchesView(
     case "blocked":
       return isBlocked(item);
     case "ready":
-      return item.status === "ready";
+      return item.refinementState === "ready";
     case "drafts":
-      return (
-        (item.status === "backlog" || item.status === "draft") &&
-        item.reviews.length === 0
-      );
+      return item.refinementState === "draft" && item.reviews.length === 0;
     case "updated":
       return Date.now() - new Date(item.updatedAt).getTime() < 2 * 86_400_000;
   }
 }
 
 export type Filters = {
-  status?: WorkItemStatus[];
+  // Status categories: meaningful across teams with different workflows.
+  status?: StatusCategory[];
+  refinement?: RefinementState[];
+  type?: string[];
+  team?: string[];
   priority?: WorkItemPriority[];
   assignee?: string[]; // user ids, or "unassigned"
   parent?: string[];
@@ -207,10 +275,23 @@ export function applyFilters(
   items: WorkItem[],
   filters: Filters,
   projects: Project[],
+  delivery: Delivery,
 ) {
   const q = filters.search?.trim().toLowerCase();
   return items.filter((item) => {
-    if (filters.status?.length && !filters.status.includes(item.status))
+    if (filters.status?.length) {
+      const category = categoryOf(delivery, item);
+      if (!category || !filters.status.includes(category)) return false;
+    }
+    if (
+      filters.refinement?.length &&
+      (!item.refinementState ||
+        !filters.refinement.includes(item.refinementState))
+    )
+      return false;
+    if (filters.type?.length && !filters.type.includes(item.typeId))
+      return false;
+    if (filters.team?.length && !filters.team.includes(item.teamId))
       return false;
     if (filters.priority?.length && !filters.priority.includes(item.priority))
       return false;
@@ -250,7 +331,13 @@ export function applyFilters(
     return true;
   });
 }
-export function sortItems(items: WorkItem[], key: SortKey) {
+export function sortItems(items: WorkItem[], key: SortKey, delivery: Delivery) {
+  const statusRank = (item: WorkItem) => {
+    const status = statusOf(delivery, item);
+    return status
+      ? categoryOrder.indexOf(status.category) * 1000 + status.position
+      : 99_999;
+  };
   const sorted = [...items];
   sorted.sort((a, b) => {
     switch (key) {
@@ -265,7 +352,7 @@ export function sortItems(items: WorkItem[], key: SortKey) {
         );
       case "status":
         return (
-          statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status) ||
+          statusRank(a) - statusRank(b) ||
           b.updatedAt.localeCompare(a.updatedAt)
         );
       case "number":
@@ -390,6 +477,10 @@ export function formatDate(iso: string | null) {
         day: "numeric",
         year: "numeric",
       });
+}
+// Backlog and board order: fractional rank, identifier as a tie-break.
+export function byRank(a: WorkItem, b: WorkItem) {
+  return a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.number - b.number;
 }
 // Sibling order: manual position first, identifier as a stable tie-break.
 export function byPosition(a: WorkItem, b: WorkItem) {
