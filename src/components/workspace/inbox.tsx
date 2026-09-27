@@ -1,13 +1,18 @@
 "use client";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   CircleAlert,
   CircleCheckBig,
   MessageSquareWarning,
+  Settings2,
   ShieldAlert,
 } from "lucide-react";
+import { useUnreadNotifications } from "~/components/notifications/client";
+import { NotificationFeed } from "~/components/notifications/notifications";
+import { cn } from "~/lib/utils";
 import { EmptyState } from "~/components/ui/primitives";
 import { paths } from "~/lib/paths";
 import {
@@ -33,17 +38,13 @@ type Entry = {
   weight: number;
 };
 
-// What needs my attention, derived from synchronized state. Deliberately
-// narrow: review requests, blocked items I own, requested changes on my items,
-// items of mine that just became ready. No activity firehose.
-export function Inbox() {
-  const { items, projects, userId, roleIds, organization, delivery } =
-    useWorkspace();
-  // Rendered incrementally: very large organizations can have thousands of
-  // items, but attention is scarce; the first page is what matters.
-  const PAGE = 50;
-  const [shown, setShown] = useState(PAGE);
-  const entries = useMemo<Entry[]>(() => {
+// What needs my attention right now, derived from synchronized state.
+// Deliberately narrow: review requests, blocked items I own, requested changes
+// on my items, items of mine that became ready. An entry disappears when the
+// underlying state resolves, unlike notifications, which record events.
+export function useAttention() {
+  const { items, userId, roleIds, delivery } = useWorkspace();
+  return useMemo<Entry[]>(() => {
     const mine = (i: WorkItem) =>
       i.assigneeId === userId || i.createdById === userId;
     const list: Entry[] = [];
@@ -110,14 +111,16 @@ export function Inbox() {
         a.weight - b.weight || b.item.updatedAt.localeCompare(a.item.updatedAt),
     );
   }, [items, userId, roleIds, delivery]);
+}
+
+export function AttentionList({ entries }: { entries: Entry[] }) {
+  const { projects, organization, delivery } = useWorkspace();
+  // Rendered incrementally: very large organizations can have thousands of
+  // items, but attention is scarce; the first page is what matters.
+  const PAGE = 50;
+  const [shown, setShown] = useState(PAGE);
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
-        <h1 className="text-sm font-semibold">Inbox</h1>
-        <span className="text-xs text-muted-foreground">
-          {entries.length} items
-        </span>
-      </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {entries.length === 0 ? (
           <EmptyState title="Nothing needs your attention">
@@ -181,6 +184,79 @@ export function Inbox() {
               Show {Math.min(PAGE, entries.length - shown)} more
             </Button>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type InboxView = "updates" | "todo";
+
+// One place for everything addressed to me. "Updates" is the notification
+// history (events, with read state); "To do" is current work derived from live
+// state. They answer different questions ("what happened?" vs "what is
+// waiting on me?") but people look for both in the same place.
+export function Inbox() {
+  const { organization } = useWorkspace();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const view: InboxView =
+    searchParams.get("view") === "todo" ? "todo" : "updates";
+  const entries = useAttention();
+  const unread = useUnreadNotifications(organization.id)[organization.id] ?? 0;
+  const tabs: { id: InboxView; label: string; count: number }[] = [
+    { id: "updates", label: "Updates", count: unread },
+    { id: "todo", label: "To do", count: entries.length },
+  ];
+  return (
+    <div className="flex h-full flex-col">
+      <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
+        <h1 className="text-sm font-semibold">Inbox</h1>
+        <div
+          role="tablist"
+          aria-label="Inbox view"
+          className="flex items-center gap-0.5"
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={view === t.id}
+              onClick={() =>
+                router.replace(
+                  t.id === "todo"
+                    ? `${paths.inbox(organization.slug)}?view=todo`
+                    : paths.inbox(organization.slug),
+                )
+              }
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px]",
+                view === t.id
+                  ? "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <Link
+          href={paths.notificationSettings(organization.slug)}
+          className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Settings2 className="size-3.5" /> Notification settings
+        </Link>
+      </header>
+      <div className="min-h-0 flex-1">
+        {view === "todo" ? (
+          <AttentionList entries={entries} />
+        ) : (
+          <NotificationFeed />
         )}
       </div>
     </div>

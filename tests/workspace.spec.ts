@@ -400,17 +400,85 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   ).toBeVisible();
   await expect(page.getByText("1 open · 1 blocking")).toBeVisible();
   await page.getByRole("button", { name: "Reply", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Reply" })
-    .fill(
-      "Late answers are acknowledged and reconciled against the original ID.",
-    );
+  const replyBox = page.getByRole("textbox", { name: "Reply" });
+  await replyBox.fill(
+    "Late answers are acknowledged and reconciled against the original ID. cc ",
+  );
+  // Typing @ offers members; choosing one stores a mention token.
+  await replyBox.pressSequentially("@Ril");
+  await page.getByRole("option", { name: /Riley Chen/ }).click();
+  await expect(replyBox).toHaveValue(/@\[Riley Chen\]\(mention:[^)]+\) $/);
   await page.getByRole("button", { name: "Reply", exact: true }).click();
   await expect(
     reviewer.getByText(
       "Late answers are acknowledged and reconciled against the original ID.",
     ),
   ).toBeVisible();
+  await expect(reviewer.getByText("@Riley Chen").first()).toBeVisible();
+
+  // Inbox updates: the owner hears about the blocking discussion; the
+  // reviewer about the review request and the mention (not also a reply).
+  const orgPath = storyUrl.replace(/\/pay\/stories\/PAY-2$/, "");
+  const ownerInbox = await page.context().newPage();
+  await ownerInbox.goto(`${orgPath}/inbox`);
+  await expect(
+    ownerInbox.getByText("Riley Chen opened a blocking discussion on PAY-2"),
+  ).toBeVisible();
+  await ownerInbox.close();
+  const reviewerInbox = await reviewerContext.newPage();
+  // The old notifications URL lands in the Inbox.
+  await reviewerInbox.goto(`${orgPath}/notifications`);
+  await expect(reviewerInbox).toHaveURL(/\/inbox$/);
+  await expect(
+    reviewerInbox.getByText("Alex Morgan mentioned you on PAY-2"),
+  ).toBeVisible();
+  await expect(
+    reviewerInbox.getByText(
+      "Alex Morgan requested Engineering review of PAY-2",
+    ),
+  ).toBeVisible();
+  await expect(
+    reviewerInbox.getByText("Alex Morgan replied on PAY-2"),
+  ).toHaveCount(0);
+  await expect(
+    reviewerInbox.getByRole("link", { name: /^Inbox/ }),
+  ).toContainText("2");
+  // The same review request is also current work in "To do".
+  await reviewerInbox.getByRole("tab", { name: /^To do/ }).click();
+  await expect(reviewerInbox.getByText("Review requested")).toBeVisible();
+  await reviewerInbox.getByRole("tab", { name: /^Updates/ }).click();
+  await reviewerInbox.getByRole("button", { name: "Mark all read" }).click();
+  await expect(reviewerInbox.getByText("You're all caught up")).toBeVisible();
+  await expect(
+    reviewerInbox.getByRole("link", { name: /^Inbox/ }),
+  ).not.toContainText("2");
+  // Preferences: email is an option of an enabled notification only.
+  await reviewerInbox
+    .getByRole("link", { name: "Notification settings" })
+    .click();
+  const mentionSwitch = reviewerInbox.getByRole("switch", {
+    name: "Mentioned",
+    exact: true,
+  });
+  const mentionRow = reviewerInbox
+    .getByRole("listitem")
+    .filter({ has: mentionSwitch });
+  await expect(mentionSwitch).toHaveAttribute("aria-checked", "true");
+  await expect(
+    mentionRow.getByRole("checkbox", { name: "Also send an email" }),
+  ).toBeChecked();
+  await mentionSwitch.click();
+  await expect(
+    mentionRow.getByRole("checkbox", { name: "Also send an email" }),
+  ).toHaveCount(0);
+  await reviewerInbox.reload();
+  await expect(
+    reviewerInbox.getByRole("switch", { name: "Mentioned", exact: true }),
+  ).toHaveAttribute("aria-checked", "false");
+  await reviewerInbox
+    .getByRole("switch", { name: "Mentioned", exact: true })
+    .click();
+  await reviewerInbox.close();
 
   // 9-11. Reviewer proposes a suggestion; owner accepts it → revision 3.
   // Engineering cannot edit directly or change properties: no Edit button, and

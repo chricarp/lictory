@@ -16,6 +16,12 @@ import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Avatar, Badge, SectionLabel } from "~/components/ui/primitives";
 import { Markdown } from "~/components/items/markdown";
 import { useItem } from "~/components/items/item-context";
+import { useWorkspace } from "~/components/workspace/provider";
+
+function useMentionable() {
+  const { directory } = useWorkspace();
+  return directory.members;
+}
 
 type Draft = { quote?: string; section: string } | null;
 
@@ -86,6 +92,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
     revisionNumber,
     readOnly,
   } = useItem();
+  const mentionable = useMentionable();
   const own = messages.filter((m) => m.threadId === thread.id);
   const [reply, setReply] = useState("");
   const [replying, setReplying] = useState(false);
@@ -191,6 +198,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
               <CornerDownRight className="mt-2 hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
               <MarkdownEditor
                 autoFocus
+                mentions={mentionable}
                 value={reply}
                 onValueChange={setReply}
                 onKeyDown={(e) => {
@@ -267,6 +275,7 @@ export function ThreadComposer({
   suggestionId?: string;
 }) {
   const { mutate, base, current } = useItem();
+  const mentionable = useMentionable();
   const [body, setBody] = useState("");
   const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<string>();
@@ -322,6 +331,7 @@ export function ThreadComposer({
       )}
       <MarkdownEditor
         ref={textareaRef}
+        mentions={mentionable}
         value={body}
         onValueChange={setBody}
         onKeyDown={(e) => {
@@ -334,7 +344,7 @@ export function ThreadComposer({
         placeholder={
           draft?.quote
             ? "What is unclear or wrong about this text?"
-            : "Ask a question, flag a gap, or raise a concern…"
+            : "Ask a question, flag a gap, or raise a concern… Type @ to mention someone."
         }
         containerClassName="rounded-none border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
       />

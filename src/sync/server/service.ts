@@ -43,6 +43,7 @@ import {
 import { rankBetween } from "../shared/rank";
 import { hasAcceptanceCriteria } from "../shared/specification";
 import { roleColumns } from "./roles";
+import { notifyItemActivity } from "../../notifications/server";
 
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -2860,6 +2861,23 @@ export function createSyncService(db: Database) {
           );
           after = await snapshot(tx, scope);
         }
+        // Replies log no activity but still notify participants and mentions.
+        if (
+          workItemId &&
+          projectRow &&
+          (activities.length || c.type === "replyToThread")
+        )
+          await notifyItemActivity(tx, {
+            organizationId,
+            projectId,
+            projectKey: projectRow.key,
+            workItemId,
+            actorId: userId,
+            command: c,
+            activities,
+            after,
+            roster,
+          });
         // A child's change can alter its Epic's readiness (stories_ready), which
         // lives in the Epic's own scope. Emit that projection explicitly.
         const parentIds = new Set(

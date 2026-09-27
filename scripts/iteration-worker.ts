@@ -5,6 +5,7 @@ import postgres from "postgres";
 import * as s from "../src/db/schema";
 import { createDeliveryService } from "../src/delivery/service";
 import { advanceSchedules } from "../src/sync/server/service";
+import { dispatchNotificationEmails } from "../src/notifications/email";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required");
@@ -17,6 +18,10 @@ async function tick() {
     console.info(JSON.stringify({ event: "jobs.iterations", ...result }));
     const delivery = await createDeliveryService(db).processPending();
     console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
+    const emails = await dispatchNotificationEmails(db);
+    console.info(
+      JSON.stringify({ event: "jobs.notification_emails", ...emails }),
+    );
   } catch (error) {
     console.error(
       JSON.stringify({ event: "jobs.iterations.error", error: String(error) }),

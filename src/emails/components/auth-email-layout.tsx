@@ -19,6 +19,7 @@ type AuthEmailLayoutProps = {
   actionLabel: string;
   actionUrl: string;
   children: ReactNode;
+  footerText?: ReactNode;
 };
 
 export function AuthEmailLayout({
@@ -27,6 +28,7 @@ export function AuthEmailLayout({
   actionLabel,
   actionUrl,
   children,
+  footerText = "If you did not request this, you can safely ignore this email. No changes will be made to your account.",
 }: AuthEmailLayoutProps) {
   return (
     <Html lang="en" dir="ltr">
@@ -59,10 +61,7 @@ export function AuthEmailLayout({
           </Link>
 
           <Hr style={divider} />
-          <Text style={footer}>
-            If you did not request this, you can safely ignore this email. No
-            changes will be made to your account.
-          </Text>
+          <Text style={footer}>{footerText}</Text>
         </Container>
       </Body>
     </Html>

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "~/db";
+import { kickNotificationEmails } from "~/notifications/email";
 import { auth } from "~/lib/auth";
 import {
   createSyncService,
@@ -223,6 +224,7 @@ export async function POST(request: Request) {
     context.mutationId = mutation.id;
     context.mutationType = mutation.command.type;
     const result = await service.mutate(session.user.id, mutation);
+    kickNotificationEmails(db);
     console.info(
       JSON.stringify({
         event: "sync.mutation",

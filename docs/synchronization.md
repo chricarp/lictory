@@ -299,7 +299,7 @@ List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…
 `/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
 renders in pages of 50. AI, SSO setup, billing, custom fields,
 comments on items without a specification, saved views, advanced policy
-configuration, SCIM, notification delivery, private projects,
+configuration, SCIM, private projects,
 CRDT editing, multiplayer cursors, service-worker offline
 launch, log compaction, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. No production UI pretends

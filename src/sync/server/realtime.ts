@@ -15,18 +15,29 @@ export const presenceSchema = z.object({
   at: z.number(),
 });
 export type PresenceEvent = z.infer<typeof presenceSchema>;
+// Personal notifications: which users should refetch their inbox. No content.
+const notificationSignalSchema = z.object({
+  organizationId: z.string(),
+  userIds: z.array(z.string()),
+});
+export type NotificationSignal = z.infer<typeof notificationSignalSchema>;
+type NotificationListener = (event: NotificationSignal) => void;
 type Listener = (event: z.infer<typeof notificationSchema>) => void;
 type PresenceListener = (event: PresenceEvent) => void;
 // Keyed by shape version so a hot-reloaded module never reuses an older hub.
 const globalHub = globalThis as unknown as {
-  syncHubV2?: {
+  syncHubV3?: {
     subscribe: (listener: Listener) => Promise<() => void>;
     subscribePresence: (listener: PresenceListener) => Promise<() => void>;
+    subscribeNotifications: (
+      listener: NotificationListener,
+    ) => Promise<() => void>;
   };
 };
 function createHub() {
   const listeners = new Set<Listener>();
   const presenceListeners = new Set<PresenceListener>();
+  const notificationListeners = new Set<NotificationListener>();
   const client = postgres(process.env.DATABASE_URL!, {
     max: 1,
     onnotice: () => undefined,
@@ -50,6 +61,14 @@ function createHub() {
           /* ignore malformed presence */
         }
       }),
+      client.listen("lictory_notification", (payload) => {
+        try {
+          const event = notificationSignalSchema.parse(JSON.parse(payload));
+          for (const callback of notificationListeners) callback(event);
+        } catch {
+          /* ignore malformed signals */
+        }
+      }),
     ]).catch((error: unknown) => {
       ready = undefined;
       throw error;
@@ -69,6 +88,13 @@ function createHub() {
         presenceListeners.delete(listener);
       };
     },
+    async subscribeNotifications(listener: NotificationListener) {
+      await connect();
+      notificationListeners.add(listener);
+      return () => {
+        notificationListeners.delete(listener);
+      };
+    },
   };
 }
-export const realtime = (globalHub.syncHubV2 ??= createHub());
+export const realtime = (globalHub.syncHubV3 ??= createHub());

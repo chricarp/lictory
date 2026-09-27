@@ -8,6 +8,7 @@ type PresenceListener = () => void;
 type Connection = {
   presence: Map<string, PresenceEntry>;
   presenceListeners: Set<PresenceListener>;
+  notificationListeners: Set<() => void>;
   listeners: Set<Listener>;
   source?: EventSource;
   timer?: ReturnType<typeof setInterval>;
@@ -30,6 +31,7 @@ export function subscribeInvalidations(
       wake,
       presence: new Map(),
       presenceListeners: new Set(),
+      notificationListeners: new Set(),
     };
     connections.set(organizationId, connection);
     if (typeof window !== "undefined") {
@@ -57,6 +59,10 @@ export function subscribeInvalidations(
             for (const l of conn.presenceListeners) l();
             return;
           }
+          if (data.type === "notification") {
+            for (const l of conn.notificationListeners) l();
+            return;
+          }
         } catch {
           /* invalidation without payload */
         }
@@ -78,6 +84,20 @@ export function subscribeInvalidations(
     window.removeEventListener("online", current.wake);
     window.removeEventListener("focus", current.wake);
     connections.delete(organizationId);
+  };
+}
+
+// Fires when the signed-in user received a notification in this organization.
+// Holds the organization connection open for as long as it is subscribed.
+export function subscribeNotificationSignals(
+  organizationId: string,
+  listener: () => void,
+) {
+  const release = subscribeInvalidations(organizationId, () => undefined);
+  connections.get(organizationId)?.notificationListeners.add(listener);
+  return () => {
+    connections.get(organizationId)?.notificationListeners.delete(listener);
+    release();
   };
 }
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { db } from "~/db";
+import { kickNotificationEmails } from "~/notifications/email";
 import { createDeliveryService } from "~/delivery/service";
 import { DeliveryError } from "~/delivery/provider";
 import { auth } from "~/lib/auth";
@@ -208,6 +209,7 @@ export async function POST(request: Request) {
           return service.unlink(user, body);
       }
     })();
+    kickNotificationEmails(db);
     console.info(
       JSON.stringify({
         event: "delivery.action",

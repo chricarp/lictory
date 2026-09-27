@@ -11,6 +11,7 @@ import type {
 } from "../shared/protocol";
 import type { labelColors } from "../shared/protocol";
 import { DomainError } from "./errors";
+import { notifyIteration } from "../../notifications/server";
 
 type Database = PostgresJsDatabase<typeof s>;
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -609,6 +610,12 @@ export async function applyTeamCommand(tx: Tx, ctx: Context, c: TeamCommand) {
         .update(s.iteration)
         .set({ state: "active", startedAt: now })
         .where(where(s.iteration, it.id));
+      await notifyIteration(tx, {
+        organizationId,
+        iterationId: it.id,
+        kind: "iteration_started",
+        actorId: ctx.userId,
+      });
       return;
     }
     case "completeIteration": {
@@ -775,6 +782,12 @@ async function completeIteration(
         eq(s.iteration.id, iterationId),
       ),
     );
+  await notifyIteration(tx, {
+    organizationId,
+    iterationId,
+    kind: "iteration_completed",
+    actorId: actorId === SYSTEM_ACTOR ? null : actorId,
+  });
 }
 
 // Automatic cycles. Deterministic from stored state and `now`, so running it
@@ -891,6 +904,12 @@ export async function advanceTeamSchedule(
             eq(s.iteration.id, planned[0].id),
           ),
         );
+      await notifyIteration(tx, {
+        organizationId,
+        iterationId: planned[0].id,
+        kind: "iteration_started",
+        actorId: actorId === SYSTEM_ACTOR ? null : actorId,
+      });
       changed = true;
       iterations = await open();
       continue;

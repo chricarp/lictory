@@ -167,6 +167,6 @@ server account with CREATE DATABASE permission if needed. It deliberately ignore
 reapply migrations, exercise Better Auth organization creation, and verify domain
 constraints. They do not modify the application database.
 
-Policies, project membership, integration configuration, AI, notifications,
+Policies, project membership, integration configuration, AI,
 realtime events, complete audit logging, editor-specific anchors, and application
 workflow services are deferred until concrete behavior requires them.

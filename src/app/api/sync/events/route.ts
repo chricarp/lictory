@@ -42,6 +42,12 @@ export async function GET(request: Request) {
       });
       // Bounded connections revalidate session and membership. Heartbeats also
       // recover invalidations missed while a Postgres LISTEN connection reconnects.
+      const unsubscribeNotifications = await realtime.subscribeNotifications(
+        (event) => {
+          if (event.userIds.includes(session.user.id))
+            send(JSON.stringify({ type: "notification" }));
+        },
+      );
       const heartbeat = setInterval(
         () => send('{"type":"invalidate"}'),
         20_000,
@@ -54,6 +60,7 @@ export async function GET(request: Request) {
         closed = true;
         unsubscribe();
         unsubscribePresence();
+        unsubscribeNotifications();
         clearInterval(heartbeat);
         clearTimeout(expiry);
         controller.close();

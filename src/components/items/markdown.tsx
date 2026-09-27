@@ -1,5 +1,8 @@
 import { Children, isValidElement, type ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, {
+  defaultUrlTransform,
+  type Components,
+} from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "~/lib/utils";
 
@@ -65,16 +68,21 @@ const components: Components = {
     </h6>
   ),
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
-  a: ({ children, href }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ children, href }) =>
+    href?.startsWith("mention:") ? (
+      <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
+        {children}
+      </span>
+    ) : (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+      >
+        {children}
+      </a>
+    ),
   ul: ({ children, className }) => (
     <ul
       className={cn(
@@ -144,6 +152,11 @@ const components: Components = {
   ),
 };
 
+// Mentions (`@[Name](mention:ID)`) survive URL sanitising and render as chips;
+// every other URL goes through react-markdown's safe default.
+const urlTransform = (url: string) =>
+  /^mention:[A-Za-z0-9_-]+$/.test(url) ? url : defaultUrlTransform(url);
+
 // CommonMark plus GitHub-flavored tables, task lists, strikethrough and
 // autolinks. react-markdown emits React nodes and does not execute raw HTML.
 export function Markdown({
@@ -155,7 +168,11 @@ export function Markdown({
 }) {
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={components}
+        urlTransform={urlTransform}
+      >
         {source}
       </ReactMarkdown>
     </div>

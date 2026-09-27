@@ -10,6 +10,7 @@ import {
   type EntityOf,
 } from "../sync/shared/protocol";
 import { DomainError } from "../sync/server/errors";
+import { notifyExport } from "../notifications/server";
 import {
   authorize,
   clock,
@@ -1121,23 +1122,29 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const ok = claimed.itemIds.filter((id) =>
         succeeded(results[id]!.outcome),
       ).length;
-      await db
-        .update(s.deliveryPublication)
-        .set({
-          leaseUntil: null,
-          ...(done
-            ? {
-                status:
-                  ok === claimed.itemIds.length
-                    ? ("completed" as const)
-                    : ok === 0
-                      ? ("failed" as const)
-                      : ("partial" as const),
-                finishedAt: now(),
-              }
-            : {}),
-        })
-        .where(eq(s.deliveryPublication.id, publicationId));
+      const status =
+        ok === claimed.itemIds.length
+          ? ("completed" as const)
+          : ok === 0
+            ? ("failed" as const)
+            : ("partial" as const);
+      await db.transaction(async (tx) => {
+        const [finished] = await tx
+          .update(s.deliveryPublication)
+          .set({
+            leaseUntil: null,
+            ...(done ? { status, finishedAt: now() } : {}),
+          })
+          .where(
+            and(
+              eq(s.deliveryPublication.id, publicationId),
+              eq(s.deliveryPublication.status, "running"),
+            ),
+          )
+          .returning();
+        // The requester hears once, when the run settles.
+        if (done && finished) await notifyExport(tx, finished, status);
+      });
       return current(publicationId);
     },
 

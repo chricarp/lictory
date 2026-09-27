@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { db } from "~/db";
 import { createDeliveryService } from "~/delivery/service";
+import { dispatchNotificationEmails } from "~/notifications/email";
 import { advanceSchedules } from "~/sync/server/service";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,11 @@ async function run(request: Request) {
   // interrupted workers).
   const delivery = await createDeliveryService(db).processPending();
   console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
-  return Response.json({ ...result, delivery });
+  const emails = await dispatchNotificationEmails(db);
+  console.info(
+    JSON.stringify({ event: "jobs.notification_emails", ...emails }),
+  );
+  return Response.json({ ...result, delivery, emails });
 }
 
 export const GET = run;

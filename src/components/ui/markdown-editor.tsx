@@ -26,7 +26,11 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { Markdown } from "~/components/items/markdown";
+import { Avatar } from "~/components/ui/primitives";
 import { cn } from "~/lib/utils";
+import { mentionToken } from "~/notifications/mentions";
+
+export type Mentionable = { id: string; name: string; email?: string };
 
 type MarkdownEditorProps = Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -38,6 +42,8 @@ type MarkdownEditorProps = Omit<
   previewClassName?: string;
   autoResize?: boolean;
   maxAutoHeight?: number;
+  // People who can be @mentioned. Omit to disable mentions.
+  mentions?: Mentionable[];
 };
 
 type Edit = { value: string; start: number; end: number };
@@ -57,12 +63,40 @@ export const MarkdownEditor = forwardRef<
     onKeyDown,
     disabled,
     rows = 4,
+    mentions,
+    onBlur,
     ...props
   },
   forwardedRef,
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState(false);
+  // An @query being typed at the caret: where it starts and what it says.
+  const [mention, setMention] = useState<{
+    start: number;
+    query: string;
+  } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const matches =
+    mention && mentions
+      ? mentions
+          .filter((m) => {
+            const q = mention.query.toLowerCase();
+            return (
+              m.name.toLowerCase().includes(q) ||
+              (m.email?.toLowerCase().startsWith(q) ?? false)
+            );
+          })
+          .slice(0, 6)
+      : [];
+  const detectMention = (text: string, caret: number) => {
+    if (!mentions?.length) return;
+    const match = /(^|\s)@([^\s@\[\]()]{0,30})$/.exec(text.slice(0, caret));
+    setMention(
+      match ? { start: caret - match[2]!.length - 1, query: match[2]! } : null,
+    );
+    setMentionIndex(0);
+  };
   useImperativeHandle(forwardedRef, () => textareaRef.current!, []);
   const resize = useCallback(() => {
     const textarea = textareaRef.current;
@@ -196,7 +230,43 @@ export const MarkdownEditor = forwardRef<
     });
   };
 
+  const insertMention = (person: Mentionable) => {
+    if (!mention) return;
+    const caret = textareaRef.current?.selectionStart ?? value.length;
+    const token = `${mentionToken(person)} `;
+    const next = value.slice(0, mention.start) + token + value.slice(caret);
+    setMention(null);
+    commit({
+      value: next,
+      start: mention.start + token.length,
+      end: mention.start + token.length,
+    });
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mention && matches.length) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setMentionIndex((i) => (i + step + matches.length) % matches.length);
+        return;
+      }
+      if (
+        (event.key === "Enter" || event.key === "Tab") &&
+        !event.metaKey &&
+        !event.ctrlKey
+      ) {
+        event.preventDefault();
+        insertMention(matches[mentionIndex] ?? matches[0]!);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setMention(null);
+        return;
+      }
+    }
     onKeyDown?.(event);
     if (event.defaultPrevented) return;
     const command = event.metaKey || event.ctrlKey;
@@ -281,7 +351,17 @@ export const MarkdownEditor = forwardRef<
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(event) => onValueChange(event.target.value)}
+          onChange={(event) => {
+            onValueChange(event.target.value);
+            detectMention(
+              event.target.value,
+              event.target.selectionStart ?? event.target.value.length,
+            );
+          }}
+          onBlur={(event) => {
+            setMention(null);
+            onBlur?.(event);
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           rows={rows}
@@ -293,6 +373,38 @@ export const MarkdownEditor = forwardRef<
           )}
           {...props}
         />
+      )}
+      {mention && matches.length > 0 && !preview && (
+        <ul
+          role="listbox"
+          aria-label="Mention someone"
+          className="absolute right-2 bottom-12 left-2 z-20 max-w-72 overflow-hidden rounded-lg bg-popover p-1 shadow-[var(--shadow-panel)]"
+        >
+          {matches.map((m, i) => (
+            <li key={m.id} role="option" aria-selected={i === mentionIndex}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  insertMention(m);
+                }}
+                onMouseEnter={() => setMentionIndex(i)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px]",
+                  i === mentionIndex && "bg-muted",
+                )}
+              >
+                <Avatar name={m.name} size="xs" />
+                <span className="truncate">{m.name}</span>
+                {m.email && (
+                  <span className="ml-auto truncate text-[11px] text-muted-foreground">
+                    {m.email}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       <div
         role="toolbar"

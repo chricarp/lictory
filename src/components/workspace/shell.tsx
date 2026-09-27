@@ -48,6 +48,7 @@ import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
 import { Avatar, Kbd } from "~/components/ui/primitives";
 import { useWorkspace } from "./provider";
+import { useUnreadNotifications } from "~/components/notifications/client";
 import { CommandPalette } from "./command-palette";
 import { QuickCreate, type QuickCreateOptions } from "./quick-create";
 import { SyncStatus } from "./sync-status";
@@ -424,18 +425,12 @@ function Sidebar({
         aria-label="Workspace"
       >
         <div className="space-y-px">
-          <NavLink
+          <InboxLink
+            organizationId={organization.id}
             href={paths.inbox(org)}
             active={active(paths.inbox(org))}
-            icon={<Inbox className="size-4" />}
-          >
-            Inbox
-            {inboxCount > 0 && (
-              <span className="ml-auto rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
-                {inboxCount}
-              </span>
-            )}
-          </NavLink>
+            todo={inboxCount}
+          />
         </div>
         <div>
           <div className="mb-1 flex items-center px-2">
@@ -573,6 +568,43 @@ function Sidebar({
         <SyncStatus />
       </div>
     </>
+  );
+}
+
+// Unread notifications take the badge; otherwise the count of open to-dos.
+function InboxLink({
+  organizationId,
+  href,
+  active,
+  todo,
+}: {
+  organizationId: string;
+  href: string;
+  active: boolean;
+  todo: number;
+}) {
+  const unread = useUnreadNotifications(organizationId)[organizationId] ?? 0;
+  return (
+    <NavLink href={href} active={active} icon={<Inbox className="size-4" />}>
+      Inbox
+      {unread > 0 ? (
+        <span
+          className="ml-auto rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary tabular-nums"
+          aria-label={`${unread} unread`}
+        >
+          {unread > 99 ? "99+" : unread}
+        </span>
+      ) : (
+        todo > 0 && (
+          <span
+            className="ml-auto px-1.5 text-[11px] text-muted-foreground tabular-nums"
+            aria-label={`${todo} to do`}
+          >
+            {todo}
+          </span>
+        )
+      )}
+    </NavLink>
   );
 }
 

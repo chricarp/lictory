@@ -30,6 +30,7 @@ import { useItemEngine, useWorkspace } from "~/components/workspace/provider";
 import { IssueIdentifier } from "./identifier";
 import { TypeIcon } from "./icons";
 import { Presence } from "./presence";
+import { WatchButton } from "~/components/notifications/watch-button";
 import { IssueStatus, RefinementStatus } from "./status";
 import {
   EstimatePicker,
@@ -444,6 +445,18 @@ export function ItemDetail({
               >
                 <Upload className="size-3.5" /> Export to Jira
               </Button>
+            )}
+            {!pendingCreate && (
+              <WatchButton
+                organizationId={workspace.organization.id}
+                workItemId={item.id}
+                involved={
+                  item.createdById === workspace.userId ||
+                  item.assigneeId === workspace.userId ||
+                  ctx.messages.some((m) => m.authorId === workspace.userId) ||
+                  ctx.suggestions.some((x) => x.authorId === workspace.userId)
+                }
+              />
             )}
             <Popover
               width={200}
