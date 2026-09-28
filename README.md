@@ -82,6 +82,9 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 ## production notes
 
+See [deployment and operations](docs/operations.md) for environment separation,
+CI, manual migrations, background jobs, recovery and free-plan limits.
+
 - Replace `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
 - Set `BETTER_AUTH_URL` to the canonical HTTPS origin.
 - Use a managed PostgreSQL database and a verified Resend sending domain.

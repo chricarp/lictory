@@ -408,7 +408,8 @@ function OutcomeIcon({ outcome }: { outcome: Outcome }) {
     return <CheckCircle2 className="size-4 text-success" />;
   if (outcome === "conflict")
     return <AlertTriangle className="size-4 text-warning" />;
-  if (outcome === "failed") return <XCircle className="size-4 text-destructive" />;
+  if (outcome === "failed")
+    return <XCircle className="size-4 text-destructive" />;
   if (outcome === "pending")
     return <CircleDashed className="size-4 text-muted-foreground" />;
   return <CircleSlash className="size-4 text-muted-foreground" />;

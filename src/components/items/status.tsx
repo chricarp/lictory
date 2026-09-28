@@ -156,9 +156,7 @@ export function RefinementIcon({
     case "in_review":
       return <Eye className={cn(base, "text-primary")} aria-hidden />;
     case "ready":
-      return (
-        <CircleCheck className={cn(base, "text-success")} aria-hidden />
-      );
+      return <CircleCheck className={cn(base, "text-success")} aria-hidden />;
   }
 }
 

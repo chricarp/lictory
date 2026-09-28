@@ -144,7 +144,8 @@ export function CompareRevisions({
       </div>
       {a.title !== b.title && (
         <p className="mb-2 text-[13px]">
-          Title: <span className="text-destructive line-through">{a.title}</span> →{" "}
+          Title:{" "}
+          <span className="text-destructive line-through">{a.title}</span> →{" "}
           <span className="text-success">{b.title}</span>
         </p>
       )}

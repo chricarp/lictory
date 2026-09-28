@@ -310,8 +310,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_changes_requested":
       body = (
         <>
-          <b className="text-warning">requested changes</b> on v
-          {num(d.version)} of <b>{memberName(str(d.authorId))}</b>’s suggestion
+          <b className="text-warning">requested changes</b> on v{num(d.version)}{" "}
+          of <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;
@@ -355,8 +355,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "approved":
       body = (
         <>
-          <b className="text-success">approved</b> revision{" "}
-          {num(d.revision)} for {str(d.responsibility)}
+          <b className="text-success">approved</b> revision {num(d.revision)}{" "}
+          for {str(d.responsibility)}
         </>
       );
       break;
