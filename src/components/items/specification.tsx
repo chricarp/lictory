@@ -415,7 +415,7 @@ function Editor({
   onDone: () => void;
   onSuggestionCreated: (suggestionId: string) => void;
 }) {
-  const { current, mutate, base, revisions } = useItem();
+  const { current, mutate, base, revisions, item } = useItem();
   const [baseRevision] = useState(current!);
   const [content, setContent] = useState(current?.content ?? "");
   const [summary, setSummary] = useState("");
@@ -497,6 +497,10 @@ function Editor({
         />
       )}
       <MarkdownEditor
+        fileContext={{
+          organizationId: item.organizationId,
+          workItemId: item.id,
+        }}
         autoFocus={mode === "edit"}
         value={content}
         onValueChange={setContent}

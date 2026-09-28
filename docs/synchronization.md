@@ -33,8 +33,9 @@ A team's readiness policy (`off`, `warn`, `block`) decides whether a spec-backed
 item may move into a `started` status before it is ready. `block` rejects the
 command with the failing checks; `warn` allows it and records
 `startedBeforeReady` in the activity. Types without a specification are never
-gated and have no readiness checks, reviews, suggestions or discussions; their
-description is still stored as revisions, so history survives a type change.
+gated and have no readiness checks, reviews or suggestions. They can still have
+non-blocking discussions, including file and image references. Their description
+is stored as revisions, so history survives a type change.
 
 Property changes (status, refinement moves before ready, type, team, iteration,
 estimate, priority, owner, parent, labels, milestone) are non-material: they

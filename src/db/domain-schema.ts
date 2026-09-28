@@ -588,6 +588,38 @@ export const workItem = pgTable(
   ],
 );
 
+// File bytes are stored only in private object storage. A row is retained when
+// removed from the attachment list so historical Markdown links still resolve.
+export const fileObject = pgTable(
+  "file_object",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    projectId: text("project_id").notNull(),
+    workItemId: text("work_item_id").notNull(),
+    objectKey: text("object_key").notNull().unique(),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    createdById: actor("created_by_id"),
+    createdAt: createdAt(),
+    readyAt: timestamp("ready_at"),
+    removedAt: timestamp("removed_at"),
+  },
+  (t) => [
+    index("file_object_item_idx").on(t.organizationId, t.workItemId),
+    foreignKey({
+      columns: [t.organizationId, t.projectId, t.workItemId],
+      foreignColumns: [
+        workItem.organizationId,
+        workItem.projectId,
+        workItem.id,
+      ],
+    }).onDelete("restrict"),
+    check("file_object_size_positive", sql`${t.size} > 0`),
+  ],
+);
+
 // Directed relation; inverses (blocked by, duplicated by) are derived.
 export const workItemRelation = pgTable(
   "work_item_relation",

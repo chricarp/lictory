@@ -18,6 +18,7 @@ import {
   Heading2,
   Italic,
   Link,
+  Paperclip,
   List,
   ListChecks,
   ListOrdered,
@@ -26,6 +27,12 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { Markdown } from "~/components/items/markdown";
+import {
+  ACCEPT_FILES,
+  fileMarkdown,
+  uploadFile,
+  type FileContext,
+} from "~/components/items/file-upload";
 import { Avatar } from "~/components/ui/primitives";
 import { cn } from "~/lib/utils";
 import { matchesPerson } from "~/lib/handles";
@@ -50,6 +57,7 @@ type MarkdownEditorProps = Omit<
   maxAutoHeight?: number;
   // People who can be @mentioned. Omit to disable mentions.
   mentions?: Mentionable[];
+  fileContext?: FileContext;
 };
 
 type Edit = { value: string; start: number; end: number };
@@ -70,12 +78,21 @@ export const MarkdownEditor = forwardRef<
     disabled,
     rows = 4,
     mentions,
+    fileContext,
     onBlur,
+    onPaste,
     ...props
   },
   forwardedRef,
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const valueRef = useRef(value);
+  useLayoutEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [preview, setPreview] = useState(false);
   // An @query being typed at the caret: where it starts and what it says.
   const [mention, setMention] = useState<{
@@ -132,6 +149,7 @@ export const MarkdownEditor = forwardRef<
   const commit = useCallback(
     (edit: Edit) => {
       pendingSelection.current = edit;
+      valueRef.current = edit.value;
       onValueChange(edit.value);
     },
     [onValueChange],
@@ -213,6 +231,32 @@ export const MarkdownEditor = forwardRef<
       start: urlStart,
       end: urlStart + "https://".length,
     });
+  };
+
+  const addFiles = async (files: FileList | File[]) => {
+    if (!fileContext || files.length === 0) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const snippets: string[] = [];
+      for (const file of Array.from(files))
+        snippets.push(fileMarkdown(await uploadFile(file, fileContext)));
+      const { start, end } = selection();
+      const insertion = snippets.join("\n");
+      const latest = valueRef.current;
+      commit({
+        value: latest.slice(0, start) + insertion + latest.slice(end),
+        start: start + insertion.length,
+        end: start + insertion.length,
+      });
+    } catch (error) {
+      setUploadError(
+        error instanceof Error ? error.message : "File upload failed.",
+      );
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
   };
 
   const continueList = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -388,6 +432,28 @@ export const MarkdownEditor = forwardRef<
             onBlur?.(event);
           }}
           onKeyDown={handleKeyDown}
+          onDragOver={
+            fileContext ? (event) => event.preventDefault() : undefined
+          }
+          onPaste={(event) => {
+            onPaste?.(event);
+            if (
+              event.defaultPrevented ||
+              !fileContext ||
+              !event.clipboardData.files.length
+            )
+              return;
+            event.preventDefault();
+            void addFiles(event.clipboardData.files);
+          }}
+          onDrop={
+            fileContext
+              ? (event) => {
+                  event.preventDefault();
+                  void addFiles(event.dataTransfer.files);
+                }
+              : undefined
+          }
           disabled={disabled}
           rows={rows}
           spellCheck
@@ -431,6 +497,21 @@ export const MarkdownEditor = forwardRef<
           ))}
         </ul>
       )}
+      {uploadError && (
+        <p role="alert" className="px-3 pb-12 text-xs text-destructive">
+          {uploadError}
+        </p>
+      )}
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        accept={ACCEPT_FILES}
+        className="hidden"
+        onChange={(event) => {
+          if (event.target.files) void addFiles(event.target.files);
+        }}
+      />
       <div
         role="toolbar"
         aria-label="Markdown formatting"
@@ -457,6 +538,18 @@ export const MarkdownEditor = forwardRef<
             ))}
           </div>
         </div>
+        {fileContext && (
+          <button
+            type="button"
+            aria-label="Insert file or image"
+            title="Insert file or image"
+            disabled={Boolean(disabled) || uploading}
+            onClick={() => fileInput.current?.click()}
+            className="grid size-7 shrink-0 place-items-center rounded-md hover:bg-muted disabled:opacity-50"
+          >
+            <Paperclip className="size-3.5" />
+          </button>
+        )}
         <span className="mx-1 h-4 w-px shrink-0 bg-border" />
         <button
           type="button"

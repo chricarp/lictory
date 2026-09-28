@@ -1733,6 +1733,47 @@ void test("type hierarchy follows levels and only spec-backed types are reviewed
     }),
     /no specification to review/,
   );
+  // Plain work supports non-blocking comments and replies without a review.
+  const commentId = crypto.randomUUID();
+  await f.command({
+    type: "createThread",
+    workItemId: task,
+    baseRevisionId: revision.id,
+    threadId: commentId,
+    messageId: crypto.randomUUID(),
+    body: "Screenshot attached in the description.",
+    section: "",
+    blocking: false,
+  });
+  await f.command({
+    type: "replyToThread",
+    workItemId: task,
+    threadId: commentId,
+    messageId: crypto.randomUUID(),
+    body: "I can reproduce it.",
+  });
+  assert.equal(
+    (
+      await db
+        .select()
+        .from(s.threadMessage)
+        .where(eq(s.threadMessage.threadId, commentId))
+    ).length,
+    2,
+  );
+  await assert.rejects(
+    f.command({
+      type: "createThread",
+      workItemId: task,
+      baseRevisionId: revision.id,
+      threadId: crypto.randomUUID(),
+      messageId: crypto.randomUUID(),
+      body: "Block this",
+      section: "",
+      blocking: true,
+    }),
+    /cannot block readiness/,
+  );
   // A type with children cannot be demoted below them.
   await assert.rejects(
     f.command({

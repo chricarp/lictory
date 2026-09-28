@@ -655,6 +655,10 @@ function SuggestionEditor({
         onDescriptionChange={setRationale}
       />
       <MarkdownEditor
+        fileContext={{
+          organizationId: item.organizationId,
+          workItemId: item.id,
+        }}
         value={content}
         onValueChange={setContent}
         onKeyDown={(e) => {

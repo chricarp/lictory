@@ -60,7 +60,7 @@ test("an existing member can create and switch to another organization", async (
   ).toBeVisible();
   const firstOrganization = new URL(page.url()).pathname;
 
-  await page.getByRole("button", { name: "First Team" }).click();
+  await page.getByRole("button", { name: "First Team" }).first().click();
   await page.getByRole("link", { name: "Create organization" }).click();
   await expect(page).toHaveURL(/\/app\/new-organization$/);
   await page.getByLabel("Organization name").fill("Second Team");
@@ -70,8 +70,8 @@ test("an existing member can create and switch to another organization", async (
   ).toBeVisible();
   expect(new URL(page.url()).pathname).not.toBe(firstOrganization);
 
-  await page.getByRole("button", { name: "Second Team" }).click();
-  await page.getByRole("button", { name: "First Team" }).click();
+  await page.getByRole("button", { name: "Second Team" }).first().click();
+  await page.getByRole("button", { name: "First Team" }).first().click();
   await expect(page).toHaveURL(new RegExp(`${firstOrganization}$`));
 });
 async function signIn(page: Page, loginEmail = email) {
@@ -752,7 +752,10 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
 }) => {
   test.setTimeout(180_000);
   await signIn(page, multiOrgEmail);
-  await page.getByRole("button", { name: /First Team|Second Team/ }).click();
+  await page
+    .getByRole("button", { name: /First Team|Second Team/ })
+    .first()
+    .click();
   await page.getByRole("link", { name: "Create organization" }).click();
   await page.getByLabel("Organization name").fill("Delivery Co");
   await page.getByRole("button", { name: "Create organization" }).click();

@@ -2280,6 +2280,11 @@ export function createSyncService(db: Database) {
             await revision(c.title, c.content, c.summary);
             break;
           case "createThread": {
+            if (!typeOf(item!.typeId).hasSpecification && c.blocking)
+              throw new DomainError(
+                "validation",
+                "Plain work item comments cannot block readiness.",
+              );
             let suggestionId: string | null = null;
             if (c.suggestionId) {
               const target = requireValue(
@@ -2340,6 +2345,15 @@ export function createSyncService(db: Database) {
                 body: c.body,
               });
             else {
+              if (
+                !typeOf(item!.typeId).hasSpecification &&
+                c.blocking &&
+                !thread.blocking
+              )
+                throw new DomainError(
+                  "validation",
+                  "Plain work item comments cannot block readiness.",
+                );
               await tx
                 .update(s.thread)
                 .set({
@@ -2964,9 +2978,6 @@ const reservedKeys = new Set([
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.
 const specCommands = new Set<string>([
-  "createThread",
-  "replyToThread",
-  "setThreadState",
   "createSuggestion",
   "updateSuggestion",
   "setSuggestionState",

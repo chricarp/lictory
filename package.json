@@ -24,6 +24,8 @@
     "test:e2e": "bun scripts/test-e2e.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1142.0",
+    "@aws-sdk/s3-request-presigner": "^3.1142.0",
     "@better-auth/drizzle-adapter": "^1.7.5",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.1.0",

@@ -32,7 +32,7 @@ export function Discussions({
   draft: Draft;
   onDraftChange: (draft: Draft) => void;
 }) {
-  const { threads, readOnly } = useItem();
+  const { threads, readOnly, reviewable } = useItem();
   const [showResolved, setShowResolved] = useState(false);
   const open = threads.filter((t) => t.status === "open");
   const resolved = threads.filter((t) => t.status === "resolved");
@@ -64,8 +64,9 @@ export function Discussions({
       <div className="space-y-3">
         {open.length === 0 && !draft && (
           <p className="text-[13px] text-muted-foreground">
-            No open discussions. Select text in the specification to comment on
-            it, or start a general discussion below.
+            {reviewable
+              ? "No open discussions. Select text in the specification to comment on it, or start a general discussion below."
+              : "No comments yet. Start a discussion below."}
           </p>
         )}
         {open.map((t) => (
@@ -91,6 +92,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
     current,
     revisionNumber,
     readOnly,
+    reviewable,
   } = useItem();
   const mentionable = useMentionable();
   const own = messages.filter((m) => m.threadId === thread.id);
@@ -197,6 +199,10 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
             >
               <CornerDownRight className="mt-2 hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
               <MarkdownEditor
+                fileContext={{
+                  organizationId: item.organizationId,
+                  workItemId: item.id,
+                }}
                 autoFocus
                 mentions={mentionable}
                 value={reply}
@@ -239,13 +245,15 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                   >
                     <CircleCheck className="size-3.5" /> Resolve
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setState({ blocking: !thread.blocking })}
-                  >
-                    {thread.blocking ? "Mark non-blocking" : "Mark blocking"}
-                  </Button>
+                  {reviewable && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setState({ blocking: !thread.blocking })}
+                    >
+                      {thread.blocking ? "Mark non-blocking" : "Mark blocking"}
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button
@@ -274,7 +282,7 @@ export function ThreadComposer({
   // Discuss a suggestion's proposed text rather than the specification.
   suggestionId?: string;
 }) {
-  const { mutate, base, current } = useItem();
+  const { mutate, base, current, item, reviewable } = useItem();
   const mentionable = useMentionable();
   const [body, setBody] = useState("");
   const [blocking, setBlocking] = useState(false);
@@ -330,6 +338,10 @@ export function ThreadComposer({
         </div>
       )}
       <MarkdownEditor
+        fileContext={{
+          organizationId: item.organizationId,
+          workItemId: item.id,
+        }}
         ref={textareaRef}
         mentions={mentionable}
         value={body}
@@ -349,14 +361,16 @@ export function ThreadComposer({
         containerClassName="rounded-none border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
       />
       <div className="flex flex-wrap items-center gap-2 border-t px-2 py-1.5">
-        <label className="flex items-center gap-1.5 text-xs">
-          <input
-            type="checkbox"
-            checked={blocking}
-            onChange={(e) => setBlocking(e.target.checked)}
-          />
-          {suggestionId ? "Blocks merging" : "Blocks readiness"}
-        </label>
+        {(reviewable || suggestionId) && (
+          <label className="flex items-center gap-1.5 text-xs">
+            <input
+              type="checkbox"
+              checked={blocking}
+              onChange={(e) => setBlocking(e.target.checked)}
+            />
+            {suggestionId ? "Blocks merging" : "Blocks readiness"}
+          </label>
+        )}
         <span className="text-[11px] text-muted-foreground">
           revision {current?.number}
         </span>

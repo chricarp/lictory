@@ -48,6 +48,7 @@ import {
 } from "./labels";
 import { ItemContext, useItemContextValue } from "./item-context";
 import { Specification } from "./specification";
+import { Attachments } from "./attachments";
 import { EpicStories } from "./epic-stories";
 import { InlineTitle } from "./inline-title";
 import { Discussions } from "~/components/review/threads";
@@ -636,18 +637,25 @@ export function ItemDetail({
                     <Relations item={item} canChange={canChange} />
                   </section>
                   {ctx.reviewable && (
-                    <>
-                      <section className="mt-10">
-                        <Suggestions
-                          onOpen={(id) => setMode({ kind: "suggestion", id })}
-                        />
-                      </section>
-                      <section className="mt-10">
-                        <Discussions draft={draft} onDraftChange={setDraft} />
-                      </section>
-                    </>
+                    <section className="mt-10">
+                      <Suggestions
+                        onOpen={(id) => setMode({ kind: "suggestion", id })}
+                      />
+                    </section>
                   )}
+                  <section className="mt-10">
+                    <Discussions draft={draft} onDraftChange={setDraft} />
+                  </section>
                 </>
+              )}
+              {!pendingCreate && (
+                <Attachments
+                  context={{
+                    organizationId: item.organizationId,
+                    workItemId: item.id,
+                  }}
+                  userId={workspace.userId}
+                />
               )}
               <section className="mt-10 mb-10">
                 <Activity />
