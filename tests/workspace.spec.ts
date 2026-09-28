@@ -649,7 +649,9 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // 15-16. Resolve the blocking discussion, approve again → readiness passes → Ready.
   await page.getByRole("button", { name: "Resolve" }).click();
-  await expect(page.getByText("0 open")).toBeVisible();
+  await expect(
+    page.getByText("No open discussions.", { exact: false }),
+  ).toBeVisible();
   await reviewer.getByRole("button", { name: "Approve revision 4" }).click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
   await expect(

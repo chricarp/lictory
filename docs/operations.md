@@ -25,9 +25,10 @@ disabled; configure upload CORS for exact supported origins. Do not use wildcard
 CORS to make arbitrary preview deployments work.
 
 The realtime hub uses PostgreSQL LISTEN/NOTIFY and needs a direct connection.
-A transaction-pooled database URL cannot serve that connection. With the current
-single-URL implementation, configure a direct TLS database URL; splitting pooled
-queries from the direct listener is a later measured optimization. SSE streams
+Configure `DATABASE_URL` for pooled application queries and
+`DATABASE_URL_UNPOOLED` for the direct TLS listener and migrations. Neon's Vercel
+integration supplies both. Without the unpooled variable, the listener and
+migrations fall back to `DATABASE_URL`, which must then be direct. SSE streams
 must stay below the host's function duration limit and reconnect; synchronization
 recovery is authoritative even when presence/realtime is temporarily unavailable.
 

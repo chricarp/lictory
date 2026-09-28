@@ -38,10 +38,15 @@ function createHub() {
   const listeners = new Set<Listener>();
   const presenceListeners = new Set<PresenceListener>();
   const notificationListeners = new Set<NotificationListener>();
-  const client = postgres(process.env.DATABASE_URL!, {
-    max: 1,
-    onnotice: () => undefined,
-  });
+  // LISTEN is session-scoped and cannot use a transaction pooler.
+  const directUrl = process.env.DATABASE_URL_UNPOOLED?.trim();
+  const client = postgres(
+    directUrl?.length ? directUrl : process.env.DATABASE_URL!,
+    {
+      max: 1,
+      onnotice: () => undefined,
+    },
+  );
   let ready: Promise<unknown> | undefined;
   const connect = () =>
     (ready ??= Promise.all([
