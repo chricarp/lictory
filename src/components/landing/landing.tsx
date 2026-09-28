@@ -105,7 +105,7 @@ function Header({ user }: { user: LandingUser }) {
           "before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:-z-10 before:h-1/2 before:rounded-t-full before:bg-[radial-gradient(60%_100%_at_50%_0%,oklch(1_0_0/0.12),transparent)]",
         )}
       >
-        <Logo className="shrink-0 text-sm [&>span]:size-7 [&>span]:rounded-full" />
+        <Logo className="shrink-0 text-sm [&>svg]:size-7" />
         <nav
           aria-label="Sections"
           className="mx-auto hidden items-center text-[13px] md:flex"

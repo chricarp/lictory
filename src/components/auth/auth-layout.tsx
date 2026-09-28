@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import Link from "next/link";
+import { LogoMark } from "~/components/logo";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -9,9 +10,9 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         <Link
           href="/"
           aria-label="Lictory home"
-          className="mx-auto mb-8 grid size-10 place-items-center rounded-[12px] bg-foreground text-[15px] font-bold text-background shadow-[0_1px_2px_oklch(0_0_0/0.2),inset_0_1px_0_oklch(1_0_0/0.14)] transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]"
+          className="mx-auto mb-8 grid size-10 place-items-center rounded-lg text-foreground transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]"
         >
-          L
+          <LogoMark className="size-10" />
         </Link>
         {children}
       </div>
