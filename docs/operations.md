@@ -35,7 +35,8 @@ recovery is authoritative even when presence/realtime is temporarily unavailable
 
 `CI / Verify` runs on pull requests and main pushes. It uses PostgreSQL 17 and
 Mailpit, frozen Bun dependencies, lint/types/format, committed migrations, all
-domain tests, two-browser workflow tests and a production build. Production
+domain tests, signup/verification/password-reset emails through Mailpit,
+two-browser workflow tests and a production build. Production
 credentials are never supplied to this workflow. Failure screenshots are retained
 for seven days. Jobs time out and superseded CI runs are canceled to limit minutes.
 

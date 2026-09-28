@@ -31,8 +31,14 @@ jobs:
             https://*) ;;
             *) echo "APP_ORIGIN must use HTTPS."; exit 1 ;;
           esac
-          curl --silent --show-error --fail --max-time 120 \
+          status=$(curl --silent --show-error --fail --max-time 120 \
             --retry 2 --retry-delay 10 \
             --request POST \
             --header "Authorization: Bearer $CRON_SECRET" \
-            "$APP_ORIGIN/api/jobs/iterations"
+            --output /tmp/lictory-job-result.json --write-out '%{http_code}' \
+            "$APP_ORIGIN/api/jobs/iterations")
+          if [ "$status" != "200" ]; then
+            echo "Job returned HTTP $status; check origin and deployment protection."
+            exit 1
+          fi
+          cat /tmp/lictory-job-result.json

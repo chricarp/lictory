@@ -17,9 +17,9 @@ export async function sendAuthEmail(message: AuthEmailMessage) {
 }
 
 export function deliverAuthEmail(message: AuthEmailMessage) {
-  void sendAuthEmail(message).catch((error: unknown) => {
-    console.error("Unable to send authentication email", error);
-  });
+  // Serverless requests must await delivery before the invocation can freeze.
+  // Propagate provider failures so the auth flow cannot report a false success.
+  return sendAuthEmail(message);
 }
 
 function createIdempotencyKey(message: AuthEmailMessage) {
