@@ -722,9 +722,12 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     .getByRole("textbox", { name: "Start a discussion" })
     .fill("Pending comment survives reload");
   await page.getByRole("button", { name: "Post", exact: true }).click();
-  await expect(page.getByText("Pending comment survives reload")).toBeVisible();
+  const pendingDiscussion = page
+    .getByRole("article", { name: "discussion" })
+    .getByText("Pending comment survives reload");
+  await expect(pendingDiscussion).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Pending comment survives reload")).toBeVisible();
+  await expect(pendingDiscussion).toBeVisible();
   await page.unroute("**/api/sync**");
   await page
     .getByRole("button", {
@@ -733,7 +736,9 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     .click();
   await page.getByRole("button", { name: "Sync now" }).click();
   await expect(
-    reviewer.getByText("Pending comment survives reload"),
+    reviewer
+      .getByRole("article", { name: "discussion" })
+      .getByText("Pending comment survives reload"),
   ).toBeVisible({ timeout: 30_000 });
   await expect(
     page.getByRole("button", { name: "Everything is saved" }),
