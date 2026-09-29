@@ -9,6 +9,13 @@ export function proxy(request: NextRequest) {
   if (!sessionCookie) {
     const signInUrl = new URL("/sign-in", request.url);
     signInUrl.searchParams.set("callbackUrl", path);
+    // Serve only the public sign-in page so link unfurlers receive safe metadata.
+    // No protected layout or workspace query runs for this anonymous request.
+    if (request.nextUrl.pathname.startsWith("/app")) {
+      const response = NextResponse.rewrite(signInUrl);
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
     return NextResponse.redirect(signInUrl);
   }
 

@@ -879,3 +879,51 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(page.getByRole("heading", { name: "Burndown" })).toBeVisible();
   await expect(page.getByText("Carried over")).toBeVisible();
 });
+
+test("a shared private link preserves its destination after sign-in and denies nonmembers", async ({
+  page,
+}) => {
+  // A real organization owned by someone else, not just an unknown slug.
+  const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+  try {
+    const db = drizzle(client);
+    const [owner] = await db
+      .select({ id: s.user.id })
+      .from(s.user)
+      .where(eq(s.user.email, reviewerEmail));
+    const organizationId = crypto.randomUUID();
+    await db.insert(s.organization).values({
+      id: organizationId,
+      name: "Confidential acquisition team",
+      slug: "unavailable-private-team",
+      createdAt: new Date(),
+    });
+    await db.insert(s.member).values({
+      id: crypto.randomUUID(),
+      organizationId,
+      userId: owner!.id,
+      role: "owner",
+      createdAt: new Date(),
+    });
+  } finally {
+    await client.end();
+  }
+  const destination =
+    "/app/unavailable-private-team/pay/epics/PAY-42?tab=review";
+  await page.goto(destination);
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Lictory" }),
+  ).toBeVisible();
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Lictory" }),
+  ).toBeHidden();
+  await expect(page).toHaveURL(
+    new RegExp("/app/unavailable-private-team/pay/epics/PAY-42\\?tab=review$"),
+  );
+  await expect(
+    page.getByRole("heading", { name: "This workspace was not found" }),
+  ).toBeVisible();
+});

@@ -1,3 +1,4 @@
+import { previewKind, socialMetadata } from "~/lib/social-preview";
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -6,6 +7,12 @@ import { AppearanceProvider } from "~/components/app/appearance-provider";
 import { parseAppearance } from "~/lib/appearance";
 import { auth } from "~/lib/auth";
 import { safeAppPath } from "~/lib/paths";
+
+export async function generateMetadata() {
+  return socialMetadata(
+    previewKind((await headers()).get("x-lictory-path") ?? "/app"),
+  );
+}
 
 export default async function ProtectedLayout({
   children,
