@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "~/lib/social-preview";
 import { headers } from "next/headers";
 
 import { Landing } from "~/components/landing/landing";
 import { auth } from "~/lib/auth";
 
 export const metadata: Metadata = {
+  ...socialMetadata("marketing"),
   title: { absolute: "Lictory: requirements, reviewed like code" },
   description:
     "Lictory turns rough product intent into approved, implementation-ready specifications, then delivers the work natively or publishes it to Jira and Linear.",

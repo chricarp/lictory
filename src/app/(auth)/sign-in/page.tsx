@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { previewKind, socialMetadata } from "~/lib/social-preview";
+import { safeAppPath } from "~/lib/paths";
 
 import {
   AuthFooter,
@@ -9,7 +11,17 @@ import { SignInForm } from "~/components/auth/sign-in-form";
 import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
 
-export const metadata: Metadata = { title: "Sign in" };
+export async function generateMetadata({
+  searchParams,
+}: PageProps<"/sign-in">): Promise<Metadata> {
+  const params = await searchParams;
+  const callback =
+    typeof params.callbackUrl === "string" ? params.callbackUrl : "/app";
+  return {
+    title: "Sign in",
+    ...socialMetadata(previewKind(safeAppPath(callback))),
+  };
+}
 
 export default async function SignInPage({
   searchParams,
@@ -17,9 +29,7 @@ export default async function SignInPage({
   const params = await searchParams;
   const requestedCallback =
     typeof params.callbackUrl === "string" ? params.callbackUrl : "/app";
-  const callbackURL = requestedCallback.startsWith("/")
-    ? requestedCallback
-    : "/app";
+  const callbackURL = safeAppPath(requestedCallback);
 
   return (
     <>
