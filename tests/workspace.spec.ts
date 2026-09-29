@@ -439,13 +439,16 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   await reviewer.getByRole("link", { name: "Define cancellation API" }).click();
   await expect(reviewer).toHaveURL(/\/stories\/PAY-2$/);
 
-  // Presence: both are on PAY-2, so each sees the other.
-  await expect(page.getByTitle("Riley Chen", { exact: true })).toBeVisible({
+  // Presence: both are on PAY-2, so each sees the other. A newly connected
+  // viewer may wait for the next 20-second heartbeat from the existing viewer.
+  await expect(
+    page.getByText("Riley Chen is viewing", { exact: false }),
+  ).toBeVisible({
     timeout: 15_000,
   });
   await expect(
-    reviewer.getByTitle("Alex Morgan", { exact: true }).first(),
-  ).toBeVisible({ timeout: 15_000 });
+    reviewer.getByText("Alex Morgan is viewing", { exact: false }),
+  ).toBeVisible({ timeout: 30_000 });
 
   // 7-8. Reviewer opens a blocking discussion anchored to the text; owner replies.
   await reviewer

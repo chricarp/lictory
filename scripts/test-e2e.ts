@@ -22,6 +22,7 @@ try {
     env: {
       ...process.env,
       DATABASE_URL: url.toString(),
+      DATABASE_URL_UNPOOLED: url.toString(),
       BETTER_AUTH_URL: "http://localhost:3001",
       BETTER_AUTH_SECRET:
         "e2e-local-only-secret-with-at-least-thirty-two-characters",
