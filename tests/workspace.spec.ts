@@ -9,6 +9,13 @@ const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
 const multiOrgEmail = "multi-org@example.test";
 const password = "Local-test-password-123";
+// Give independent browser scenarios distinct client addresses. Production auth
+// throttles rapid sign-ins by IP; unrelated tests must not share that budget.
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    "x-forwarded-for": `192.0.2.${(testInfo.line % 254) + 1}`,
+  });
+});
 test.beforeAll(async () => {
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
@@ -393,7 +400,9 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   const invitation = await page
     .getByLabel("Invitation link", { exact: true })
     .inputValue();
-  const reviewerContext = await browser.newContext();
+  const reviewerContext = await browser.newContext({
+    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.254" },
+  });
   const reviewer = await reviewerContext.newPage();
   await signIn(reviewer, reviewerEmail);
   await reviewer.goto(invitation);

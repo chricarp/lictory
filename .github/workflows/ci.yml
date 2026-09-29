@@ -58,10 +58,8 @@ jobs:
         run: bun test src
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
-      - name: Complete browser workflows
+      - name: Build production application and verify complete browser workflows
         run: bun run test:e2e
-      - name: Production build
-        run: bun run build
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
