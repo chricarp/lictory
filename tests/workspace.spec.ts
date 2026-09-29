@@ -841,11 +841,17 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   // Block: the team now requires a ready specification to start work.
   await page.getByRole("button", { name: "Team settings" }).click();
   await page.getByRole("radio", { name: /Block/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Everything is saved" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: /board$/ }).click();
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("Todo"));
   await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Everything is saved" }),
+  ).toBeVisible();
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("In Progress"));

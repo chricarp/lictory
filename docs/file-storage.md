@@ -14,17 +14,13 @@ bucket path). Keep the bucket private. A public/custom domain
 is inappropriate for these organization-scoped files, and R2 presigned URLs
 operate only on the S3 API endpoint.
 
-Configure bucket CORS for each app origin (including preview origins that should
-support uploads):
+Configure production bucket CORS for the supported app origins. Development and
+previews use separate buckets and their own origins:
 
 ```json
 [
   {
-    "AllowedOrigins": [
-      "http://localhost:3000",
-      "https://lictory.it",
-      "https://www.lictory.it"
-    ],
+    "AllowedOrigins": ["https://lictory.com", "https://www.lictory.com"],
     "AllowedMethods": ["PUT"],
     "AllowedHeaders": ["Content-Type", "Content-Length", "If-None-Match"],
     "MaxAgeSeconds": 300
