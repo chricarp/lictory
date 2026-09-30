@@ -64,7 +64,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     <div className="mt-8 gap-10 lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
       <nav
         aria-label="Settings sections"
-        className="hidden lg:sticky lg:top-0 lg:block lg:self-start"
+        className="hidden pt-14 lg:sticky lg:top-0 lg:block lg:self-start"
       >
         <ul className="space-y-0.5">
           {nav.map((n) => (
