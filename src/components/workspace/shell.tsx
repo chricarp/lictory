@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -22,6 +23,8 @@ import {
   Inbox,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   MessageSquareMore,
   OctagonAlert,
   Plus,
@@ -38,6 +41,7 @@ import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import { workspaceTitle } from "~/lib/document-title";
 import { rememberProject, useLastProjectKey } from "~/lib/last-project";
+import { usePanelCollapsed } from "~/lib/panel-preference";
 import {
   needsMyReview,
   views,
@@ -115,6 +119,24 @@ export function Shell({
   const [create, setCreate] = useState<QuickCreateOptions | null>(null);
   const [currentItem, setCurrentItem] = useState<WorkItem>();
   const [drawer, setDrawer] = useState(false);
+  const [sidebarCollapsed, toggleSidebarPreference] = usePanelCollapsed(
+    organization.id,
+    "sidebar",
+  );
+  const sidebarId = useId();
+  const sidebarRef = useRef<HTMLElement>(null);
+  const restoreSidebarFocus = useRef(false);
+  const toggleSidebar = () => {
+    restoreSidebarFocus.current = true;
+    toggleSidebarPreference();
+  };
+  useEffect(() => {
+    if (!restoreSidebarFocus.current) return;
+    restoreSidebarFocus.current = false;
+    sidebarRef.current
+      ?.querySelector<HTMLButtonElement>("[data-sidebar-toggle]")
+      ?.focus();
+  }, [sidebarCollapsed]);
   const toastId = useRef(0);
   const toast = useCallback((text: string, action?: Toast["action"]) => {
     const id = ++toastId.current;
@@ -220,6 +242,8 @@ export function Shell({
       user={user}
       onCreate={canCreate ? () => openCreate() : undefined}
       onSearch={() => openPalette()}
+      onCollapse={toggleSidebar}
+      sidebarId={sidebarId}
       onSignOut={async () => {
         const result = await authClient.signOut();
         if (result.error) return;
@@ -234,8 +258,52 @@ export function Shell({
     <ShellContext.Provider value={shell}>
       <title>{title}</title>
       <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
-        <aside className="hidden w-[232px] shrink-0 flex-col border-r bg-sidebar lg:flex">
-          {sidebar}
+        <aside
+          id={sidebarId}
+          ref={sidebarRef}
+          className={cn(
+            "hidden shrink-0 flex-col border-r bg-sidebar lg:flex",
+            sidebarCollapsed ? "w-11" : "w-[232px]",
+          )}
+        >
+          {sidebarCollapsed ? (
+            <div className="flex flex-col items-center gap-1 py-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                data-sidebar-toggle
+                aria-label="Expand app sidebar"
+                title="Expand app sidebar"
+                aria-expanded={false}
+                aria-controls={sidebarId}
+                onClick={toggleSidebar}
+              >
+                <PanelLeftOpen className="size-4" aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Search"
+                title="Search"
+                onClick={() => openPalette()}
+              >
+                <Search className="size-4" aria-hidden />
+              </Button>
+              {canCreate && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Create"
+                  title="Create work item"
+                  onClick={() => openCreate()}
+                >
+                  <Plus className="size-4" aria-hidden />
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">{sidebar}</div>
+          )}
         </aside>
         {drawer && (
           <div className="fixed inset-0 z-40 lg:hidden">
@@ -340,6 +408,8 @@ function Sidebar({
   onCreate,
   onSearch,
   onSignOut,
+  onCollapse,
+  sidebarId,
 }: {
   organization: { id: string; name: string; slug: string };
   organizations: { id: string; name: string; slug: string }[];
@@ -351,6 +421,8 @@ function Sidebar({
   onCreate?: () => void;
   onSearch: () => void;
   onSignOut: () => void;
+  onCollapse: () => void;
+  sidebarId: string;
 }) {
   const router = useRouter();
   const org = organization.slug;
@@ -409,6 +481,19 @@ function Sidebar({
             </div>
           )}
         </Popover>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden lg:inline-flex"
+          data-sidebar-toggle
+          aria-label="Collapse app sidebar"
+          title="Collapse app sidebar"
+          aria-expanded={true}
+          aria-controls={sidebarId}
+          onClick={onCollapse}
+        >
+          <PanelLeftClose className="size-4" aria-hidden />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

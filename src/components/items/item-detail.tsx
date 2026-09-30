@@ -52,6 +52,7 @@ import { Specification } from "./specification";
 import { Attachments } from "./attachments";
 import { EpicStories } from "./epic-stories";
 import { InlineTitle } from "./inline-title";
+import { WorkItemListToggle } from "./split-view";
 import { Discussions } from "~/components/review/threads";
 import { Suggestions } from "~/components/review/suggestions";
 import { SuggestionView } from "~/components/review/suggestion-view";
@@ -402,6 +403,7 @@ export function ItemDetail({
     <ItemContext.Provider value={ctx}>
       <div className="flex h-full flex-col">
         <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px]">
+          <WorkItemListToggle />
           <nav
             aria-label="Breadcrumb"
             className="flex min-w-0 items-center gap-1 text-muted-foreground"

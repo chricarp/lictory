@@ -186,6 +186,136 @@ test("appearance preference applies immediately, persists, and follows the syste
   await reset;
 });
 
+test("work item panels collapse independently and persist across routes and reloads", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, reviewerEmail);
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await page.getByLabel("Organization name").fill("Panel layout");
+  await page.getByRole("button", { name: "Create organization" }).click();
+  await page.getByLabel("Project name").fill("Panel project");
+  await page.getByLabel("Key", { exact: true }).fill("PNL");
+  await configureFirstProject(page);
+  await page
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/pnl\/epics$/);
+
+  await page.keyboard.press("c");
+  await page
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Focused epic");
+  await page.getByRole("button", { name: "Create & open" }).click();
+  await expect(page).toHaveURL(/\/epics\/PNL-1$/);
+  const epicUrl = page.url();
+  const filter = page.getByRole("textbox", {
+    name: "Filter by title or identifier",
+  });
+  const heading = page.getByRole("heading", { name: "Focused epic" });
+  const initialWidth = (await heading.boundingBox())!.width;
+  await page.getByRole("button", { name: "Hide work item list" }).click();
+  await expect(filter).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Show work item list" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    page.getByRole("navigation", { name: "Workspace" }),
+  ).toBeVisible();
+  expect((await heading.boundingBox())!.width).toBeGreaterThan(initialWidth);
+
+  const collapseSidebar = page.getByRole("button", {
+    name: "Collapse app sidebar",
+  });
+  await collapseSidebar.focus();
+  await page.keyboard.press("Enter");
+  const expandSidebar = page.getByRole("button", {
+    name: "Expand app sidebar",
+  });
+  await expect(expandSidebar).toBeFocused();
+  await expect(
+    page.getByRole("navigation", { name: "Workspace" }),
+  ).toBeHidden();
+  await expect(heading).toBeVisible();
+  await test.info().attach("Focused work item", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+  await page.reload();
+  await expect(expandSidebar).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Show work item list" }),
+  ).toBeVisible();
+  await expect(filter).toBeHidden();
+
+  // A full list remains accessible through the breadcrumb even when collapsed.
+  await page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { name: "Epics", exact: true })
+    .click();
+  await expect(filter).toBeVisible();
+  await page.getByRole("link", { name: /Focused epic/ }).click();
+  await expect(filter).toBeHidden();
+  await page.getByRole("button", { name: "Show work item list" }).click();
+  await expect(filter).toBeVisible();
+  await expect(expandSidebar).toBeVisible();
+  await expandSidebar.click();
+  await expect(collapseSidebar).toBeFocused();
+
+  // The same list preference applies to stories and other non-epic types.
+  await page
+    .getByRole("navigation", { name: "Workspace" })
+    .getByRole("link", { name: /Work items/ })
+    .click();
+  await expect(page).toHaveURL(/\/pnl\/stories$/);
+  await page.keyboard.press("c");
+  await page
+    .getByRole("dialog", { name: /^Create/ })
+    .getByRole("button", { name: /^Type:/ })
+    .click();
+  await page.getByRole("option", { name: /^Story/ }).click();
+  await page
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Focused story");
+  await page.getByRole("button", { name: "Create & open" }).click();
+  await expect(page).toHaveURL(/\/stories\/PNL-2$/);
+  await page.getByRole("button", { name: "Hide work item list" }).click();
+  await page.goto(epicUrl);
+  await expect(
+    page.getByRole("button", { name: "Show work item list" }),
+  ).toBeVisible();
+  await expect(filter).toBeHidden();
+
+  // Desktop preferences do not interfere with the mobile navigation drawer.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("button", { name: "Show work item list" }),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await expect(
+    page.getByRole("navigation", { name: "Workspace" }).last(),
+  ).toBeVisible();
+  // Click the exposed backdrop, outside the 260px navigation drawer.
+  await page
+    .getByRole("button", { name: "Close navigation" })
+    .click({ position: { x: 380, y: 100 } });
+  await expect(heading).toBeVisible();
+
+  // Layout controls still work if storage reads succeed but writes are blocked.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new Error("Storage unavailable");
+    };
+  });
+  await page.getByRole("button", { name: "Show work item list" }).click();
+  await expect(filter).toBeVisible();
+  await page.getByRole("button", { name: "Hide work item list" }).click();
+  await expect(filter).toBeHidden();
+});
+
 test("epic and story refinement: create, review, block, suggest, approve, stale, ready", async ({
   page,
   browser,

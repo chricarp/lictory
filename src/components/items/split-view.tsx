@@ -1,6 +1,16 @@
 "use client";
 import { useSearchParams, useSelectedLayoutSegment } from "next/navigation";
-import { useCallback, useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useId,
+  useMemo,
+  type ReactNode,
+} from "react";
+import { PanelLeft } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { usePanelCollapsed } from "~/lib/panel-preference";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import { identifier, isTopLevel, typeOf } from "~/lib/work-items";
@@ -8,6 +18,32 @@ import type { WorkItem } from "~/sync/shared/protocol";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
 import { IssueList } from "./issue-list";
+
+const ListPanelContext = createContext<{
+  collapsed: boolean;
+  toggle: () => void;
+  id: string;
+} | null>(null);
+
+export function WorkItemListToggle() {
+  const panel = useContext(ListPanelContext);
+  if (!panel) return null;
+  const label = panel.collapsed ? "Show work item list" : "Hide work item list";
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="hidden xl:inline-flex"
+      aria-label={label}
+      title={label}
+      aria-expanded={!panel.collapsed}
+      aria-controls={panel.id}
+      onClick={panel.toggle}
+    >
+      <PanelLeft className="size-4" aria-hidden />
+    </Button>
+  );
+}
 
 // List + detail side by side on wide screens. Both read from the organization
 // store, so selecting another item only changes which local data is shown. The
@@ -22,6 +58,11 @@ export function SplitView({
   const segment = useSelectedLayoutSegment();
   const searchParams = useSearchParams();
   const { items, organization, delivery } = useWorkspace();
+  const [collapsed, toggle] = usePanelCollapsed(
+    organization.id,
+    "work-item-list",
+  );
+  const listId = useId();
   const project = useProject();
   const selected =
     segment && segment !== "__DEFAULT__"
@@ -75,11 +116,19 @@ export function SplitView({
   );
   if (!selected) return <div className="h-full">{list(false)}</div>;
   return (
-    <div className="flex h-full">
-      <div className={cn("hidden w-[320px] shrink-0 border-r xl:block")}>
-        {list(true)}
+    <ListPanelContext.Provider value={{ collapsed, toggle, id: listId }}>
+      <div className="flex h-full">
+        <div
+          id={listId}
+          className={cn(
+            "hidden w-[320px] shrink-0 border-r",
+            !collapsed && "xl:block",
+          )}
+        >
+          {!collapsed && list(true)}
+        </div>
+        <div className="min-w-0 flex-1">{children}</div>
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
+    </ListPanelContext.Provider>
   );
 }
