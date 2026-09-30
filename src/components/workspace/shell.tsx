@@ -19,6 +19,7 @@ import {
   Check,
   ChevronsUpDown,
   FilePenLine,
+  FolderOpen,
   History,
   Inbox,
   LogOut,
@@ -74,6 +75,7 @@ type ShellContextValue = {
   project: Project | undefined;
 };
 const ShellContext = createContext<ShellContextValue | null>(null);
+const CollapsedSidebarContext = createContext(false);
 export function useShell() {
   const value = useContext(ShellContext);
   if (!value) throw new Error("useShell requires Shell.");
@@ -231,8 +233,9 @@ export function Shell({
     }),
     [toast, openPalette, openCreate, currentItem, project],
   );
-  const sidebar = (
+  const sidebar = (collapsed = false) => (
     <Sidebar
+      collapsed={collapsed}
       organization={organization}
       organizations={directory.organizations}
       projects={projects}
@@ -263,47 +266,10 @@ export function Shell({
           ref={sidebarRef}
           className={cn(
             "hidden shrink-0 flex-col border-r bg-sidebar lg:flex",
-            sidebarCollapsed ? "w-11" : "w-[232px]",
+            sidebarCollapsed ? "w-12" : "w-[232px]",
           )}
         >
-          {sidebarCollapsed ? (
-            <div className="flex flex-col items-center gap-1 py-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                data-sidebar-toggle
-                aria-label="Expand app sidebar"
-                title="Expand app sidebar"
-                aria-expanded={false}
-                aria-controls={sidebarId}
-                onClick={toggleSidebar}
-              >
-                <PanelLeftOpen className="size-4" aria-hidden />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Search"
-                title="Search"
-                onClick={() => openPalette()}
-              >
-                <Search className="size-4" aria-hidden />
-              </Button>
-              {canCreate && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Create"
-                  title="Create work item"
-                  onClick={() => openCreate()}
-                >
-                  <Plus className="size-4" aria-hidden />
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col">{sidebar}</div>
-          )}
+          {sidebar(sidebarCollapsed)}
         </aside>
         {drawer && (
           <div className="fixed inset-0 z-40 lg:hidden">
@@ -313,7 +279,7 @@ export function Shell({
               onClick={() => setDrawer(false)}
             />
             <aside className="absolute inset-y-0 left-0 flex w-[260px] flex-col border-r bg-sidebar shadow-xl">
-              {sidebar}
+              {sidebar()}
             </aside>
           </div>
         )}
@@ -398,6 +364,7 @@ export function Shell({
 }
 
 function Sidebar({
+  collapsed = false,
   organization,
   organizations,
   projects,
@@ -411,6 +378,7 @@ function Sidebar({
   onCollapse,
   sidebarId,
 }: {
+  collapsed?: boolean;
   organization: { id: string; name: string; slug: string };
   organizations: { id: string; name: string; slug: string }[];
   projects: Project[];
@@ -431,21 +399,39 @@ function Sidebar({
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`);
   return (
-    <>
-      <div className="flex h-11 items-center gap-1 px-2">
+    <CollapsedSidebarContext.Provider value={collapsed}>
+      <div
+        className={cn(
+          "flex items-center gap-1 px-2",
+          collapsed ? "flex-col py-2" : "h-11",
+        )}
+      >
         <Popover
           width={240}
+          side={collapsed ? "right" : "bottom"}
           trigger={(props) => (
             <button
               {...props}
-
-              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px] font-semibold hover:bg-sidebar-accent"
+              aria-label={
+                collapsed
+                  ? `Switch organization: ${organization.name}`
+                  : undefined
+              }
+              title={collapsed ? organization.name : undefined}
+              className={cn(
+                "flex h-8 min-w-0 items-center gap-2 rounded-md text-left text-[13px] font-semibold hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                collapsed ? "size-8 justify-center" : "flex-1 px-2",
+              )}
             >
               <span className="grid size-5 shrink-0 place-items-center rounded bg-primary text-[10px] font-bold text-primary-foreground">
                 {organization.name.slice(0, 1).toUpperCase()}
               </span>
-              <span className="truncate">{organization.name}</span>
-              <ChevronsUpDown className="ml-auto size-3.5 text-muted-foreground" />
+              {!collapsed && (
+                <>
+                  <span className="truncate">{organization.name}</span>
+                  <ChevronsUpDown className="ml-auto size-3.5 text-muted-foreground" />
+                </>
+              )}
             </button>
           )}
         >
@@ -484,19 +470,24 @@ function Sidebar({
         <Button
           variant="ghost"
           size="icon"
-          className="hidden lg:inline-flex"
+          className={cn("hidden lg:inline-flex", collapsed && "size-8")}
           data-sidebar-toggle
-          aria-label="Collapse app sidebar"
-          title="Collapse app sidebar"
-          aria-expanded={true}
+          aria-label={collapsed ? "Expand app sidebar" : "Collapse app sidebar"}
+          title={collapsed ? "Expand app sidebar" : "Collapse app sidebar"}
+          aria-expanded={!collapsed}
           aria-controls={sidebarId}
           onClick={onCollapse}
         >
-          <PanelLeftClose className="size-4" aria-hidden />
+          {collapsed ? (
+            <PanelLeftOpen className="size-4" aria-hidden />
+          ) : (
+            <PanelLeftClose className="size-4" aria-hidden />
+          )}
         </Button>
         <Button
           variant="ghost"
           size="icon"
+          className={collapsed ? "size-8" : undefined}
           aria-label="Search (/)"
           title="Search  /"
           onClick={onSearch}
@@ -508,17 +499,29 @@ function Sidebar({
         <div className="px-2 pb-2">
           <Button
             variant="secondary"
-            className="w-full justify-start gap-2 text-muted-foreground"
+            className={cn(
+              "gap-2 text-muted-foreground",
+              collapsed ? "size-8 p-0" : "w-full justify-start",
+            )}
+            aria-label={collapsed ? "Create work item" : undefined}
+            title={collapsed ? "Create work item  C" : undefined}
             onClick={onCreate}
             disabled={!project}
           >
-            <Plus className="size-3.5" /> New item
-            <Kbd>C</Kbd>
+            <Plus className="size-3.5" />
+            {!collapsed && (
+              <>
+                New item <Kbd>C</Kbd>
+              </>
+            )}
           </Button>
         </div>
       )}
       <nav
-        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pb-2"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2",
+          collapsed ? "gap-2" : "gap-4",
+        )}
         aria-label="Workspace"
       >
         <div className="space-y-px">
@@ -530,17 +533,38 @@ function Sidebar({
           />
         </div>
         <div>
-          <div className="mb-1 flex items-center px-2">
+          <div className={cn("mb-1 flex items-center", !collapsed && "px-2")}>
             <Popover
               width={220}
+              side={collapsed ? "right" : "bottom"}
               trigger={(props) => (
                 <button
                   {...props}
-
-                  className="flex h-6 min-w-0 items-center gap-1 rounded px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground"
+                  aria-label={
+                    collapsed
+                      ? `Switch project: ${project?.name ?? "Project"}`
+                      : undefined
+                  }
+                  title={
+                    collapsed
+                      ? `Project: ${project?.name ?? "Choose project"}`
+                      : undefined
+                  }
+                  className={cn(
+                    "flex min-w-0 items-center gap-1 rounded-md text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                    collapsed ? "size-8 justify-center" : "h-6 px-1",
+                  )}
                 >
-                  <span className="truncate">{project?.name ?? "Project"}</span>
-                  <ChevronsUpDown className="size-3" />
+                  {collapsed ? (
+                    <FolderOpen className="size-4" aria-hidden />
+                  ) : (
+                    <>
+                      <span className="truncate">
+                        {project?.name ?? "Project"}
+                      </span>
+                      <ChevronsUpDown className="size-3" />
+                    </>
+                  )}
                 </button>
               )}
             >
@@ -589,9 +613,13 @@ function Sidebar({
         <TeamsNav active={active} pathname={pathname} />
         {project && (
           <div>
-            <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              Views
-            </p>
+            {collapsed ? (
+              <div className="mx-1 mb-2 border-t" />
+            ) : (
+              <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                Views
+              </p>
+            )}
             <div className="space-y-px">
               {views
                 .filter((v) => v.id !== "needs-my-review")
@@ -618,7 +646,12 @@ function Sidebar({
           </NavLink>
         </div>
       </nav>
-      <div className="group/footer flex items-center gap-1 border-t px-3 py-2">
+      <div
+        className={cn(
+          "group/footer flex items-center gap-1 border-t py-2",
+          collapsed ? "flex-col px-2" : "px-3",
+        )}
+      >
         <Popover
           width={240}
           side="top"
@@ -626,13 +659,23 @@ function Sidebar({
             <button
               {...props}
               aria-label="Account menu"
-              className="-ml-1 flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left hover:bg-sidebar-accent"
+              title={
+                collapsed ? `Account: ${user.name || user.email}` : undefined
+              }
+              className={cn(
+                "flex min-w-0 items-center gap-2 rounded-md p-1 text-left hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                collapsed ? "size-8 justify-center" : "-ml-1 flex-1",
+              )}
             >
               <Avatar name={user.name || user.email} size="sm" />
-              <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                {user.name}
-              </span>
-              <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
+              {!collapsed && (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                    {user.name}
+                  </span>
+                  <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
+                </>
+              )}
             </button>
           )}
         >
@@ -661,7 +704,7 @@ function Sidebar({
         </Popover>
         <SyncStatus />
       </div>
-    </>
+    </CollapsedSidebarContext.Provider>
   );
 }
 
@@ -678,26 +721,34 @@ function InboxLink({
   todo: number;
 }) {
   const unread = useUnreadNotifications(organizationId)[organizationId] ?? 0;
+  const collapsed = useContext(CollapsedSidebarContext);
+  const count = unread || todo;
   return (
-    <NavLink href={href} active={active} icon={<Inbox className="size-4" />}>
-      Inbox
-      {unread > 0 ? (
-        <span
-          className="ml-auto rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary tabular-nums"
-          aria-label={`${unread} unread`}
-        >
-          {unread > 99 ? "99+" : unread}
-        </span>
-      ) : (
-        todo > 0 && (
+    <NavLink
+      href={href}
+      active={active}
+      icon={<Inbox className="size-4" />}
+      badge={
+        count > 0 ? (
           <span
-            className="ml-auto px-1.5 text-[11px] text-muted-foreground tabular-nums"
-            aria-label={`${todo} to do`}
+            className={cn(
+              "rounded-full text-[10px] font-semibold tabular-nums",
+              collapsed
+                ? "absolute -top-0.5 -right-1 bg-primary px-1 text-primary-foreground"
+                : "ml-auto px-1.5",
+              !collapsed &&
+                (unread
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground"),
+            )}
+            aria-label={`${count} ${unread ? "unread" : "to do"}`}
           >
-            {todo}
+            {count > 99 ? "99+" : count}
           </span>
-        )
-      )}
+        ) : undefined
+      }
+    >
+      Inbox
     </NavLink>
   );
 }
@@ -711,6 +762,7 @@ function TeamsNav({
   pathname: string;
 }) {
   const { delivery, organization, userId } = useWorkspace();
+  const collapsed = useContext(CollapsedSidebarContext);
   const router = useRouter();
   const [chosenId, setChosenId] = useState<string | null>(null);
   const org = organization.slug;
@@ -730,17 +782,27 @@ function TeamsNav({
     teams[0]!;
   return (
     <div>
-      <div className="mb-1 flex items-center px-2">
+      <div className={cn("mb-1 flex items-center", !collapsed && "px-2")}>
         <Popover
           width={220}
+          side={collapsed ? "right" : "bottom"}
           trigger={(props) => (
             <button
               {...props}
-              className="flex h-6 min-w-0 items-center gap-1 rounded px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground"
+              aria-label={collapsed ? `Switch team: ${t.name}` : undefined}
+              title={collapsed ? `Team: ${t.name}` : undefined}
+              className={cn(
+                "flex min-w-0 items-center gap-1 rounded-md text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                collapsed ? "size-8 justify-center" : "h-6 px-1",
+              )}
             >
-              <Users className="size-3" aria-hidden />
-              <span className="truncate">{t.name}</span>
-              <ChevronsUpDown className="size-3" />
+              <Users className={collapsed ? "size-4" : "size-3"} aria-hidden />
+              {!collapsed && (
+                <>
+                  <span className="truncate">{t.name}</span>
+                  <ChevronsUpDown className="size-3" />
+                </>
+              )}
             </button>
           )}
         >
@@ -802,18 +864,24 @@ function NavLink({
   active,
   icon,
   children,
+  badge,
 }: {
   href: string;
   active: boolean;
   icon?: ReactNode;
-  children: ReactNode;
+  children: string;
+  badge?: ReactNode;
 }) {
+  const collapsed = useContext(CollapsedSidebarContext);
   return (
     <Link
       href={href}
+      aria-label={children}
+      title={collapsed ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-7 items-center gap-2 rounded-md px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        "relative flex items-center rounded-md text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        collapsed ? "size-8 justify-center" : "h-7 gap-2 px-2",
         active
           ? "bg-sidebar-accent font-medium text-foreground"
           : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
@@ -826,7 +894,8 @@ function NavLink({
       ) : (
         <span className="size-4" />
       )}
-      {children}
+      <span className={collapsed ? "sr-only" : undefined}>{children}</span>
+      {badge}
     </Link>
   );
 }

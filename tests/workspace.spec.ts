@@ -235,9 +235,61 @@ test("work item panels collapse independently and persist across routes and relo
     name: "Expand app sidebar",
   });
   await expect(expandSidebar).toBeFocused();
+  const rail = page.getByRole("navigation", { name: "Workspace" });
+  await expect(rail).toBeVisible();
+  for (const name of [
+    "Inbox",
+    "Epics",
+    "Work items",
+    "Reviews",
+    "Board",
+    "Backlog",
+    "Needs review",
+    "Blocked",
+    "Ready for development",
+    "Drafts",
+    "Recently updated",
+    "Organization settings",
+  ]) {
+    await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
+  }
   await expect(
-    page.getByRole("navigation", { name: "Workspace" }),
-  ).toBeHidden();
+    rail.getByRole("link", { name: "Epics", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await page
+    .getByRole("button", { name: "Switch project: Panel project" })
+    .click();
+  await expect(
+    page.getByRole("option", { name: /Panel project/ }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Switch team: Delivery team" })
+    .click();
+  await expect(
+    page.getByRole("option", { name: /Delivery team/ }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Switch organization: Panel layout" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Panel layout", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await expect(
+    page.getByRole("link", { name: "Account settings" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await rail.getByRole("link", { name: "Work items", exact: true }).click();
+  await expect(page).toHaveURL(/\/pnl\/stories$/);
+  await expect(
+    rail.getByRole("link", { name: "Work items", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(expandSidebar).toBeVisible();
+  await rail.getByRole("link", { name: "Epics", exact: true }).click();
+  await page.getByRole("link", { name: /Focused epic/ }).click();
   await expect(heading).toBeVisible();
   await test.info().attach("Focused work item", {
     body: await page.screenshot(),
