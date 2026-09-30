@@ -65,15 +65,16 @@ for (const mode of ["native", "external"] as const)
     await page.reload();
     await expect(page.getByLabel("Project name")).toHaveValue("Payments");
     await configureFirstProject(page, mode);
-    await page
-      .getByLabel("Customize types, workflow", { exact: false })
-      .uncheck();
+    await expect(
+      page.getByRole("heading", { name: "Review your setup" }),
+    ).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Create project", exact: true }),
-    ).toBeDisabled();
-    await page
-      .getByLabel("Customize types, workflow", { exact: false })
-      .check();
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("heading", { name: "Set up later" }),
+    ).toBeVisible();
     // Lose the first committed response; retry must use the same mutation receipt.
     let interrupted = false;
     await page.route("**/api/sync", async (route) => {

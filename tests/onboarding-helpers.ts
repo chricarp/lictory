@@ -29,10 +29,6 @@ export async function configureFirstProject(
       .click();
     await page.getByLabel("Estimate scale").selectOption("fibonacci");
   }
-  await page.getByLabel("Use these starter types", { exact: false }).check();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByLabel("Invite teammates later", { exact: false }).check();
-  if (mode === "external")
-    await page.getByLabel("Connect Jira and map", { exact: false }).check();
-  await page.getByLabel("Customize types, workflow", { exact: false }).check();
+  if (mode === "native")
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
 }

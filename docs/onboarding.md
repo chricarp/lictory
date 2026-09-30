@@ -36,10 +36,11 @@ make administrator decisions.
 | Deferred Jira connection and mapping    | Allows refinement before credentials and destination are configured | Organization settings; export remains unavailable until configured |
 
 Planning and estimates stay owned by Jira for external teams. The creator
-explicitly accepts the starter work item types, workflow and roles. Better Auth's
-organization creation hook provisions those starter records, but the guided setup
-requires acceptance and replaces the provisional team's delivery choices before
-creating the first project. A project with archived work is not a new
+reviews the starter work item types, workflow, roles, and deferred tasks in the
+setup summary. Creating the project confirms that summary in one action, without
+acknowledgment checkboxes. Better Auth's organization creation hook provisions the
+starter records; guided setup replaces the provisional team's delivery choices
+before creating the first project. A project with archived work is not a new
 organization: archiving every project does not repeat initial onboarding or
 silently reset team configuration.
 

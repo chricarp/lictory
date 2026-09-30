@@ -245,7 +245,7 @@
 @keyframes lictory-enter {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
     filter: blur(4px);
   }
   to {
@@ -274,19 +274,14 @@
     background-color 150ms ease-out,
     border-color 150ms ease-out;
 }
-.onboarding button:active:not(:disabled) {
-  transform: scale(0.96);
-}
+
 .onboarding-step {
-  animation: onboarding-enter 300ms ease-out both;
-}
-.onboarding-preview {
-  animation: onboarding-enter 500ms ease-out both;
+  animation: onboarding-enter 180ms ease-out both;
 }
 @keyframes onboarding-enter {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -303,4 +298,10 @@
   .onboarding button:active:not(:disabled) {
     transform: none;
   }
+}
+
+.onboarding input:not([type="checkbox"]) {
+  border-radius: 6px;
+  height: 40px;
+  font-size: 13px;
 }

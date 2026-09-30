@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, RefreshCw, Users, Building2 } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { CreateOrganization } from "./onboarding";
@@ -78,24 +78,23 @@ export function OnboardingEntry({
         <OnboardingHeading
           title={
             intent === "join"
-              ? "Your team is worth waiting for."
+              ? "Join your organization"
               : intent === "create"
-                ? "Give your team a home."
+                ? "Create an organization"
                 : userName
                   ? `Welcome, ${userName.split(" ")[0]}.`
-                  : "Welcome to Lictory."
+                  : "Welcome to Lictory"
           }
         >
           {intent === "join"
             ? "Join an existing organization to use its projects, reviews, and delivery setup. You won’t need to configure them again."
             : intent === "create"
               ? "An organization is your company’s shared workspace. You’ll be its administrator. Next, we’ll help you choose how your first team works."
-              : "Draft a proposal, refine it with your teammates, review each revision, and turn agreed specifications into delivery work. Start by choosing where you belong."}
+              : "Refine specifications with your team, review changes, and prepare work for delivery. Join your organization or create one."}
         </OnboardingHeading>
         {!intent && (
           <div className="space-y-3">
             <Choice title="Join my team" onClick={() => choose("join")}>
-              <Users className="mr-2 inline size-4" />
               My company already uses Lictory, or I’m expecting an invitation.
               {pending.length > 0 && (
                 <span className="mt-2 block font-medium text-primary">
@@ -105,13 +104,8 @@ export function OnboardingEntry({
               )}
             </Choice>
             <Choice title="Create a workspace" onClick={() => choose("create")}>
-              <Building2 className="mr-2 inline size-4" />
               I’m setting up Lictory for a new organization.
             </Choice>
-            <p className="pt-3 text-xs leading-relaxed text-muted-foreground">
-              The same refinement workflow supports both delivery in Lictory and
-              handoff to Jira Cloud. You’ll choose what fits your team.
-            </p>
           </div>
         )}
         {intent === "create" && (
@@ -126,7 +120,7 @@ export function OnboardingEntry({
         )}
         {intent === "join" && (
           <div className="space-y-4">
-            <div className="rounded-xl border bg-card p-5">
+            <div className="rounded-lg border bg-card p-4">
               <p className="text-xs text-muted-foreground">
                 Checking invitations for
               </p>
@@ -136,7 +130,7 @@ export function OnboardingEntry({
               pending.map((invite) => (
                 <div
                   key={invite.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-5"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4"
                 >
                   <div>
                     <p className="font-medium">{invite.organizationName}</p>
@@ -183,7 +177,7 @@ export function OnboardingEntry({
                 </div>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed p-6">
+              <div className="rounded-lg border border-dashed p-6">
                 <h2 className="text-sm font-medium">No invitation yet</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Ask your organization’s administrator to invite the email

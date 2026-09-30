@@ -9,7 +9,7 @@ import {
   type InputHTMLAttributes,
 } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -36,10 +36,6 @@ const draftSchema = z.object({
   estimateScale: z.enum(["", "none", "fibonacci", "linear", "tshirt"]),
   iterationWeeks: z.string(),
   iterationStartDay: z.string(),
-  starter: z.boolean(),
-  invitations: z.boolean(),
-  integration: z.boolean(),
-  advanced: z.boolean(),
 });
 type Draft = z.infer<typeof draftSchema>;
 const emptyDraft: Draft = {
@@ -54,10 +50,6 @@ const emptyDraft: Draft = {
   estimateScale: "",
   iterationWeeks: "",
   iterationStartDay: "",
-  starter: false,
-  invitations: false,
-  integration: false,
-  advanced: false,
 };
 const policyLabels = {
   off: "Inform only",
@@ -145,11 +137,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     draft.iterationMode &&
     (draft.iterationMode !== "automatic" ||
       (draft.iterationWeeks && draft.iterationStartDay));
-  const confirmed =
-    draft.starter &&
-    draft.invitations &&
-    draft.advanced &&
-    (draft.deliveryMode !== "external" || draft.integration);
+  const setupValid = Boolean(identityValid && deliveryValid && planningValid);
   const submit = async () => {
     setBusy(true);
     setError(undefined);
@@ -176,10 +164,10 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
             draft.iterationMode === "automatic"
               ? Number(draft.iterationStartDay)
               : 1,
-          acceptStarterConfiguration: draft.starter,
-          deferInvitations: draft.invitations,
+          acceptStarterConfiguration: true,
+          deferInvitations: true,
           deferIntegration: true,
-          deferAdvancedConfiguration: draft.advanced,
+          deferAdvancedConfiguration: true,
         });
         attempt.current = mutationSchema.parse({
           protocol: PROTOCOL,
@@ -248,7 +236,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
         stage={1}
         title={`Set up ${organization.name} · Lictory`}
       >
-        <OnboardingHeading title="You’re in. Your workspace is being prepared.">
+        <OnboardingHeading title="Workspace setup pending">
           An organization administrator needs to finish the first project and
           team setup. You’ll use their configuration, so there’s nothing you
           need to choose here.
@@ -272,24 +260,42 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
   return (
     <OnboardingFrame
       title={`Set up ${organization.name} · Lictory`}
-      stage={draft.step}
-      labels={["Project & team", "Delivery", "Planning", "Review"]}
+      stage={
+        draft.deliveryMode === "external" && draft.step === 3 ? 2 : draft.step
+      }
+      labels={
+        draft.deliveryMode === "external"
+          ? ["Project & team", "Delivery", "Review"]
+          : ["Project & team", "Delivery", "Planning", "Review"]
+      }
     >
       <div key={draft.step} className="onboarding-step" ref={heading}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (draft.step === 3) void submit();
-            else update({ step: draft.step + 1 });
+            if (draft.step === 3) {
+              if (setupValid || uncertain) void submit();
+            } else if (
+              draft.step === 0
+                ? identityValid
+                : draft.step === 1
+                  ? deliveryValid
+                  : planningValid
+            )
+              update({
+                step:
+                  draft.step === 1 && draft.deliveryMode === "external"
+                    ? 3
+                    : draft.step + 1,
+              });
           }}
         >
           <fieldset disabled={busy || uncertain} className="min-w-0">
             {draft.step === 0 && (
               <>
                 <OnboardingHeading title="Add your first project">
-                  {organization.name} is your organization. A project gives
-                  specifications a home and a stable identifier; a team decides
-                  how that work is delivered. You can add more of both later.
+                  Projects organize specifications and give work stable
+                  identifiers. Teams own delivery settings.
                 </OnboardingHeading>
                 <div className="space-y-5">
                   <Field
@@ -361,8 +367,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                       })
                     }
                   >
-                    Keep specifications, boards, backlog, and iterations
-                    together. A lightweight home for your team’s everyday work.
+                    Specifications, boards, backlog, and iterations in one
+                    place.
                   </Choice>
                   <Choice
                     title="Refine here, deliver in Jira"
@@ -429,8 +435,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 <OnboardingHeading
                   title={
                     draft.deliveryMode === "external"
-                      ? "A focused refinement workspace."
-                      : "Choose your team’s rhythm."
+                      ? "Delivery planning"
+                      : "Plan your work"
                   }
                 >
                   {draft.deliveryMode === "external"
@@ -523,47 +529,15 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                     </div>
                   </>
                 )}
-                <div className="mt-6 rounded-xl border bg-card p-5">
-                  <h2 className="text-sm font-medium">
-                    Start with a small, understandable toolkit
-                  </h2>
-                  <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
-                    <li>
-                      Epic and Story carry specifications. Task, Bug, and
-                      Subtask are ordinary work.
-                    </li>
-                    <li>
-                      Workflow: Backlog → Todo → In Progress → In Review → Done,
-                      plus Canceled. Delivery status stays separate from
-                      refinement.
-                    </li>
-                    <li>
-                      Product can edit, request reviews, review, and export.
-                      Engineering and QA can request and perform reviews. You
-                      initially hold Product.
-                    </li>
-                    <li>
-                      Approvals belong to the reviewed revision. Material
-                      changes require another review.
-                    </li>
-                  </ul>
-                  <Confirm
-                    checked={draft.starter}
-                    onChange={(value) => update({ starter: value })}
-                  >
-                    Use these starter types, workflow, and roles. I can
-                    customize them in settings later.
-                  </Confirm>
-                </div>
               </>
             )}
             {draft.step === 3 && (
               <>
-                <OnboardingHeading title="A workspace that fits your team.">
-                  Review your choices before we create the project. Nothing is
-                  published or sent to teammates when you finish.
+                <OnboardingHeading title="Review your setup">
+                  Create the project with these settings. You can change your
+                  team’s configuration later.
                 </OnboardingHeading>
-                <dl className="rounded-xl border bg-card p-5 text-sm">
+                <dl className="border-y text-[13px]">
                   {[
                     ["Organization", organization.name],
                     ["Project", `${draft.name} · ${effectiveKey}`],
@@ -611,43 +585,39 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                     </div>
                   ))}
                 </dl>
-                <div className="mt-6">
-                  <h2 className="text-sm font-medium">Decide what can wait</h2>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    These are deliberate next steps, rather than hidden
-                    configuration.
-                  </p>
-                  <Confirm
-                    checked={draft.invitations}
-                    onChange={(value) => update({ invitations: value })}
-                  >
-                    Invite teammates later in organization settings, then assign
-                    roles and team membership.
-                  </Confirm>
-                  {draft.deliveryMode === "external" && (
-                    <Confirm
-                      checked={draft.integration}
-                      onChange={(value) => update({ integration: value })}
-                    >
-                      Connect Jira and map its project and issue types later in
-                      organization settings. Export is unavailable until this is
-                      configured.
-                    </Confirm>
-                  )}
-                  <Confirm
-                    checked={draft.advanced}
-                    onChange={(value) => update({ advanced: value })}
-                  >
-                    Customize types, workflow, and roles later in settings.
-                    Choose reviewers when each specification is ready for
-                    review.
-                  </Confirm>
+                <div className="mt-6 space-y-4 text-xs leading-relaxed text-muted-foreground">
+                  <div>
+                    <h2 className="mb-1 font-medium text-foreground">
+                      Included
+                    </h2>
+                    <p>
+                      Epic and Story specifications, plus Tasks, Bugs, and
+                      Subtasks. Product, Engineering, and QA roles; you start in
+                      Product.
+                    </p>
+                    <p className="mt-1">
+                      Delivery workflow: Backlog, Todo, In Progress, In Review,
+                      Done, and Canceled. Refinement and approvals stay
+                      separate.
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="mb-1 font-medium text-foreground">
+                      Set up later
+                    </h2>
+                    <p>
+                      Invite teammates, assign their roles, and customize the
+                      workflow in settings. Choose reviewers for each
+                      specification.
+                    </p>
+                    {draft.deliveryMode === "external" && (
+                      <p className="mt-1">
+                        Connect Jira and map issue types in organization
+                        settings before exporting. You can start refining now.
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="mt-5 flex gap-2 text-xs leading-relaxed text-muted-foreground">
-                  <LockKeyhole className="size-4 shrink-0" />
-                  AI is not required for collaboration. No external AI provider
-                  is configured by this setup.
-                </p>
               </>
             )}
           </fieldset>
@@ -668,15 +638,20 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 variant="ghost"
                 size="lg"
                 disabled={busy || uncertain}
-                onClick={() => update({ step: draft.step - 1 })}
+                onClick={() =>
+                  update({
+                    step:
+                      draft.step === 3 && draft.deliveryMode === "external"
+                        ? 1
+                        : draft.step - 1,
+                  })
+                }
               >
                 <ArrowLeft className="size-4" />
                 Back
               </Button>
             ) : (
-              <span className="text-xs text-muted-foreground">
-                Your progress stays in this tab.
-              </span>
+              <span />
             )}
             <Button
               type="submit"
@@ -689,8 +664,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                     : draft.step === 1
                       ? !deliveryValid
                       : draft.step === 2
-                        ? !planningValid || !draft.starter
-                        : !confirmed))
+                        ? !planningValid
+                        : !setupValid))
               }
             >
               {busy
@@ -704,12 +679,6 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
             </Button>
           </div>
         </form>
-        {draft.step === 3 && (
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Check className="size-3.5" />
-            You remain in control of approvals and publishing.
-          </p>
-        )}
       </div>
     </OnboardingFrame>
   );
@@ -759,7 +728,7 @@ function Select({
         value={value}
         required
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mt-2 h-11 w-full rounded-md border bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="" disabled>
           Choose an option
@@ -770,27 +739,6 @@ function Select({
           </option>
         ))}
       </select>
-    </label>
-  );
-}
-function Confirm({
-  checked,
-  onChange,
-  children,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm leading-relaxed">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 size-4 shrink-0 accent-primary"
-      />
-      {children}
     </label>
   );
 }

@@ -79,7 +79,7 @@ export function CreateOrganization() {
         Organization name
         <Input
           name="name"
-          className="mt-1.5"
+          className="mt-1.5 h-10 rounded-md text-sm"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -150,7 +150,7 @@ export function CreateProject({ onDone }: { onDone?: () => void }) {
         Project name
         <Input
           name="name"
-          className="mt-1.5"
+          className="mt-1.5 h-10 rounded-md text-sm"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
