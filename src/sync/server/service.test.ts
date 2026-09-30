@@ -2122,3 +2122,53 @@ void test("ranks order the backlog with single-row moves", async () => {
   const [p, ra, rb] = ranks.map((r) => r.rank);
   assert.ok(rb! < p! && p! < ra!);
 });
+
+void test("committed observers run once after authorization and commit, tolerate failure and ignore receipt replays", async () => {
+  const f = await fixture();
+  const notifications: string[] = [];
+  const observed = createSyncService(db, {
+    onMutationCommitted: (_user, mutation, snapshots) => {
+      notifications.push(mutation.id);
+      assert.ok(snapshots.after.some((entity) => entity.type === "workItem"));
+      throw new Error("Analytics is offline");
+    },
+  });
+  const mutation = {
+    protocol: PROTOCOL,
+    id: crypto.randomUUID(),
+    organizationId: f.organizationId,
+    command: {
+      type: "updateWorkItem" as const,
+      workItemId: f.proposalId,
+      priority: "high" as const,
+    },
+  };
+  const first = await observed.mutate(f.userId, mutation);
+  const retry = await observed.mutate(f.userId, mutation);
+  assert.deepEqual(first, retry);
+  assert.deepEqual(notifications, [mutation.id]);
+  const item = (await f.entities()).find(
+    (entity) => entity.type === "workItem" && entity.id === f.proposalId,
+  );
+  assert.ok(item?.type === "workItem");
+  assert.equal(item.priority, "high");
+  await assert.rejects(
+    observed.mutate("nonmember", { ...mutation, id: crypto.randomUUID() }),
+    DomainError,
+  );
+  await assert.rejects(
+    observed.mutate(f.userId, {
+      ...mutation,
+      id: crypto.randomUUID(),
+      command: {
+        type: "updateSpecification",
+        workItemId: f.proposalId,
+        baseRevisionId: "obsolete",
+        title: "Changed",
+        content: "Changed",
+      },
+    }),
+    DomainError,
+  );
+  assert.deepEqual(notifications, [mutation.id]);
+});

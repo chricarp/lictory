@@ -1,0 +1,209 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import {
+  commandSchema,
+  type Command,
+  type Entity,
+} from "~/sync/shared/protocol";
+import {
+  commandEvent,
+  commandEvents,
+  committedEvents,
+  sanitizeAnalyticsUrl,
+  sanitizeAnalyticsProperties,
+} from "./events";
+import { publicationProperties } from "./publication";
+import { analyticsEventId } from "./identity";
+
+void describe("product analytics contract", () => {
+  void test("every supported workspace command has an event", () => {
+    const supported = commandSchema.options.map(
+      (schema) => schema.shape.type.value,
+    );
+    assert.deepEqual(Object.keys(commandEvents).sort(), supported.sort());
+  });
+
+  void test("content and identities from user input never enter event properties", () => {
+    const privateText =
+      "Confidential customer data and unreleased architecture";
+    const commands: Command[] = [
+      {
+        type: "updateSpecification",
+        workItemId: "item",
+        baseRevisionId: "r1",
+        title: privateText,
+        content: privateText,
+        summary: privateText,
+      },
+      {
+        type: "createThread",
+        workItemId: "item",
+        baseRevisionId: "r1",
+        threadId: "thread",
+        messageId: "message",
+        body: privateText,
+        quote: privateText,
+        section: privateText,
+        blocking: true,
+      },
+      {
+        type: "createSuggestion",
+        workItemId: "item",
+        baseRevisionId: "r1",
+        suggestionId: "suggestion",
+        title: privateText,
+        rationale: privateText,
+        replacement: privateText,
+        open: true,
+      },
+      {
+        type: "createRole",
+        roleId: "role",
+        name: privateText,
+        description: privateText,
+        capabilities: {
+          editSpecifications: true,
+          changeProperties: true,
+          requestReviews: true,
+          review: true,
+          publishDelivery: true,
+        },
+      },
+    ];
+    for (const command of commands)
+      assert.ok(!JSON.stringify(commandEvent(command)).includes(privateText));
+    assert.equal(commandEvent(commands[1]!).properties.blocking, true);
+    assert.equal(commandEvent(commands[1]!).properties.anchored, true);
+  });
+
+  void test("readiness and stale approvals reflect committed transitions, not labels", () => {
+    const item = (state: string) =>
+      ({
+        type: "workItem",
+        id: "item",
+        projectId: "project",
+        teamId: "team",
+        typeId: "epic",
+        revisionId: "r1",
+        statusId: "backlog",
+        refinementState: state,
+      }) as Entity;
+    const approval = (status: string) =>
+      ({ type: "approval", id: "approval", status }) as Entity;
+    const command: Command = {
+      type: "decideReview",
+      workItemId: "item",
+      baseRevisionId: "r1",
+      reviewId: "review",
+      decision: "approve",
+    };
+    const ready = committedEvents(
+      command,
+      [item("in_review")],
+      [item("ready")],
+    );
+    assert.deepEqual(
+      ready.map((event) => event.event),
+      ["review_decided", "specification_ready"],
+    );
+    assert.equal(ready[0]!.properties.project_id, "project");
+    assert.equal(ready[0]!.properties.revision_id, "r1");
+    assert.equal(
+      committedEvents(command, [item("ready")], [item("ready")]).length,
+      1,
+    );
+    const changed = committedEvents(
+      command,
+      [item("ready"), approval("granted")],
+      [item("in_review"), approval("stale")],
+    );
+    assert.deepEqual(
+      changed.map((event) => event.event),
+      [
+        "review_decided",
+        "specification_readiness_lost",
+        "approvals_invalidated",
+      ],
+    );
+  });
+
+  void test("URLs exclude auth tokens, email addresses, queries and fragments", () => {
+    assert.equal(
+      sanitizeAnalyticsUrl(
+        "https://lictory.app/reset-password?token=secret&email=a@example.com#private",
+      ),
+      "https://lictory.app/reset-password",
+    );
+    assert.equal(
+      sanitizeAnalyticsUrl(
+        "https://lictory.app/app/org/PAY/stories?q=customer+name",
+      ),
+      "https://lictory.app/app/org/PAY/stories",
+    );
+    assert.equal(sanitizeAnalyticsUrl("invalid"), "");
+  });
+
+  void test("partial publications retain each outcome without exporting Jira messages", () => {
+    const properties = publicationProperties({
+      id: "publication",
+      status: "partial",
+      results: {
+        one: { outcome: "created", externalKey: "PRIVATE-1" },
+        two: { outcome: "failed", message: "Secret Jira diagnostics" },
+        three: { outcome: "conflict" },
+      },
+    });
+    assert.equal(properties.publication_status, "partial");
+    for (const field of ["created_count", "failed_count", "conflict_count"])
+      assert.equal(properties[field], 1);
+    assert.equal(properties.item_count, 3);
+    assert.ok(!JSON.stringify(properties).includes("Secret"));
+    assert.ok(!JSON.stringify(properties).includes("PRIVATE"));
+  });
+});
+
+void test("automatic person properties and pageviews are sanitized before sending", () => {
+  const properties = {
+    $current_url: "https://app.example/reset-password?token=secret#private",
+    $title: "Private work item title",
+    ph_keyword: "Customer name",
+    $set_once: {
+      $initial_current_url:
+        "https://app.example/verify-email?email=private@example.com&token=secret",
+    },
+    $set: {
+      $initial_referrer: "https://search.example/?q=Customer+name",
+      $initial_ph_keyword: "Customer name",
+    },
+  };
+  sanitizeAnalyticsProperties(properties);
+  assert.ok(!JSON.stringify(properties).includes("secret"));
+  assert.ok(!JSON.stringify(properties).includes("private@example.com"));
+  assert.ok(!JSON.stringify(properties).includes("Customer"));
+  assert.ok(!JSON.stringify(properties).includes("Private"));
+  assert.equal(properties.$current_url, "https://app.example/reset-password");
+});
+
+void test("retryable analytics has a valid stable event UUID scoped to the operation and actor", () => {
+  const first = analyticsEventId("user", "attachment_uploaded", "org:file");
+  assert.match(
+    first,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+  assert.equal(
+    first,
+    analyticsEventId("user", "attachment_uploaded", "org:file"),
+  );
+  assert.notEqual(
+    first,
+    analyticsEventId("other-user", "attachment_uploaded", "org:file"),
+  );
+  assert.notEqual(
+    first,
+    analyticsEventId("user", "attachment_removed", "org:file"),
+  );
+  assert.notEqual(
+    first,
+    analyticsEventId("user", "attachment_uploaded", "other-org:file"),
+  );
+});

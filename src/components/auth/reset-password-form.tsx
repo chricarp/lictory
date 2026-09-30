@@ -7,6 +7,7 @@ import { FormMessage } from "~/components/auth/form-field";
 import { NewPasswordFields } from "~/components/auth/password-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
+import { track } from "~/lib/analytics/client";
 import { formValue } from "~/lib/utils";
 
 export function ResetPasswordForm({ token }: { token?: string }) {
@@ -45,6 +46,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
       return;
     }
 
+    track("password_reset_completed");
     setComplete(true);
   }
 

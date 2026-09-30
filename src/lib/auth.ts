@@ -17,6 +17,7 @@ import {
 } from "~/lib/password-policy";
 import { deliverAuthEmail } from "~/lib/email";
 import { seedDefaultRoles } from "~/sync/server/roles";
+import { trackServer } from "~/lib/analytics/server";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
   "/sign-up/email": "password",
@@ -101,7 +102,70 @@ export const auth = betterAuth({
       trustedProviders: ["google", "microsoft"],
     },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user, ctx) => {
+          trackServer(
+            user.id,
+            "signed_up",
+            { method: ctx?.path === "/sign-up/email" ? "email" : "social" },
+            ctx?.headers,
+            `signup:${user.id}`,
+          );
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (session, ctx) => {
+          trackServer(
+            session.userId,
+            "signed_in",
+            {
+              method:
+                ctx?.path === "/sign-in/email"
+                  ? "email"
+                  : ctx?.path === "/verify-email"
+                    ? "verification"
+                    : "social",
+            },
+            ctx?.headers,
+            `session:${session.id}`,
+          );
+          if (ctx?.path === "/verify-email")
+            trackServer(
+              session.userId,
+              "email_verified",
+              {},
+              ctx.headers,
+              `verified:${session.userId}`,
+            );
+        },
+      },
+    },
+  },
   hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      const events: Record<string, string> = {
+        "/update-user": "account_profile_updated",
+        "/change-email": "account_email_change_requested",
+        "/change-password": "account_password_changed",
+        "/revoke-sessions": "account_sessions_revoked",
+        "/revoke-other-sessions": "account_sessions_revoked",
+        "/revoke-session": "account_session_revoked",
+        "/delete-user": "account_deleted",
+        "/unlink-account": "social_account_unlinked",
+        "/organization/leave": "organization_left",
+        "/organization/update-member-role": "application_role_changed",
+        "/organization/remove-member": "organization_member_removed",
+        "/organization/cancel-invitation": "invitation_cancelled",
+      };
+      const event = events[ctx.path];
+      const userId = ctx.context.session?.user.id;
+      if (event && userId && !(ctx.context.returned instanceof APIError))
+        trackServer(userId, event, {}, ctx.headers);
+    }),
     // Better Auth enforces length; whitespace is our own rule. Only paths
     // that set a new password are checked, so sign-in keeps working for any
     // password that already exists.
@@ -128,6 +192,41 @@ export const auth = betterAuth({
         // its creator (the first administrator) in Product.
         afterCreateOrganization: async ({ organization, user }) => {
           await seedDefaultRoles(db, organization.id, user.id);
+          trackServer(
+            user.id,
+            "organization_created",
+            { organization_id: organization.id },
+            undefined,
+            organization.id,
+          );
+        },
+        afterUpdateOrganization: async ({ organization, user }) => {
+          if (organization)
+            trackServer(user.id, "organization_updated", {
+              organization_id: organization.id,
+            });
+        },
+        afterCreateInvitation: async ({
+          invitation,
+          inviter,
+          organization,
+        }) => {
+          trackServer(
+            inviter.id,
+            "invitation_created",
+            { organization_id: organization.id },
+            undefined,
+            invitation.id,
+          );
+        },
+        afterAcceptInvitation: async ({ invitation, user, organization }) => {
+          trackServer(
+            user.id,
+            "invitation_accepted",
+            { organization_id: organization.id },
+            undefined,
+            invitation.id,
+          );
         },
       },
     }),

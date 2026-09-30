@@ -1096,7 +1096,16 @@ export async function externalLinks(
 
 const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
 
-export function createSyncService(db: Database) {
+export function createSyncService(
+  db: Database,
+  options: {
+    onMutationCommitted?: (
+      userId: string,
+      mutation: Mutation,
+      snapshots: { before: Entity[]; after: Entity[]; directory?: Directory },
+    ) => void;
+  } = {},
+) {
   return {
     async read(userId: string, scope: Scope, cursor?: string, limit = 100) {
       const pageSize = Math.min(500, Math.max(1, Math.floor(limit)));
@@ -1174,7 +1183,13 @@ export function createSyncService(db: Database) {
     },
     async mutate(userId: string, mutation: Mutation) {
       const { organizationId, command: c } = mutation;
-      return db.transaction(async (tx) => {
+      let replayed = false;
+      let snapshots: {
+        before: Entity[];
+        after: Entity[];
+        directory?: Directory;
+      } = { before: [], after: [] };
+      const result = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
         const membership = await authorize(tx, userId, organizationId);
         const fingerprint = createHash("sha256")
@@ -1192,6 +1207,7 @@ export function createSyncService(db: Database) {
             )
         )[0];
         if (previous) {
+          replayed = true;
           if (
             previous.userId !== userId ||
             previous.fingerprint !== fingerprint
@@ -1231,6 +1247,7 @@ export function createSyncService(db: Database) {
             c,
           );
           const after = await snapshot(tx, { organizationId });
+          snapshots = { before, after, directory: roster };
           const cursor = await emitChanges(
             tx,
             organizationId,
@@ -2951,6 +2968,7 @@ export function createSyncService(db: Database) {
             change: { operation: "upsert", cursor: cursor.toString(), entity },
           });
         }
+        snapshots = { before, after, directory: roster };
         cursor = await emitChanges(tx, organizationId, before, after, cursor, {
           projectId,
           workItemId,
@@ -2964,6 +2982,14 @@ export function createSyncService(db: Database) {
           cursor,
         );
       });
+      if (!replayed) {
+        try {
+          options.onMutationCommitted?.(userId, mutation, snapshots);
+        } catch {
+          // Observability cannot turn a committed mutation into an apparent failure.
+        }
+      }
+      return result;
     },
   };
 }

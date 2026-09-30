@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { trackServer } from "~/lib/analytics/server";
 import { db } from "~/db";
 import * as s from "~/db/schema";
 import { auth } from "~/lib/auth";
@@ -218,6 +219,19 @@ export async function POST(request: Request) {
             ),
           );
       });
+      trackServer(
+        userId,
+        "attachment_uploaded",
+        {
+          organization_id: body.organizationId,
+          project_id: file.projectId,
+          work_item_id: file.workItemId,
+          file_size: file.size,
+          file_kind: file.mimeType.startsWith("image/") ? "image" : "document",
+        },
+        request.headers,
+        `${file.id}:uploaded`,
+      );
       return Response.json(
         { id: file.id, url: `/api/files/${file.id}` },
         { headers: { "Cache-Control": "no-store" } },
@@ -248,6 +262,16 @@ export async function POST(request: Request) {
         );
     });
     // Retain bytes for immutable revisions and existing comment references.
+    trackServer(
+      userId,
+      "attachment_removed",
+      {
+        organization_id: body.organizationId,
+        work_item_id: file.workItemId,
+      },
+      request.headers,
+      `${file.id}:removed`,
+    );
     return Response.json({ removed: true });
   } catch (error) {
     return fail(error);

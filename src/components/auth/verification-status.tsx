@@ -11,6 +11,7 @@ import {
 import { FormMessage } from "~/components/auth/form-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
+import { track } from "~/lib/analytics/client";
 
 export function VerificationStatus({
   email,
@@ -31,6 +32,7 @@ export function VerificationStatus({
       email,
       callbackURL: "/verify-email?verified=1",
     });
+    if (!result.error) track("verification_email_requested");
     setMessage(
       result.error
         ? (result.error.message ?? "We could not resend the email.")

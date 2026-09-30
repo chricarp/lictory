@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { paths } from "~/lib/paths";
+import { track } from "~/lib/analytics/client";
 import {
   identifier,
   isTopLevel,
@@ -84,6 +85,25 @@ export function ItemDetail({
   pendingCreate: boolean;
 }) {
   const workspace = useWorkspace();
+  const lastOpened = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${workspace.organization.id}:${item.id}`;
+    if (lastOpened.current === key) return;
+    lastOpened.current = key;
+    track("work_item_opened", {
+      organization_id: workspace.organization.id,
+      project_id: item.projectId,
+      work_item_id: item.id,
+      team_id: item.teamId,
+      type_id: item.typeId,
+    });
+  }, [
+    workspace.organization.id,
+    item.id,
+    item.projectId,
+    item.teamId,
+    item.typeId,
+  ]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -115,6 +135,12 @@ export function ItemDetail({
   });
   const setMode = useCallback(
     (next: DetailMode) => {
+      track("specification_mode_selected", {
+        organization_id: workspace.organization.id,
+        project_id: item.projectId,
+        work_item_id: item.id,
+        mode: next.kind,
+      });
       setModeState(next);
       const params = new URLSearchParams(searchParams.toString());
       if (next.kind === "suggestion") params.set("suggestion", next.id);
@@ -124,7 +150,14 @@ export function ItemDetail({
         scroll: false,
       });
     },
-    [pathname, router, searchParams],
+    [
+      pathname,
+      router,
+      searchParams,
+      workspace.organization.id,
+      item.projectId,
+      item.id,
+    ],
   );
   const [panelOpen, setPanelOpen] = useState(false);
   const [exporting, setExporting] = useState(false);

@@ -10,6 +10,12 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import posthog from "posthog-js";
+import {
+  analyticsConfigured,
+  identifyUser,
+  track,
+} from "~/lib/analytics/client";
 import { SyncEngine, type View } from "~/sync/client/engine";
 import {
   applicationRoleOf,
@@ -83,6 +89,32 @@ export function WorkspaceProvider({
   initialDirectory: Directory;
   children: ReactNode;
 }) {
+  const lastOrganization = useRef<string | null>(null);
+  useEffect(() => {
+    if (!analyticsConfigured) return;
+    identifyUser(userId);
+    try {
+      posthog.group("organization", organization.id);
+      posthog.register({ organization_id: organization.id });
+    } catch {
+      // Analytics must not prevent opening a workspace.
+    }
+    if (lastOrganization.current !== organization.id) {
+      track("workspace_opened", {
+        organization_id: organization.id,
+        application_role: organization.role,
+      });
+      lastOrganization.current = organization.id;
+    }
+    return () => {
+      try {
+        posthog.unregister("organization_id");
+        posthog.resetGroups();
+      } catch {
+        // Workspace navigation must not depend on analytics.
+      }
+    };
+  }, [organization.id, organization.role, userId]);
   const [engine] = useState(
     () => new SyncEngine(userId, { organizationId: organization.id }),
   );

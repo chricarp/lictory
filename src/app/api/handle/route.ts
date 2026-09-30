@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { z } from "zod";
+import { trackServer } from "~/lib/analytics/server";
 
 import { db } from "~/db";
 import { auth } from "~/lib/auth";
@@ -48,5 +49,6 @@ export async function POST(request: Request) {
       { error: { message: result.reason } },
       { status: 409 },
     );
+  trackServer(user.id, "onboarding_handle_completed", {}, request.headers);
   return Response.json({ handle: result.handle });
 }

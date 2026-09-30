@@ -11,6 +11,7 @@ import {
 import { readListState, writeListState } from "~/lib/list-params";
 import { ArrowUpDown, Filter, Plus, X } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { track } from "~/lib/analytics/client";
 import {
   applyFilters,
   formatDate,
@@ -79,6 +80,7 @@ export function IssueList({
 }) {
   const {
     items: allItems,
+    organization,
     projects,
     memberName,
     mutate,
@@ -102,6 +104,24 @@ export function IssueList({
   const { filters, sort, group, archived: showArchived } = state;
   const commit = useCallback(
     (next: Partial<typeof state>) => {
+      track("work_item_list_configured", {
+        organization_id: organization.id,
+        project_id: project?.id ?? null,
+        changed_controls: Object.keys(next),
+        ...(next.filters
+          ? {
+              filter_names: Object.keys(next.filters).filter((key) =>
+                Boolean(next.filters?.[key as keyof Filters]),
+              ),
+              has_search: Boolean(next.filters.search),
+            }
+          : {}),
+        ...(next.sort ? { sort: next.sort } : {}),
+        ...(next.group !== undefined ? { grouped: next.group } : {}),
+        ...(next.archived !== undefined
+          ? { show_archived: next.archived }
+          : {}),
+      });
       const params = writeListState(
         searchParams,
         { ...state, ...next },
@@ -112,7 +132,15 @@ export function IssueList({
         scroll: false,
       });
     },
-    [searchParams, state, defaultGroup, router, pathname],
+    [
+      searchParams,
+      state,
+      defaultGroup,
+      router,
+      pathname,
+      organization.id,
+      project?.id,
+    ],
   );
   const setFilters = (fn: (f: Filters) => Filters) =>
     commit({ filters: fn(filters) });
