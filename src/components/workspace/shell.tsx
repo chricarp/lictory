@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { resetAnalytics, track } from "~/lib/analytics/client";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -148,17 +149,24 @@ export function Shell({
         return toast(
           "Your roles cannot create Epics or Stories. Ask an administrator for a role that can edit specifications.",
         );
+      track("work_item_create_opened", {
+        organization_id: organization.id,
+        project_id: options?.projectId ?? project?.id ?? null,
+      });
       setCreate({
         kind: "story",
         ...options,
         projectId: options?.projectId ?? project?.id,
       });
     },
-    [project?.id, canCreate, toast],
+    [project?.id, canCreate, toast, organization.id],
   );
   const openPalette = useCallback(
-    (query = "") => setPalette({ open: true, query }),
-    [],
+    (query = "") => {
+      track("command_palette_opened", { organization_id: organization.id });
+      setPalette({ open: true, query });
+    },
+    [organization.id],
   );
   const [drawerPath, setDrawerPath] = useState(pathname);
   if (drawerPath !== pathname) {
@@ -169,7 +177,8 @@ export function Shell({
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setPalette((p) => ({ open: !p.open, query: "" }));
+        if (!palette.open) openPalette();
+        else setPalette({ open: false, query: "" });
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -184,7 +193,7 @@ export function Shell({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [project, pathname, openCreate, openPalette]);
+  }, [project, pathname, openCreate, openPalette, palette.open]);
   const inboxCount = useMemo(
     () => items.filter((i) => needsMyReview(i, userId, roleIds)).length,
     [items, userId, roleIds],
@@ -212,7 +221,10 @@ export function Shell({
       onCreate={canCreate ? () => openCreate() : undefined}
       onSearch={() => openPalette()}
       onSignOut={async () => {
-        await authClient.signOut();
+        const result = await authClient.signOut();
+        if (result.error) return;
+        track("signed_out");
+        resetAnalytics();
         router.push("/sign-in");
         router.refresh();
       }}
@@ -539,31 +551,28 @@ function Sidebar({
             </button>
           )}
         >
-          {(close) => (
-            <div className="p-1">
-              <div className="px-2 py-1.5">
-                <p className="truncate text-[13px] font-medium">{user.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {user.handle ? `@${user.handle} · ${user.email}` : user.email}
-                </p>
-              </div>
-              <div className="my-1 border-t" />
-              <Link
-                href={paths.account(pathname)}
-                onClick={close}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
-              >
-                <UserRound className="size-3.5 text-muted-foreground" /> Account
-                settings
-              </Link>
-              <button
-                onClick={onSignOut}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-              >
-                <LogOut className="size-3.5 text-muted-foreground" /> Sign out
-              </button>
+          <div className="p-1">
+            <div className="px-2 py-1.5">
+              <p className="truncate text-[13px] font-medium">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user.handle ? `@${user.handle} · ${user.email}` : user.email}
+              </p>
             </div>
-          )}
+            <div className="my-1 border-t" />
+            <Link
+              href={paths.account(pathname)}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
+            >
+              <UserRound className="size-3.5 text-muted-foreground" /> Account
+              settings
+            </Link>
+            <button
+              onClick={onSignOut}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+            >
+              <LogOut className="size-3.5 text-muted-foreground" /> Sign out
+            </button>
+          </div>
         </Popover>
         <SyncStatus />
       </div>

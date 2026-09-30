@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  trackServer,
+  trackServerFailure,
+  trackPublicationCompleted,
+} from "~/lib/analytics/server";
+import { publicationProperties } from "~/lib/analytics/publication";
 
 import { db } from "~/db";
 import { kickNotificationEmails } from "~/notifications/email";
@@ -16,7 +22,6 @@ export const dynamic = "force-dynamic";
 // Exports of large epics make several Jira calls per item.
 export const maxDuration = 300;
 
-const service = createDeliveryService(db);
 const id = z.string().min(1).max(160);
 const organizationId = id;
 const exportScope = {
@@ -165,6 +170,10 @@ export async function POST(request: Request) {
   try {
     const body = actionSchema.parse(await request.json());
     action = body.action;
+    const service = createDeliveryService(db, {
+      onPublicationCompleted: (publication) =>
+        trackPublicationCompleted(publication, request.headers),
+    });
     const result = await (() => {
       switch (body.action) {
         case "connect":
@@ -209,6 +218,30 @@ export async function POST(request: Request) {
           return service.unlink(user, body);
       }
     })();
+    const events = {
+      connect: "delivery_connection_created",
+      disconnect: "delivery_connection_removed",
+      setTarget: "delivery_target_configured",
+      removeTarget: "delivery_target_removed",
+      preview: "delivery_publish_previewed",
+      publish: "delivery_publish_requested",
+      linkExisting: "delivery_item_linked",
+      unlink: "delivery_item_unlinked",
+    };
+    if (body.action in events) {
+      trackServer(
+        user,
+        events[body.action as keyof typeof events],
+        {
+          organization_id: body.organizationId,
+          provider: "jira",
+          ...("teamId" in body ? { team_id: body.teamId } : {}),
+          ...("workItemId" in body ? { work_item_id: body.workItemId } : {}),
+          ...(body.action === "publish" ? publicationProperties(result) : {}),
+        },
+        request.headers,
+      );
+    }
     kickNotificationEmails(db);
     console.info(
       JSON.stringify({
@@ -222,6 +255,12 @@ export async function POST(request: Request) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    trackServerFailure(
+      user,
+      `delivery_${action ?? "unknown"}`,
+      error,
+      request.headers,
+    );
     return failure(error, action);
   }
 }

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { trackServer } from "~/lib/analytics/server";
 
 import { db } from "~/db";
 import { user } from "~/db/auth-schema";
@@ -30,5 +31,11 @@ export async function POST(request: Request) {
     .update(user)
     .set({ appearance: parsed.data.appearance })
     .where(eq(user.id, session.user.id));
+  trackServer(
+    session.user.id,
+    "appearance_changed",
+    { appearance: parsed.data.appearance },
+    request.headers,
+  );
   return Response.json({ appearance: parsed.data.appearance });
 }

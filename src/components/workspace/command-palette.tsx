@@ -17,6 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { track } from "~/lib/analytics/client";
 import { paths } from "~/lib/paths";
 import {
   activeStatuses,
@@ -267,6 +268,16 @@ export function CommandPalette({
       ?.scrollIntoView({ block: "nearest" });
   }, [active]);
   const groups = [...new Set(results.map((r) => r.group))];
+  const run = (entry?: Item) => {
+    if (!entry) return;
+    track("command_palette_result_selected", {
+      organization_id: organization.id,
+      result_group: entry.group,
+      has_query: Boolean(query.trim()),
+      result_count: results.length,
+    });
+    entry.run();
+  };
   let index = -1;
   return createPortal(
     <div
@@ -283,7 +294,7 @@ export function CommandPalette({
         }
         if (e.key === "Enter") {
           e.preventDefault();
-          results[active]?.run();
+          run(results[active]);
         }
       }}
     >
@@ -335,7 +346,7 @@ export function CommandPalette({
                       aria-selected={i === active}
                       data-active={i === active || undefined}
                       onMouseEnter={() => setActive(i)}
-                      onClick={r.run}
+                      onClick={() => run(r)}
                       className={cn(
                         "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px]",
                         i === active && "bg-muted",

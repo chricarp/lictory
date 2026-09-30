@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { trackServer, trackServerFailure } from "~/lib/analytics/server";
 
 import { db } from "~/db";
 import { auth } from "~/lib/auth";
@@ -67,8 +68,37 @@ export async function POST(request: Request) {
           return service.act(user, body);
       }
     })();
+    const events = {
+      markRead: "notification_read_changed",
+      archive: "notification_archive_changed",
+      setPreferences: "notification_preferences_updated",
+      resetScope: "notification_preferences_reset",
+      watch: "work_item_watch_changed",
+    };
+    if (body.action in events)
+      trackServer(
+        user,
+        events[body.action as keyof typeof events],
+        {
+          ...(body.action !== "markRead" &&
+          "organizationId" in body &&
+          body.organizationId
+            ? { organization_id: body.organizationId }
+            : {}),
+          ...("workItemId" in body ? { work_item_id: body.workItemId } : {}),
+          ...("read" in body ? { read: body.read } : {}),
+          ...("archived" in body ? { archived: body.archived } : {}),
+          ...("watching" in body ? { watching: body.watching } : {}),
+          ...("scope" in body ? { scope: body.scope } : {}),
+          ...("ids" in body && body.ids
+            ? { notification_count: body.ids.length }
+            : {}),
+        },
+        request.headers,
+      );
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    trackServerFailure(user, "notifications", error, request.headers);
     if (error instanceof DomainError)
       return Response.json(
         { error: { category: error.category, message: error.message } },

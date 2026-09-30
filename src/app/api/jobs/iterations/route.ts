@@ -1,7 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
+import { after } from "next/server";
 import { db } from "~/db";
+import { trackPublicationCompleted } from "~/lib/analytics/server";
 import { createDeliveryService } from "~/delivery/service";
 import { dispatchNotificationEmails } from "~/notifications/email";
+import {
+  flushPosthogLogs,
+  logScheduledJobsCompleted,
+  logScheduledJobsStarted,
+} from "~/lib/posthog-logs";
 import { advanceSchedules } from "~/sync/server/service";
 
 export const dynamic = "force-dynamic";
@@ -31,16 +38,21 @@ async function run(request: Request) {
       { error: "Invalid job credentials." },
       { status: 401 },
     );
+  logScheduledJobsStarted();
+  after(flushPosthogLogs);
   const result = await advanceSchedules(db);
   console.info(JSON.stringify({ event: "jobs.iterations", ...result }));
   // Resume delivery exports left running (deferred create confirmations,
   // interrupted workers).
-  const delivery = await createDeliveryService(db).processPending();
+  const delivery = await createDeliveryService(db, {
+    onPublicationCompleted: trackPublicationCompleted,
+  }).processPending();
   console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
   const emails = await dispatchNotificationEmails(db);
   console.info(
     JSON.stringify({ event: "jobs.notification_emails", ...emails }),
   );
+  logScheduledJobsCompleted();
   return Response.json({ ...result, delivery, emails });
 }
 

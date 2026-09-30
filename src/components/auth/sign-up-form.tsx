@@ -8,6 +8,7 @@ import { NewPasswordFields } from "~/components/auth/password-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
 import { formValue } from "~/lib/utils";
+import { identifyUser, track } from "~/lib/analytics/client";
 
 export function SignUpForm() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export function SignUpForm() {
 
     setPending(true);
     const email = formValue(formData, "email");
+    track("sign_up_submitted", { method: "email" });
     const result = await authClient.signUp.email({
       name: formValue(formData, "name"),
       email,
@@ -37,10 +39,16 @@ export function SignUpForm() {
     });
 
     if (result.error) {
+      track("sign_up_failed", {
+        method: "email",
+        status_code: result.error.status ?? 0,
+      });
       setError(result.error.message ?? "We could not create your account.");
       setPending(false);
       return;
     }
+
+    if (result.data?.user.id) identifyUser(result.data.user.id);
 
     router.push(`/verify-email?email=${encodeURIComponent(email)}`);
   }

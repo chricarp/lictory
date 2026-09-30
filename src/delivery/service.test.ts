@@ -39,7 +39,11 @@ after(async () => {
 
 // An organization with an epic, two stories (one not ready) and a subtask,
 // connected to a fake Jira with Epic/Story/Subtask mapped.
-async function fixture() {
+async function fixture(
+  onPublicationCompleted?: NonNullable<
+    Parameters<typeof createDeliveryService>[1]
+  >["onPublicationCompleted"],
+) {
   const organizationId = crypto.randomUUID();
   const userId = crypto.randomUUID();
   const reviewerId = crypto.randomUUID();
@@ -124,6 +128,7 @@ async function fixture() {
     providers: { jira_cloud: fake.provider },
     appUrl: "https://lictory.test",
     now: () => new Date(clock),
+    onPublicationCompleted,
   });
   const { connectionId } = await service.connect(userId, {
     organizationId,
@@ -590,4 +595,49 @@ void test("exporting and configuring delivery are authorized on the server", asy
   const dir = await directory(db, f.reviewerId, f.organizationId);
   assert.equal(dir.delivery.connections.length, 1);
   assert.ok(!JSON.stringify(dir).includes(row!.encryptedCredential));
+});
+
+void test("publication observers fire once at settlement, survive observer failures and include resumed exports", async () => {
+  const completed: { id: string; status: string; requester: string }[] = [];
+  const f = await fixture((publication) => {
+    completed.push({
+      id: publication.id,
+      status: publication.status,
+      requester: publication.requestedById,
+    });
+    throw new Error("Analytics unavailable");
+  });
+  const first = await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    itemIds: [f.epic],
+  });
+  assert.equal(first.status, "completed");
+  assert.equal(completed.length, 1);
+  await f.service.process(first.id);
+  assert.equal(completed.length, 1);
+  await db
+    .delete(s.workItemExternalLink)
+    .where(eq(s.workItemExternalLink.organizationId, f.organizationId));
+  f.fake.items.clear();
+  await db.insert(s.workItemExternalLink).values({
+    organizationId: f.organizationId,
+    workItemId: f.epic,
+    connectionId: f.connectionId,
+    createAttemptedAt: new Date(),
+  });
+  const waiting = await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    itemIds: [f.epic],
+  });
+  assert.equal(waiting.status, "running");
+  assert.equal(completed.length, 1);
+  f.advance(5 * 60_000);
+  await f.service.processPending();
+  assert.deepEqual(completed[1], {
+    id: waiting.id,
+    status: "completed",
+    requester: f.userId,
+  });
+  await f.service.processPending();
+  assert.equal(completed.length, 2);
 });

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { committedEvents } from "~/lib/analytics/events";
+import { trackServer, trackServerFailure } from "~/lib/analytics/server";
 import { db } from "~/db";
 import { kickNotificationEmails } from "~/notifications/email";
 import { auth } from "~/lib/auth";
@@ -189,6 +191,12 @@ export async function GET(request: Request) {
     );
     return Response.json(page, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    trackServerFailure(
+      session.user.id,
+      context.mutationType ?? context.operation,
+      error,
+      request.headers,
+    );
     return failure(error, context);
   }
 }
@@ -223,7 +231,29 @@ export async function POST(request: Request) {
     context.organization = mutation.organizationId;
     context.mutationId = mutation.id;
     context.mutationType = mutation.command.type;
-    const result = await service.mutate(session.user.id, mutation);
+    const trackedService = createSyncService(db, {
+      onMutationCommitted: (userId, committed, snapshots) => {
+        for (const event of committedEvents(
+          committed.command,
+          snapshots.before,
+          snapshots.after,
+          snapshots.directory,
+        )) {
+          trackServer(
+            userId,
+            event.event,
+            {
+              ...event.properties,
+              organization_id: committed.organizationId,
+              mutation_id: committed.id,
+            },
+            request.headers,
+            `${committed.organizationId}:${committed.id}:${String(event.properties.work_item_id ?? "")}`,
+          );
+        }
+      },
+    });
+    const result = await trackedService.mutate(session.user.id, mutation);
     kickNotificationEmails(db);
     console.info(
       JSON.stringify({
@@ -241,6 +271,12 @@ export async function POST(request: Request) {
     );
     return Response.json(result);
   } catch (error) {
+    trackServerFailure(
+      session.user.id,
+      context.mutationType ?? context.operation,
+      error,
+      request.headers,
+    );
     return failure(error, context);
   }
 }

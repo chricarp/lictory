@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
+import { track } from "~/lib/analytics/client";
 
 type Provider = "google" | "microsoft";
 type ProviderState = Record<Provider, boolean>;
@@ -32,6 +33,7 @@ export function SocialButtons({
 
   async function signIn(provider: Provider) {
     setPending(provider);
+    track("social_sign_in_started", { provider });
     await authClient.signIn.social({ provider, callbackURL });
     setPending(null);
   }

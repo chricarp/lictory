@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AppearanceProvider } from "~/components/app/appearance-provider";
+import { PostHogIdentity } from "~/components/app/posthog-identity";
 import { parseAppearance } from "~/lib/appearance";
 import { auth } from "~/lib/auth";
 import { safeAppPath } from "~/lib/paths";
@@ -29,6 +30,7 @@ export default async function ProtectedLayout({
   }
   return (
     <AppearanceProvider initial={parseAppearance(session.user.appearance)}>
+      <PostHogIdentity userId={session.user.id} />
       <div className="min-h-dvh bg-background">{children}</div>
     </AppearanceProvider>
   );

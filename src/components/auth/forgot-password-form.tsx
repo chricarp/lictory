@@ -5,6 +5,7 @@ import { useState } from "react";
 import { FormField, FormMessage } from "~/components/auth/form-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
+import { track } from "~/lib/analytics/client";
 import { formValue } from "~/lib/utils";
 
 export function ForgotPasswordForm() {
@@ -29,6 +30,7 @@ export function ForgotPasswordForm() {
       return;
     }
 
+    track("password_reset_requested");
     setSent(true);
     setPending(false);
   }

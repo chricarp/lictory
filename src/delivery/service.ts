@@ -95,6 +95,7 @@ type Options = {
   providers?: DeliveryProviders;
   appUrl?: string;
   now?: () => Date;
+  onPublicationCompleted?: (publication: Publication) => void;
 };
 
 type ItemRow = typeof s.workItem.$inferSelect;
@@ -1128,6 +1129,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           : ok === 0
             ? ("failed" as const)
             : ("partial" as const);
+      let completed: Publication | undefined;
       await db.transaction(async (tx) => {
         const [finished] = await tx
           .update(s.deliveryPublication)
@@ -1143,8 +1145,18 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           )
           .returning();
         // The requester hears once, when the run settles.
-        if (done && finished) await notifyExport(tx, finished, status);
+        if (done && finished) {
+          await notifyExport(tx, finished, status);
+          completed = finished;
+        }
       });
+      if (completed) {
+        try {
+          options.onPublicationCompleted?.(completed);
+        } catch {
+          // Observability cannot fail a settled export.
+        }
+      }
       return current(publicationId);
     },
 

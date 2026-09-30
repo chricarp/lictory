@@ -190,11 +190,34 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // Personal settings leave the organization shell without losing the return
   // destination.
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("link", { name: "Account settings" }).click();
+  // Hold the account response to exercise navigation while the menu's Link
+  // is still pending. Closing the popover eagerly unmounts that Link.
+  let releaseAccount!: () => void;
+  const accountResponse = new Promise<void>((resolve) => {
+    releaseAccount = resolve;
+  });
+  let accountRequested!: () => void;
+  const accountRequest = new Promise<void>((resolve) => {
+    accountRequested = resolve;
+  });
+  await page.route("**/app/account?**", async (route) => {
+    accountRequested();
+    await accountResponse;
+    await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: "Account menu" }).click();
+    const accountLink = page.getByRole("link", { name: "Account settings" });
+    await accountLink.click();
+    await accountRequest;
+    await expect(accountLink).toBeVisible();
+  } finally {
+    releaseAccount();
+  }
   await expect(page).toHaveURL(
     `http://localhost:3001${paths.account(workspacePath)}`,
   );
+  await page.unroute("**/app/account?**");
   await page.getByRole("link", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(`http://localhost:3001${workspacePath}`);
 

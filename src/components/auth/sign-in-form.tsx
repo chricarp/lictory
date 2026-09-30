@@ -9,6 +9,7 @@ import { PasswordInput } from "~/components/auth/password-field";
 import { Button } from "~/components/ui/button";
 import { authClient } from "~/lib/auth-client";
 import { formValue } from "~/lib/utils";
+import { identifyUser, track } from "~/lib/analytics/client";
 
 export function SignInForm({ callbackURL }: { callbackURL: string }) {
   const router = useRouter();
@@ -25,6 +26,7 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
     const password = formValue(formData, "password");
     const rememberMe = formData.get("rememberMe") === "on";
 
+    track("sign_in_submitted", { method: "email" });
     const result = await authClient.signIn.email({
       email,
       password,
@@ -33,6 +35,10 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
     });
 
     if (result.error) {
+      track("sign_in_failed", {
+        method: "email",
+        status_code: result.error.status ?? 0,
+      });
       setError(
         result.error.status === 403
           ? "Verify your email before signing in. We sent you a new verification link."
@@ -42,6 +48,8 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
       setPending(false);
       return;
     }
+
+    if (result.data?.user.id) identifyUser(result.data.user.id);
 
     router.push(callbackURL);
     router.refresh();
