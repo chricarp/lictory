@@ -74,3 +74,25 @@ and is not required for server correctness. When browser storage is unavailable,
 the current tab can still complete setup and retry with its in-memory mutation.
 The empty first project points to creating a proposal, inviting teammates and
 assigning roles, reviewing team choices, and configuring Jira when necessary.
+
+## Invitation delivery
+
+Administrators invite by email or an exact platform username (with or without
+`@`). Username resolution happens on the server after invitation permissions are
+checked. The invitation remains bound to the account’s email; acceptance still
+requires an authenticated account with that address. The response does not expose
+the address behind a username.
+
+Invitations are Better Auth membership operations, outside workspace command
+receipts. Email delivery uses the shared SMTP/Resend transport and is awaited.
+Existing accounts receive a sign-in invitation; new people receive account
+creation instructions. The invitation destination survives account creation,
+verification, social authentication, and handle selection. No account is
+provisioned and no membership is granted until the recipient accepts.
+
+Better Auth persists an invitation before sending its email. A delivery failure
+is reported to the sender, who can retry the same recipient; a pending invitation
+is reused and its expiration renewed. Resend delivery keys include the invitation
+and renewed expiration. SMTP message IDs identify attempts but do not guarantee
+provider deduplication. Invitation emails are transactional and independent of
+review notification preferences.

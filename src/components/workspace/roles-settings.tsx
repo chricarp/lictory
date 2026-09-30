@@ -4,7 +4,6 @@ import {
   Archive,
   ArchiveRestore,
   ChevronDown,
-  Link2,
   Plus,
   ShieldCheck,
   UserPlus,
@@ -185,7 +184,7 @@ export function People() {
 // Invitation form. Lives inside Members so "who is here" and "who should be
 // here" share one context. Invitations are Better Auth operations.
 function Invite({ organizationId }: { organizationId: string }) {
-  const [email, setEmail] = useState("");
+  const [recipient, setRecipient] = useState("");
   const [url, setUrl] = useState<string>();
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -196,30 +195,50 @@ function Invite({ organizationId }: { organizationId: string }) {
         e.preventDefault();
         setError(undefined);
         setPending(true);
-        const result = await authClient.organization.inviteMember({
-          organizationId,
-          email: email.trim(),
-          role: "member",
-        });
-        setPending(false);
-        if (result.error) return setError(result.error.message);
-        setUrl(`${window.location.origin}/app/invitation?id=${result.data.id}`);
+        setUrl(undefined);
+        try {
+          const response = await fetch("/api/invitations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ organizationId, recipient }),
+          });
+          const result = (await response.json()) as {
+            id?: string;
+            error?: { message?: string };
+          };
+          if (!response.ok || !result.id)
+            throw new Error(
+              result.error?.message ?? "Could not send the invitation.",
+            );
+          setUrl(`${window.location.origin}/app/invitation?id=${result.id}`);
+        } catch (error) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Could not send the invitation. Try again.",
+          );
+        } finally {
+          setPending(false);
+        }
       }}
     >
       <label className="block text-[13px] font-medium">
         <span className="inline-flex items-center gap-1.5">
-          <Link2 className="size-3.5 text-muted-foreground" />
+          <UserPlus className="size-3.5 text-muted-foreground" />
           Invite a teammate
         </span>
         <div className="mt-1.5 flex gap-2">
           <Input
             className="h-8 max-w-sm rounded-md text-sm"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@company.com"
+            type="text"
+            value={recipient}
+            onChange={(e) => {
+              setRecipient(e.target.value);
+              setUrl(undefined);
+            }}
+            placeholder="Email or @username"
             required
-            aria-label="Teammate email"
+            aria-label="Teammate email or username"
           />
           <Button
             type="submit"
@@ -227,14 +246,14 @@ function Invite({ organizationId }: { organizationId: string }) {
             variant="secondary"
             disabled={pending}
           >
-            {pending ? "Creating…" : "Create link"}
+            {pending ? "Sending…" : "Send invitation"}
           </Button>
         </div>
       </label>
       <InlineError>{error}</InlineError>
       {url && (
         <label className="block text-xs text-muted-foreground">
-          Invitation link — share it; they must sign in with this email.
+          Invitation email sent. You can also share this link.
           <input
             className="mt-1.5 w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs"
             readOnly

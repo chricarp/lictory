@@ -10,7 +10,7 @@ import { authClient } from "~/lib/auth-client";
 import { formValue } from "~/lib/utils";
 import { identifyUser, track } from "~/lib/analytics/client";
 
-export function SignUpForm() {
+export function SignUpForm({ callbackURL = "/app" }: { callbackURL?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -35,7 +35,7 @@ export function SignUpForm() {
       name: formValue(formData, "name"),
       email,
       password,
-      callbackURL: "/verify-email?verified=1",
+      callbackURL: `/verify-email?verified=1&callbackUrl=${encodeURIComponent(callbackURL)}`,
     });
 
     if (result.error) {
@@ -50,7 +50,9 @@ export function SignUpForm() {
 
     if (result.data?.user.id) identifyUser(result.data.user.id);
 
-    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+    router.push(
+      `/verify-email?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackURL)}`,
+    );
   }
 
   return (

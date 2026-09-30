@@ -17,10 +17,12 @@ export function VerificationStatus({
   email,
   verified,
   errorCode,
+  callbackURL = "/app",
 }: {
   email?: string;
   verified: boolean;
   errorCode?: string;
+  callbackURL?: string;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -30,7 +32,7 @@ export function VerificationStatus({
     setPending(true);
     const result = await authClient.sendVerificationEmail({
       email,
-      callbackURL: "/verify-email?verified=1",
+      callbackURL: `/verify-email?verified=1&callbackUrl=${encodeURIComponent(callbackURL)}`,
     });
     if (!result.error) track("verification_email_requested");
     setMessage(
@@ -48,7 +50,7 @@ export function VerificationStatus({
           title="Email verified"
           description="Your account is ready. Continue into your workspace."
         />
-        <Link href="/app" className="contents">
+        <Link href={callbackURL} className="contents">
           <Button size="lg" className="w-full">
             Open workspace
           </Button>
@@ -96,7 +98,11 @@ export function VerificationStatus({
         ) : null}
       </div>
       <AuthFooter>
-        <AuthLink href="/sign-in">Back to sign in</AuthLink>
+        <AuthLink
+          href={`/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`}
+        >
+          Back to sign in
+        </AuthLink>
       </AuthFooter>
     </>
   );

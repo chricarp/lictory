@@ -181,8 +181,9 @@ export function OnboardingEntry({
                 <h2 className="text-sm font-medium">No invitation yet</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Ask your organization’s administrator to invite the email
-                  address above and share the invitation link. Keep this page
-                  open; we check every 30 seconds while it’s visible.
+                  address above or your username. We’ll email you an invitation.
+                  Keep this page open; we check every 30 seconds while it’s
+                  visible.
                 </p>
                 <p className="mt-3 text-xs text-muted-foreground">
                   Using a different email? You can sign out from your account

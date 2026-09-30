@@ -440,8 +440,8 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // Invite the engineer so they can review.
   await page.getByRole("link", { name: "Organization settings" }).click();
-  await page.getByLabel("Teammate email").fill(reviewerEmail);
-  await page.getByRole("button", { name: "Create link" }).click();
+  await page.getByLabel("Teammate email or username").fill("@riley_chen");
+  await page.getByRole("button", { name: "Send invitation" }).click();
   const invitation = await page
     .getByLabel("Invitation link", { exact: true })
     .inputValue();

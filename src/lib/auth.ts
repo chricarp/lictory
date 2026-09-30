@@ -6,6 +6,9 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 
 import { db } from "~/db";
+import { eq } from "drizzle-orm";
+import { createInvitationEmail } from "~/emails/invitation-email";
+import { sendEmail } from "~/lib/mailer";
 import * as schema from "~/db/auth-schema";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 
@@ -187,6 +190,38 @@ export const auth = betterAuth({
   plugins: [
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
+      sendInvitationEmail: async ({
+        id,
+        email,
+        organization,
+        inviter,
+        invitation,
+      }) => {
+        const [existing] = await db
+          .select({ id: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.email, email))
+          .limit(1);
+        const destination = `/app/invitation?id=${encodeURIComponent(id)}`;
+        const actionUrl = new URL(
+          existing ? "/sign-in" : "/sign-up",
+          process.env.BETTER_AUTH_URL,
+        );
+        actionUrl.searchParams.set("callbackUrl", destination);
+        const rendered = createInvitationEmail({
+          to: email,
+          inviterName: inviter.user.name,
+          organizationName: organization.name,
+          existingUser: Boolean(existing),
+          actionUrl: actionUrl.toString(),
+          expiresAt: invitation.expiresAt,
+        });
+        await sendEmail({
+          to: email,
+          ...rendered,
+          idempotencyKey: `lictory-invitation-${id}-${invitation.expiresAt.getTime()}`,
+        });
+      },
       organizationHooks: {
         // Every organization starts with Product, Engineering and QA roles and
         // its creator (the first administrator) in Product.
