@@ -1147,6 +1147,50 @@ Do not lie with a single success/failure boolean when reality is more complicate
 
 # Verification
 
+## Required final CI verification
+
+At the end of every change, before pushing commits or opening or updating a pull
+request, run the complete verification sequence from
+[the CI workflow](.github/workflows/ci.yml) against the final working tree. This
+is mandatory for AI agents, including documentation-only changes. Targeted tests
+during implementation do not replace this final step.
+
+Read the workflow each time; its `verify` job is the source of truth. Execute
+every `run` command in order, with the same arguments and equivalent test
+environment. The current sequence is:
+
+```sh
+bun install --frozen-lockfile
+bun audit --audit-level=high
+bun run check
+bun run db:migrate
+bun test src
+bunx playwright install --with-deps chromium
+bun run test:e2e
+```
+
+Provide the workflow's PostgreSQL and Mailpit services locally (see
+`compose.yaml`) and use its test authentication and SMTP settings. For the
+migration step, create a new disposable database and point `DATABASE_URL` and
+`DATABASE_URL_UNPOOLED` at it. Set `SCHEMA_TEST_DATABASE_URL` to the test
+PostgreSQL admin database so the schema and browser suites can create their own
+isolated databases. Never run this verification's migrations against the
+developer's application database or a production database. Clean up the
+disposable database afterward, including on failure. Production migrations and
+scheduled jobs are separate workflows and are not local verification commands.
+
+If any command fails, fix the cause and rerun the sequence on the final changes.
+Do not skip checks, substitute a filtered suite, lower the audit threshold, or
+push/open/update a PR while checks are failing. If a required service or tool is
+unavailable, report the exact blocker and leave the push/PR step pending. Do not
+alter unrelated user edits just to make verification pass.
+
+Report the commands run and their results in the final response and PR
+description. If the CI workflow changes, update the command list above in the
+same change so the instructions remain aligned.
+
+## Behavior verification
+
 Use the smallest proof that demonstrates the behavior is correct.
 
 Prioritize tests for domain behavior.
