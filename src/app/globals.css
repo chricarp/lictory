@@ -266,3 +266,41 @@
 .lictory-enter-delay-3 {
   animation-delay: 300ms;
 }
+
+/* Infrequent setup transitions explain progression without delaying interaction. */
+.onboarding button {
+  transition:
+    transform 150ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
+}
+.onboarding button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.onboarding-step {
+  animation: onboarding-enter 300ms ease-out both;
+}
+.onboarding-preview {
+  animation: onboarding-enter 500ms ease-out both;
+}
+@keyframes onboarding-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding *,
+  .onboarding *::before,
+  .onboarding *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .onboarding button:active:not(:disabled) {
+    transform: none;
+  }
+}

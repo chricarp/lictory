@@ -664,12 +664,39 @@ const projectKey = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z][A-Z0-9]{1,9}$/, "Use 2-10 letters or digits, e.g. PAY.");
+export const onboardingSetupSchema = z
+  .object({
+    teamId: id,
+    teamName: text.max(60),
+    deliveryMode: z.enum(deliveryModes),
+    readinessPolicy: z.enum(readinessPolicies),
+    estimateScale: z.enum(estimateScales),
+    iterationMode: z.enum(iterationModes),
+    iterationWeeks: z.number().int().min(1).max(8),
+    iterationStartDay: z.number().int().min(0).max(6),
+    acceptStarterConfiguration: z.literal(true),
+    deferInvitations: z.literal(true),
+    deferIntegration: z.literal(true),
+    deferAdvancedConfiguration: z.literal(true),
+  })
+  .refine(
+    (s) =>
+      s.deliveryMode !== "external" ||
+      (s.iterationMode === "off" && s.estimateScale === "none"),
+    {
+      message:
+        "External teams plan and estimate delivery in their delivery tool.",
+    },
+  );
+export type OnboardingSetup = z.infer<typeof onboardingSetupSchema>;
+
 export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createProject"),
     projectId: z.uuid(),
     name: text.max(120),
     key: projectKey,
+    setup: onboardingSetupSchema.optional(),
   }),
   z.object({
     type: z.literal("updateProject"),

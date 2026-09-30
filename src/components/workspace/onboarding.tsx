@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layers3 } from "lucide-react";
+import { OnboardingEntry } from "./onboarding-entry";
+import { OnboardingFrame, OnboardingHeading } from "./onboarding-frame";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -19,39 +20,22 @@ export function Onboarding({
   userName?: string;
   canCreate?: boolean;
 }) {
-  return (
-    <main className="mx-auto max-w-md px-6 py-20">
-      <Layers3 className="mb-5 size-7 text-primary" />
-      {step === "organization" ? (
-        <>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {userName ? `Welcome, ${userName.split(" ")[0]}.` : "Welcome."}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Create an organization for your team. You can invite people and add
-            projects afterwards.
-          </p>
-          <CreateOrganization />
-        </>
+  return step === "organization" ? (
+    <OnboardingEntry userName={userName} />
+  ) : (
+    <OnboardingFrame stage={1}>
+      <OnboardingHeading title="Add a project">
+        Your team’s configuration is already in place. Choose a project name and
+        a lasting key for its item identifiers.
+      </OnboardingHeading>
+      {canCreate ? (
+        <CreateProject />
       ) : (
-        <>
-          <h1 className="text-xl font-semibold tracking-tight">
-            Add your first project
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            A project groups Epics and Stories. Its key prefixes every item
-            identifier, like <span className="font-mono">PAY-142</span>.
-          </p>
-          {canCreate ? (
-            <CreateProject />
-          ) : (
-            <p className="mt-6 text-sm text-muted-foreground">
-              An organization administrator needs to create the first project.
-            </p>
-          )}
-        </>
+        <p className="text-sm text-muted-foreground">
+          Ask an organization administrator to create a project.
+        </p>
       )}
-    </main>
+    </OnboardingFrame>
   );
 }
 
@@ -72,14 +56,23 @@ export function CreateOrganization() {
         if (!submitted) return;
         setPending(true);
         setError(undefined);
-        const result = await authClient.organization.create({
-          name: submitted,
-          slug: `${slugify(submitted) || "org"}-${crypto.randomUUID().slice(0, 6)}`,
-        });
-        setPending(false);
-        if (result.error) return setError(result.error.message);
-        router.push(paths.org(result.data.slug));
-        router.refresh();
+        try {
+          const result = await authClient.organization.create({
+            name: submitted,
+            slug: `${slugify(submitted) || "org"}-${crypto.randomUUID().slice(0, 6)}`,
+          });
+          if (result.error) throw new Error(result.error.message);
+          router.push(paths.org(result.data.slug));
+          router.refresh();
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not create organization. Try again.",
+          );
+        } finally {
+          setPending(false);
+        }
       }}
     >
       <label className="block text-sm font-medium">
@@ -90,6 +83,8 @@ export function CreateOrganization() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          maxLength={120}
+          placeholder="Your company or workspace"
           autoFocus
         />
       </label>
@@ -99,7 +94,7 @@ export function CreateOrganization() {
         </p>
       )}
       <Button type="submit" size="lg" disabled={pending}>
-        Create organization
+        {pending ? "Creating organization…" : "Create organization"}
       </Button>
     </form>
   );

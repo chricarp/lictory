@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+import { project } from "~/db/domain-schema";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -6,6 +8,8 @@ import { db } from "~/db";
 import { directory } from "~/sync/server/service";
 import { directorySchema } from "~/sync/shared/protocol";
 import { WorkspaceProvider } from "~/components/workspace/provider";
+import { OnboardingSetup } from "~/components/workspace/onboarding-setup";
+import { applicationRoleOf } from "~/sync/shared/protocol";
 import { Shell } from "~/components/workspace/shell";
 
 // Inside a workspace the Shell renders the document title from live client
@@ -26,6 +30,16 @@ export default async function OrganizationLayout({
   const roster = directorySchema.parse(
     await directory(db, session.user.id, organization.id),
   );
+  // Archived projects still prove that the organization was configured.
+  const needsSetup =
+    !roster.projects.length &&
+    !(
+      await db
+        .select({ id: project.id })
+        .from(project)
+        .where(eq(project.organizationId, organization.id))
+        .limit(1)
+    ).length;
   return (
     <WorkspaceProvider
       key={organization.id}
@@ -33,15 +47,21 @@ export default async function OrganizationLayout({
       organization={organization}
       initialDirectory={roster}
     >
-      <Shell
-        user={{
-          name: session.user.name,
-          email: session.user.email,
-          handle: session.user.handle ?? null,
-        }}
-      >
-        {children}
-      </Shell>
+      {needsSetup ? (
+        <OnboardingSetup
+          canCreate={applicationRoleOf(organization.role) === "admin"}
+        />
+      ) : (
+        <Shell
+          user={{
+            name: session.user.name,
+            email: session.user.email,
+            handle: session.user.handle ?? null,
+          }}
+        >
+          {children}
+        </Shell>
+      )}
     </WorkspaceProvider>
   );
 }
