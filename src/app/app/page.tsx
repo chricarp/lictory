@@ -5,9 +5,9 @@ import { auth } from "~/lib/auth";
 import { db } from "~/db";
 import { directory } from "~/sync/server/service";
 import { paths } from "~/lib/paths";
-import { Onboarding } from "~/components/workspace/onboarding";
+import { OnboardingEntry } from "~/components/workspace/onboarding-entry";
 
-export const metadata: Metadata = { title: "Create your organization" };
+export const metadata: Metadata = { title: "Welcome to Lictory" };
 
 // Entry point: land in the first organization, or create one.
 export default async function AppIndex() {
@@ -16,5 +16,19 @@ export default async function AppIndex() {
   const initial = await directory(db, session.user.id);
   const organization = initial.organizations[0];
   if (organization) redirect(paths.org(organization.slug));
-  return <Onboarding step="organization" userName={session.user.name} />;
+  const invitations = await auth.api.listUserInvitations({
+    headers: await headers(),
+  });
+  // This authenticated server page evaluates invitation expiry per request.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
+  return (
+    <OnboardingEntry
+      userName={session.user.name}
+      email={session.user.email}
+      invitations={invitations.filter(
+        (i) => i.status === "pending" && i.expiresAt.getTime() > now,
+      )}
+    />
+  );
 }

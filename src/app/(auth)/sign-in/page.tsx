@@ -37,7 +37,12 @@ export default async function SignInPage({
       <SocialButtons providers={authProviders} callbackURL={callbackURL} />
       <SignInForm callbackURL={callbackURL} />
       <AuthFooter>
-        New to Lictory? <AuthLink href="/sign-up">Create an account</AuthLink>
+        New to Lictory?{" "}
+        <AuthLink
+          href={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
+        >
+          Create an account
+        </AuthLink>
       </AuthFooter>
     </>
   );

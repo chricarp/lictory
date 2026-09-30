@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { paths } from "~/lib/paths";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -89,6 +91,8 @@ export function IssueList({
     milestones: allMilestones,
     capabilities,
     delivery,
+    isAdmin,
+    directory,
   } = useWorkspace();
   const { openCreate } = useShell();
   const canCreate = capabilities.editSpecifications;
@@ -558,6 +562,50 @@ export function IssueList({
             {activeFilterCount || filters.search
               ? "Adjust the filters to see more."
               : emptyBody}
+            {!activeFilterCount &&
+              !filters.search &&
+              !compact &&
+              createKind === "epic" &&
+              project &&
+              !allItems.some((i) => i.projectId === project.id) &&
+              isAdmin && (
+                <span className="mt-5 block text-left text-xs leading-relaxed">
+                  <span className="block font-medium text-foreground">
+                    Your next steps
+                  </span>
+                  <span className="mt-2 block">
+                    Start with a rough proposal. Request reviews when you’re
+                    ready; revisions and discussions keep everyone’s context.
+                  </span>
+                  {directory.members.length === 1 && (
+                    <Link
+                      href={`${paths.settings(organization.slug)}#people`}
+                      className="mt-3 block text-primary hover:underline"
+                    >
+                      Invite teammates and assign their roles →
+                    </Link>
+                  )}
+                  {delivery.teams.get(project.defaultTeamId ?? "")
+                    ?.deliveryMode === "external" &&
+                    !directory.delivery.targets.length && (
+                      <Link
+                        href={`${paths.settings(organization.slug)}#jira`}
+                        className="mt-3 block text-primary hover:underline"
+                      >
+                        Connect Jira and choose a project before exporting →
+                      </Link>
+                    )}
+                  <Link
+                    href={paths.teamSettings(
+                      organization.slug,
+                      project.defaultTeamId ?? "",
+                    )}
+                    className="mt-3 block text-primary hover:underline"
+                  >
+                    Revisit your team’s delivery choices →
+                  </Link>
+                </span>
+              )}
           </EmptyState>
         ) : (
           <ul ref={listRef}>

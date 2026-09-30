@@ -1555,6 +1555,35 @@ export function createSyncService(
                 "validation",
                 `The key ${c.key} is already used by another project.`,
               );
+            if (c.setup) {
+              const previousSetup = await tx
+                .select({ id: s.organizationOnboarding.organizationId })
+                .from(s.organizationOnboarding)
+                .where(
+                  eq(s.organizationOnboarding.organizationId, organizationId),
+                )
+                .limit(1);
+              require(!roster.projects.length &&
+                !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.");
+              const setupTeam = teamOf(c.setup.teamId);
+              require(!setupTeam.archivedAt, "Choose an active team.");
+              await applyTeamCommand(
+                tx,
+                { organizationId, userId, admin, capabilities, roster },
+                {
+                  type: "updateTeam",
+                  teamId: setupTeam.id,
+                  name: c.setup.teamName,
+                  deliveryMode: c.setup.deliveryMode,
+                  readinessPolicy: c.setup.readinessPolicy,
+                  estimateScale: c.setup.estimateScale,
+                  iterationMode: c.setup.iterationMode,
+                  iterationWeeks: c.setup.iterationWeeks,
+                  iterationStartDay: c.setup.iterationStartDay,
+                  upcomingIterations: 2,
+                },
+              );
+            }
             await tx.insert(s.project).values({
               id: projectId,
               organizationId,
@@ -1562,9 +1591,19 @@ export function createSyncService(
               slug: c.key.toLowerCase(),
               key: c.key,
               defaultTeamId:
-                roster.teams.find((t) => !t.archivedAt)?.id ?? null,
+                c.setup?.teamId ??
+                roster.teams.find((t) => !t.archivedAt)?.id ??
+                null,
               createdById: userId,
             });
+            if (c.setup)
+              await tx.insert(s.organizationOnboarding).values({
+                organizationId,
+                projectId,
+                teamId: c.setup.teamId,
+                decidedById: userId,
+                decisions: c.setup,
+              });
             break;
           }
           case "updateProject":

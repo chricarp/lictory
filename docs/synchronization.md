@@ -305,3 +305,12 @@ CRDT editing, multiplayer cursors, service-worker offline
 launch, log compaction, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. No production UI pretends
 these deferred capabilities exist.
+
+## Initial workspace setup
+
+Guided onboarding carries explicit team configuration and accepted/deferred setup
+decisions on the first `createProject` command. Its team changes, optional automatic
+cycles, project, historical `organization_onboarding` decision record, change log
+and receipt share the existing authorized organization transaction. The setup
+snapshot is not current configuration and is never used as a client checkpoint.
+See [onboarding.md](onboarding.md) for the decision and recovery semantics.

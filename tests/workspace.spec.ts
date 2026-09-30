@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
+import { configureFirstProject } from "./onboarding-helpers";
 import { paths } from "../src/lib/paths";
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
@@ -60,12 +61,22 @@ test("an existing member can create and switch to another organization", async (
   await expect(page).toHaveURL(/\/app$/);
   await page.goto("/welcome");
   await expect(page).toHaveURL(/\/app$/);
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
   await page.getByLabel("Organization name").fill("First Team");
   await page.getByRole("button", { name: "Create organization" }).click();
   await expect(
     page.getByRole("heading", { name: "Add your first project" }),
   ).toBeVisible();
   const firstOrganization = new URL(page.url()).pathname;
+  await page.getByLabel("Project name").fill("First project");
+  await page.getByLabel("Key", { exact: true }).fill("ONE");
+  await configureFirstProject(page);
+  await page
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/one\/epics$/);
 
   await page.getByRole("button", { name: "First Team" }).first().click();
   await page.getByRole("link", { name: "Create organization" }).click();
@@ -76,10 +87,17 @@ test("an existing member can create and switch to another organization", async (
     page.getByRole("heading", { name: "Add your first project" }),
   ).toBeVisible();
   expect(new URL(page.url()).pathname).not.toBe(firstOrganization);
+  await page.getByLabel("Project name").fill("Second project");
+  await page.getByLabel("Key", { exact: true }).fill("TWO");
+  await configureFirstProject(page);
+  await page
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/two\/epics$/);
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
-  await expect(page).toHaveURL(new RegExp(`${firstOrganization}$`));
+  await expect(page).toHaveURL(new RegExp(`${firstOrganization}/one/epics$`));
 });
 async function signIn(page: Page, loginEmail = email) {
   await page.goto("/sign-in");
@@ -175,13 +193,17 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
   test.setTimeout(180_000);
   await signIn(page);
   // Onboarding: organization, then project with a key.
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
   await page.getByLabel("Organization name").fill("Northstar");
   await page
     .getByRole("button", { name: "Create organization", exact: true })
     .click();
   await page.getByLabel("Project name").fill("Payments");
   await expect(page.getByLabel("Key")).toHaveValue("PAYM");
-  await page.getByLabel("Key").fill("PAY");
+  await page.getByLabel("Key", { exact: true }).fill("PAY");
+  await configureFirstProject(page);
   await page
     .getByRole("button", { name: "Create project", exact: true })
     .click();
@@ -418,8 +440,8 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
 
   // Invite the engineer so they can review.
   await page.getByRole("link", { name: "Organization settings" }).click();
-  await page.getByLabel("Teammate email").fill(reviewerEmail);
-  await page.getByRole("button", { name: "Create link" }).click();
+  await page.getByLabel("Teammate email or username").fill("@riley_chen");
+  await page.getByRole("button", { name: "Send invitation" }).click();
   const invitation = await page
     .getByLabel("Invitation link", { exact: true })
     .inputValue();
@@ -802,7 +824,8 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByLabel("Organization name").fill("Delivery Co");
   await page.getByRole("button", { name: "Create organization" }).click();
   await page.getByLabel("Project name").fill("Checkout");
-  await page.getByLabel("Key").fill("CHK");
+  await page.getByLabel("Key", { exact: true }).fill("CHK");
+  await configureFirstProject(page, "native", "manual");
   await page
     .getByRole("button", { name: "Create project", exact: true })
     .click();

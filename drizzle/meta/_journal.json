@@ -36,6 +36,13 @@
       "when": 1790635898909,
       "tag": "0004_smooth_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790779622534,
+      "tag": "0005_guided_onboarding",
+      "breakpoints": true
     }
   ]
 }

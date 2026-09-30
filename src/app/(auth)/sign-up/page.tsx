@@ -8,17 +8,29 @@ import {
 import { SignUpForm } from "~/components/auth/sign-up-form";
 import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
+import { safeAppPath } from "~/lib/paths";
 
 export const metadata: Metadata = { title: "Create your account" };
 
-export default function SignUpPage() {
+export default async function SignUpPage({
+  searchParams,
+}: PageProps<"/sign-up">) {
+  const params = await searchParams;
+  const callbackURL = safeAppPath(
+    typeof params.callbackUrl === "string" ? params.callbackUrl : null,
+  );
   return (
     <>
       <AuthHeading title="Create your account" />
-      <SocialButtons providers={authProviders} callbackURL="/app" />
-      <SignUpForm />
+      <SocialButtons providers={authProviders} callbackURL={callbackURL} />
+      <SignUpForm callbackURL={callbackURL} />
       <AuthFooter>
-        Already have an account? <AuthLink href="/sign-in">Sign in</AuthLink>
+        Already have an account?{" "}
+        <AuthLink
+          href={`/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`}
+        >
+          Sign in
+        </AuthLink>
       </AuthFooter>
     </>
   );

@@ -15,6 +15,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { OnboardingSetup } from "../sync/shared/protocol";
 import { organization, user } from "./auth-schema";
 
 // Keep IDs compatible with Better Auth's text IDs; domain IDs are UUID strings.
@@ -1424,5 +1425,31 @@ export const deliveryPublication = pgTable(
       t.projectId,
       t.createdAt,
     ),
+  ],
+);
+
+// The initial setup is an auditable human decision, committed with the project.
+// This snapshot is historical; current configuration remains on teams/projects.
+export const organizationOnboarding = pgTable(
+  "organization_onboarding",
+  {
+    organizationId: organizationId().primaryKey(),
+    projectId: text("project_id").notNull(),
+    teamId: text("team_id").notNull(),
+    decidedById: actor("decided_by_id"),
+    decisions: jsonb("decisions").$type<OnboardingSetup>().notNull(),
+    completedAt: timestamp("completed_at").defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "onboarding_project_fk",
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "onboarding_team_fk",
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
   ],
 );
