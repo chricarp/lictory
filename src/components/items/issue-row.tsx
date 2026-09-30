@@ -114,7 +114,7 @@ export const IssueRow = memo(function IssueRow({
       )}
       {!compact && parent && (
         <span
-          className="hidden max-w-[180px] items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
+          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
           title={parent.title}
         >
           <TypeIcon
