@@ -54,8 +54,11 @@ import { EpicStories } from "./epic-stories";
 import { InlineTitle } from "./inline-title";
 import { WorkItemListToggle } from "./split-view";
 import { Discussions } from "~/components/review/threads";
-import { Suggestions } from "~/components/review/suggestions";
-import { SuggestionView } from "~/components/review/suggestion-view";
+import {
+  BranchEntry,
+  BranchWorkspace,
+  type BranchScreen,
+} from "~/components/review/branch-workspace";
 import { ReviewPanel } from "~/components/review/review-panel";
 import { Readiness } from "~/components/review/readiness";
 import { Activity } from "~/components/review/activity";
@@ -70,8 +73,7 @@ import {
 export type DetailMode =
   | { kind: "read" }
   | { kind: "edit" }
-  | { kind: "suggest" }
-  | { kind: "suggestion"; id: string }
+  | BranchScreen
   | { kind: "compare"; from: string; to: string };
 
 const seenKey = (id: string) => `lictory:seen:${id}`;
@@ -128,11 +130,20 @@ export function ItemDetail({
     roleName: workspace.roleName,
     capabilities: workspace.capabilities,
     mutate: itemEngine.engine ? itemEngine.mutate : workspace.mutate,
+    mutateConfirmed: (command) =>
+      (itemEngine.engine ?? workspace.engine).mutateConfirmed(command),
   });
-  // A suggestion under review is linkable: `?suggestion=<id>` opens it.
+  // Branch and pull request workspaces are linkable and survive navigation.
   const [mode, setModeState] = useState<DetailMode>(() => {
-    const id = searchParams.get("suggestion");
-    return id ? { kind: "suggestion", id } : { kind: "read" };
+    const pr = searchParams.get("pr"),
+      branch = searchParams.get("branch");
+    return pr
+      ? { kind: "pr", id: pr }
+      : branch
+        ? { kind: "branch", id: branch }
+        : searchParams.has("branches")
+          ? { kind: "branches" }
+          : { kind: "read" };
   });
   const setMode = useCallback(
     (next: DetailMode) => {
@@ -144,8 +155,13 @@ export function ItemDetail({
       });
       setModeState(next);
       const params = new URLSearchParams(searchParams.toString());
-      if (next.kind === "suggestion") params.set("suggestion", next.id);
-      else params.delete("suggestion");
+      params.delete("suggestion");
+      params.delete("pr");
+      params.delete("branch");
+      params.delete("branches");
+      if (next.kind === "pr") params.set("pr", next.id);
+      if (next.kind === "branch") params.set("branch", next.id);
+      if (next.kind === "branches") params.set("branches", "1");
       const query = params.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, {
         scroll: false,
@@ -160,6 +176,30 @@ export function ItemDetail({
       item.id,
     ],
   );
+  const queryPR = searchParams.get("pr"),
+    queryBranch = searchParams.get("branch"),
+    queryBranches = searchParams.has("branches");
+  useEffect(() => {
+    // Keep browser back/forward and incoming PR links aligned with the surface.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setModeState((current) => {
+      const next: DetailMode = queryPR
+        ? { kind: "pr", id: queryPR }
+        : queryBranch
+          ? { kind: "branch", id: queryBranch }
+          : queryBranches
+            ? { kind: "branches" }
+            : { kind: "read" };
+      if (
+        next.kind === current.kind &&
+        (!("id" in next) || ("id" in current && next.id === current.id))
+      )
+        return current;
+      return next;
+    });
+  }, [queryPR, queryBranch, queryBranches]);
+  const branchScreen =
+    mode.kind === "branch" || mode.kind === "pr" || mode.kind === "branches";
   const [panelOpen, setPanelOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportAvailability = useExportAvailability(item);
@@ -580,8 +620,14 @@ export function ItemDetail({
         </header>
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl px-6 py-6 lg:px-10">
-              {changedSinceSeen && mode.kind !== "compare" && (
+            <div
+              className={
+                branchScreen
+                  ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
+                  : "mx-auto max-w-3xl px-6 py-6 lg:px-10"
+              }
+            >
+              {changedSinceSeen && !branchScreen && mode.kind !== "compare" && (
                 <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
                   <GitCompareArrows className="size-4 text-primary" />
                   <span>
@@ -613,31 +659,42 @@ export function ItemDetail({
                   </Button>
                 </div>
               )}
-              <InlineTitle />
-              <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
-                <IssueStatus
-                  teamId={item.teamId}
-                  statusId={item.statusId}
-                  onChange={
-                    canChange ? (statusId) => update({ statusId }) : undefined
-                  }
-                  hint={startHint}
-                />
-                <IssuePriority
-                  priority={item.priority}
-                  onChange={
-                    canChange ? (priority) => update({ priority }) : undefined
-                  }
-                />
-                <AssigneePicker
-                  assigneeId={item.assigneeId}
-                  onChange={
-                    canChange
-                      ? (assigneeId) => update({ assigneeId })
-                      : undefined
-                  }
-                />
-              </div>
+              {!branchScreen && ctx.reviewable && (
+                <BranchEntry onOpen={() => setMode({ kind: "branches" })} />
+              )}
+              {!branchScreen && <InlineTitle />}
+              {!branchScreen && (
+                <>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
+                    <IssueStatus
+                      teamId={item.teamId}
+                      statusId={item.statusId}
+                      onChange={
+                        canChange
+                          ? (statusId) => update({ statusId })
+                          : undefined
+                      }
+                      hint={startHint}
+                    />
+                    <IssuePriority
+                      priority={item.priority}
+                      onChange={
+                        canChange
+                          ? (priority) => update({ priority })
+                          : undefined
+                      }
+                    />
+                    <AssigneePicker
+                      assigneeId={item.assigneeId}
+                      onChange={
+                        canChange
+                          ? (assigneeId) => update({ assigneeId })
+                          : undefined
+                      }
+                    />
+                  </div>
+                </>
+              )}
               <div className="mt-6">
                 {mode.kind === "compare" ? (
                   <CompareRevisions
@@ -647,23 +704,23 @@ export function ItemDetail({
                       setMode({ kind: "compare", from, to })
                     }
                   />
-                ) : mode.kind === "suggestion" ? (
-                  <SuggestionView
-                    suggestionId={mode.id}
-                    onClose={() => setMode({ kind: "read" })}
+                ) : mode.kind === "branch" ||
+                  mode.kind === "pr" ||
+                  mode.kind === "branches" ? (
+                  <BranchWorkspace
+                    screen={mode}
+                    onNavigate={setMode}
+                    onMain={() => setMode({ kind: "read" })}
                   />
                 ) : (
                   <Specification
                     mode={mode.kind}
                     setMode={(kind) => setMode({ kind })}
                     onQuote={(quote, section) => setDraft({ quote, section })}
-                    onSuggestionCreated={(id) =>
-                      setMode({ kind: "suggestion", id })
-                    }
                   />
                 )}
               </div>
-              {mode.kind !== "suggestion" && (
+              {!branchScreen && (
                 <>
                   <section className="mt-10">
                     <EpicStories />
@@ -671,13 +728,6 @@ export function ItemDetail({
                   <section className="mt-10">
                     <Relations item={item} canChange={canChange} />
                   </section>
-                  {ctx.reviewable && (
-                    <section className="mt-10">
-                      <Suggestions
-                        onOpen={(id) => setMode({ kind: "suggestion", id })}
-                      />
-                    </section>
-                  )}
                   <section className="mt-10">
                     <Discussions draft={draft} onDraftChange={setDraft} />
                   </section>
@@ -697,9 +747,11 @@ export function ItemDetail({
               </section>
             </div>
           </div>
-          <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l bg-muted/20 xl:block">
-            {panel}
-          </aside>
+          {!branchScreen && (
+            <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l bg-muted/20 xl:block">
+              {panel}
+            </aside>
+          )}
           {panelOpen && (
             <div className="fixed inset-0 z-40 xl:hidden">
               <button

@@ -423,6 +423,100 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    case "branch_created":
+      body = (
+        <>
+          created branch <b>{str(d.branch)}</b> from {str(d.from)}
+        </>
+      );
+      break;
+    case "branch_committed":
+      body = (
+        <>
+          committed to <b>{str(d.branch)}</b> — {str(d.message)}
+        </>
+      );
+      break;
+    case "branch_deleted":
+      body = (
+        <>
+          deleted branch <b>{str(d.branch)}</b>
+        </>
+      );
+      break;
+    case "branch_collaborator_changed":
+      body = (
+        <>
+          {d.assigned ? "invited" : "removed"}{" "}
+          <b>{memberName(str(d.userId))}</b> {d.assigned ? "to" : "from"} branch{" "}
+          <b>{str(d.branch)}</b>
+        </>
+      );
+      break;
+    case "pull_request_created":
+      body = (
+        <>
+          opened {d.draft ? "draft " : ""}pull request <b>{str(d.title)}</b> ·{" "}
+          {str(d.source)} → {str(d.target)}
+        </>
+      );
+      break;
+    case "pull_request_deleted":
+      body = (
+        <>
+          deleted pull request <b>{str(d.title)}</b>
+        </>
+      );
+      break;
+    case "pull_request_merged":
+      body = (
+        <>
+          merged <b>{str(d.title)}</b> into {str(d.target)}
+        </>
+      );
+      break;
+    case "pull_request_review_requested":
+      body = (
+        <>
+          requested {str(d.role)} review of <b>{str(d.title)}</b>
+        </>
+      );
+      break;
+    case "pull_request_review_decided":
+      body = (
+        <>
+          {str(d.decision) === "approve"
+            ? "approved"
+            : str(d.decision) === "revoke"
+              ? "revoked their review of"
+              : "requested changes to"}{" "}
+          <b>{str(d.title)}</b> for {str(d.role)}
+        </>
+      );
+      break;
+    case "pull_request_draft_changed":
+      body = (
+        <>
+          {d.draft ? "converted to draft" : "marked ready for review"}:{" "}
+          <b>{str(d.title)}</b>
+        </>
+      );
+      break;
+    case "pull_request_approval_invalidated":
+      body = (
+        <>
+          invalidated approvals of <b>{str(d.title)}</b> by changing the merge
+          result
+        </>
+      );
+      break;
+    case "revision_restored":
+      body = (
+        <>
+          restored revision <b>{num(d.revision)}</b> as a new main revision
+        </>
+      );
+      break;
     default:
       body = <>{entry.action.replaceAll("_", " ")}</>;
   }

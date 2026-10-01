@@ -6,13 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  MessageSquarePlus,
-  Pencil,
-  PenLine,
-  Plus,
-  WandSparkles,
-} from "lucide-react";
+import { MessageSquarePlus, Pencil, PenLine, Plus } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { relativeTime } from "~/lib/work-items";
 import {
@@ -23,29 +17,25 @@ import {
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd, SectionLabel } from "~/components/ui/primitives";
-import { SuggestionDetailsFields } from "~/components/review/suggestion-details";
 import { Markdown } from "./markdown";
 import { RevisionDiff } from "./diff";
 import { useItem } from "./item-context";
 
-type Mode = "read" | "edit" | "suggest";
+type Mode = "read" | "edit";
 
 export function Specification({
   mode,
   setMode,
   onQuote,
-  onSuggestionCreated,
 }: {
   mode: Mode;
   setMode: (mode: Mode) => void;
   onQuote: (quote: string, section: string) => void;
-  onSuggestionCreated: (suggestionId: string) => void;
 }) {
   const { current, readOnly, canEdit, memberName, reviewable } = useItem();
   if (!current) return null;
   // Plain work (tasks, bugs) has a description that is edited directly; only
   // specifications are reviewed through suggestions and anchored discussions.
-  if (!reviewable && mode === "suggest") mode = canEdit ? "edit" : "read";
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
@@ -58,20 +48,6 @@ export function Specification({
         </span>
         {mode === "read" && !readOnly && (
           <div className="ml-auto flex items-center gap-1">
-            {reviewable && (
-              <Button
-                variant={canEdit ? "ghost" : "secondary"}
-                size="sm"
-                onClick={() => setMode("suggest")}
-                title={
-                  canEdit
-                    ? "Propose a change and have reviewers approve and merge it"
-                    : "Your roles propose changes; assigned reviewers approve and merge them"
-                }
-              >
-                <WandSparkles className="size-3.5" /> Suggest
-              </Button>
-            )}
             {canEdit && (
               <Button variant="ghost" size="sm" onClick={() => setMode("edit")}>
                 <Pencil className="size-3.5" /> Edit
@@ -81,18 +57,9 @@ export function Specification({
         )}
       </div>
       {mode === "read" ? (
-        <Reader
-          onQuote={onQuote}
-          onEdit={() =>
-            canEdit ? setMode("edit") : reviewable && setMode("suggest")
-          }
-        />
+        <Reader onQuote={onQuote} onEdit={() => canEdit && setMode("edit")} />
       ) : (
-        <Editor
-          mode={mode}
-          onDone={() => setMode("read")}
-          onSuggestionCreated={onSuggestionCreated}
-        />
+        <Editor mode={mode} onDone={() => setMode("read")} />
       )}
     </section>
   );
@@ -406,59 +373,27 @@ function AcceptanceCriteria({
 
 // Edits and suggestions share the editor. Saving creates a revision against the
 // exact base; if the base moved while typing the user sees a diff, never a merge.
-function Editor({
-  mode,
-  onDone,
-  onSuggestionCreated,
-}: {
-  mode: "edit" | "suggest";
-  onDone: () => void;
-  onSuggestionCreated: (suggestionId: string) => void;
-}) {
+function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
   const { current, mutate, base, revisions, item } = useItem();
   const [baseRevision] = useState(current!);
   const [content, setContent] = useState(current?.content ?? "");
   const [summary, setSummary] = useState("");
-  const [suggestionTitle, setSuggestionTitle] = useState("");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const conflicted = current && current.id !== baseRevision.id;
-  // A suggestion is saved privately as a draft or opened for review at once.
-  const submit = async (open = true) => {
+  const submit = async () => {
     if (!current) return;
-    if (mode === "suggest" && !suggestionTitle.trim())
-      return setError("Give this proposal a title.");
-    if (mode === "suggest" && !summary.trim())
-      return setError("Describe why this change is needed.");
-    if (content === baseRevision.content && mode === "suggest")
-      return setError("The suggestion is identical to the current text.");
     setPending(true);
     setError(undefined);
     try {
-      if (mode === "edit")
-        await mutate({
-          type: "updateSpecification",
-          workItemId: base.workItemId,
-          baseRevisionId: baseRevision.id,
-          title: baseRevision.title,
-          content,
-          summary: summary.trim() || undefined,
-        });
-      else {
-        const suggestionId = crypto.randomUUID();
-        await mutate({
-          type: "createSuggestion",
-          workItemId: base.workItemId,
-          baseRevisionId: baseRevision.id,
-          suggestionId,
-          replacement: content,
-          title: suggestionTitle.trim(),
-          rationale: summary.trim(),
-          open,
-        });
-        onSuggestionCreated(suggestionId);
-        return;
-      }
+      await mutate({
+        type: "updateSpecification",
+        workItemId: base.workItemId,
+        baseRevisionId: baseRevision.id,
+        title: baseRevision.title,
+        content,
+        summary: summary.trim() || undefined,
+      });
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
@@ -488,20 +423,12 @@ function Editor({
           </Button>
         </div>
       )}
-      {mode === "suggest" && (
-        <SuggestionDetailsFields
-          title={suggestionTitle}
-          description={summary}
-          onTitleChange={setSuggestionTitle}
-          onDescriptionChange={setSummary}
-        />
-      )}
       <MarkdownEditor
         fileContext={{
           organizationId: item.organizationId,
           workItemId: item.id,
         }}
-        autoFocus={mode === "edit"}
+        autoFocus
         value={content}
         onValueChange={setContent}
         onKeyDown={(e) => {
@@ -511,9 +438,7 @@ function Editor({
           } else if (e.key === "Escape") onDone();
         }}
         spellCheck
-        aria-label={
-          mode === "edit" ? "Specification" : "Proposed specification"
-        }
+        aria-label="Specification"
         placeholder={
           "# Intent\n\nWhy this matters and for whom.\n\n## Behavior\n\n…\n\n## Acceptance criteria\n\n- [ ] …"
         }
@@ -534,25 +459,12 @@ function Editor({
         <Button variant="ghost" size="md" onClick={onDone}>
           Cancel
         </Button>
-        {mode === "suggest" && (
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => void submit(false)}
-            disabled={pending}
-            title="Keep working on it privately before asking for review"
-          >
-            Save as draft
-          </Button>
-        )}
         <Button
           size="md"
           onClick={() => void submit()}
-          disabled={pending || (conflicted && mode === "edit")}
+          disabled={pending || conflicted}
         >
-          {mode === "edit"
-            ? `Save revision ${(revisions[0]?.number ?? 0) + 1}`
-            : "Open for review"}
+          {`Save revision ${(revisions[0]?.number ?? 0) + 1}`}
           <Kbd>⌘↵</Kbd>
         </Button>
       </div>

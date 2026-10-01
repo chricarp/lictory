@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { ArrowRight, GitCompareArrows, History } from "lucide-react";
 import { relativeTime } from "~/lib/work-items";
 import { Button } from "~/components/ui/button";
@@ -101,7 +102,17 @@ export function CompareRevisions({
   to: string;
   onChange: (from: string, to: string) => void;
 }) {
-  const { revisions, memberName } = useItem();
+  const {
+    revisions,
+    memberName,
+    mutateConfirmed: mutate,
+    base,
+    capabilities,
+    readOnly,
+  } = useItem();
+  const [restoring, setRestoring] = useState(false);
+  const [error, setError] = useState("");
+  const [confirm, setConfirm] = useState(false);
   const a = revisions.find((r) => r.id === from);
   const b = revisions.find((r) => r.id === to);
   if (!a || !b) return null;
@@ -150,6 +161,57 @@ export function CompareRevisions({
         </p>
       )}
       <RevisionDiff before={a.content} after={b.content} />
+      {!readOnly &&
+        capabilities.editSpecifications &&
+        a.id !== base.baseRevisionId && (
+          <div className="mt-4 space-y-2 rounded-md border p-3">
+            <p className="text-sm">
+              Restore revision {a.number} as a new main revision. Existing
+              approvals will require review again.
+            </p>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            {confirm ? (
+              <div className="flex gap-2">
+                <Button
+                  disabled={restoring}
+                  onClick={async () => {
+                    setRestoring(true);
+                    setError("");
+                    try {
+                      await mutate({
+                        type: "revertSpecification",
+                        ...base,
+                        revisionId: a.id,
+                      });
+                      setConfirm(false);
+                    } catch (e) {
+                      setError(
+                        e instanceof Error
+                          ? e.message
+                          : "Could not restore revision.",
+                      );
+                    } finally {
+                      setRestoring(false);
+                    }
+                  }}
+                >
+                  Confirm restore revision {a.number}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button variant="secondary" onClick={() => setConfirm(true)}>
+                Restore revision {a.number}
+              </Button>
+            )}
+          </div>
+        )}
       <details className="mt-4">
         <summary className="cursor-pointer text-xs text-muted-foreground">
           Read revision {b.number} in full

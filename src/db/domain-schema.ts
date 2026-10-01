@@ -495,6 +495,7 @@ export const workItem = pgTable(
     statusId: text("status_id").notNull(),
     // Null for types without a specification.
     refinementState: refinementState("refinement_state"),
+    mainProtected: boolean("main_protected").notNull().default(false),
     priority: workItemPriority("priority").default("none").notNull(),
     assigneeId: optionalActor("assignee_id"),
     milestoneId: text("milestone_id"),
@@ -737,6 +738,146 @@ export const specificationRevision = pgTable(
   ],
 );
 
+// Commits are immutable snapshots. Branches are movable pointers; deleted
+// branches/PRs disappear from sync while their commits and audit history survive.
+export const specificationCommit = pgTable(
+  "specification_commit",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    parentIds: jsonb("parent_ids").$type<string[]>().notNull().default([]),
+    message: text("message").notNull(),
+    authorId: actor("author_id"),
+    revisionId: text("revision_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("commit_context_unique").on(t.organizationId, t.workItemId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId],
+      foreignColumns: [workItem.organizationId, workItem.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.revisionId],
+      foreignColumns: [
+        specificationRevision.organizationId,
+        specificationRevision.workItemId,
+        specificationRevision.id,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("commit_revision_unique").on(t.revisionId),
+  ],
+);
+export const specificationBranch = pgTable(
+  "specification_branch",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    name: text("name").notNull(),
+    headId: text("head_id").notNull(),
+    authorId: actor("author_id"),
+    collaboratorIds: jsonb("collaborator_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    createdAt: createdAt(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [
+    unique("branch_context_unique").on(t.organizationId, t.workItemId, t.id),
+    uniqueIndex("branch_active_name_unique")
+      .on(t.organizationId, t.workItemId, t.name)
+      .where(sql`${t.deletedAt} is null`),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.headId],
+      foreignColumns: [
+        specificationCommit.organizationId,
+        specificationCommit.workItemId,
+        specificationCommit.id,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+export const specificationPullRequest = pgTable(
+  "specification_pull_request",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    sourceId: text("source_id").notNull(),
+    targetId: text("target_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    status: text("status")
+      .$type<"draft" | "open" | "merged">()
+      .notNull()
+      .default("draft"),
+    authorId: actor("author_id"),
+    mergedCommitId: text("merged_commit_id"),
+    createdAt: createdAt(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [
+    unique("pr_context_unique").on(t.organizationId, t.workItemId, t.id),
+    ...[t.sourceId, t.targetId].map((column) =>
+      foreignKey({
+        columns: [t.organizationId, t.workItemId, column],
+        foreignColumns: [
+          specificationBranch.organizationId,
+          specificationBranch.workItemId,
+          specificationBranch.id,
+        ],
+      }).onDelete("restrict"),
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.mergedCommitId],
+      foreignColumns: [
+        specificationCommit.organizationId,
+        specificationCommit.workItemId,
+        specificationCommit.id,
+      ],
+    }).onDelete("restrict"),
+    check("pr_different_branches", sql`${t.sourceId} <> ${t.targetId}`),
+    check("pr_valid_status", sql`${t.status} in ('draft','open','merged')`),
+  ],
+);
+// Decisions bind to the complete proposed merge result, not a mutable branch.
+export const pullRequestReview = pgTable(
+  "pull_request_review",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    pullRequestId: text("pull_request_id").notNull(),
+    roleId: text("role_id").notNull(),
+    userId: optionalActor("user_id"),
+    required: boolean("required").notNull().default(true),
+    decision: text("decision").$type<"approved" | "changes_requested" | null>(),
+    reviewerId: optionalActor("reviewer_id"),
+    resultHash: text("result_hash"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.pullRequestId],
+      foreignColumns: [
+        specificationPullRequest.organizationId,
+        specificationPullRequest.workItemId,
+        specificationPullRequest.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.roleId],
+      foreignColumns: [organizationRole.organizationId, organizationRole.id],
+    }).onDelete("restrict"),
+    unique("pr_review_role_unique").on(t.pullRequestId, t.roleId),
+  ],
+);
+
 // One responsibility per review; multiple people/roles can be assigned below.
 export const review = pgTable(
   "review",
@@ -972,6 +1113,8 @@ export const thread = pgTable(
     // than the mainline specification. Such threads block that suggestion's
     // merge, not the work item's readiness.
     suggestionId: text("suggestion_id"),
+    pullRequestId: text("pull_request_id"),
+    commitId: text("commit_id"),
     authorId: actor("author_id"),
     status: threadStatus("status").default("open").notNull(),
     blocking: boolean("blocking").default(false).notNull(),
@@ -1013,6 +1156,22 @@ export const thread = pgTable(
         suggestion.organizationId,
         suggestion.workItemId,
         suggestion.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.pullRequestId],
+      foreignColumns: [
+        specificationPullRequest.organizationId,
+        specificationPullRequest.workItemId,
+        specificationPullRequest.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.commitId],
+      foreignColumns: [
+        specificationCommit.organizationId,
+        specificationCommit.workItemId,
+        specificationCommit.id,
       ],
     }).onDelete("restrict"),
     index("thread_item_status_idx").on(

@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790529045896,
-      "tag": "0000_baseline",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790537716069,
-      "tag": "0001_notifications",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790539356877,
-      "tag": "0002_user_handles",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790551699516,
-      "tag": "0003_user_appearance",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790635898909,
-      "tag": "0004_smooth_deathstrike",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1790779622534,
-      "tag": "0005_guided_onboarding",
+      "when": 1790850892723,
+      "tag": "0000_thin_blazing_skull",
       "breakpoints": true
     }
   ]
