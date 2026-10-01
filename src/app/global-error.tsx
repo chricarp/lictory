@@ -3,7 +3,7 @@
 import NextError from "next/error";
 import { useEffect } from "react";
 
-import posthog from "posthog-js";
+import { trackRenderFailure } from "~/lib/analytics/client";
 
 export default function GlobalError({
   error,
@@ -12,14 +12,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    if (
-      process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN &&
-      process.env.NEXT_PUBLIC_POSTHOG_HOST
-    ) {
-      posthog.captureException(new Error("Application render failed"), {
-        digest: error.digest,
-      });
-    }
+    trackRenderFailure(error.digest);
   }, [error]);
 
   return (

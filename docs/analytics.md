@@ -7,6 +7,27 @@ project's ingestion host; the example environment uses EU Cloud. Both browser an
 server tracking are disabled when either variable is absent. Analytics failures
 must never prevent signing in, reviewing, synchronizing or publishing.
 
+## Consent
+
+Browser analytics requires the visitor's **Analytics** (c15t `measurement`) consent.
+The open-source c15t consent manager runs in offline mode: choices are stored only
+in the visitor's browser (cookie and localStorage), with no consent backend, audit
+trail or jurisdiction detection. The banner asks every visitor. "Privacy
+preferences" in the landing footer, auth pages and the workspace account menu
+reopens the choice.
+
+`ConsentProvider` (`src/components/app/consent-provider.tsx`) is the only place
+that loads the PostHog browser SDK, through the `@c15t/scripts/posthog` helper with
+`loadMode: "after-consent"`. Before consent or after rejection, no PostHog script
+or request is made and the `track`/`identifyUser` helpers do nothing; events are
+not buffered and replayed. When PostHog loads, it applies the current user and
+organization so later events are attributed. Withdrawing consent opts PostHog out,
+removes its first-party cookie and storage, and reloads the page without it.
+
+Server-side events (`posthog-node`) and OpenTelemetry logs are not governed by this
+browser choice. They are keyed by authenticated user ID; whether they need consent
+or a different legal basis is a separate product and legal decision.
+
 ## Event semantics
 
 Successful workspace events come from the authenticated server after the domain,

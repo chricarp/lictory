@@ -1,4 +1,5 @@
 "use client";
+import { ConsentDialogLink } from "@c15t/nextjs/components/consent-dialog-link";
 import Link from "next/link";
 import { toast as toastManager } from "~/components/ui/toast";
 import { resetAnalytics, track } from "~/lib/analytics/client";
@@ -32,6 +33,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   UserRound,
   KanbanSquare,
   ListOrdered,
@@ -658,28 +660,37 @@ function Sidebar({
             </button>
           )}
         >
-          <div className="p-1">
-            <div className="px-2 py-1.5">
-              <p className="truncate text-[13px] font-medium">{user.name}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {user.handle ? `@${user.handle} · ${user.email}` : user.email}
-              </p>
+          {(close) => (
+            <div className="p-1">
+              <div className="px-2 py-1.5">
+                <p className="truncate text-[13px] font-medium">{user.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.handle ? `@${user.handle} · ${user.email}` : user.email}
+                </p>
+              </div>
+              <div className="my-1 border-t" />
+              <Link
+                href={paths.account(pathname)}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
+              >
+                <UserRound className="size-3.5 text-muted-foreground" /> Account
+                settings
+              </Link>
+              <ConsentDialogLink
+                onClick={close}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+              >
+                <ShieldCheck className="size-3.5 text-muted-foreground" />{" "}
+                Privacy preferences
+              </ConsentDialogLink>
+              <button
+                onClick={onSignOut}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+              >
+                <LogOut className="size-3.5 text-muted-foreground" /> Sign out
+              </button>
             </div>
-            <div className="my-1 border-t" />
-            <Link
-              href={paths.account(pathname)}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
-            >
-              <UserRound className="size-3.5 text-muted-foreground" /> Account
-              settings
-            </Link>
-            <button
-              onClick={onSignOut}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-            >
-              <LogOut className="size-3.5 text-muted-foreground" /> Sign out
-            </button>
-          </div>
+          )}
         </Popover>
         <SyncStatus />
       </div>

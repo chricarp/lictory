@@ -1,3 +1,4 @@
+import { ConsentDialogLink } from "@c15t/nextjs/components/consent-dialog-link";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -1123,6 +1124,9 @@ function Footer() {
           <a href="#faq" className="hover:text-foreground">
             FAQ
           </a>
+          <ConsentDialogLink className="hover:text-foreground">
+            Privacy preferences
+          </ConsentDialogLink>
         </nav>
         <p className="sm:ml-auto">© {new Date().getFullYear()} Lictory</p>
       </div>

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { consentStatePath } from "./consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -160,7 +161,10 @@ test("appearance preference applies immediately, persists, and follows the syste
   expect((await saved).ok()).toBe(true);
 
   // Stored on the account: a fresh browser context without local state gets it.
-  const other = await page.context().browser()!.newContext();
+  const other = await page
+    .context()
+    .browser()!
+    .newContext({ storageState: consentStatePath });
   const fresh = await other.newPage();
   await signIn(fresh, reviewerEmail);
   await fresh.goto("/app/account");
@@ -629,6 +633,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .inputValue();
   const reviewerContext = await browser.newContext({
     extraHTTPHeaders: { "x-forwarded-for": "192.0.2.254" },
+    storageState: consentStatePath,
   });
   const reviewer = await reviewerContext.newPage();
   await signIn(reviewer, reviewerEmail);
