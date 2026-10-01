@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@c15t/nextjs/styles.css";
 
 @custom-variant dark (&:is(.dark *));
 

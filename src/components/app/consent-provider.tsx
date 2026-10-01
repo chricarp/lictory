@@ -1,14 +1,10 @@
 "use client";
 
-import {
-  ConsentBanner,
-  ConsentDialog,
-  ConsentManagerProvider,
-  type Theme,
-} from "@c15t/nextjs";
+import { ConsentManagerProvider } from "@c15t/nextjs/headless";
 import { posthog } from "@c15t/scripts/posthog";
 import { useState, type ReactNode } from "react";
 
+import { ConsentBanner, ConsentDialog } from "~/components/app/consent-ui";
 import { clearAnalyticsStorage, onPostHogLoaded } from "~/lib/analytics/client";
 import { sanitizeAnalyticsProperties } from "~/lib/analytics/events";
 
@@ -56,25 +52,6 @@ function consentScripts() {
   ];
 }
 
-// The app swaps these variables under `.dark`, so one token set covers both.
-const theme: Theme = {
-  colors: {
-    primary: "var(--primary)",
-    primaryHover: "var(--primary)",
-    surface: "var(--popover)",
-    surfaceHover: "var(--muted)",
-    border: "var(--border)",
-    borderHover: "var(--input)",
-    text: "var(--popover-foreground)",
-    textMuted: "var(--muted-foreground)",
-    textOnPrimary: "var(--primary-foreground)",
-    switchTrack: "var(--input)",
-    switchTrackActive: "var(--primary)",
-    switchThumb: "var(--background)",
-  },
-  typography: { fontFamily: "var(--font-sans)" },
-};
-
 export function ConsentProvider({ children }: { children: ReactNode }) {
   const [scripts] = useState(consentScripts);
   return (
@@ -88,7 +65,6 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
             if (!preferences.measurement) clearAnalyticsStorage();
           },
         },
-        theme,
       }}
     >
       <ConsentBanner />

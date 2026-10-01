@@ -1,6 +1,6 @@
 "use client";
-import { ConsentDialogLink } from "@c15t/nextjs/components/consent-dialog-link";
 import Link from "next/link";
+import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
 import { toast as toastManager } from "~/components/ui/toast";
 import { resetAnalytics, track } from "~/lib/analytics/client";
 import { useParams, usePathname, useRouter } from "next/navigation";
@@ -676,13 +676,13 @@ function Sidebar({
                 <UserRound className="size-3.5 text-muted-foreground" /> Account
                 settings
               </Link>
-              <ConsentDialogLink
+              <PrivacyPreferencesButton
                 onClick={close}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
               >
                 <ShieldCheck className="size-3.5 text-muted-foreground" />{" "}
                 Privacy preferences
-              </ConsentDialogLink>
+              </PrivacyPreferencesButton>
               <button
                 onClick={onSignOut}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
