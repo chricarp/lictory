@@ -99,6 +99,11 @@ test.beforeAll(async () => {
       key: "BRN",
     });
     const roster = await directory(db, authorId, organizationId);
+    await command({
+      type: "updateTeam",
+      teamId: roster.teams[0]!.id,
+      readinessPolicy: "block",
+    });
     workItemId = crypto.randomUUID();
     await command({
       type: "createWorkItem",
@@ -179,6 +184,59 @@ async function openPR(page: Page, title: string) {
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   return page.url();
 }
+
+test("a rejected readiness transition does not prevent priority changes from saving", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page
+    .context()
+    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.183" });
+  await signIn(page, authorEmail);
+  await page.goto(itemUrl);
+  const properties = page
+    .getByRole("heading", { name: "Properties", exact: true })
+    .locator("..");
+  await expect(properties).toBeVisible();
+  await properties
+    .getByRole("button", { name: "Status: Backlog", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^In Progress/ }).click();
+  await page
+    .getByRole("button", { name: "1 change could not be saved", exact: true })
+    .click();
+  await expect(
+    page.getByText(/BRN-1 is not ready to start:/).first(),
+  ).toBeVisible();
+  await page.getByText("Inspect unsaved change").click();
+  await expect(page.locator("pre")).toContainText('"statusId"');
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Priority: No priority", exact: true })
+    .click();
+  await page.getByRole("option", { name: "High", exact: true }).click();
+  await expect(
+    page.getByText("set priority to", { exact: false }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Priority: High", exact: true }),
+  ).toBeVisible();
+  await expect(
+    properties.getByRole("button", { name: "Status: Backlog", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "1 change could not be saved", exact: true })
+    .click();
+  await expect(
+    page.getByText(/BRN-1 is not ready to start:/).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Everything is saved", exact: true }),
+  ).toBeVisible();
+});
 
 test("nested PRs preserve main, require review on conflicts, and support keeping or discarding complete snapshots", async ({
   page,

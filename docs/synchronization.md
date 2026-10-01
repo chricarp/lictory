@@ -203,7 +203,10 @@ command remains inspectable for retry or discard. Accepted commands synchronize
 before their queue entry is removed. A crash at any intermediate point safely
 replays the same mutation ID.
 
-The queue processes in enqueue order and pauses behind conflicts/failures. Network
+The queue processes in enqueue order. A definitive rejection on the first attempt
+remains inspectable for retry or discard but does not block later commands, which
+the server validates independently. Transport failures may have committed, so
+later commands wait until their outcome is reconciled. Network
 and server failures back off exponentially, capped at 30 seconds and five attempts;
 users can retry manually. Web Locks coordinate sending across supported tabs;
 server idempotency remains required even with that lock. BroadcastChannel announces

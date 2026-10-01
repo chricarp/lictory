@@ -183,7 +183,7 @@ export class SyncEngine {
       throw new Error(
         "Reconnect before committing. Your draft is kept in this browser.",
       );
-    if (this.queue.some((q) => q.blocked))
+    if (this.queue.some((q) => q.blocked && q.attempts > 0))
       throw new Error(
         "Resolve the failed change in synchronization before continuing. Your draft is kept.",
       );
@@ -337,7 +337,12 @@ export class SyncEngine {
     // IDB queue items are separate records; tabs cannot overwrite each other's work.
     this.queue = await this.persistence.queue(this.owner);
     for (const item of this.queue) {
-      if (this.stopped || item.blocked || item.nextAttempt > Date.now()) break;
+      if (this.stopped) break;
+      // A definitive rejection made no change. Keep it inspectable without
+      // preventing later commands from being validated against server state.
+      // Transport failures may have committed and must preserve queue order.
+      if (item.blocked && item.attempts === 0) continue;
+      if (item.blocked || item.nextAttempt > Date.now()) break;
       try {
         const response = await fetch("/api/sync", {
           method: "POST",
@@ -356,6 +361,7 @@ export class SyncEngine {
               blocked: true,
               error: error.message,
             });
+            if (item.attempts === 0) continue;
             break;
           }
           throw new Error(error.message);
