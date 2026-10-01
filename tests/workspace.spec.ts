@@ -795,10 +795,18 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page
     .getByRole("button", { name: "Create branch", exact: true })
     .click();
+  await expect(page).toHaveURL(/\?branch=[^&]+$/);
+  const conflictBranchUrl = page.url();
   await page
     .getByLabel("Invite collaborator")
     .selectOption({ label: "Riley Chen" });
-  await reviewer.goto(page.url());
+  await expect(
+    page.getByRole("button", { name: "Remove Riley Chen", exact: true }),
+  ).toBeVisible();
+  await reviewer.goto(conflictBranchUrl);
+  await expect(
+    reviewer.getByRole("textbox", { name: "Branch specification" }),
+  ).toBeVisible();
   const sourceText = await page
     .getByRole("textbox", { name: "Branch specification" })
     .inputValue();
