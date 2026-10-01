@@ -11,6 +11,7 @@ import {
   committedEvents,
   sanitizeAnalyticsUrl,
   sanitizeAnalyticsProperties,
+  minimizeAnonymousAnalyticsProperties,
 } from "./events";
 import { publicationProperties } from "./publication";
 import { analyticsEventId } from "./identity";
@@ -206,4 +207,28 @@ void test("retryable analytics has a valid stable event UUID scoped to the opera
     first,
     analyticsEventId("user", "attachment_uploaded", "other-org:file"),
   );
+});
+
+void test("events without Analytics consent drop identifiers and workspace paths", () => {
+  const properties: Record<string, unknown> = {
+    organization_id: "org_1",
+    work_item_id: "item_1",
+    work_item_type: "Story",
+    blocker_count: 2,
+    $session_id: "kept-by-posthog",
+    $groups: { organization: "org_1" },
+    $set: { email: "x" },
+    $current_url: "https://app.example/app/acme/PAY-142",
+    $pathname: "/app/acme/PAY-142",
+    $referrer: "https://app.example/sign-in",
+  };
+  minimizeAnonymousAnalyticsProperties(properties);
+  assert.deepEqual(properties, {
+    work_item_type: "Story",
+    blocker_count: 2,
+    $session_id: "kept-by-posthog",
+    $current_url: "https://app.example/app",
+    $pathname: "/app",
+    $referrer: "https://app.example/sign-in",
+  });
 });

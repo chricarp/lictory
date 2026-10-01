@@ -9,20 +9,49 @@ must never prevent signing in, reviewing, synchronizing or publishing.
 
 ## Consent
 
-Browser analytics requires the visitor's **Analytics** (c15t `measurement`) consent.
-The open-source c15t consent manager runs in offline mode: choices are stored only
-in the visitor's browser (cookie and localStorage), with no consent backend, audit
-trail or jurisdiction detection. The banner asks every visitor. "Privacy
-preferences" in the landing footer, auth pages and the workspace account menu
-reopens the choice.
+Browser analytics runs in one of two modes, chosen by the visitor's **Analytics**
+(c15t `measurement`) consent. The open-source c15t consent manager runs in offline
+mode: choices are stored only in the visitor's browser (cookie and localStorage),
+with no consent backend, audit trail or jurisdiction detection. The banner asks
+every visitor. "Privacy preferences" in the landing footer, auth pages and the
+workspace account menu reopens the choice.
 
 `ConsentProvider` (`src/components/app/consent-provider.tsx`) is the only place
 that loads the PostHog browser SDK, through the `@c15t/scripts/posthog` helper with
-`loadMode: "after-consent"`. Before consent or after rejection, no PostHog script
-or request is made and the `track`/`identifyUser` helpers do nothing; events are
-not buffered and replayed. When PostHog loads, it applies the current user and
-organization so later events are attributed. Withdrawing consent opts PostHog out,
-removes its first-party cookie and storage, and reloads the page without it.
+`loadMode: "always"` and `cookieless_mode: "on_reject"`:
+
+- **Consent granted:** full tracking. PostHog uses its first-party cookie, the
+  current user is identified, the organization is grouped and registered, and
+  tracing headers link server events to the browser session. Granting consent
+  applies this immediately, without a reload; earlier anonymous events stay
+  anonymous.
+- **Undecided or rejected:** minimal tracking. c15t keeps PostHog opted out, which
+  switches it to cookieless capture: no identifier is stored on the device (only
+  PostHog's opt-out flag) and PostHog counts visitors with a server-side hash of
+  IP and user agent that rotates daily. `track`/`identifyUser` never identify,
+  group or link sessions in this mode, and events additionally lose entity IDs
+  (`*_id`) and workspace paths (`/app/...` becomes `/app`).
+
+Cookieless capture requires **Cookieless server hash mode** under _Project
+Settings → Web analytics_ in PostHog. Without it, PostHog discards the anonymous
+events and only consented visitors are counted. Cookieless mode avoids device
+storage that needs consent under ePrivacy rules; the anonymous processing itself
+still relies on legitimate interest and must be covered by the privacy notice.
+
+Withdrawing consent opts PostHog out, removes its first-party cookie and storage,
+and reloads the page, which starts again in cookieless mode.
+
+### First-party relay
+
+The browser never contacts PostHog directly. `api_host` is `/relay`, handled by
+`src/app/relay/[[...path]]/route.ts`, so blockers that match PostHog domains do
+not drop analytics. The relay derives the regional ingestion and asset hosts from
+`NEXT_PUBLIC_POSTHOG_HOST`, accepts only plain relative paths, forwards only
+content headers plus the visitor's IP (required for the cookieless hash), and
+never forwards Lictory cookies or returns PostHog cookies. It is disabled when
+analytics is not configured. `skipTrailingSlashRedirect` is enabled because the
+SDK posts to paths such as `/relay/e/`. The server SDK keeps sending to
+`NEXT_PUBLIC_POSTHOG_HOST` directly.
 
 Server-side events (`posthog-node`) and OpenTelemetry logs are not governed by this
 browser choice. They are keyed by authenticated user ID; whether they need consent
@@ -103,7 +132,8 @@ Automatic pageviews observe client-side navigation. URLs and referrers lose thei
 query strings and fragments before capture, including initial person properties;
 this protects verification/reset/invitation tokens, email query parameters and list
 searches. Document titles and search-engine keywords are removed. Autocapture and
-session recording are disabled so requirement content and DOM text are not sent.
+session recording, dead-click capture and heatmaps are disabled so requirement
+content and DOM text are not sent.
 The global render boundary sends a generic exception with the Next.js digest;
 server failures send categories instead of raw SQL/exception messages.
 

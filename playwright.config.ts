@@ -18,5 +18,7 @@ export default defineConfig({
     url: "http://localhost:3001/sign-in",
     reuseExistingServer: false,
     timeout: 180_000,
+    // Keep browser tests from sending events to a PostHog project configured in .env.
+    env: { NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "" },
   },
 });

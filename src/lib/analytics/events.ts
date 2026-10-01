@@ -279,3 +279,37 @@ export function sanitizeAnalyticsProperties(
     delete container.$initial_ph_keyword;
   }
 }
+
+const workspacePath = /^\/app(\/|$)/;
+
+/**
+ * Further reduces events captured without Analytics consent. Cookieless events
+ * keep the event name and controlled values (types, categories, counts) but drop
+ * entity identifiers and workspace paths, which could link anonymous activity
+ * back to an organization or person.
+ */
+export function minimizeAnonymousAnalyticsProperties(
+  properties: Record<string, unknown>,
+) {
+  for (const key of Object.keys(properties)) {
+    if (!key.startsWith("$") && key.endsWith("_id")) delete properties[key];
+  }
+  delete properties.$groups;
+  delete properties.$set;
+  delete properties.$set_once;
+  for (const key of ["$current_url", "$referrer", "$pathname"]) {
+    const value = properties[key];
+    if (typeof value !== "string") continue;
+    if (key === "$pathname") {
+      if (workspacePath.test(value)) properties[key] = "/app";
+      continue;
+    }
+    try {
+      const url = new URL(value);
+      if (workspacePath.test(url.pathname))
+        properties[key] = `${url.origin}/app`;
+    } catch {
+      // Already reduced by sanitizeAnalyticsProperties.
+    }
+  }
+}

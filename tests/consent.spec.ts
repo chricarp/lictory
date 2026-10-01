@@ -14,11 +14,6 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test("visitors choose analytics consent and can reopen their choice", async ({
   page,
 }) => {
-  const posthogRequests: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("posthog")) posthogRequests.push(request.url());
-  });
-
   await page.goto("/");
   const reject = page.getByRole("button", { name: "Reject All" });
   await expect(reject).toBeVisible();
@@ -32,7 +27,9 @@ test("visitors choose analytics consent and can reopen their choice", async ({
     necessary: true,
     measurement: false,
   });
-  expect(posthogRequests).toEqual([]);
+  // Without consent PostHog may run cookieless, but never sets its identifier.
+  const cookies = await page.context().cookies();
+  expect(cookies.filter((cookie) => cookie.name.startsWith("ph_"))).toEqual([]);
 
   await page.getByRole("button", { name: "Privacy preferences" }).click();
   const dialog = page.getByRole("dialog");

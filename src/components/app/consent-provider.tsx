@@ -5,28 +5,49 @@ import { posthog } from "@c15t/scripts/posthog";
 import { useState, type ReactNode } from "react";
 
 import { ConsentBanner, ConsentDialog } from "~/components/app/consent-ui";
-import { clearAnalyticsStorage, onPostHogLoaded } from "~/lib/analytics/client";
-import { sanitizeAnalyticsProperties } from "~/lib/analytics/events";
+import {
+  clearAnalyticsStorage,
+  hasAnalyticsConsent,
+  onMeasurementConsentGranted,
+  onPostHogLoaded,
+} from "~/lib/analytics/client";
+import {
+  minimizeAnonymousAnalyticsProperties,
+  sanitizeAnalyticsProperties,
+} from "~/lib/analytics/events";
+import { analyticsRelayPath, posthogHosts } from "~/lib/analytics/relay";
 
 const posthogToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
-// PostHog is requested only after measurement consent. Rejecting or withdrawing
-// consent opts out and c15t reloads the page, so the SDK is gone afterwards.
-// Server-side events (posthog-node) are not governed by this browser consent.
+// PostHog always loads, through the first-party relay, in one of two modes:
+// - Analytics consent granted: normal capture with PostHog's first-party cookie,
+//   identified users and organization groups.
+// - Not decided or rejected: c15t keeps PostHog opted out and `on_reject` switches
+//   it to cookieless capture. Nothing is stored on the device, events stay
+//   anonymous (no identify, groups or tracing headers), and PostHog derives a
+//   daily-rotating server-side hash from IP and user agent. This requires
+//   "Cookieless server hash mode" in the PostHog project settings; without it,
+//   PostHog discards these events.
+// Withdrawing consent clears PostHog storage and c15t reloads the page, which
+// starts again in cookieless mode. Server-side events (posthog-node) are not
+// governed by this browser choice.
 function consentScripts() {
   if (!posthogToken || !posthogHost) return [];
   return [
     posthog({
       id: posthogToken,
-      apiHost: posthogHost,
-      loadMode: "after-consent",
+      apiHost: analyticsRelayPath,
+      uiHost: posthogHosts(posthogHost).ui,
+      loadMode: "always",
       initOptions: {
         defaults: "2026-01-30",
-        // Opting out must stop capture, not switch to cookieless capture.
-        cookieless_mode: undefined,
+        cookieless_mode: "on_reject",
         capture_pageview: "history_change",
         autocapture: false,
+        // Both record DOM elements and text, like autocapture.
+        capture_dead_clicks: false,
+        enable_heatmaps: false,
         disable_session_recording: true,
         capture_exceptions: false,
         person_profiles: "identified_only",
@@ -38,12 +59,16 @@ function consentScripts() {
           "next",
           "invitationId",
         ],
-        tracing_headers:
-          typeof window === "undefined" ? [] : [window.location.hostname],
+        // Enabled after consent: they link server events to the browser session.
+        tracing_headers: [],
         before_send: (
           event: { properties: Record<string, unknown> } | null,
         ) => {
-          if (event) sanitizeAnalyticsProperties(event.properties);
+          if (!event) return event;
+          sanitizeAnalyticsProperties(event.properties);
+          if (!hasAnalyticsConsent()) {
+            minimizeAnonymousAnalyticsProperties(event.properties);
+          }
           return event;
         },
         loaded: onPostHogLoaded,
@@ -61,6 +86,11 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         consentCategories: ["necessary", "measurement"],
         scripts,
         callbacks: {
+          onConsentChanged: ({ allowedCategories }) => {
+            if (allowedCategories.includes("measurement")) {
+              onMeasurementConsentGranted();
+            }
+          },
           onBeforeConsentRevocationReload: ({ preferences }) => {
             if (!preferences.measurement) clearAnalyticsStorage();
           },

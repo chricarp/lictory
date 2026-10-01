@@ -7,11 +7,14 @@ export const analyticsConfigured = Boolean(
   process.env.NEXT_PUBLIC_POSTHOG_HOST,
 );
 
-// The PostHog SDK is loaded by the consent provider only after measurement
-// consent. Until then (and after withdrawal, which reloads the page) the global
-// is absent or a queue stub, and these helpers do nothing.
+// The consent provider always loads PostHog. Without Analytics consent it runs
+// cookieless and anonymous: events are captured, but nobody is identified,
+// grouped or linked to server events. Before the SDK finishes loading the global
+// is a queue stub and these helpers do nothing.
 type PostHogClient = {
   __loaded?: boolean;
+  get_explicit_consent_status: () => "granted" | "denied" | "pending";
+  set_config: (config: Record<string, unknown>) => void;
   capture: (event: string, properties?: Record<string, unknown>) => void;
   captureException: (
     error: Error,
@@ -31,20 +34,50 @@ function loadedPostHog(): PostHogClient | null {
   return client?.__loaded ? client : null;
 }
 
+function consented(client: PostHogClient | null): client is PostHogClient {
+  return client?.get_explicit_consent_status() === "granted";
+}
+
+/** Whether PostHog currently runs with Analytics consent (full tracking). */
+export function hasAnalyticsConsent() {
+  try {
+    return consented(loadedPostHog());
+  } catch {
+    return false;
+  }
+}
+
 // Who is signed in and which workspace is open. This is current app state, not
-// collected analytics: it is applied when PostHog loads after consent so later
-// events are attributed correctly. No events are buffered before consent.
+// collected analytics: it is applied once Analytics consent is granted so later
+// events are attributed correctly. Earlier anonymous events stay anonymous.
 const context: { userId: string | null; organizationId: string | null } = {
   userId: null,
   organizationId: null,
 };
 
 function applyContext(client: PostHogClient) {
+  if (!consented(client)) return;
+  client.set_config({ tracing_headers: [window.location.hostname] });
   if (context.userId) client.identify(context.userId);
   if (context.organizationId) {
     client.group("organization", context.organizationId);
     client.register({ organization_id: context.organizationId });
   }
+}
+
+/**
+ * Called when the visitor grants Analytics consent without a reload. c15t opts
+ * PostHog in from the same change, so apply identity on the next task.
+ */
+export function onMeasurementConsentGranted() {
+  setTimeout(() => {
+    try {
+      const client = loadedPostHog();
+      if (client) applyContext(client);
+    } catch {
+      // Analytics must never interrupt collaboration.
+    }
+  }, 0);
 }
 
 /** PostHog `loaded` init callback, passed through the consent script config. */
@@ -81,7 +114,8 @@ export function trackRenderFailure(digest: string | undefined) {
 export function identifyUser(userId: string) {
   context.userId = userId;
   try {
-    loadedPostHog()?.identify(userId);
+    const client = loadedPostHog();
+    if (consented(client)) client.identify(userId);
   } catch {
     // Authentication remains usable when analytics is unavailable.
   }
@@ -91,8 +125,9 @@ export function setAnalyticsOrganization(organizationId: string) {
   context.organizationId = organizationId;
   try {
     const client = loadedPostHog();
-    client?.group("organization", organizationId);
-    client?.register({ organization_id: organizationId });
+    if (!consented(client)) return;
+    client.group("organization", organizationId);
+    client.register({ organization_id: organizationId });
   } catch {
     // Analytics must not prevent opening a workspace.
   }
@@ -111,7 +146,7 @@ export function clearAnalyticsOrganization() {
 
 /**
  * Removes PostHog's first-party identifiers after measurement consent is
- * withdrawn. c15t reloads the page next, so the SDK is not loaded again.
+ * withdrawn. c15t reloads the page next, and PostHog starts again cookieless.
  */
 export function clearAnalyticsStorage() {
   const isPostHogKey = (key: string) =>
@@ -137,7 +172,7 @@ export function clearAnalyticsStorage() {
       }
     }
   } catch {
-    // Storage may be unavailable; the SDK still will not load without consent.
+    // Storage may be unavailable; the reloaded SDK stays cookieless regardless.
   }
 }
 
