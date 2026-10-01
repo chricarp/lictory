@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import "~/app/globals.css";
+import { ConsentProvider } from "~/components/app/consent-provider";
 import { appearanceBootScript } from "~/lib/appearance";
 
 const geistSans = Geist({
@@ -34,7 +35,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Applies the saved light/dark preference before first paint. */}
         <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <ConsentProvider>{children}</ConsentProvider>
+      </body>
     </html>
   );
 }

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { consentStatePath } from "./consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
@@ -536,6 +537,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
   ).toBeVisible();
   const reviewerContext = await browser.newContext({
     extraHTTPHeaders: { "x-forwarded-for": "192.0.2.182" },
+    storageState: consentStatePath,
   });
   try {
     const reviewer = await reviewerContext.newPage();

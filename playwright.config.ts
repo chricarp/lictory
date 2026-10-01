@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
+import { consentStatePath } from "./tests/consent-setup";
 export default defineConfig({
   testDir: "./tests",
+  globalSetup: "./tests/consent-setup.ts",
   workers: 1,
   timeout: 90_000,
   expect: { timeout: 30_000 },
@@ -9,6 +11,7 @@ export default defineConfig({
     baseURL: "http://localhost:3001",
     headless: true,
     screenshot: "only-on-failure",
+    storageState: consentStatePath,
   },
   webServer: {
     command: "bun run build && bun run start --port 3001",

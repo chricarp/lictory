@@ -10,11 +10,12 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import posthog from "posthog-js";
 import { toast, Toaster } from "~/components/ui/toast";
 import {
   analyticsConfigured,
+  clearAnalyticsOrganization,
   identifyUser,
+  setAnalyticsOrganization,
   track,
 } from "~/lib/analytics/client";
 import { statusChangeBlocker } from "~/sync/client/preflight";
@@ -99,12 +100,7 @@ export function WorkspaceProvider({
   useEffect(() => {
     if (!analyticsConfigured) return;
     identifyUser(userId);
-    try {
-      posthog.group("organization", organization.id);
-      posthog.register({ organization_id: organization.id });
-    } catch {
-      // Analytics must not prevent opening a workspace.
-    }
+    setAnalyticsOrganization(organization.id);
     if (lastOrganization.current !== organization.id) {
       track("workspace_opened", {
         organization_id: organization.id,
@@ -112,14 +108,7 @@ export function WorkspaceProvider({
       });
       lastOrganization.current = organization.id;
     }
-    return () => {
-      try {
-        posthog.unregister("organization_id");
-        posthog.resetGroups();
-      } catch {
-        // Workspace navigation must not depend on analytics.
-      }
-    };
+    return () => clearAnalyticsOrganization();
   }, [organization.id, organization.role, userId]);
   const [engine] = useState(
     () => new SyncEngine(userId, { organizationId: organization.id }),

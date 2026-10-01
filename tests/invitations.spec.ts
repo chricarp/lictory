@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { consentStatePath } from "./consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -143,6 +144,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     );
     const joining = await browser.newContext({
       extraHTTPHeaders: { "x-forwarded-for": "203.0.113.82" },
+      storageState: consentStatePath,
     });
     try {
       const teammate = await joining.newPage();

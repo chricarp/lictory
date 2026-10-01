@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ConsentDialogLink } from "@c15t/nextjs/components/consent-dialog-link";
 import Link from "next/link";
 import { LogoMark } from "~/components/logo";
 
@@ -16,6 +17,9 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         </Link>
         {children}
       </div>
+      <ConsentDialogLink className="mt-10 rounded text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+        Privacy preferences
+      </ConsentDialogLink>
     </main>
   );
 }
