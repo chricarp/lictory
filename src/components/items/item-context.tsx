@@ -36,6 +36,7 @@ export type ItemContextValue = {
   memberName: (id: string | null | undefined) => string;
   roleName: (id: string | null | undefined) => string;
   mutate: (command: Command) => Promise<string>;
+  mutateConfirmed: (command: Command) => Promise<string>;
   // Archived or not yet confirmed: nothing about the item can change.
   readOnly: boolean;
   // What my organization roles allow on this item; the server re-checks.
@@ -72,6 +73,7 @@ export function useItemContextValue(input: {
   roleName: ItemContextValue["roleName"];
   capabilities: Capabilities;
   mutate: ItemContextValue["mutate"];
+  mutateConfirmed: ItemContextValue["mutateConfirmed"];
 }): ItemContextValue {
   const {
     item,
@@ -85,6 +87,7 @@ export function useItemContextValue(input: {
     roleName,
     capabilities,
     mutate,
+    mutateConfirmed,
   } = input;
   return useMemo(() => {
     const scoped = entities.filter(
@@ -107,7 +110,7 @@ export function useItemContextValue(input: {
       entities: scoped,
       revisions,
       current,
-      threads: allThreads.filter((t) => !t.suggestionId),
+      threads: allThreads.filter((t) => !t.suggestionId && !t.pullRequestId),
       suggestionThreads: allThreads.filter((t) => Boolean(t.suggestionId)),
       messages: byType(scoped, "message").sort((a, b) =>
         a.createdAt.localeCompare(b.createdAt),
@@ -134,8 +137,10 @@ export function useItemContextValue(input: {
       memberName,
       roleName,
       mutate,
+      mutateConfirmed,
       readOnly,
-      canEdit: !readOnly && capabilities.editSpecifications,
+      canEdit:
+        !readOnly && capabilities.editSpecifications && !item.mainProtected,
       canChangeProperties: !readOnly && capabilities.changeProperties,
       canRequestReviews: !readOnly && capabilities.requestReviews,
       capabilities,
@@ -154,5 +159,6 @@ export function useItemContextValue(input: {
     roleName,
     capabilities,
     mutate,
+    mutateConfirmed,
   ]);
 }

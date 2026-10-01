@@ -70,22 +70,18 @@ export const IssueRow = memo(function IssueRow({
       onMouseEnter={onFocus}
     >
       {!compact && (
-        <span className="relative z-10">
-          <IssuePriority
-            priority={item.priority}
-            compact
-            onChange={onUpdate && ((priority) => onUpdate({ priority }))}
-          />
-        </span>
-      )}
-      <span className="relative z-10">
-        <IssueStatus
-          teamId={item.teamId}
-          statusId={item.statusId}
+        <IssuePriority
+          priority={item.priority}
           compact
-          onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}
+          onChange={onUpdate && ((priority) => onUpdate({ priority }))}
         />
-      </span>
+      )}
+      <IssueStatus
+        teamId={item.teamId}
+        statusId={item.statusId}
+        compact
+        onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}
+      />
       <TypeIcon type={type} />
       <IssueIdentifier
         project={project}
@@ -118,7 +114,7 @@ export const IssueRow = memo(function IssueRow({
       )}
       {!compact && parent && (
         <span
-          className="hidden max-w-[180px] items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
+          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
           title={parent.title}
         >
           <TypeIcon
@@ -149,13 +145,11 @@ export const IssueRow = memo(function IssueRow({
         <ReadinessBar item={item} className="hidden md:inline-flex" />
       )}
       {!compact ? (
-        <span className="relative z-10">
-          <AssigneePicker
-            assigneeId={item.assigneeId}
-            compact
-            onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
-          />
-        </span>
+        <AssigneePicker
+          assigneeId={item.assigneeId}
+          compact
+          onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
+        />
       ) : (
         item.assigneeId && (
           <Avatar name={memberName(item.assigneeId)} size="xs" />
