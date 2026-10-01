@@ -11,12 +11,14 @@ import {
   type ReactNode,
 } from "react";
 import posthog from "posthog-js";
+import { toast, Toaster } from "~/components/ui/toast";
 import {
   analyticsConfigured,
   identifyUser,
   track,
 } from "~/lib/analytics/client";
-import { SyncEngine, type View } from "~/sync/client/engine";
+import { statusChangeBlocker } from "~/sync/client/preflight";
+import { SyncEngine, type Rejection, type View } from "~/sync/client/engine";
 import {
   applicationRoleOf,
   capabilitiesOf,
@@ -57,11 +59,15 @@ type WorkspaceContextValue = {
   capabilities: Capabilities;
   // Application role: administrators manage the organization, projects and roles.
   isAdmin: boolean;
-  mutate: (command: Command) => Promise<string>;
+  mutate: (
+    command: Command,
+    target?: SyncEngine,
+  ) => Promise<string | undefined>;
   memberName: (id: string | null | undefined) => string;
   roleName: (id: string | null | undefined) => string;
   acquireItem: (itemId: string, projectId: string) => SyncEngine;
   releaseItem: (itemId: string) => void;
+  refreshWorkspace: () => Promise<void>;
 };
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 // Delivery configuration changes far less often than entities; a separate
@@ -127,13 +133,72 @@ export function WorkspaceProvider({
     void engine.start();
     return () => engine.stop();
   }, [engine]);
+  const notifiedRejections = useRef(new Set<string>());
+  const notifyRejection = useCallback((rejection: Rejection) => {
+    if (notifiedRejections.current.has(rejection.mutationId)) return;
+    notifiedRejections.current.add(rejection.mutationId);
+    toast.add({
+      title: "Change not applied",
+      type: "error",
+      id: rejection.mutationId,
+      description: rejection.message,
+      timeout: 8000,
+    });
+  }, []);
+  useEffect(
+    () => engine.subscribeRejections(notifyRejection),
+    [engine, notifyRejection],
+  );
+  const mutate = useCallback(
+    async (command: Command, target = engine) => {
+      const organizationView = engine.getSnapshot();
+      const targetView = target.getSnapshot();
+      const directory = organizationView.directory.organizations.length
+        ? organizationView.directory
+        : targetView.directory.organizations.length
+          ? targetView.directory
+          : initialDirectory;
+      const blocker =
+        command.type === "updateWorkItem" && command.statusId
+          ? statusChangeBlocker(
+              command,
+              targetView.entities[`workItem:${command.workItemId}`]
+                ? targetView.entities
+                : organizationView.entities,
+              directory,
+            )
+          : undefined;
+      if (blocker) {
+        toast.add({
+          title: "Change not applied",
+          type: "error",
+          description: blocker,
+          timeout: 8000,
+        });
+        return;
+      }
+      return target.mutate(command);
+    },
+    [engine, initialDirectory],
+  );
   const itemEngines = useRef(
-    new Map<string, { engine: SyncEngine; refs: number; used: number }>(),
+    new Map<
+      string,
+      {
+        engine: SyncEngine;
+        refs: number;
+        used: number;
+        unsubscribe: () => void;
+      }
+    >(),
   );
   useEffect(() => {
     const cache = itemEngines.current;
     return () => {
-      for (const entry of cache.values()) entry.engine.stop();
+      for (const entry of cache.values()) {
+        entry.unsubscribe();
+        entry.engine.stop();
+      }
       cache.clear();
     };
   }, []);
@@ -142,12 +207,14 @@ export function WorkspaceProvider({
       const cache = itemEngines.current;
       let entry = cache.get(itemId);
       if (!entry) {
+        const itemEngine = new SyncEngine(userId, {
+          organizationId: organization.id,
+          projectId,
+          workItemId: itemId,
+        });
         entry = {
-          engine: new SyncEngine(userId, {
-            organizationId: organization.id,
-            projectId,
-            workItemId: itemId,
-          }),
+          engine: itemEngine,
+          unsubscribe: itemEngine.subscribeRejections(notifyRejection),
           refs: 0,
           used: Date.now(),
         };
@@ -158,8 +225,13 @@ export function WorkspaceProvider({
       entry.used = Date.now();
       return entry.engine;
     },
-    [organization.id, userId],
+    [organization.id, userId, notifyRejection],
   );
+  const refreshWorkspace = useCallback(async () => {
+    await engine.reset();
+    for (const entry of itemEngines.current.values())
+      await entry.engine.reset();
+  }, [engine]);
   const releaseItem = useCallback((itemId: string) => {
     const cache = itemEngines.current;
     const entry = cache.get(itemId);
@@ -170,6 +242,7 @@ export function WorkspaceProvider({
       .sort((a, b) => a[1].used - b[1].used);
     while (cache.size > ITEM_ENGINE_LIMIT && idle.length) {
       const [id, victim] = idle.shift()!;
+      victim.unsubscribe();
       victim.engine.stop();
       cache.delete(id);
     }
@@ -205,7 +278,7 @@ export function WorkspaceProvider({
       roleIds: myRoleIds(directory, userId),
       capabilities: capabilitiesOf(directory.roles, userId),
       isAdmin: applicationRoleOf(organization.role) === "admin",
-      mutate: (command) => engine.mutate(command),
+      mutate,
       memberName: (id) =>
         id === "system"
           ? "Lictory"
@@ -217,6 +290,7 @@ export function WorkspaceProvider({
         directory.roles.find((r) => r.id === id)?.name ?? "Role",
       acquireItem,
       releaseItem,
+      refreshWorkspace,
     };
   }, [
     view,
@@ -227,11 +301,14 @@ export function WorkspaceProvider({
     engine,
     acquireItem,
     releaseItem,
+    refreshWorkspace,
+    mutate,
   ]);
   return (
     <WorkspaceContext.Provider value={value}>
       <DeliveryContext.Provider value={delivery}>
         {children}
+        <Toaster />
       </DeliveryContext.Provider>
     </WorkspaceContext.Provider>
   );
@@ -250,7 +327,7 @@ export function useItemEngine(
   projectId: string,
   enabled = true,
 ) {
-  const { acquireItem, releaseItem } = useWorkspace();
+  const { acquireItem, releaseItem, mutate: mutateWorkspace } = useWorkspace();
   const [engine, setEngine] = useState<SyncEngine>();
   useEffect(() => {
     if (!enabled) return;
@@ -281,9 +358,9 @@ export function useItemEngine(
   const mutate = useCallback(
     (command: Command) => {
       if (!engine) return Promise.reject(new Error("Opening item…"));
-      return engine.mutate(command);
+      return mutateWorkspace(command, engine);
     },
-    [engine],
+    [engine, mutateWorkspace],
   );
   const entities = useMemo<Entity[]>(
     () => Object.values(view.entities),

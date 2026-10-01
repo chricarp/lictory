@@ -5,6 +5,7 @@ import postgres from "postgres";
 import { eq } from "drizzle-orm";
 import * as s from "../src/db/schema";
 import { seedDefaultRoles } from "../src/sync/server/roles";
+import { paths } from "../src/lib/paths";
 import { configureFirstProject } from "./onboarding-helpers";
 const password = "Onboarding-test-password-123";
 
@@ -205,4 +206,79 @@ test("joining waits without creating an organization, discovers invitations, and
     (await db.select().from(s.team).where(eq(s.team.organizationId, orgId)))[0],
   ).toEqual(team);
   await client.end();
+});
+
+test("cycle selects support keyboard choices, numeric zero, and persisted team settings", async ({
+  page,
+}) => {
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await page.getByLabel("Organization name").fill("Cycle select verification");
+  await page
+    .getByRole("button", { name: "Create organization", exact: true })
+    .click();
+  await page.getByLabel("Project name").fill("Payments");
+  await page.getByLabel("Key", { exact: true }).fill("PAY");
+  await configureFirstProject(page);
+  // Revisit planning to exercise the conditional cycle controls.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Automatic cycles", exact: false })
+    .click();
+  const length = page.getByRole("combobox", { name: "Cycle length" });
+  await length.click();
+  await page.getByRole("option", { name: "3 weeks", exact: true }).click();
+  const startDay = page.getByRole("combobox", { name: "Starts on" });
+  await startDay.focus();
+  await startDay.press("Enter");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await expect(startDay).toHaveText("Sunday");
+  await expect(startDay).toBeFocused();
+  await expect(startDay).toHaveCSS("height", "40px");
+  await expect(startDay).toHaveCSS("border-radius", "6px");
+  await page.screenshot({ path: "/tmp/lictory-select-onboarding.png" });
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/pay\/epics$/);
+  const orgSlug = new URL(page.url()).pathname.split("/")[2]!;
+  const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+  const db = drizzle(client);
+  const [organization] = await db
+    .select()
+    .from(s.organization)
+    .where(eq(s.organization.slug, orgSlug));
+  const [team] = await db
+    .select()
+    .from(s.team)
+    .where(eq(s.team.organizationId, organization!.id));
+  expect(team).toMatchObject({
+    iterationWeeks: 3,
+    iterationStartDay: 0,
+    estimateScale: "fibonacci",
+  });
+  await page.goto(paths.teamSettings(orgSlug, team!.id));
+  const upcoming = page.getByRole("combobox", { name: "Upcoming cycles" });
+  await expect(upcoming).toHaveCSS("height", "32px");
+  await upcoming.click();
+  await page.getByRole("option", { name: "0", exact: true }).click();
+  await expect(upcoming).toHaveText("0");
+  await expect
+    .poll(async () => {
+      const [saved] = await db
+        .select()
+        .from(s.team)
+        .where(eq(s.team.id, team!.id));
+      return saved?.upcomingIterations;
+    })
+    .toBe(0);
+  await client.end();
+  await page.reload();
+  await expect(upcoming).toHaveText("0");
+  await page.getByRole("combobox", { name: "Estimate scale" }).click();
+  await page.screenshot({ path: "/tmp/lictory-select-team-settings.png" });
+  await page.keyboard.press("Escape");
 });

@@ -1,4 +1,8 @@
 "use client";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "~/components/ui/dropdown-select";
 import { useEffect, useMemo, useState } from "react";
 import {
   GitBranch,
@@ -11,6 +15,12 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { byType, relativeTime } from "~/lib/work-items";
+import {
+  BRANCH_NAME_MAX_LENGTH,
+  branchNameProblem,
+  finalizeBranchName,
+  sanitizeBranchNameInput,
+} from "~/lib/branch-name";
 import type { Command, EntityOf } from "~/sync/shared/protocol";
 import {
   mergeBase,
@@ -34,7 +44,7 @@ export type BranchScreen =
   | { kind: "branch"; id: string }
   | { kind: "pr"; id: string };
 const field =
-  "w-full rounded-md border bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+  "w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 function useBranchData() {
   const ctx = useItem();
   return {
@@ -129,25 +139,24 @@ export function BranchWorkspace({
           <GitBranch className="size-3.5" />
           Branches & pull requests
         </Button>
-        <select
+        <DropdownSelect
           aria-label="Switch branch"
-          className="max-w-48 rounded-md border bg-card px-2 py-1 text-xs"
+          variant="secondary"
+          className="max-w-48 min-w-32"
           value={screen.kind === "branch" ? screen.id : ""}
-          onChange={(e) =>
-            e.target.value
-              ? onNavigate({ kind: "branch", id: e.target.value })
-              : onMain()
+          onValueChange={(value) =>
+            value ? onNavigate({ kind: "branch", id: value }) : onMain()
           }
         >
-          <option value="">main</option>
+          <DropdownSelectOption value="">main</DropdownSelectOption>
           {data.branches
             .filter((b) => b.name !== "main")
             .map((b) => (
-              <option key={b.id} value={b.id}>
+              <DropdownSelectOption key={b.id} value={b.id}>
                 {b.name}
-              </option>
+              </DropdownSelectOption>
             ))}
-        </select>
+        </DropdownSelect>
         <span className="ml-auto truncate text-sm text-muted-foreground">
           {data.project.key}-{data.item.number}
         </span>
@@ -179,6 +188,14 @@ function BranchOverview({
   const { run, error, pending } = useAction();
   const [name, setName] = useState("");
   const [from, setFrom] = useState("");
+  const finalName = finalizeBranchName(name);
+  // Only show problems that typing can't fix; trailing separators are trimmed on submit.
+  const nameProblem = name
+    ? (branchNameProblem(finalName) ??
+      (branches.some((b) => b.name === finalName)
+        ? "That branch name is already in use."
+        : null))
+    : null;
   return (
     <>
       <div>
@@ -194,51 +211,68 @@ function BranchOverview({
           className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-4"
           onSubmit={(e) => {
             e.preventDefault();
+            setName(finalName);
+            if (nameProblem) return;
             const id = crypto.randomUUID();
             void run(
               {
                 type: "createBranch",
                 ...base,
                 branchId: id,
-                name,
+                name: finalName,
                 fromBranchId: from || undefined,
               },
               () => onNavigate({ kind: "branch", id }),
             );
           }}
         >
-          <label className="min-w-48 flex-1 space-y-1 text-xs font-medium">
+          <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs font-medium">
             New branch name
             <input
               aria-label="New branch name"
-              className={field}
+              className={`${field} h-8`}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(sanitizeBranchNameInput(e.target.value))}
+              onBlur={() => setName((n) => finalizeBranchName(n))}
               placeholder="e.g. clarify-timeout"
               required
-              pattern={String.raw`[a-zA-Z0-9][a-zA-Z0-9._\/\-]*`}
-              maxLength={80}
+              aria-invalid={nameProblem ? true : undefined}
+              aria-describedby={
+                nameProblem ? "new-branch-name-problem" : undefined
+              }
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              maxLength={BRANCH_NAME_MAX_LENGTH}
             />
+            {nameProblem && (
+              <span
+                id="new-branch-name-problem"
+                className="font-normal text-destructive"
+              >
+                {nameProblem}
+              </span>
+            )}
           </label>
-          <label className="space-y-1 text-xs font-medium">
+          <label className="flex w-40 min-w-0 flex-col gap-1 text-xs font-medium">
             Branch from
-            <select
+            <DropdownSelect
               aria-label="Branch from"
-              className={field}
+              className="w-full"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onValueChange={(value) => setFrom(value)}
             >
-              <option value="">main</option>
+              <DropdownSelectOption value="">main</DropdownSelectOption>
               {branches
                 .filter((b) => b.name !== "main")
                 .map((b) => (
-                  <option key={b.id} value={b.id}>
+                  <DropdownSelectOption key={b.id} value={b.id}>
                     {b.name}
-                  </option>
+                  </DropdownSelectOption>
                 ))}
-            </select>
+            </DropdownSelect>
           </label>
-          <Button type="submit" disabled={pending || !name.trim()}>
+          <Button type="submit" disabled={pending || !name || !!nameProblem}>
             <Plus className="size-3.5" />
             Create branch
           </Button>
@@ -613,7 +647,7 @@ function BranchEditorBody({
                 Commit message
                 <input
                   aria-label="Commit message"
-                  className={field}
+                  className={`${field} h-8`}
                   value={draft.message}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, message: e.target.value }))
@@ -701,30 +735,30 @@ function BranchEditorBody({
             {branch.authorId === userId && (
               <label className="mt-3 block space-y-1 text-xs font-medium">
                 Invite collaborator
-                <select
+                <DropdownSelect
+                  placeholder="Choose a person…"
                   aria-label="Invite collaborator"
-                  className={field}
+                  className="w-full"
                   value=""
                   disabled={pending}
-                  onChange={(e) =>
+                  onValueChange={(value) =>
                     void run({
                       type: "setBranchCollaborator",
                       workItemId: itemId,
                       branchId: branch.id,
-                      userId: e.target.value,
+                      userId: value,
                       assigned: true,
                     })
                   }
                 >
-                  <option value="">Choose a person…</option>
                   {directory.members
                     .filter((m) => !branch.collaboratorIds.includes(m.id))
                     .map((m) => (
-                      <option key={m.id} value={m.id}>
+                      <DropdownSelectOption key={m.id} value={m.id}>
                         {m.name}
-                      </option>
+                      </DropdownSelectOption>
                     ))}
-                </select>
+                </DropdownSelect>
               </label>
             )}
           </section>
@@ -815,26 +849,26 @@ function CreatePR({
       <ErrorMessage message={error} />
       <label className="block space-y-1 text-xs font-medium">
         Target branch
-        <select
+        <DropdownSelect
           aria-label="PR target branch"
-          className={field}
+          className="w-full"
           value={target}
-          onChange={(e) => setTarget(e.target.value)}
+          onValueChange={(value) => setTarget(value)}
         >
           {branches
             .filter((b) => b.id !== source.id)
             .map((b) => (
-              <option key={b.id} value={b.id}>
+              <DropdownSelectOption key={b.id} value={b.id}>
                 {b.name}
-              </option>
+              </DropdownSelectOption>
             ))}
-        </select>
+        </DropdownSelect>
       </label>
       <label className="block space-y-1 text-xs font-medium">
         Title
         <input
           aria-label="Pull request title"
-          className={field}
+          className={`${field} h-8`}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={120}
@@ -844,7 +878,7 @@ function CreatePR({
         Description
         <textarea
           aria-label="Pull request description"
-          className={field}
+          className={`${field} py-2`}
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -949,7 +983,7 @@ export function ConflictResolver({
           </div>
           <input
             aria-label="Resolved title"
-            className={field}
+            className={`${field} h-8`}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -1124,19 +1158,19 @@ function SyncBranch({
   return (
     <div className="mt-2 space-y-2">
       <ErrorMessage message={error} />
-      <select
+      <DropdownSelect
         aria-label="Update branch from"
-        className={field}
+        className="w-full"
         value={targetId}
         disabled={disabled}
-        onChange={(e) => setTargetId(e.target.value)}
+        onValueChange={(value) => setTargetId(value)}
       >
         {targets.map((b) => (
-          <option key={b.id} value={b.id}>
+          <DropdownSelectOption key={b.id} value={b.id}>
             {b.name}
-          </option>
+          </DropdownSelectOption>
         ))}
-      </select>
+      </DropdownSelect>
       <Button
         size="sm"
         variant="secondary"
@@ -1622,19 +1656,19 @@ function PullRequestView({
               <div className="space-y-2">
                 <label className="block space-y-1 text-xs font-medium">
                   Request review
-                  <select
+                  <DropdownSelect
+                    placeholder="Choose a role…"
                     aria-label="PR reviewer role"
-                    className={field}
+                    className="w-full"
                     value={roleId}
-                    onChange={(e) => setRoleId(e.target.value)}
+                    onValueChange={(value) => setRoleId(value)}
                   >
-                    <option value="">Choose a role…</option>
                     {roleOptions.map((r) => (
-                      <option key={r.id} value={r.id}>
+                      <DropdownSelectOption key={r.id} value={r.id}>
                         {r.name}
-                      </option>
+                      </DropdownSelectOption>
                     ))}
-                  </select>
+                  </DropdownSelect>
                 </label>
                 <Button
                   size="sm"

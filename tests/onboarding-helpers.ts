@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 export async function configureFirstProject(
   page: Page,
@@ -27,7 +27,17 @@ export async function configureFirstProject(
         exact: false,
       })
       .click();
-    await page.getByLabel("Estimate scale").selectOption("fibonacci");
+    const estimates = page.getByRole("combobox", { name: "Estimate scale" });
+    await expect(estimates).toHaveCSS("height", "40px");
+    await estimates.focus();
+    await estimates.press("Enter");
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(estimates).toBeFocused();
+    await estimates.click();
+    await page
+      .getByRole("option", { name: "Fibonacci points", exact: true })
+      .click();
   }
   if (mode === "native")
     await page.getByRole("button", { name: "Continue", exact: true }).click();

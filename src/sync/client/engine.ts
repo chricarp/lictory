@@ -14,6 +14,8 @@ import {
 import { subscribeInvalidations } from "./hub";
 import {
   IndexedPersistence,
+  applicationRejected,
+  forgettable,
   type Cache,
   type Persistence,
   type Queued,
@@ -24,6 +26,7 @@ import {
   retryDelay,
   type Entities,
 } from "./reconciliation";
+export type Rejection = { mutationId: string; message: string };
 export type View = {
   entities: Entities;
   directory: Directory;
@@ -32,6 +35,7 @@ export type View = {
   cursor?: string;
   error?: string;
   lastSync?: number;
+  accessUnavailable?: boolean;
 };
 const emptyDirectory: Directory = {
   organizations: [],
@@ -47,6 +51,7 @@ export class SyncEngine {
   private cache: Cache = { entities: {}, directory: emptyDirectory };
   private queue: Queued[] = [];
   private listeners = new Set<() => void>();
+  private rejectionListeners = new Set<(rejection: Rejection) => void>();
   private stopped = false;
   private generation = 0;
   private revoked = false;
@@ -78,6 +83,26 @@ export class SyncEngine {
       this.listeners.delete(listener);
     };
   };
+  subscribeRejections = (listener: (rejection: Rejection) => void) => {
+    this.rejectionListeners.add(listener);
+    return () => {
+      this.rejectionListeners.delete(listener);
+    };
+  };
+  private notifyRejection(rejection: Rejection) {
+    for (const listener of this.rejectionListeners) listener(rejection);
+  }
+  private async loadQueue() {
+    const queue = await this.persistence.queue(this.owner);
+    const retained: Queued[] = [];
+    for (const item of queue) {
+      // Also clear property rejections persisted by older clients, without replaying feedback.
+      if (applicationRejected(item) && forgettable(item))
+        await this.persistence.delete(this.owner, item.mutation.id);
+      else retained.push(item);
+    }
+    return retained;
+  }
   getSnapshot = () => this.view;
   private emit() {
     this.view = {
@@ -96,6 +121,7 @@ export class SyncEngine {
       cursor: this.cache.cursor,
       error: this.error,
       lastSync: this.cache.lastSync,
+      accessUnavailable: this.revoked,
     };
     for (const listener of this.listeners) listener();
   }
@@ -104,13 +130,28 @@ export class SyncEngine {
     const generation = ++this.generation;
     try {
       this.cache = (await this.persistence.load(this.key)) ?? this.cache;
-      this.queue = await this.persistence.queue(this.owner);
+      this.queue = await this.loadQueue();
       if (this.stopped || generation !== this.generation) return;
       this.status = navigator.onLine ? "syncing" : "offline";
       this.emit();
       this.channel = new BroadcastChannel(`lictory:${this.owner}`);
       this.channel.onmessage = (event: MessageEvent<unknown>) => {
-        if (event.data === "revoked") {
+        const data = event.data;
+        if (
+          typeof data === "object" &&
+          data !== null &&
+          "type" in data &&
+          data.type === "rejected" &&
+          "mutationId" in data &&
+          typeof data.mutationId === "string" &&
+          "message" in data &&
+          typeof data.message === "string"
+        )
+          this.notifyRejection({
+            mutationId: data.mutationId,
+            message: data.message,
+          });
+        if (data === "revoked") {
           this.purgeBranchDrafts();
           this.cache = { entities: {}, directory: emptyDirectory };
           this.queue = [];
@@ -150,7 +191,7 @@ export class SyncEngine {
     this.status = navigator.onLine ? "failed" : "offline";
     this.emit();
   }
-  async mutate(command: Command) {
+  async mutate(command: Command, options: { forgettable?: boolean } = {}) {
     if (this.revoked)
       throw new Error(
         "Organization access is unavailable. Reload after signing in.",
@@ -167,9 +208,10 @@ export class SyncEngine {
       attempts: 0,
       nextAttempt: 0,
       blocked: false,
+      forgettable: options.forgettable ?? command.type === "updateWorkItem",
     };
     await this.persistence.put(this.owner, item);
-    this.queue = await this.persistence.queue(this.owner);
+    this.queue = await this.loadQueue();
     this.emit();
     this.channel?.postMessage("queued");
     void this.sync();
@@ -183,11 +225,11 @@ export class SyncEngine {
       throw new Error(
         "Reconnect before committing. Your draft is kept in this browser.",
       );
-    if (this.queue.some((q) => q.blocked && q.attempts > 0))
+    if (this.queue.some((q) => q.blocked && !applicationRejected(q)))
       throw new Error(
         "Resolve the failed change in synchronization before continuing. Your draft is kept.",
       );
-    const id = await this.mutate(command);
+    const id = await this.mutate(command, { forgettable: false });
     await new Promise<void>((resolve, reject) => {
       let unsubscribe = () => {
         /* assigned before checking queue */
@@ -215,7 +257,7 @@ export class SyncEngine {
           unsubscribe();
           // Only definitive domain rejections (zero network retries) can be
           // discarded here. Transport failures retain their idempotency ID.
-          if (queued.attempts === 0)
+          if (applicationRejected(queued))
             void this.discard(id).then(() => this.sync());
           reject(new Error(queued.error ?? "This change could not be saved."));
         }
@@ -232,12 +274,32 @@ export class SyncEngine {
       ...item,
       blocked: false,
       attempts: 0,
+      uncertain: item.attempts > 0 || item.uncertain === true,
       nextAttempt: 0,
       error: undefined,
     });
     await this.sync();
   }
+  // Recover transport failures together, preserving each mutation's ID and order.
+  // Expected domain rejections are already handled by the application.
+  async retryPending() {
+    if (this.running) await this.running;
+    const pending = await this.persistence.queue(this.owner);
+    for (const item of pending) {
+      if (applicationRejected(item) || !item.error) continue;
+      await this.persistence.put(this.owner, {
+        ...item,
+        attempts: 0,
+        uncertain: item.attempts > 0 || item.uncertain === true,
+        blocked: false,
+        nextAttempt: 0,
+        error: undefined,
+      });
+    }
+    await this.sync();
+  }
   async reset() {
+    if (this.running) await this.running;
     await this.persistence.remove(this.key);
     this.cache = { entities: {}, directory: emptyDirectory };
     this.emit();
@@ -245,7 +307,7 @@ export class SyncEngine {
   }
   async discard(id: string) {
     await this.persistence.delete(this.owner, id);
-    this.queue = await this.persistence.queue(this.owner);
+    this.queue = await this.loadQueue();
     this.emit();
   }
   private purgeBranchDrafts() {
@@ -325,6 +387,7 @@ export class SyncEngine {
     return this.running;
   }
   private async cycle() {
+    this.queue = await this.loadQueue();
     if (!navigator.onLine) {
       this.offline();
       return;
@@ -335,13 +398,12 @@ export class SyncEngine {
     await this.read();
     if (this.stopped) return;
     // IDB queue items are separate records; tabs cannot overwrite each other's work.
-    this.queue = await this.persistence.queue(this.owner);
+    this.queue = await this.loadQueue();
     for (const item of this.queue) {
       if (this.stopped) break;
-      // A definitive rejection made no change. Keep it inspectable without
-      // preventing later commands from being validated against server state.
+      // Retained application rejections do not block later commands.
       // Transport failures may have committed and must preserve queue order.
-      if (item.blocked && item.attempts === 0) continue;
+      if (applicationRejected(item)) continue;
       if (item.blocked || item.nextAttempt > Date.now()) break;
       try {
         const response = await fetch("/api/sync", {
@@ -356,12 +418,24 @@ export class SyncEngine {
         if (!response.ok) {
           const error = errorSchema.parse(body).error;
           if (response.status < 500) {
-            await this.persistence.put(this.owner, {
+            const rejected: Queued = {
               ...item,
               blocked: true,
               error: error.message,
-            });
-            if (item.attempts === 0) continue;
+            };
+            if (applicationRejected(rejected) && forgettable(rejected))
+              await this.persistence.delete(this.owner, item.mutation.id);
+            else await this.persistence.put(this.owner, rejected);
+            if (applicationRejected(rejected)) {
+              const rejection = {
+                mutationId: item.mutation.id,
+                message: error.message,
+              };
+              this.notifyRejection(rejection);
+              this.channel?.postMessage({ type: "rejected", ...rejection });
+              continue;
+            }
+            this.channel?.postMessage("queued");
             break;
           }
           throw new Error(error.message);
@@ -379,6 +453,7 @@ export class SyncEngine {
         await this.persistence.put(this.owner, {
           ...item,
           attempts,
+          uncertain: true,
           nextAttempt: Date.now() + retryDelay(attempts),
           blocked: attempts >= 5,
           error:
@@ -387,8 +462,10 @@ export class SyncEngine {
         break;
       }
     }
-    this.queue = await this.persistence.queue(this.owner);
-    this.error = this.queue.find((q) => q.error)?.error;
+    this.queue = await this.loadQueue();
+    this.error = this.queue.find(
+      (q) => q.error && !applicationRejected(q),
+    )?.error;
     this.status = this.error ? "failed" : "synced";
     this.emit();
   }

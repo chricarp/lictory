@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidBranchName } from "~/lib/branch-name";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -891,12 +892,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createBranch"),
     ...revisionCommand,
     branchId: z.uuid(),
-    name: z
-      .string()
-      .trim()
-      .min(1)
-      .max(80)
-      .regex(/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/),
+    name: z.string().trim().refine(isValidBranchName, "Invalid branch name."),
     fromBranchId: id.optional(),
   }),
   z.object({

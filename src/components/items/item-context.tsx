@@ -35,7 +35,7 @@ export type ItemContextValue = {
   roleIds: string[];
   memberName: (id: string | null | undefined) => string;
   roleName: (id: string | null | undefined) => string;
-  mutate: (command: Command) => Promise<string>;
+  mutate: (command: Command) => Promise<string | undefined>;
   mutateConfirmed: (command: Command) => Promise<string>;
   // Archived or not yet confirmed: nothing about the item can change.
   readOnly: boolean;

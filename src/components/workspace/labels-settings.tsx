@@ -1,4 +1,8 @@
 "use client";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "~/components/ui/dropdown-select";
 import { useState } from "react";
 import { Archive, ArchiveRestore, Flag, Tags } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -52,18 +56,18 @@ export function LabelsAndMilestones() {
       }
       action={
         projects.length > 1 ? (
-          <select
+          <DropdownSelect
             value={project.id}
-            onChange={(e) => setProjectId(e.target.value)}
+            onValueChange={(value) => setProjectId(value)}
             aria-label="Project"
-            className="h-7 rounded-md border border-border bg-card px-2 text-xs"
+            size="sm"
           >
             {projects.map((p) => (
-              <option key={p.id} value={p.id}>
+              <DropdownSelectOption key={p.id} value={p.id}>
                 {p.name}
-              </option>
+              </DropdownSelectOption>
             ))}
-          </select>
+          </DropdownSelect>
         ) : undefined
       }
     >
@@ -313,20 +317,20 @@ function MilestoneRow({
             : "No target date"
         }
       />
-      <select
+      <DropdownSelect
         value={milestone.status}
-        onChange={(e) =>
-          void update({ status: e.target.value as MilestoneStatus })
+        onValueChange={(value) =>
+          void update({ status: value as MilestoneStatus })
         }
         aria-label={`Status for ${milestone.name}`}
-        className="h-7 rounded-md border bg-card px-1 text-xs"
+        size="sm"
       >
         {milestoneStatuses.map((s) => (
-          <option key={s} value={s}>
+          <DropdownSelectOption key={s} value={s}>
             {milestoneStatusMeta[s]}
-          </option>
+          </DropdownSelectOption>
         ))}
-      </select>
+      </DropdownSelect>
       <span className="text-xs text-muted-foreground tabular-nums">
         {count} item{count === 1 ? "" : "s"}
       </span>

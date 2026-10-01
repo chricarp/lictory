@@ -1,5 +1,9 @@
 "use client";
 import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "~/components/ui/dropdown-select";
+import {
   cloneElement,
   useEffect,
   useId,
@@ -719,26 +723,26 @@ function Select({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: string[][];
+  options: [string, string][];
 }) {
   return (
     <label className="block text-sm font-medium">
       {label}
-      <select
+      <DropdownSelect
+        placeholder="Choose an option"
         value={value}
         required
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-2 h-11 w-full rounded-md border bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onValueChange={(value) => onChange(value)}
+        size="lg"
+        className="mt-2 w-full"
+        aria-label={label}
       >
-        <option value="" disabled>
-          Choose an option
-        </option>
         {options.map(([value, label]) => (
-          <option key={value} value={value}>
+          <DropdownSelectOption key={value} value={value}>
             {label}
-          </option>
+          </DropdownSelectOption>
         ))}
-      </select>
+      </DropdownSelect>
     </label>
   );
 }

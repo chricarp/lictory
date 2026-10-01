@@ -1,4 +1,8 @@
 "use client";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "~/components/ui/dropdown-select";
 import { useState } from "react";
 import { ArrowUpRight, Loader2, PlugZap } from "lucide-react";
 import type { DeliveryConnectionSummary } from "~/sync/shared/protocol";
@@ -330,23 +334,23 @@ function TargetEditor({
       </SettingsSubheading>
       <SettingsBody className="space-y-3 pt-0">
         {projects && !project && (
-          <select
-            aria-label="Jira project"
-            className="h-8 w-full rounded-md border bg-card px-2 text-[13px]"
-            defaultValue=""
-            onChange={(e) => void choose(e.target.value)}
-          >
-            <option value="" disabled>
-              {projects.length
+          <DropdownSelect
+            placeholder={
+              projects.length
                 ? "Select a Jira project…"
-                : "No projects visible to this account"}
-            </option>
+                : "No projects visible to this account"
+            }
+            aria-label="Jira project"
+            className="w-full"
+            defaultValue=""
+            onValueChange={(value) => void choose(value)}
+          >
             {projects.map((p) => (
-              <option key={p.id} value={p.key}>
+              <DropdownSelectOption key={p.id} value={p.key}>
                 {p.key} · {p.name}
-              </option>
+              </DropdownSelectOption>
             ))}
-          </select>
+          </DropdownSelect>
         )}
         {!project && target && (
           <Button
@@ -383,20 +387,23 @@ function TargetEditor({
                 <div key={t.id} className="grid gap-1">
                   <label className="flex items-center gap-2 text-[13px]">
                     <span className="w-24 shrink-0">{t.name}</span>
-                    <select
-                      className="h-8 min-w-0 flex-1 rounded-md border bg-card px-2 text-[13px]"
+                    <DropdownSelect
+                      className="min-w-0 flex-1"
+                      aria-label={`${t.name} Jira issue type`}
                       value={mapping[t.id] ?? ""}
-                      onChange={(e) =>
-                        setMapping((m) => ({ ...m, [t.id]: e.target.value }))
+                      onValueChange={(value) =>
+                        setMapping((m) => ({ ...m, [t.id]: value }))
                       }
                     >
-                      <option value="">Not exported</option>
+                      <DropdownSelectOption value="">
+                        Not exported
+                      </DropdownSelectOption>
                       {project.types.map((x) => (
-                        <option key={x.id} value={x.id}>
+                        <DropdownSelectOption key={x.id} value={x.id}>
                           {x.name}
-                        </option>
+                        </DropdownSelectOption>
                       ))}
-                    </select>
+                    </DropdownSelect>
                   </label>
                   {chosen?.unsupportedRequiredFields.length ? (
                     <p className="pl-26 text-xs text-destructive">

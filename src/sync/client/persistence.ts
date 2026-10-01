@@ -12,8 +12,17 @@ export const queuedSchema = z.object({
   nextAttempt: z.number(),
   error: z.string().optional(),
   blocked: z.boolean(),
+  forgettable: z.boolean().optional(),
+  uncertain: z.boolean().optional(),
 });
 export type Queued = z.infer<typeof queuedSchema>;
+// Legacy entries with retries also have an uncertain server outcome.
+export function applicationRejected(item: Queued) {
+  return item.blocked && item.attempts === 0 && !item.uncertain;
+}
+export function forgettable(item: Queued) {
+  return item.forgettable ?? item.mutation.command.type === "updateWorkItem";
+}
 export const cacheSchema = z.object({
   cursor: checkpointSchema.optional(),
   entities: z.record(z.string(), entitySchema),

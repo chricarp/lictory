@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { toast as toastManager } from "~/components/ui/toast";
 import { resetAnalytics, track } from "~/lib/analytics/client";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import {
@@ -32,7 +33,6 @@ import {
   Search,
   Settings,
   UserRound,
-  X,
   KanbanSquare,
   ListOrdered,
   Users,
@@ -61,8 +61,6 @@ import { SyncStatus } from "./sync-status";
 import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
 
 type Toast = {
-  id: number;
-  text: string;
   action?: { label: string; href: string };
 };
 type ShellContextValue = {
@@ -113,7 +111,6 @@ export function Shell({
   const canCreate = capabilities.editSpecifications;
   const pathname = usePathname();
   const router = useRouter();
-  const [toasts, setToasts] = useState<Toast[]>([]);
   const [palette, setPalette] = useState<{ open: boolean; query: string }>({
     open: false,
     query: "",
@@ -139,12 +136,24 @@ export function Shell({
       ?.querySelector<HTMLButtonElement>("[data-sidebar-toggle]")
       ?.focus();
   }, [sidebarCollapsed]);
-  const toastId = useRef(0);
-  const toast = useCallback((text: string, action?: Toast["action"]) => {
-    const id = ++toastId.current;
-    setToasts((t) => [...t, { id, text, action }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
-  }, []);
+  const toast = useCallback(
+    (text: string, action?: Toast["action"]) => {
+      const id = toastManager.add({
+        title: text,
+        timeout: 6000,
+        actionProps: action
+          ? {
+              children: action.label,
+              onClick: () => {
+                router.push(action.href);
+                toastManager.close(id);
+              },
+            }
+          : undefined,
+      });
+    },
+    [router],
+  );
   // The route names the project while browsing it. Organization-level surfaces
   // (Inbox, settings, account) keep the last project in context instead of
   // dropping the person out of it.
@@ -329,36 +338,6 @@ export function Shell({
       {create && (
         <QuickCreate options={create} onClose={() => setCreate(null)} />
       )}
-      <div
-        aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4"
-      >
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className="pointer-events-auto flex items-center gap-3 rounded-lg border bg-popover px-3 py-2 text-[13px] shadow-(--shadow-panel)"
-          >
-            <Check className="size-3.5 text-success" />
-            <span>{t.text}</span>
-            {t.action && (
-              <Link
-                href={t.action.href}
-                className="font-medium text-primary hover:underline"
-                onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}
-              >
-                {t.action.label}
-              </Link>
-            )}
-            <button
-              aria-label="Dismiss"
-              onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
     </ShellContext.Provider>
   );
 }

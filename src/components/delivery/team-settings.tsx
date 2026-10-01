@@ -1,4 +1,8 @@
 "use client";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "~/components/ui/dropdown-select";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
@@ -513,77 +517,89 @@ function PlanningSection({ team, canEdit }: { team: Team; canEdit: boolean }) {
           <div className="flex flex-wrap gap-4">
             <label className="text-[13px]">
               <span className="font-medium">Length</span>
-              <select
+              <DropdownSelect
                 disabled={!canEdit}
-                className="mt-1 block h-8 rounded-md border bg-background px-2 text-sm"
+                className="mt-1 w-full"
+                aria-label="Iteration length"
                 value={team.iterationWeeks}
-                onChange={(e) =>
-                  update({ iterationWeeks: Number(e.target.value) })
+                onValueChange={(value) =>
+                  update({ iterationWeeks: Number(value) })
                 }
               >
                 {[1, 2, 3, 4, 6, 8].map((w) => (
-                  <option key={w} value={w}>
+                  <DropdownSelectOption key={w} value={w}>
                     {w} week{w > 1 ? "s" : ""}
-                  </option>
+                  </DropdownSelectOption>
                 ))}
-              </select>
+              </DropdownSelect>
             </label>
             {team.iterationMode === "automatic" && (
               <>
                 <label className="text-[13px]">
                   <span className="font-medium">Starts on</span>
-                  <select
+                  <DropdownSelect
                     disabled={!canEdit}
-                    className="mt-1 block h-8 rounded-md border bg-background px-2 text-sm"
+                    className="mt-1 w-full"
+                    aria-label="Cycle start day"
                     value={team.iterationStartDay}
-                    onChange={(e) =>
-                      update({ iterationStartDay: Number(e.target.value) })
+                    onValueChange={(value) =>
+                      update({ iterationStartDay: Number(value) })
                     }
                   >
                     {weekdays.map((d, i) => (
-                      <option key={d} value={i}>
+                      <DropdownSelectOption key={d} value={i}>
                         {d}
-                      </option>
+                      </DropdownSelectOption>
                     ))}
-                  </select>
+                  </DropdownSelect>
                 </label>
                 <label className="text-[13px]">
                   <span className="font-medium">Upcoming cycles</span>
-                  <select
+                  <DropdownSelect
                     disabled={!canEdit}
-                    className="mt-1 block h-8 rounded-md border bg-background px-2 text-sm"
+                    className="mt-1 w-full"
+                    aria-label="Upcoming cycles"
                     value={team.upcomingIterations}
-                    onChange={(e) =>
-                      update({ upcomingIterations: Number(e.target.value) })
+                    onValueChange={(value) =>
+                      update({ upcomingIterations: Number(value) })
                     }
                   >
                     {[0, 1, 2, 3, 4, 6].map((n) => (
-                      <option key={n} value={n}>
+                      <DropdownSelectOption key={n} value={n}>
                         {n}
-                      </option>
+                      </DropdownSelectOption>
                     ))}
-                  </select>
+                  </DropdownSelect>
                 </label>
               </>
             )}
           </div>
         )}
         <Field label="Estimates">
-          <select
+          <DropdownSelect
             disabled={!canEdit}
-            className="block h-8 rounded-md border bg-background px-2 text-sm"
+            className="w-full"
+            aria-label="Estimate scale"
             value={team.estimateScale}
-            onChange={(e) =>
+            onValueChange={(value) =>
               update({
-                estimateScale: e.target.value as Team["estimateScale"],
+                estimateScale: value as Team["estimateScale"],
               })
             }
           >
-            <option value="none">No estimates</option>
-            <option value="fibonacci">Points (0, 1, 2, 3, 5, 8, 13, 21)</option>
-            <option value="linear">Points (0–8)</option>
-            <option value="tshirt">T-shirt sizes (XS–XL)</option>
-          </select>
+            <DropdownSelectOption value="none">
+              No estimates
+            </DropdownSelectOption>
+            <DropdownSelectOption value="fibonacci">
+              Points (0, 1, 2, 3, 5, 8, 13, 21)
+            </DropdownSelectOption>
+            <DropdownSelectOption value="linear">
+              Points (0–8)
+            </DropdownSelectOption>
+            <DropdownSelectOption value="tshirt">
+              T-shirt sizes (XS–XL)
+            </DropdownSelectOption>
+          </DropdownSelect>
         </Field>
         <InlineError>{error}</InlineError>
       </SettingsBody>
@@ -1011,20 +1027,20 @@ export function TypesSection() {
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             aria-label="Type name"
           />
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-sm"
+          <DropdownSelect
+            className="w-36"
             value={draft.level}
-            onChange={(e) =>
-              setDraft({ ...draft, level: Number(e.target.value) })
+            onValueChange={(value) =>
+              setDraft({ ...draft, level: Number(value) })
             }
             aria-label="Level"
           >
             {levelLabel.map((l, i) => (
-              <option key={l} value={i}>
+              <DropdownSelectOption key={l} value={i}>
                 {l}
-              </option>
+              </DropdownSelectOption>
             ))}
-          </select>
+          </DropdownSelect>
           <label className="flex items-center gap-1.5 text-xs">
             <input
               type="checkbox"

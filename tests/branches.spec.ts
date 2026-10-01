@@ -141,16 +141,39 @@ async function commit(page: Page, content: string, message: string) {
 }
 async function createBranch(page: Page, name: string, from?: string) {
   await page.goto(itemUrl + "?branches=1");
+  const source = page.getByRole("combobox", {
+    name: "Branch from",
+    exact: true,
+  });
+  await expect(source).toHaveText("main");
+  await expect(source).toHaveCSS("height", "32px");
+  await expect(
+    page.getByRole("textbox", { name: "New branch name" }),
+  ).toHaveCSS("height", "32px");
+  const switcher = page.getByRole("combobox", { name: "Switch branch" });
+  await expect(switcher).toHaveCSS("height", "32px");
+  await expect(switcher).toHaveCSS(
+    "border-radius",
+    await page
+      .getByRole("button", { name: "Create branch", exact: true })
+      .evaluate((button) => getComputedStyle(button).borderRadius),
+  );
+  await source.click();
+  await page.screenshot({ path: "/tmp/lictory-select-branch-overview.png" });
+  await page.keyboard.press("Escape");
+  await expect(source).toBeFocused();
   await page.getByRole("textbox", { name: "New branch name" }).fill(name);
   expect(
     await page
       .getByRole("textbox", { name: "New branch name" })
       .evaluate((e: HTMLInputElement) => e.checkValidity()),
   ).toBe(true);
-  if (from)
+  if (from) {
     await page
-      .getByLabel("Branch from", { exact: true })
-      .selectOption({ label: from });
+      .getByRole("combobox", { name: "Branch from", exact: true })
+      .click();
+    await page.getByRole("option", { name: from, exact: true }).click();
+  }
   await page
     .getByRole("button", { name: "Create branch", exact: true })
     .click();
@@ -164,15 +187,12 @@ async function openPR(page: Page, title: string) {
   await page
     .getByRole("button", { name: "Open pull request", exact: true })
     .click();
-  const mainId = await page
-    .getByLabel("PR target branch")
-    .locator("option", { hasText: /^main$/ })
-    .getAttribute("value");
-  expect(mainId).not.toBeNull();
-  await expect(page.getByLabel("PR target branch")).toHaveValue(mainId!);
+  const target = page.getByRole("combobox", { name: "PR target branch" });
+  await expect(target).toHaveText("main");
+  await target.click();
   await page
-    .getByLabel("PR target branch")
-    .selectOption({ label: "integration/retries" });
+    .getByRole("option", { name: "integration/retries", exact: true })
+    .click();
   await page.getByRole("textbox", { name: "Pull request title" }).fill(title);
   await page
     .getByRole("textbox", { name: "Pull request description" })
@@ -185,10 +205,11 @@ async function openPR(page: Page, title: string) {
   return page.url();
 }
 
-test("a rejected readiness transition does not prevent priority changes from saving", async ({
+test("readiness is checked before queueing, with one toast per attempt and none after refresh", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme: "dark" });
   await page
     .context()
     .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.183" });
@@ -198,18 +219,88 @@ test("a rejected readiness transition does not prevent priority changes from sav
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
+  const statusRequests: unknown[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "POST" || !request.url().endsWith("/api/sync"))
+      return;
+    const body = request.postDataJSON() as {
+      command?: { type: string; statusId?: string };
+    };
+    if (body.command?.type === "updateWorkItem" && body.command.statusId)
+      statusRequests.push(body);
+  });
   await properties
     .getByRole("button", { name: "Status: Backlog", exact: true })
     .click();
   await page.getByRole("option", { name: /^In Progress/ }).click();
-  await page
-    .getByRole("button", { name: "1 change could not be saved", exact: true })
-    .click();
   await expect(
-    page.getByText(/BRN-1 is not ready to start:/).first(),
+    page.locator('[data-slot="toast"]', { hasText: "Change not applied" }),
+  ).toContainText("BRN-1 is not ready to start:");
+  const notification = page.locator('[data-slot="toast"]', {
+    hasText: "Change not applied",
+  });
+  await notification.hover();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  const theme = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--popover)";
+    probe.style.color = "var(--popover-foreground)";
+    document.body.append(probe);
+    const style = getComputedStyle(probe);
+    const result = {
+      background: style.backgroundColor,
+      foreground: style.color,
+    };
+    probe.remove();
+    return result;
+  });
+  await expect(notification).toHaveCSS("background-color", theme.background);
+  await expect(notification).toHaveCSS("color", theme.foreground);
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+  await expect(notification).not.toHaveCSS(
+    "background-color",
+    theme.background,
+  );
+  await expect(notification).not.toHaveCSS("color", theme.foreground);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(notification).toHaveCSS("background-color", theme.background);
+  const desktopToast = await notification.boundingBox();
+  expect(desktopToast!.x + desktopToast!.width).toBeCloseTo(1440 - 16, 0);
+  await notification
+    .getByRole("button", { name: "Close toast", exact: true })
+    .click();
+  await expect(notification).toHaveCount(0);
+  await properties
+    .getByRole("button", { name: "Status: Backlog", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^In Progress/ }).click();
+  await expect(notification).toHaveCount(1);
+  await expect(notification).toBeVisible();
+  await notification.hover();
+  await expect(notification).toContainText("BRN-1 is not ready to start:");
+  await notification
+    .getByRole("button", { name: "Close toast", exact: true })
+    .click();
+  await expect(notification).toBeHidden();
+  expect(statusRequests).toHaveLength(0);
+
+  await expect(
+    properties.getByRole("button", { name: "Status: Backlog", exact: true }),
   ).toBeVisible();
-  await page.getByText("Inspect unsaved change").click();
-  await expect(page.locator("pre")).toContainText('"statusId"');
+
+  await page
+    .getByRole("button", { name: "Everything is saved", exact: true })
+    .click();
+  const syncDialog = page.getByRole("dialog", { name: "Workspace sync" });
+  await expect(syncDialog).toContainText("Your workspace is up to date");
+  await expect(
+    syncDialog.getByText(/BRN-1 is not ready to start:/),
+  ).toBeHidden();
+  await expect(syncDialog.getByText("Technical details")).toBeHidden();
+  await expect(
+    syncDialog.getByRole("button", { name: "Discard", exact: true }),
+  ).toBeHidden();
   await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "Priority: No priority", exact: true })
@@ -226,15 +317,189 @@ test("a rejected readiness transition does not prevent priority changes from sav
     properties.getByRole("button", { name: "Status: Backlog", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "1 change could not be saved", exact: true })
+    .getByRole("button", { name: "Everything is saved", exact: true })
     .click();
+  await expect(syncDialog).toContainText("Your workspace is up to date");
+  await expect(notification).toHaveCount(0);
+  expect(statusRequests).toHaveLength(0);
   await expect(
-    page.getByText(/BRN-1 is not ready to start:/).first(),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Discard", exact: true }).click();
+    syncDialog.getByText(/BRN-1 is not ready to start:/),
+  ).toBeHidden();
   await page.keyboard.press("Escape");
+});
+
+test("a handled server rejection is forgotten and never replays its toast after refresh", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.185" });
+  await signIn(page, authorEmail);
+  await page.goto(itemUrl);
+  const properties = page
+    .getByRole("heading", { name: "Properties", exact: true })
+    .locator("..");
+  await expect(properties).toBeVisible();
+  let rejectedId: string | undefined;
+  let attempts = 0;
+  await page.route("**/api/sync", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    const body = route.request().postDataJSON() as {
+      id: string;
+      command: { type: string; priority?: string };
+    };
+    if (
+      body.command.type === "updateWorkItem" &&
+      body.command.priority === "urgent"
+    ) {
+      attempts++;
+      rejectedId = body.id;
+      await route.fulfill({
+        status: 422,
+        json: {
+          error: {
+            category: "validation",
+            message: "This change is blocked by the current policy.",
+          },
+        },
+      });
+    } else await route.continue();
+  });
+  await properties
+    .getByRole("button", { name: "Priority: High", exact: true })
+    .click();
+  await page.getByRole("option", { name: "Urgent", exact: true }).click();
+  const notification = page.locator('[data-slot="toast"]', {
+    hasText: "Change not applied",
+  });
+  await expect(notification).toHaveCount(1);
+  await expect(notification).toContainText(
+    "This change is blocked by the current policy.",
+  );
+  await expect(
+    properties.getByRole("button", { name: "Priority: High", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Everything is saved", exact: true }),
+  ).toBeVisible();
+  const queuedIds = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("lictory-sync-v2", 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () =>
+        reject(
+          new Error("Could not read the local queue.", {
+            cause: request.error,
+          }),
+        );
+    });
+    try {
+      return await new Promise<string[]>((resolve, reject) => {
+        const request = db
+          .transaction("queue", "readonly")
+          .objectStore("queue")
+          .getAll();
+        request.onsuccess = () =>
+          resolve(
+            (request.result as { item: { mutation: { id: string } } }[]).map(
+              (record) => record.item.mutation.id,
+            ),
+          );
+        request.onerror = () =>
+          reject(
+            new Error("Could not read the local queue.", {
+              cause: request.error,
+            }),
+          );
+      });
+    } finally {
+      db.close();
+    }
+  });
+  expect(queuedIds).not.toContain(rejectedId);
+  await page.reload();
+  await expect(
+    properties.getByRole("button", { name: "Priority: High", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Everything is saved", exact: true }),
+  ).toBeVisible();
+  await expect(notification).toHaveCount(0);
+  expect(attempts).toBe(1);
+  await properties
+    .getByRole("button", { name: "Priority: High", exact: true })
+    .click();
+  await page.getByRole("option", { name: "Medium", exact: true }).click();
+  await expect(
+    page.getByText("set priority to", { exact: false }).last(),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    properties.getByRole("button", { name: "Priority: Medium", exact: true }),
+  ).toBeVisible();
+});
+
+test("workspace sync explains automatic recovery and safely resumes after retries stop", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.184" });
+  await signIn(page, authorEmail);
+  await page.goto(itemUrl);
+  const properties = page
+    .getByRole("heading", { name: "Properties", exact: true })
+    .locator("..");
+  await expect(properties).toBeVisible();
+  await page.clock.install();
+  const mutationIds: string[] = [];
+  await page.route("**/api/sync", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const mutation = route.request().postDataJSON() as { id: string };
+    mutationIds.push(mutation.id);
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          category: "server",
+          message: `Test connection interrupted (${mutationIds.length})`,
+        },
+      }),
+    });
+  });
+  await properties.getByRole("button", { name: /^Priority:/ }).click();
+  await page.getByRole("option", { name: "Low", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Reconnecting…", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Workspace sync" });
+  await expect(dialog).toContainText("trying again automatically");
+  await expect(dialog).toContainText("1 change is waiting to be saved");
+  await dialog.getByText("Technical details", { exact: true }).click();
+  await expect(dialog).toContainText("Test connection interrupted (1)");
+  for (let attempt = 2; attempt <= 5; attempt++) {
+    await page.clock.fastForward(15_000);
+    await expect.poll(() => mutationIds.length).toBeGreaterThanOrEqual(attempt);
+  }
+  await expect(dialog).toContainText("Sync needs your help");
+  await expect(dialog).toContainText(
+    "Automatic retries couldn’t save all your changes",
+  );
+  expect(new Set(mutationIds).size).toBe(1);
+  await page.unroute("**/api/sync");
+  await dialog.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(dialog).toContainText("Everything is saved");
+  await expect(dialog.getByText("Technical details")).toBeHidden();
+  await dialog.getByRole("button", { name: "Refresh workspace" }).click();
+  await expect(dialog).toContainText("Everything is saved");
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await expect(
+    properties.getByRole("button", { name: "Priority: Low", exact: true }),
   ).toBeVisible();
 });
 
@@ -259,7 +524,8 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     "Tighten timeout criterion",
   );
   const pr = await openPR(page, "Review tighter criterion");
-  await page.getByLabel("PR reviewer role").selectOption({ label: "QA" });
+  await page.getByRole("combobox", { name: "PR reviewer role" }).click();
+  await page.getByRole("option", { name: "QA", exact: true }).click();
   await page
     .getByRole("button", { name: "Request required review", exact: true })
     .click();

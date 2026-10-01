@@ -797,9 +797,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .click();
   await expect(page).toHaveURL(/\?branch=[^&]+$/);
   const conflictBranchUrl = page.url();
-  await page
-    .getByLabel("Invite collaborator")
-    .selectOption({ label: "Riley Chen" });
+  await page.getByRole("combobox", { name: "Invite collaborator" }).click();
+  await page.getByRole("option", { name: "Riley Chen", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Remove Riley Chen", exact: true }),
   ).toBeVisible();
@@ -1044,13 +1043,19 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(pendingDiscussion).toBeVisible();
   await page.reload();
   await expect(pendingDiscussion).toBeVisible();
-  await page.unroute("**/api/sync**");
   await page
     .getByRole("button", {
-      name: /Everything is saved|Saving|could not be saved|Offline|Sync failed/,
+      name: /Everything is saved|Saving|Reconnecting|offline|Sync needs your help/,
     })
     .click();
-  await page.getByRole("button", { name: "Sync now" }).click();
+  const syncDialog = page.getByRole("dialog", { name: "Workspace sync" });
+  await expect(syncDialog).toContainText("trying again automatically");
+  await expect(syncDialog.getByText("Technical details")).toBeVisible();
+  await expect(syncDialog.locator("pre")).toHaveCount(0);
+  await page.unroute("**/api/sync**");
+  await syncDialog
+    .getByRole("button", { name: "Try again", exact: true })
+    .click();
   await expect(
     reviewer
       .getByRole("article", { name: "discussion" })
@@ -1201,6 +1206,57 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     .dragTo(column("In Progress"));
   await expect(page.getByText(/requires a ready specification/)).toBeVisible();
   await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
+
+  // The detail picker checks readiness before queueing: a blocked transition keeps
+  // the status, explains why in a toast, and leaves the item usable.
+  await page
+    .getByRole("link", { name: "Save a card for later", exact: true })
+    .click();
+  const detailProperties = page
+    .getByRole("heading", { name: "Properties", exact: true })
+    .locator("..");
+  await detailProperties.getByRole("button", { name: "Status: Todo" }).click();
+  await page.getByRole("option", { name: /^In Progress/ }).click();
+  const rejectionToast = page.locator('[data-slot="toast"]', {
+    hasText: "Change not applied",
+  });
+  await expect(rejectionToast).toContainText(/CHK-2 is not ready to start/);
+  await expect(
+    detailProperties.getByRole("button", { name: "Status: Todo" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "The workspace could not be synced" }),
+  ).toBeHidden();
+  await detailProperties.getByRole("button", { name: /^Priority:/ }).click();
+  await page.getByRole("option", { name: "High" }).click();
+  await expect(
+    detailProperties.getByRole("button", { name: "Priority: High" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Everything is saved", exact: true }),
+  ).toBeVisible();
+  await expect(rejectionToast).toHaveCount(1);
+  await page.reload();
+  await expect(
+    detailProperties.getByRole("button", { name: "Status: Todo" }),
+  ).toBeVisible();
+  await expect(
+    detailProperties.getByRole("button", { name: "Priority: High" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Everything is saved", exact: true })
+    .click();
+  const syncDialog = page.getByRole("dialog", { name: "Workspace sync" });
+  await expect(syncDialog.getByText("Technical details")).toBeHidden();
+  await syncDialog.getByRole("button", { name: "Refresh workspace" }).click();
+  await expect(
+    detailProperties.getByRole("button", { name: "Priority: High" }),
+  ).toBeVisible();
+  await expect(
+    detailProperties.getByRole("button", { name: "Status: Todo" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Board", exact: true }).click();
 
   // Finish the task, complete the sprint, carry the story to the backlog.
   await page
