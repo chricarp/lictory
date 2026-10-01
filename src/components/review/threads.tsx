@@ -90,6 +90,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
     mutate,
     item,
     current,
+    entities,
     revisionNumber,
     readOnly,
     reviewable,
@@ -100,10 +101,16 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
   const [replying, setReplying] = useState(false);
   const isOpen = thread.status === "open";
   const revision = revisionNumber(thread.revisionId);
+  const discussedCommit = entities.find(
+    (e) => e.type === "specCommit" && e.id === thread.commitId,
+  );
   const quoteStillPresent = thread.anchor?.quote
-    ? (current?.content.replace(/\s+/g, " ") ?? "").includes(
-        thread.anchor.quote.replace(/\s+/g, " "),
-      )
+    ? (
+        (discussedCommit?.type === "specCommit"
+          ? discussedCommit.content
+          : current?.content
+        )?.replace(/\s+/g, " ") ?? ""
+      ).includes(thread.anchor.quote.replace(/\s+/g, " "))
     : true;
   const setState = (patch: { resolved?: boolean; blocking?: boolean }) =>
     void mutate({
@@ -141,7 +148,11 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         {thread.anchor?.section && (
           <span className="truncate">on “{thread.anchor.section}”</span>
         )}
-        <span className="ml-auto tabular-nums">revision {revision ?? "?"}</span>
+        <span className="ml-auto tabular-nums">
+          {thread.commitId
+            ? `commit ${thread.commitId.slice(0, 8)}`
+            : `revision ${revision ?? "?"}`}
+        </span>
       </header>
       {thread.anchor?.quote && (
         <blockquote
@@ -276,11 +287,15 @@ export function ThreadComposer({
   draft,
   onDraftChange,
   suggestionId,
+  pullRequestId,
+  commitId,
 }: {
   draft: Draft;
   onDraftChange: (d: Draft) => void;
   // Discuss a suggestion's proposed text rather than the specification.
   suggestionId?: string;
+  pullRequestId?: string;
+  commitId?: string;
 }) {
   const { mutate, base, current, item, reviewable } = useItem();
   const mentionable = useMentionable();
@@ -305,6 +320,7 @@ export function ThreadComposer({
         section: draft?.section ?? "",
         quote: draft?.quote,
         ...(suggestionId ? { suggestionId } : {}),
+        ...(pullRequestId ? { pullRequestId, commitId } : {}),
       });
       setBody("");
       setBlocking(false);
@@ -361,14 +377,16 @@ export function ThreadComposer({
         containerClassName="rounded-none border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
       />
       <div className="flex flex-wrap items-center gap-2 border-t px-2 py-1.5">
-        {(reviewable || suggestionId) && (
+        {(reviewable || Boolean(suggestionId ?? pullRequestId)) && (
           <label className="flex items-center gap-1.5 text-xs">
             <input
               type="checkbox"
               checked={blocking}
               onChange={(e) => setBlocking(e.target.checked)}
             />
-            {suggestionId ? "Blocks merging" : "Blocks readiness"}
+            {suggestionId || pullRequestId
+              ? "Blocks merging"
+              : "Blocks readiness"}
           </label>
         )}
         <span className="text-[11px] text-muted-foreground">

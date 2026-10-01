@@ -204,7 +204,7 @@ test("work item panels collapse independently and persist across routes and relo
     .click();
   await expect(page).toHaveURL(/\/pnl\/epics$/);
 
-  await page.keyboard.press("c");
+  await page.getByRole("button", { name: "New epic", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Focused epic");
@@ -368,7 +368,7 @@ test("work item panels collapse independently and persist across routes and relo
   await expect(filter).toBeHidden();
 });
 
-test("epic and story refinement: create, review, block, suggest, approve, stale, ready", async ({
+test("epic and story refinement: create, review, block, branch, PR, approve, stale, ready", async ({
   page,
   browser,
 }) => {
@@ -787,80 +787,161 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     .click();
   await reviewerInbox.close();
 
-  // 9-11. Reviewer proposes a suggestion; owner accepts it → revision 3.
-  // Engineering cannot edit directly or change properties: no Edit button, and
-  // the status control is read-only.
+  // Collaborators resolve overlapping commits against the exact new head.
+  await page.getByRole("button", { name: /Branches & pull requests/ }).click();
+  await page
+    .getByRole("textbox", { name: "New branch name" })
+    .fill("conflict-lab");
+  await page
+    .getByRole("button", { name: "Create branch", exact: true })
+    .click();
+  await page
+    .getByLabel("Invite collaborator")
+    .selectOption({ label: "Riley Chen" });
+  await reviewer.goto(page.url());
+  const sourceText = await page
+    .getByRole("textbox", { name: "Branch specification" })
+    .inputValue();
+  await page
+    .getByRole("textbox", { name: "Branch specification" })
+    .fill(sourceText.replace("partial amount", "bounded amount"));
+  await reviewer
+    .getByRole("textbox", { name: "Branch specification" })
+    .fill(sourceText.replace("partial amount", "specified amount"));
+  await page
+    .getByRole("textbox", { name: "Commit message" })
+    .fill("Bound the amount");
+  await page
+    .getByRole("button", { name: "Commit changes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Commit message" }),
+  ).toHaveValue("");
+  await reviewer
+    .getByRole("textbox", { name: "Commit message" })
+    .fill("Resolve amount wording");
+  await expect(
+    reviewer.getByText("Another commit overlaps your edits", { exact: false }),
+  ).toBeVisible();
+  await reviewer
+    .getByRole("button", { name: "Resolve & commit", exact: true })
+    .click();
+  await reviewer
+    .getByRole("button", { name: "Keep theirs", exact: true })
+    .click();
+  await reviewer
+    .getByRole("button", { name: "Commit resolution", exact: true })
+    .click();
+  await expect(
+    reviewer.getByRole("textbox", { name: "Branch specification" }),
+  ).toHaveValue(/bounded amount/);
+  await expect(
+    reviewer.getByRole("textbox", { name: "Commit message" }),
+  ).toHaveValue("");
+  await page
+    .getByRole("button", { name: "Delete branch", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page).toHaveURL(/\?branches=1$/);
+  await page.getByRole("button", { name: /Main · revision 2/ }).click();
+  await reviewer.goto(storyUrl);
+
+  // 9-12. The owner commits on a branch; Engineering reviews the PR.
   await expect(
     reviewer.getByRole("button", { name: "Edit", exact: true }),
   ).toHaveCount(0);
-  await expect(reviewer.getByRole("button", { name: /^Status:/ })).toHaveCount(
-    0,
-  );
   await expect(
-    reviewer.getByRole("button", { name: /^Refinement:/ }),
+    reviewer.getByRole("button", { name: "Suggest", exact: true }),
   ).toHaveCount(0);
-  await reviewer.getByRole("button", { name: "Suggest", exact: true }).click();
-  await reviewer
-    .getByRole("textbox", { name: "Proposed specification" })
+  await page.getByRole("button", { name: /Branches & pull requests/ }).click();
+  await page
+    .getByRole("textbox", { name: "New branch name" })
+    .fill("cancellation-timeouts");
+  await page
+    .getByRole("button", { name: "Create branch", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\?branch=/);
+  const branchUrl = page.url();
+  await page
+    .getByRole("textbox", { name: "Branch specification" })
     .fill(
       "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
     );
-  await reviewer
-    .getByRole("textbox", { name: "Title", exact: true })
-    .fill("Define cancellation timeout behavior");
-  await reviewer
-    .getByRole("textbox", { name: "Description" })
-    .fill(
-      "Make timeout behavior explicit.\n\nReview how late provider responses are reconciled.",
-    );
-  await reviewer.getByRole("button", { name: "Open for review" }).click();
-  // The suggestion is reviewed like a pull request: the author asks the owner
-  // (Product: edits and reviews) to review; nobody can merge before approval.
-  await expect(reviewer).toHaveURL(/\?suggestion=/);
-  await expect(reviewer.getByText("Open for review").first()).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Commit message" })
+    .fill("Define cancellation timeouts");
+  await page
+    .getByRole("button", { name: "Commit changes", exact: true })
+    .click();
   await expect(
-    reviewer.getByText(/Review how late provider responses are reconciled/),
-  ).toBeVisible();
-  await reviewer.getByRole("button", { name: "Edit proposal" }).click();
-  await reviewer
-    .getByRole("textbox", { name: "Title", exact: true })
+    page.getByRole("textbox", { name: "Commit message" }),
+  ).toHaveValue("");
+  // The branch draft is durable locally and main still shows revision 2.
+  await page.reload();
+  await expect(
+    page.getByRole("textbox", { name: "Branch specification" }),
+  ).toHaveValue(/Late provider responses/);
+  await page
+    .getByRole("button", { name: "Open pull request", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Pull request title" })
     .fill("Clarify cancellation timeouts and retries");
-  await reviewer
-    .getByRole("textbox", { name: "Description" })
-    .fill(
-      "Define what happens after the client times out.\n\nReview late provider responses and duplicate callbacks.",
-    );
-  await reviewer.getByRole("button", { name: /^Save/ }).click();
+  await page
+    .getByRole("textbox", { name: "Pull request description" })
+    .fill("Review late provider responses and duplicate callbacks.");
+  await page
+    .getByRole("button", { name: "Create draft PR", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\?pr=/);
+  const prUrl = page.url();
   await expect(
-    reviewer.getByRole("heading", {
-      name: "Clarify cancellation timeouts and retries",
+    page.getByRole("button", { name: "Merge pull request", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Ready for review", exact: true })
+    .click();
+  await reviewer.goto(prUrl);
+  await reviewer
+    .getByRole("button", { name: "Changes", exact: true })
+    .last()
+    .click();
+  await expect(
+    reviewer.getByText(/Late provider responses/).first(),
+  ).toBeVisible();
+  await reviewer.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.getByText("approved", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Merge pull request", exact: true })
+    .click();
+  await expect(
+    page.getByText("Merged. The reviewed content is recorded", {
+      exact: false,
     }),
   ).toBeVisible();
-  await expect(
-    reviewer.getByText(
-      /Review late provider responses and duplicate callbacks/,
-    ),
-  ).toBeVisible();
-  await reviewer.getByRole("button", { name: "Add reviewer" }).click();
-  await reviewer.getByRole("option", { name: /Alex Morgan/ }).click();
-  await expect(reviewer.getByText("0 / 1 approved v1")).toBeVisible();
-  await page.getByText("Clarify cancellation timeouts and retries").click();
-  await expect(
-    page.getByRole("button", { name: /Merge as revision 3/ }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Approve v1" }).click();
-  await expect(page.getByText("1 / 1 approved v1")).toBeVisible();
-  await expect(reviewer.getByText("Approved · ready to merge")).toBeVisible();
-  await page.getByRole("button", { name: /Merge as revision 3/ }).click();
-  await expect(page.getByText(/Merged as revision 3/).first()).toBeVisible();
-  await page.getByRole("button", { name: "Specification" }).click();
+  await page.getByRole("button", { name: /Main · revision 3/ }).click();
+  await reviewer.getByRole("button", { name: /Main · revision 3/ }).click();
   await expect(page.getByText("Revision 3 ·").first()).toBeVisible();
-  await page.getByRole("button", { name: /Show 1 merged or closed/ }).click();
-  await expect(page.getByText(/Merged as revision 3/)).toBeVisible();
-
-  // 12. Reviewer approves revision 3.
-  await reviewer.getByRole("button", { name: "Approve revision 3" }).click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
+  // Merged PRs can be deleted, then their branch can be deleted.
+  await page.goto(prUrl);
+  await page
+    .getByRole("button", { name: "Delete pull request", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page).toHaveURL(/\?branches=1$/);
+  await expect(
+    page.getByRole("button", {
+      name: /Clarify cancellation timeouts and retries/,
+    }),
+  ).toHaveCount(0);
+  await page.goto(branchUrl);
+  await page
+    .getByRole("button", { name: "Delete branch", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page).toHaveURL(/\?branches=1$/);
+  await page.getByRole("button", { name: /Main · revision 3/ }).click();
 
   // 13-14. Owner changes the specification → approval becomes outdated.
   await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -990,6 +1071,28 @@ test("epic and story refinement: create, review, block, suggest, approve, stale,
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "/tmp/lictory-story-mobile.png" });
+  // Main stays protected after readiness. A restore creates a fresh revision.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(
+    page.getByRole("button", { name: "Edit", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Changes", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Restore revision 3", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm restore revision 3", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Close comparison", exact: true })
+    .click();
+  await expect(page.getByText("Revision 5 ·").first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Edit", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    reviewer.getByRole("button", { name: "Approve revision 5", exact: true }),
+  ).toBeVisible();
   await reviewerContext.close();
 });
 

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { FileSearch } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -18,6 +18,7 @@ import { SyncIssue, isSyncBlocked } from "~/components/workspace/sync-issue";
 export function ItemRedirect({ identifier: raw }: { identifier: string }) {
   const { items, projects, organization, view, delivery } = useWorkspace();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const parsed = parseIdentifier(raw);
   const project = parsed
     ? projects.find((p) => p.key === parsed.key)
@@ -36,6 +37,7 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
           projects.find((p) => p.id === item.projectId),
           item.number,
         ),
+        searchParams,
       )
     : undefined;
   useEffect(() => {

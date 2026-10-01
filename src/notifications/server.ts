@@ -158,6 +158,9 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
   const reviews = of("review");
   const assignments = of("assignment");
   const suggestions = of("suggestion");
+  const pullRequests = of("pullRequest"),
+    prReviews = of("prReview"),
+    branches = of("specBranch");
   const suggestionReviewers = of("suggestionReviewer").filter(
     (r) => !r.withdrawnAt,
   );
@@ -192,6 +195,8 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
     ...threads.map((t) => t.authorId),
     ...messages.map((m) => m.authorId),
     ...suggestions.map((x) => x.authorId),
+    ...pullRequests.map((p) => p.authorId),
+    ...branches.flatMap((b) => b.collaboratorIds),
     ...suggestionReviewers.map((r) => r.userId),
   ];
   // Role-targeted reviews notify role members when requested, but only
@@ -346,6 +351,9 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
         const thread = threads.find((t) => t.id === threadId);
         const context = {
           threadId,
+          ...(thread?.pullRequestId
+            ? { pullRequestId: thread.pullRequestId }
+            : {}),
           excerpt: first ? excerpt(first.body) : "",
           section: thread?.anchor?.section ?? null,
           blocking: detail.blocking,
@@ -372,6 +380,84 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
           threadId: detail.threadId,
           resolved: action === "thread_resolved",
         });
+        break;
+      case "pull_request_created":
+      case "pull_request_draft_changed":
+      case "pull_request_review_requested": {
+        const pr = pullRequests.find((p) => p.id === detail.pullRequestId);
+        if (pr?.status !== "open") break;
+        const requested = prReviews.filter(
+          (r) =>
+            r.pullRequestId === pr.id &&
+            (action !== "pull_request_review_requested" ||
+              r.roleId === detail.roleId),
+        );
+        for (const r of requested)
+          add(
+            r.userId ? [r.userId] : roleMembers(r.roleId),
+            "pull_request_review_requested",
+            {
+              pullRequestId: pr.id,
+              pullRequestTitle: pr.title,
+              responsibility: roster.roles.find((role) => role.id === r.roleId)
+                ?.name,
+            },
+            direct,
+          );
+        break;
+      }
+      case "pull_request_review_decided": {
+        const pr = pullRequests.find((p) => p.id === detail.pullRequestId);
+        if (pr)
+          add(
+            [
+              pr.authorId,
+              ...(branches.find((b) => b.id === pr.sourceId)?.collaboratorIds ??
+                []),
+            ],
+            "pull_request_decided",
+            {
+              pullRequestId: pr.id,
+              pullRequestTitle: pr.title,
+              decision: detail.decision,
+              responsibility: detail.role,
+            },
+          );
+        break;
+      }
+      case "pull_request_merged": {
+        const pr = pullRequests.find((p) => p.id === detail.pullRequestId);
+        if (pr)
+          add(
+            [
+              pr.authorId,
+              ...(branches.find((b) => b.id === pr.sourceId)?.collaboratorIds ??
+                []),
+              ...prReviews
+                .filter((r) => r.pullRequestId === pr.id)
+                .flatMap((r) => (r.reviewerId ? [r.reviewerId] : [])),
+            ],
+            "pull_request_merged",
+            {
+              pullRequestId: pr.id,
+              pullRequestTitle: pr.title,
+              target: detail.target,
+            },
+          );
+        break;
+      }
+      case "pull_request_approval_invalidated":
+        add(
+          Array.isArray(detail.reviewerIds)
+            ? (detail.reviewerIds as string[])
+            : [],
+          "approval_invalidated",
+          {
+            pullRequestId: detail.pullRequestId,
+            pullRequestTitle: detail.title,
+          },
+          direct,
+        );
         break;
       case "suggestion_reviewer_assigned":
         add(

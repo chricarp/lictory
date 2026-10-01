@@ -128,7 +128,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 8 (external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 9 (branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
@@ -196,7 +196,7 @@ A command receives a client UUID, is durably queued, then gets an optimistic ove
 Item/project creation, property updates, archive, threads, replies, thread state,
 review requests and cancellations have centralized optimistic reducers (a created
 item predicts its number; the server's number replaces it). Revision changes,
-every suggestion command and review decisions await server validation.
+branch commits, every suggestion command and review decisions await server validation.
 The confirmed entity map stays separate from overlays: deltas update confirmed state,
 then pending overlays replay. On rejection the overlay is removed while the full
 command remains inspectable for retry or discard. Accepted commands synchronize
@@ -231,39 +231,83 @@ streaming and configure connection/time limits accordingly.
 
 ## Revisions, reviews and conflicts
 
-Every material title/content save inserts an immutable revision. No-op saves do not
-insert snapshots. Commands carry the exact base revision; a stale save or stale
-suggestion merge returns a structured conflict with the current revision ID. There
-is no automatic text merge. The editor retains the user's text and offers the
-latest revision for inspection/reload; failed queued text can be inspected before
-discarding and submitting a corrected command.
+Every material title/content change on **main** inserts an immutable revision.
+Direct editing requires `editSpecifications` and is available until readiness
+first passes. At that point `mainProtected` is latched: reopening a discussion,
+revoking approval, restoring an old revision, or changing delivery properties
+never re-enables direct writes. Subsequent changes use reviewed pull requests.
+An explicit restore requires `editSpecifications`, the exact current revision,
+and an earlier revision from the same item; it copies title/content into a new
+revision, stales approvals and retains every historical snapshot and activity.
+It does not restore delivery status, ownership or iteration properties.
 
-## Suggestions
+## Branches and pull requests
 
-A suggestion is a whole-document replacement reviewed like a pull request:
-its short title identifies it in lists, and its description explains the reason
-and context for reviewers. Existing suggestions without a title still use their
-legacy rationale as a heading. Changing only these details does not change the
-proposed specification version or invalidate review decisions. Its lifecycle is
-`draft → open → merged | closed`, with `closed → draft | open` reversible and
-`merged` terminal. It records the mainline revision it was written against and a
-`version` that increments on every content update. Only the author updates it
-(`updateSuggestion`, which always re-bases onto the current revision; unchanged text
-keeps its approvals), changes its state (anyone with `editSpecifications` may also
-close it) and assigns or withdraws reviewers. Reviewers approve or request changes
-on a named version; a decision on another version is a conflict. A new version
-supersedes existing decisions with a reason; history is never deleted. Threads may
-target a suggestion instead of the specification: they are excluded from the work
-item's thread counts and readiness, and an open blocking one prevents merging.
-Merging requires an assigned reviewer who currently holds `editSpecifications`, an
-open suggestion based on the current revision, at least one unsuperseded approval of
-the current version and no open blocking suggestion thread; it inserts the next
-revision through the same helper as a direct save (staling approvals and
-re-requesting reviews) and records the merged revision on the suggestion. Work item
-summaries carry `openSuggestions` and `suggestionReviewerIds` (reviewers still
-awaiting the current version) so "Needs my review" and the Inbox include them.
-Migration `0008` mapped existing `pending/accepted/rejected` rows to
-`open/merged/closed`.
+Branches belong to one specification-backed work item. They version its title and
+Markdown content (including acceptance criteria), while delivery properties stay
+shared. `main` is the default target and represents the canonical specification;
+branches can also start from and target other branches. Anyone with organization
+membership can create a branch, but only its author and explicitly invited
+collaborators can commit. Only its author manages collaborators. All branches and
+PRs share the work item's access boundary; an uncommitted draft is personal and
+stored in the browser under user/organization/item/branch identity.
+
+A commit is an immutable snapshot with parent commit IDs, author and message.
+A branch is a movable pointer. The first branch operation imports the item's
+existing revision chain into the commit graph under the organization lock.
+Subsequent main revisions advance main's pointer in that same transaction.
+Branch commits never create main revisions or change main's readiness.
+
+A commit includes the editor's base commit. The server combines independent
+changes against that base and the current branch head. Overlapping line edits or
+competing title edits require explicit resolution. The resolver shows base,
+local and current content, supports choosing either side per conflict, keeping
+both or editing manually, and allows discarding or replacing the complete draft.
+An explicit resolution names the exact current head; a later commit rejects that
+resolution rather than overwriting intervening work. Diff memory is bounded;
+large ambiguous rewrites require manual resolution.
+
+PRs have `draft`, `open` and `merged` states. Source commits continue updating an
+open PR. PR review requests name an active reviewer-capable organization role,
+optionally one person in that role. Existing main review responsibilities are
+copied when the PR is created. Decisions record a SHA-256 fingerprint of the
+**complete resulting title and content**, plus the inspected branch heads in
+activity. Contributors cannot approve their own source changes. Any source or
+target change that alters the merge result makes its approvals stale; unchanged
+resulting content retains its evidence. Review requests and stale approvals
+appear in notifications and the attention inbox.
+
+A merge requires every required PR review to approve the current result, at least
+one required review, no current changes-requested decision, no open blocking PR
+threads, and no unresolved merge conflicts. The request includes both inspected
+heads; the server rechecks them under the organization transaction lock. Merging
+into main requires `editSpecifications`; merging into another branch requires
+being its collaborator. PR conflicts are resolved by committing a merge of the
+target into the source branch, then reviewing the new result. PR discussions bind
+to immutable commits and retain their original context as branches advance.
+
+Merging into main creates a revision and installs the valid PR approvals as
+reviews of that exact revision. It supersedes carried pending reviews of the same
+responsibilities, avoiding a second approval ceremony. Main's other readiness
+checks still apply, including existing blocking discussions and child readiness.
+Merging into another branch changes only that branch's pointer.
+
+PRs and non-main branches can be deleted by their author or a specification
+editor. A branch referenced by an active PR must have those PRs deleted first.
+Deletion emits atomic synchronization tombstones for its visible entities,
+including PR review/discussion projections. Commits, decisions in activity,
+merged main revisions and approvals remain durable. Main cannot be deleted.
+There are no close/reopen or archive/restore branch/PR actions.
+
+The legacy suggestion tables and commands remain for existing history and
+compatibility tests; the user-facing workflow uses branches and PRs. Internal
+list fields `openSuggestions` and `suggestionReviewerIds` include active PRs so
+existing filters continue working. Protocol version **9** adds commit, branch,
+PR and PR-review projections. All new commands preserve the shared organization
+lock and atomic domain/change-log/activity/receipt boundary. Branch editor actions
+wait for server confirmation before navigating or clearing their saved draft;
+definitive rejected commands can be replaced by a corrected draft, while
+transport failures retain their idempotency ID in synchronization.
 
 Reviews are requested from a reviewer-capable role, optionally naming one of its
 members; the role's name is the review responsibility. Approvals belong to a

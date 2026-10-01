@@ -43,6 +43,20 @@
       "when": 1790779622534,
       "tag": "0005_guided_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790810726558,
+      "tag": "0006_optimal_ozymandias",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790811218930,
+      "tag": "0007_black_mister_fear",
+      "breakpoints": true
     }
   ]
 }

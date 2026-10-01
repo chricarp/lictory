@@ -111,6 +111,7 @@ export class SyncEngine {
       this.channel = new BroadcastChannel(`lictory:${this.owner}`);
       this.channel.onmessage = (event: MessageEvent<unknown>) => {
         if (event.data === "revoked") {
+          this.purgeBranchDrafts();
           this.cache = { entities: {}, directory: emptyDirectory };
           this.queue = [];
           this.emit();
@@ -174,6 +175,56 @@ export class SyncEngine {
     void this.sync();
     return mutation.id;
   }
+  // Branch editors keep their draft until the server has accepted the command
+  // and its scope has reconciled. A validation rejection can be replaced by a
+  // corrected draft without leaving a failed command ahead of it in the queue.
+  async mutateConfirmed(command: Command) {
+    if (!navigator.onLine)
+      throw new Error(
+        "Reconnect before committing. Your draft is kept in this browser.",
+      );
+    if (this.queue.some((q) => q.blocked))
+      throw new Error(
+        "Resolve the failed change in synchronization before continuing. Your draft is kept.",
+      );
+    const id = await this.mutate(command);
+    await new Promise<void>((resolve, reject) => {
+      let unsubscribe = () => {
+        /* assigned before checking queue */
+      };
+      const timer = setTimeout(() => {
+        unsubscribe();
+        reject(
+          new Error(
+            "The change is still queued. Inspect synchronization before retrying; your draft is kept.",
+          ),
+        );
+      }, 30000);
+      const check = () => {
+        const queued = this.queue.find((q) => q.mutation.id === id);
+        if (this.revoked) {
+          clearTimeout(timer);
+          unsubscribe();
+          reject(new Error("Organization access is unavailable."));
+        } else if (!queued) {
+          clearTimeout(timer);
+          unsubscribe();
+          resolve();
+        } else if (queued.blocked) {
+          clearTimeout(timer);
+          unsubscribe();
+          // Only definitive domain rejections (zero network retries) can be
+          // discarded here. Transport failures retain their idempotency ID.
+          if (queued.attempts === 0)
+            void this.discard(id).then(() => this.sync());
+          reject(new Error(queued.error ?? "This change could not be saved."));
+        }
+      };
+      unsubscribe = this.subscribe(check);
+      check();
+    });
+    return id;
+  }
   async retry(id: string) {
     const item = this.queue.find((q) => q.mutation.id === id);
     if (!item) return;
@@ -197,6 +248,13 @@ export class SyncEngine {
     this.queue = await this.persistence.queue(this.owner);
     this.emit();
   }
+  private purgeBranchDrafts() {
+    const prefix = `lictory:branch-draft:${this.owner}:`;
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(prefix)) localStorage.removeItem(key);
+    }
+  }
   private async read() {
     let hasMore = true;
     while (hasMore && !this.stopped) {
@@ -210,6 +268,7 @@ export class SyncEngine {
       const response = await fetch(`/api/sync?${query}`, { cache: "no-store" });
       if (response.status === 401 || response.status === 403) {
         await this.persistence.purge(this.owner);
+        this.purgeBranchDrafts();
         if (!this.revoked) this.channel?.postMessage("revoked");
         this.revoked = true;
         this.cache = { entities: {}, directory: emptyDirectory };

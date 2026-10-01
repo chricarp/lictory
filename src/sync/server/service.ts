@@ -43,6 +43,12 @@ import {
 import { rankBetween } from "../shared/rank";
 import { hasAcceptanceCriteria } from "../shared/specification";
 import { roleColumns } from "./roles";
+import {
+  applyBranchCommand,
+  branchCommands,
+  recordMain,
+  pullRequestResultHash,
+} from "./branches";
 import { notifyItemActivity } from "../../notifications/server";
 
 export type Database = PostgresJsDatabase<typeof s>;
@@ -385,7 +391,7 @@ function require(
 // which role to adjust, rather than a generic "not allowed".
 const capabilityMessages: Record<keyof Capabilities, string> = {
   editSpecifications:
-    "Your roles cannot edit specifications directly. Propose the change as a suggestion instead.",
+    "Your roles cannot edit specifications directly. Create a branch and pull request instead.",
   changeProperties:
     "Your roles cannot change item properties such as status, priority, owner, labels or milestones.",
   requestReviews: "Your roles cannot request or cancel reviews.",
@@ -719,7 +725,7 @@ function summarize(
   const current = ctx.revisions.get(item.id)?.[0];
   // Discussions about a suggestion belong to that suggestion's review.
   const threads = ctx.threads.filter(
-    (t) => t.workItemId === item.id && !t.suggestionId,
+    (t) => t.workItemId === item.id && !t.suggestionId && !t.pullRequestId,
   );
   const reviews = ctx.reviews.filter(
     (r) =>
@@ -741,6 +747,7 @@ function summarize(
     title: item.title,
     statusId: item.statusId,
     refinementState: item.refinementState,
+    mainProtected: item.mainProtected,
     priority: item.priority,
     assigneeId: item.assigneeId,
     milestoneId: item.milestoneId,
@@ -802,7 +809,7 @@ function readiness(
   const current = ctx.revisions.get(item.id)?.[0];
   const content = current?.content ?? "";
   const threads = ctx.threads.filter(
-    (t) => t.workItemId === item.id && !t.suggestionId,
+    (t) => t.workItemId === item.id && !t.suggestionId && !t.pullRequestId,
   );
   const reviews = ctx.reviews.filter(
     (r) => r.workItemId === item.id && r.status !== "cancelled",
@@ -928,6 +935,42 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     )
     .orderBy(asc(s.workItem.createdAt));
   const ctx = await loadItemContext(tx, organizationId, items);
+  const pullRequests = await tx
+    .select()
+    .from(s.specificationPullRequest)
+    .where(
+      and(
+        eq(s.specificationPullRequest.organizationId, organizationId),
+        isNull(s.specificationPullRequest.deletedAt),
+      ),
+    );
+  const prReviews = await tx
+    .select()
+    .from(s.pullRequestReview)
+    .where(eq(s.pullRequestReview.organizationId, organizationId));
+  const prBranches = pullRequests.some((p) => p.status === "open")
+    ? await tx
+        .select()
+        .from(s.specificationBranch)
+        .where(
+          and(
+            eq(s.specificationBranch.organizationId, organizationId),
+            isNull(s.specificationBranch.deletedAt),
+          ),
+        )
+    : [];
+  const prCommits = prBranches.length
+    ? await tx
+        .select()
+        .from(s.specificationCommit)
+        .where(eq(s.specificationCommit.organizationId, organizationId))
+    : [];
+  const roleMemberships = prReviews.length
+    ? await tx
+        .select()
+        .from(s.organizationRoleMember)
+        .where(eq(s.organizationRoleMember.organizationId, organizationId))
+    : [];
   const projectFilter = <
     T extends { organizationId: AnyPgColumn; projectId: AnyPgColumn },
   >(
@@ -957,7 +1000,38 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ...projects.map((p) => serialize("project", p)),
     ...labels.map((l) => serialize("label", l)),
     ...milestones.map((m) => serialize("milestone", m)),
-    ...items.map((item) => summarize(item, items, ctx)),
+    ...items.map((item) => {
+      const summary = summarize(item, items, ctx);
+      const active = pullRequests.filter(
+        (p) => p.workItemId === item.id && p.status === "open",
+      );
+      return {
+        ...summary,
+        openSuggestions: summary.openSuggestions + active.length,
+        suggestionReviewerIds: [
+          ...new Set([
+            ...summary.suggestionReviewerIds,
+            ...prReviews
+              .filter((r) => {
+                const pr = active.find((p) => p.id === r.pullRequestId);
+                return (
+                  pr &&
+                  (r.decision !== "approved" ||
+                    r.resultHash !==
+                      pullRequestResultHash(pr, prBranches, prCommits))
+                );
+              })
+              .flatMap((r) =>
+                r.userId
+                  ? [r.userId]
+                  : roleMemberships
+                      .filter((m) => m.roleId === r.roleId)
+                      .map((m) => m.userId),
+              ),
+          ]),
+        ],
+      };
+    }),
     ...relations.map((r) =>
       serialize("relation", { ...r, projectId: itemProject.get(r.fromId) }),
     ),
@@ -966,7 +1040,33 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
   if (!workItemId) return entities;
   const item = requireValue(items.find((p) => p.id === workItemId));
   const revisions = ctx.revisions.get(workItemId) ?? [];
-  const threads = ctx.threads.filter((t) => t.workItemId === workItemId);
+  const activePrIds = new Set(
+    pullRequests.filter((p) => p.workItemId === workItemId).map((p) => p.id),
+  );
+  const threads = ctx.threads.filter(
+    (t) =>
+      t.workItemId === workItemId &&
+      (!t.pullRequestId || activePrIds.has(t.pullRequestId)),
+  );
+  const branchRows = await tx
+    .select()
+    .from(s.specificationBranch)
+    .where(
+      and(
+        eq(s.specificationBranch.organizationId, organizationId),
+        eq(s.specificationBranch.workItemId, workItemId),
+        isNull(s.specificationBranch.deletedAt),
+      ),
+    );
+  const commitRows = await tx
+    .select()
+    .from(s.specificationCommit)
+    .where(
+      and(
+        eq(s.specificationCommit.organizationId, organizationId),
+        eq(s.specificationCommit.workItemId, workItemId),
+      ),
+    );
   const reviews = ctx.reviews.filter((r) => r.workItemId === workItemId);
   const reviewIds = new Set(reviews.map((r) => r.id));
   const messages = threads.length
@@ -996,6 +1096,10 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     .orderBy(asc(s.activity.createdAt));
   for (const [type, rows] of [
     ["revision", revisions],
+    ["specBranch", branchRows],
+    ["specCommit", commitRows],
+    ["pullRequest", pullRequests.filter((p) => p.workItemId === workItemId)],
+    ["prReview", prReviews.filter((r) => activePrIds.has(r.pullRequestId))],
     ["review", reviews],
     ["thread", threads],
     ["approval", ctx.approvals.filter((a) => a.workItemId === workItemId)],
@@ -1291,7 +1395,10 @@ export function createSyncService(
             );
           projectId = item.projectId;
           const itemType = roster.types.find((t) => t.id === item!.typeId);
-          if (specCommands.has(c.type) && !itemType?.hasSpecification)
+          if (
+            (specCommands.has(c.type) || branchCommands.has(c.type)) &&
+            !itemType?.hasSpecification
+          )
             throw new DomainError(
               "validation",
               `${itemType?.name ?? "This type"} items have no specification to review. Change the type to one with a specification first.`,
@@ -1325,7 +1432,11 @@ export function createSyncService(
         const latest = before
           .filter((e) => e.type === "revision")
           .sort((a, b) => b.number - a.number)[0];
-        if ("baseRevisionId" in c && c.baseRevisionId !== latest?.id)
+        if (
+          "baseRevisionId" in c &&
+          !(c.type === "createThread" && c.pullRequestId) &&
+          c.baseRevisionId !== latest?.id
+        )
           throw new DomainError(
             "conflict",
             "The specification changed. Compare your draft with the latest revision before resubmitting.",
@@ -1348,6 +1459,7 @@ export function createSyncService(
           content: string,
           summary: string | undefined,
           previous = latest,
+          mergeParents?: string[],
         ) => {
           if (previous?.title === title && previous.content === content)
             return previous.id;
@@ -1363,6 +1475,20 @@ export function createSyncService(
             changeSummary: summary?.trim() ? summary.trim() : null,
             authorId: userId,
           });
+          await recordMain(
+            tx,
+            {
+              id: revisionId,
+              organizationId,
+              workItemId: workItemId!,
+              number,
+              title,
+              content,
+              changeSummary: summary,
+              authorId: userId,
+            },
+            mergeParents,
+          );
           await tx
             .update(s.workItem)
             .set({ title })
@@ -1521,7 +1647,10 @@ export function createSyncService(
           if (state === from || from === null) return;
           await tx
             .update(s.workItem)
-            .set({ refinementState: state })
+            .set({
+              refinementState: state,
+              ...(state === "ready" ? { mainProtected: true } : {}),
+            })
             .where(
               and(
                 eq(s.workItem.organizationId, organizationId),
@@ -1530,6 +1659,19 @@ export function createSyncService(
             );
           log("refinement_changed", { from, to: state, automatic });
         };
+        if (branchCommands.has(c.type)) {
+          await applyBranchCommand(tx, c, {
+            organizationId,
+            workItemId: workItemId!,
+            userId,
+            capabilities,
+            roster,
+            latest: latest!,
+            revision: (title, content, summary, parents) =>
+              revision(title, content, summary, latest, parents),
+            log,
+          });
+        }
         switch (c.type) {
           case "createProject": {
             require(admin, "An organization administrator must create projects.");
@@ -2333,6 +2475,11 @@ export function createSyncService(
             break;
           case "updateSpecification":
             requireCapability(capabilities, "editSpecifications");
+            if (item!.mainProtected)
+              throw new DomainError(
+                "conflict",
+                "This specification is ready. Use a branch and pull request to change main.",
+              );
             await revision(c.title, c.content, c.summary);
             break;
           case "createThread": {
@@ -2359,10 +2506,24 @@ export function createSyncService(
                 );
               suggestionId = target.id;
             }
+            if (c.pullRequestId) {
+              const pr = before.find(
+                (e) => e.type === "pullRequest" && e.id === c.pullRequestId,
+              );
+              require(pr?.type === "pullRequest" &&
+                pr.status !==
+                  "merged", "This pull request is unavailable for discussion.");
+              require(!c.suggestionId, "Choose one discussion context.");
+              require(before.some(
+                (e) => e.type === "specCommit" && e.id === c.commitId,
+              ), "Choose the commit this discussion concerns.");
+            }
             await tx.insert(s.thread).values({
               id: c.threadId,
               ...context,
               suggestionId,
+              pullRequestId: c.pullRequestId ?? null,
+              commitId: c.commitId ?? null,
               authorId: userId,
               blocking: c.blocking,
               anchor: {
@@ -2383,6 +2544,9 @@ export function createSyncService(
               threadId: c.threadId,
               blocking: c.blocking,
               ...(suggestionId ? { suggestionId } : {}),
+              ...(c.pullRequestId
+                ? { pullRequestId: c.pullRequestId, commitId: c.commitId }
+                : {}),
             });
             break;
           }
@@ -2902,6 +3066,43 @@ export function createSyncService(
               ),
             );
         let after = await snapshot(tx, scope);
+        // Notify once when a previously approved PR result becomes stale.
+        const oldBranches = before.filter(
+            (e): e is EntityOf<"specBranch"> => e.type === "specBranch",
+          ),
+          newBranches = after.filter(
+            (e): e is EntityOf<"specBranch"> => e.type === "specBranch",
+          );
+        const oldCommits = before.filter(
+            (e): e is EntityOf<"specCommit"> => e.type === "specCommit",
+          ),
+          newCommits = after.filter(
+            (e): e is EntityOf<"specCommit"> => e.type === "specCommit",
+          );
+        for (const pr of after.filter(
+          (e): e is EntityOf<"pullRequest"> =>
+            e.type === "pullRequest" && e.status !== "merged",
+        )) {
+          const oldHash = pullRequestResultHash(pr, oldBranches, oldCommits),
+            newHash = pullRequestResultHash(pr, newBranches, newCommits);
+          if (oldHash && oldHash !== newHash) {
+            const reviewerIds = before
+              .filter(
+                (e): e is EntityOf<"prReview"> =>
+                  e.type === "prReview" &&
+                  e.pullRequestId === pr.id &&
+                  e.decision === "approved" &&
+                  e.resultHash === oldHash,
+              )
+              .flatMap((r) => (r.reviewerId ? [r.reviewerId] : []));
+            if (reviewerIds.length)
+              log("pull_request_approval_invalidated", {
+                pullRequestId: pr.id,
+                title: pr.title,
+                reviewerIds,
+              });
+          }
+        }
         // Readiness drives `ready` automatically in both directions while the
         // item is still owned by refinement. Later statuses are never touched.
         const readinessState = after.find((e) => e.type === "readiness");

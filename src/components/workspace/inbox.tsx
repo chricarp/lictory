@@ -60,10 +60,12 @@ export function useAttention() {
         const suggestion = item.suggestionReviewerIds.includes(userId);
         list.push({
           item,
-          reason: pending.length ? "Review requested" : "Suggestion to review",
+          reason: pending.length
+            ? "Review requested"
+            : "Pull request to review",
           detail: pending.length
-            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a suggestion awaits your approval" : ""}`
-            : "A suggestion awaits your approval to be merged",
+            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}`
+            : "A pull request awaits your approval to be merged",
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
         });

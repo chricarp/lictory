@@ -52,7 +52,9 @@ export function describeNotification(
     case "approval_invalidated":
       return {
         headline: `Your approval of ${item} needs review again`,
-        body: `${actor} revised the specification to revision ${num(d.revision)}.`,
+        body: str(d.pullRequestTitle)
+          ? `${actor} changed the merge result of “${str(d.pullRequestTitle)}”.`
+          : `${actor} revised the specification to revision ${num(d.revision)}.`,
       };
     case "specification_revised":
       return {
@@ -89,6 +91,21 @@ export function describeNotification(
       return {
         headline: `${actor} ${d.resolved ? "resolved" : "reopened"} a discussion on ${item}`,
         body: null,
+      };
+    case "pull_request_review_requested":
+      return {
+        headline: `${actor} requested ${responsibility ?? ""} review of pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        body: null,
+      };
+    case "pull_request_decided":
+      return {
+        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        body: responsibility,
+      };
+    case "pull_request_merged":
+      return {
+        headline: `${actor} merged pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        body: str(d.target) ? `Merged into ${str(d.target)}` : null,
       };
     case "suggestion_review_requested":
       return {
@@ -173,7 +190,8 @@ export function notificationHref(
 ) {
   const d = n.detail;
   const key = str(d.itemKey);
-  if (key) return `/app/${orgSlug}/items/${key}`;
+  if (key)
+    return `/app/${orgSlug}/items/${key}${str(d.pullRequestId) ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}` : ""}`;
   if (n.teamId && str(d.iterationId))
     return `/app/${orgSlug}/teams/${n.teamId}/iterations/${str(d.iterationId)}`;
   return `/app/${orgSlug}/inbox`;

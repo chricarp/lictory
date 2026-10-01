@@ -506,6 +506,8 @@ void test("optimistic overlay is replayed over authoritative entities without mu
     workItemId: "proposal",
     revisionId: "revision",
     suggestionId: null,
+    pullRequestId: null,
+    commitId: null,
     authorId: "user",
     status: "open",
     blocking: true,
@@ -698,15 +700,21 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
       item.refinementState === "ready" &&
       item.priority === "high",
   );
-  // Material: a new revision stales the approval, re-requests the review with
-  // the same assignment, and drops the item back to in_review.
+  // Protected main cannot be edited directly. Restoring an earlier revision
+  // is an explicit capability-gated operation and stales the approval.
+  await assert.rejects(
+    f.command({
+      type: "updateSpecification",
+      ...base2,
+      title: "Safe retries",
+      content: "Unreviewed change",
+    }),
+    /ready/,
+  );
   await f.command({
-    type: "updateSpecification",
+    type: "revertSpecification",
     ...base2,
-    title: "Safe retries",
-    content:
-      "# Intent\n\nRetries with idempotency keys.\n\n## Acceptance criteria\n\n- [ ] No duplicate charge",
-    summary: "Define idempotency",
+    revisionId: first.id,
   });
   all = await f.entities();
   const third = await f.current();
@@ -2171,4 +2179,449 @@ void test("committed observers run once after authorization and commit, tolerate
     DomainError,
   );
   assert.deepEqual(notifications, [mutation.id]);
+});
+
+void test("shared branches merge independent commits, reject overlap and preserve main", async () => {
+  const f = await fixture(),
+    base = await f.current(),
+    branchId = crypto.randomUUID();
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: base.id,
+    title: base.title,
+    content: "one\ntwo\nthree",
+  });
+  const main = await f.current();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: main.id,
+    branchId,
+    name: "shared",
+  });
+  const branch = async () => {
+    const all = await f.entities();
+    return all.find(
+      (e): e is Extract<Entity, { type: "specBranch" }> =>
+        e.type === "specBranch" && e.id === branchId,
+    )!;
+  };
+  const head = (await branch()).headId;
+  await assert.rejects(
+    f.command(
+      {
+        type: "commitBranch",
+        workItemId: f.proposalId,
+        branchId,
+        baseCommitId: head,
+        title: main.title,
+        content: "ONE\ntwo\nthree",
+        message: "First edit",
+      },
+      f.reviewerId,
+    ),
+    /invited collaborators/,
+  );
+  await f.command({
+    type: "setBranchCollaborator",
+    workItemId: f.proposalId,
+    branchId,
+    userId: f.reviewerId,
+    assigned: true,
+  });
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: head,
+    title: main.title,
+    content: "ONE\ntwo\nthree",
+    message: "First edit",
+  });
+  await f.command(
+    {
+      type: "commitBranch",
+      workItemId: f.proposalId,
+      branchId,
+      baseCommitId: head,
+      title: main.title,
+      content: "one\ntwo\nTHREE",
+      message: "Independent edit",
+    },
+    f.reviewerId,
+  );
+  let all = await f.entities(),
+    latest = all.find(
+      (e) =>
+        e.type === "specCommit" &&
+        e.id ===
+          (
+            all.find(
+              (e) => e.type === "specBranch" && e.id === branchId,
+            ) as Extract<Entity, { type: "specBranch" }>
+          ).headId,
+    );
+  assert.equal(
+    latest?.type === "specCommit" && latest.content,
+    "ONE\ntwo\nTHREE",
+  );
+  assert.equal((await f.current()).id, main.id);
+  await assert.rejects(
+    f.command({
+      type: "commitBranch",
+      workItemId: f.proposalId,
+      branchId,
+      baseCommitId: head,
+      title: "My title",
+      content: "DIFFERENT\ntwo\nthree",
+      message: "Overlap",
+    }),
+    /overlap/,
+  );
+  const currentHead = (await branch()).headId;
+  await assert.rejects(
+    f.command({
+      type: "commitBranch",
+      workItemId: f.proposalId,
+      branchId,
+      baseCommitId: head,
+      expectedHeadId: head,
+      title: main.title,
+      content: "resolved",
+      message: "Old resolution",
+    }),
+    /changed again/,
+  );
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: head,
+    expectedHeadId: currentHead,
+    title: "Resolved title",
+    content: "RESOLVED\ntwo\nTHREE",
+    message: "Resolve explicitly",
+  });
+  all = await f.entities();
+  const resolvedHead = (await branch()).headId;
+  latest = all.find((e) => e.type === "specCommit" && e.id === resolvedHead);
+  assert.equal(latest?.type === "specCommit" && latest.title, "Resolved title");
+  const first = all.find((e) => e.type === "specCommit" && e.id === head);
+  assert.equal(
+    first?.type === "specCommit" && first.content,
+    "one\ntwo\nthree",
+  );
+});
+
+void test("PR approval binds to merge result, supplies main reviews, protects main and restores revisions", async () => {
+  const f = await fixture(),
+    original = await f.current(),
+    branchId = crypto.randomUUID(),
+    pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "reviewed",
+  });
+  const get = async () => {
+    const all = await f.entities();
+    return {
+      all,
+      source: all.find(
+        (e): e is Extract<Entity, { type: "specBranch" }> =>
+          e.type === "specBranch" && e.id === branchId,
+      )!,
+      target: all.find(
+        (e): e is Extract<Entity, { type: "specBranch" }> =>
+          e.type === "specBranch" && e.name === "main",
+      )!,
+    };
+  };
+  let b = await get();
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: b.source.headId,
+    title: "Safe retries reviewed",
+    content:
+      "Retry with the same key.\n\n## Acceptance criteria\n\n- [ ] No duplicate payments",
+    message: "Define behavior",
+  });
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: b.target.id,
+    title: "Review retries",
+    description: "Define safe retry behavior",
+    draft: true,
+  });
+  await f.command({
+    type: "requestPullRequestReview",
+    workItemId: f.proposalId,
+    pullRequestId,
+    roleId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  b = await get();
+  const review = b.all.find(
+    (e): e is Extract<Entity, { type: "prReview" }> =>
+      e.type === "prReview" && e.pullRequestId === pullRequestId,
+  )!;
+  const decide = () =>
+    f.command(
+      {
+        type: "decidePullRequest",
+        workItemId: f.proposalId,
+        pullRequestId,
+        reviewId: review.id,
+        sourceHeadId: b.source.headId,
+        targetHeadId: b.target.headId,
+        decision: "approve",
+      },
+      f.reviewerId,
+    );
+  await assert.rejects(decide(), /draft/);
+  await f.command({
+    type: "setPullRequestDraft",
+    workItemId: f.proposalId,
+    pullRequestId,
+    draft: false,
+  });
+  await decide();
+  // A concurrent main title change changes the full resulting snapshot.
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    title: "Concurrent title",
+    content: original.content,
+  });
+  b = await get();
+  await assert.rejects(
+    f.command({
+      type: "mergePullRequest",
+      workItemId: f.proposalId,
+      pullRequestId,
+      sourceHeadId: b.source.headId,
+      targetHeadId: b.target.headId,
+    }),
+    /conflict/,
+  );
+  const commits = b.all.filter(
+    (e): e is Extract<Entity, { type: "specCommit" }> =>
+      e.type === "specCommit",
+  );
+  const source = commits.find((c) => c.id === b.source.headId)!;
+  await f.command({
+    type: "syncBranch",
+    workItemId: f.proposalId,
+    branchId,
+    targetId: b.target.id,
+    sourceHeadId: b.source.headId,
+    targetHeadId: b.target.headId,
+    title: "Final title",
+    content: source.content,
+  });
+  b = await get();
+  await assert.rejects(
+    f.command({
+      type: "mergePullRequest",
+      workItemId: f.proposalId,
+      pullRequestId,
+      sourceHeadId: b.source.headId,
+      targetHeadId: b.target.headId,
+    }),
+    /required responsibility/,
+  );
+  await decide();
+  const mutationId = crypto.randomUUID(),
+    mergeCommand = {
+      type: "mergePullRequest" as const,
+      workItemId: f.proposalId,
+      pullRequestId,
+      sourceHeadId: b.source.headId,
+      targetHeadId: b.target.headId,
+    };
+  await f.command(mergeCommand, f.userId, mutationId);
+  await f.command(mergeCommand, f.userId, mutationId);
+  let all = await f.entities(),
+    main = await f.current();
+  assert.equal(main.title, "Final title");
+  assert.equal(main.number, 3);
+  assert.equal(
+    all.find((e) => e.type === "workItem" && e.id === f.proposalId)?.type ===
+      "workItem" &&
+      (
+        all.find(
+          (e) => e.type === "workItem" && e.id === f.proposalId,
+        ) as Extract<Entity, { type: "workItem" }>
+      ).refinementState,
+    "ready",
+  );
+  assert.equal(
+    all.filter(
+      (e) =>
+        e.type === "approval" &&
+        e.status === "granted" &&
+        e.revisionId === main.id,
+    ).length,
+    1,
+  );
+  await assert.rejects(
+    f.command({
+      type: "updateSpecification",
+      workItemId: f.proposalId,
+      baseRevisionId: main.id,
+      title: main.title,
+      content: "Silent edit",
+    }),
+    /ready/,
+  );
+  await assert.rejects(
+    f.command(
+      {
+        type: "revertSpecification",
+        workItemId: f.proposalId,
+        baseRevisionId: main.id,
+        revisionId: original.id,
+      },
+      f.reviewerId,
+    ),
+    /roles/,
+  );
+  await f.command({
+    type: "revertSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: main.id,
+    revisionId: original.id,
+  });
+  main = await f.current();
+  assert.equal(main.number, 4);
+  assert.equal(main.content, original.content);
+  all = await f.entities();
+  assert.ok(all.some((e) => e.type === "approval" && e.status === "stale"));
+  await assert.rejects(
+    f.command({
+      type: "updateSpecification",
+      workItemId: f.proposalId,
+      baseRevisionId: main.id,
+      title: main.title,
+      content: "Bypass after revert",
+    }),
+    /ready/,
+  );
+});
+
+void test("branch/PR deletion emits tombstones, keeps history, and branches can target other branches", async () => {
+  const f = await fixture(),
+    revision = await f.current(),
+    parentId = crypto.randomUUID(),
+    childId = crypto.randomUUID(),
+    pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: revision.id,
+    branchId: parentId,
+    name: "parent",
+  });
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: revision.id,
+    branchId: childId,
+    name: "child",
+    fromBranchId: parentId,
+  });
+  let all = await f.entities();
+  const child = all.find(
+    (e): e is Extract<Entity, { type: "specBranch" }> =>
+      e.type === "specBranch" && e.id === childId,
+  )!;
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId: childId,
+    baseCommitId: child.headId,
+    title: revision.title,
+    content: "Child change",
+    message: "Child commit",
+  });
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceId: childId,
+    targetId: parentId,
+    title: "Child PR",
+    description: "Changes parent only",
+    draft: true,
+  });
+  await assert.rejects(
+    f.command({
+      type: "deleteBranch",
+      workItemId: f.proposalId,
+      branchId: childId,
+    }),
+    /active pull requests/,
+  );
+  const checkpoint = (await f.read()).nextCursor;
+  await f.command({
+    type: "deletePullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+  });
+  await f.command({
+    type: "deleteBranch",
+    workItemId: f.proposalId,
+    branchId: childId,
+  });
+  const delta = await f.read(checkpoint);
+  assert.ok(
+    delta.changes.some(
+      (c) =>
+        c.operation === "delete" &&
+        c.type === "pullRequest" &&
+        c.id === pullRequestId,
+    ),
+  );
+  assert.ok(
+    delta.changes.some(
+      (c) =>
+        c.operation === "delete" && c.type === "specBranch" && c.id === childId,
+    ),
+  );
+  all = await f.entities();
+  assert.ok(
+    all.some((e) => e.type === "specCommit" && e.message === "Child commit"),
+  );
+  assert.equal((await f.current()).id, revision.id);
+  const main = all.find(
+    (e): e is Extract<Entity, { type: "specBranch" }> =>
+      e.type === "specBranch" && e.name === "main",
+  )!;
+  await assert.rejects(
+    f.command({
+      type: "deleteBranch",
+      workItemId: f.proposalId,
+      branchId: main.id,
+    }),
+    /cannot be deleted/,
+  );
+  const other = await fixture();
+  await assert.rejects(
+    other.command({
+      type: "deleteBranch",
+      workItemId: other.proposalId,
+      branchId: parentId,
+    }),
+    /unavailable/,
+  );
 });
