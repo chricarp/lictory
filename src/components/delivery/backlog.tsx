@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, CirclePlay, Flag, Plus, Repeat } from "lucide-react";
@@ -302,9 +303,7 @@ export function Backlog() {
           </p>
         )}
         {view.status === "hydrating" && teamItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            Opening…
-          </p>
+          <LoadingState label="Opening backlog" />
         ) : (
           <>
             {open.map((it) => {

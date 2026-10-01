@@ -10,6 +10,7 @@ import { paths } from "../src/lib/paths";
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
 const multiOrgEmail = "multi-org@example.test";
+const loadingEmail = "loading@example.test";
 const password = "Local-test-password-123";
 // Give independent browser scenarios distinct client addresses. Production auth
 // throttles rapid sign-ins by IP; unrelated tests must not share that budget.
@@ -26,6 +27,7 @@ test.beforeAll(async () => {
     ["Alex Morgan", email, "alex_morgan"],
     ["Riley Chen", reviewerEmail, "riley_chen"],
     ["Taylor Rivera", multiOrgEmail, null],
+    ["Jordan Lee", loadingEmail, "jordan_lee"],
   ] as const) {
     const id = crypto.randomUUID();
     // A worker restarted after a failure re-runs this hook on the same database.
@@ -188,6 +190,50 @@ test("appearance preference applies immediately, persists, and follows the syste
   await page.keyboard.press("ArrowLeft");
   await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
   await reset;
+});
+
+test("navigation commits immediately and shows a loading state while the server responds", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, loadingEmail);
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await page.getByLabel("Organization name").fill("Loading states");
+  await page.getByRole("button", { name: "Create organization" }).click();
+  await page.getByLabel("Project name").fill("Loading project");
+  await page.getByLabel("Key", { exact: true }).fill("LDS");
+  await configureFirstProject(page);
+  await page
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/lds\/epics$/);
+  const rail = page.getByRole("navigation", { name: "Workspace" });
+  const board = rail.getByRole("link", { name: "Board", exact: true });
+  await expect(board).toBeVisible();
+  // Let the prefetch of the loading boundary land, then make every navigation
+  // render (but not prefetches) slow, like a cold server in production.
+  await page.waitForLoadState("networkidle");
+  let release!: () => void;
+  const slowServer = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/app/**", async (route) => {
+    const headers = route.request().headers();
+    if (headers.rsc === "1" && !headers["next-router-prefetch"])
+      await slowServer;
+    await route.continue();
+  });
+
+  await board.click();
+  await expect(page).toHaveURL(/\/board$/, { timeout: 2_000 });
+  await expect(page.getByRole("status", { name: "Loading board" })).toBeVisible(
+    { timeout: 2_000 },
+  );
+  release();
+  await expect(
+    page.getByRole("status", { name: "Loading board" }),
+  ).toBeHidden();
+  await expect(board).toHaveAttribute("aria-current", "page");
 });
 
 test("work item panels collapse independently and persist across routes and reloads", async ({

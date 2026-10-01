@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import Link from "next/link";
 import { paths } from "~/lib/paths";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -530,9 +531,7 @@ export function IssueList({
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {view.status === "hydrating" && items.length === 0 ? (
-          <div className="p-3 text-xs text-muted-foreground" role="status">
-            Opening…
-          </div>
+          <LoadingState label="Opening work items" />
         ) : visible.length === 0 ? (
           <EmptyState
             title={

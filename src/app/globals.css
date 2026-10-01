@@ -267,6 +267,42 @@
   animation-delay: 300ms;
 }
 
+/* Route loading states stay invisible for fast navigations, then fade in and
+   breathe. Delay is long enough to skip warm navigations, short enough that a
+   slow one never looks frozen. */
+@keyframes route-skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes route-skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.route-skeleton {
+  animation: route-skeleton-in 200ms ease-out 150ms both;
+}
+.route-skeleton .bg-muted {
+  animation: route-skeleton-pulse 1.6s ease-in-out 350ms infinite;
+}
+
+/* Sidebar link pressed while its route is still on the way. */
+@keyframes link-pending-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.link-pending {
+  animation: link-pending-in 150ms ease-out 100ms both;
+}
+
 /* Infrequent setup transitions explain progression without delaying interaction. */
 .onboarding button {
   transition:

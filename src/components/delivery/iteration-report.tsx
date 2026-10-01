@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { BarChart3, ChevronLeft } from "lucide-react";
@@ -59,9 +60,7 @@ export function IterationReportPage() {
           )}
         </header>
         {!report ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            Loading report…
-          </p>
+          <LoadingState label="Loading report" />
         ) : (
           <>
             <Totals report={report} usePoints={usePoints} />

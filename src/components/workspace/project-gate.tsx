@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import { createContext, useContext, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -22,11 +23,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   const project = projects.find((p) => p.key === key);
   if (!project) {
     if (view.status === "hydrating" || view.status === "syncing")
-      return (
-        <div className="p-8 text-sm text-muted-foreground" role="status">
-          Opening workspace…
-        </div>
-      );
+      return <LoadingState label="Opening workspace" />;
     if (isSyncBlocked(view.status))
       return <SyncIssue status={view.status} error={view.error} />;
     if (!projects.length)

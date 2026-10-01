@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
 import { toast as toastManager } from "~/components/ui/toast";
 import { resetAnalytics, track } from "~/lib/analytics/client";
@@ -886,6 +886,20 @@ function NavLink({
       )}
       <span className={collapsed ? "sr-only" : undefined}>{children}</span>
       {badge}
+      <PendingHint />
     </Link>
+  );
+}
+
+// Immediate acknowledgement for a pressed link whose route is still loading
+// (cold prefetch, slow network). Must render inside the <Link>.
+function PendingHint() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return (
+    <span
+      aria-hidden
+      className="link-pending absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
+    />
   );
 }

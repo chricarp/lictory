@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -256,9 +257,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
   if (!loaded)
     return (
       <OnboardingFrame title={`Set up ${organization.name} · Lictory`}>
-        <p role="status" className="text-sm text-muted-foreground">
-          Opening your setup…
-        </p>
+        <LoadingState label="Opening your setup" />
       </OnboardingFrame>
     );
   return (

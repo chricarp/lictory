@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -86,11 +87,7 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
   ]);
   if (!item) {
     if (view.status === "hydrating" || view.status === "syncing")
-      return (
-        <div className="p-8 text-sm text-muted-foreground" role="status">
-          Opening {raw}…
-        </div>
-      );
+      return <LoadingState label={`Opening ${raw}`} />;
     if (isSyncBlocked(view.status))
       return <SyncIssue status={view.status} error={view.error} />;
     return (

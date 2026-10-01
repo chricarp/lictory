@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState, Spinner } from "~/components/ui/spinner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -328,9 +329,7 @@ export function NotificationFeed() {
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!page ? (
-          <p className="px-4 py-6 text-[13px] text-muted-foreground">
-            Loading…
-          </p>
+          <LoadingState label="Loading notifications" />
         ) : page.items.length === 0 ? (
           <EmptyState
             title={
@@ -377,7 +376,10 @@ export function NotificationFeed() {
               disabled={loadingMore}
               onClick={() => void loadMore()}
             >
-              {loadingMore ? "Loading…" : "Show older"}
+              {loadingMore && (
+                <Spinner label="Loading older notifications" size={14} />
+              )}
+              Show older
             </Button>
           </div>
         )}

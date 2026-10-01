@@ -1,4 +1,5 @@
 "use client";
+import { LoadingState } from "~/components/ui/spinner";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
@@ -258,7 +259,7 @@ export function NotificationSettings() {
             </p>
           )}
           {!rules ? (
-            <p className="text-[13px] text-muted-foreground">Loading…</p>
+            <LoadingState label="Loading notification settings" />
           ) : (
             notificationCategories.map((category) => (
               <section
