@@ -996,7 +996,7 @@ function BranchEditorBody({
                     fileContext={{ organizationId, workItemId: itemId }}
                     value={draft.content}
                     onValueChange={(content) => edit({ content })}
-                    className="min-h-[400px] px-4 pt-4 font-mono"
+                    className="min-h-100 px-4 pt-4 font-mono"
                     previewClassName="min-h-[400px] px-4 pt-4"
                   />
                 </>
@@ -1027,7 +1027,9 @@ function BranchEditorBody({
                 <SectionLabel>Latest commit</SectionLabel>
                 <p className="flex gap-2 font-medium">
                   <GitCommitHorizontal className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 break-words">{head.message}</span>
+                  <span className="min-w-0 wrap-break-word">
+                    {head.message}
+                  </span>
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {memberName(head.authorId)} · {relativeTime(head.createdAt)}
@@ -1235,7 +1237,7 @@ function CommitHistory({
         <li key={c.id} className="relative py-2.5">
           <span
             aria-hidden
-            className="absolute top-3.5 -left-[25px] grid size-3 place-items-center rounded-full border bg-background"
+            className="absolute top-3.5 -left-6.25 grid size-3 place-items-center rounded-full border bg-background"
           >
             {c.parentIds.length > 1 && (
               <GitMerge className="size-2 text-muted-foreground" />
@@ -2074,7 +2076,7 @@ function PullRequestView({
   return (
     <>
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold break-words">{p.title}</h1>
+        <h1 className="text-2xl font-semibold wrap-break-word">{p.title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <PrStatusPill status={p.status} />
           <span className="font-medium">{memberName(p.authorId)}</span>
