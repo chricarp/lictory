@@ -70,12 +70,17 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
 
 The schema entry point is `src/db/schema.ts`, which exports the generated Better
 Auth schema and the application domain schema. See [the database model](docs/database-model.md)
-for revision semantics, tenant constraints, retention, and enforcement boundaries.
+for revision semantics, tenant constraints, retention, and enforcement boundaries,
+and [database migrations](docs/migrations.md) for the change workflow and how
+production applies migrations before activating a release.
 
 ```bash
 bun run auth:generate # regenerate auth tables after changing Better Auth schema options
 bun run db:generate  # create a committed SQL migration after schema changes
-bun run db:migrate   # apply committed migrations
+bun run db:generate:data # empty SQL migration for small reference-data changes
+bun run db:check     # fail when the schema has changes without a migration
+bun run db:migrate   # apply committed migrations (local by default)
+bun run db:migrate:status # list pending migrations
 bun run db:studio    # inspect local data
 bun run db:test      # verify migrations and constraints in a disposable local database
 ```
@@ -83,7 +88,7 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 ## production notes
 
 See [deployment and operations](docs/operations.md) for environment separation,
-CI, manual migrations, background jobs, recovery and free-plan limits.
+CI, automatic migrations, background jobs, recovery and free-plan limits.
 
 - Replace `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
 - Set `BETTER_AUTH_URL` to the canonical HTTPS origin.

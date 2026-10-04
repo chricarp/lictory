@@ -26,9 +26,10 @@ CORS to make arbitrary preview deployments work.
 
 The realtime hub uses PostgreSQL LISTEN/NOTIFY and needs a direct connection.
 Configure `DATABASE_URL` for pooled application queries and
-`DATABASE_URL_UNPOOLED` for the direct TLS listener and migrations. Neon's Vercel
+`DATABASE_URL_UNPOOLED` for the direct TLS listener. Neon's Vercel
 integration supplies both. Without the unpooled variable, the listener and
-migrations fall back to `DATABASE_URL`, which must then be direct. SSE streams
+listener falls back to `DATABASE_URL`, which must then be direct. Migrations use
+the separate `DATABASE_MIGRATION_URL`, which is never configured in Vercel. SSE streams
 must stay below the host's function duration limit and reconnect; synchronization
 recovery is authoritative even when presence/realtime is temporarily unavailable.
 
@@ -51,26 +52,16 @@ Branch protection for a private personal repository may require GitHub Pro.
 Once available, require `Verify`, prohibit force pushes and require PR review
 when another maintainer joins. Keep the repository private.
 
-Vercel's Git integration deploys independently of GitHub CI. A passing local
-check or a green CI run does not by itself prevent an earlier automatic
-deployment. Until deployment checks are enforced, use reviewed main changes and
-verify CI before treating a release as usable.
+Production deploys only through **Deploy production**, which runs CI, builds on
+Vercel without assigning domains, applies migrations and then promotes the build.
+`vercel.json` disables Vercel's Git deployments for `main`; previews of other
+branches still deploy automatically.
 
 ## Migrations and recovery
 
-Create a GitHub environment named `production`, restrict it to main where the
-account supports that control, and store the direct database URL as its
-`DATABASE_URL` secret. The manual **Production migrations** workflow runs only
-from main after entering `migrate-production`. It applies committed SQL; it never
-uses `db:push` and never runs from a pull request. Its concurrency group prevents
-two workflow migrations from running simultaneously.
-
-Before running it, review SQL and confirm a provider recovery point or encrypted
-backup. Test restoration into an isolated database before storing important user
-data. Never upload raw production dumps as Actions artifacts. Prefer additive
-migrations: apply a compatible schema change, deploy the application, then remove
-obsolete schema in a separate reviewed change. An application rollback does not
-roll back a database migration. The first deployment also needs migrations.
+See [database migrations](migrations.md) for the connection contract, developer
+workflow, rollout order, expand/contract rules, data backfills and recovery.
+Migrations never run from the application, Vercel builds or pull requests.
 
 ## Background jobs
 

@@ -1163,6 +1163,7 @@ environment. The current sequence is:
 bun install --frozen-lockfile
 bun audit --audit-level=high
 bun run check
+bun run db:check
 bun run db:migrate
 bun test src
 bunx playwright install --with-deps chromium
