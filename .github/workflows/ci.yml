@@ -1,9 +1,10 @@
 name: CI
 
+# Pushes to main run this workflow through "Deploy production", which gates
+# migrations and activation on it.
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -52,6 +53,8 @@ jobs:
       - name: High and critical dependency vulnerabilities
         run: bun audit --audit-level=high
       - run: bun run check
+      - name: Schema changes have committed migrations
+        run: bun run db:check
       - name: Apply committed migrations to disposable CI database
         run: bun run db:migrate
       - name: Domain, storage, authorization and synchronization tests

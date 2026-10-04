@@ -1,0 +1,76 @@
+name: Deploy production
+
+# Production release order for every push to main:
+#   verify -> build (not serving) -> migrate -> promote
+# A failed check, build or migration stops the run before the new version
+# receives production traffic. Vercel's Git integration is disabled for main
+# (vercel.json) so this is the only path to production. See docs/migrations.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time; a newer push waits instead of interrupting a
+# migration. Only the newest pending run is kept.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build production deployment
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build on Vercel without assigning production domains
+        id: deploy
+        shell: bash
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Configure VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID in the production environment."
+            exit 1
+          fi
+          url=$(npx --yes vercel@62.2.0 deploy --prod --skip-domain --yes --token "$VERCEL_TOKEN")
+          case "$url" in https://*) ;; *) echo "Unexpected Vercel output: $url"; exit 1 ;; esac
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Built $url (not serving production traffic yet)."
+
+  migrate:
+    needs: build
+    uses: ./.github/workflows/migrate.yml
+    with:
+      environment: production
+    secrets: inherit
+
+  promote:
+    name: Activate production deployment
+    needs: [build, migrate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      DEPLOYMENT_URL: ${{ needs.build.outputs.url }}
+    steps:
+      - name: Promote the migrated build to production domains
+        run: npx --yes vercel@62.2.0 promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"

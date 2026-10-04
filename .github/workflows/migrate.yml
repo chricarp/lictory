@@ -1,26 +1,41 @@
-name: Production migrations
+name: Database migrations
 
+# Applies committed migrations to one shared environment. Called by
+# "Deploy production" before activation; also dispatchable for staging or to
+# retry a failed production run. Never runs for pull requests.
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      confirmation:
-        description: Type migrate-production after reviewing SQL and confirming a recovery point
+      environment:
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment whose database to migrate
+        required: true
+        type: choice
+        options: [staging, production]
 
 permissions:
   contents: read
 
-concurrency:
-  group: production-migrations
-  cancel-in-progress: false
-
 jobs:
   migrate:
-    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'migrate-production'
+    name: Migrate ${{ inputs.environment }}
+    if: inputs.environment != 'production' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: production
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    # Serializes workflow runs per environment; scripts/migrate.ts also holds a
+    # PostgreSQL advisory lock against any other runner.
+    concurrency:
+      group: database-migrations-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      DATABASE_MIGRATION_TARGET: ${{ inputs.environment }}
+      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+      DATABASE_MIGRATION_EXPECTED_HOST: ${{ vars.DATABASE_MIGRATION_EXPECTED_HOST }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -29,9 +44,7 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - name: Apply reviewed migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          test -n "$DATABASE_URL" || { echo "Set DATABASE_URL in the production environment secrets."; exit 1; }
-          bun run db:migrate
+      - name: Pending migrations
+        run: bun run db:migrate:status
+      - name: Apply committed migrations
+        run: bun run db:migrate
