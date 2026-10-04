@@ -3,6 +3,7 @@ WORKDIR /app
 
 FROM base AS dependencies
 COPY package.json bun.lock ./
+COPY patches ./patches
 RUN bun install --frozen-lockfile
 
 FROM dependencies AS development
