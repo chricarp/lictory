@@ -212,27 +212,43 @@ test("navigation commits immediately and shows a loading state while the server 
   const rail = page.getByRole("navigation", { name: "Workspace" });
   const board = rail.getByRole("link", { name: "Board", exact: true });
   await expect(board).toBeVisible();
-  // Let the prefetch of the loading boundary land, then make every navigation
-  // render (but not prefetches) slow, like a cold server in production.
+  // Prefetch can stop at the organization boundary or the team boundary.
+  // Both fallbacks acknowledge navigation while the board render is pending.
   await page.waitForLoadState("networkidle");
   let release!: () => void;
+  let navigationHeld = false;
   const slowServer = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/app/**", async (route) => {
-    const headers = route.request().headers();
-    if (headers.rsc === "1" && !headers["next-router-prefetch"])
+    const request = route.request();
+    const headers = request.headers();
+    if (
+      new URL(request.url()).pathname.endsWith("/board") &&
+      headers.rsc === "1" &&
+      !headers["next-router-prefetch"]
+    ) {
+      navigationHeld = true;
       await slowServer;
+    }
     await route.continue();
   });
 
-  await board.click();
-  await expect(page).toHaveURL(/\/board$/, { timeout: 2_000 });
-  await expect(page.getByRole("status", { name: "Loading board" })).toBeVisible(
-    { timeout: 2_000 },
-  );
-  release();
+  const loading = page.getByRole("main").getByRole("status", {
+    name: /^Loading (page|board)$/,
+  });
+  try {
+    await board.click();
+    await expect(page).toHaveURL(/\/board$/, { timeout: 2_000 });
+    await expect(loading).toBeVisible({ timeout: 2_000 });
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect.poll(() => navigationHeld).toBe(true);
+  } finally {
+    // Release intercepted requests even when an assertion fails.
+    release();
+  }
+  await expect(loading).toBeHidden();
   await expect(
-    page.getByRole("status", { name: "Loading board" }),
-  ).toBeHidden();
+    page.getByRole("heading", { name: "Delivery team", exact: true }),
+  ).toBeVisible();
   await expect(board).toHaveAttribute("aria-current", "page");
 });
 
