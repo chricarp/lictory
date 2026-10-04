@@ -29,6 +29,7 @@ import {
   type Entity,
   type WorkItem,
 } from "~/sync/shared/protocol";
+import { AI_ACTOR_ID, AI_ACTOR_NAME } from "~/sync/shared/ai";
 import {
   byType,
   deliveryIndex,
@@ -271,10 +272,12 @@ export function WorkspaceProvider({
       memberName: (id) =>
         id === "system"
           ? "Lictory"
-          : id
-            ? (directory.members.find((m) => m.id === id)?.name ??
-              "Former member")
-            : "Unassigned",
+          : id === AI_ACTOR_ID
+            ? AI_ACTOR_NAME
+            : id
+              ? (directory.members.find((m) => m.id === id)?.name ??
+                "Former member")
+              : "Unassigned",
       roleName: (id) =>
         directory.roles.find((r) => r.id === id)?.name ?? "Role",
       acquireItem,
@@ -368,6 +371,7 @@ const hydratingView: View = {
     types: [],
     iterations: [],
     delivery: { connections: [], targets: [] },
+    ai: { enabled: false, available: false },
   },
   pending: [],
   status: "hydrating",

@@ -524,6 +524,43 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    case "ai_review_requested":
+      body = <>requested an AI review</>;
+      break;
+    case "ai_review_completed":
+      body = (
+        <>
+          completed an AI review: <b>{num(d.score)}/100</b> with{" "}
+          {num(d.findings)} {num(d.findings) === 1 ? "finding" : "findings"}
+          {str(d.requestedById) && (
+            <> (requested by {memberName(str(d.requestedById))})</>
+          )}
+        </>
+      );
+      break;
+    case "ai_corrective_pr_created":
+      body = (
+        <>
+          opened a Lictory AI pull request resolving {num(d.findings)} review{" "}
+          {num(d.findings) === 1 ? "finding" : "findings"}
+        </>
+      );
+      break;
+    case "ai_action_requested":
+      body = <>re-ran Lictory Action on a pull request</>;
+      break;
+    case "ai_action_completed":
+      body = (
+        <>
+          reviewed commit <b>{str(d.commitId)?.slice(0, 7)}</b>:{" "}
+          <b>{num(d.score)}/100</b> with {num(d.findings)}{" "}
+          {num(d.findings) === 1 ? "finding" : "findings"}
+        </>
+      );
+      break;
+    case "ai_suggestion_applied":
+      body = <>committed a Lictory AI suggestion</>;
+      break;
     default:
       body = <>{entry.action.replaceAll("_", " ")}</>;
   }

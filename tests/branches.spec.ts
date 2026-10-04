@@ -565,7 +565,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       page.getByText("Review required again", { exact: true }),
     ).toBeVisible();
     await page
-      .getByRole("button", { name: "Resolve PR conflicts", exact: true })
+      .getByRole("button", { name: "Resolve conflicts", exact: true })
       .click();
     await page
       .getByRole("button", { name: "Keep all my changes", exact: true })
@@ -613,7 +613,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     );
     await page.goto(discardPR);
     await page
-      .getByRole("button", { name: "Resolve PR conflicts", exact: true })
+      .getByRole("button", { name: "Resolve conflicts", exact: true })
       .click();
     await page
       .getByRole("button", { name: "Discard my changes", exact: true })
@@ -711,13 +711,11 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       page.getByRole("option", { name: "integration/retries", exact: true }),
     ).toHaveCount(0);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Commits", exact: true }).click();
+    await page.getByRole("tab", { name: /^Commits/ }).click();
     await expect(
       page.getByText("Keep target timeout", { exact: true }),
     ).toBeVisible();
-    await page
-      .getByRole("button", { name: "Conversation", exact: true })
-      .click();
+    await page.getByRole("tab", { name: /^Conversation/ }).click();
     await deletion.scrollIntoViewIfNeeded();
     await page.screenshot({
       path: "/tmp/lictory-auto-delete-merged-branch.png",

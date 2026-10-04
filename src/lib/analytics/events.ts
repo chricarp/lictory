@@ -62,6 +62,11 @@ export const commandEvents = {
   createRole: "role_created",
   updateRole: "role_updated",
   setRoleMembership: "role_membership_changed",
+  setAiPolicy: "ai_policy_changed",
+  requestAiReview: "ai_review_requested",
+  rerunAiAction: "ai_action_requested",
+  createAiCorrectivePr: "ai_corrective_pr_created",
+  applyAiSuggestion: "ai_suggestion_applied",
 } satisfies Record<Command["type"], string>;
 
 // Explicit allowlist: never spread a command, form, document or error into events.

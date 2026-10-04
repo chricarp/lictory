@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { OnboardingSetup } from "../sync/shared/protocol";
+import type { AiFinding } from "../sync/shared/ai";
 import { organization, user } from "./auth-schema";
 
 // Keep IDs compatible with Better Auth's text IDs; domain IDs are UUID strings.
@@ -130,6 +131,19 @@ export const checkStatus = pgEnum("check_status", [
   "failed",
   "error",
   "skipped",
+]);
+export const aiActionPolicy = pgEnum("ai_action_policy", [
+  "off",
+  "advisory",
+  "required",
+]);
+export const aiRunKind = pgEnum("ai_run_kind", ["item_review", "pr_action"]);
+export const aiRunStatus = pgEnum("ai_run_status", [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "superseded",
 ]);
 export const deliverySyncStatus = pgEnum("delivery_sync_status", [
   "pending",
@@ -316,6 +330,9 @@ export const team = pgTable(
     // 0 = Sunday … 6 = Saturday; used by automatic cycles.
     iterationStartDay: integer("iteration_start_day").default(1).notNull(),
     upcomingIterations: integer("upcoming_iterations").default(2).notNull(),
+    aiActionPolicy: aiActionPolicy("ai_action_policy")
+      .default("advisory")
+      .notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: timestamp("archived_at"),
@@ -1610,5 +1627,84 @@ export const organizationOnboarding = pgTable(
       columns: [t.organizationId, t.teamId],
       foreignColumns: [team.organizationId, team.id],
     }).onDelete("restrict"),
+  ],
+);
+
+// Whether an organization allows its content to be sent to the AI provider.
+// Off until an administrator decides otherwise.
+export const organizationAiPolicy = pgTable("organization_ai_policy", {
+  organizationId: organizationId().primaryKey(),
+  enabled: boolean("enabled").default(false).notNull(),
+  updatedById: actor("updated_by_id"),
+  updatedAt: updatedAt(),
+});
+
+// One Lictory AI execution. Requests are queued inside the organization
+// transaction; the model runs outside it and the result is written back in a
+// short transaction. Runs are history: they are superseded or marked stale,
+// never deleted or rewritten after completion.
+export const aiRun = pgTable(
+  "ai_run",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    kind: aiRunKind("kind").notNull(),
+    status: aiRunStatus("status").default("queued").notNull(),
+    pullRequestId: text("pull_request_id"),
+    headCommitId: text("head_commit_id"),
+    requestedById: actor("requested_by_id"),
+    contextRevisions: jsonb("context_revisions")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    score: integer("score"),
+    summary: text("summary"),
+    strengths: jsonb("strengths").$type<string[]>().notNull().default([]),
+    findings: jsonb("findings").$type<AiFinding[]>().notNull().default([]),
+    correctivePullRequests: jsonb("corrective_pull_requests")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    appliedFindingIds: jsonb("applied_finding_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    model: text("model"),
+    error: text("error"),
+    attempts: integer("attempts").default(0).notNull(),
+    createdAt: createdAt(),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    staleAt: timestamp("stale_at"),
+    staleReason: text("stale_reason"),
+  },
+  (t) => [
+    foreignKey({
+      name: "ai_run_item_fk",
+      columns: [t.organizationId, t.workItemId],
+      foreignColumns: [workItem.organizationId, workItem.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "ai_run_pull_request_fk",
+      columns: [t.organizationId, t.workItemId, t.pullRequestId],
+      foreignColumns: [
+        specificationPullRequest.organizationId,
+        specificationPullRequest.workItemId,
+        specificationPullRequest.id,
+      ],
+    }).onDelete("restrict"),
+    index("ai_run_item_idx").on(t.organizationId, t.workItemId, t.createdAt),
+    index("ai_run_pending_idx")
+      .on(t.status, t.createdAt)
+      .where(sql`${t.status} in ('queued','running')`),
+    check(
+      "ai_run_kind_target",
+      sql`(${t.kind} = 'pr_action') = (${t.pullRequestId} IS NOT NULL)`,
+    ),
+    check(
+      "ai_run_score_range",
+      sql`${t.score} IS NULL OR ${t.score} BETWEEN 0 AND 100`,
+    ),
   ],
 );

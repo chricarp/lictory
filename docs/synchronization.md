@@ -1,7 +1,8 @@
 # Workspace synchronization and review invariants
 
 The authenticated workspace uses Better Auth, the existing Drizzle domain tables,
-and Markdown revisions. The application runs without AI or delivery integrations.
+and Markdown revisions. The application runs without AI or delivery integrations;
+AI runs follow the same lock and change-log rules (see [Lictory AI](ai.md)).
 
 ## Work items
 
@@ -361,7 +362,7 @@ only, never specification/comment content. Normal UI errors retain actionable te
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
 `/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
-renders in pages of 50. AI, SSO setup, billing, custom fields,
+renders in pages of 50. SSO setup, billing, custom fields,
 comments on items without a specification, saved views, advanced policy
 configuration, SCIM, private projects,
 CRDT editing, multiplayer cursors, service-worker offline

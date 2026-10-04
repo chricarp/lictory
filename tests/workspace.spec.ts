@@ -976,15 +976,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .getByRole("button", { name: "Ready for review", exact: true })
     .click();
   await reviewer.goto(prUrl);
-  await reviewer
-    .getByRole("button", { name: "Changes", exact: true })
-    .last()
-    .click();
+  await reviewer.getByRole("tab", { name: "Changes", exact: true }).click();
   await expect(
     reviewer.getByText(/Late provider responses/).first(),
   ).toBeVisible();
   await reviewer.getByRole("button", { name: "Approve", exact: true }).click();
-  await expect(page.getByText("approved", { exact: true })).toBeVisible();
+  await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Merge pull request", exact: true })
     .click();
