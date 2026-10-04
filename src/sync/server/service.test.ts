@@ -2449,12 +2449,93 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
       sourceHeadId: b.source.headId,
       targetHeadId: b.target.headId,
     };
+  await assert.rejects(
+    f.command(mergeCommand, f.reviewerId),
+    /roles cannot merge/,
+  );
+  // Cleanup and its audit event must roll back with the merge if any write fails.
+  await client`CREATE FUNCTION reject_branch_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'branch_deleted' THEN RAISE EXCEPTION 'forced cleanup failure'; END IF; RETURN NEW; END $$`;
+  await client`CREATE TRIGGER branch_cleanup_failure BEFORE INSERT ON activity FOR EACH ROW EXECUTE FUNCTION reject_branch_cleanup()`;
+  try {
+    await assert.rejects(f.command(mergeCommand, f.userId, mutationId));
+  } finally {
+    await client`DROP TRIGGER branch_cleanup_failure ON activity`;
+    await client`DROP FUNCTION reject_branch_cleanup()`;
+  }
+  assert.equal((await f.current()).number, 2);
+  const rolledBack = await f.entities();
+  assert.ok(
+    rolledBack.some((e) => e.type === "specBranch" && e.id === branchId),
+  );
+  assert.ok(
+    rolledBack.some(
+      (e) =>
+        e.type === "pullRequest" &&
+        e.id === pullRequestId &&
+        e.status === "open",
+    ),
+  );
+  assert.ok(
+    !rolledBack.some(
+      (e) => e.type === "activity" && e.action === "branch_deleted",
+    ),
+  );
+  const checkpoint = (await f.read()).nextCursor;
   await f.command(mergeCommand, f.userId, mutationId);
   await f.command(mergeCommand, f.userId, mutationId);
   let all = await f.entities(),
     main = await f.current();
   assert.equal(main.title, "Final title");
   assert.equal(main.number, 3);
+  assert.ok(!all.some((e) => e.type === "specBranch" && e.id === branchId));
+  assert.ok(all.some((e) => e.type === "specBranch" && e.name === "main"));
+  assert.ok(
+    all.some((e) => e.type === "specCommit" && e.id === b.source.headId),
+  );
+  assert.ok(all.some((e) => e.type === "prReview" && e.id === review.id));
+  const deletion = all.filter(
+    (e): e is Extract<Entity, { type: "activity" }> =>
+      e.type === "activity" && e.action === "branch_deleted",
+  );
+  assert.equal(deletion.length, 1);
+  assert.equal(deletion[0]!.actorId, f.userId);
+  assert.deepEqual(deletion[0]!.detail, {
+    branchId,
+    branch: "reviewed",
+    automatic: true,
+    reason: "pull_request_merged",
+    pullRequestId,
+  });
+  assert.ok(
+    all.some(
+      (e) =>
+        e.type === "activity" &&
+        e.action === "pull_request_merged" &&
+        e.createdAt < deletion[0]!.createdAt,
+    ),
+  );
+  const delta = await f.read(checkpoint);
+  assert.equal(
+    delta.changes.filter(
+      (c) =>
+        c.operation === "delete" &&
+        c.type === "specBranch" &&
+        c.id === branchId,
+    ).length,
+    1,
+  );
+  await assert.rejects(
+    f.command({
+      type: "commitBranch",
+      workItemId: f.proposalId,
+      branchId,
+      baseCommitId: b.source.headId,
+      title: "Edit a deleted branch",
+      content: "Unavailable",
+      message: "Cannot commit",
+    }),
+    /unavailable/,
+  );
   assert.equal(
     all.find((e) => e.type === "workItem" && e.id === f.proposalId)?.type ===
       "workItem" &&
@@ -2518,6 +2599,116 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     /ready/,
   );
 });
+
+for (const scenario of ["non-main", "draft-source", "open-target"] as const) {
+  void test(`automatic branch cleanup retains a branch used by ${scenario}`, async () => {
+    const f = await fixture(),
+      original = await f.current(),
+      sourceId = crypto.randomUUID(),
+      otherId = crypto.randomUUID(),
+      pullRequestId = crypto.randomUUID();
+    for (const [branchId, name] of [
+      [sourceId, "source"],
+      [otherId, "other"],
+    ]) {
+      await f.command({
+        type: "createBranch",
+        workItemId: f.proposalId,
+        baseRevisionId: original.id,
+        branchId: branchId!,
+        name: name!,
+      });
+    }
+    const branch = async (id: string) =>
+      (await f.entities()).find(
+        (e): e is Extract<Entity, { type: "specBranch" }> =>
+          e.type === "specBranch" && e.id === id,
+      )!;
+    await f.command({
+      type: "commitBranch",
+      workItemId: f.proposalId,
+      branchId: sourceId,
+      baseCommitId: (await branch(sourceId)).headId,
+      title: original.title,
+      content: "Reviewed behavior",
+      message: "Source change",
+    });
+    const main = (await f.entities()).find(
+      (e): e is Extract<Entity, { type: "specBranch" }> =>
+        e.type === "specBranch" && e.name === "main",
+    )!;
+    const targetId = scenario === "non-main" ? otherId : main.id;
+    await f.command({
+      type: "createPullRequest",
+      workItemId: f.proposalId,
+      pullRequestId,
+      sourceId,
+      targetId,
+      title: "Reviewed PR",
+      description: "Review source behavior",
+      draft: false,
+    });
+    if (scenario !== "non-main") {
+      await f.command({
+        type: "createPullRequest",
+        workItemId: f.proposalId,
+        pullRequestId: crypto.randomUUID(),
+        sourceId: scenario === "draft-source" ? sourceId : otherId,
+        targetId: scenario === "draft-source" ? otherId : sourceId,
+        title: "Keep reviewing",
+        description: "Still needs the source branch",
+        draft: scenario === "draft-source",
+      });
+    }
+    await f.command({
+      type: "requestPullRequestReview",
+      workItemId: f.proposalId,
+      pullRequestId,
+      roleId: f.roles.QA,
+      userId: f.reviewerId,
+      required: true,
+    });
+    const review = (await f.entities()).find(
+      (e): e is Extract<Entity, { type: "prReview" }> =>
+        e.type === "prReview" && e.pullRequestId === pullRequestId,
+    )!;
+    const heads = {
+      sourceHeadId: (await branch(sourceId)).headId,
+      targetHeadId: (await branch(targetId)).headId,
+    };
+    await f.command(
+      {
+        type: "decidePullRequest",
+        workItemId: f.proposalId,
+        pullRequestId,
+        reviewId: review.id,
+        decision: "approve",
+        ...heads,
+      },
+      f.reviewerId,
+    );
+    await f.command({
+      type: "mergePullRequest",
+      workItemId: f.proposalId,
+      pullRequestId,
+      ...heads,
+    });
+    const all = await f.entities();
+    assert.ok(all.some((e) => e.type === "specBranch" && e.id === sourceId));
+    assert.ok(
+      all.some(
+        (e) =>
+          e.type === "pullRequest" &&
+          e.id === pullRequestId &&
+          e.status === "merged",
+      ),
+    );
+    assert.ok(
+      !all.some((e) => e.type === "activity" && e.action === "branch_deleted"),
+    );
+    assert.equal((await f.current()).number, scenario === "non-main" ? 1 : 2);
+  });
+}
 
 void test("branch/PR deletion emits tombstones, keeps history, and branches can target other branches", async () => {
   const f = await fixture(),

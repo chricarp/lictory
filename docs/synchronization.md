@@ -303,6 +303,14 @@ responsibilities, avoiding a second approval ceremony. Main's other readiness
 checks still apply, including existing blocking discussions and child readiness.
 Merging into another branch changes only that branch's pointer.
 
+After a successful merge into main, Lictory automatically deletes the source
+branch in the same transaction and records a `branch_deleted` activity with
+`automatic: true` and the merged PR's ID. Activity identifies Lictory as the
+automatic actor while retaining the merge initiator for auditability. Commits,
+the merged PR, its discussions, and approvals remain available. A source branch
+still referenced by another draft or open PR is retained so that review can
+continue; merges into other branches do not trigger automatic deletion.
+
 PRs and non-main branches can be deleted by their author or a specification
 editor. A branch referenced by an active PR must have those PRs deleted first.
 Deletion emits atomic synchronization tombstones for its visible entities,

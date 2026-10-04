@@ -382,7 +382,7 @@ export async function applyBranchCommand(
         .update(s.specificationBranch)
         .set({ deletedAt: new Date() })
         .where(eq(s.specificationBranch.id, b.id));
-      log("branch_deleted", { branch: b.name });
+      log("branch_deleted", { branchId: b.id, branch: b.name });
       break;
     }
     case "createPullRequest": {
@@ -758,6 +758,29 @@ export async function applyBranchCommand(
         target: target.name,
         commitId: mergedId,
       });
+      // Preserve branches still used by another active PR. Removing their
+      // pointer would make that review impossible to finish.
+      if (
+        target.name === "main" &&
+        !prs.some(
+          (other) =>
+            other.id !== p.id &&
+            other.status !== "merged" &&
+            (other.sourceId === source.id || other.targetId === source.id),
+        )
+      ) {
+        await tx
+          .update(s.specificationBranch)
+          .set({ deletedAt: new Date() })
+          .where(eq(s.specificationBranch.id, source.id));
+        log("branch_deleted", {
+          branchId: source.id,
+          branch: source.name,
+          automatic: true,
+          reason: "pull_request_merged",
+          pullRequestId: p.id,
+        });
+      }
       break;
     }
     case "revertSpecification": {

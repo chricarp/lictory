@@ -55,8 +55,11 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     return it ? iterationLabel(it) : "an earlier iteration";
   };
   const d = entry.detail ?? {};
-  const actor = memberName(entry.actorId);
   const auto = d.automatic === true;
+  const actor =
+    entry.action === "branch_deleted" && auto
+      ? "Lictory"
+      : memberName(entry.actorId);
   let body: ReactNode;
   switch (entry.action) {
     case "created":
@@ -440,7 +443,11 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "branch_deleted":
       body = (
         <>
-          deleted branch <b>{str(d.branch)}</b>
+          {auto ? "automatically deleted branch" : "deleted branch"}{" "}
+          <b>{str(d.branch)}</b>
+          {auto && d.reason === "pull_request_merged" && (
+            <> after its pull request was merged into main</>
+          )}
         </>
       );
       break;

@@ -981,7 +981,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewer.getByRole("button", { name: /Main · revision 3/ }).click();
   await expect(page.getByText("Revision 3 ·").first()).toBeVisible();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
-  // Merged PRs can be deleted, then their branch can be deleted.
+  // Deleting a merged PR keeps the automatic branch cleanup activity.
   await page.goto(prUrl);
   await page
     .getByRole("button", { name: "Delete pull request", exact: true })
@@ -993,12 +993,13 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
       name: /Clarify cancellation timeouts and retries/,
     }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("listitem").filter({
+      hasText: "Lictory automatically deleted branch cancellation-timeouts",
+    }),
+  ).toHaveCount(1);
   await page.goto(branchUrl);
-  await page
-    .getByRole("button", { name: "Delete branch", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page).toHaveURL(/\?branches=1$/);
+  await expect(page.getByText("This branch is unavailable.")).toBeVisible();
   await page.getByRole("button", { name: /Main · revision 3/ }).click();
 
   // 13-14. Owner changes the specification → approval becomes outdated.

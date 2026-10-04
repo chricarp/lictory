@@ -184,16 +184,18 @@ async function createBranch(page: Page, name: string, from?: string) {
   ).toBeVisible();
   return page.url();
 }
-async function openPR(page: Page, title: string) {
+async function openPR(
+  page: Page,
+  title: string,
+  targetName = "integration/retries",
+) {
   await page
     .getByRole("button", { name: "Open pull request", exact: true })
     .click();
   const target = page.getByRole("combobox", { name: "PR target branch" });
   await expect(target).toHaveText("main");
   await target.click();
-  await page
-    .getByRole("option", { name: "integration/retries", exact: true })
-    .click();
+  await page.getByRole("option", { name: targetName, exact: true }).click();
   await page.getByRole("textbox", { name: "Pull request title" }).fill(title);
   await page
     .getByRole("textbox", { name: "Pull request description" })
@@ -664,6 +666,67 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     } finally {
       await client.end();
     }
+    // Only a successful merge into main automatically removes the source.
+    await page.goto(parent);
+    const mainPR = await openPR(page, "Approve retry policy", "main");
+    await expect(
+      page.getByRole("button", { name: "Merge pull request", exact: true }),
+    ).toBeDisabled();
+    await page.getByRole("combobox", { name: "PR reviewer role" }).click();
+    await page.getByRole("option", { name: "QA", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Request required review", exact: true })
+      .click();
+    await reviewer.goto(mainPR);
+    await reviewer
+      .getByRole("button", { name: "Approve", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Merge pull request", exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole("button", { name: "Merge pull request", exact: true })
+      .click();
+    const deletion = page.getByRole("listitem").filter({
+      hasText:
+        "Lictory automatically deleted branch integration/retries after its pull request was merged into main",
+    });
+    await expect(deletion).toHaveCount(1);
+    await expect(
+      reviewer.getByRole("listitem").filter({
+        hasText: "Lictory automatically deleted branch integration/retries",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Merged. The reviewed content is recorded", {
+        exact: false,
+      }),
+    ).toContainText(
+      "Lictory automatically deleted branch integration/retries.",
+    );
+    await page.reload();
+    await expect(deletion).toHaveCount(1);
+    await page.getByRole("combobox", { name: "Switch branch" }).click();
+    await expect(
+      page.getByRole("option", { name: "integration/retries", exact: true }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Commits", exact: true }).click();
+    await expect(
+      page.getByText("Keep target timeout", { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Conversation", exact: true })
+      .click();
+    await deletion.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: "/tmp/lictory-auto-delete-merged-branch.png",
+      fullPage: true,
+    });
+    await page.goto(child);
+    await expect(
+      page.getByRole("textbox", { name: "Branch specification" }),
+    ).toBeVisible();
   } finally {
     await reviewerContext.close();
   }

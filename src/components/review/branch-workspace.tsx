@@ -1244,6 +1244,7 @@ function PullRequestView({
     capabilities,
     readOnly,
     memberName,
+    activity,
   } = useBranchData();
   const { directory } = useWorkspace();
   const { run, error, pending } = useAction();
@@ -1264,9 +1265,30 @@ function PullRequestView({
     ours && theirs ? mergeBase(commits, ours.id, theirs.id) : undefined;
   const result =
     common && ours && theirs ? mergeSnapshot(common, ours, theirs) : undefined;
-  const hash = useMergeHash(result && !result.conflicted ? result : undefined);
+  const merged = commits.find((c) => c.id === p?.mergedCommitId);
+  const hash = useMergeHash(
+    p?.status === "merged"
+      ? merged
+      : result && !result.conflicted
+        ? result
+        : undefined,
+  );
   if (!p) return <p>This pull request is unavailable.</p>;
-  const merged = commits.find((c) => c.id === p.mergedCommitId);
+  const mergeActivity = activity.find(
+    (a) =>
+      a.action === "pull_request_merged" && a.detail?.pullRequestId === p.id,
+  );
+  const sourceName =
+    source?.name ??
+    (typeof mergeActivity?.detail?.source === "string"
+      ? mergeActivity.detail.source
+      : "Deleted branch");
+  const automaticallyDeleted = activity.some(
+    (a) =>
+      a.action === "branch_deleted" &&
+      a.detail?.automatic === true &&
+      a.detail?.pullRequestId === p.id,
+  );
   const reviews = prReviews.filter((r) => r.pullRequestId === p.id);
   const threads = byType(entities, "thread").filter(
     (t) => t.pullRequestId === p.id,
@@ -1361,7 +1383,7 @@ function PullRequestView({
               source && onNavigate({ kind: "branch", id: source.id })
             }
           >
-            {source?.name ?? "Deleted branch"}
+            {sourceName}
           </button>
           <span>→</span>
           <span className="rounded border bg-muted/30 px-2 py-0.5 font-mono text-xs">
@@ -1561,6 +1583,24 @@ function PullRequestView({
             <p className="rounded-lg border border-success/30 p-4 text-sm text-success">
               Merged. The reviewed content is recorded in the target branch
               history.
+              {automaticallyDeleted && (
+                <> Lictory automatically deleted branch {sourceName}.</>
+              )}
+              {source &&
+                target?.name === "main" &&
+                prs.some(
+                  (other) =>
+                    other.id !== p.id &&
+                    other.status !== "merged" &&
+                    (other.sourceId === source.id ||
+                      other.targetId === source.id),
+                ) && (
+                  <>
+                    {" "}
+                    The source branch is retained because another active pull
+                    request uses it.
+                  </>
+                )}
             </p>
           )}
         </div>
