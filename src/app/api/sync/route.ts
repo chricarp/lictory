@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { z } from "zod";
+import { kickAiRuns } from "~/ai/runner";
 import { committedEvents } from "~/lib/analytics/events";
 import { trackServer, trackServerFailure } from "~/lib/analytics/server";
 import { db } from "~/db";
@@ -23,7 +25,19 @@ import {
 } from "~/sync/shared/protocol";
 
 const service = createSyncService(db);
+const aiTriggers = new Set([
+  "requestAiReview",
+  "rerunAiAction",
+  "createAiCorrectivePr",
+  "applyAiSuggestion",
+  "commitBranch",
+  "syncBranch",
+  "createPullRequest",
+  "setPullRequestDraft",
+]);
 export const dynamic = "force-dynamic";
+// Lictory AI runs after the response (see `after` below) and may take minutes.
+export const maxDuration = 300;
 type RequestContext = {
   operation:
     "read" | "mutation" | "directory" | "members" | "epics" | "iteration";
@@ -255,6 +269,8 @@ export async function POST(request: Request) {
     });
     const result = await trackedService.mutate(session.user.id, mutation);
     kickNotificationEmails(db);
+    // AI requests, new pull request commits and opened PRs may queue runs.
+    if (aiTriggers.has(mutation.command.type)) after(() => kickAiRuns(db));
     console.info(
       JSON.stringify({
         event: "sync.mutation",

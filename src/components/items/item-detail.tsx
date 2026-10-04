@@ -61,6 +61,7 @@ import {
 } from "~/components/review/branch-workspace";
 import { ReviewPanel } from "~/components/review/review-panel";
 import { Readiness } from "~/components/review/readiness";
+import { AiReviewPanel, AiReviewView } from "~/components/review/ai-review";
 import { Activity } from "~/components/review/activity";
 import { RevisionPanel, CompareRevisions } from "~/components/review/revisions";
 import { diffStats } from "./diff";
@@ -74,7 +75,8 @@ export type DetailMode =
   | { kind: "read" }
   | { kind: "edit" }
   | BranchScreen
-  | { kind: "compare"; from: string; to: string };
+  | { kind: "compare"; from: string; to: string }
+  | { kind: "ai"; id: string };
 
 const seenKey = (id: string) => `lictory:seen:${id}`;
 
@@ -136,14 +138,17 @@ export function ItemDetail({
   // Branch and pull request workspaces are linkable and survive navigation.
   const [mode, setModeState] = useState<DetailMode>(() => {
     const pr = searchParams.get("pr"),
-      branch = searchParams.get("branch");
-    return pr
-      ? { kind: "pr", id: pr }
-      : branch
-        ? { kind: "branch", id: branch }
-        : searchParams.has("branches")
-          ? { kind: "branches" }
-          : { kind: "read" };
+      branch = searchParams.get("branch"),
+      ai = searchParams.get("ai");
+    return ai
+      ? { kind: "ai", id: ai }
+      : pr
+        ? { kind: "pr", id: pr }
+        : branch
+          ? { kind: "branch", id: branch }
+          : searchParams.has("branches")
+            ? { kind: "branches" }
+            : { kind: "read" };
   });
   const setMode = useCallback(
     (next: DetailMode) => {
@@ -159,6 +164,8 @@ export function ItemDetail({
       params.delete("pr");
       params.delete("branch");
       params.delete("branches");
+      params.delete("ai");
+      if (next.kind === "ai") params.set("ai", next.id);
       if (next.kind === "pr") params.set("pr", next.id);
       if (next.kind === "branch") params.set("branch", next.id);
       if (next.kind === "branches") params.set("branches", "1");
@@ -178,18 +185,21 @@ export function ItemDetail({
   );
   const queryPR = searchParams.get("pr"),
     queryBranch = searchParams.get("branch"),
-    queryBranches = searchParams.has("branches");
+    queryBranches = searchParams.has("branches"),
+    queryAi = searchParams.get("ai");
   useEffect(() => {
     // Keep browser back/forward and incoming PR links aligned with the surface.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setModeState((current) => {
-      const next: DetailMode = queryPR
-        ? { kind: "pr", id: queryPR }
-        : queryBranch
-          ? { kind: "branch", id: queryBranch }
-          : queryBranches
-            ? { kind: "branches" }
-            : { kind: "read" };
+      const next: DetailMode = queryAi
+        ? { kind: "ai", id: queryAi }
+        : queryPR
+          ? { kind: "pr", id: queryPR }
+          : queryBranch
+            ? { kind: "branch", id: queryBranch }
+            : queryBranches
+              ? { kind: "branches" }
+              : { kind: "read" };
       if (
         next.kind === current.kind &&
         (!("id" in next) || ("id" in current && next.id === current.id))
@@ -197,9 +207,11 @@ export function ItemDetail({
         return current;
       return next;
     });
-  }, [queryPR, queryBranch, queryBranches]);
+  }, [queryAi, queryPR, queryBranch, queryBranches]);
   const branchScreen =
     mode.kind === "branch" || mode.kind === "pr" || mode.kind === "branches";
+  // Full-width surfaces that replace the specification.
+  const focusScreen = branchScreen || mode.kind === "ai";
   const [panelOpen, setPanelOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportAvailability = useExportAvailability(item);
@@ -427,6 +439,7 @@ export function ItemDetail({
         <>
           <ReviewPanel />
           <Readiness />
+          <AiReviewPanel onOpen={(id) => setMode({ kind: "ai", id })} />
           <RevisionPanel
             onCompare={(from, to) => setMode({ kind: "compare", from, to })}
           />
@@ -627,7 +640,7 @@ export function ItemDetail({
                   : "mx-auto max-w-3xl px-6 py-6 lg:px-10"
               }
             >
-              {changedSinceSeen && !branchScreen && mode.kind !== "compare" && (
+              {changedSinceSeen && !focusScreen && mode.kind !== "compare" && (
                 <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
                   <GitCompareArrows className="size-4 text-primary" />
                   <span>
@@ -659,11 +672,11 @@ export function ItemDetail({
                   </Button>
                 </div>
               )}
-              {!branchScreen && ctx.reviewable && (
+              {!focusScreen && ctx.reviewable && (
                 <BranchEntry onOpen={() => setMode({ kind: "branches" })} />
               )}
-              {!branchScreen && <InlineTitle />}
-              {!branchScreen && (
+              {!focusScreen && <InlineTitle />}
+              {!focusScreen && (
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
                     <IssueStatus
@@ -704,6 +717,12 @@ export function ItemDetail({
                       setMode({ kind: "compare", from, to })
                     }
                   />
+                ) : mode.kind === "ai" ? (
+                  <AiReviewView
+                    runId={mode.id}
+                    onClose={() => setMode({ kind: "read" })}
+                    onOpenRun={(id) => setMode({ kind: "ai", id })}
+                  />
                 ) : mode.kind === "branch" ||
                   mode.kind === "pr" ||
                   mode.kind === "branches" ? (
@@ -720,7 +739,7 @@ export function ItemDetail({
                   />
                 )}
               </div>
-              {!branchScreen && (
+              {!focusScreen && (
                 <>
                   <section className="mt-10">
                     <EpicStories />

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { isValidBranchName } from "~/lib/branch-name";
+import {
+  aiActionPolicies,
+  aiFindingSchema,
+  aiRunKinds,
+  aiRunStatuses,
+} from "./ai";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -375,6 +381,34 @@ export const entitySchema = z.discriminatedUnion("type", [
     lastError: z.string().nullable(),
     syncedAt: z.string().nullable(),
   }),
+  // One execution of Lictory AI: an item review (the item with its ancestors
+  // and descendants) or a Lictory Action run on a pull request head.
+  z.object({
+    ...base,
+    type: z.literal("aiRun"),
+    workItemId: id,
+    kind: z.enum(aiRunKinds),
+    status: z.enum(aiRunStatuses),
+    pullRequestId: id.nullable(),
+    headCommitId: id.nullable(),
+    requestedById: id,
+    // Main revision of every analysed item, keyed by work item id.
+    contextRevisions: z.record(z.string(), z.string()),
+    score: z.number().int().nullable(),
+    summary: z.string().nullable(),
+    strengths: z.array(z.string()),
+    findings: z.array(aiFindingSchema),
+    // Corrective pull requests created from this review, by work item id.
+    correctivePullRequests: z.record(z.string(), z.string()),
+    appliedFindingIds: z.array(z.string()),
+    model: z.string().nullable(),
+    error: z.string().nullable(),
+    createdAt: z.string(),
+    startedAt: z.string().nullable(),
+    completedAt: z.string().nullable(),
+    staleAt: z.string().nullable(),
+    staleReason: z.string().nullable(),
+  }),
   z.object({
     ...base,
     type: z.literal("activity"),
@@ -427,6 +461,7 @@ const entityTypes = z.enum([
   "approval",
   "readiness",
   "externalLink",
+  "aiRun",
   "activity",
 ]);
 export const changeSchema = z.discriminatedUnion("operation", [
@@ -567,6 +602,7 @@ export const teamSchema = z.object({
   iterationWeeks: z.number().int(),
   iterationStartDay: z.number().int(),
   upcomingIterations: z.number().int(),
+  aiActionPolicy: z.enum(aiActionPolicies).default("advisory"),
   memberIds: z.array(id),
   typeIds: z.array(id),
   statuses: z.array(workflowStatusSchema),
@@ -702,9 +738,14 @@ export const directorySchema = z.object({
     connections: z.array(deliveryConnectionSchema),
     targets: z.array(deliveryTargetSchema),
   }),
+  // enabled: the organization allows sending its content to the AI provider.
+  // available: this deployment has a configured provider.
+  ai: z
+    .object({ enabled: z.boolean(), available: z.boolean() })
+    .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 9 as const;
+export const PROTOCOL = 10 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -1045,6 +1086,37 @@ export const commandSchema = z.discriminatedUnion("type", [
     reviewId: id,
     decision: z.enum(["approve", "changes_requested", "revoke"]),
   }),
+  // Lictory AI. Organization administrators decide whether content may be sent
+  // to the AI provider; runs are recorded and never change content by themselves.
+  z.object({ type: z.literal("setAiPolicy"), enabled: z.boolean() }),
+  z.object({
+    type: z.literal("requestAiReview"),
+    ...itemCommand,
+    runId: z.uuid(),
+  }),
+  z.object({
+    type: z.literal("rerunAiAction"),
+    ...itemCommand,
+    pullRequestId: id,
+    runId: z.uuid(),
+  }),
+  // Opens one Lictory AI pull request on this item with the chosen fixable
+  // findings of a current review (which may belong to an ancestor's review).
+  z.object({
+    type: z.literal("createAiCorrectivePr"),
+    ...itemCommand,
+    runId: id,
+    findingIds: z.array(id).min(1).max(50),
+    branchId: z.uuid(),
+    pullRequestId: z.uuid(),
+  }),
+  // Commits a Lictory Action suggestion to the pull request's source branch.
+  z.object({
+    type: z.literal("applyAiSuggestion"),
+    ...itemCommand,
+    runId: id,
+    findingId: id,
+  }),
   // Team configuration (application-role admins only).
   z.object({
     type: z.literal("createTeam"),
@@ -1063,6 +1135,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     iterationWeeks: z.number().int().min(1).max(8).optional(),
     iterationStartDay: z.number().int().min(0).max(6).optional(),
     upcomingIterations: z.number().int().min(0).max(6).optional(),
+    aiActionPolicy: z.enum(aiActionPolicies).optional(),
     archived: z.boolean().optional(),
   }),
   z.object({

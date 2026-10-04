@@ -50,6 +50,19 @@ import {
   pullRequestResultHash,
 } from "./branches";
 import { notifyItemActivity } from "../../notifications/server";
+import {
+  actionCheckProblem,
+  aiCommands,
+  aiConfigured,
+  aiPolicy,
+  aiRunEntities,
+  aiRunEntity,
+  applyAiCommand,
+  invalidateItemReviews,
+  runsById,
+  scheduleActionRuns,
+  setAiPolicy,
+} from "./ai";
 
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -153,6 +166,7 @@ export async function directory(
       types: [],
       iterations: [],
       delivery: { connections: [], targets: [] },
+      ai: { enabled: false, available: aiConfigured() },
     };
   requireValue(
     organizations.find((o) => o.id === organizationId),
@@ -231,6 +245,7 @@ export async function directory(
     types,
     iterations,
     delivery,
+    ai: await aiPolicy(db, organizationId),
   };
 }
 
@@ -333,6 +348,7 @@ async function deliveryDirectory(
       iterationWeeks: t.iterationWeeks,
       iterationStartDay: t.iterationStartDay,
       upcomingIterations: t.upcomingIterations,
+      aiActionPolicy: t.aiActionPolicy,
       memberIds: teamMembers
         .filter((m) => m.teamId === t.id && memberIds.has(m.userId))
         .map((m) => m.userId)
@@ -1128,6 +1144,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     workItemId,
     checks: readiness(item, items, ctx),
   });
+  entities.push(...(await aiRunEntities(tx, organizationId, workItemId)));
   return entities;
 }
 
@@ -1341,6 +1358,18 @@ export function createSyncService(
             await clock(tx, organizationId),
           );
         }
+        if (c.type === "setAiPolicy") {
+          require(admin, "An organization administrator must decide whether AI may be used.");
+          await setAiPolicy(tx, organizationId, userId, c.enabled);
+          return commit(
+            tx,
+            organizationId,
+            mutation.id,
+            userId,
+            fingerprint,
+            await clock(tx, organizationId),
+          );
+        }
         if (isTeamCommand(c)) {
           // Team configuration and iteration planning can touch items across
           // projects (carry-over, status replacement): diff the whole org.
@@ -1396,7 +1425,9 @@ export function createSyncService(
           projectId = item.projectId;
           const itemType = roster.types.find((t) => t.id === item!.typeId);
           if (
-            (specCommands.has(c.type) || branchCommands.has(c.type)) &&
+            (specCommands.has(c.type) ||
+              branchCommands.has(c.type) ||
+              aiCommands.has(c.type)) &&
             !itemType?.hasSpecification
           )
             throw new DomainError(
@@ -1454,6 +1485,9 @@ export function createSyncService(
         }[] = [];
         const log = (action: string, detail?: Record<string, unknown>) =>
           activities.push({ action, detail });
+        // AI runs owned by other items (an Epic review covering this Story)
+        // whose projection this command changed.
+        const touchedRuns = new Set<string>();
         const revision = async (
           title: string,
           content: string,
@@ -1498,6 +1532,13 @@ export function createSyncService(
                 eq(s.workItem.id, workItemId!),
               ),
             );
+          for (const run of await invalidateItemReviews(
+            tx,
+            organizationId,
+            workItemId!,
+            `${projectRow?.key ?? "Item"}-${item?.number ?? ""} changed to revision ${number}`,
+          ))
+            if (run.workItemId !== workItemId) touchedRuns.add(run.id);
           if (previous) {
             await tx
               .update(s.approval)
@@ -1670,8 +1711,31 @@ export function createSyncService(
             revision: (title, content, summary, parents) =>
               revision(title, content, summary, latest, parents),
             log,
+            actionCheck: (pullRequestId, sourceHeadId) =>
+              roster.ai.enabled &&
+              roster.ai.available &&
+              teamOf(item!.teamId).aiActionPolicy === "required"
+                ? actionCheckProblem(
+                    tx,
+                    organizationId,
+                    pullRequestId,
+                    sourceHeadId,
+                  )
+                : Promise.resolve(undefined),
           });
         }
+        if (aiCommands.has(c.type))
+          await applyAiCommand(tx, c, {
+            organizationId,
+            workItemId: workItemId!,
+            userId,
+            capabilities,
+            roster,
+            latest: latest!,
+            itemKey: `${projectRow!.key}-${item!.number}`,
+            log,
+            touched: touchedRuns,
+          });
         switch (c.type) {
           case "createProject": {
             require(admin, "An organization administrator must create projects.");
@@ -3055,6 +3119,17 @@ export function createSyncService(
             break;
           }
         }
+        if (item && (branchCommands.has(c.type) || aiCommands.has(c.type)))
+          await scheduleActionRuns(tx, {
+            organizationId,
+            workItemId: item.id,
+            userId,
+            before,
+            policy:
+              roster.teams.find((t) => t.id === item.teamId)?.aiActionPolicy ??
+              "advisory",
+            ai: roster.ai,
+          });
         if (workItemId && c.type !== "createWorkItem")
           await tx
             .update(s.workItem)
@@ -3206,6 +3281,22 @@ export function createSyncService(
             projectId,
             workItemId: parentId,
             change: { operation: "upsert", cursor: cursor.toString(), entity },
+          });
+        }
+        for (const run of await runsById(tx, organizationId, [
+          ...touchedRuns,
+        ])) {
+          cursor++;
+          await tx.insert(s.syncChange).values({
+            organizationId,
+            cursor,
+            projectId,
+            workItemId: run.workItemId,
+            change: {
+              operation: "upsert",
+              cursor: cursor.toString(),
+              entity: aiRunEntity(run),
+            },
           });
         }
         snapshots = { before, after, directory: roster };

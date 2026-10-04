@@ -217,6 +217,33 @@ function DeliverySection({ team, canEdit }: { team: Team; canEdit: boolean }) {
             ]}
           />
         </Field>
+        <Field label="Lictory Action on pull requests">
+          <Choice
+            value={team.aiActionPolicy}
+            disabled={!canEdit}
+            onChange={(aiActionPolicy) =>
+              void run({ type: "updateTeam", teamId: team.id, aiActionPolicy })
+            }
+            options={[
+              {
+                value: "off",
+                label: "Off",
+                description: "Runs only when someone asks.",
+              },
+              {
+                value: "advisory",
+                label: "Advisory",
+                description: "Reviews every commit; findings inform.",
+              },
+              {
+                value: "required",
+                label: "Required",
+                description:
+                  "Merge waits for a review of the latest commit; blockers open blocking discussions.",
+              },
+            ]}
+          />
+        </Field>
         <InlineError>{error}</InlineError>
       </SettingsBody>
     </SettingsSection>

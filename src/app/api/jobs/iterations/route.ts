@@ -10,8 +10,10 @@ import {
   logScheduledJobsStarted,
 } from "~/lib/posthog-logs";
 import { advanceSchedules } from "~/sync/server/service";
+import { processAiRuns } from "~/ai/runner";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 // Advances automatic cycles and resumes interrupted delivery exports. Called by a scheduler (Trigger.dev, Vercel cron,
 // or `bun scripts/iteration-worker.ts`). Idempotent, so retries and
@@ -48,12 +50,15 @@ async function run(request: Request) {
     onPublicationCompleted: trackPublicationCompleted,
   }).processPending();
   console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
+  // Recover AI runs whose in-request worker was lost (deploys, timeouts).
+  const ai = await processAiRuns(db, { limit: 5 });
+  console.info(JSON.stringify({ event: "jobs.ai", ...ai }));
   const emails = await dispatchNotificationEmails(db);
   console.info(
     JSON.stringify({ event: "jobs.notification_emails", ...emails }),
   );
   logScheduledJobsCompleted();
-  return Response.json({ ...result, delivery, emails });
+  return Response.json({ ...result, delivery, ai, emails });
 }
 
 export const GET = run;

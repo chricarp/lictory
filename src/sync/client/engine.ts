@@ -46,6 +46,7 @@ const emptyDirectory: Directory = {
   types: [],
   iterations: [],
   delivery: { connections: [], targets: [] },
+  ai: { enabled: false, available: false },
 };
 export class SyncEngine {
   private cache: Cache = { entities: {}, directory: emptyDirectory };

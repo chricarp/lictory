@@ -150,6 +150,11 @@ export async function applyBranchCommand(
       parents?: string[],
     ) => Promise<string>;
     log: (action: string, detail?: Record<string, unknown>) => void;
+    // Team policy gate for Lictory Action; returns the blocking reason.
+    actionCheck?: (
+      pullRequestId: string,
+      sourceHeadId: string,
+    ) => Promise<string | undefined>;
   },
 ) {
   if (!branchCommands.has(c.type) || !("workItemId" in c)) return;
@@ -687,6 +692,8 @@ export async function applyBranchCommand(
           "conflict",
           "Resolve the blocking pull request discussions before merging.",
         );
+      const actionProblem = await ctx.actionCheck?.(p.id, source.headId);
+      if (actionProblem) throw new DomainError("conflict", actionProblem);
       let mergedId: string;
       if (target.name === "main") {
         const revisionId = await ctx.revision(

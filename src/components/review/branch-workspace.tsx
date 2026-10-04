@@ -36,6 +36,7 @@ import { RevisionDiff } from "~/components/items/diff";
 import { useItem } from "~/components/items/item-context";
 import { useWorkspace } from "~/components/workspace/provider";
 import { Thread, ThreadComposer } from "./threads";
+import { LictoryActionCheck, useActionGate } from "./ai-review";
 
 type Branch = EntityOf<"specBranch">;
 type Commit = EntityOf<"specCommit">;
@@ -1273,6 +1274,7 @@ function PullRequestView({
         ? result
         : undefined,
   );
+  const actionGate = useActionGate(id, source?.headId);
   if (!p) return <p>This pull request is unavailable.</p>;
   const mergeActivity = activity.find(
     (a) =>
@@ -1334,6 +1336,7 @@ function PullRequestView({
     ...(threads.some((t) => t.blocking && t.status === "open")
       ? ["Blocking discussions remain open."]
       : []),
+    ...(actionGate ? [actionGate] : []),
   ];
   const mergedBase = merged?.parentIds[0]
     ? commits.find((c) => c.id === merged.parentIds[0])
@@ -1605,6 +1608,11 @@ function PullRequestView({
           )}
         </div>
         <aside className="space-y-5 rounded-lg border bg-muted/20 p-4">
+          <LictoryActionCheck
+            pullRequest={p}
+            sourceHeadId={source?.headId}
+            canCommit={Boolean(source?.collaboratorIds.includes(userId))}
+          />
           <section className="space-y-3">
             <SectionLabel>Reviewers & checks</SectionLabel>
             {reviews.map((r) => {

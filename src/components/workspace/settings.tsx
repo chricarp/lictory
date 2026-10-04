@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, FolderKanban, Plus } from "lucide-react";
+import { Building2, FolderKanban, Plus, Sparkles } from "lucide-react";
+import { cn } from "~/lib/utils";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -38,6 +39,7 @@ export function Settings() {
     { id: "teams", label: "Teams" },
     { id: "work-item-types", label: "Work item types" },
     { id: "jira", label: "Jira" },
+    { id: "ai", label: "AI" },
     ...(showLabels ? [{ id: "labels", label: "Labels & milestones" }] : []),
     { id: "people", label: "Members" },
     { id: "roles", label: "Roles" },
@@ -100,6 +102,7 @@ export function Settings() {
               <TeamsSection />
               <TypesSection />
               <JiraSection />
+              <AiSection />
             </SettingsGroup>
 
             <SettingsGroup
@@ -113,6 +116,65 @@ export function Settings() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Organization content is sent to the AI provider only after an administrator
+// opts in. Turning it off stops queued runs before anything is sent.
+function AiSection() {
+  const { isAdmin, directory, mutate } = useWorkspace();
+  const { enabled, available } = directory.ai;
+  const [error, setError] = useState("");
+  return (
+    <SettingsSection
+      id="ai"
+      icon={<Sparkles />}
+      title="Lictory AI"
+      description="AI reviews of work items and Lictory Action on pull requests. AI proposes findings and changes; people decide what becomes part of a specification."
+      action={
+        <button
+          role="switch"
+          aria-checked={enabled}
+          aria-label="Allow Lictory AI"
+          disabled={!isAdmin || (!available && !enabled)}
+          onClick={async () => {
+            setError("");
+            try {
+              await mutate({ type: "setAiPolicy", enabled: !enabled });
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Not saved.");
+            }
+          }}
+          className={cn(
+            "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-40",
+            enabled ? "bg-primary" : "bg-muted-foreground/25",
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
+              enabled ? "translate-x-4.5" : "translate-x-0.5",
+            )}
+          />
+        </button>
+      }
+      footer={
+        available
+          ? "When enabled, the content of reviewed items (specifications, open discussions, pull request changes) is sent to OpenAI without being retained for training. Each team chooses how Lictory Action treats its pull requests in team settings."
+          : "This server has no AI provider configured. Set OPENAI_API_KEY to make Lictory AI available."
+      }
+    >
+      <SettingsBody className="space-y-1 text-[13px]">
+        <p>
+          {enabled
+            ? "Enabled. Members who can request reviews can ask for AI reviews."
+            : "Off. No content is sent to an AI provider."}
+          {!isAdmin && " Only administrators can change this."}
+        </p>
+        <InlineError>{error}</InlineError>
+      </SettingsBody>
+    </SettingsSection>
   );
 }
 

@@ -44,6 +44,7 @@ const item: WorkItem = {
   childEstimate: 0,
 };
 const directory: Directory = {
+  ai: { enabled: false, available: false },
   organizations: [],
   members: [],
   roles: [],
@@ -74,6 +75,7 @@ const directory: Directory = {
       iterationWeeks: 2,
       iterationStartDay: 1,
       upcomingIterations: 2,
+      aiActionPolicy: "advisory",
       memberIds: [],
       typeIds: ["story", "task"],
       archivedAt: null,

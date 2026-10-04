@@ -8,6 +8,13 @@
       "when": 1790850892723,
       "tag": "0000_thin_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791123935957,
+      "tag": "0001_lictory_ai",
+      "breakpoints": true
     }
   ]
 }
