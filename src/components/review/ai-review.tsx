@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  CircleCheck,
   CircleHelp,
   GitPullRequest,
   Lightbulb,
@@ -32,6 +31,7 @@ import { Badge, SectionLabel } from "~/components/ui/primitives";
 import { RevisionDiff } from "~/components/items/diff";
 import { TypeIcon } from "~/components/items/icons";
 import { useItem } from "~/components/items/item-context";
+import { CheckIcon, duration, type CheckState } from "./flow-ui";
 import { useWorkspace } from "~/components/workspace/provider";
 
 type Run = EntityOf<"aiRun">;
@@ -748,158 +748,404 @@ export function FindingCard({
   );
 }
 
-// The Lictory Action check on a pull request: status of the newest run,
-// re-run, and one-click commits of its suggestions.
-export function LictoryActionCheck({
+// ─── Lictory Action on pull requests ───────────────────────────────────────
+// Modelled on CI checks: every head commit gets a run; the newest run is the
+// check's status; older runs stay inspectable; findings are annotations.
+
+const policyCopy = {
+  off: "Off for this team: runs only when someone starts it.",
+  advisory:
+    "Advisory: reviews every new commit. Findings inform, merge isn't blocked.",
+  required:
+    "Required: merge waits for a review of the latest commit. Blockers open blocking discussions.",
+} as const;
+
+function useActionPolicy() {
+  const { item } = useItem();
+  const { delivery } = useWorkspace();
+  return delivery.teams.get(item.teamId)?.aiActionPolicy ?? "advisory";
+}
+
+export function actionCheck(
+  latest: Run | undefined,
+  sourceHeadId: string | undefined,
+  policy: "off" | "advisory" | "required",
+): { state: CheckState; summary: string } {
+  if (!latest)
+    return {
+      state: "neutral",
+      summary:
+        policy === "off"
+          ? "Not run. Start it whenever you want a review."
+          : "Starts when the pull request is ready for review.",
+    };
+  if (latest.status === "queued")
+    return { state: "pending", summary: "Queued for the latest commit" };
+  if (latest.status === "running")
+    return { state: "running", summary: "Reviewing the latest commit…" };
+  if (latest.status === "failed")
+    return { state: "failure", summary: latest.error ?? "The run failed." };
+  if (latest.status === "superseded")
+    return { state: "skipped", summary: "Cancelled by a newer commit" };
+  if (latest.headCommitId !== sourceHeadId)
+    return {
+      state: "neutral",
+      summary: "Out of date: reviewed an earlier commit",
+    };
+  const blockers = latest.findings.filter((f) => f.severity === "blocker");
+  return {
+    state: blockers.length ? "failure" : "success",
+    summary: `${latest.score ?? 0}/100 · ${
+      blockers.length
+        ? `${blockers.length} blocking ${blockers.length === 1 ? "finding" : "findings"}`
+        : `${latest.findings.length} ${latest.findings.length === 1 ? "finding" : "findings"}`
+    }`,
+  };
+}
+
+function runState(run: Run, sourceHeadId: string | undefined): CheckState {
+  return actionCheck(run, sourceHeadId, "advisory").state;
+}
+
+// One compact line for the merge box and the sidebar, GitHub-checks style.
+export function ActionCheckRow({
+  pullRequestId,
+  sourceHeadId,
+  onDetails,
+}: {
+  pullRequestId: string;
+  sourceHeadId: string | undefined;
+  onDetails: () => void;
+}) {
+  const runs = useAiRuns("pr_action", pullRequestId).filter(
+    (r) => r.status !== "superseded",
+  );
+  const blocker = useAiBlocker();
+  const policy = useActionPolicy();
+  const { directory } = useWorkspace();
+  const [latest] = runs;
+  if (!latest && blocker) return null;
+  const check = actionCheck(latest, sourceHeadId, policy);
+  return (
+    <div className="flex items-center gap-2.5 text-[13px]">
+      <CheckIcon state={check.state} />
+      <Sparkles aria-hidden className="size-3.5 text-muted-foreground" />
+      <p className="min-w-0 flex-1 truncate">
+        <span className="font-medium">Lictory Action</span>{" "}
+        <span className="text-muted-foreground">— {check.summary}</span>
+      </p>
+      {policy === "required" && directory.ai.enabled && (
+        <Badge tone="info">Required</Badge>
+      )}
+      <Button size="sm" variant="ghost" onClick={onDetails}>
+        Details
+      </Button>
+    </div>
+  );
+}
+
+// The Checks tab: run history on the left, the selected run on the right.
+export function ActionChecksPanel({
   pullRequest,
   sourceHeadId,
   canCommit,
+  sourceName,
 }: {
   pullRequest: EntityOf<"pullRequest">;
   sourceHeadId: string | undefined;
   canCommit: boolean;
+  sourceName: string;
 }) {
-  const { item, mutateConfirmed, readOnly } = useItem();
-  const { directory, delivery } = useWorkspace();
-  const runs = useAiRuns("pr_action", pullRequest.id).filter(
-    (r) => r.status !== "superseded",
+  const { item, mutateConfirmed, readOnly, memberName } = useItem();
+  const { directory } = useWorkspace();
+  const runs = useAiRuns("pr_action", pullRequest.id);
+  const ordinal = useMemo(
+    () => new Map([...runs].reverse().map((r, i) => [r.id, i + 1] as const)),
+    [runs],
   );
-  const [latest] = runs;
   const blocker = useAiBlocker();
+  const policy = useActionPolicy();
   const { run, pending, error } = useCommand();
-  const policy = delivery.teams.get(item.teamId)?.aiActionPolicy ?? "advisory";
-  // Nothing to show until AI is available and someone ran it or may run it.
-  if (!latest && blocker) return null;
-  const current = latest?.headCommitId === sourceHeadId;
+  const [selectedId, setSelectedId] = useState<string>();
+  const selected = runs.find((r) => r.id === selectedId) ?? runs[0];
   const open = pullRequest.status !== "merged";
+  const busy = runs.some(
+    (r) => r.status === "queued" || r.status === "running",
+  );
   const rerun = () =>
     void run(mutateConfirmed, {
       type: "rerunAiAction",
       workItemId: item.id,
       pullRequestId: pullRequest.id,
       runId: crypto.randomUUID(),
-    });
+    }).then((ok) => ok && setSelectedId(undefined));
+  const rerunButton = open && !readOnly && (
+    <Button
+      size="sm"
+      variant="secondary"
+      disabled={pending || Boolean(blocker) || busy}
+      title={blocker ?? (busy ? "A run is already in progress." : undefined)}
+      onClick={rerun}
+    >
+      <RotateCcw className="size-3.5" />
+      {runs.length ? "Re-run" : "Run Lictory Action"}
+    </Button>
+  );
   return (
-    <section className="space-y-2 border-b pb-3">
-      <div className="flex items-center gap-2">
-        <span className="grid size-5 place-items-center">
-          {!latest ? (
-            <Sparkles className="size-4 text-muted-foreground" />
-          ) : latest.status === "queued" || latest.status === "running" ? (
-            <Loader2 className="size-4 animate-spin text-primary motion-reduce:animate-none" />
-          ) : latest.status === "failed" ? (
-            <XCircle className="size-4 text-destructive" />
-          ) : (
-            <CircleCheck
-              className={cn("size-4", bandTone[aiScoreBand(latest.score ?? 0)])}
-            />
-          )}
-        </span>
-        <p className="min-w-0 flex-1 text-sm font-medium">
-          Lictory Action
-          {latest?.status === "completed" && (
-            <span className="ml-1.5 text-muted-foreground tabular-nums">
-              {latest.score}/100
-            </span>
-          )}
-        </p>
-        {policy === "required" && directory.ai.enabled && (
-          <Badge tone="info">Required</Badge>
-        )}
+    <section aria-label="Checks" className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Sparkles className="size-4 text-primary" /> Lictory Action
+            {policy === "required" && directory.ai.enabled && (
+              <Badge tone="info">Required</Badge>
+            )}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {blocker ?? policyCopy[policy]}
+          </p>
+        </div>
+        {rerunButton}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {!latest
-          ? policy === "off"
-            ? "Off for this team. Run it on demand."
-            : "Runs when the pull request is ready for review."
-          : latest.status === "queued"
-            ? `Queued for commit ${latest.headCommitId?.slice(0, 7)}…`
-            : latest.status === "running"
-              ? `Reviewing commit ${latest.headCommitId?.slice(0, 7)}…`
-              : latest.status === "failed"
-                ? latest.error
-                : current
-                  ? `Reviewed ${latest.headCommitId?.slice(0, 7)} ${relativeTime(latest.completedAt ?? latest.createdAt)} · ${latest.findings.length} findings`
-                  : `Reviewed an earlier commit (${latest.headCommitId?.slice(0, 7)}).`}
-      </p>
-      {latest?.status === "completed" && latest.findings.length > 0 && (
-        <ul className="space-y-1.5">
-          {latest.findings.map((f) => {
-            const applied = latest.appliedFindingIds.includes(f.id);
-            return (
-              <li key={f.id} className="text-xs">
-                <div className="flex items-start gap-1.5">
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "mt-1 size-1.5 shrink-0 rounded-full",
-                      f.severity === "blocker"
-                        ? "bg-destructive"
-                        : f.severity === "major"
-                          ? "bg-amber-500"
-                          : "bg-muted-foreground/50",
-                    )}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="sr-only">
-                      {severityMeta[f.severity].label}:{" "}
-                    </span>
-                    {f.title}
-                  </span>
-                </div>
-                {f.edit && open && (
-                  <div className="mt-1 pl-3">
-                    {applied ? (
-                      <span className="inline-flex items-center gap-1 text-success">
-                        <Check className="size-3" /> Committed
-                      </span>
-                    ) : current && canCommit && !readOnly ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={pending}
-                        onClick={() =>
-                          void run(mutateConfirmed, {
-                            type: "applyAiSuggestion",
-                            workItemId: item.id,
-                            runId: latest.id,
-                            findingId: f.id,
-                          })
-                        }
-                      >
-                        Commit suggestion
-                      </Button>
-                    ) : null}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {open && !readOnly && (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={
-            pending ||
-            Boolean(blocker) ||
-            latest?.status === "queued" ||
-            latest?.status === "running"
-          }
-          title={blocker}
-          onClick={rerun}
-        >
-          <RotateCcw className="size-3.5" />
-          {latest ? "Re-run" : "Run now"}
-        </Button>
-      )}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
+      {!runs.length ? (
+        <div className="rounded-lg border border-dashed px-6 py-10 text-center">
+          <Sparkles className="mx-auto size-5 text-muted-foreground" />
+          <p className="mt-2 text-sm font-medium">No runs yet</p>
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
+            Lictory Action reads the proposed change against the current
+            specification and reports gaps, contradictions and ambiguity. It
+            never changes the branch on its own.
+          </p>
+        </div>
+      ) : (
+        <div className="grid overflow-hidden rounded-lg border md:grid-cols-[220px_minmax(0,1fr)]">
+          <ol
+            aria-label="Runs"
+            className="max-h-[520px] overflow-y-auto border-b bg-muted/20 md:border-r md:border-b-0"
+          >
+            {runs.map((r) => {
+              const active = r.id === selected?.id;
+              return (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    aria-current={active ? "true" : undefined}
+                    onClick={() => setSelectedId(r.id)}
+                    className={cn(
+                      "flex w-full items-start gap-2 px-3 py-2.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset",
+                      active && "bg-muted",
+                    )}
+                  >
+                    <CheckIcon
+                      state={runState(r, sourceHeadId)}
+                      className="mt-0.5"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-medium">
+                        Run #{ordinal.get(r.id)}
+                      </span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        <code>{r.headCommitId?.slice(0, 7)}</code> ·{" "}
+                        {relativeTime(r.createdAt)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+          {selected && (
+            <RunDetail
+              run={selected}
+              number={ordinal.get(selected.id) ?? 1}
+              current={selected.headCommitId === sourceHeadId}
+              sourceHeadId={sourceHeadId}
+              sourceName={sourceName}
+              requestedBy={memberName(selected.requestedById)}
+              canCommit={canCommit && open && !readOnly}
+              pending={pending}
+              onCommit={(findingId) =>
+                void run(mutateConfirmed, {
+                  type: "applyAiSuggestion",
+                  workItemId: item.id,
+                  runId: selected.id,
+                  findingId,
+                })
+              }
+            />
+          )}
+        </div>
+      )}
     </section>
+  );
+}
+
+function RunDetail({
+  run: r,
+  number,
+  current,
+  sourceHeadId,
+  sourceName,
+  requestedBy,
+  canCommit,
+  pending,
+  onCommit,
+}: {
+  run: Run;
+  number: number;
+  current: boolean;
+  sourceHeadId: string | undefined;
+  sourceName: string;
+  requestedBy: string;
+  canCommit: boolean;
+  pending: boolean;
+  onCommit: (findingId: string) => void;
+}) {
+  const state = runState(r, sourceHeadId);
+  const statusLabel =
+    r.status === "completed"
+      ? current
+        ? "Completed"
+        : "Completed · earlier commit"
+      : r.status === "superseded"
+        ? "Cancelled · a newer commit arrived"
+        : r.status[0]!.toUpperCase() + r.status.slice(1);
+  const ordered = [...r.findings].sort(
+    (a, b) =>
+      severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity),
+  );
+  return (
+    <div className="min-w-0 space-y-4 p-4">
+      <div className="flex items-start gap-3">
+        <CheckIcon state={state} className="mt-0.5 size-5" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">
+            Lictory Action · Run #{number}
+          </h3>
+          <p className="text-xs text-muted-foreground">{statusLabel}</p>
+        </div>
+        {r.status === "completed" && r.score !== null && (
+          <ScoreRing score={r.score} size={40} />
+        )}
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-4">
+        {(
+          [
+            [
+              "Commit",
+              <code key="c">{r.headCommitId?.slice(0, 7) ?? "—"}</code>,
+            ],
+            ["Triggered by", requestedBy],
+            ["Started", relativeTime(r.startedAt ?? r.createdAt)],
+            [
+              "Duration",
+              duration(r.startedAt, r.completedAt) ??
+                (r.status === "running" || r.status === "queued" ? "…" : "—"),
+            ],
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className="truncate font-medium">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {(r.status === "queued" || r.status === "running") && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+          {r.status === "queued"
+            ? "Waiting to start…"
+            : "Reading the change against the specification…"}
+        </p>
+      )}
+      {r.status === "failed" && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+        >
+          {r.error ?? "The run failed."} Re-run it once the problem is fixed.
+        </p>
+      )}
+      {r.summary && (
+        <section className="space-y-1">
+          <SectionLabel>Summary</SectionLabel>
+          <p className="text-[13px] leading-5">{r.summary}</p>
+        </section>
+      )}
+      {r.strengths.length > 0 && (
+        <section className="space-y-1">
+          <SectionLabel>What the change gets right</SectionLabel>
+          <ul className="space-y-1 text-[13px]">
+            {r.strengths.map((s) => (
+              <li key={s} className="flex gap-2">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-success" />
+                {s}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {r.status === "completed" && (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <SectionLabel>Annotations</SectionLabel>
+            {counts(r.findings).map(([s, n]) => (
+              <Badge key={s} tone={severityMeta[s].tone}>
+                {n} {severityMeta[s].label.toLowerCase()}
+              </Badge>
+            ))}
+          </div>
+          {!ordered.length ? (
+            <p className="text-sm text-muted-foreground">
+              No findings on this commit.
+            </p>
+          ) : (
+            <>
+              {!current && ordered.some((f) => f.edit) && (
+                <p className="text-xs text-muted-foreground">
+                  Suggestions from an earlier commit can&apos;t be committed.
+                  Re-run on the latest commit to get applicable suggestions.
+                </p>
+              )}
+              {ordered.map((f) => {
+                const applied = r.appliedFindingIds.includes(f.id);
+                return (
+                  <FindingCard
+                    key={f.id}
+                    finding={f}
+                    action={
+                      !f.edit ? null : applied ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-success">
+                          <Check className="size-3" /> Committed to {sourceName}
+                        </span>
+                      ) : current && canCommit ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={pending}
+                          title={`Adds a commit to ${sourceName}. Reviewers will need to approve again.`}
+                          onClick={() => onCommit(f.id)}
+                        >
+                          Commit suggestion
+                        </Button>
+                      ) : null
+                    }
+                  />
+                );
+              })}
+            </>
+          )}
+        </section>
+      )}
+      {r.model && (
+        <p className="text-[11px] text-muted-foreground">Model: {r.model}</p>
+      )}
+    </div>
   );
 }
 

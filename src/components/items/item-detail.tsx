@@ -170,9 +170,16 @@ export function ItemDetail({
       if (next.kind === "branch") params.set("branch", next.id);
       if (next.kind === "branches") params.set("branches", "1");
       const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      });
+      // Branch and pull request screens are real places: keep them in history
+      // so Back returns to the previous step of the flow.
+      const href = query ? `${pathname}?${query}` : pathname;
+      if (
+        next.kind === "branches" ||
+        next.kind === "branch" ||
+        next.kind === "pr"
+      )
+        router.push(href, { scroll: false });
+      else router.replace(href, { scroll: false });
     },
     [
       pathname,
@@ -672,9 +679,6 @@ export function ItemDetail({
                   </Button>
                 </div>
               )}
-              {!focusScreen && ctx.reviewable && (
-                <BranchEntry onOpen={() => setMode({ kind: "branches" })} />
-              )}
               {!focusScreen && <InlineTitle />}
               {!focusScreen && (
                 <>
@@ -739,6 +743,9 @@ export function ItemDetail({
                   />
                 )}
               </div>
+              {!focusScreen && ctx.reviewable && (
+                <BranchEntry onNavigate={setMode} />
+              )}
               {!focusScreen && (
                 <>
                   <section className="mt-10">
@@ -767,7 +774,7 @@ export function ItemDetail({
             </div>
           </div>
           {!branchScreen && (
-            <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l bg-muted/20 xl:block">
+            <aside className="hidden w-75 shrink-0 overflow-y-auto border-l bg-muted/20 xl:block">
               {panel}
             </aside>
           )}
