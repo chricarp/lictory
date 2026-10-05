@@ -72,11 +72,40 @@ Each team chooses a policy:
 The required gate applies only while AI is enabled and configured, so turning
 AI off never traps a pull request.
 
+## Lictory Intelligence Context
+
+Organization administrators give Lictory AI knowledge about how the
+organization works, at three scopes: the organization, a project and a team.
+Entries are written Markdown notes or uploaded documents (PDF, Office,
+OpenDocument, RTF, EPUB, CSV, Markdown, text) converted to Markdown on the
+server with anydoc. Conversion is local. Scanned PDFs need OCR, which would
+send the file to a third party, so they are rejected.
+
+- **Compounding.** A review of work in project P and team T receives the
+  organization's active entries, P's and T's. The narrower scope wins on
+  conflict: team over project, project over organization.
+- **Budget.** At most `CONTEXT_PROMPT_BUDGET` characters are sent per run.
+  Narrower scopes are kept first. An entry that does not fit is trimmed or left
+  out, and the run records this.
+- **Versions.** Content lives in immutable versions. An edit or a re-upload
+  adds a version. Archiving is reversible and stops the entry from reaching
+  the AI.
+- **Citations.** Findings name the entries they relied on, and the run records
+  the exact versions it received. "What was the AI told?" stays answerable
+  after the context changes.
+- **Authority.** Every member can read context; only administrators can change
+  it, and the server checks this. Context grounds a review. It cannot change
+  the review rules or output, it is never quoted as evidence, and AI never
+  proposes edits to it.
+- Uploaded bytes are not kept; the version stores the converted text with the
+  file's name, format, size and SHA-256.
+
 ## Data sent to the provider
 
 The following content is sent: specifications of the analysed items (truncated
 when long), their first open discussion messages, statuses, estimates and
-relations, and the changed lines of the pull request.
+relations, the changed lines of the pull request, and the applicable Lictory
+Intelligence Context.
 
 Requests use `store: false`.
 

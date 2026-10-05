@@ -67,6 +67,7 @@ import {
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError } from "./errors";
+import { logoUrl, type LogoKind } from "../../branding/logo";
 import {
   advanceTeamSchedule,
   applyTeamCommand,
@@ -141,7 +142,7 @@ export async function directory(
   userId: string,
   organizationId?: string,
 ) {
-  const organizations = await db
+  const joined = await db
     .select({
       id: s.organization.id,
       name: s.organization.name,
@@ -156,6 +157,30 @@ export async function directory(
         eq(s.member.userId, userId),
       ),
     );
+  const logos = joined.length
+    ? await db
+        .select({
+          organizationId: s.organizationLogo.organizationId,
+          kind: s.organizationLogo.kind,
+          sha256: s.organizationLogo.sha256,
+        })
+        .from(s.organizationLogo)
+        .where(
+          inArray(
+            s.organizationLogo.organizationId,
+            joined.map((o) => o.id),
+          ),
+        )
+    : [];
+  const organizations = joined.map((o) => {
+    const url = (kind: LogoKind) => {
+      const logo = logos.find(
+        (l) => l.organizationId === o.id && l.kind === kind,
+      );
+      return logo ? logoUrl(o.id, kind, logo.sha256) : null;
+    };
+    return { ...o, logos: { mark: url("mark"), full: url("full") } };
+  });
   if (!organizationId)
     return {
       organizations,

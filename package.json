@@ -34,6 +34,7 @@
     "@better-auth/drizzle-adapter": "^1.7.5",
     "@c15t/nextjs": "2.2.1",
     "@c15t/scripts": "2.2.0",
+    "@firecrawl/anydoc": "^0.2.4",
     "@opentelemetry/api-logs": "^0.222.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.222.0",
     "@opentelemetry/resources": "^2.11.0",

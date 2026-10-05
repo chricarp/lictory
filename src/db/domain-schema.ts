@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -17,6 +18,7 @@ import {
 
 import type { OnboardingSetup } from "../sync/shared/protocol";
 import type { AiFinding } from "../sync/shared/ai";
+import type { IntelligenceContextUse } from "../intelligence/shared";
 import { organization, user } from "./auth-schema";
 
 // Keep IDs compatible with Better Auth's text IDs; domain IDs are UUID strings.
@@ -1632,6 +1634,29 @@ export const organizationOnboarding = pgTable(
 
 // Whether an organization allows its content to be sent to the AI provider.
 // Off until an administrator decides otherwise.
+// Organization branding shown inside the app. `mark` is a square logomark,
+// `full` a wide logo with the wordmark. Images are small, so they live in the
+// database rather than object storage; `sha256` versions the public URL.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+export const organizationLogo = pgTable(
+  "organization_logo",
+  {
+    organizationId: organizationId(),
+    kind: text("kind", { enum: ["mark", "full"] }).notNull(),
+    content: bytea("content").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sha256: text("sha256").notNull(),
+    updatedById: actor("updated_by_id"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.kind] }),
+    check("organization_logo_kind", sql`${t.kind} in ('mark', 'full')`),
+  ],
+);
+
 export const organizationAiPolicy = pgTable("organization_ai_policy", {
   organizationId: organizationId().primaryKey(),
   enabled: boolean("enabled").default(false).notNull(),
@@ -1670,6 +1695,12 @@ export const aiRun = pgTable(
       .$type<string[]>()
       .notNull()
       .default([]),
+    // The Lictory Intelligence Context versions the model received, so a run
+    // can always answer "what was the AI told?".
+    intelligenceContext: jsonb("intelligence_context")
+      .$type<IntelligenceContextUse[]>()
+      .notNull()
+      .default([]),
     model: text("model"),
     error: text("error"),
     attempts: integer("attempts").default(0).notNull(),
@@ -1706,5 +1737,106 @@ export const aiRun = pgTable(
       "ai_run_score_range",
       sql`${t.score} IS NULL OR ${t.score} BETWEEN 0 AND 100`,
     ),
+  ],
+);
+
+// Lictory Intelligence Context: knowledge administrators give Lictory AI about
+// an organization, a project or a team. Scopes compound (organization →
+// project → team) and the narrower scope wins on conflict. An entry is a
+// written note or an uploaded document converted to Markdown; its content
+// lives in immutable versions. Archiving is reversible and keeps history.
+export const intelligenceContextEntry = pgTable(
+  "intelligence_context_entry",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    scope: text("scope", {
+      enum: ["organization", "project", "team"],
+    }).notNull(),
+    projectId: text("project_id"),
+    teamId: text("team_id"),
+    kind: text("kind", { enum: ["note", "document"] }).notNull(),
+    createdById: actor("created_by_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+    archivedById: optionalActor("archived_by_id"),
+  },
+  (t) => [
+    unique("intelligence_context_entry_org_id_unique").on(
+      t.organizationId,
+      t.id,
+    ),
+    foreignKey({
+      name: "intelligence_context_entry_project_fk",
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "intelligence_context_entry_team_fk",
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
+    check(
+      "intelligence_context_entry_scope_target",
+      sql`(${t.scope} = 'organization' AND ${t.projectId} IS NULL AND ${t.teamId} IS NULL)
+        OR (${t.scope} = 'project' AND ${t.projectId} IS NOT NULL AND ${t.teamId} IS NULL)
+        OR (${t.scope} = 'team' AND ${t.teamId} IS NOT NULL AND ${t.projectId} IS NULL)`,
+    ),
+    check(
+      "intelligence_context_entry_kind",
+      sql`${t.kind} in ('note', 'document')`,
+    ),
+    index("intelligence_context_entry_scope_idx").on(
+      t.organizationId,
+      t.scope,
+      t.projectId,
+      t.teamId,
+    ),
+  ],
+);
+
+// One immutable snapshot of an entry. Edits and re-uploads add a version;
+// nothing rewrites one. Uploaded documents keep their source metadata but not
+// their bytes: the converted Markdown is what Lictory AI receives.
+export const intelligenceContextVersion = pgTable(
+  "intelligence_context_version",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    entryId: text("entry_id").notNull(),
+    number: integer("number").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    sourceFilename: text("source_filename"),
+    sourceFormat: text("source_format"),
+    sourceSize: integer("source_size"),
+    sourceSha256: text("source_sha256"),
+    authorId: actor("author_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("intelligence_context_version_org_id_unique").on(
+      t.organizationId,
+      t.id,
+    ),
+    unique("intelligence_context_version_number_unique").on(
+      t.organizationId,
+      t.entryId,
+      t.number,
+    ),
+    foreignKey({
+      name: "intelligence_context_version_entry_fk",
+      columns: [t.organizationId, t.entryId],
+      foreignColumns: [
+        intelligenceContextEntry.organizationId,
+        intelligenceContextEntry.id,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "intelligence_context_version_title_present",
+      sql`length(trim(${t.title})) > 0`,
+    ),
+    check("intelligence_context_version_number", sql`${t.number} >= 1`),
   ],
 );

@@ -24,6 +24,7 @@ import {
   type ItemReviewOutput,
 } from "./analyzer";
 import { itemReviewContext, pullRequestContext } from "./context";
+import { scopeLabel, type IntelligenceContextUse } from "~/intelligence/shared";
 
 type Run = typeof s.aiRun.$inferSelect;
 const MAX_ATTEMPTS = 3;
@@ -254,6 +255,9 @@ export function normalizeFindings(
   keys: Map<string, string>,
   contents: Map<string, string>,
   previous?: Map<string, string>,
+  // Lictory Intelligence Context refs the model was given; citations of
+  // anything else are dropped.
+  context = new Map<string, IntelligenceContextUse>(),
 ): AiFinding[] {
   const findings: AiFinding[] = [];
   for (const f of output) {
@@ -290,6 +294,12 @@ export function normalizeFindings(
           ? edit
           : null,
       threadId: null,
+      context: [
+        ...new Set((f.contextRefs ?? []).map((r) => r.trim().toUpperCase())),
+      ]
+        .map((r) => context.get(r))
+        .filter((u): u is IntelligenceContextUse => Boolean(u))
+        .slice(0, 10),
     });
     if (!parsed.success) continue;
     findings.push(parsed.data);
@@ -330,6 +340,8 @@ async function execute(
       output.findings,
       prepared.keys,
       reviewed,
+      undefined,
+      prepared.intelligence.uses,
     );
     const score = aiScore(findings);
     await finish(db, run, async (tx) => {
@@ -349,6 +361,7 @@ async function execute(
           status: "completed",
           completedAt: new Date(),
           contextRevisions: prepared.contextRevisions,
+          intelligenceContext: [...prepared.intelligence.uses.values()],
           score,
           summary: cut(output.summary.trim(), 4000),
           strengths: output.strengths.slice(0, 3).map((x) => cut(x, 500)),
@@ -395,6 +408,7 @@ async function execute(
     prepared.keys,
     new Map([[prepared.item.id, prepared.head.content]]),
     previousIds,
+    prepared.intelligence.uses,
   );
   // Finding id → discussion of the same issue opened by an earlier run.
   const repeated = new Map<string, string>();
@@ -503,6 +517,7 @@ async function execute(
       findings,
       score,
       commit,
+      [...prepared.intelligence.uses.values()],
     );
     const [summaryThread] = await tx
       .select({ id: s.thread.id, anchor: s.thread.anchor })
@@ -524,6 +539,7 @@ async function execute(
         status: "completed",
         completedAt: new Date(),
         contextRevisions: prepared.contextRevisions,
+        intelligenceContext: [...prepared.intelligence.uses.values()],
         score,
         summary: cut(output.summary.trim(), 4000),
         strengths: output.strengths.slice(0, 3).map((x) => cut(x, 500)),
@@ -564,6 +580,14 @@ function renderFinding(f: AiFinding) {
     ...(f.recommendation
       ? ["", `**Recommendation:** ${f.recommendation}`]
       : []),
+    ...(f.context.length
+      ? [
+          "",
+          `**Based on Lictory Intelligence Context:** ${f.context
+            .map((c) => `${scopeLabel[c.scope]} › ${c.scopeName} › ${c.title}`)
+            .join("; ")}`,
+        ]
+      : []),
     ...(f.edit
       ? [
           "",
@@ -586,6 +610,7 @@ function renderRundown(
   findings: AiFinding[],
   score: number,
   commit: string,
+  context: IntelligenceContextUse[],
 ) {
   const count = (severity: AiFinding["severity"]) =>
     findings.filter((f) => f.severity === severity).length;
@@ -604,6 +629,12 @@ function renderRundown(
       (f) =>
         `- ${severityLabel[f.severity]}: ${f.title}${f.edit ? " _(suggested change)_" : ""}`,
     ),
+    ...(context.length
+      ? [
+          "",
+          `_Grounded in ${context.length} Lictory Intelligence Context ${context.length === 1 ? "entry" : "entries"}: ${context.map((c) => c.title).join(", ")}._`,
+        ]
+      : []),
     "",
     "_AI findings are proposals. The pull request's reviewers decide what is merged._",
   ].join("\n");

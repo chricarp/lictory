@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { intelligenceContextUseSchema } from "../../intelligence/shared";
 
 // Lictory AI is a non-human actor. It authors the commits, pull requests and
 // discussions it proposes; the human who asked is recorded on every run.
@@ -65,6 +66,8 @@ export const aiFindingSchema = z.object({
   edit: aiEditSchema.nullable(),
   // Lictory Action only: the pull request discussion carrying this finding.
   threadId: z.string().nullable().default(null),
+  // Lictory Intelligence Context entries the finding relied on.
+  context: z.array(intelligenceContextUseSchema).max(10).default([]),
 });
 export type AiFinding = z.infer<typeof aiFindingSchema>;
 

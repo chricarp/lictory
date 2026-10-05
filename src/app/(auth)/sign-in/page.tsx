@@ -8,6 +8,7 @@ import {
   AuthLink,
 } from "~/components/auth/auth-layout";
 import { SignInForm } from "~/components/auth/sign-in-form";
+import { AccountLegalNotice } from "~/components/auth/legal-notice";
 import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
 
@@ -34,6 +35,7 @@ export default async function SignInPage({
   return (
     <>
       <AuthHeading title="Sign in to Lictory" />
+      <AccountLegalNotice signIn />
       <SocialButtons providers={authProviders} callbackURL={callbackURL} />
       <SignInForm callbackURL={callbackURL} />
       <AuthFooter>

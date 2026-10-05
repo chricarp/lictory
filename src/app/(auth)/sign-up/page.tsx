@@ -6,6 +6,7 @@ import {
   AuthLink,
 } from "~/components/auth/auth-layout";
 import { SignUpForm } from "~/components/auth/sign-up-form";
+import { AccountLegalNotice } from "~/components/auth/legal-notice";
 import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
 import { safeAppPath } from "~/lib/paths";
@@ -22,6 +23,7 @@ export default async function SignUpPage({
   return (
     <>
       <AuthHeading title="Create your account" />
+      <AccountLegalNotice />
       <SocialButtons providers={authProviders} callbackURL={callbackURL} />
       <SignUpForm callbackURL={callbackURL} />
       <AuthFooter>

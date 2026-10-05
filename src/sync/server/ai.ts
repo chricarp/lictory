@@ -85,6 +85,7 @@ export function aiRunEntity(row: RunRow): EntityOf<"aiRun"> {
     findings: row.findings,
     correctivePullRequests: row.correctivePullRequests,
     appliedFindingIds: row.appliedFindingIds,
+    intelligenceContext: row.intelligenceContext,
     model: row.model,
     error: row.error,
     createdAt: row.createdAt.toISOString(),

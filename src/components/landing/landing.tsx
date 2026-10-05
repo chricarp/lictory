@@ -176,7 +176,7 @@ function Hero({ user }: { user: LandingUser }) {
             Fewer meetings.
           </span>
         </h1>
-        <p className="mx-auto mt-4 max-w-[32rem] text-center text-base leading-6 text-balance text-muted-foreground sm:mt-6 sm:text-lg sm:leading-7">
+        <p className="mx-auto mt-4 max-w-lg text-center text-base leading-6 text-balance text-muted-foreground sm:mt-6 sm:text-lg sm:leading-7">
           Turn rough ideas into specs that product, engineering and QA agree on.
           Then build with confidence.
         </p>
@@ -786,6 +786,12 @@ function Footer() {
           <a href="#faq" className="hover:text-foreground">
             FAQ
           </a>
+          <Link href="/privacy" className="hover:text-foreground">
+            Privacy Notice
+          </Link>
+          <Link href="/terms-of-service" className="hover:text-foreground">
+            Terms of Service
+          </Link>
           <PrivacyPreferencesButton className="hover:text-foreground">
             Privacy preferences
           </PrivacyPreferencesButton>

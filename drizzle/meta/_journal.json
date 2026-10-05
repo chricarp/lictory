@@ -15,6 +15,20 @@
       "when": 1791123935957,
       "tag": "0001_lictory_ai",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791236082681,
+      "tag": "0002_organization_logo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791239215444,
+      "tag": "0003_intelligence_context",
+      "breakpoints": true
     }
   ]
 }
