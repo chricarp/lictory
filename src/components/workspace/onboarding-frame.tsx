@@ -21,7 +21,7 @@ export function OnboardingFrame({
     <main className="onboarding min-h-dvh bg-background">
       {title && <title>{title}</title>}
       <header className="flex items-center justify-between px-6 py-5 sm:px-8">
-        <Logo className="gap-2 text-sm [&_svg]:size-6" />
+        <Logo className="[&>span]:h-6" />
         <Link
           href="/app/account"
           className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"

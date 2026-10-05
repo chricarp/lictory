@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { previewLabels } from "~/lib/social-preview";
 
@@ -18,6 +20,9 @@ export async function GET(
   const label = marketing
     ? "Requirements, reviewed like code."
     : `${previewLabels[kind as keyof typeof previewLabels]} in Lictory`;
+  const logo = await readFile(
+    join(process.cwd(), "public/brand/lictory-logo.svg"),
+  );
   return new ImageResponse(
     <div
       style={{
@@ -37,16 +42,16 @@ export async function GET(
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 16,
-          fontSize: 32,
-          fontWeight: 700,
         }}
       >
-        <svg width="42" height="42" viewBox="0 0 32 32" fill="#fafafa">
-          <path d="M3 3h6v18a2 2 0 0 0 2 2h18v6H11a8 8 0 0 1-8-8V3Z" />
-          <path d="M15 3h6v10a2 2 0 0 0 2 2h6v6h-6a8 8 0 0 1-8-8V3Z" />
-        </svg>
-        lictory
+        {/* ImageResponse renders the SVG directly; Next Image is for browsers. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`data:image/svg+xml;base64,${logo.toString("base64")}`}
+          alt="Lictory"
+          width={194}
+          height={48}
+        />
       </div>
       <div
         style={{

@@ -7,6 +7,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -37,8 +38,16 @@ export function AuthEmailLayout({
       <Body style={body}>
         <Container style={container}>
           <Section style={brandRow}>
-            <Text style={brandMark}>L</Text>
-            <Text style={brandName}>Lictory</Text>
+            <Img
+              src={new URL(
+                "/brand/lictory-logo.png",
+                process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+              ).toString()}
+              alt="Lictory"
+              width="137"
+              height="34"
+              style={{ display: "block" }}
+            />
           </Section>
 
           <Heading as="h1" style={headingStyle}>
@@ -95,30 +104,6 @@ const container = {
 };
 
 const brandRow = { height: "34px", marginBottom: "28px" };
-
-const brandMark = {
-  backgroundColor: "#18181b",
-  borderRadius: "9px",
-  color: "#ffffff",
-  display: "inline-block",
-  fontSize: "14px",
-  fontWeight: "700",
-  height: "30px",
-  lineHeight: "30px",
-  margin: "0 10px 0 0",
-  textAlign: "center" as const,
-  width: "30px",
-};
-
-const brandName = {
-  color: "#18181b",
-  display: "inline-block",
-  fontSize: "17px",
-  fontWeight: "700",
-  lineHeight: "30px",
-  margin: "0",
-  verticalAlign: "top",
-};
 
 const headingStyle = {
   color: "#18181b",
