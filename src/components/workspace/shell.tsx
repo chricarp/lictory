@@ -38,6 +38,7 @@ import {
   KanbanSquare,
   ListOrdered,
   Users,
+  Sparkles,
 } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -51,7 +52,7 @@ import {
   type Project,
   type ViewId,
 } from "~/lib/work-items";
-import type { WorkItem } from "~/sync/shared/protocol";
+import type { Directory, WorkItem } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
 import { Avatar, Kbd } from "~/components/ui/primitives";
@@ -60,7 +61,10 @@ import { useUnreadNotifications } from "~/components/notifications/client";
 import { CommandPalette } from "./command-palette";
 import { QuickCreate, type QuickCreateOptions } from "./quick-create";
 import { SyncStatus } from "./sync-status";
+import { OrganizationMark } from "./organization-logo";
 import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
+
+type Organization = Directory["organizations"][number];
 
 type Toast = {
   action?: { label: string; href: string };
@@ -360,8 +364,8 @@ function Sidebar({
   sidebarId,
 }: {
   collapsed?: boolean;
-  organization: { id: string; name: string; slug: string };
-  organizations: { id: string; name: string; slug: string }[];
+  organization: Organization;
+  organizations: Organization[];
   projects: Project[];
   project?: Project;
   pathname: string;
@@ -404,13 +408,28 @@ function Sidebar({
                 collapsed ? "size-8 justify-center" : "flex-1 px-2",
               )}
             >
-              <span className="grid size-5 shrink-0 place-items-center rounded bg-primary text-[10px] font-bold text-primary-foreground">
-                {organization.name.slice(0, 1).toUpperCase()}
-              </span>
+              {collapsed || !organization.logos.full ? (
+                <OrganizationMark organization={organization} />
+              ) : (
+                // The full logo already contains the name; keep it for
+                // assistive technology.
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, authenticated image */}
+                  <img
+                    src={organization.logos.full}
+                    alt=""
+                    aria-hidden
+                    className="h-5 max-w-[150px] min-w-0 shrink object-contain object-left"
+                  />
+                  <span className="sr-only">{organization.name}</span>
+                </>
+              )}
               {!collapsed && (
                 <>
-                  <span className="truncate">{organization.name}</span>
-                  <ChevronsUpDown className="ml-auto size-3.5 text-muted-foreground" />
+                  {!organization.logos.full && (
+                    <span className="truncate">{organization.name}</span>
+                  )}
+                  <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
                 </>
               )}
             </button>
@@ -430,6 +449,7 @@ function Sidebar({
                   }}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
                 >
+                  <OrganizationMark organization={o} className="size-4" />
                   <span className="truncate">{o.name}</span>
                   {o.id === organization.id && (
                     <Check className="ml-auto size-3.5 text-primary" />
@@ -506,6 +526,13 @@ function Sidebar({
         aria-label="Workspace"
       >
         <div className="space-y-px">
+          <NavLink
+            href={paths.intelligence(org)}
+            active={active(paths.intelligence(org))}
+            icon={<Sparkles className="size-4" />}
+          >
+            Intelligence
+          </NavLink>
           <InboxLink
             organizationId={organization.id}
             href={paths.inbox(org)}

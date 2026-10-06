@@ -100,7 +100,10 @@ test("an existing member can create and switch to another organization", async (
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
-  await expect(page).toHaveURL(new RegExp(`${firstOrganization}/one/epics$`));
+  // Switching organizations lands on Lictory Intelligence, the home page.
+  await expect(page).toHaveURL(
+    new RegExp(`${firstOrganization}/intelligence$`),
+  );
 });
 async function signIn(page: Page, loginEmail = email) {
   await page.goto("/sign-in");

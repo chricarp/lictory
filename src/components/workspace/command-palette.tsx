@@ -15,6 +15,7 @@ import {
   Inbox,
   Settings,
   UserRound,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { track } from "~/lib/analytics/client";
@@ -158,6 +159,13 @@ export function CommandPalette({
         },
       );
     list.push(
+      {
+        id: "intelligence",
+        label: "Ask Lictory Intelligence",
+        group: "Navigate",
+        icon: <Sparkles className="size-4" />,
+        run: () => go(paths.intelligence(org)),
+      },
       {
         id: "inbox",
         label: "Go to Inbox",

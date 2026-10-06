@@ -48,6 +48,11 @@ const finding = z.object({
     .describe(
       "Only when the fix needs no new product decision. Otherwise null and ask a question.",
     ),
+  contextRefs: z
+    .array(z.string())
+    .describe(
+      "Refs (for example C2) of the Lictory Intelligence Context entries this finding relies on. Empty if none.",
+    ),
 });
 const itemReviewOutput = z.object({
   summary: z.string().describe("Two to four sentences for the team."),

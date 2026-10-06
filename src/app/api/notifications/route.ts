@@ -1,139 +1,43 @@
-import { z } from "zod";
-import { trackServer, trackServerFailure } from "~/lib/analytics/server";
-
-import { db } from "~/db";
-import { auth } from "~/lib/auth";
 import {
-  createNotificationService,
-  notificationActionSchema,
-  notificationQuerySchema,
-} from "~/notifications/service";
-import { DomainError } from "~/sync/server/errors";
+  errorResponse,
+  invokeForWeb,
+  noStore,
+  requireSameOrigin,
+  webPrincipal,
+} from "~/capabilities/http";
+import { CapabilityError } from "~/capabilities/core";
 
 // Notifications are personal and online-only: they never enter the shared
 // sync change log. Every request is scoped to the signed-in user.
 export const dynamic = "force-dynamic";
 
-const service = createNotificationService(db);
-const requestSchema = z.union([
-  z.object({ action: z.literal("list"), query: notificationQuerySchema }),
-  z.object({ action: z.literal("unread") }),
-  z.object({
-    action: z.literal("preferences"),
-    organizationId: z.string().min(1),
-  }),
-  z.object({
-    action: z.literal("watching"),
-    organizationId: z.string().min(1),
-    workItemId: z.string().min(1),
-  }),
-  notificationActionSchema,
-]);
+const actions: Record<string, string> = {
+  list: "listNotifications",
+  unread: "countUnreadNotifications",
+  preferences: "getNotificationPreferences",
+  watching: "getWatching",
+  markRead: "markNotificationsRead",
+  archive: "archiveNotifications",
+  setPreferences: "setNotificationPreferences",
+  resetScope: "resetNotificationPreferences",
+  watch: "watchWorkItem",
+};
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (
-    origin !== new URL(request.url).origin &&
-    origin !== process.env.BETTER_AUTH_URL
-  )
-    return Response.json(
-      { error: { category: "forbidden", message: "Cross-origin request." } },
-      { status: 403 },
-    );
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session)
-    return Response.json(
-      {
-        error: {
-          category: "unauthorized",
-          message: "Sign in again to continue.",
-        },
-      },
-      { status: 401 },
-    );
-  const user = session.user.id;
   try {
-    const body = requestSchema.parse(await request.json());
-    const result = await (() => {
-      switch (body.action) {
-        case "list":
-          return service.list(user, body.query);
-        case "unread":
-          return service.unread(user).then((unread) => ({ unread }));
-        case "preferences":
-          return service.preferences(user, body.organizationId);
-        case "watching":
-          return service.watching(user, body.organizationId, body.workItemId);
-        default:
-          return service.act(user, body);
-      }
-    })();
-    const events = {
-      markRead: "notification_read_changed",
-      archive: "notification_archive_changed",
-      setPreferences: "notification_preferences_updated",
-      resetScope: "notification_preferences_reset",
-      watch: "work_item_watch_changed",
-    };
-    if (body.action in events)
-      trackServer(
-        user,
-        events[body.action as keyof typeof events],
-        {
-          ...(body.action !== "markRead" &&
-          "organizationId" in body &&
-          body.organizationId
-            ? { organization_id: body.organizationId }
-            : {}),
-          ...("workItemId" in body ? { work_item_id: body.workItemId } : {}),
-          ...("read" in body ? { read: body.read } : {}),
-          ...("archived" in body ? { archived: body.archived } : {}),
-          ...("watching" in body ? { watching: body.watching } : {}),
-          ...("scope" in body ? { scope: body.scope } : {}),
-          ...("ids" in body && body.ids
-            ? { notification_count: body.ids.length }
-            : {}),
-        },
-        request.headers,
-      );
-    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    trackServerFailure(user, "notifications", error, request.headers);
-    if (error instanceof DomainError)
-      return Response.json(
-        { error: { category: error.category, message: error.message } },
-        {
-          status:
-            error.category === "forbidden"
-              ? 403
-              : error.category === "unavailable"
-                ? 404
-                : error.category === "validation"
-                  ? 422
-                  : 409,
-        },
-      );
-    if (error instanceof z.ZodError)
-      return Response.json(
-        {
-          error: {
-            category: "validation",
-            message: "Invalid notification request.",
-          },
-        },
-        { status: 400 },
-      );
-    console.error(
-      JSON.stringify({ event: "notifications.error", error: String(error) }),
-    );
+    requireSameOrigin(request);
+    const principal = await webPrincipal(request);
+    const { action, ...rest } = ((await request.json().catch(() => null)) ??
+      {}) as { action?: string; query?: unknown };
+    const name = action && Object.hasOwn(actions, action) && actions[action];
+    if (!name)
+      throw new CapabilityError("validation", "Invalid notification request.");
+    const input = action === "list" ? rest.query : rest;
     return Response.json(
-      {
-        error: {
-          category: "unavailable",
-          message: "Notifications could not be loaded. Try again shortly.",
-        },
-      },
-      { status: 500 },
+      await invokeForWeb(request, name, input, { principal }),
+      noStore,
     );
+  } catch (error) {
+    return errorResponse(error);
   }
 }

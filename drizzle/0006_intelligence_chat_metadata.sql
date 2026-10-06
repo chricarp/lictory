@@ -1,0 +1,1 @@
+ALTER TABLE "intelligence_chat_message" ADD COLUMN "metadata" jsonb;

@@ -3,6 +3,10 @@ import * as s from "~/db/schema";
 import { diffLines } from "~/components/items/diff";
 import { mergeBase } from "~/sync/shared/merge";
 import type { Tx } from "~/sync/server/service";
+import {
+  composeIntelligenceContext,
+  promptContext,
+} from "~/intelligence/compose";
 
 // Context is bounded: long documents and large trees are truncated rather than
 // sent whole, and only what refinement needs is included.
@@ -140,8 +144,13 @@ export async function itemReviewContext(
     const r = revisions.get(i.id);
     if (r) contextRevisions[i.id] = r.id;
   }
+  const intelligence = await composeIntelligenceContext(tx, organizationId, {
+    projectId: target.projectId,
+    teamId: target.teamId,
+  });
   const context = {
     project: { key: project?.key ?? "", name: project?.name ?? "" },
+    intelligenceContext: promptContext(intelligence),
     target: key(target),
     items: included.map((i) => {
       const type = types.get(i.typeId);
@@ -191,7 +200,13 @@ export async function itemReviewContext(
     truncated: descendants.length >= MAX_ITEMS,
   };
   const keys = new Map(included.map((i) => [key(i), i.id]));
-  return { context, contextRevisions, keys, projectId: target.projectId };
+  return {
+    context,
+    contextRevisions,
+    keys,
+    projectId: target.projectId,
+    intelligence,
+  };
 }
 
 export async function pullRequestContext(
@@ -304,7 +319,12 @@ export async function pullRequestContext(
   const previousFindings = (previous[0]?.findings ?? []).filter(
     (f) => f.threadId && openThreadIds.has(f.threadId),
   );
+  const intelligence = await composeIntelligenceContext(tx, organizationId, {
+    projectId: item!.projectId,
+    teamId: item!.teamId,
+  });
   const context = {
+    intelligenceContext: promptContext(intelligence),
     item: {
       key: key(item!.number),
       title: revisions.get(item!.id)?.title ?? item!.title,
@@ -338,6 +358,7 @@ export async function pullRequestContext(
     head,
     item: item!,
     previousFindings,
+    intelligence,
     keys: new Map([[key(item!.number), item!.id]]),
     contextRevisions: Object.fromEntries(
       [...revisions].map(([id, r]) => [id, r.id]),

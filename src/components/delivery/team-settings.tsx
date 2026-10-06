@@ -49,6 +49,7 @@ import { StatusIcon } from "~/components/items/status";
 import { TypeIcon } from "~/components/items/icons";
 import { ColorDot } from "~/components/items/labels";
 import { useTeam } from "./team-gate";
+import { IntelligenceContextSection } from "~/components/intelligence/context-settings";
 
 const weekdays = [
   "Sunday",
@@ -105,6 +106,9 @@ export function TeamSettings() {
         </SettingsGroup>
         <SettingsGroup title="People">
           <MembersSection team={team} canEdit={isAdmin} />
+        </SettingsGroup>
+        <SettingsGroup title="Lictory Intelligence">
+          <IntelligenceContextSection team={team} />
         </SettingsGroup>
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   aiRunKinds,
   aiRunStatuses,
 } from "./ai";
+import { intelligenceContextUseSchema } from "~/intelligence/shared";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -401,6 +402,8 @@ export const entitySchema = z.discriminatedUnion("type", [
     // Corrective pull requests created from this review, by work item id.
     correctivePullRequests: z.record(z.string(), z.string()),
     appliedFindingIds: z.array(z.string()),
+    // Lictory Intelligence Context versions the model received.
+    intelligenceContext: z.array(intelligenceContextUseSchema).default([]),
     model: z.string().nullable(),
     error: z.string().nullable(),
     createdAt: z.string(),
@@ -725,7 +728,16 @@ export const deliveryTargetSchema = z.object({
 export type DeliveryTargetSummary = z.infer<typeof deliveryTargetSchema>;
 export const directorySchema = z.object({
   organizations: z.array(
-    z.object({ id, name: z.string(), slug: z.string(), role: z.string() }),
+    z.object({
+      id,
+      name: z.string(),
+      slug: z.string(),
+      role: z.string(),
+      // Same-origin image URLs for the organization's branding, if uploaded.
+      logos: z
+        .object({ mark: z.string().nullable(), full: z.string().nullable() })
+        .default({ mark: null, full: null }),
+    }),
   ),
   projects: z.array(entitySchema.options[0]),
   members: z.array(directoryMemberSchema),

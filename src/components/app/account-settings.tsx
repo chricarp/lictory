@@ -16,6 +16,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { AgentAccessSection } from "~/components/app/agent-access";
 import { useAppearance } from "~/components/app/appearance-provider";
 import { HandleForm } from "~/components/auth/handle-form";
 import { Button } from "~/components/ui/button";
@@ -57,6 +58,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     ...(hasPassword ? [{ id: "password", label: "Password" }] : []),
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
+    { id: "agents", label: "AI agents" },
     { id: "delete", label: "Delete account" },
   ];
 
@@ -107,6 +109,13 @@ export function AccountSettings(props: AccountSettingsProps) {
             connectedProviders={props.connectedProviders}
           />
           <SessionsSection sessionCount={props.sessionCount} />
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Integrations"
+          description="AI agents that work in Lictory on your behalf."
+        >
+          <AgentAccessSection />
         </SettingsGroup>
 
         <SettingsGroup
