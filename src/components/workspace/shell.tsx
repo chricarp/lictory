@@ -38,6 +38,7 @@ import {
   KanbanSquare,
   ListOrdered,
   Users,
+  Sparkles,
 } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -525,6 +526,13 @@ function Sidebar({
         aria-label="Workspace"
       >
         <div className="space-y-px">
+          <NavLink
+            href={paths.intelligence(org)}
+            active={active(paths.intelligence(org))}
+            icon={<Sparkles className="size-4" />}
+          >
+            Intelligence
+          </NavLink>
           <InboxLink
             organizationId={organization.id}
             href={paths.inbox(org)}

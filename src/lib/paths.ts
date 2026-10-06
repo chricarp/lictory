@@ -8,6 +8,9 @@ const withSearchParams = (path: string, searchParams?: SearchParams) => {
 export const paths = {
   org: (org: string) => `/app/${org}`,
   newOrganization: "/app/new-organization",
+  intelligence: (org: string) => `/app/${org}/intelligence`,
+  intelligenceChat: (org: string, chat: string) =>
+    `/app/${org}/intelligence/${chat}`,
   inbox: (org: string) => `/app/${org}/inbox`,
   notificationSettings: (org: string) => `/app/${org}/inbox/settings`,
   settings: (org: string) => `/app/${org}/settings`,

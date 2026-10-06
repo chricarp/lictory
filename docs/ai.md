@@ -112,3 +112,30 @@ Requests use `store: false`.
 `LICTORY_AI_MODEL` selects the model; the default is `gpt-6-luna`. The provider
 is an adapter (`src/ai/analyzer.ts`). The domain depends on the `Analyzer`
 interface only.
+
+## Voice dictation
+
+The Intelligence composer can dictate. Words stream into the draft at the
+caret where dictation started, and the person can keep editing while they
+talk. Dictation only fills the draft: nothing is sent until the person sends
+it.
+
+- **Same gate as the chat.** The server issues a dictation session only to a
+  member of the organization, and only while AI is configured and enabled for
+  that organization.
+- **Audio never reaches Lictory.** The server mints a short-lived (60 s),
+  transcription-only credential from the provider. The browser streams the
+  microphone straight to the provider over WebRTC. The key is never sent to
+  the browser, and audio is neither recorded nor stored. A hashed user
+  identifier is sent as the provider's safety identifier.
+- **Edits win.** While nobody touches the dictated words, the provider's final
+  transcript replaces its partial words. Once the person edits inside them,
+  later words are only appended and the final pass is skipped. Edits before or
+  after the dictated words move its anchor. Escape cancels: untouched dictated
+  words are removed, and text that was selected when dictation started is
+  restored.
+
+`LICTORY_TRANSCRIPTION_MODEL` selects the model; the default is
+`gpt-live-transcribe`. The provider adapter is
+`src/intelligence/voice/transcription.ts`. It calls the OpenAI Realtime API
+directly because the AI SDK cannot stream this model yet.

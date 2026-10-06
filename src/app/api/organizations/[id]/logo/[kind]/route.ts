@@ -1,7 +1,8 @@
 import { db } from "~/db";
 import { auth } from "~/lib/auth";
 import { isLogoKind, MAX_LOGO_SIZE } from "~/branding/logo";
-import { LogoError, readLogo, removeLogo, setLogo } from "~/branding/server";
+import { LogoError, readLogo } from "~/branding/server";
+import { errorResponse, invokeForWeb } from "~/capabilities/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,28 +18,13 @@ async function target(request: Request, context: Context) {
 }
 class UnauthorizedError extends Error {}
 
-function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (
-    origin !== new URL(request.url).origin &&
-    origin !== process.env.BETTER_AUTH_URL
-  )
-    throw new LogoError("Cross-origin request.", 403);
-}
-
 function fail(error: unknown) {
   if (error instanceof UnauthorizedError)
     return Response.json(
       { error: "Sign in again to continue." },
       { status: 401 },
     );
-  if (error instanceof LogoError)
-    return Response.json({ error: error.message }, { status: error.status });
-  console.error("organization.logo.error", error);
-  return Response.json(
-    { error: "The logo could not be saved." },
-    { status: 500 },
-  );
+  return errorResponse(error, "string");
 }
 
 export async function GET(request: Request, context: Context) {
@@ -68,7 +54,6 @@ export async function GET(request: Request, context: Context) {
 
 export async function PUT(request: Request, context: Context) {
   try {
-    sameOrigin(request);
     const t = await target(request, context);
     const declared = Number(request.headers.get("content-length") ?? 0);
     if (declared > MAX_LOGO_SIZE)
@@ -76,9 +61,19 @@ export async function PUT(request: Request, context: Context) {
         `Logos can be at most ${MAX_LOGO_SIZE / 1024} KB.`,
         413,
       );
-    const bytes = new Uint8Array(await request.arrayBuffer());
-    const result = await setLogo(db, t.organizationId, t.userId, t.kind, bytes);
-    return Response.json(result);
+    const bytes = Buffer.from(await request.arrayBuffer());
+    return Response.json(
+      await invokeForWeb(
+        request,
+        "setOrganizationLogo",
+        {
+          organizationId: t.organizationId,
+          kind: t.kind,
+          contentBase64: bytes.toString("base64"),
+        },
+        { write: true },
+      ),
+    );
   } catch (error) {
     return fail(error);
   }
@@ -86,9 +81,13 @@ export async function PUT(request: Request, context: Context) {
 
 export async function DELETE(request: Request, context: Context) {
   try {
-    sameOrigin(request);
     const t = await target(request, context);
-    await removeLogo(db, t.organizationId, t.userId, t.kind);
+    await invokeForWeb(
+      request,
+      "removeOrganizationLogo",
+      { organizationId: t.organizationId, kind: t.kind },
+      { write: true },
+    );
     return new Response(null, { status: 204 });
   } catch (error) {
     return fail(error);

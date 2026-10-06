@@ -53,7 +53,9 @@ rewrites history.
 
 ## Server authority and authorization
 
-`src/sync/server/service.ts` is the domain mutation boundary. Route handlers obtain
+`src/sync/server/service.ts` is the domain mutation boundary; every surface
+reaches it through the shared capability layer (see
+[capabilities.md](capabilities.md)). Route handlers obtain
 the user from Better Auth, validate Zod protocol input, and require same-origin
 cookie-authenticated writes. Every command checks current Better Auth organization
 membership inside its transaction. Projects are organization-wide in this baseline:

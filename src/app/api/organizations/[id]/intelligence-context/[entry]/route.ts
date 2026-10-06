@@ -1,6 +1,4 @@
-import { db } from "~/db";
-import { contextFailure, sessionUser } from "~/intelligence/http";
-import { intelligenceContextHistory } from "~/intelligence/server";
+import { errorResponse, invokeForWeb, noStore } from "~/capabilities/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,12 +11,14 @@ type Context =
 export async function GET(request: Request, context: Context) {
   try {
     const { id, entry } = await context.params;
-    const userId = await sessionUser(request);
     return Response.json(
-      { versions: await intelligenceContextHistory(db, id, userId, entry) },
-      { headers: { "Cache-Control": "no-store" } },
+      await invokeForWeb(request, "getIntelligenceContextHistory", {
+        organizationId: id,
+        entryId: entry,
+      }),
+      noStore,
     );
   } catch (error) {
-    return contextFailure(error);
+    return errorResponse(error, "string");
   }
 }

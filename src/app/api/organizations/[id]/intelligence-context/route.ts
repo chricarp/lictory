@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { db } from "~/db";
-import { convertDocument } from "~/intelligence/convert";
-import { contextFailure, sameOrigin, sessionUser } from "~/intelligence/http";
+import { CapabilityError } from "~/capabilities/core";
 import {
-  ContextError,
-  canManageIntelligenceContext,
-  createIntelligenceContext,
-  listIntelligenceContext,
-  reviseIntelligenceContext,
-  setIntelligenceContextArchived,
-  type ContextInput,
-} from "~/intelligence/server";
-import {
-  MAX_CONTEXT_DOCUMENT_SIZE,
-  contextTarget,
-} from "~/intelligence/shared";
+  errorResponse,
+  invokeForWeb,
+  noStore,
+  requireSameOrigin,
+  webPrincipal,
+} from "~/capabilities/http";
+import { MAX_CONTEXT_DOCUMENT_SIZE } from "~/intelligence/shared";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,12 +18,14 @@ type Context = RouteContext<"/api/organizations/[id]/intelligence-context">;
 export async function GET(request: Request, context: Context) {
   try {
     const { id } = await context.params;
-    const userId = await sessionUser(request);
-    return Response.json(await listIntelligenceContext(db, id, userId), {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return Response.json(
+      await invokeForWeb(request, "listIntelligenceContext", {
+        organizationId: id,
+      }),
+      noStore,
+    );
   } catch (error) {
-    return contextFailure(error);
+    return errorResponse(error, "string");
   }
 }
 
@@ -41,76 +36,66 @@ const field = (form: FormData, name: string) => {
 
 // One endpoint for every change, as multipart form data so documents and
 // notes share a shape: create, revise (new version), archive and restore.
-// The service re-checks authorization under the organization lock.
 export async function POST(request: Request, context: Context) {
   try {
-    sameOrigin(request);
+    requireSameOrigin(request);
     const { id: organizationId } = await context.params;
-    const userId = await sessionUser(request);
-    // Reject before reading or converting anything a non-administrator sent.
-    if (!(await canManageIntelligenceContext(db, organizationId, userId)))
-      throw new ContextError(
-        "Only organization administrators can change Lictory Intelligence Context.",
-        403,
-      );
+    const principal = await webPrincipal(request);
     // Multipart framing adds a little to the document itself.
     const declared = Number(request.headers.get("content-length") ?? 0);
     if (declared > MAX_CONTEXT_DOCUMENT_SIZE + 64 * 1024)
-      throw new ContextError(
+      throw new CapabilityError(
+        "validation",
         `Documents can be at most ${MAX_CONTEXT_DOCUMENT_SIZE / 1024 / 1024} MB.`,
-        413,
+        { status: 413 },
       );
     const form = await request.formData();
     const action = z
       .enum(["create", "revise", "archive", "restore"])
       .parse(field(form, "action"));
+    const run = (name: string, input: unknown) =>
+      invokeForWeb(request, name, input, { principal });
     if (action === "archive" || action === "restore")
       return Response.json(
-        await setIntelligenceContextArchived(
-          db,
+        await run("archiveIntelligenceContext", {
           organizationId,
-          userId,
-          z.string().min(1).parse(field(form, "entryId")),
-          action === "archive",
-        ),
+          entryId: field(form, "entryId"),
+          archived: action === "archive",
+        }),
       );
-    const input: ContextInput = {
+    const file = form.get("file");
+    const body = {
+      organizationId,
       title: field(form, "title") ?? "",
       content: field(form, "content"),
+      file:
+        file instanceof File
+          ? {
+              filename: file.name,
+              contentBase64: Buffer.from(await file.arrayBuffer()).toString(
+                "base64",
+              ),
+            }
+          : undefined,
     };
-    const file = form.get("file");
-    if (file instanceof File) {
-      const document = await convertDocument(
-        file.name,
-        new Uint8Array(await file.arrayBuffer()),
-      );
-      input.document = { ...document, filename: file.name };
-      input.content = undefined;
-    }
     if (action === "create")
       return Response.json(
-        await createIntelligenceContext(
-          db,
-          organizationId,
-          userId,
-          contextTarget.parse({
+        await run("createIntelligenceContext", {
+          ...body,
+          target: {
             scope: field(form, "scope"),
             projectId: field(form, "projectId"),
             teamId: field(form, "teamId"),
-          }),
-          input,
-        ),
+          },
+        }),
       );
     return Response.json(
-      await reviseIntelligenceContext(
-        db,
-        organizationId,
-        userId,
-        z.string().min(1).parse(field(form, "entryId")),
-        input,
-      ),
+      await run("reviseIntelligenceContext", {
+        ...body,
+        entryId: field(form, "entryId"),
+      }),
     );
   } catch (error) {
-    return contextFailure(error);
+    return errorResponse(error, "string");
   }
 }
