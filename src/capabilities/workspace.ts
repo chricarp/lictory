@@ -96,6 +96,22 @@ type CommandDoc = {
 // protocol therefore exposes it to every surface once it has a description,
 // and the type checker refuses a command without one.
 const commandDocs: Record<CommandType, CommandDoc> = {
+  createConfigurationRole: {
+    title: "Create configuration role",
+    description:
+      "Organization administrators define project or team role templates. Local access managers create scoped roles bounded by a parent role they hold and their own permissions. Roles grant no access until assigned.",
+  },
+  updateConfigurationRole: {
+    title: "Update configuration role",
+    description:
+      "Change, archive or restore a configuration role. Organization administrators manage templates; local access managers customize roles within their scope and permission ceilings. Current assignments immediately use the effective permissions.",
+  },
+  setConfigurationAssignment: {
+    title: "Assign configuration role",
+    description:
+      "Assign or revoke a role in one project or team. Local access managers may delegate only permissions they hold, including local access management. Project authority inherits into associated teams.",
+    decision: true,
+  },
   createProject: {
     title: "Create project",
     description:
@@ -104,7 +120,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   updateProject: {
     title: "Update project",
     description:
-      "Rename a project or change its default team (administrators).",
+      "Rename a project or change its default team (organization administrators or project settings roles).",
   },
   createWorkItem: {
     title: "Create work item",

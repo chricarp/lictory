@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  configurationRoleSchema,
+  configurationAssignmentSchema,
+  configurationScopeSchema,
+  configurationPermissions,
+} from "./configuration-access";
 import { isValidBranchName } from "~/lib/branch-name";
 import {
   aiActionPolicies,
@@ -596,6 +602,7 @@ export const workflowStatusSchema = z.object({
 export type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
 export const teamSchema = z.object({
   id,
+  projectIds: z.array(id).optional(),
   name: z.string(),
   description: z.string().nullable(),
   deliveryMode: z.enum(deliveryModes),
@@ -702,10 +709,11 @@ export const iterationReportSchema = z.object({
   ),
 });
 export type IterationReport = z.infer<typeof iterationReportSchema>;
-// Delivery connections carry no secret; only administrators see the full list
-// of targets' type mappings, but they are not sensitive either.
+// Delivery metadata carries no secrets. Configuration and publish authorization
+// remain server checks; directory visibility alone grants no capability.
 export const deliveryConnectionSchema = z.object({
   id,
+  teamId: id.nullable().optional(),
   provider: z.enum(["jira_cloud"]),
   name: z.string(),
   baseUrl: z.string(),
@@ -742,6 +750,8 @@ export const directorySchema = z.object({
   projects: z.array(entitySchema.options[0]),
   members: z.array(directoryMemberSchema),
   roles: z.array(roleSchema),
+  configurationRoles: z.array(configurationRoleSchema).optional(),
+  configurationAssignments: z.array(configurationAssignmentSchema).optional(),
   teams: z.array(teamSchema),
   types: z.array(workItemTypeSchema),
   // Planned and active iterations plus recent completed ones.
@@ -757,7 +767,7 @@ export const directorySchema = z.object({
     .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 10 as const;
+export const PROTOCOL = 11 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -1129,15 +1139,17 @@ export const commandSchema = z.discriminatedUnion("type", [
     runId: id,
     findingId: id,
   }),
-  // Team configuration (application-role admins only).
+  // Team configuration (administrators or scoped configuration capabilities).
   z.object({
     type: z.literal("createTeam"),
     teamId: z.uuid(),
+    projectId: id.optional(),
     name: text.max(60),
   }),
   z.object({
     type: z.literal("updateTeam"),
     teamId: id,
+    projectIds: z.array(id).min(1).max(100).optional(),
     name: text.max(60).optional(),
     description: z.string().trim().max(500).nullable().optional(),
     deliveryMode: z.enum(deliveryModes).optional(),
@@ -1235,6 +1247,31 @@ export const commandSchema = z.discriminatedUnion("type", [
     teamId: id,
     iterationId: id,
     carryOverTo: id.nullable(),
+  }),
+  // Organization-owned configuration templates and scope-local assignments.
+  z.object({
+    type: z.literal("createConfigurationRole"),
+    roleId: z.uuid(),
+    name: text.max(60),
+    scope: configurationScopeSchema,
+    scopeId: id.optional(),
+    parentRoleId: id.optional(),
+    permissions: z.array(z.enum(configurationPermissions)).max(10),
+  }),
+  z.object({
+    type: z.literal("updateConfigurationRole"),
+    roleId: id,
+    name: text.max(60).optional(),
+    permissions: z.array(z.enum(configurationPermissions)).max(10).optional(),
+    archived: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("setConfigurationAssignment"),
+    roleId: id,
+    userId: id,
+    scope: configurationScopeSchema,
+    scopeId: id,
+    assigned: z.boolean(),
   }),
   // Organization role administration (application-role admins only).
   z.object({

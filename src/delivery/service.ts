@@ -1,3 +1,4 @@
+import { canConfigure } from "../sync/shared/configuration-access";
 import { createHash } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
@@ -117,12 +118,43 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       roster,
     };
   };
-  const requireAdmin = (admin: boolean) => {
-    if (!admin)
+  const requireIntegration = async (
+    tx: Tx,
+    userId: string,
+    organizationId: string,
+    teamId: string | null | undefined,
+  ) => {
+    const a = await access(tx, userId, organizationId);
+    if (teamId && !a.roster.teams.some((t) => t.id === teamId))
+      throw new DomainError("unavailable", "The team is unavailable.");
+    if (
+      !a.admin &&
+      (!teamId ||
+        !a.roster.teams.some((t) => t.id === teamId && !t.archivedAt) ||
+        !canConfigure(
+          a.roster,
+          userId,
+          false,
+          { scope: "team", scopeId: teamId },
+          "integrations",
+        ))
+    )
       throw new DomainError(
         "forbidden",
-        "An organization administrator must manage delivery connections.",
+        "An organization administrator or this team's integration manager must manage delivery connections.",
       );
+    return a;
+  };
+  const auditIntegration = async (
+    tx: Tx,
+    organizationId: string,
+    actorId: string,
+    action: string,
+    detail: Record<string, unknown>,
+  ) => {
+    await tx
+      .insert(s.configurationAudit)
+      .values({ organizationId, actorId, action, detail });
   };
   const requirePublisher = (capabilities: { publishDelivery: boolean }) => {
     if (!capabilities.publishDelivery)
@@ -461,6 +493,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       userId: string,
       input: {
         organizationId: string;
+        teamId?: string | null;
         name: string;
         baseUrl: string;
         email: string;
@@ -470,7 +503,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { organizationId } = input;
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requireAdmin((await access(tx, userId, organizationId)).admin);
+        await requireIntegration(tx, userId, organizationId, input.teamId);
       });
       const provider = providers().jira_cloud;
       const baseUrl = provider.normalizeBaseUrl(input.baseUrl);
@@ -482,7 +515,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { accountLabel } = await provider.verify({ baseUrl, credential });
       return db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requireAdmin((await access(tx, userId, organizationId)).admin);
+        await requireIntegration(tx, userId, organizationId, input.teamId);
         const encryptedCredential = encryptCredential(
           organizationId,
           credential,
@@ -495,6 +528,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
               and(
                 eq(s.deliveryConnection.organizationId, organizationId),
                 eq(s.deliveryConnection.provider, "jira_cloud"),
+                input.teamId
+                  ? eq(s.deliveryConnection.teamId, input.teamId)
+                  : isNull(s.deliveryConnection.teamId),
                 eq(s.deliveryConnection.baseUrl, baseUrl),
                 isNull(s.deliveryConnection.archivedAt),
               ),
@@ -522,6 +558,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
                 .insert(s.deliveryConnection)
                 .values({
                   organizationId,
+                  teamId: input.teamId ?? null,
                   provider: "jira_cloud",
                   baseUrl,
                   createdById: userId,
@@ -529,6 +566,11 @@ export function createDeliveryService(db: Database, options: Options = {}) {
                 })
                 .returning({ id: s.deliveryConnection.id })
             )[0]!.id;
+        await auditIntegration(tx, organizationId, userId, "connectDelivery", {
+          connectionId: id,
+          teamId: input.teamId ?? null,
+          baseUrl,
+        });
         await touch(tx, organizationId);
         return { connectionId: id, accountLabel };
       });
@@ -543,8 +585,8 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     ) {
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requireAdmin((await access(tx, userId, organizationId)).admin);
-        await connectionRow(tx, organizationId, connectionId);
+        const row = await connectionRow(tx, organizationId, connectionId);
+        await requireIntegration(tx, userId, organizationId, row.teamId);
         await tx
           .delete(s.deliveryTarget)
           .where(
@@ -562,6 +604,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
               eq(s.deliveryConnection.id, connectionId),
             ),
           );
+        await auditIntegration(
+          tx,
+          organizationId,
+          userId,
+          "disconnectDelivery",
+          { connectionId, teamId: row.teamId },
+        );
         await touch(tx, organizationId);
       });
     },
@@ -575,8 +624,22 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const row = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
         const a = await access(tx, userId, organizationId);
-        if (!a.admin) requirePublisher(a.capabilities);
-        return connectionRow(tx, organizationId, connectionId);
+        const row = await connectionRow(tx, organizationId, connectionId);
+        if (
+          !a.admin &&
+          !(
+            row.teamId &&
+            canConfigure(
+              a.roster,
+              userId,
+              false,
+              { scope: "team", scopeId: row.teamId },
+              "integrations",
+            )
+          )
+        )
+          requirePublisher(a.capabilities);
+        return row;
       });
       const { provider, connection } = open(row);
       try {
@@ -596,8 +659,22 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const row = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
         const a = await access(tx, userId, organizationId);
-        if (!a.admin) requirePublisher(a.capabilities);
-        return connectionRow(tx, organizationId, connectionId);
+        const row = await connectionRow(tx, organizationId, connectionId);
+        if (
+          !a.admin &&
+          !(
+            row.teamId &&
+            canConfigure(
+              a.roster,
+              userId,
+              false,
+              { scope: "team", scopeId: row.teamId },
+              "integrations",
+            )
+          )
+        )
+          requirePublisher(a.capabilities);
+        return row;
       });
       const { provider, connection } = open(row);
       try {
@@ -622,8 +699,14 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { organizationId } = input;
       const row = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requireAdmin((await access(tx, userId, organizationId)).admin);
-        return connectionRow(tx, organizationId, input.connectionId);
+        await requireIntegration(tx, userId, organizationId, input.teamId);
+        const row = await connectionRow(tx, organizationId, input.connectionId);
+        if (row.teamId && row.teamId !== input.teamId)
+          throw new DomainError(
+            "forbidden",
+            "This connection belongs to another team.",
+          );
+        return row;
       });
       const { provider, connection } = open(row);
       const project = await provider.describeProject(
@@ -633,8 +716,25 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const external = new Map(project.types.map((t) => [t.id, t]));
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        const { admin, roster } = await access(tx, userId, organizationId);
-        requireAdmin(admin);
+        const { roster } = await requireIntegration(
+          tx,
+          userId,
+          organizationId,
+          input.teamId,
+        );
+        const currentConnection = await connectionRow(
+          tx,
+          organizationId,
+          input.connectionId,
+        );
+        if (
+          currentConnection.teamId &&
+          currentConnection.teamId !== input.teamId
+        )
+          throw new DomainError(
+            "forbidden",
+            "This connection belongs to another team.",
+          );
         if (input.teamId && !roster.teams.some((t) => t.id === input.teamId))
           throw new DomainError("unavailable", "The team is unavailable.");
         const mapping: Record<string, string> = {};
@@ -678,6 +778,18 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           externalProjectKey: project.key,
           typeMapping: mapping,
         });
+        await auditIntegration(
+          tx,
+          organizationId,
+          userId,
+          "setDeliveryTarget",
+          {
+            connectionId: input.connectionId,
+            teamId: input.teamId,
+            projectKey: project.key,
+            typeMapping: mapping,
+          },
+        );
         await touch(tx, organizationId);
       });
       return project;
@@ -690,7 +802,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     ) {
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requireAdmin((await access(tx, userId, organizationId)).admin);
+        await requireIntegration(tx, userId, organizationId, teamId);
         await tx
           .delete(s.deliveryTarget)
           .where(
@@ -701,6 +813,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
                 : isNull(s.deliveryTarget.teamId),
             ),
           );
+        await auditIntegration(
+          tx,
+          organizationId,
+          userId,
+          "removeDeliveryTarget",
+          { teamId },
+        );
         await touch(tx, organizationId);
       });
     },

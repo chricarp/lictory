@@ -351,6 +351,28 @@ export const team = pgTable(
   ],
 );
 
+// Administrators associate a team with every project whose work it delivers.
+export const teamProject = pgTable(
+  "team_project",
+  {
+    organizationId: organizationId(),
+    teamId: text("team_id").notNull(),
+    projectId: text("project_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.teamId, t.projectId] }),
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("restrict"),
+    index("team_project_org_project_idx").on(t.organizationId, t.projectId),
+  ],
+);
+
 export const teamMember = pgTable(
   "team_member",
   {
@@ -1396,6 +1418,8 @@ export const deliveryConnection = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
+    // Null is an organization connection; otherwise credentials belong to one team.
+    teamId: text("team_id"),
     provider: deliveryProviderKind("provider").notNull(),
     name: text("name").notNull(),
     baseUrl: text("base_url").notNull(),
@@ -1411,10 +1435,17 @@ export const deliveryConnection = pgTable(
     archivedAt: timestamp("archived_at"),
   },
   (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.teamId],
+      foreignColumns: [team.organizationId, team.id],
+    }).onDelete("restrict"),
     unique("delivery_connection_org_id_unique").on(t.organizationId, t.id),
     uniqueIndex("delivery_connection_active_site_unique")
       .on(t.organizationId, t.provider, t.baseUrl)
-      .where(sql`${t.archivedAt} IS NULL`),
+      .where(sql`${t.archivedAt} IS NULL AND ${t.teamId} IS NULL`),
+    uniqueIndex("delivery_connection_active_team_site_unique")
+      .on(t.organizationId, t.teamId, t.provider, t.baseUrl)
+      .where(sql`${t.archivedAt} IS NULL AND ${t.teamId} IS NOT NULL`),
     check("delivery_connection_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );

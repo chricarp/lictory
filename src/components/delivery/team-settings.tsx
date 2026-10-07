@@ -3,6 +3,12 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "~/components/ui/dropdown-select";
+import {
+  canConfigure,
+  type ConfigurationPermission,
+} from "~/sync/shared/configuration-access";
+import { JiraSection } from "./delivery-settings";
+import { ConfigurationAccess } from "~/components/workspace/configuration-access";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
@@ -78,7 +84,16 @@ function useCommand() {
 
 export function TeamSettings() {
   const team = useTeam();
-  const { organization, isAdmin } = useWorkspace();
+  const { organization, isAdmin, directory, userId } = useWorkspace();
+  const can = (permission: ConfigurationPermission) =>
+    !team.archivedAt &&
+    canConfigure(
+      directory,
+      userId,
+      isAdmin,
+      { scope: "team", scopeId: team.id },
+      permission,
+    );
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-8 px-6 py-8">
@@ -95,23 +110,123 @@ export function TeamSettings() {
           <p className="text-[13px] text-muted-foreground">
             How this team delivers work. Defaults work for most teams; change
             only what you need.
-            {!isAdmin && " Read-only: ask an administrator to change."}
+            {!isAdmin &&
+              " Organization policy is managed by organization administrators. Local controls depend on your configuration roles."}
           </p>
         </div>
+        <TeamDetails team={team} />
         <SettingsGroup title="Delivery">
-          <DeliverySection team={team} canEdit={isAdmin} />
-          <WorkflowSection team={team} canEdit={isAdmin} />
-          <PlanningSection team={team} canEdit={isAdmin} />
-          <TeamTypesSection team={team} canEdit={isAdmin} />
+          <DeliverySection
+            team={team}
+            canEdit={isAdmin}
+            canChangeMode={can("deliveryMode")}
+          />
+          <JiraSection teamId={team.id} />
+          <WorkflowSection team={team} canEdit={can("teamWorkflow")} />
+          <PlanningSection team={team} canEdit={can("teamSettings")} />
+          <TeamTypesSection team={team} canEdit={can("teamTypes")} />
         </SettingsGroup>
         <SettingsGroup title="People">
-          <MembersSection team={team} canEdit={isAdmin} />
+          <MembersSection team={team} canEdit={can("teamMembers")} />
+          <ConfigurationAccess target={{ scope: "team", scopeId: team.id }} />
         </SettingsGroup>
         <SettingsGroup title="Lictory Intelligence">
           <IntelligenceContextSection team={team} />
         </SettingsGroup>
       </div>
     </div>
+  );
+}
+
+function TeamDetails({ team }: { team: Team }) {
+  const { directory, userId, isAdmin } = useWorkspace();
+  const { run, error } = useCommand();
+  const [savingProjects, setSavingProjects] = useState(false);
+  const [draftProjectIds, setDraftProjectIds] = useState<string[]>();
+  const associatedProjectIds = draftProjectIds ?? team.projectIds ?? [];
+  const canEdit =
+    !team.archivedAt &&
+    canConfigure(
+      directory,
+      userId,
+      isAdmin,
+      { scope: "team", scopeId: team.id },
+      "teamSettings",
+    );
+  return (
+    <SettingsSection
+      id="team-details"
+      title="Team details"
+      icon={<Users />}
+      description={
+        !team.projectIds?.length
+          ? "Associate this team with the projects it delivers. Shared configuration applies to all associated projects."
+          : "Project configuration roles also apply to this team's configuration."
+      }
+    >
+      <SettingsBody className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1 text-[13px]">
+          Team name
+          <Input
+            key={team.name}
+            aria-label="Team name"
+            defaultValue={team.name}
+            disabled={!canEdit}
+            onBlur={(e) => {
+              const name = e.currentTarget.value.trim();
+              if (name && name !== team.name)
+                void run({ type: "updateTeam", teamId: team.id, name });
+            }}
+          />
+        </label>
+        <fieldset
+          disabled={!isAdmin || savingProjects}
+          className="flex flex-col gap-2 text-[13px]"
+        >
+          <legend className="mb-2 font-medium">Associated projects</legend>
+          {directory.projects
+            .filter((p) => !p.archivedAt)
+            .map((p) => (
+              <label key={p.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={associatedProjectIds.includes(p.id)}
+                  disabled={
+                    associatedProjectIds.length === 1 &&
+                    associatedProjectIds.includes(p.id)
+                  }
+                  title={
+                    associatedProjectIds.length === 1 &&
+                    associatedProjectIds.includes(p.id)
+                      ? "A team needs at least one associated project."
+                      : undefined
+                  }
+                  onChange={async (e) => {
+                    const projectIds = e.target.checked
+                      ? [...associatedProjectIds, p.id]
+                      : associatedProjectIds.filter((id) => id !== p.id);
+                    if (!projectIds.length) return;
+                    setSavingProjects(true);
+                    setDraftProjectIds(projectIds);
+                    try {
+                      await run({
+                        type: "updateTeam",
+                        teamId: team.id,
+                        projectIds,
+                      });
+                    } finally {
+                      setDraftProjectIds(undefined);
+                      setSavingProjects(false);
+                    }
+                  }}
+                />
+                {p.name}
+              </label>
+            ))}
+        </fieldset>
+        <InlineError>{error}</InlineError>
+      </SettingsBody>
+    </SettingsSection>
   );
 }
 
@@ -164,7 +279,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function DeliverySection({ team, canEdit }: { team: Team; canEdit: boolean }) {
+function DeliverySection({
+  team,
+  canEdit,
+  canChangeMode,
+}: {
+  team: Team;
+  canEdit: boolean;
+  canChangeMode: boolean;
+}) {
   const { run, error } = useCommand();
   return (
     <SettingsSection
@@ -177,7 +300,7 @@ function DeliverySection({ team, canEdit }: { team: Team; canEdit: boolean }) {
         <Field label="Delivery tracked in">
           <Choice
             value={team.deliveryMode}
-            disabled={!canEdit}
+            disabled={!canChangeMode}
             onChange={(deliveryMode) =>
               void run({ type: "updateTeam", teamId: team.id, deliveryMode })
             }
@@ -766,7 +889,20 @@ function MembersSection({ team, canEdit }: { team: Team; canEdit: boolean }) {
 
 // Organization settings: teams and the type registry.
 export function TeamsSection() {
-  const { delivery, isAdmin, organization } = useWorkspace();
+  const { delivery, isAdmin, organization, directory, userId, projects } =
+    useWorkspace();
+  const availableProjects = projects.filter(
+    (p) =>
+      !p.archivedAt &&
+      canConfigure(
+        directory,
+        userId,
+        isAdmin,
+        { scope: "project", scopeId: p.id },
+        "projectSettings",
+      ),
+  );
+  const [projectId, setProjectId] = useState("");
   const { run, error } = useCommand();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -778,7 +914,7 @@ export function TeamsSection() {
       title="Teams"
       description="Teams own workflows, boards and sprints. Items keep their project key when they move between teams."
       action={
-        isAdmin && !creating ? (
+        availableProjects.length > 0 && !creating ? (
           <Button
             size="sm"
             variant="secondary"
@@ -804,7 +940,11 @@ export function TeamsSection() {
               {t.name}
             </span>
             <span className="text-xs text-muted-foreground">
-              {t.memberIds.length}{" "}
+              {(t.projectIds ?? [])
+                .map((id) => projects.find((p) => p.id === id)?.name)
+                .filter(Boolean)
+                .join(", ") || "No project associations"}{" "}
+              · {t.memberIds.length}{" "}
               {t.memberIds.length === 1 ? "member" : "members"} ·{" "}
               {t.iterationMode === "off"
                 ? "No iterations"
@@ -850,6 +990,7 @@ export function TeamsSection() {
               type: "createTeam",
               teamId: crypto.randomUUID(),
               name: name.trim(),
+              projectId: projectId || availableProjects[0]?.id,
             });
             setName("");
             setCreating(false);
@@ -863,6 +1004,17 @@ export function TeamsSection() {
             onChange={(e) => setName(e.target.value)}
             aria-label="Team name"
           />
+          <DropdownSelect
+            aria-label="Team project"
+            value={projectId || availableProjects[0]?.id}
+            onValueChange={setProjectId}
+          >
+            {availableProjects.map((p) => (
+              <DropdownSelectOption key={p.id} value={p.id}>
+                {p.name}
+              </DropdownSelectOption>
+            ))}
+          </DropdownSelect>
           <Button size="sm" type="submit" disabled={!name.trim()}>
             Create
           </Button>

@@ -50,6 +50,20 @@
       "when": 1791273170807,
       "tag": "0006_intelligence_chat_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791401122320,
+      "tag": "0007_neat_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791401851750,
+      "tag": "0008_green_newton_destine",
+      "breakpoints": true
     }
   ]
 }

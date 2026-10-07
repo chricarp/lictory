@@ -10,7 +10,10 @@ A **project** owns identity: the key and item numbers (`PAY-142`), labels,
 milestones and specifications. A **team** owns how work is delivered: its
 workflow, enabled types, estimate scale, iterations, board, delivery mode and
 readiness policy. Every item belongs to one project and one team; a project has
-a default team for new items. Moving an item to another team keeps its key and
+a default team for new items. Administrators associate each team with one or more
+projects. Project configuration roles inherit into associated teams; local roles
+remain bounded by their parent permissions (see [delegated configuration](configuration-access.md)).
+Moving an item to another team associated with its project keeps its key and
 maps its status to the first active status of the same category in the new
 team. Team membership organizes people and never grants permissions; roles do.
 
@@ -53,7 +56,9 @@ Sprints and cycles are one concept, `iteration`, with a team-level mode:
 
 At most one iteration per team is active. Completed iterations are history:
 work cannot be planned into them, and later edits do not change their reports.
-Planning requires the `changeProperties` capability, like moving cards.
+Planning requires the `changeProperties` workflow capability or delegated
+`teamIterations` configuration authority. Moving cards still requires the
+`changeProperties` capability.
 
 ## Estimates and reports
 

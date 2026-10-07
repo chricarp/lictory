@@ -345,6 +345,7 @@ export function ItemDetail({
       </Property>
       <Property label="Team">
         <TeamPicker
+          projectId={item.projectId}
           teamId={item.teamId}
           onChange={canChange ? (teamId) => update({ teamId }) : undefined}
         />

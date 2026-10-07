@@ -17,6 +17,7 @@ adding domain writes or synchronized entities.
 - [Workspace synchronization and review invariants](./internals/synchronization.md)
 - [Delivery model](./internals/delivery.md)
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Delegated configuration](./internals/configuration-access.md)
 - [Database model](./internals/database-model.md)
 - [Lictory AI](./internals/ai.md)
 - [Notifications](./internals/notifications.md)

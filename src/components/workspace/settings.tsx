@@ -11,6 +11,11 @@ import { CreateProject } from "./onboarding";
 import { OrganizationMark } from "./organization-logo";
 import { ACCEPT_LOGO, MAX_LOGO_SIZE, type LogoKind } from "~/branding/logo";
 import { LabelsAndMilestones } from "./labels-settings";
+import {
+  ConfigurationRoles,
+  ConfigurationAccess,
+} from "./configuration-access";
+import { canConfigure } from "~/sync/shared/configuration-access";
 import { People, Roles } from "./roles-settings";
 import {
   TeamsSection,
@@ -34,8 +39,19 @@ import {
 // (organization, projects, labels and milestones) and who can do what in it
 // (members and roles).
 export function Settings() {
-  const { organization, isAdmin, capabilities, directory } = useWorkspace();
-  const showLabels = capabilities.changeProperties;
+  const { organization, isAdmin, capabilities, directory, userId, projects } =
+    useWorkspace();
+  const showLabels =
+    capabilities.changeProperties ||
+    projects.some((p) =>
+      canConfigure(
+        directory,
+        userId,
+        isAdmin,
+        { scope: "project", scopeId: p.id },
+        "projectTaxonomy",
+      ),
+    );
   const nav = [
     { id: "general", label: "General" },
     { id: "projects", label: "Projects" },
@@ -47,6 +63,8 @@ export function Settings() {
     ...(showLabels ? [{ id: "labels", label: "Labels & milestones" }] : []),
     { id: "people", label: "Members" },
     { id: "roles", label: "Roles" },
+    { id: "configuration-roles", label: "Configuration roles" },
+    { id: "configuration-access", label: "Local access" },
   ];
   return (
     <div className="h-full overflow-y-auto">
@@ -72,7 +90,7 @@ export function Settings() {
             <p className="truncate text-[13px] text-muted-foreground">
               {organization.name} · {directory.members.length}{" "}
               {directory.members.length === 1 ? "member" : "members"}
-              {!isAdmin && " · read-only, ask an administrator to change"}
+              {!isAdmin && " · available controls depend on your roles"}
             </p>
           </div>
         </header>
@@ -129,6 +147,8 @@ export function Settings() {
             >
               <People />
               <Roles />
+              <ConfigurationRoles />
+              <ConfigurationAccess />
             </SettingsGroup>
           </div>
         </div>
@@ -369,7 +389,8 @@ function Branding() {
 }
 
 function ProjectsSection() {
-  const { projects, isAdmin, mutate, delivery } = useWorkspace();
+  const { projects, isAdmin, mutate, delivery, directory, userId } =
+    useWorkspace();
   const teams = [...delivery.teams.values()].filter((t) => !t.archivedAt);
   const [showCreate, setShowCreate] = useState(false);
   return (
@@ -397,7 +418,13 @@ function ProjectsSection() {
             id={p.id}
             name={p.name}
             keyName={p.key}
-            canEdit={isAdmin}
+            canEdit={canConfigure(
+              directory,
+              userId,
+              isAdmin,
+              { scope: "project", scopeId: p.id },
+              "projectSettings",
+            )}
             rename={(name) =>
               mutate({ type: "updateProject", projectId: p.id, name })
             }
@@ -405,7 +432,15 @@ function ProjectsSection() {
               <Popover
                 width={220}
                 align="end"
-                disabled={!isAdmin}
+                disabled={
+                  !canConfigure(
+                    directory,
+                    userId,
+                    isAdmin,
+                    { scope: "project", scopeId: p.id },
+                    "projectSettings",
+                  )
+                }
                 trigger={(props) => (
                   <button
                     {...props}
@@ -419,7 +454,9 @@ function ProjectsSection() {
               >
                 <Picker
                   title="Default team"
-                  options={teams.map((t) => ({ value: t.id, label: t.name }))}
+                  options={teams
+                    .filter((t) => !t.projectIds || t.projectIds.includes(p.id))
+                    .map((t) => ({ value: t.id, label: t.name }))}
                   value={p.defaultTeamId}
                   onSelect={(defaultTeamId) =>
                     void mutate({
