@@ -1,4 +1,10 @@
-import { test, expect, type Page, type Request } from "@playwright/test";
+import {
+  test,
+  expect,
+  type APIResponse,
+  type Page,
+  type Request,
+} from "@playwright/test";
 import { consentStatePath } from "./consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
@@ -220,16 +226,19 @@ test("prefetched navigation commits immediately and shows a loading state while 
   };
   // Buffer prefetch so completion is observable even if the browser would
   // otherwise leave the RSC stream open after consuming its loading UI.
+  let prefetchDelivered!: (response: APIResponse) => void;
+  const boardPrefetch = new Promise<APIResponse>(
+    (resolve) => (prefetchDelivered = resolve),
+  );
   await page.route("**/app/**", async (route) => {
     if (isBoardPrefetch(route.request())) {
-      await route.fulfill({ response: await route.fetch() });
+      const response = await route.fetch();
+      await route.fulfill({ response });
+      prefetchDelivered(response);
     } else {
       await route.continue();
     }
   });
-  const boardPrefetch = page.waitForResponse(
-    (response) => isBoardPrefetch(response.request()) && response.ok(),
-  );
   await page
     .getByRole("button", { name: "Create project", exact: true })
     .click();
@@ -239,7 +248,7 @@ test("prefetched navigation commits immediately and shows a loading state while 
   await expect(board).toBeVisible();
   // Hover prioritizes prefetch; network idle does not prove it has completed.
   await board.hover();
-  expect(await (await boardPrefetch).finished()).toBeNull();
+  expect((await boardPrefetch).ok()).toBe(true);
   await page.unroute("**/app/**");
   let release!: () => void;
   let navigationHeld = false;
