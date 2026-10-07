@@ -1,0 +1,55 @@
+name: Proposal
+description: Propose a feature or an intentional change in behavior. Agree on the problem before anyone builds it.
+title: "[Proposal]: "
+labels:
+  - enhancement
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lictory exists to turn incomplete product intent into an agreed,
+        implementation-ready specification with less coordination overhead,
+        and to deliver that work simply. Describe the problem first; the
+        solution can change during discussion. Do not open a pull request for
+        a proposal until a maintainer agrees on direction and scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who is affected (Product, Engineering, QA, Security, Operations, managers) and what can they not do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: Current workaround
+      description: How do teams handle this today, inside or outside Lictory?
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should happen? Include the inverse action (undo, revoke, reopen) where one exists.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: surfaces
+    attributes:
+      label: Likely affected
+      options:
+        - label: Permissions or organization boundaries
+        - label: Revisions, approvals or readiness
+        - label: Native delivery
+        - label: External delivery (Jira or other providers)
+        - label: Lictory AI
+        - label: Notifications
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and tradeoffs
+      description: Simpler options you considered, and the configuration or complexity this would add.
