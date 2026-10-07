@@ -573,8 +573,8 @@ export function IssueList({
                     Your next steps
                   </span>
                   <span className="mt-2 block">
-                    Start with a rough proposal. Request reviews when you’re
-                    ready; revisions and discussions keep everyone’s context.
+                    Start with a rough proposal. It doesn’t need to be complete;
+                    review is where it gets sharp.
                   </span>
                   {directory.members.length === 1 && (
                     <Link
@@ -591,7 +591,7 @@ export function IssueList({
                         href={`${paths.settings(organization.slug)}#jira`}
                         className="mt-3 block text-primary hover:underline"
                       >
-                        Connect Jira and choose a project before exporting →
+                        Connect Jira to export ready work →
                       </Link>
                     )}
                   <Link

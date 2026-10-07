@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
-import { configureFirstProject } from "./onboarding-helpers";
+import { createWorkspace } from "./onboarding-helpers";
 import { paths } from "../src/lib/paths";
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
@@ -73,36 +73,25 @@ test("an existing member can create and switch to another organization", async (
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("First Team");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Add your first project" }),
-  ).toBeVisible();
-  const firstOrganization = new URL(page.url()).pathname;
-  await page.getByLabel("Project name").fill("First project");
-  await page.getByLabel("Key", { exact: true }).fill("ONE");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/one\/epics$/);
+  await createWorkspace(page, {
+    organization: "First Team",
+    project: "First project",
+    key: "ONE",
+  });
+  const firstOrganization = new URL(page.url()).pathname.replace(
+    /\/one\/epics$/,
+    "",
+  );
 
   await page.getByRole("button", { name: "First Team" }).first().click();
   await page.getByRole("link", { name: "Create organization" }).click();
   await expect(page).toHaveURL(/\/app\/new-organization$/);
-  await page.getByLabel("Organization name").fill("Second Team");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Add your first project" }),
-  ).toBeVisible();
-  expect(new URL(page.url()).pathname).not.toBe(firstOrganization);
-  await page.getByLabel("Project name").fill("Second project");
-  await page.getByLabel("Key", { exact: true }).fill("TWO");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/two\/epics$/);
+  await createWorkspace(page, {
+    organization: "Second Team",
+    project: "Second project",
+    key: "TWO",
+  });
+  expect(new URL(page.url()).pathname).not.toContain(firstOrganization);
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
@@ -209,11 +198,12 @@ test("prefetched navigation commits immediately and shows a loading state while 
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Loading states");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await page.getByLabel("Project name").fill("Loading project");
-  await page.getByLabel("Key", { exact: true }).fill("LDS");
-  await configureFirstProject(page);
+  await createWorkspace(page, {
+    organization: "Loading states",
+    project: "Loading project",
+    key: "LDS",
+    finish: false,
+  });
   // Observe prefetch before the Board link mounts. The route-tree probe alone
   // does not contain the loading UI needed to commit a pending navigation.
   const isBoardPrefetch = (request: Request) => {
@@ -240,7 +230,7 @@ test("prefetched navigation commits immediately and shows a loading state while 
     }
   });
   await page
-    .getByRole("button", { name: "Create project", exact: true })
+    .getByRole("button", { name: "Skip and finish", exact: true })
     .click();
   await expect(page).toHaveURL(/\/lds\/epics$/);
   const rail = page.getByRole("navigation", { name: "Workspace" });
@@ -282,7 +272,7 @@ test("prefetched navigation commits immediately and shows a loading state while 
   }
   await expect(loading).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: "Delivery team", exact: true }),
+    page.getByRole("heading", { name: "Loading project", exact: true }),
   ).toBeVisible();
   await expect(board).toHaveAttribute("aria-current", "page");
 });
@@ -295,15 +285,11 @@ test("work item panels collapse independently and persist across routes and relo
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Panel layout");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await page.getByLabel("Project name").fill("Panel project");
-  await page.getByLabel("Key", { exact: true }).fill("PNL");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/pnl\/epics$/);
+  await createWorkspace(page, {
+    organization: "Panel layout",
+    project: "Panel project",
+    key: "PNL",
+  });
 
   await page.getByRole("button", { name: "New epic", exact: true }).click();
   await page
@@ -365,10 +351,10 @@ test("work item panels collapse independently and persist across routes and relo
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await page
-    .getByRole("button", { name: "Switch team: Delivery team" })
+    .getByRole("button", { name: "Switch team: Panel project" })
     .click();
   await expect(
-    page.getByRole("option", { name: /Delivery team/ }),
+    page.getByRole("option", { name: /Panel project/ }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await page
@@ -479,18 +465,13 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Northstar");
-  await page
-    .getByRole("button", { name: "Create organization", exact: true })
-    .click();
-  await page.getByLabel("Project name").fill("Payments");
-  await expect(page.getByLabel("Key")).toHaveValue("PAYM");
-  await page.getByLabel("Key", { exact: true }).fill("PAY");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/pay\/epics$/);
+  await page.getByLabel("Project", { exact: true }).fill("Payments");
+  await expect(page.getByLabel("Key", { exact: true })).toHaveValue("PAYM");
+  await createWorkspace(page, {
+    organization: "Northstar",
+    project: "Payments",
+    key: "PAY",
+  });
   const workspacePath = new URL(page.url()).pathname;
 
   // Personal settings leave the organization shell without losing the return
@@ -1219,15 +1200,12 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     .first()
     .click();
   await page.getByRole("link", { name: "Create organization" }).click();
-  await page.getByLabel("Organization name").fill("Delivery Co");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await page.getByLabel("Project name").fill("Checkout");
-  await page.getByLabel("Key", { exact: true }).fill("CHK");
-  await configureFirstProject(page, "native", "manual");
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/chk\/epics$/);
+  await createWorkspace(page, {
+    organization: "Delivery Co",
+    project: "Checkout",
+    key: "CHK",
+    planning: "manual",
+  });
 
   // A Task (plain work) and a Story (specification) through quick create.
   for (const [type, title] of [

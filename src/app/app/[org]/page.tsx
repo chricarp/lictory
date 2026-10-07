@@ -18,5 +18,5 @@ export default function OrganizationIndex() {
   if (ready || view.status === "hydrating") return null;
   if (isSyncBlocked(view.status))
     return <SyncIssue status={view.status} error={view.error} />;
-  return <Onboarding step="project" canCreate={isAdmin} />;
+  return <Onboarding canCreate={isAdmin} />;
 }

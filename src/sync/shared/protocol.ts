@@ -793,10 +793,8 @@ export const onboardingSetupSchema = z
     iterationMode: z.enum(iterationModes),
     iterationWeeks: z.number().int().min(1).max(8),
     iterationStartDay: z.number().int().min(0).max(6),
-    acceptStarterConfiguration: z.literal(true),
-    deferInvitations: z.literal(true),
-    deferIntegration: z.literal(true),
-    deferAdvancedConfiguration: z.literal(true),
+    // Invitations are Better Auth operations sent after setup commits.
+    invitations: z.number().int().min(0).max(50).default(0),
   })
   .refine(
     (s) =>
