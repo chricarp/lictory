@@ -89,9 +89,11 @@ export function TypePicker({
 
 export function TeamPicker({
   teamId,
+  projectId,
   onChange,
 }: {
   teamId: string;
+  projectId?: string;
   onChange?: (teamId: string) => void;
 }) {
   const delivery = useDelivery();
@@ -119,7 +121,11 @@ export function TeamPicker({
       <Picker
         title="Move to team"
         options={[...delivery.teams.values()]
-          .filter((t) => !t.archivedAt)
+          .filter(
+            (t) =>
+              !t.archivedAt &&
+              (!t.projectIds || t.projectIds.includes(projectId ?? "")),
+          )
           .map((t) => ({ value: t.id, label: t.name }))}
         value={teamId}
         onSelect={onChange}

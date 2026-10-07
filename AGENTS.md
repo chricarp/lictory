@@ -534,7 +534,11 @@ A group of people who deliver work together. A team owns its workflow, enabled
 work item types, estimate scale, iterations, board, delivery mode and readiness
 policy.
 
-A team is not a permission boundary. Roles grant capabilities.
+A team is not an access-visibility boundary. Roles grant capabilities.
+Organization administrators associate a team with one or more projects. Project
+configuration roles apply to associated teams; local roles remain bounded by
+permission ceilings delegated from above. Shared team configuration affects every
+associated project.
 
 Work items belong to exactly one project (identity: `PAY-142`) and one team
 (delivery). Moving an item between teams never changes its identifier.

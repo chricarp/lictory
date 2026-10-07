@@ -8,6 +8,9 @@ export type AnalyticsEvent = { event: string; properties: AnalyticsProperties };
 
 // Exhaustive: adding a domain command requires choosing its analytics event.
 export const commandEvents = {
+  createConfigurationRole: "configuration_role_created",
+  updateConfigurationRole: "configuration_role_updated",
+  setConfigurationAssignment: "configuration_assignment_changed",
   createProject: "project_created",
   updateProject: "project_updated",
   createWorkItem: "work_item_created",

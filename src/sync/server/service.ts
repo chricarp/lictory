@@ -40,6 +40,13 @@ import {
   type WorkItemType,
   isTeamCommand,
 } from "../shared/protocol";
+import { canConfigure } from "../shared/configuration-access";
+import {
+  configurationDirectory,
+  isConfigurationCommand,
+  applyConfigurationCommand,
+  auditConfiguration,
+} from "./configuration-access";
 import { rankBetween } from "../shared/rank";
 import { hasAcceptanceCriteria } from "../shared/specification";
 import { roleColumns } from "./roles";
@@ -71,6 +78,7 @@ import { logoUrl, type LogoKind } from "../../branding/logo";
 import {
   advanceTeamSchedule,
   applyTeamCommand,
+  createTeamRows,
   automaticTeams,
   iterationReportRows,
 } from "./delivery";
@@ -187,6 +195,8 @@ export async function directory(
       projects: [],
       members: [],
       roles: [],
+      configurationRoles: [],
+      configurationAssignments: [],
       teams: [],
       types: [],
       iterations: [],
@@ -266,6 +276,7 @@ export async function directory(
     projects,
     members,
     roles,
+    ...(await configurationDirectory(db, organizationId, memberIds)),
     teams,
     types,
     iterations,
@@ -282,6 +293,7 @@ async function deliveryConfiguration(
   const connections = await db
     .select({
       id: s.deliveryConnection.id,
+      teamId: s.deliveryConnection.teamId,
       provider: s.deliveryConnection.provider,
       name: s.deliveryConnection.name,
       baseUrl: s.deliveryConnection.baseUrl,
@@ -361,9 +373,17 @@ async function deliveryDirectory(
     )
     .orderBy(asc(s.iteration.teamId), asc(s.iteration.number));
   const iso = (d: Date | null) => d?.toISOString() ?? null;
+  const teamProjects = await db
+    .select()
+    .from(s.teamProject)
+    .where(eq(s.teamProject.organizationId, organizationId));
   return {
     teams: teamRows.map((t) => ({
       id: t.id,
+      projectIds: teamProjects
+        .filter((p) => p.teamId === t.id)
+        .map((p) => p.projectId)
+        .sort(),
       name: t.name,
       description: t.description,
       deliveryMode: t.deliveryMode,
@@ -1371,6 +1391,24 @@ export function createSyncService(
         const admin = isAdmin(membership);
         const roster = await directory(tx, userId, organizationId);
         const capabilities = capabilitiesOf(roster.roles, userId);
+        if (isConfigurationCommand(c)) {
+          await applyConfigurationCommand(
+            tx,
+            organizationId,
+            userId,
+            admin,
+            roster,
+            c,
+          );
+          return commit(
+            tx,
+            organizationId,
+            mutation.id,
+            userId,
+            fingerprint,
+            await clock(tx, organizationId),
+          );
+        }
         if (isRoleCommand(c)) {
           require(admin, "An organization administrator must manage roles.");
           await applyRoleCommand(tx, organizationId, roster, c);
@@ -1668,7 +1706,12 @@ export function createSyncService(
         };
         const teamOf = (teamId: string) =>
           requireValue(
-            roster.teams.find((t) => t.id === teamId && !t.archivedAt),
+            roster.teams.find(
+              (t) =>
+                t.id === teamId &&
+                !t.archivedAt &&
+                t.projectIds?.includes(projectId),
+            ),
             "The team is unavailable.",
           );
         const iterationEvent = async (
@@ -1796,8 +1839,14 @@ export function createSyncService(
                 .limit(1);
               require(!roster.projects.length &&
                 !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.");
-              const setupTeam = teamOf(c.setup.teamId);
-              require(!setupTeam.archivedAt, "Choose an active team.");
+              // Initial setup associates the starter team below, after creating
+              // the first project. It must already belong to this organization.
+              const setupTeam = requireValue(
+                roster.teams.find(
+                  (t) => t.id === c.setup!.teamId && !t.archivedAt,
+                ),
+                "The team is unavailable.",
+              );
               await applyTeamCommand(
                 tx,
                 { organizationId, userId, admin, capabilities, roster },
@@ -1821,12 +1870,41 @@ export function createSyncService(
               name: c.name,
               slug: c.key.toLowerCase(),
               key: c.key,
-              defaultTeamId:
-                c.setup?.teamId ??
-                roster.teams.find((t) => !t.archivedAt)?.id ??
-                null,
+              defaultTeamId: null,
               createdById: userId,
             });
+            let defaultTeamId =
+              c.setup?.teamId ??
+              roster.teams.find(
+                (t) =>
+                  !t.archivedAt &&
+                  !t.projectIds?.length &&
+                  !roster.projects.some((p) => p.defaultTeamId === t.id),
+              )?.id;
+            if (!defaultTeamId) {
+              defaultTeamId = crypto.randomUUID();
+              await createTeamRows(
+                tx,
+                organizationId,
+                defaultTeamId,
+                `${c.name} (${c.key})`,
+                projectId,
+              );
+            } else {
+              await tx
+                .insert(s.teamProject)
+                .values({ organizationId, teamId: defaultTeamId, projectId })
+                .onConflictDoNothing();
+            }
+            await tx
+              .update(s.project)
+              .set({ defaultTeamId })
+              .where(
+                and(
+                  eq(s.project.organizationId, organizationId),
+                  eq(s.project.id, projectId),
+                ),
+              );
             if (c.setup)
               await tx.insert(s.organizationOnboarding).values({
                 organizationId,
@@ -1838,7 +1916,14 @@ export function createSyncService(
             break;
           }
           case "updateProject":
-            require(admin, "An organization administrator must update projects.");
+            require(canConfigure(
+              roster,
+              userId,
+              admin,
+              { scope: "project", scopeId: projectId },
+              "projectSettings",
+            ), "Your roles cannot configure this project.");
+            await auditConfiguration(tx, organizationId, userId, c, projectRow);
             if (c.defaultTeamId) teamOf(c.defaultTeamId);
             await tx
               .update(s.project)
@@ -2444,7 +2529,17 @@ export function createSyncService(
           }
           case "createLabel":
           case "updateLabel": {
-            requireCapability(capabilities, "changeProperties");
+            if (
+              !canConfigure(
+                roster,
+                userId,
+                admin,
+                { scope: "project", scopeId: projectId },
+                "projectTaxonomy",
+              )
+            )
+              requireCapability(capabilities, "changeProperties");
+            await auditConfiguration(tx, organizationId, userId, c);
             if (c.type === "createLabel") {
               const taken = before.some(
                 (e) =>
@@ -2494,7 +2589,17 @@ export function createSyncService(
           }
           case "createMilestone":
           case "updateMilestone": {
-            requireCapability(capabilities, "changeProperties");
+            if (
+              !canConfigure(
+                roster,
+                userId,
+                admin,
+                { scope: "project", scopeId: projectId },
+                "projectTaxonomy",
+              )
+            )
+              requireCapability(capabilities, "changeProperties");
+            await auditConfiguration(tx, organizationId, userId, c);
             if (c.type === "createMilestone") {
               const taken = before.some(
                 (e) =>

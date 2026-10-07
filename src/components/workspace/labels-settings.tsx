@@ -3,6 +3,7 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "~/components/ui/dropdown-select";
+import { canConfigure } from "~/sync/shared/configuration-access";
 import { useState } from "react";
 import { Archive, ArchiveRestore, Flag, Tags } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -33,7 +34,28 @@ import {
 // Project-scoped labels and milestones. Archiving is reversible and keeps every
 // historical assignment; nothing here deletes.
 export function LabelsAndMilestones() {
-  const { projects, labels, milestones, mutate, items } = useWorkspace();
+  const {
+    projects: allProjects,
+    labels,
+    milestones,
+    mutate,
+    items,
+    capabilities,
+    directory,
+    userId,
+    isAdmin,
+  } = useWorkspace();
+  const projects = allProjects.filter(
+    (p) =>
+      capabilities.changeProperties ||
+      canConfigure(
+        directory,
+        userId,
+        isAdmin,
+        { scope: "project", scopeId: p.id },
+        "projectTaxonomy",
+      ),
+  );
   const { project: current } = useShell();
   const [projectId, setProjectId] = useState(current?.id ?? projects[0]?.id);
   const project = projects.find((p) => p.id === projectId) ?? projects[0];

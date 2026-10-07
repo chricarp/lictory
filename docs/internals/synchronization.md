@@ -63,7 +63,7 @@ there is deliberately no private-project ACL.
 
 Two kinds of role exist and must not be conflated. **Application roles** are fixed:
 Better Auth `member.role` owner/admin is `ADMIN` and everything else is `MEMBER`.
-Administrators create/rename projects, invite people, change application roles
+Administrators create projects, invite people, change application roles
 (through Better Auth `updateMemberRole`; the last administrator cannot be demoted
 in the UI) and manage organization roles. Application roles grant no workflow
 capability. **Organization roles** (`organization_role`, `organization_role_member`)
@@ -77,6 +77,16 @@ they hold; the server recomputes this from the database inside every mutation an
 rejects with a message naming the missing capability. Discussion and suggestions
 need only membership. Only an assigned user, or a current member of an assigned
 role, can decide a review; holding a role never grants approval by itself.
+Configuration roles are separate from workflow roles: project permissions inherit
+into associated teams, and locally customized roles remain bounded by parent role
+permissions. Administrators control team/project associations and root roles;
+local managers may configure their scopes and delegate permitted actions. Team
+integration credentials and delivery mode can be delegated without granting
+organization credentials, AI policy or approval rights. See
+[delegated configuration](configuration-access.md) for ceiling, revocation and
+shared-team semantics. Directory changes use the same locked receipt path and
+synchronization invalidation as existing roles.
+
 Suggestion reviewers are individuals chosen by the suggestion's author and must
 hold one active role that grants **both** `editSpecifications` and `review`
 (`canReviewSuggestions`); the author cannot review their own suggestion.
@@ -131,7 +141,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 9 (branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 11 (delegated configuration, team/project associations and scoped delivery connections; version 10 added Lictory AI; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to

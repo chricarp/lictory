@@ -48,18 +48,20 @@ const exportScope = {
     .describe("Or export exactly these items."),
 };
 
-// Credentials are entered by an administrator in the browser only: an API
+// Credentials are entered by an integration manager in the browser only: an API
 // token must never pass through an agent's transcript.
 const connectDelivery = defineCapability({
   name: "connectDelivery",
   title: "Connect Jira",
-  description: "Administrators: connect a Jira Cloud site with an API token.",
+  description:
+    "Connect Jira with an API token: organization admins manage organization connections; delegated integration managers manage their team's connections.",
   kind: "command",
   surfaces: webOnly,
   external: true,
   input: z.object({
     organizationId,
     name: z.string().max(120).default(""),
+    teamId: id.nullable().optional(),
     baseUrl: z.string().min(1).max(300),
     email: z.string().trim().min(1).max(320),
     apiToken: z.string().trim().min(1).max(2000),
@@ -77,7 +79,7 @@ const disconnectDelivery = defineCapability({
   name: "disconnectDelivery",
   title: "Disconnect delivery tool",
   description:
-    "Administrators: remove a delivery connection. Existing links keep their history.",
+    "Organization admins or the connection's team integration managers: remove a delivery connection. Existing links keep their history.",
   kind: "command",
   surfaces: everywhere,
   destructive: true,
@@ -99,7 +101,7 @@ const listDeliveryProjects = defineCapability({
   name: "listDeliveryProjects",
   title: "List Jira projects",
   description:
-    "Projects visible through a delivery connection (administrators and members who can export).",
+    "Projects visible through a delivery connection (administrators, its team integration managers and members who can export).",
   kind: "query",
   surfaces: everywhere,
   external: true,
@@ -143,7 +145,7 @@ const setDeliveryTarget = defineCapability({
   name: "setDeliveryTarget",
   title: "Set delivery target",
   description:
-    "Administrators: choose where a team's (or, with teamId null, every team's) exports land and map work item type ids to external issue types.",
+    "Choose a team's export target and map work item type ids to external issue types. Delegated integration managers configure their own team; only organization admins configure the organization default (teamId null).",
   kind: "command",
   surfaces: everywhere,
   external: true,
@@ -168,7 +170,8 @@ const setDeliveryTarget = defineCapability({
 const removeDeliveryTarget = defineCapability({
   name: "removeDeliveryTarget",
   title: "Remove delivery target",
-  description: "Administrators: remove a team's export target.",
+  description:
+    "Organization admins or delegated team integration managers: remove a team's export target. Only organization admins may remove the organization default.",
   kind: "command",
   surfaces: everywhere,
   destructive: true,
