@@ -53,7 +53,8 @@ preview that needs new schema fails rather than touching another environment.
    schema has uncommitted changes), `bun run db:test` and `bun test src`
    (each test database applies the full history).
 5. **Commit** the SQL and `drizzle/meta` together with the code using it.
-6. **Merge**. CI verifies; the production release applies the migration.
+6. **Merge**. CI verifies. The next explicitly tagged production release applies
+   the migration.
 
 Never edit, reorder, or delete a migration that has reached main. The runner
 compares each applied migration's hash with the committed file and stops on
@@ -65,10 +66,12 @@ silently; regenerate such a migration on top of main.
 
 ## Production rollout
 
-`Deploy production` (`.github/workflows/deploy-production.yml`) runs on every
-push to main:
+`Deploy production` (`.github/workflows/deploy-production.yml`) runs when an
+explicit version tag is pushed. Every step uses that same tagged commit; see
+[versions and releases](releases.md) for preparation and hotfixes.
 
-1. **Verify**: the full CI workflow, including `db:check`.
+1. **Validate and verify**: matching version and release notes, then the full CI
+   workflow, including `db:check`.
 2. **Build**: `vercel deploy --prod --skip-domain` builds the release without
    serving production traffic.
 3. **Migrate**: `migrate.yml` against the `production` GitHub environment.
@@ -103,7 +106,8 @@ changes, dispatch **Database migrations** with `production`.
 
 ### Setup
 
-GitHub environment `production` (restricted to `main`):
+GitHub environment `production` (allow `v*` release tags and `main` for manual
+migration recovery):
 
 - secrets: `DATABASE_MIGRATION_URL` (direct, owner role, `sslmode=require`),
   `VERCEL_TOKEN`

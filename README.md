@@ -85,6 +85,14 @@ bun run db:studio    # inspect local data
 bun run db:test      # verify migrations and constraints in a disposable local database
 ```
 
+## Versions and releases
+
+Lictory uses `major.minor.patch` versions. Prepare a release with
+`bun run release:prepare major|minor|patch|hotfix`; production deploys only when
+its matching `v*` tag is published. The current build's version appears in the
+account menu. See [the release runbook](docs/operations/releases.md) for release
+notes, publishing and hotfix branches.
+
 ## production notes
 
 See [deployment and operations](docs/operations/deployment.md) for environment separation,

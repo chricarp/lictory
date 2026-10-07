@@ -1,6 +1,7 @@
 "use client";
 import Link, { useLinkStatus } from "next/link";
 import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
+import { APP_VERSION } from "~/lib/app-version";
 import { toast as toastManager } from "~/components/ui/toast";
 import { resetAnalytics, track } from "~/lib/analytics/client";
 import { useParams, usePathname, useRouter } from "next/navigation";
@@ -716,6 +717,14 @@ function Sidebar({
               >
                 <LogOut className="size-3.5 text-muted-foreground" /> Sign out
               </button>
+              <div className="mt-1 border-t px-2 pt-2 pb-1">
+                <p
+                  className="text-xs text-muted-foreground"
+                  title="Major version · feature release · fixes"
+                >
+                  Lictory <span className="tabular-nums">v{APP_VERSION}</span>
+                </p>
+              </div>
             </div>
           )}
         </Popover>

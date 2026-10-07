@@ -8,6 +8,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "release:prepare": "bun scripts/prepare-release.ts",
+    "release:check": "bun scripts/check-release.ts",
     "db:generate": "drizzle-kit generate",
     "db:generate:data": "drizzle-kit generate --custom",
     "db:check": "drizzle-kit check && bun scripts/check-migrations.ts",

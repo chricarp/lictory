@@ -1,8 +1,10 @@
 name: CI
 
-# Pushes to main run this workflow through "Deploy production", which gates
-# migrations and activation on it.
+# Main and pull requests are verified independently of explicit releases.
+# "Deploy production" also calls this workflow for the exact release tag.
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_call:
   workflow_dispatch:

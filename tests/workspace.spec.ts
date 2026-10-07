@@ -13,6 +13,8 @@ import postgres from "postgres";
 import * as s from "../src/db/schema";
 import { configureFirstProject } from "./onboarding-helpers";
 import { paths } from "../src/lib/paths";
+import packageJson from "../package.json" with { type: "json" };
+const version = packageJson.version;
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
 const multiOrgEmail = "multi-org@example.test";
@@ -103,6 +105,20 @@ test("an existing member can create and switch to another organization", async (
     .getByRole("button", { name: "Create project", exact: true })
     .click();
   await expect(page).toHaveURL(/\/two\/epics$/);
+
+  // The built version remains discoverable in the mobile navigation drawer.
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await expect(
+    page.getByText(`Lictory v${version}`, { exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Close navigation" })
+    .click({ position: { x: 380, y: 20 } });
+  await page.setViewportSize(viewport);
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
@@ -382,6 +398,9 @@ test("work item panels collapse independently and persist across routes and relo
   await expect(
     page.getByRole("link", { name: "Account settings" }),
   ).toBeVisible();
+  await expect(
+    page.getByText(`Lictory v${version}`, { exact: true }),
+  ).toBeVisible();
   await page.keyboard.press("Escape");
   await rail.getByRole("link", { name: "Work items", exact: true }).click();
   await expect(page).toHaveURL(/\/pnl\/stories$/);
@@ -512,6 +531,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   });
   try {
     await page.getByRole("button", { name: "Account menu" }).click();
+    await expect(
+      page.getByText(`Lictory v${version}`, { exact: true }),
+    ).toBeVisible();
     const accountLink = page.getByRole("link", { name: "Account settings" });
     await accountLink.click();
     await accountRequest;

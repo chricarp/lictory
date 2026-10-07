@@ -1,27 +1,51 @@
 name: Deploy production
 
-# Production release order for every push to main:
-#   verify -> build (not serving) -> migrate -> promote
+# Production release order for an explicit, immutable version tag:
+#   validate -> verify -> build (not serving) -> migrate -> promote -> release notes
 # A failed check, build or migration stops the run before the new version
 # receives production traffic. Vercel's Git integration is disabled for main
 # (vercel.json) so this is the only path to production. See docs/operations/migrations.md.
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# One release at a time; a newer push waits instead of interrupting a
+# One release at a time; a newer tag waits instead of interrupting a
 # migration. Only the newest pending run is kept.
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate release version
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - name: Tag matches the version and reviewed release notes
+        run: bun run release:check "$GITHUB_REF_NAME"
+      - name: Release commit belongs to main or a maintenance branch
+        shell: bash
+        run: |
+          branches=$(git branch -r --contains HEAD --list origin/main 'origin/release/*')
+          if [ -z "$branches" ]; then
+            echo "Release tags must point to a commit on main or release/*."
+            exit 1
+          fi
+
   verify:
-    if: github.ref == 'refs/heads/main'
+    needs: validate
     uses: ./.github/workflows/ci.yml
 
   build:
@@ -74,3 +98,31 @@ jobs:
     steps:
       - name: Promote the migrated build to production domains
         run: npx --yes vercel@62.2.0 promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"
+
+  release:
+    name: Publish release notes
+    needs: promote
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - name: Publish notes after production activation
+        shell: bash
+        run: |
+          bun run release:check "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release already exists; leaving its published notes unchanged."
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --latest \
+              --title "Lictory $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi

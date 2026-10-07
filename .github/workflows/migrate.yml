@@ -23,7 +23,7 @@ permissions:
 jobs:
   migrate:
     name: Migrate ${{ inputs.environment }}
-    if: inputs.environment != 'production' || github.ref == 'refs/heads/main'
+    if: inputs.environment != 'production' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ${{ inputs.environment }}
@@ -44,6 +44,9 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
+      - name: Validate version when migrating a production release
+        if: inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v')
+        run: bun run release:check "$GITHUB_REF_NAME"
       - name: Pending migrations
         run: bun run db:migrate:status
       - name: Apply committed migrations

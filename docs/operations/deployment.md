@@ -35,7 +35,7 @@ recovery is authoritative even when presence/realtime is temporarily unavailable
 
 ## Verification and updates
 
-`CI / Verify` runs on pull requests and main pushes. It uses PostgreSQL 17 and
+`CI / Verify` runs on pull requests, main pushes and explicit releases. It uses PostgreSQL 17 and
 Mailpit, frozen Bun dependencies, lint/types/format, committed migrations, all
 domain tests, signup/verification/password-reset emails through Mailpit,
 two-browser workflow tests against a production build. Production
@@ -52,10 +52,15 @@ Branch protection for a private personal repository may require GitHub Pro.
 Once available, require `Verify`, prohibit force pushes and require PR review
 when another maintainer joins. Keep the repository private.
 
-Production deploys only through **Deploy production**, which runs CI, builds on
+Production deploys only from explicit version tags through **Deploy production**,
+which validates the version and release notes, runs CI, builds on
 Vercel without assigning domains, applies migrations and then promotes the build.
 `vercel.json` disables Vercel's Git deployments for `main`; previews of other
 branches still deploy automatically.
+
+See [versions and releases](releases.md) for preparing major, minor, patch and
+hotfix releases and publishing their tags. Merging to `main` does not deploy
+production.
 
 ## Migrations and recovery
 
