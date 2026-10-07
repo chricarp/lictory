@@ -365,6 +365,69 @@
   animation: demo-step-in 320ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
+/* Landing: hero entrance, concern marquee and ambient light. */
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+.landing-rise {
+  animation: landing-rise 900ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+  }
+}
+@supports (animation-timeline: view()) {
+  .landing-reveal {
+    animation: landing-reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 35%;
+  }
+}
+@keyframes landing-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.landing-marquee {
+  animation: landing-marquee var(--marquee-duration, 60s) linear infinite;
+}
+.landing-marquee:hover {
+  animation-play-state: paused;
+}
+@keyframes landing-beam {
+  0%,
+  100% {
+    opacity: 0.55;
+    scale: 1 1;
+  }
+  50% {
+    opacity: 0.85;
+    scale: 1.08 1;
+  }
+}
+.landing-beam {
+  animation: landing-beam 9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-reveal,
+  .landing-marquee,
+  .landing-beam {
+    animation: none;
+  }
+}
+
 /* Lictory Intelligence: a light sweeping across text that is in progress. */
 .shimmer-text {
   background: linear-gradient(
