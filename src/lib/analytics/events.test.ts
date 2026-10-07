@@ -215,6 +215,7 @@ void test("events without Analytics consent drop identifiers and workspace paths
     work_item_id: "item_1",
     work_item_type: "Story",
     blocker_count: 2,
+    distinct_id: "$posthog_cookieless",
     $session_id: "kept-by-posthog",
     $groups: { organization: "org_1" },
     $set: { email: "x" },
@@ -226,6 +227,7 @@ void test("events without Analytics consent drop identifiers and workspace paths
   assert.deepEqual(properties, {
     work_item_type: "Story",
     blocker_count: 2,
+    distinct_id: "$posthog_cookieless",
     $session_id: "kept-by-posthog",
     $current_url: "https://app.example/app",
     $pathname: "/app",
