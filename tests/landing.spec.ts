@@ -12,15 +12,21 @@ for (const width of [320, 390]) {
       name: /Better specs\.\s*Fewer meetings\./,
     });
     const signup = hero.getByRole("link", { name: "Start for free" });
-    const signupBox = await signup.boundingBox();
-    expect(signupBox).not.toBeNull();
-    expect(signupBox!.y + signupBox!.height).toBeLessThan(500);
-    expect(signupBox!.height).toBeGreaterThanOrEqual(44);
+    // Geometry snapshots can race with rendering, even after a visibility check.
+    await expect(async () => {
+      const signupBox = await signup.boundingBox();
+      expect(signupBox).not.toBeNull();
+      expect(signupBox!.y + signupBox!.height).toBeLessThan(500);
+      expect(signupBox!.height).toBeGreaterThanOrEqual(44);
+    }).toPass({ timeout: 30_000 });
 
     const demo = page.getByLabel("Interactive specification example");
     if (width === 390) {
-      const demoBox = await demo.boundingBox();
-      expect(demoBox!.y + demoBox!.height).toBeLessThan(844);
+      await expect(async () => {
+        const demoBox = await demo.boundingBox();
+        expect(demoBox).not.toBeNull();
+        expect(demoBox!.y + demoBox!.height).toBeLessThan(844);
+      }).toPass({ timeout: 30_000 });
     }
     await expect(
       demo.getByText("How many retries? Could we charge twice?"),
