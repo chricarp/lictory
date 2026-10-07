@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Bun runs colocated tests; schedulers and the Better Auth CLI load these by path.
+  "entry": ["src/**/*.test.ts", "scripts/*.ts", "better-auth.config.ts"],
+  "project": ["**/*.{ts,tsx,mjs}"],
+  // `server-only` is provided by Next.js; Tailwind and the Next ESLint plugin are
+  // loaded through CSS and eslint-config-next.
+  "ignoreDependencies": [
+    "server-only",
+    "tailwindcss",
+    "@next/eslint-plugin-next",
+  ],
+  // Findings that predate knip. Remove each entry when the follow-up lands;
+  // do not add new ones without a reason.
+  "ignore": [
+    "src/components/review/suggestion-details.tsx",
+    "src/components/review/suggestion-view.tsx",
+    "src/components/review/suggestions.tsx",
+  ],
+  // Exported types are contracts before they have consumers. Unused value
+  // exports and duplicate (named + default) exports are not enforced yet.
+  "rules": {
+    "types": "off",
+    "nsTypes": "off",
+    "exports": "off",
+    "enumMembers": "off",
+    "duplicates": "off",
+  },
+}

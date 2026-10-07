@@ -4,7 +4,7 @@ name: Deploy production
 #   verify -> build (not serving) -> migrate -> promote
 # A failed check, build or migration stops the run before the new version
 # receives production traffic. Vercel's Git integration is disabled for main
-# (vercel.json) so this is the only path to production. See docs/migrations.md.
+# (vercel.json) so this is the only path to production. See docs/operations/migrations.md.
 on:
   push:
     branches: [main]

@@ -1,7 +1,7 @@
 name: Data backfill
 
 # Runs a reviewed, idempotent, batched backfill from scripts/backfills outside
-# the deployment path. See docs/migrations.md ("Data changes").
+# the deployment path. See docs/operations/migrations.md ("Data changes").
 on:
   workflow_dispatch:
     inputs:

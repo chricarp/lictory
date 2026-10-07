@@ -1,0 +1,33 @@
+# Lictory docs
+
+Product principles, the glossary and engineering conventions live in
+[`AGENTS.md`](../AGENTS.md). Read it first; these documents build on it.
+
+## Working on Lictory
+
+- [Development runbook](./operations/development.md): setup, daily commands,
+  tests and the full verification sequence
+- [Contributing](../CONTRIBUTING.md): what a pull request needs
+
+## Internals
+
+Durable concepts that are easy to misunderstand. Read the first three before
+adding domain writes or synchronized entities.
+
+- [Workspace synchronization and review invariants](./internals/synchronization.md)
+- [Delivery model](./internals/delivery.md)
+- [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Database model](./internals/database-model.md)
+- [Lictory AI](./internals/ai.md)
+- [Notifications](./internals/notifications.md)
+- [Account and workspace onboarding](./internals/onboarding.md)
+- [Private file storage](./internals/file-storage.md)
+- [Social link previews](./internals/social-previews.md)
+- [Product analytics](./internals/analytics.md)
+- [Brand identity](./internals/brand.md)
+
+## Operations
+
+- [Deployment and operations](./operations/deployment.md)
+- [Database migrations](./operations/migrations.md)
+- [Public legal notices](./operations/legal.md)
