@@ -4,7 +4,7 @@ import { defineConfig } from "drizzle-kit";
 
 // drizzle-kit is a local development tool here (generate, check, studio, push).
 // Committed migrations are applied only by scripts/migrate.ts; see
-// docs/migrations.md. Refuse remote databases so `db:push` or `db:studio`
+// docs/operations/migrations.md. Refuse remote databases so `db:push` or `db:studio`
 // cannot mutate a shared environment by accident.
 const directUrl = process.env.DATABASE_URL_UNPOOLED?.trim();
 const url =
