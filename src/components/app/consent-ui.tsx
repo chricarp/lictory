@@ -107,8 +107,7 @@ export function ConsentBanner() {
             <span className="font-medium text-foreground">
               {t.cookieBanner.title}.
             </span>{" "}
-            Optional analytics cookies need your permission. Limited cookieless
-            and server analytics also run. Read our{" "}
+            Optional analytics cookies need your permission. Read our{" "}
             <Link
               href="/privacy"
               className="rounded text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-white/50"
