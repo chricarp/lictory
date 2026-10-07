@@ -64,6 +64,7 @@ const finding = (
   question: edit ? null : "What should happen?",
   recommendation: null,
   edit,
+  contextRefs: [],
 });
 function fakeAnalyzer(
   item: ItemReviewOutput["findings"] = [],

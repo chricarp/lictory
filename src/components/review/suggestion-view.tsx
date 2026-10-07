@@ -669,7 +669,7 @@ function SuggestionEditor({
         }}
         spellCheck
         aria-label="Proposed specification"
-        className="min-h-[320px] px-4 pt-4 font-mono"
+        className="min-h-80 px-4 pt-4 font-mono"
         previewClassName="min-h-[320px] px-4 pt-4"
         style={{ fieldSizing: "content" }}
       />

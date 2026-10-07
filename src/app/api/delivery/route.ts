@@ -1,266 +1,55 @@
-import { z } from "zod";
 import {
-  trackServer,
-  trackServerFailure,
-  trackPublicationCompleted,
-} from "~/lib/analytics/server";
-import { publicationProperties } from "~/lib/analytics/publication";
-
-import { db } from "~/db";
-import { kickNotificationEmails } from "~/notifications/email";
-import { createDeliveryService } from "~/delivery/service";
-import { DeliveryError } from "~/delivery/provider";
-import { auth } from "~/lib/auth";
-import { DomainError } from "~/sync/server/service";
+  errorResponse,
+  invokeForWeb,
+  noStore,
+  webPrincipal,
+  requireSameOrigin,
+} from "~/capabilities/http";
+import { CapabilityError } from "~/capabilities/core";
 
 // Delivery actions talk to external systems, so they are online-only and
 // never go through the durable client mutation queue (which would also put
-// API tokens in browser storage). Results reach other clients through the
-// normal sync change log.
+// API tokens in browser storage). Each action is a capability of the shared
+// application layer.
 
 export const dynamic = "force-dynamic";
 // Exports of large epics make several Jira calls per item.
 export const maxDuration = 300;
 
-const id = z.string().min(1).max(160);
-const organizationId = id;
-const exportScope = {
-  organizationId,
-  rootId: id.optional(),
-  itemIds: z.array(id).max(500).optional(),
+const actions: Record<string, string> = {
+  connect: "connectDelivery",
+  disconnect: "disconnectDelivery",
+  listProjects: "listDeliveryProjects",
+  describeProject: "describeDeliveryProject",
+  setTarget: "setDeliveryTarget",
+  removeTarget: "removeDeliveryTarget",
+  preview: "previewDeliveryExport",
+  publish: "publishDelivery",
+  publication: "getDeliveryPublication",
+  linkExisting: "linkExternalItem",
+  unlink: "unlinkExternalItem",
 };
 
-const actionSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("connect"),
-    organizationId,
-    name: z.string().max(120).default(""),
-    baseUrl: z.string().min(1).max(300),
-    email: z.string().trim().min(1).max(320),
-    apiToken: z.string().trim().min(1).max(2000),
-  }),
-  z.object({
-    action: z.literal("disconnect"),
-    organizationId,
-    connectionId: id,
-  }),
-  z.object({
-    action: z.literal("listProjects"),
-    organizationId,
-    connectionId: id,
-    query: z.string().max(120).optional(),
-  }),
-  z.object({
-    action: z.literal("describeProject"),
-    organizationId,
-    connectionId: id,
-    projectKey: z.string().min(1).max(64),
-  }),
-  z.object({
-    action: z.literal("setTarget"),
-    organizationId,
-    connectionId: id,
-    teamId: id.nullable(),
-    projectKey: z.string().min(1).max(64),
-    typeMapping: z.record(id, z.string().min(1).max(64)),
-  }),
-  z.object({
-    action: z.literal("removeTarget"),
-    organizationId,
-    teamId: id.nullable(),
-  }),
-  z.object({ action: z.literal("preview"), ...exportScope }),
-  z.object({
-    action: z.literal("publish"),
-    ...exportScope,
-    overwriteItemIds: z.array(id).max(500).optional(),
-  }),
-  z.object({
-    action: z.literal("publication"),
-    organizationId,
-    publicationId: id,
-  }),
-  z.object({
-    action: z.literal("linkExisting"),
-    organizationId,
-    workItemId: id,
-    externalKey: z.string().trim().min(1).max(64),
-  }),
-  z.object({
-    action: z.literal("unlink"),
-    organizationId,
-    workItemId: id,
-    connectionId: id,
-  }),
-]);
-
-function failure(error: unknown, action?: string) {
-  if (error instanceof DomainError)
-    return Response.json(
-      { error: { category: error.category, message: error.message } },
-      {
-        status:
-          error.category === "forbidden"
-            ? 403
-            : error.category === "unavailable"
-              ? 404
-              : error.category === "validation"
-                ? 422
-                : 409,
-      },
-    );
-  if (error instanceof DeliveryError)
-    return Response.json(
-      {
-        error: {
-          category: "delivery",
-          kind: error.kind,
-          message: error.message,
-        },
-      },
-      { status: error.retryable ? 503 : 422 },
-    );
-  if (error instanceof z.ZodError)
-    return Response.json(
-      {
-        error: { category: "validation", message: "Invalid delivery request." },
-      },
-      { status: 400 },
-    );
-  console.error(
-    JSON.stringify({
-      event: "delivery.error",
-      action,
-      error: error instanceof Error ? error.message : String(error),
-    }),
-  );
-  return Response.json(
-    {
-      error: {
-        category: "server",
-        message: "The delivery action failed. Retry shortly.",
-      },
-    },
-    { status: 500 },
-  );
-}
-
 export async function POST(request: Request) {
-  if (
-    request.headers.get("origin") !== new URL(request.url).origin &&
-    request.headers.get("origin") !== process.env.BETTER_AUTH_URL
-  )
-    return Response.json(
-      { error: { category: "forbidden", message: "Invalid request origin." } },
-      { status: 403 },
-    );
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session)
-    return Response.json(
-      {
-        error: {
-          category: "unauthorized",
-          message: "Sign in again to continue.",
-        },
-      },
-      { status: 401 },
-    );
-  const user = session.user.id;
-  let action: string | undefined;
   try {
-    const body = actionSchema.parse(await request.json());
-    action = body.action;
-    const service = createDeliveryService(db, {
-      onPublicationCompleted: (publication) =>
-        trackPublicationCompleted(publication, request.headers),
-    });
-    const result = await (() => {
-      switch (body.action) {
-        case "connect":
-          return service.connect(user, body);
-        case "disconnect":
-          return service.disconnect(
-            user,
-            body.organizationId,
-            body.connectionId,
-          );
-        case "listProjects":
-          return service.listProjects(
-            user,
-            body.organizationId,
-            body.connectionId,
-            body.query,
-          );
-        case "describeProject":
-          return service.describeProject(
-            user,
-            body.organizationId,
-            body.connectionId,
-            body.projectKey,
-          );
-        case "setTarget":
-          return service.setTarget(user, body);
-        case "removeTarget":
-          return service.removeTarget(user, body.organizationId, body.teamId);
-        case "preview":
-          return service.preview(user, body);
-        case "publish":
-          return service.publish(user, body);
-        case "publication":
-          return service.publication(
-            user,
-            body.organizationId,
-            body.publicationId,
-          );
-        case "linkExisting":
-          return service.linkExisting(user, body);
-        case "unlink":
-          return service.unlink(user, body);
-      }
-    })();
-    const events = {
-      connect: "delivery_connection_created",
-      disconnect: "delivery_connection_removed",
-      setTarget: "delivery_target_configured",
-      removeTarget: "delivery_target_removed",
-      preview: "delivery_publish_previewed",
-      publish: "delivery_publish_requested",
-      linkExisting: "delivery_item_linked",
-      unlink: "delivery_item_unlinked",
-    };
-    if (body.action in events) {
-      trackServer(
-        user,
-        events[body.action as keyof typeof events],
-        {
-          organization_id: body.organizationId,
-          provider: "jira",
-          ...("teamId" in body ? { team_id: body.teamId } : {}),
-          ...("workItemId" in body ? { work_item_id: body.workItemId } : {}),
-          ...(body.action === "publish" ? publicationProperties(result) : {}),
-        },
-        request.headers,
-      );
-    }
-    kickNotificationEmails(db);
+    requireSameOrigin(request);
+    const principal = await webPrincipal(request);
+    const { action, ...input } = ((await request.json().catch(() => null)) ??
+      {}) as { action?: string };
+    const name = action && Object.hasOwn(actions, action) && actions[action];
+    if (!name)
+      throw new CapabilityError("validation", "Invalid delivery request.");
+    const result = await invokeForWeb(request, name, input, { principal });
     console.info(
       JSON.stringify({
         event: "delivery.action",
         action,
-        organization: body.organizationId,
-        user,
+        organization: (input as { organizationId?: string }).organizationId,
+        user: principal.userId,
       }),
     );
-    return Response.json(result ?? { ok: true }, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return Response.json(result ?? { ok: true }, noStore);
   } catch (error) {
-    trackServerFailure(
-      user,
-      `delivery_${action ?? "unknown"}`,
-      error,
-      request.headers,
-    );
-    return failure(error, action);
+    return errorResponse(error);
   }
 }

@@ -7,6 +7,7 @@ import {
   useTranslations,
 } from "@c15t/nextjs/headless";
 import { ShieldCheck, X } from "lucide-react";
+import Link from "next/link";
 import {
   useEffect,
   useId,
@@ -106,8 +107,14 @@ export function ConsentBanner() {
             <span className="font-medium text-foreground">
               {t.cookieBanner.title}.
             </span>{" "}
-            We use optional analytics to improve Lictory. Nothing loads until
-            you allow it.
+            Optional analytics cookies need your permission. Read our{" "}
+            <Link
+              href="/privacy"
+              className="rounded text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+            >
+              Privacy Notice
+            </Link>
+            .
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:ml-auto sm:flex-nowrap">

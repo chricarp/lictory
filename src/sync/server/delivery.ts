@@ -1,4 +1,13 @@
-import { and, asc, eq, inArray, isNull, max, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNull,
+  max,
+  sql,
+  notInArray,
+} from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "../../db/schema";
@@ -10,6 +19,11 @@ import type {
   TeamCommand,
 } from "../shared/protocol";
 import type { labelColors } from "../shared/protocol";
+import {
+  canConfigure,
+  type ConfigurationPermission,
+} from "../shared/configuration-access";
+import { auditConfiguration } from "./configuration-access";
 import { DomainError } from "./errors";
 import { notifyIteration } from "../../notifications/server";
 
@@ -114,13 +128,18 @@ export async function seedDelivery(
   return teamId;
 }
 
-async function createTeamRows(
+export async function createTeamRows(
   tx: Executor,
   organizationId: string,
   teamId: string,
   name: string,
+  projectId?: string,
 ) {
   await tx.insert(s.team).values({ id: teamId, organizationId, name });
+  if (projectId)
+    await tx
+      .insert(s.teamProject)
+      .values({ organizationId, teamId, projectId });
   await tx.insert(s.workflowStatus).values(
     defaultStatuses.map((x, position) => ({
       organizationId,
@@ -184,17 +203,91 @@ export async function applyTeamCommand(tx: Tx, ctx: Context, c: TeamCommand) {
     c.type === "updateIteration" ||
     c.type === "startIteration" ||
     c.type === "completeIteration";
+  const permission: ConfigurationPermission = planning
+    ? "teamIterations"
+    : c.type === "setTeamMembership"
+      ? "teamMembers"
+      : c.type === "setTeamType"
+        ? "teamTypes"
+        : c.type === "createStatus" ||
+            c.type === "updateStatus" ||
+            c.type === "archiveStatus"
+          ? "teamWorkflow"
+          : "teamSettings";
+  const local =
+    "teamId" in c &&
+    canConfigure(
+      roster,
+      ctx.userId,
+      false,
+      { scope: "team", scopeId: c.teamId },
+      permission,
+    );
   if (planning) {
-    if (!ctx.capabilities.changeProperties)
+    if (!ctx.capabilities.changeProperties && !local && !ctx.admin)
+      fail("Your roles cannot plan iterations for this team.", "forbidden");
+  } else if (!ctx.admin) {
+    const governance =
+      c.type === "updateTeam" &&
+      (c.projectIds !== undefined ||
+        c.readinessPolicy !== undefined ||
+        c.aiActionPolicy !== undefined ||
+        c.archived !== undefined);
+    if (c.type === "createType" || c.type === "updateType" || governance)
       fail(
-        "Your roles cannot plan iterations. A role that changes item properties is required.",
+        "An organization administrator must manage organization definitions and team governance.",
         "forbidden",
       );
-  } else if (!ctx.admin)
-    fail(
-      "An organization administrator must configure teams and types.",
-      "forbidden",
-    );
+    const projectId =
+      c.type === "createTeam"
+        ? (c.projectId ??
+          (roster.projects.length === 1 ? roster.projects[0]!.id : undefined))
+        : undefined;
+    const createAllowed =
+      projectId &&
+      canConfigure(
+        roster,
+        ctx.userId,
+        false,
+        { scope: "project", scopeId: projectId },
+        "projectSettings",
+      );
+    const changingMode =
+      c.type === "updateTeam" && c.deliveryMode !== undefined;
+    if (
+      changingMode &&
+      !canConfigure(
+        roster,
+        ctx.userId,
+        false,
+        { scope: "team", scopeId: c.teamId },
+        "deliveryMode",
+      )
+    )
+      fail("Your roles cannot change this team's delivery mode.", "forbidden");
+    const modeOnly =
+      changingMode &&
+      Object.keys(c).every((key) =>
+        ["type", "teamId", "deliveryMode"].includes(key),
+      );
+    if (!local && !createAllowed && !modeOnly)
+      fail("Your roles cannot configure this team.", "forbidden");
+    if (
+      "teamId" in c &&
+      roster.teams.find((t) => t.id === c.teamId)?.archivedAt
+    )
+      fail(
+        "Restore this team before changing its configuration.",
+        "validation",
+      );
+  }
+  await auditConfiguration(
+    tx,
+    organizationId,
+    ctx.userId,
+    c,
+    "teamId" in c ? roster.teams.find((t) => t.id === c.teamId) : undefined,
+  );
   const team = (teamId: string) =>
     found(
       roster.teams.find((t) => t.id === teamId),
@@ -206,17 +299,69 @@ export async function applyTeamCommand(tx: Tx, ctx: Context, c: TeamCommand) {
   ) => and(eq(table.organizationId, organizationId), eq(table.id, id));
   switch (c.type) {
     case "createTeam": {
+      const projectId =
+        c.projectId ??
+        (roster.projects.length === 1 ? roster.projects[0]!.id : undefined);
+      if (
+        !projectId ||
+        !roster.projects.some((p) => p.id === projectId && !p.archivedAt)
+      )
+        fail("Choose an active project for this team.");
       if (
         roster.teams.some(
           (t) => !t.archivedAt && t.name.toLowerCase() === c.name.toLowerCase(),
         )
       )
         fail(`A team named “${c.name}” already exists.`);
-      await createTeamRows(tx, organizationId, c.teamId, c.name);
+      await createTeamRows(tx, organizationId, c.teamId, c.name, projectId);
       return;
     }
     case "updateTeam": {
       const t = team(c.teamId);
+      if (c.projectIds !== undefined) {
+        const projectIds = [...new Set(c.projectIds)];
+        if (
+          projectIds.some(
+            (id) => !roster.projects.some((p) => p.id === id && !p.archivedAt),
+          )
+        )
+          fail("Choose active projects for this team.");
+        const outsideWork = await tx
+          .select({ id: s.workItem.id })
+          .from(s.workItem)
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.teamId, t.id),
+              notInArray(s.workItem.projectId, projectIds),
+            ),
+          )
+          .limit(1);
+        if (
+          outsideWork.length ||
+          roster.projects.some(
+            (p) => !projectIds.includes(p.id) && p.defaultTeamId === t.id,
+          )
+        )
+          fail(
+            "Keep every project that has work or uses this team by default. Move that work and change the default team before removing an association.",
+          );
+        await tx
+          .delete(s.teamProject)
+          .where(
+            and(
+              eq(s.teamProject.organizationId, organizationId),
+              eq(s.teamProject.teamId, t.id),
+            ),
+          );
+        await tx.insert(s.teamProject).values(
+          projectIds.map((projectId) => ({
+            organizationId,
+            teamId: t.id,
+            projectId,
+          })),
+        );
+      }
       if (
         c.name &&
         roster.teams.some(
@@ -238,12 +383,20 @@ export async function applyTeamCommand(tx: Tx, ctx: Context, c: TeamCommand) {
             `${defaults.map((p) => p.name).join(", ")} ${defaults.length === 1 ? "uses" : "use"} this team by default. Choose another default team first.`,
           );
       }
-      const { type: _type, teamId: _id, archived, ...patch } = c;
+      const {
+        type: _type,
+        teamId: _id,
+        archived,
+        projectIds: _projectIds,
+        ...patch
+      } = c;
+      void _projectIds;
       void _type;
       void _id;
       await tx
         .update(s.team)
         .set({
+          updatedAt: now,
           ...Object.fromEntries(
             Object.entries(patch).filter(([, v]) => v !== undefined),
           ),

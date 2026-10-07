@@ -195,7 +195,8 @@ test("joining waits without creating an organization, discovers invitations, and
   await page
     .getByRole("button", { name: "Join Existing team", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/exist\/epics$/);
+  // Joining an organization with projects lands on Lictory Intelligence.
+  await expect(page).toHaveURL(/\/intelligence$/);
   expect(
     await db
       .select()

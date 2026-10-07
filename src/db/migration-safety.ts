@@ -1,5 +1,5 @@
 // Pure safety rules for the migration runner (scripts/migrate.ts). Kept free of
-// I/O so the guarantees are unit-tested. See docs/migrations.md.
+// I/O so the guarantees are unit-tested. See docs/operations/migrations.md.
 
 export const migrationTargets = [
   "local",

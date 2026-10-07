@@ -1,4 +1,5 @@
 "use client";
+import { canConfigure } from "~/sync/shared/configuration-access";
 import { LoadingState } from "~/components/ui/spinner";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -81,10 +82,21 @@ export function Backlog() {
     memberName,
     mutate,
     capabilities,
+    directory,
+    userId,
+    isAdmin,
     view,
   } = useWorkspace();
   const { openCreate, toast } = useShell();
-  const canPlan = capabilities.changeProperties;
+  const canPlan =
+    capabilities.changeProperties ||
+    canConfigure(
+      directory,
+      userId,
+      isAdmin,
+      { scope: "team", scopeId: team.id },
+      "teamIterations",
+    );
   const iterations = [...delivery.iterations.values()]
     .filter((i) => i.teamId === team.id)
     .sort((a, b) => a.number - b.number);
@@ -226,7 +238,7 @@ export function Backlog() {
                 }
                 estimate={estimateLabel(team, item.estimate)}
                 memberName={memberName}
-                draggable={canPlan}
+                draggable={capabilities.changeProperties}
                 dragging={drag === item.id}
                 onDragStart={() => setDrag(item.id)}
                 onDragEnd={() => {

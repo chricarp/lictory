@@ -3,6 +3,7 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "~/components/ui/dropdown-select";
+import { canConfigure } from "~/sync/shared/configuration-access";
 import { useState } from "react";
 import { ArrowUpRight, Loader2, PlugZap } from "lucide-react";
 import type { DeliveryConnectionSummary } from "~/sync/shared/protocol";
@@ -33,9 +34,26 @@ type ExternalProject = {
 
 // Jira connection and where exported work lands. The API token is sent once
 // to the server, verified against Jira, stored encrypted, and never returned.
-export function JiraSection() {
-  const { directory, isAdmin } = useWorkspace();
-  const connection = directory.delivery.connections[0];
+export function JiraSection({ teamId }: { teamId?: string }) {
+  const { directory, isAdmin, userId } = useWorkspace();
+  const canEdit =
+    isAdmin ||
+    (!!teamId &&
+      canConfigure(
+        directory,
+        userId,
+        false,
+        { scope: "team", scopeId: teamId },
+        "integrations",
+      ));
+  const connection = directory.delivery.connections.find(
+    (c) => (c.teamId ?? null) === (teamId ?? null),
+  );
+  const inheritedTarget =
+    teamId && !connection
+      ? (directory.delivery.targets.find((t) => t.teamId === teamId) ??
+        directory.delivery.targets.find((t) => t.teamId === null))
+      : undefined;
   const [replacing, setReplacing] = useState(false);
   return (
     <SettingsSection
@@ -45,16 +63,32 @@ export function JiraSection() {
       description="Export ready Epics and Stories to Jira Cloud, and keep exported issues up to date on each export."
       footer="Lictory writes the summary, description (latest revision with acceptance criteria) and labels. Status, assignee, sprint and comments stay owned by Jira."
     >
+      {inheritedTarget && (
+        <SettingsBody>
+          <p className="text-[13px] text-muted-foreground">
+            Exports use the organization connection and Jira project{" "}
+            {inheritedTarget.externalProjectKey}.
+            {canEdit &&
+              " Connect a team account below to configure a separate target."}
+          </p>
+        </SettingsBody>
+      )}
       {connection && !replacing ? (
         <>
           <ConnectionRow
             connection={connection}
             onReplace={() => setReplacing(true)}
+            canEdit={canEdit}
           />
-          <TargetEditor connection={connection} />
+          <TargetEditor
+            connection={connection}
+            teamId={teamId}
+            canEdit={canEdit}
+          />
         </>
-      ) : isAdmin ? (
+      ) : canEdit ? (
         <ConnectForm
+          teamId={teamId}
           initialUrl={connection?.baseUrl}
           onDone={() => setReplacing(false)}
           onCancel={connection ? () => setReplacing(false) : undefined}
@@ -62,7 +96,9 @@ export function JiraSection() {
       ) : (
         <SettingsBody>
           <p className="text-[13px] text-muted-foreground">
-            Jira is not connected. Ask an administrator to connect it.
+            {inheritedTarget
+              ? "No separate team connection is configured."
+              : "Jira is not connected. Ask an integration manager to connect it."}
           </p>
         </SettingsBody>
       )}
@@ -73,11 +109,13 @@ export function JiraSection() {
 function ConnectionRow({
   connection,
   onReplace,
+  canEdit,
 }: {
   connection: DeliveryConnectionSummary;
   onReplace: () => void;
+  canEdit: boolean;
 }) {
-  const { organization, isAdmin } = useWorkspace();
+  const { organization } = useWorkspace();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   return (
@@ -99,7 +137,7 @@ function ConnectionRow({
         <span className="text-muted-foreground">
           as {connection.accountLabel}
         </span>
-        {isAdmin && (
+        {canEdit && (
           <span className="ml-auto flex gap-1">
             <Button size="sm" variant="secondary" onClick={onReplace}>
               Replace token
@@ -138,10 +176,12 @@ function ConnectionRow({
 }
 
 function ConnectForm({
+  teamId,
   initialUrl,
   onDone,
   onCancel,
 }: {
+  teamId?: string;
   initialUrl?: string;
   onDone: () => void;
   onCancel?: () => void;
@@ -163,6 +203,7 @@ function ConnectForm({
           try {
             await deliveryRequest({
               action: "connect",
+              teamId: teamId ?? null,
               organizationId: organization.id,
               baseUrl,
               email,
@@ -241,12 +282,16 @@ function ConnectForm({
 // Organization default target: Jira project and type mapping.
 function TargetEditor({
   connection,
+  teamId,
+  canEdit,
 }: {
   connection: DeliveryConnectionSummary;
+  teamId?: string;
+  canEdit: boolean;
 }) {
-  const { organization, directory, isAdmin } = useWorkspace();
+  const { organization, directory } = useWorkspace();
   const target = directory.delivery.targets.find(
-    (t) => t.teamId === null && t.connectionId === connection.id,
+    (t) => t.teamId === (teamId ?? null) && t.connectionId === connection.id,
   );
   const [projects, setProjects] =
     useState<{ id: string; key: string; name: string }[]>();
@@ -297,7 +342,7 @@ function TargetEditor({
         : suggested,
     );
   };
-  if (!isAdmin)
+  if (!canEdit)
     return (
       <SettingsBody className="text-[13px] text-muted-foreground">
         {target
@@ -325,7 +370,7 @@ function TargetEditor({
           </Button>
         }
       >
-        Default project{" "}
+        {teamId ? "Team export project" : "Default project"}{" "}
         <span className="font-normal text-muted-foreground">
           {project
             ? `${project.key} · ${project.name}`
@@ -369,7 +414,7 @@ function TargetEditor({
               e.preventDefault();
               const saved = await load({
                 action: "setTarget",
-                teamId: null,
+                teamId: teamId ?? null,
                 projectKey: project.key,
                 typeMapping: Object.fromEntries(
                   Object.entries(mapping).filter(([, v]) => v),

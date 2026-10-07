@@ -30,7 +30,7 @@ export function Logo({ className }: { className?: string }) {
     >
       <span
         aria-hidden="true"
-        className="block aspect-[818/203] h-8 bg-current"
+        className="block aspect-818/203 h-8 bg-current"
         style={{
           maskImage: "url(/brand/lictory-logo.svg)",
           maskSize: "contain",

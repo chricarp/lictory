@@ -69,9 +69,9 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
 ## Database workflow
 
 The schema entry point is `src/db/schema.ts`, which exports the generated Better
-Auth schema and the application domain schema. See [the database model](docs/database-model.md)
+Auth schema and the application domain schema. See [the database model](docs/internals/database-model.md)
 for revision semantics, tenant constraints, retention, and enforcement boundaries,
-and [database migrations](docs/migrations.md) for the change workflow and how
+and [database migrations](docs/operations/migrations.md) for the change workflow and how
 production applies migrations before activating a release.
 
 ```bash
@@ -87,7 +87,7 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 ## production notes
 
-See [deployment and operations](docs/operations.md) for environment separation,
+See [deployment and operations](docs/operations/deployment.md) for environment separation,
 CI, automatic migrations, background jobs, recovery and free-plan limits.
 
 - Replace `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
@@ -99,12 +99,12 @@ Collaborative requirements and engineering-readiness platform.
 
 The authenticated workspace supports proposals, Markdown revisions, contextual discussions,
 suggestions, review requests, revision-bound approvals and computed readiness through a
-persistent browser synchronization engine. See [the sync architecture](docs/synchronization.md)
+persistent browser synchronization engine. See [the sync architecture](docs/internals/synchronization.md)
 for the protocol, authorization, recovery guarantees and current boundaries.
 
 Start at `/app`: create an organization and project, then create a proposal. Organization
 settings provide invitation links for teammates. Product philosophy, glossary, and
-engineering conventions live in [`AGENTS.md`](./AGENTS.md).
+engineering conventions live in [`AGENTS.md`](./AGENTS.md). Documentation is indexed in [`docs/README.md`](./docs/README.md); read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
 
 ```bash
 bun run test:sync # disposable PostgreSQL + IndexedDB invariant tests
@@ -137,17 +137,18 @@ The app runs at http://localhost:3000.
 
 ## Scripts
 
-| Command                | Purpose                                     |
-| ---------------------- | ------------------------------------------- |
-| `bun run dev`          | Start the development server                |
-| `bun run build`        | production build                            |
-| `bun run start`        | Serve the production build                  |
-| `bun run typecheck`    | TypeScript check without emitting files     |
-| `bun run lint`         | Run ESLint                                  |
-| `bun run lint:fix`     | Run ESLint with automatic fixes             |
-| `bun run format`       | Format the repository with Prettier         |
-| `bun run format:check` | Verify formatting without writing           |
-| `bun run check`        | Lint, typecheck, and format check (CI-safe) |
+| Command                | Purpose                                    |
+| ---------------------- | ------------------------------------------ |
+| `bun run dev`          | Start the development server               |
+| `bun run build`        | production build                           |
+| `bun run start`        | Serve the production build                 |
+| `bun run typecheck`    | TypeScript check without emitting files    |
+| `bun run lint`         | Run ESLint                                 |
+| `bun run lint:fix`     | Run ESLint with automatic fixes            |
+| `bun run format`       | Format the repository with Prettier        |
+| `bun run format:check` | Verify formatting without writing          |
+| `bun run knip`         | Report unused files and dependencies       |
+| `bun run check`        | Types, lint, format, unused code (CI-safe) |
 
 `bun run check` never modifies files.
 

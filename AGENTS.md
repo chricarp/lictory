@@ -534,7 +534,11 @@ A group of people who deliver work together. A team owns its workflow, enabled
 work item types, estimate scale, iterations, board, delivery mode and readiness
 policy.
 
-A team is not a permission boundary. Roles grant capabilities.
+A team is not an access-visibility boundary. Roles grant capabilities.
+Organization administrators associate a team with one or more projects. Project
+configuration roles apply to associated teams; local roles remain bounded by
+permission ceilings delegated from above. Shared team configuration affects every
+associated project.
 
 Work items belong to exactly one project (identity: `PAY-142`) and one team
 (delivery). Moving an item between teams never changes its identifier.
@@ -1272,6 +1276,11 @@ Avoid documentation that merely lists files, classes, endpoints, or fields.
 
 Those become stale quickly.
 
+Durable concepts go in `docs/internals/`; setup, deployment and migration
+runbooks go in `docs/operations/`. Add new documents to the index in
+`docs/README.md`. Contribution rules live in `CONTRIBUTING.md`; the local
+development and verification runbook is `docs/operations/development.md`.
+
 ---
 
 # Plans and temporary work
@@ -1473,8 +1482,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Implemented synchronization boundary
 
-Read [the synchronization architecture](docs/synchronization.md) and
-[the delivery model](docs/delivery.md) before adding domain
+Read [the synchronization architecture](docs/internals/synchronization.md),
+[the delivery model](docs/internals/delivery.md) and
+[the capability layer](docs/internals/capabilities.md) before adding domain
 writes or synchronized entities. All workspace commands must preserve the shared
 organization transaction lock, domain/change-log/receipt atomicity, scope-local
 checkpoints, Better Auth membership checks, and immutable revision semantics.

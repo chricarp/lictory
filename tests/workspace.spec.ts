@@ -1,4 +1,10 @@
-import { test, expect, type Page } from "@playwright/test";
+import {
+  test,
+  expect,
+  type APIResponse,
+  type Page,
+  type Request,
+} from "@playwright/test";
 import { consentStatePath } from "./consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
@@ -100,7 +106,10 @@ test("an existing member can create and switch to another organization", async (
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
-  await expect(page).toHaveURL(new RegExp(`${firstOrganization}/one/epics$`));
+  // Switching organizations lands on Lictory Intelligence, the home page.
+  await expect(page).toHaveURL(
+    new RegExp(`${firstOrganization}/intelligence$`),
+  );
 });
 async function signIn(page: Page, loginEmail = email) {
   await page.goto("/sign-in");
@@ -192,7 +201,7 @@ test("appearance preference applies immediately, persists, and follows the syste
   await reset;
 });
 
-test("navigation commits immediately and shows a loading state while the server responds", async ({
+test("prefetched navigation commits immediately and shows a loading state while the server responds", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -205,6 +214,31 @@ test("navigation commits immediately and shows a loading state while the server 
   await page.getByLabel("Project name").fill("Loading project");
   await page.getByLabel("Key", { exact: true }).fill("LDS");
   await configureFirstProject(page);
+  // Observe prefetch before the Board link mounts. The route-tree probe alone
+  // does not contain the loading UI needed to commit a pending navigation.
+  const isBoardPrefetch = (request: Request) => {
+    const headers = request.headers();
+    return (
+      new URL(request.url()).pathname.endsWith("/board") &&
+      headers["next-router-prefetch"] === "1" &&
+      !headers["next-router-segment-prefetch"]
+    );
+  };
+  // Buffer prefetch so completion is observable even if the browser would
+  // otherwise leave the RSC stream open after consuming its loading UI.
+  let prefetchDelivered!: (response: APIResponse) => void;
+  const boardPrefetch = new Promise<APIResponse>(
+    (resolve) => (prefetchDelivered = resolve),
+  );
+  await page.route("**/app/**", async (route) => {
+    if (isBoardPrefetch(route.request())) {
+      const response = await route.fetch();
+      await route.fulfill({ response });
+      prefetchDelivered(response);
+    } else {
+      await route.continue();
+    }
+  });
   await page
     .getByRole("button", { name: "Create project", exact: true })
     .click();
@@ -212,9 +246,10 @@ test("navigation commits immediately and shows a loading state while the server 
   const rail = page.getByRole("navigation", { name: "Workspace" });
   const board = rail.getByRole("link", { name: "Board", exact: true });
   await expect(board).toBeVisible();
-  // Prefetch can stop at the organization boundary or the team boundary.
-  // Both fallbacks acknowledge navigation while the board render is pending.
-  await page.waitForLoadState("networkidle");
+  // Hover prioritizes prefetch; network idle does not prove it has completed.
+  await board.hover();
+  expect((await boardPrefetch).ok()).toBe(true);
+  await page.unroute("**/app/**");
   let release!: () => void;
   let navigationHeld = false;
   const slowServer = new Promise<void>((resolve) => (release = resolve));

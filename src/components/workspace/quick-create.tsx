@@ -43,10 +43,14 @@ export function QuickCreate({
     options.projectId ?? projects[0]?.id,
   );
   const project = projects.find((p) => p.id === projectId);
-  const activeTeams = [...delivery.teams.values()].filter((t) => !t.archivedAt);
+  const activeTeams = [...delivery.teams.values()].filter(
+    (t) =>
+      !t.archivedAt &&
+      (!t.projectIds || t.projectIds.includes(projectId ?? "")),
+  );
   const [teamId, setTeamId] = useState(options.teamId);
   const team =
-    delivery.teams.get(teamId ?? project?.defaultTeamId ?? "") ??
+    activeTeams.find((t) => t.id === (teamId ?? project?.defaultTeamId)) ??
     activeTeams[0];
   const types = enabledTypes(delivery, team);
   const [typeId, setTypeId] = useState(options.typeId);
@@ -225,6 +229,7 @@ export function QuickCreate({
                 value={projectId}
                 onSelect={(id) => {
                   setProjectId(id);
+                  setTeamId(undefined);
                   setParentId(null);
                 }}
               />

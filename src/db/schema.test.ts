@@ -710,3 +710,74 @@ void test("a work item's status must belong to its team and only one iteration i
     "23514",
   );
 });
+
+void test("delegation migration preserves shared teams and discovers all project associations", async () => {
+  const name = `lictory_configuration_upgrade_${crypto.randomUUID().replaceAll("-", "")}`;
+  const upgradeUrl = new URL(adminUrl);
+  upgradeUrl.pathname = `/${name}`;
+  await admin`CREATE DATABASE ${admin(name)}`;
+  const upgradeClient = postgres(upgradeUrl.toString(), {
+    max: 1,
+    onnotice: () => undefined,
+  });
+  const baseline = await mkdtemp(join(tmpdir(), "lictory-config-upgrade-"));
+  try {
+    await mkdir(join(baseline, "meta"));
+    const journal = JSON.parse(
+      await readFile("drizzle/meta/_journal.json", "utf8"),
+    ) as { entries: { idx: number; tag: string }[] };
+    journal.entries = journal.entries.filter((e) => e.idx < 7);
+    await writeFile(
+      join(baseline, "meta/_journal.json"),
+      JSON.stringify(journal),
+    );
+    for (const entry of journal.entries)
+      await copyFile(
+        `drizzle/${entry.tag}.sql`,
+        join(baseline, `${entry.tag}.sql`),
+      );
+    const upgradeDb = drizzle(upgradeClient, { schema: s });
+    await migrate(upgradeDb, { migrationsFolder: baseline });
+    await upgradeClient`INSERT INTO "user" (id, name, email) VALUES ('upgrade-user', 'Upgrade owner', 'config-upgrade@example.test')`;
+    await upgradeClient`INSERT INTO organization (id, name, slug, created_at) VALUES ('upgrade-org', 'Shared organization', 'shared-upgrade', now())`;
+    await upgradeClient`INSERT INTO team (id, organization_id, name) VALUES ('shared-team', 'upgrade-org', 'Shared team'), ('unused-team', 'upgrade-org', 'Unused team')`;
+    await upgradeClient`INSERT INTO project (id, organization_id, name, slug, key, created_by_id, default_team_id) VALUES ('project-a', 'upgrade-org', 'Payments', 'pay', 'PAY', 'upgrade-user', 'shared-team'), ('project-b', 'upgrade-org', 'Platform', 'plt', 'PLT', 'upgrade-user', 'shared-team')`;
+    await upgradeClient`INSERT INTO workflow_status (id, organization_id, team_id, name, color, category, position) VALUES ('shared-status', 'upgrade-org', 'shared-team', 'Working', 'blue', 'started', 0)`;
+    await upgradeClient`INSERT INTO iteration (id, organization_id, team_id, number, name, state, starts_at, ends_at, started_at, completed_at, summary) VALUES ('shared-iteration', 'upgrade-org', 'shared-team', 1, 'Completed shared sprint', 'completed', '2026-09-01', '2026-09-15', '2026-09-01', '2026-09-15', '{"frozen":"preserved"}'::jsonb)`;
+    const before = await upgradeClient`SELECT * FROM team ORDER BY id`;
+    const beforeIteration = await upgradeClient`SELECT * FROM iteration`;
+    await migrate(upgradeDb, { migrationsFolder: "drizzle" });
+    assert.deepEqual(
+      await upgradeClient`SELECT * FROM team ORDER BY id`,
+      before,
+    );
+    assert.deepEqual(
+      await upgradeClient`SELECT * FROM iteration`,
+      beforeIteration,
+    );
+    assert.deepEqual(
+      (await upgradeDb.select().from(s.teamProject))
+        .map((p) => [p.teamId, p.projectId])
+        .sort(),
+      [
+        ["shared-team", "project-a"],
+        ["shared-team", "project-b"],
+      ],
+    );
+    assert.equal(
+      (await upgradeDb.select().from(s.workflowStatus))[0]!.id,
+      "shared-status",
+    );
+    await assert.rejects(
+      upgradeDb.insert(s.teamProject).values({
+        organizationId: "upgrade-org",
+        teamId: "unused-team",
+        projectId: "foreign-project",
+      }),
+    );
+  } finally {
+    await upgradeClient.end();
+    await admin`DROP DATABASE ${admin(name)} WITH (FORCE)`;
+    await rm(baseline, { recursive: true, force: true });
+  }
+});

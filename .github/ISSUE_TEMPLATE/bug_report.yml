@@ -1,0 +1,116 @@
+name: Bug report
+description: Something is broken, regressed, lost data or behaves differently from the documented behavior.
+title: "[Bug]: "
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One problem per issue. Search existing issues first.
+        Security problems belong in a private advisory, not here.
+        Redact secrets, tokens and other people's data.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and found no duplicate.
+          required: true
+        - label: This report contains no secrets or customer data.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Proposals and specifications (editing, revisions, diffs)
+        - Review (threads, suggestions, approvals)
+        - Readiness checks and decisions
+        - Native delivery (board, backlog, iterations, estimates)
+        - External delivery (Jira or other providers)
+        - Synchronization and realtime
+        - Lictory AI
+        - Notifications and email
+        - Accounts, organizations, invitations and permissions
+        - Files and storage
+        - Build, CI, migrations or deployment
+        - Docs
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: delivery-mode
+    attributes:
+      label: Delivery mode
+      options:
+        - Native (delivered in Lictory)
+        - External (Jira or another provider)
+        - Not applicable
+        - Not sure
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: A minimal, deterministic sequence. Mention roles (e.g. Product Owner, reviewer) when more than one person is involved.
+      placeholder: |
+        1. As a Product Owner, create a proposal and request Engineering review
+        2. As an engineer, approve revision 3
+        3. As the Product Owner, edit the acceptance criteria
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: Engineering approval is marked as needing review on revision 4.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: The approval still shows as valid and readiness reports Ready.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - Data loss, wrong approval or readiness state, or access to data I should not see
+        - Blocks work completely
+        - Major degradation or frequent failure
+        - Minor bug or occasional failure
+        - Cosmetic
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Hosted or self-hosted, commit if known, browser and OS.
+      placeholder: main @ abc1234, Chrome 141, macOS 26
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: The most relevant output only, redacted.
+      render: shell
+
+  - type: upload
+    id: attachments
+    attributes:
+      label: Screenshots or recordings
+    validations:
+      required: false

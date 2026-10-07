@@ -641,3 +641,164 @@ void test("publication observers fire once at settlement, survive observer failu
   await f.service.processPending();
   assert.equal(completed.length, 2);
 });
+
+void test("delegated integration managers change only their team's encrypted credentials and targets", async () => {
+  const f = await fixture();
+  const dir = await directory(db, f.userId, f.organizationId);
+  const teamId = dir.teams[0]!.id;
+  const command = (command: Command, actor = f.userId) =>
+    sync.mutate(actor, {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      command,
+    });
+  const roleId = crypto.randomUUID();
+  await command({
+    type: "createConfigurationRole",
+    roleId,
+    name: "Project integrations",
+    scope: "project",
+    permissions: ["integrations"],
+  });
+  await command({
+    type: "setConfigurationAssignment",
+    roleId,
+    userId: f.reviewerId,
+    scope: "project",
+    scopeId: f.projectId,
+    assigned: true,
+  });
+  const input = {
+    organizationId: f.organizationId,
+    teamId,
+    name: "Team Jira",
+    baseUrl: "https://acme.atlassian.net",
+    email: "local@acme.test",
+    apiToken: "local-secret-token",
+  };
+  const { connectionId } = await f.service.connect(f.reviewerId, input);
+  assert.notEqual(connectionId, f.connectionId);
+  const row = (
+    await db
+      .select()
+      .from(s.deliveryConnection)
+      .where(eq(s.deliveryConnection.id, connectionId))
+  )[0]!;
+  assert.equal(row.teamId, teamId);
+  assert.ok(!row.encryptedCredential.includes(input.apiToken));
+  assert.equal(
+    (
+      await f.service.connect(f.reviewerId, {
+        ...input,
+        apiToken: "replacement-secret-token",
+      })
+    ).connectionId,
+    connectionId,
+  );
+  await f.service.listProjects(f.reviewerId, f.organizationId, connectionId);
+  await f.service.setTarget(f.reviewerId, {
+    organizationId: f.organizationId,
+    teamId,
+    connectionId,
+    projectKey: "EXT",
+    typeMapping: { [f.types.Story]: "story" },
+  });
+  await assert.rejects(
+    f.service.disconnect(f.reviewerId, f.organizationId, f.connectionId),
+    /administrator/,
+  );
+  await assert.rejects(
+    f.service.connect(f.reviewerId, { ...input, teamId: null }),
+    /administrator/,
+  );
+  await assert.rejects(
+    f.service.setTarget(f.reviewerId, {
+      organizationId: f.organizationId,
+      teamId: null,
+      connectionId,
+      projectKey: "EXT",
+      typeMapping: {},
+    }),
+    /administrator/,
+  );
+  const anotherProjectId = crypto.randomUUID();
+  await command({
+    type: "createProject",
+    projectId: anotherProjectId,
+    name: "Other",
+    key: "OTHER",
+  });
+  const otherTeamId = (
+    await directory(db, f.userId, f.organizationId)
+  ).projects.find((p) => p.id === anotherProjectId)!.defaultTeamId!;
+  await assert.rejects(
+    f.service.connect(f.reviewerId, { ...input, teamId: otherTeamId }),
+    /administrator/,
+  );
+  await assert.rejects(
+    f.service.setTarget(f.userId, {
+      organizationId: f.organizationId,
+      teamId: otherTeamId,
+      connectionId,
+      projectKey: "EXT",
+      typeMapping: {},
+    }),
+    /another team/,
+  );
+  const currentDirectory = await directory(db, f.reviewerId, f.organizationId);
+  assert.equal(
+    currentDirectory.delivery.connections.find((c) => c.id === connectionId)
+      ?.teamId,
+    teamId,
+  );
+  assert.ok(!JSON.stringify(currentDirectory).includes(input.apiToken));
+  const audit = await db
+    .select()
+    .from(s.configurationAudit)
+    .where(eq(s.configurationAudit.organizationId, f.organizationId));
+  assert.ok(
+    audit.some(
+      (a) => a.actorId === f.reviewerId && a.action === "connectDelivery",
+    ),
+  );
+  assert.ok(!JSON.stringify(audit).includes("secret-token"));
+  // Network verification must not commit after the authority is revoked mid-call.
+  const gated = createDeliveryService(db, {
+    providers: {
+      jira_cloud: {
+        ...f.fake.provider,
+        verify: async (connection) => {
+          await command({
+            type: "updateConfigurationRole",
+            roleId,
+            permissions: [],
+          });
+          return f.fake.provider.verify(connection);
+        },
+      },
+    },
+  });
+  await assert.rejects(
+    gated.connect(f.reviewerId, {
+      ...input,
+      apiToken: "revoked-during-verify",
+    }),
+    /administrator/,
+  );
+  assert.ok(
+    !JSON.stringify(
+      await db
+        .select()
+        .from(s.configurationAudit)
+        .where(eq(s.configurationAudit.organizationId, f.organizationId)),
+    ).includes("revoked-during-verify"),
+  );
+  await command({
+    type: "updateConfigurationRole",
+    roleId,
+    permissions: ["integrations"],
+  });
+  await f.service.removeTarget(f.reviewerId, f.organizationId, teamId);
+  await f.service.disconnect(f.reviewerId, f.organizationId, connectionId);
+});

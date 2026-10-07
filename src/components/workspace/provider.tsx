@@ -247,9 +247,14 @@ export function WorkspaceProvider({
       .filter((p) => !p.archivedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
     const merged = projects.length ? projects : directory.projects;
+    // Name and branding follow the live directory, so a change made elsewhere
+    // appears without a reload. Access still comes from the server render.
+    const live = directory.organizations.find((o) => o.id === organization.id);
     return {
       userId,
-      organization,
+      organization: live
+        ? { ...organization, name: live.name, logos: live.logos }
+        : organization,
       engine,
       view,
       directory,

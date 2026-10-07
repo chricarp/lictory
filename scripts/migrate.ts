@@ -1,6 +1,6 @@
 // The only supported way to apply committed migrations to any database.
 // Usage: bun scripts/migrate.ts [--status]
-// See docs/migrations.md for the environment contract.
+// See docs/operations/migrations.md for the environment contract.
 import "dotenv/config";
 
 import { readFile } from "node:fs/promises";

@@ -33,6 +33,10 @@ import { TypeIcon } from "~/components/items/icons";
 import { useItem } from "~/components/items/item-context";
 import { CheckIcon, duration, type CheckState } from "./flow-ui";
 import { useWorkspace } from "~/components/workspace/provider";
+import {
+  ContextCitations,
+  GroundedIn,
+} from "~/components/intelligence/citations";
 
 type Run = EntityOf<"aiRun">;
 
@@ -463,6 +467,7 @@ export function AiReviewView({
           )}
         </div>
       </header>
+      <GroundedIn context={run.intelligenceContext} />
       {run.staleAt && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px]">
           <AlertTriangle className="size-4 text-amber-600" />
@@ -679,7 +684,7 @@ export function FindingCard({
     <article
       className={cn(
         "rounded-lg border bg-card p-3.5 transition-colors duration-100",
-        selected && "border-primary/50 bg-primary/[0.03]",
+        selected && "border-primary/50 bg-primary/3",
       )}
     >
       <div className="flex items-start gap-2.5">
@@ -729,6 +734,7 @@ export function FindingCard({
               {f.recommendation}
             </p>
           )}
+          <ContextCitations context={f.context} />
           {f.edit && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">
@@ -926,7 +932,7 @@ export function ActionChecksPanel({
         <div className="grid overflow-hidden rounded-lg border md:grid-cols-[220px_minmax(0,1fr)]">
           <ol
             aria-label="Runs"
-            className="max-h-[520px] overflow-y-auto border-b bg-muted/20 md:border-r md:border-b-0"
+            className="max-h-130 overflow-y-auto border-b bg-muted/20 md:border-r md:border-b-0"
           >
             {runs.map((r) => {
               const active = r.id === selected?.id;
@@ -1077,6 +1083,7 @@ function RunDetail({
           <p className="text-[13px] leading-5">{r.summary}</p>
         </section>
       )}
+      <GroundedIn context={r.intelligenceContext} />
       {r.strengths.length > 0 && (
         <section className="space-y-1">
           <SectionLabel>What the change gets right</SectionLabel>

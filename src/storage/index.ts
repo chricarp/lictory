@@ -5,7 +5,9 @@ import { s3Storage, type ObjectStorage } from "./s3";
 export type { ObjectStorage } from "./s3";
 export { s3Storage } from "./s3";
 
-export class StorageConfigurationError extends Error {}
+import { StorageConfigurationError } from "./errors";
+
+export { StorageConfigurationError };
 
 let configured: ObjectStorage | undefined;
 export function storage(): ObjectStorage {
