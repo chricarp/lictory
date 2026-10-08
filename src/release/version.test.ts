@@ -1,167 +1,214 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  rm,
-  copyFile,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
-import { promisify } from "node:util";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
-  nextVersion,
-  parseVersion,
-  prepareChangelog,
-  releaseNotes,
+  assertBuildVersion,
+  conventionalTitle,
+  nightlyVersion,
+  parseNightly,
+  predictedStable,
 } from "./version";
+import { changelog, manifestSchema, sameManifest } from "./model";
+import { injectVersion } from "./build";
+import {
+  GitHubFixture,
+  change,
+  nightly,
+  stable,
+  shaA,
+} from "./fixtures.test-helper";
 
-const changelog =
-  "# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- Recover interrupted exports.\n\n## [1.2.3] - 2026-09-01\n\n- Earlier release.\n";
-
-for (const [kind, expected] of [
-  ["major", "2.0.0"],
-  ["minor", "1.3.0"],
-  ["patch", "1.2.4"],
-  ["hotfix", "1.2.4"],
-] as const) {
-  void test(`${kind} release from 1.2.3 becomes ${expected}`, () => {
-    assert.equal(nextVersion("1.2.3", kind), expected);
+for (const [title, expected] of [
+  ["feat: add offline editing", "1.5.0"],
+  ["feat(auth): add SSO", "1.5.0"],
+  ["fix(editor): preserve unsaved text", "1.4.3"],
+  ["perf(search): reduce latency", "1.4.3"],
+  ["feat(api)!: replace authentication", "2.0.0"],
+  ["fix!: change a public contract", "2.0.0"],
+  ["chore(deps): update packages", "1.4.2"],
+  ["docs!: change supported operations", "2.0.0"],
+] as const)
+  void test(`${title} predicts ${expected}`, () => {
+    assert.equal(predictedStable("1.4.2", [title]).version, expected);
   });
-}
 
-void test("initial development follows the same numbering rules", () => {
-  assert.equal(nextVersion("0.1.0", "minor"), "0.2.0");
-  assert.equal(nextVersion("0.1.0", "major"), "1.0.0");
-});
-
-for (const version of [
-  "1.2",
-  "v1.2.3",
-  "01.2.3",
-  "1.2.3-beta.1",
-  "1.2.3+build",
-  "-1.2.3",
-  "9007199254740992.0.0",
-]) {
-  void test(`rejects unsupported version ${version}`, () => {
-    assert.throws(() => parseVersion(version));
-  });
-}
-
-void test("rejects unknown release kinds and numeric overflow", () => {
-  assert.throws(() => nextVersion("1.2.3", "feature"), /Choose/);
-  assert.throws(
-    () => nextVersion("9007199254740991.0.0", "major"),
-    /safe integers/,
-  );
-});
-
-void test("preparation moves pending notes into the new release and preserves history", () => {
-  const prepared = prepareChangelog(changelog, "1.2.4", "2026-10-08");
-  assert.ok(prepared.includes("## [Unreleased]\n\n## [1.2.4] - 2026-10-08"));
+void test("all PRs are combined once, with breaking changes before features before fixes", () => {
+  const titles = [
+    "feat: add search",
+    "feat: add export",
+    "fix: fix a crash",
+    "fix: recover",
+    "perf: speed up searches",
+  ];
+  assert.equal(predictedStable("1.4.2", titles).version, "1.5.0");
   assert.equal(
-    prepared.split("## [1.2.3]")[1],
-    changelog.split("## [1.2.3]")[1],
+    predictedStable("1.4.2", [...titles, "refactor!: change the API"]).version,
+    "2.0.0",
   );
-  assert.equal(
-    releaseNotes("1.2.4", "v1.2.4", prepared),
-    "### Fixed\n\n- Recover interrupted exports.",
-  );
-  assert.throws(
-    () => prepareChangelog(prepared, "1.2.5", "2026-10-08"),
-    /release notes/,
-  );
-});
-
-void test("requires notes and refuses duplicate release entries", () => {
-  assert.throws(
-    () =>
-      prepareChangelog("## [Unreleased]\n\n### Added\n", "1.2.4", "2026-10-08"),
-    /release notes/,
-  );
-  assert.throws(
-    () => prepareChangelog(changelog, "1.2.3", "2026-10-08"),
-    /already contains/,
-  );
-  assert.throws(
-    () =>
-      prepareChangelog(
-        `${changelog}\n## [Unreleased]\n- Duplicate`,
-        "1.2.4",
-        "2026-10-08",
-      ),
-    /exactly one/,
-  );
-});
-
-void test("a deployment requires a matching tag and dated, nonempty release notes", () => {
-  assert.throws(() => releaseNotes("1.2.3", "v1.2.4", changelog), /must match/);
-  assert.throws(
-    () => releaseNotes("1.2.4", "v1.2.4", changelog),
-    /dated changelog/,
-  );
-  assert.throws(
-    () => releaseNotes("1.2.3", "v1.2.3", "## [1.2.3] - 2026-10-08\n"),
-    /release notes/,
-  );
-  assert.throws(
-    () =>
-      releaseNotes(
-        "1.2.3",
-        "v1.2.3",
-        `${changelog}\n## [1.2.3] - 2026-10-08\n- Duplicate`,
-      ),
-    /dated changelog/,
-  );
-});
-
-void test("release commands prepare and validate without publishing or changing other package fields", async () => {
-  const root = await mkdtemp(join(tmpdir(), "lictory-release-"));
-  try {
-    await mkdir(join(root, "scripts"));
-    await mkdir(join(root, "src/release"), { recursive: true });
-    for (const path of [
-      "scripts/prepare-release.ts",
-      "scripts/check-release.ts",
-      "src/release/version.ts",
-    ]) {
-      await copyFile(
-        new URL(`../../${path}`, import.meta.url),
-        join(root, path),
-      );
-    }
-    const original = `${JSON.stringify({ name: "lictory", version: "1.2.3", private: true }, null, 2)}\n`;
-    await writeFile(join(root, "package.json"), original);
-    await writeFile(join(root, "CHANGELOG.md"), changelog);
-    const run = (script: string, ...args: string[]) =>
-      promisify(execFile)("bun", [join(root, "scripts", script), ...args]);
-
-    await run("prepare-release.ts", "hotfix", "--dry-run");
-    assert.equal(await readFile(join(root, "package.json"), "utf8"), original);
-    assert.equal(await readFile(join(root, "CHANGELOG.md"), "utf8"), changelog);
-    await assert.rejects(
-      run("prepare-release.ts", "hotfix", "--unknown"),
-      /Usage/,
-    );
-    await run("prepare-release.ts", "hotfix");
-    assert.deepEqual(
-      JSON.parse(await readFile(join(root, "package.json"), "utf8")),
-      { name: "lictory", version: "1.2.4", private: true },
-    );
-    await assert.rejects(run("check-release.ts", "v1.2.3"), /must match/);
-    const checked = await run("check-release.ts", "v1.2.4");
+  for (const type of [
+    "docs",
+    "chore",
+    "ci",
+    "test",
+    "refactor",
+    "style",
+    "build",
+  ])
     assert.equal(
-      checked.stdout.trim(),
-      "### Fixed\n\n- Recover interrupted exports.",
+      predictedStable("1.4.2", [`${type}: internal maintenance`]).version,
+      "1.4.2",
     );
-    const prepared = await readFile(join(root, "CHANGELOG.md"), "utf8");
-    await assert.rejects(run("prepare-release.ts", "patch"), /release notes/);
-    assert.equal(await readFile(join(root, "CHANGELOG.md"), "utf8"), prepared);
+});
+
+void test("pre-1.0 breaking changes advance the minor train and reset its patch", () => {
+  assert.equal(
+    predictedStable("0.4.9", ["feat!: replace API"]).version,
+    "0.5.0",
+  );
+  assert.equal(
+    predictedStable("0.0.3", ["fix!: incompatible fix"]).version,
+    "0.1.0",
+  );
+});
+
+void test("SemVer core arithmetic never rounds large numeric identifiers", () => {
+  assert.equal(
+    predictedStable("9007199254740992.3.4", ["feat!: change contract"]).version,
+    "9007199254740993.0.0",
+  );
+});
+
+void test("a reviewed breaking stable-API declaration graduates 0.x without a manual version bump", () => {
+  assert.equal(
+    predictedStable(
+      "0.4.9",
+      ["feat(api)!: declare the public contract stable"],
+      true,
+    ).version,
+    "1.0.0",
+  );
+  assert.throws(
+    () => predictedStable("0.4.9", ["feat: add a feature"], true),
+    /breaking/,
+  );
+});
+
+void test("nightly notes compare to the prior nightly while stable notes include every unreleased PR", () => {
+  const candidate = nightly();
+  const addedFix = change("fix(editor): recover drafts", "c".repeat(40), 2);
+  candidate.changes.push(addedFix);
+  candidate.nightlyNotes = {
+    tag: "v1.5.0-nightly.20261008.141",
+    sha: candidate.sha,
+    changes: [addedFix],
+  };
+  const notes = changelog(candidate);
+  assert.match(notes, /recover drafts/);
+  assert.doesNotMatch(notes, /keep editing offline/);
+  assert.match(notes, /20261008\.141\.\.\./);
+  assert.match(changelog(stable(candidate)), /keep editing offline/);
+});
+
+void test("multiple nightlies preview one stable version and remain unique on retries", () => {
+  const version = predictedStable("1.4.2", ["feat: add search"]).version;
+  const first = nightlyVersion(version, "2026-10-08T01:00:00Z", 142);
+  const second = nightlyVersion(version, "2026-10-08T02:00:00Z", 143);
+  assert.notEqual(first, second);
+  assert.equal(parseNightly(first).stable, "1.5.0");
+  assert.equal(parseNightly(second).stable, "1.5.0");
+  assert.equal(nightlyVersion(version, "2026-10-08T01:00:00Z", 142), first);
+  for (const invalid of [
+    "1.5.0",
+    "1.5.0-nightly.20260230.1",
+    "1.5.0-nightly.20261008.01",
+    "01.5.0-nightly.20261008.1",
+    "1.5.0-beta.1",
+  ])
+    assert.throws(() => parseNightly(invalid));
+  assert.throws(() => conventionalTitle("Add search"));
+  assert.throws(() => conventionalTitle("feat: "));
+  assert.throws(() => assertBuildVersion("1.5.0+unknown"));
+});
+
+void test("changelogs use reviewed PR summaries, categories, and the stable baseline", () => {
+  const manifest = nightly();
+  manifest.changes = [
+    change("feat(search): search decisions"),
+    {
+      ...change("fix(editor): preserve text", "c".repeat(40), 2),
+      notes: "Unsaved edits now survive reconnects.",
+    },
+    change("feat(api)!: replace auth", "d".repeat(40), 3),
+  ];
+  const notes = changelog(stable(manifest));
+  assert.match(notes, /### Breaking changes/);
+  assert.match(notes, /### Added/);
+  assert.match(notes, /### Fixed/);
+  assert.match(notes, /Unsaved edits now survive reconnects/);
+  assert.ok(notes.includes(`${shaA}...${manifest.sha}`));
+  assert.match(notes, /pull\/2/);
+  assert.doesNotMatch(notes, /fix\(editor\):/);
+});
+
+void test("release manifests cannot conceal channel, source, or version collisions", () => {
+  const manifest = nightly();
+  assert.throws(() => manifestSchema.parse({ ...manifest, version: "1.5.0" }));
+  assert.throws(() =>
+    manifestSchema.parse({ ...stable(manifest), sourceNightly: null }),
+  );
+  assert.throws(
+    () => sameManifest(manifest, { ...manifest, sha: shaA }),
+    /collision/,
+  );
+});
+
+void test("nightly and stable version injection keeps build manifests consistent without altering scripts", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lictory-build-version-"));
+  try {
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({
+        name: "lictory",
+        version: "0.1.0",
+        scripts: { build: "next build" },
+      }),
+    );
+    for (const version of ["1.5.0-nightly.20261008.142", "1.5.0"]) {
+      await injectVersion(root, version);
+      const manifest = JSON.parse(
+        await readFile(join(root, "package.json"), "utf8"),
+      ) as { version: string; scripts: unknown };
+      assert.equal(manifest.version, version);
+      assert.deepEqual(manifest.scripts, { build: "next build" });
+    }
+    await assert.rejects(injectVersion(root, "1.5.0-preview.1"));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+void test("tag and release publication are idempotent and never overwrite another source", async () => {
+  const fixture = new GitHubFixture();
+  const candidate = nightly();
+  await fixture.github.publish(candidate);
+  assert.equal(fixture.releases.length, 1);
+  assert.equal(fixture.releases[0]!.prerelease, true);
+  assert.equal(fixture.latestTag, undefined);
+  const writes = fixture.writes.length;
+  await fixture.github.publish(candidate);
+  assert.equal(fixture.writes.length, writes);
+  await assert.rejects(
+    fixture.github.reserve({ ...candidate, sha: shaA }),
+    /collision/,
+  );
+  const production = stable(candidate);
+  await fixture.github.publish(production);
+  assert.equal(fixture.latestTag, "v1.5.0");
+  await assert.rejects(
+    fixture.github.reserve({ ...production, sha: shaA }),
+    /collision/,
+  );
+  assert.equal(fixture.tags.get(candidate.tag), candidate.sha);
 });

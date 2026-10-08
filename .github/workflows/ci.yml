@@ -1,12 +1,18 @@
 name: CI
 
-# Main and pull requests are verified independently of explicit releases.
-# "Deploy production" also calls this workflow for the exact release tag.
+# Release callers verify the exact candidate source, with its embedded version.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ""
+      release_version:
+        type: string
+        default: ""
   workflow_dispatch:
 
 permissions:
@@ -14,7 +20,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ inputs.ref == '' }}
 
 jobs:
   verify:
@@ -47,10 +53,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: package.json
+      - name: Embed the selected release version
+        if: inputs.release_version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: bun scripts/inject-release-version.ts "$RELEASE_VERSION"
       - run: bun install --frozen-lockfile
       - name: High and critical dependency vulnerabilities
         run: bun audit --audit-level=high

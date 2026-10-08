@@ -6,6 +6,7 @@ export const migrationTargets = [
   "test",
   "preview",
   "staging",
+  "nightly",
   "production",
 ] as const;
 export type MigrationTarget = (typeof migrationTargets)[number];
@@ -37,7 +38,7 @@ function value(env: MigrationEnvironment, name: string) {
  *
  * - local/test may fall back to the runtime variables but only for loopback or
  *   Compose hosts.
- * - preview/staging/production require DATABASE_MIGRATION_URL plus a matching
+ * - preview/staging/nightly/production require DATABASE_MIGRATION_URL plus a matching
  *   non-secret DATABASE_MIGRATION_EXPECTED_HOST, and a direct (unpooled) TLS
  *   connection. Swapping a secret between environments therefore fails closed.
  */
@@ -46,7 +47,7 @@ export function resolveMigrationConnection(
 ): ResolvedMigrationConnection {
   if (value(env, "VERCEL")) {
     throw new MigrationConfigurationError(
-      "Migrations never run inside Vercel builds or functions. Production migrations run in the Deploy production workflow.",
+      "Migrations never run inside Vercel builds or functions. Production migrations run in Release to Production.",
     );
   }
   const declared = value(env, "DATABASE_MIGRATION_TARGET") ?? "local";

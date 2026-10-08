@@ -49,18 +49,21 @@ automatically merge changes to authentication, migrations or synchronization.
 Keep Actions spending capped at zero and monitor included minutes. Hosted Linux
 CI and the hourly job consume the private repository's included allowance.
 Branch protection for a private personal repository may require GitHub Pro.
-Once available, require `Verify`, prohibit force pushes and require PR review
+Once available, require `Verify` and `Conventional PR title`, prohibit force pushes and require PR review
 when another maintainer joins. Keep the repository private.
 
-Production deploys only from explicit version tags through **Deploy production**,
-which validates the version and release notes, runs CI, builds on
-Vercel without assigning domains, applies migrations and then promotes the build.
+Production deploys only through the manually dispatched **Release to Production**.
+It selects a verified Nightly source, validates its provenance and semantic
+version, runs CI on that source, builds with production settings without assigning
+domains, applies migrations and then promotes the build. Git tag pushes cannot
+activate production. Automatic Nightly releases use a separate Vercel project,
+database, credentials and `nightly.lictory.com` domain.
 `vercel.json` disables Vercel's Git deployments for `main`; previews of other
 branches still deploy automatically.
 
-See [versions and releases](releases.md) for preparing major, minor, patch and
-hotfix releases and publishing their tags. Merging to `main` does not deploy
-production.
+See [versions and releases](releases.md) for PR-driven versions, automatic
+nightlies, stable promotion, one-time configuration and hotfixes. Merging to
+`main` does not deploy production.
 
 ## Migrations and recovery
 

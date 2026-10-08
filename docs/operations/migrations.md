@@ -53,7 +53,7 @@ preview that needs new schema fails rather than touching another environment.
    schema has uncommitted changes), `bun run db:test` and `bun test src`
    (each test database applies the full history).
 5. **Commit** the SQL and `drizzle/meta` together with the code using it.
-6. **Merge**. CI verifies. The next explicitly tagged production release applies
+6. **Merge**. CI verifies. The next manually selected stable release applies
    the migration.
 
 Never edit, reorder, or delete a migration that has reached main. The runner
@@ -66,20 +66,24 @@ silently; regenerate such a migration on top of main.
 
 ## Production rollout
 
-`Deploy production` (`.github/workflows/deploy-production.yml`) runs when an
-explicit version tag is pushed. Every step uses that same tagged commit; see
-[versions and releases](releases.md) for preparation and hotfixes.
+`Release to Production` (`.github/workflows/deploy-production.yml`) runs when a
+maintainer selects a verified nightly in GitHub Actions. Every application and
+migration step uses that nightly's exact SHA, never the current main HEAD; see
+[versions and releases](releases.md).
 
-1. **Validate and verify**: matching version and release notes, then the full CI
+1. **Validate and verify**: matching nightly provenance and predicted stable version, then the full CI
    workflow, including `db:check`.
 2. **Build**: `vercel deploy --prod --skip-domain` builds the release without
    serving production traffic.
-3. **Migrate**: `migrate.yml` against the `production` GitHub environment.
+3. **Migrate**: the existing `scripts/migrate.ts` runner against the protected
+   `production` environment, from that exact source checkout.
 4. **Promote**: `vercel promote` points production domains at the build.
 
-A failure at any step leaves the previous version serving. Releases are
-serialized by the `production-deploy` concurrency group; migrations by a
-per-environment concurrency group and a PostgreSQL advisory lock, so even a
+A failed verification, build or migration leaves the previous version serving.
+Publication failure after activation is repaired without reactivation. Releases
+and manual production migration recovery share the retained
+`lictory-production-release` concurrency queue; the runner also uses a
+PostgreSQL advisory lock, so even a
 manual run cannot overlap. All pending migrations apply in one transaction with
 `lock_timeout` (default `10s`) and `statement_timeout` (default `10min`): either
 all commit or none do. Override with `MIGRATION_LOCK_TIMEOUT` and
@@ -102,19 +106,27 @@ must therefore be backward compatible with the version currently in production
 Recovery: rely on Neon point-in-time restore (check the plan's history
 retention) and practice restoring into a separate branch. To retry a failed
 migration after fixing it in a new commit, merge the fix; to re-run without code
-changes, dispatch **Database migrations** with `production`.
+changes, dispatch **Database migrations** on `main` with `production` and the
+exact verified `nightly_tag`. Normal releases apply migrations automatically;
+this recovery workflow never activates an application.
 
 ### Setup
 
-GitHub environment `production` (allow `v*` release tags and `main` for manual
-migration recovery):
+GitHub environment `production` (restricted to protected `main`, retaining its
+existing required approvals):
 
 - secrets: `DATABASE_MIGRATION_URL` (direct, owner role, `sslmode=require`),
-  `VERCEL_TOKEN`
+  `VERCEL_TOKEN`, plus runtime `DATABASE_URL` and `DATABASE_URL_UNPOOLED` for
+  explicitly isolated deployment configuration
 - variables: `DATABASE_MIGRATION_EXPECTED_HOST`, `VERCEL_ORG_ID`,
   `VERCEL_PROJECT_ID`
 
 Create `staging` the same way to migrate staging with **Database migrations**.
+Create `nightly` with separate database/runtime credentials and a separate
+expected host. Nightly releases use the same migration safety rules, lock and
+transactional failure handling against that isolated target.
+See [release setup](releases.md#one-time-github-and-vercel-configuration) for
+channel project IDs, host declarations and bootstrap settings.
 Until the production environment is configured, the release stops at the build
 step and production keeps serving the previous deployment.
 

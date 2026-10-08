@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "~/db";
 import { user } from "~/db/auth-schema";
 import { auth } from "~/lib/auth";
+import { matchesAuthOrigin } from "~/lib/auth-base-url";
 import { normalizeHandle, handleProblem } from "~/lib/handles";
 
 const inputSchema = z.object({
@@ -14,7 +15,7 @@ const inputSchema = z.object({
 export async function POST(request: Request) {
   // This wrapper calls server APIs: enforce the same origin before forwarding cookies.
   const origin = request.headers.get("origin");
-  if (!origin || origin !== new URL(auth.options.baseURL ?? request.url).origin)
+  if (!matchesAuthOrigin(auth.options.baseURL, origin, request.url))
     return Response.json(
       { error: { message: "Invalid request origin." } },
       { status: 403 },

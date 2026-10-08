@@ -84,7 +84,10 @@ test.beforeAll(async () => {
       },
     });
     const roster = await directory(db, ids[0]!, organizationId);
-    const team = roster.teams[0]!;
+    const payments = roster.projects.find((project) => project.key === "PAY")!;
+    const team = roster.teams.find((team) =>
+      team.projectIds?.includes(payments.id),
+    )!;
     teamName = team.name;
     settingsUrl = paths.settings(slug);
     teamUrl = paths.teamSettings(slug, team.id);

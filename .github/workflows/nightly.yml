@@ -1,0 +1,115 @@
+name: Nightly
+
+on:
+  push:
+    branches: [main, "release/*"]
+  repository_dispatch:
+    types: [stable-published]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  deployments: read
+
+# Keep queued pushes; source ancestry and run order also guard aliases.
+concurrency:
+  group: lictory-nightly-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  plan:
+    name: Calculate nightly candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      deployments: write # Candidate journal only; no nightly credentials.
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      version: ${{ steps.plan.outputs.version }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - id: plan
+        run: bun run release plan-nightly "$RUNNER_TEMP/release-plan.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-plan
+          path: ${{ runner.temp }}/release-plan.json
+          retention-days: 30
+          overwrite: true
+
+  verify:
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      release_version: ${{ needs.plan.outputs.version }}
+
+  deploy:
+    name: Deploy and publish isolated nightly
+    needs: [plan, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: nightly
+    permissions:
+      contents: write
+      deployments: write
+      pull-requests: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERCEL_TOKEN: ${{ secrets.NIGHTLY_VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      NIGHTLY_VERCEL_PROJECT_ID: ${{ vars.NIGHTLY_VERCEL_PROJECT_ID }}
+      PRODUCTION_VERCEL_PROJECT_ID: ${{ vars.PRODUCTION_VERCEL_PROJECT_ID }}
+      NIGHTLY_DATABASE_HOST: ${{ vars.NIGHTLY_DATABASE_HOST }}
+      PRODUCTION_DATABASE_HOST: ${{ vars.PRODUCTION_DATABASE_HOST }}
+      RELEASE_BOOTSTRAP_DEPLOYMENT_ID: ${{ vars.RELEASE_BOOTSTRAP_DEPLOYMENT_ID }}
+      DATABASE_URL: ${{ secrets.NIGHTLY_DATABASE_URL }}
+      DATABASE_URL_UNPOOLED: ${{ secrets.NIGHTLY_DATABASE_URL_UNPOOLED }}
+      DATABASE_MIGRATION_TARGET: nightly
+      DATABASE_MIGRATION_URL: ${{ secrets.NIGHTLY_DATABASE_MIGRATION_URL }}
+      DATABASE_MIGRATION_EXPECTED_HOST: ${{ vars.DATABASE_MIGRATION_EXPECTED_HOST }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: control/package.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: nightly-plan
+          path: ${{ runner.temp }}/plan
+      - run: bun install --frozen-lockfile
+        working-directory: control
+      - run: bun install --frozen-lockfile
+        working-directory: source
+      - name: Build, migrate, activate and publish this exact candidate
+        working-directory: control
+        run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source

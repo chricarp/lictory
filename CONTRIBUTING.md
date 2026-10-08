@@ -39,6 +39,15 @@ needs. Adjacent cleanups and refactors go in their own pull request.
 Use a conventional commit title in plain language, e.g.
 `fix(review): approvals no longer survive a material revision`.
 
+The **Conventional PR title** check is required. `feat` advances the minor
+version; `fix` and `perf` advance patch; a `!` before the colon marks a breaking
+change. Other supported types do not advance versions unless breaking. Before
+1.0, breaking changes advance minor; afterward they advance major. See
+[release policy](docs/operations/releases.md) for exact semantics and optional
+human-readable PR release notes. Prefer squash merges with the PR title as the
+commit subject; released maintenance branches must merge back without squashing
+their stable ancestry.
+
 ## Changes that always need a maintainer
 
 These areas carry the product's invariants. Expect slower, deeper review, and

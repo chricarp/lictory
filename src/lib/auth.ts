@@ -13,6 +13,7 @@ import * as schema from "~/db/auth-schema";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 
 import { authSchemaOptions } from "~/lib/auth-schema-options";
+import { authBaseUrl } from "~/lib/auth-base-url";
 import {
   containsWhitespace,
   MAX_PASSWORD_LENGTH,
@@ -39,7 +40,7 @@ const microsoftEnabled = Boolean(
 export const auth = betterAuth({
   ...authSchemaOptions,
   appName: "Lictory",
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: authBaseUrl(process.env),
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",

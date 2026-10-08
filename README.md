@@ -87,11 +87,12 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 ## Versions and releases
 
-Lictory uses `major.minor.patch` versions. Prepare a release with
-`bun run release:prepare major|minor|patch|hotfix`; production deploys only when
-its matching `v*` tag is published. The current build's version appears in the
-account menu. See [the release runbook](docs/operations/releases.md) for release
-notes, publishing and hotfix branches.
+Conventional Commit PR titles determine semantic versions automatically. Merges
+produce verified Nightly prereleases at `nightly.lictory.com`. Run **Release to
+Production** in GitHub Actions to publish a Stable release from the exact
+nightly you tested, even when `main` has moved ahead. The account menu shows the
+deployed version. See [the release runbook](docs/operations/releases.md) for
+one-time configuration, release selection, recovery and hotfixes.
 
 ## production notes
 

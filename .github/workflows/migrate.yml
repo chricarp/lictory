@@ -1,37 +1,71 @@
 name: Database migrations
 
-# Applies committed migrations to one shared environment. Called by
-# "Deploy production" before activation; also dispatchable for staging or to
-# retry a failed production run. Never runs for pull requests.
+# Recovery only. Normal releases invoke the same locked, transactional runner
+# inside their activation gate, from the exact selected source commit.
 on:
-  workflow_call:
-    inputs:
-      environment:
-        required: true
-        type: string
   workflow_dispatch:
     inputs:
       environment:
-        description: GitHub environment whose database to migrate
+        description: Database environment to migrate
         required: true
         type: choice
         options: [staging, production]
+      nightly_tag:
+        description: "Production recovery: verified nightly to migrate (required for production)"
+        required: false
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
+  deployments: read
+  actions: read
+
+concurrency:
+  group: ${{ inputs.environment == 'production' && 'lictory-production-release' || 'database-migrations-staging' }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
+  plan:
+    name: Resolve migration source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NIGHTLY_TAG: ${{ inputs.nightly_tag }}
+      NIGHTLY_VERCEL_PROJECT_ID: ${{ vars.NIGHTLY_VERCEL_PROJECT_ID }}
+      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
+      MIGRATION_ENVIRONMENT: ${{ inputs.environment }}
+    steps:
+      - run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - id: source
+        shell: bash
+        run: |
+          if [ "$MIGRATION_ENVIRONMENT" = production ]; then
+            test -n "$NIGHTLY_TAG"
+            bun run release plan-production "$RUNNER_TEMP/migration-plan.json"
+          else
+            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
   migrate:
-    name: Migrate ${{ inputs.environment }}
-    if: inputs.environment != 'production' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ${{ inputs.environment }}
-    # Serializes workflow runs per environment; scripts/migrate.ts also holds a
-    # PostgreSQL advisory lock against any other runner.
-    concurrency:
-      group: database-migrations-${{ inputs.environment }}
-      cancel-in-progress: false
     env:
       DATABASE_MIGRATION_TARGET: ${{ inputs.environment }}
       DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
@@ -39,15 +73,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - name: Validate version when migrating a production release
-        if: inputs.environment == 'production' && startsWith(github.ref, 'refs/tags/v')
-        run: bun run release:check "$GITHUB_REF_NAME"
-      - name: Pending migrations
-        run: bun run db:migrate:status
-      - name: Apply committed migrations
-        run: bun run db:migrate
+      - run: bun run db:migrate:status
+      - run: bun run db:migrate

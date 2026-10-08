@@ -1,0 +1,48 @@
+name: PR title
+
+on:
+  pull_request_target:
+    types:
+      [
+        opened,
+        edited,
+        synchronize,
+        reopened,
+        ready_for_review,
+        labeled,
+        unlabeled,
+      ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional PR title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # No checkout or execution of PR code in pull_request_target.
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            docs
+            chore
+            ci
+            test
+            refactor
+            style
+            build
+            revert
+          requireScope: false
+      - name: Stable API declaration requires a breaking PR
+        if: contains(github.event.pull_request.labels.*.name, 'release:stable-api')
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node -e 'if (!/^[a-z]+(?:\([^()]+\))?!:\s+\S/.test(process.env.PR_TITLE)) throw new Error("release:stable-api requires a breaking PR title")'
