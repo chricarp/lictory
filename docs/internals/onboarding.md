@@ -28,15 +28,16 @@ there, together with the team configuration, in one command. An invited member o
 an unfinished organization waits for an administrator instead of being asked to
 make administrator decisions.
 
-| Decision                            | Why it is needed                                | Default / later changes                                        |
-| ----------------------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
-| Organization name                   | Names the shared workspace                      | Organization settings                                          |
-| Project name and key                | Gives work a home and stable identifiers        | The name can change; the key is lasting identity               |
-| Native or Jira Cloud delivery       | Establishes which system owns delivery          | No default. Team settings; delivery ownership rules apply      |
-| Readiness policy (native only)      | Makes the starting-work gate explicit           | Warn. Team settings; external export always requires it        |
-| Cadence and estimates (native only) | Defines native delivery behavior                | No default. Team settings                                      |
-| Automatic cycle schedule            | Establishes cadence before cycles start         | 2 weeks from Monday. Team settings; needs the server scheduler |
-| Reviewers to invite                 | Refinement needs engineering and QA in the loop | Optional. Settings                                             |
+| Decision                            | Why it is needed                                                | Default / later changes                                        |
+| ----------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------- |
+| Organization name                   | Names the shared workspace                                      | Organization settings                                          |
+| Project name and key                | Gives work a home and stable identifiers                        | The name can change; the key is lasting identity               |
+| Native or Jira Cloud delivery       | Establishes which system owns delivery                          | No default. Team settings; delivery ownership rules apply      |
+| Readiness policy (native only)      | Makes the starting-work gate explicit                           | Warn. Team settings; external export always requires it        |
+| Cadence and estimates (native only) | Defines native delivery behavior                                | No default. Team settings                                      |
+| Automatic cycle schedule            | Establishes cadence before cycles start                         | 2 weeks from Monday. Team settings; needs the server scheduler |
+| Lictory Intelligence                | Allows AI chat, reviews and proposed fixes for the organization | Enabled. Organization settings → Lictory AI                    |
+| Reviewers to invite                 | Refinement needs engineering and QA in the loop                 | Optional. Settings                                             |
 
 The starter team takes the project's name and can be renamed in team settings.
 Starter types, workflow and roles are seeded by Better Auth's organization creation
@@ -48,20 +49,28 @@ configuration.
 Invitees join as members; roles are assigned once they are in the organization.
 Reviewers are chosen for individual specifications when requesting review;
 onboarding does not grant approvals or preassign every discipline to every item.
-AI, SSO administration and providers that are not implemented are not presented as
-available configuration. Collaboration requires neither AI nor a delivery
-integration.
+Both delivery modes include an organization-wide Lictory Intelligence choice.
+Enabling it permits relevant organization content to be sent to the configured
+AI provider when AI features run. AI proposes changes; people accept changes and
+grant approvals. Disabling it removes AI chat, automated reviews and proposed
+fixes; manual refinement, review and delivery remain available. If the server has
+no AI provider, setup saves the preference and explains that AI is unavailable
+until one is configured. SSO administration and providers that are not implemented
+are not presented as available configuration. Collaboration requires neither AI
+nor a delivery integration.
 
 ## Completion and recovery
 
 The first project's `createProject` command carries a validated `setup` decision.
 The shared organization transaction lock protects current Better Auth membership,
 administrator authorization, same-organization team validation, the first-project
-guard, team configuration, automatic cycle creation when selected, project
+guard, team configuration, the organization AI policy, automatic cycle creation when selected, project
 creation, and the `organization_onboarding` decision snapshot. These commit with
 the normal change log and idempotent receipt, or all roll back. Concurrent initial
 setups cannot overwrite the winner's configuration. The decision snapshot records
 who completed setup and when; it is historical evidence, not current settings.
+Legacy setup commands without an AI choice preserve the organization's existing
+AI policy; they do not grant consent implicitly.
 
 Setup is submitted online through the existing authenticated, same-origin sync
 mutation endpoint. Its mutation ID and complete payload are retained for retries.

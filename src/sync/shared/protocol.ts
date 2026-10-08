@@ -793,6 +793,8 @@ export const onboardingSetupSchema = z
     iterationMode: z.enum(iterationModes),
     iterationWeeks: z.number().int().min(1).max(8),
     iterationStartDay: z.number().int().min(0).max(6),
+    // Older clients did not ask for AI consent; preserve their existing policy.
+    aiEnabled: z.boolean().optional(),
     // Invitations are Better Auth operations sent after setup commits.
     invitations: z.number().int().min(0).max(50).default(0),
   })

@@ -6,9 +6,10 @@ export const steps = {
   delivery: 1,
   planning: 2,
   team: 3,
+  intelligence: 4,
 } as const;
 export const draftSchema = z.object({
-  step: z.number().int().min(0).max(3),
+  step: z.number().int().min(0).max(4),
   name: z.string().max(120),
   key: z.string().max(10),
   keyTouched: z.boolean(),
@@ -16,6 +17,7 @@ export const draftSchema = z.object({
   readinessPolicy: z.enum(["off", "warn", "block"]),
   iterationMode: z.enum(["", "off", "manual", "automatic"]),
   estimateScale: z.enum(["", "none", "fibonacci", "linear", "tshirt"]),
+  aiEnabled: z.boolean().default(true),
   iterationWeeks: z.string(),
   iterationStartDay: z.string(),
   invites: z.array(z.string().max(320)).max(50),
@@ -30,6 +32,7 @@ export const emptyDraft: Draft = {
   readinessPolicy: "warn",
   iterationMode: "",
   estimateScale: "",
+  aiEnabled: true,
   iterationWeeks: "2",
   iterationStartDay: "1",
   invites: [],
