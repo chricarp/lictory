@@ -290,6 +290,11 @@ export function sanitizeAnalyticsProperties(
 
 const workspacePath = /^\/app(\/|$)/;
 
+// PostHog protocol fields that look like entity identifiers but are required for
+// ingestion. In cookieless mode `distinct_id` is PostHog's sentinel, replaced by
+// the server-side hash; dropping it makes PostHog reject the event.
+const posthogReservedProperties = new Set(["distinct_id"]);
+
 /**
  * Further reduces events captured without Analytics consent. Cookieless events
  * keep the event name and controlled values (types, categories, counts) but drop
@@ -300,6 +305,7 @@ export function minimizeAnonymousAnalyticsProperties(
   properties: Record<string, unknown>,
 ) {
   for (const key of Object.keys(properties)) {
+    if (posthogReservedProperties.has(key)) continue;
     if (!key.startsWith("$") && key.endsWith("_id")) delete properties[key];
   }
   delete properties.$groups;

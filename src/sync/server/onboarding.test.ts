@@ -76,10 +76,7 @@ async function fixture() {
     estimateScale: "tshirt",
     iterationWeeks: 2,
     iterationStartDay: 1,
-    acceptStarterConfiguration: true,
-    deferInvitations: true,
-    deferIntegration: true,
-    deferAdvancedConfiguration: true,
+    invitations: 2,
   };
   const mutation = (patch: Partial<OnboardingSetup> = {}) => ({
     protocol: PROTOCOL,
@@ -197,43 +194,26 @@ void test("concurrent first setups have one authoritative winner", async () => {
   assert.equal(roster.teams[0]!.deliveryMode, record!.decisions.deliveryMode);
   assert.equal(roster.teams[0]!.name, record!.decisions.teamName);
 });
-void test("external setup cannot enable native iteration planning, and confirmations are required", () => {
+void test("external setup cannot enable native iteration planning", () => {
+  const setup = {
+    teamId: "team",
+    teamName: "Team",
+    deliveryMode: "external",
+    readinessPolicy: "warn",
+    estimateScale: "none",
+    iterationMode: "off",
+    iterationWeeks: 2,
+    iterationStartDay: 1,
+  };
+  assert.equal(onboardingSetupSchema.safeParse(setup).success, true);
   assert.equal(
-    onboardingSetupSchema.safeParse({
-      deliveryMode: "external",
-      iterationMode: "manual",
-    }).success,
+    onboardingSetupSchema.safeParse({ ...setup, iterationMode: "manual" })
+      .success,
     false,
   );
-  for (const field of [
-    "acceptStarterConfiguration",
-    "deferInvitations",
-    "deferIntegration",
-    "deferAdvancedConfiguration",
-  ]) {
-    const setup = {
-      teamId: "team",
-      teamName: "Team",
-      deliveryMode: "external",
-      readinessPolicy: "warn",
-      estimateScale: "none",
-      iterationMode: "off",
-      iterationWeeks: 2,
-      iterationStartDay: 1,
-      acceptStarterConfiguration: true,
-      deferInvitations: true,
-      deferIntegration: true,
-      deferAdvancedConfiguration: true,
-    };
-    assert.equal(onboardingSetupSchema.safeParse(setup).success, true);
-    assert.equal(
-      onboardingSetupSchema.safeParse({ ...setup, [field]: false }).success,
-      false,
-    );
-    assert.equal(
-      onboardingSetupSchema.safeParse({ ...setup, iterationMode: "manual" })
-        .success,
-      false,
-    );
-  }
+  assert.equal(
+    onboardingSetupSchema.safeParse({ ...setup, estimateScale: "fibonacci" })
+      .success,
+    false,
+  );
 });

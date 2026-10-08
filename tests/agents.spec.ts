@@ -3,7 +3,7 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
-import { configureFirstProject } from "./onboarding-helpers";
+import { createWorkspace } from "./onboarding-helpers";
 
 const email = "agents@example.test";
 const password = "Local-test-password-123";
@@ -70,15 +70,11 @@ test("a person connects an MCP agent that works with their permissions", async (
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Agent Co");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await page.getByLabel("Project name").fill("Agent project");
-  await page.getByLabel("Key", { exact: true }).fill("AGT");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/agt\/epics$/);
+  await createWorkspace(page, {
+    organization: "Agent Co",
+    project: "Agent project",
+    key: "AGT",
+  });
   const workspaceUrl = page.url();
 
   // Create a token in account settings; the secret is shown once.

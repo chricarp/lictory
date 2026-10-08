@@ -153,9 +153,6 @@ test("email and username invitations deliver tailored emails and preserve joinin
       await teammate.getByLabel("Work email").fill(newEmail);
       await teammate.getByLabel("Password", { exact: true }).fill(password);
       await teammate
-        .getByLabel("Confirm password", { exact: true })
-        .fill(password);
-      await teammate
         .getByRole("button", { name: "Create account", exact: true })
         .click();
       await expect(
