@@ -12,6 +12,8 @@ import { ConfigurationAccess } from "~/components/workspace/configuration-access
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowDown,
   ArrowUp,
   CalendarRange,
@@ -41,6 +43,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Popover, Picker } from "~/components/ui/popover";
+import { Tooltip } from "~/components/ui/tooltip";
 import { PeoplePicker } from "~/components/ui/people-picker";
 import { Avatar } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
@@ -525,79 +528,88 @@ function StatusRow({
         <span className="flex-1 truncate">{status.name}</span>
       )}
       {canEdit && !editing && (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-          <Popover
-            width={180}
-            align="end"
-            trigger={(props) => (
-              <button
-                {...props}
-                aria-label="Color"
-                className="grid size-7 place-items-center rounded hover:bg-muted"
-              >
-                <ColorDot color={status.color} />
-              </button>
-            )}
-          >
-            <Picker
-              title="Color"
-              hideSearch
-              options={labelColors.map((c) => ({
-                value: c,
-                label: c[0]!.toUpperCase() + c.slice(1),
-                icon: <ColorDot color={c} />,
-              }))}
-              value={status.color}
-              onSelect={(color: LabelColor) =>
+        <>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+            <Popover
+              width={180}
+              align="end"
+              trigger={(props) => (
+                <button
+                  {...props}
+                  aria-label="Color"
+                  className="grid size-7 place-items-center rounded hover:bg-muted"
+                >
+                  <ColorDot color={status.color} />
+                </button>
+              )}
+            >
+              <Picker
+                title="Color"
+                hideSearch
+                options={labelColors.map((c) => ({
+                  value: c,
+                  label: c[0]!.toUpperCase() + c.slice(1),
+                  icon: <ColorDot color={c} />,
+                }))}
+                value={status.color}
+                onSelect={(color: LabelColor) =>
+                  void run({
+                    type: "updateStatus",
+                    teamId: team.id,
+                    statusId: status.id,
+                    color,
+                  })
+                }
+              />
+            </Popover>
+            <button
+              aria-label="Move up"
+              disabled={index === 0}
+              className="grid size-7 place-items-center rounded hover:bg-muted disabled:opacity-30"
+              onClick={() =>
                 void run({
                   type: "updateStatus",
                   teamId: team.id,
                   statusId: status.id,
-                  color,
+                  beforeId: statuses[index - 1]!.id,
                 })
               }
-            />
-          </Popover>
-          <button
-            aria-label="Move up"
-            disabled={index === 0}
-            className="grid size-7 place-items-center rounded hover:bg-muted disabled:opacity-30"
-            onClick={() =>
-              void run({
-                type: "updateStatus",
-                teamId: team.id,
-                statusId: status.id,
-                beforeId: statuses[index - 1]!.id,
-              })
-            }
-          >
-            <ArrowUp className="size-3.5" />
-          </button>
-          <button
-            aria-label="Move down"
-            disabled={index === statuses.length - 1}
-            className="grid size-7 place-items-center rounded hover:bg-muted disabled:opacity-30"
-            onClick={() =>
-              void run({
-                type: "updateStatus",
-                teamId: team.id,
-                statusId: status.id,
-                beforeId: statuses[index + 2]?.id ?? null,
-              })
-            }
-          >
-            <ArrowDown className="size-3.5" />
-          </button>
-          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-            Rename
-          </Button>
+            >
+              <ArrowUp className="size-3.5" />
+            </button>
+            <button
+              aria-label="Move down"
+              disabled={index === statuses.length - 1}
+              className="grid size-7 place-items-center rounded hover:bg-muted disabled:opacity-30"
+              onClick={() =>
+                void run({
+                  type: "updateStatus",
+                  teamId: team.id,
+                  statusId: status.id,
+                  beforeId: statuses[index + 2]?.id ?? null,
+                })
+              }
+            >
+              <ArrowDown className="size-3.5" />
+            </button>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+              Rename
+            </Button>
+          </div>
           <Popover
             width={260}
             align="end"
             trigger={(props) => (
-              <Button {...props} size="sm" variant="ghost">
-                Archive
-              </Button>
+              <Tooltip label="Archive">
+                <Button
+                  {...props}
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Archive status ${status.name}`}
+                >
+                  <Archive className="size-3.5" />
+                </Button>
+              </Tooltip>
             )}
           >
             {(close) => (
@@ -628,7 +640,7 @@ function StatusRow({
               />
             )}
           </Popover>
-        </div>
+        </>
       )}
     </li>
   );
@@ -929,7 +941,7 @@ export function TeamsSection() {
         {teams.map((t) => (
           <div
             key={t.id}
-            className="group flex items-center gap-3 px-5 py-2.5 text-[13px]"
+            className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
           >
             <span
               className={cn(
@@ -962,20 +974,30 @@ export function TeamsSection() {
               </Button>
             </Link>
             {isAdmin && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                onClick={() =>
-                  void run({
-                    type: "updateTeam",
-                    teamId: t.id,
-                    archived: !t.archivedAt,
-                  })
-                }
-              >
-                {t.archivedAt ? "Restore" : "Archive"}
-              </Button>
+              <Tooltip label={t.archivedAt ? "Restore" : "Archive"}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={
+                    t.archivedAt
+                      ? `Restore team ${t.name}`
+                      : `Archive team ${t.name}`
+                  }
+                  onClick={() =>
+                    void run({
+                      type: "updateTeam",
+                      teamId: t.id,
+                      archived: !t.archivedAt,
+                    })
+                  }
+                >
+                  {t.archivedAt ? (
+                    <ArchiveRestore className="size-3.5" />
+                  ) : (
+                    <Archive className="size-3.5" />
+                  )}
+                </Button>
+              </Tooltip>
             )}
           </div>
         ))}
@@ -1089,7 +1111,7 @@ export function TypesSection() {
         {types.map((t) => (
           <div
             key={t.id}
-            className="group flex items-center gap-3 px-5 py-2.5 text-[13px]"
+            className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
           >
             <TypeIcon type={t} />
             <span
@@ -1119,20 +1141,30 @@ export function TypesSection() {
               Specification
             </label>
             {isAdmin && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                onClick={() =>
-                  void run({
-                    type: "updateType",
-                    typeId: t.id,
-                    archived: !t.archivedAt,
-                  })
-                }
-              >
-                {t.archivedAt ? "Restore" : "Archive"}
-              </Button>
+              <Tooltip label={t.archivedAt ? "Restore" : "Archive"}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={
+                    t.archivedAt
+                      ? `Restore type ${t.name}`
+                      : `Archive type ${t.name}`
+                  }
+                  onClick={() =>
+                    void run({
+                      type: "updateType",
+                      typeId: t.id,
+                      archived: !t.archivedAt,
+                    })
+                  }
+                >
+                  {t.archivedAt ? (
+                    <ArchiveRestore className="size-3.5" />
+                  ) : (
+                    <Archive className="size-3.5" />
+                  )}
+                </Button>
+              </Tooltip>
             )}
           </div>
         ))}

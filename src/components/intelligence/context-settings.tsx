@@ -27,6 +27,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/primitives";
+import { StateIllustration } from "~/components/ui/state-illustration";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import {
   DropdownSelect,
@@ -284,9 +285,12 @@ export function IntelligenceContextSection({
         <SettingsList
           isEmpty={active.length === 0 && (!showArchived || !archived.length)}
           empty={
-            canManage
-              ? `No ${scopeLabel[target.scope].toLowerCase()} context yet. Write a note or upload a document Lictory AI should know about.`
-              : `No ${scopeLabel[target.scope].toLowerCase()} context yet.`
+            <>
+              <StateIllustration kind="knowledge" />
+              {canManage
+                ? `No ${scopeLabel[target.scope].toLowerCase()} context yet. Write a note or upload a document Lictory AI should know about.`
+                : `No ${scopeLabel[target.scope].toLowerCase()} context yet.`}
+            </>
           }
         >
           {[...active, ...(showArchived ? archived : [])].map((e) => (

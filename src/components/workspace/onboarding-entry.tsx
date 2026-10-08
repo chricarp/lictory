@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
+import { StateIllustration } from "~/components/ui/state-illustration";
 import { CreateOrganization } from "./onboarding";
 import {
   OnboardingFrame,
@@ -178,6 +179,7 @@ export function OnboardingEntry({
               ))
             ) : (
               <div className="rounded-xl border border-dashed p-6">
+                <StateIllustration kind="inbox" />
                 <h2 className="text-sm font-medium">No invitation yet</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Ask an admin to invite{" "}

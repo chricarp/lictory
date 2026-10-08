@@ -421,7 +421,7 @@ export function Backlog() {
           </>
         )}
         {!teamItems.length && view.status !== "hydrating" && (
-          <EmptyState title="Nothing planned yet">
+          <EmptyState illustration="planning" title="Nothing planned yet">
             Create items for {team.name}, or move items to this team from their
             detail page.
           </EmptyState>

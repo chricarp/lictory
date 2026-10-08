@@ -19,6 +19,7 @@ export function TeamGate({ children }: { children: ReactNode }) {
   if (!team)
     return (
       <MissingState
+        illustration="search"
         icon={Users}
         title="Team was not found"
         action={

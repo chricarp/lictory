@@ -14,6 +14,7 @@ export function UnknownView() {
   const { organization } = useWorkspace();
   return (
     <MissingState
+      illustration="search"
       icon={Search}
       title="This view was not found"
       action={

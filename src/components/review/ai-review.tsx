@@ -28,6 +28,7 @@ import { aiScoreBand, type AiFinding, type AiSeverity } from "~/sync/shared/ai";
 import type { Command, EntityOf } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Badge, SectionLabel } from "~/components/ui/primitives";
+import { StateIllustration } from "~/components/ui/state-illustration";
 import { RevisionDiff } from "~/components/items/diff";
 import { TypeIcon } from "~/components/items/icons";
 import { useItem } from "~/components/items/item-context";
@@ -920,7 +921,7 @@ export function ActionChecksPanel({
       )}
       {!runs.length ? (
         <div className="rounded-lg border border-dashed px-6 py-10 text-center">
-          <Sparkles className="mx-auto size-5 text-muted-foreground" />
+          <StateIllustration kind="knowledge" />
           <p className="mt-2 text-sm font-medium">No runs yet</p>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
             Lictory Action reads the proposed change against the current

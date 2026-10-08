@@ -22,6 +22,7 @@ export function SyncIssue({
   const offline = status === "offline";
   return (
     <MissingState
+      illustration="recovery"
       icon={offline ? CloudOff : CloudAlert}
       tone={offline ? "warning" : "danger"}
       title={offline ? "You are offline" : "The workspace could not be synced"}

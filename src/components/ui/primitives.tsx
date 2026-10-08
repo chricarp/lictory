@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { StateIllustration, type IllustrationKind } from "./state-illustration";
 import { cn } from "~/lib/utils";
 import { initials } from "~/lib/work-items";
 
@@ -68,13 +69,16 @@ export function EmptyState({
   title,
   children,
   action,
+  illustration,
 }: {
+  illustration?: IllustrationKind;
   title: string;
   children?: ReactNode;
   action?: ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-sm py-16 text-center">
+    <div className="mx-auto max-w-sm px-4 py-12 text-center sm:py-16">
+      {illustration && <StateIllustration kind={illustration} />}
       <h2 className="text-sm font-medium">{title}</h2>
       {children && (
         <div className="mt-1.5 text-[13px] leading-5 text-muted-foreground">

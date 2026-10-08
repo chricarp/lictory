@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Page not found" };
 export default function NotFound() {
   return (
     <StatusPage
+      illustration="search"
       brand={<Logo />}
       icon={Search}
       title="This page does not exist"

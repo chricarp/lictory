@@ -26,6 +26,7 @@ adding domain writes or synchronized entities.
 - [Social link previews](./internals/social-previews.md)
 - [Product analytics](./internals/analytics.md)
 - [Brand identity](./internals/brand.md)
+- [State illustrations and design brief](./internals/illustrations.md)
 
 ## Operations
 

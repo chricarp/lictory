@@ -332,6 +332,7 @@ export function NotificationFeed() {
           <LoadingState label="Loading notifications" />
         ) : page.items.length === 0 ? (
           <EmptyState
+            illustration="inbox"
             title={
               filters.status === "unread"
                 ? "You're all caught up"
