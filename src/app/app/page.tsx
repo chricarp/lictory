@@ -24,6 +24,7 @@ export default async function AppIndex() {
   const now = Date.now();
   return (
     <OnboardingEntry
+      userId={session.user.id}
       userName={session.user.name}
       email={session.user.email}
       invitations={invitations.filter(

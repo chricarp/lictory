@@ -26,8 +26,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       return <LoadingState label="Opening workspace" />;
     if (isSyncBlocked(view.status))
       return <SyncIssue status={view.status} error={view.error} />;
-    if (!projects.length)
-      return <Onboarding step="project" canCreate={isAdmin} />;
+    if (!projects.length) return <Onboarding canCreate={isAdmin} />;
     return (
       <MissingState
         icon={FolderSearch}

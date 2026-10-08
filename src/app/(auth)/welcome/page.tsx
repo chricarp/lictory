@@ -29,7 +29,7 @@ export default async function WelcomePage({
     <>
       <AuthHeading
         title="Choose your handle"
-        description="Your handle is how people mention and find you on Lictory. It is unique across the platform, and you can change it later."
+        description="How teammates @mention you. You can change it later."
       />
       <HandleForm
         initial={suggestions[0] ?? ""}

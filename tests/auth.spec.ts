@@ -44,9 +44,6 @@ test("signup verification and password reset deliver usable email links", async 
   await page.getByLabel("Full name").fill("Email Test");
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(originalPassword);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(originalPassword);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(
     page.getByRole("heading", { name: "Check your inbox" }),
