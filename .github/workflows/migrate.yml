@@ -65,7 +65,7 @@ jobs:
     needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment == 'production' && 'Production' || inputs.environment }}
     env:
       DATABASE_MIGRATION_TARGET: ${{ inputs.environment }}
       DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}

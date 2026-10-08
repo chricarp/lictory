@@ -214,11 +214,13 @@ Repository variables:
 | `VERCEL_PROJECT_ID`         | Existing `lictory` project ID, also used to validate nightly journals        |
 | `PRODUCTION_DATABASE_HOST`  | Production direct database hostname                                          |
 
-Configure GitHub environments **nightly** and **production** with the same
-`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`, and a `VERCEL_TOKEN` deployment credential.
-Keep credentials environment-scoped. Nightly needs no database secrets in GitHub.
+Both release jobs use the existing GitHub environment **Production** with
+`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` and the existing `VERCEL_TOKEN`. The GitHub
+environment name does not select the Vercel deployment target: nightlies still
+use Preview, and only the manually dispatched stable workflow promotes production.
+Nightly passes no production database secrets to its release process.
 
-Only **production** supplies:
+The same environment supplies these settings for stable releases:
 
 | Setting                                         | Value                                                            |
 | ----------------------------------------------- | ---------------------------------------------------------------- |
@@ -231,12 +233,12 @@ Production explicitly passes its runtime database URLs to Vercel at build and
 runtime. Pooler hostnames may use Neon's `-pooler` form; direct and administrative
 hosts must match the declared production host. Secrets never enter manifests or logs.
 
-Keep **production** restricted to `main` with its existing reviewers/approvals;
-remove the legacy `v*` deployment allowance. **nightly** permits `main` and
-protected `release/*`, with no approval needed for normal automation. Neither
-environment is available to pull-request code. `production-intent` and
-`nightly-intent` are journal names, not environments with credentials or extra
-approvals.
+Allow branches `main` and protected `release/*` in **Production**, with no tag
+allowance or pull-request branch access. A shared environment applies the same
+approval rules to both release jobs; required reviewers would also gate automatic
+nightlies. Stable activation remains restricted in code to a manual dispatch from
+`main`. Keep deployment credentials in this single environment.
+`production-intent` and `nightly-intent` are journals, not credential environments.
 
 Protect main and maintenance branches against direct/force pushes and deletion.
 Require **Conventional PR title** and **Verify**, with the team's normal review
