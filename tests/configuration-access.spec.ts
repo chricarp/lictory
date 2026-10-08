@@ -103,6 +103,40 @@ async function signIn(page: Page, index: number) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app/);
 }
+// Commands resolve once queued locally; the server accepts them asynchronously.
+// Reloading before then aborts the request and races replay against hydration.
+async function reloadWhenSaved(page: Page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            new Promise<number>((resolve, reject) => {
+              const open = indexedDB.open("lictory-sync-v2", 1);
+              open.onerror = () =>
+                reject(new Error("Could not open the local queue."));
+              open.onsuccess = () => {
+                const db = open.result;
+                const count = db
+                  .transaction("queue", "readonly")
+                  .objectStore("queue")
+                  .count();
+                count.onsuccess = () => {
+                  db.close();
+                  resolve(count.result);
+                };
+                count.onerror = () => {
+                  db.close();
+                  reject(new Error("Could not read the local queue."));
+                };
+              };
+            }),
+        ),
+      { timeout: 15_000 },
+    )
+    .toBe(0);
+  await page.reload();
+}
 async function choose(page: Page, label: string, option: string) {
   await page.getByRole("combobox", { name: label, exact: true }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
@@ -144,7 +178,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await associations
       .getByRole("checkbox", { name: "Shared operations", exact: true })
       .check();
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     await expect(
       associations.getByRole("checkbox", {
         name: "Shared operations",
@@ -157,7 +191,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await associations
       .getByRole("checkbox", { name: "Shared operations", exact: true })
       .uncheck();
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     await expect(
       associations.getByRole("checkbox", {
         name: "Shared operations",
@@ -167,7 +201,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await associations
       .getByRole("checkbox", { name: "Shared operations", exact: true })
       .check();
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     await expect(
       associations.getByRole("checkbox", {
         name: "Shared operations",
@@ -226,7 +260,7 @@ test("organization delegation enables local roles, team configuration, live revo
       .locator("#delivery")
       .getByRole("radio", { name: /External tool/ })
       .click();
-    await manager.reload();
+    await reloadWhenSaved(manager);
     await expect(
       manager
         .locator("#delivery")
@@ -288,7 +322,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await expect(
       workflow.getByText("Local triage", { exact: true }),
     ).toBeVisible();
-    await maintainer.reload();
+    await reloadWhenSaved(maintainer);
     await expect(
       workflow.getByText("Local triage", { exact: true }),
     ).toBeVisible();
@@ -296,7 +330,7 @@ test("organization delegation enables local roles, team configuration, live revo
       path: "/tmp/lictory-configuration-delegated.png",
     });
     // A reduced organization ceiling disables its customized descendant live.
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     const rootCard = adminPage
       .locator("#configuration-roles")
       .locator("div.rounded-lg")
@@ -312,7 +346,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await expect(
       workflow.getByRole("button", { name: "Add", exact: true }),
     ).toHaveCount(0);
-    await maintainer.reload();
+    await reloadWhenSaved(maintainer);
     // Reload and synchronization can replace the section during screenshot capture.
     // Re-resolve it and verify revocation again on each capture attempt.
     await expect(async () => {
