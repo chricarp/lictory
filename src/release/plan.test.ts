@@ -133,7 +133,7 @@ void test("nightly calculation uses actual PRs and the stable baseline, not comm
   }
 });
 
-void test("a nightly requires a matching tag, successful workflow, and isolated deployment", async () => {
+void test("a nightly requires a matching tag, successful workflow, and preview deployment", async () => {
   const fixture = new GitHubFixture();
   const candidate = nightly();
   const release = fixture.add(candidate);

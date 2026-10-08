@@ -93,7 +93,7 @@ void test("publication failure is repaired without rebuilding, remigrating, or r
   ]);
 });
 
-void test("failed nightly validation or build leaves the working alias untouched", async () => {
+void test("failed nightly validation or build cannot promote production", async () => {
   for (const failAt of ["validate", "build"] as const) {
     const fixture = ports();
     fixture.adapter[failAt] = async () => {
@@ -105,10 +105,39 @@ void test("failed nightly validation or build leaves the working alias untouched
   }
 });
 
-void test("a nightly publication outage cannot replace the working nightly alias", async () => {
+void test("a nightly publication outage cannot promote production", async () => {
   const fixture = ports();
   fixture.failPublication(true);
   await assert.rejects(executeRelease(nightly(), fixture.adapter));
   assert.ok(fixture.calls.includes("publish"));
   assert.ok(!fixture.calls.includes("promote"));
+});
+
+void test("a verified nightly creates and publishes a preview without migrations or promotion", async () => {
+  const fixture = ports();
+  await executeRelease(nightly(), fixture.adapter);
+  assert.deepEqual(fixture.calls, [
+    "validate",
+    "build",
+    "record",
+    "in_progress",
+    "validate",
+    "reserve",
+    "publish",
+    "success",
+  ]);
+});
+
+void test("a nightly publication retry reuses the journaled preview without touching production", async () => {
+  const fixture = ports();
+  const preview = { id: "dpl_preview", url: "https://preview.vercel.app" };
+  fixture.adapter.active = async () => preview;
+  assert.equal(await executeRelease(nightly(), fixture.adapter), preview);
+  assert.deepEqual(fixture.calls, [
+    "validate",
+    "record",
+    "reserve",
+    "success",
+    "publish",
+  ]);
 });

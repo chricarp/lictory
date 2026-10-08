@@ -56,8 +56,8 @@ Production deploys only through the manually dispatched **Release to Production*
 It selects a verified Nightly source, validates its provenance and semantic
 version, runs CI on that source, builds with production settings without assigning
 domains, applies migrations and then promotes the build. Git tag pushes cannot
-activate production. Automatic Nightly releases use a separate Vercel project,
-database, credentials and `nightly.lictory.com` domain.
+activate production. Automatic Nightly releases create Preview deployments in
+the same Vercel project, using its Preview settings without promotion or migrations.
 `vercel.json` disables Vercel's Git deployments for `main`; previews of other
 branches still deploy automatically.
 

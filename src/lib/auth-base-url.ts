@@ -8,15 +8,15 @@ export function authBaseUrl(env: AuthEnvironment) {
   if (
     env.LICTORY_RELEASE_CHANNEL !== "nightly" ||
     env.VERCEL !== "1" ||
-    base !== "https://nightly.lictory.com" ||
+    env.VERCEL_ENV !== "preview" ||
     !deployment ||
     !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app$/.test(deployment)
   )
     return base;
   return {
-    allowedHosts: ["nightly.lictory.com", deployment],
+    allowedHosts: [deployment],
     protocol: "https" as const,
-    fallback: base,
+    fallback: `https://${deployment}`,
   };
 }
 

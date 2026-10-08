@@ -8,7 +8,6 @@ import {
   assertDatabases,
   assertProject,
   matchesDeployment,
-  mayAdvanceNightly,
   Vercel,
   type VercelConfiguration,
   type VercelDeployment,
@@ -18,23 +17,20 @@ const config: VercelConfiguration = {
   token: "test",
   orgId: "org",
   projectId: "night-project",
-  nightlyProjectId: "night-project",
-  productionProjectId: "prod-project",
-  nightlyDatabaseHost: "ep-night.example.test",
   productionDatabaseHost: "ep-prod.example.test",
   databaseUrl:
-    "postgresql://test:test@ep-night-pooler.example.test/nightly?sslmode=require",
+    "postgresql://test:test@ep-prod-pooler.example.test/production?sslmode=require",
   directDatabaseUrl:
-    "postgresql://test:test@ep-night.example.test/nightly?sslmode=require",
+    "postgresql://test:test@ep-prod.example.test/production?sslmode=require",
   migrationDatabaseUrl:
-    "postgresql://owner:test@ep-night.example.test/nightly?sslmode=require",
+    "postgresql://owner:test@ep-prod.example.test/production?sslmode=require",
 };
 const deployed = (candidate = nightly()): VercelDeployment => ({
   id: "dpl_valid",
   projectId: "night-project",
   url: "valid.vercel.app",
   readyState: "READY",
-  target: "production",
+  target: candidate.channel === "nightly" ? null : "production",
   meta: {
     releaseTag: candidate.tag,
     releaseSha: candidate.sha,
@@ -45,91 +41,59 @@ const deployed = (candidate = nightly()): VercelDeployment => ({
   },
 });
 
-void test("nightly domain and database guards reject production configuration", () => {
-  assertProject(nightly(), config, ["nightly.lictory.com"]);
-  assertDatabases(nightly(), config);
+void test("one project supports previews while production retains domain and database validation", () => {
+  assertProject(nightly(), config, ["lictory.com", "www.lictory.com"]);
+  assertDatabases(nightly(), { ...config, databaseUrl: undefined });
+  assertDatabases(stable(), config);
   assert.throws(
-    () =>
-      assertProject(nightly(), { ...config, projectId: "prod-project" }, [
-        "lictory.com",
-      ]),
-    /isolation/,
+    () => assertProject(stable(), config, ["other.example"]),
+    /validation/,
   );
   assert.throws(
     () =>
-      assertProject(nightly(), config, ["nightly.lictory.com", "lictory.com"]),
-    /isolation/,
-  );
-  assert.throws(
-    () =>
-      assertProject(
-        nightly(),
-        { ...config, nightlyProjectId: "prod-project" },
-        ["nightly.lictory.com"],
-      ),
-    /distinct/,
-  );
-  assert.throws(
-    () =>
-      assertDatabases(nightly(), {
+      assertDatabases(stable(), {
         ...config,
-        databaseUrl: config.databaseUrl.replace("ep-night", "ep-prod"),
-      }),
-    /isolation/,
-  );
-  assert.throws(
-    () =>
-      assertDatabases(nightly(), {
-        ...config,
-        migrationDatabaseUrl: config.migrationDatabaseUrl.replace(
-          "ep-night",
+        migrationDatabaseUrl: config.migrationDatabaseUrl!.replace(
           "ep-prod",
+          "ep-other",
         ),
       }),
-    /isolation/,
-  );
-});
-
-void test("out-of-order runs and maintenance branches never regress the shared nightly alias", () => {
-  const candidate = nightly();
-  assert.equal(
-    mayAdvanceNightly(candidate, deployed(nightly(candidate.sha, 141)), true),
-    true,
-  );
-  assert.equal(
-    mayAdvanceNightly(candidate, deployed(nightly(candidate.sha, 143)), true),
-    false,
-  );
-  assert.equal(
-    mayAdvanceNightly(candidate, deployed(nightly(candidate.sha, 141)), false),
-    false,
-  );
-  assert.equal(
-    mayAdvanceNightly(
-      { ...candidate, sourceBranch: "release/1.4" },
-      undefined,
-      true,
-    ),
-    false,
+    /validation/,
   );
   assert.throws(
-    () => mayAdvanceNightly(candidate, { ...deployed(), meta: {} }, true),
-    /untracked/,
+    () =>
+      assertDatabases(stable(), {
+        ...config,
+        databaseUrl: config.databaseUrl!.replace(
+          "sslmode=require",
+          "sslmode=disable",
+        ),
+      }),
+    /validation/,
+  );
+});
+
+void test("nightly inspection rejects production targets and another project, and promotion is forbidden", async () => {
+  let current = deployed();
+  const fetcher: typeof fetch = async () => Response.json(current);
+  const provider = new Vercel(config, "/tmp", fetcher);
+  assert.equal((await provider.inspect(current.id, "nightly")).id, current.id);
+  current = { ...current, target: "production" };
+  await assert.rejects(provider.inspect(current.id, "nightly"), /environment/);
+  current = { ...current, target: null, projectId: "other-project" };
+  await assert.rejects(provider.inspect(current.id, "nightly"), /environment/);
+  await assert.rejects(
+    provider.promote(nightly(), { id: current.id, url: current.url }),
+    /cannot be promoted/,
   );
   assert.equal(
-    matchesDeployment(candidate, {
-      ...deployed(candidate),
-      meta: {
-        ...deployed(candidate).meta,
-        releaseVersion: candidate.stableVersion,
-      },
-    }),
+    matchesDeployment(nightly(), { ...deployed(), meta: {} }),
     false,
   );
 });
 
-void test("activation recovery reads the traffic alias, never a staged production target", async () => {
-  const current = deployed();
+void test("production recovery reads the traffic alias, never a staged production target", async () => {
+  const current = deployed(stable());
   const requests: string[] = [];
   const fetcher: typeof fetch = async (input) => {
     const path = new URL(
@@ -140,9 +104,9 @@ void test("activation recovery reads the traffic alias, never a staged productio
           : input.url,
     ).pathname;
     requests.push(path);
-    if (path === "/v4/aliases/nightly.lictory.com")
+    if (path === "/v4/aliases/lictory.com")
       return Response.json({
-        projectId: "night-project",
+        projectId: config.projectId,
         deploymentId: current.id,
       });
     if (path === `/v13/deployments/${current.id}`)
@@ -150,7 +114,7 @@ void test("activation recovery reads the traffic alias, never a staged productio
     throw new Error("Unexpected request to a staged production target");
   };
   assert.equal(
-    (await new Vercel(config, "/tmp", "/tmp", fetcher).current())?.id,
+    (await new Vercel(config, "/tmp", fetcher).current())?.id,
     current.id,
   );
   assert.ok(!requests.some((path) => path.startsWith("/v9/projects/")));
@@ -174,7 +138,7 @@ void test("production rejects downgrade, source reuse, and unpublished activatio
         : current,
     );
   };
-  const provider = new Vercel(prodConfig, "/tmp", "/tmp", fetcher);
+  const provider = new Vercel(prodConfig, "/tmp", fetcher);
   await provider.assertProductionOrder(candidate);
   current = { ...current, meta: { ...current.meta, releaseVersion: "2.0.0" } };
   await assert.rejects(provider.assertProductionOrder(candidate), /older/);
@@ -273,14 +237,12 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
   assert.equal(nightly.jobs.deploy!.environment, "nightly");
   assert.equal(
     nightly.jobs.deploy!.env?.VERCEL_TOKEN,
-    "${{ secrets.NIGHTLY_VERCEL_TOKEN }}",
+    "${{ secrets.VERCEL_TOKEN }}",
   );
-  assert.equal(
-    nightly.jobs.deploy!.env?.DATABASE_MIGRATION_URL,
-    "${{ secrets.NIGHTLY_DATABASE_MIGRATION_URL }}",
-  );
+  assert.equal(nightly.jobs.deploy!.env?.DATABASE_MIGRATION_URL, undefined);
+  assert.equal(nightly.jobs.deploy!.env?.DATABASE_URL, undefined);
   assert.equal(production.jobs.deploy!.environment, "production");
-  assert.equal(nightly.jobs.deploy!.env?.DATABASE_MIGRATION_TARGET, "nightly");
+  assert.equal(nightly.jobs.deploy!.env?.DATABASE_MIGRATION_TARGET, undefined);
   assert.equal(
     production.jobs.deploy!.env?.DATABASE_MIGRATION_TARGET,
     "production",
@@ -321,4 +283,25 @@ void test("the complete CI verification sequence and package-sourced version dis
   );
   assert.match(config, /import \{ version \} from "\.\/package\.json"/);
   assert.match(config, /NEXT_PUBLIC_APP_VERSION: version/);
+});
+
+void test("nightly CLI builds use Preview settings without production flags or database overrides", async () => {
+  const candidate = nightly();
+  const commands: string[][] = [];
+  const provider = new Vercel(
+    config,
+    "/tmp",
+    async () => Response.json(deployed(candidate)),
+    async (args) => {
+      commands.push([...args]);
+      return "https://valid.vercel.app";
+    },
+  );
+  assert.equal((await provider.build(candidate)).id, "dpl_valid");
+  const args = commands[0]!;
+  assert.ok(args.includes("--target=preview"));
+  assert.ok(!args.includes("--prod"));
+  assert.ok(!args.includes("--skip-domain"));
+  assert.ok(!args.some((arg) => /DATABASE|BETTER_AUTH_URL|promote/.test(arg)));
+  assert.ok(args.includes("LICTORY_RELEASE_CHANNEL=nightly"));
 });

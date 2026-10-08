@@ -48,7 +48,9 @@ async function savePlan(manifest: Manifest, path: string) {
     );
 }
 async function migrate(root: string, manifest: Manifest) {
-  const target = manifest.channel === "stable" ? "production" : "nightly";
+  if (manifest.channel !== "stable")
+    throw new Error("Preview releases cannot run migrations.");
+  const target = "production";
   // Only the dedicated administrative secret reaches the migration runner.
   if (process.env.DATABASE_MIGRATION_TARGET !== target)
     throw new Error("Migration channel does not match release channel.");
@@ -85,17 +87,23 @@ async function deploy(
       token: required("VERCEL_TOKEN"),
       orgId: required("VERCEL_ORG_ID"),
       projectId: required("VERCEL_PROJECT_ID"),
-      nightlyProjectId: required("NIGHTLY_VERCEL_PROJECT_ID"),
-      productionProjectId: required("PRODUCTION_VERCEL_PROJECT_ID"),
       bootstrapDeploymentId: process.env.RELEASE_BOOTSTRAP_DEPLOYMENT_ID,
-      nightlyDatabaseHost: required("NIGHTLY_DATABASE_HOST"),
-      productionDatabaseHost: required("PRODUCTION_DATABASE_HOST"),
-      databaseUrl: required("DATABASE_URL"),
-      directDatabaseUrl: required("DATABASE_URL_UNPOOLED"),
-      migrationDatabaseUrl: required("DATABASE_MIGRATION_URL"),
+      productionDatabaseHost:
+        manifest.channel === "stable"
+          ? required("PRODUCTION_DATABASE_HOST")
+          : undefined,
+      databaseUrl:
+        manifest.channel === "stable" ? required("DATABASE_URL") : undefined,
+      directDatabaseUrl:
+        manifest.channel === "stable"
+          ? required("DATABASE_URL_UNPOOLED")
+          : undefined,
+      migrationDatabaseUrl:
+        manifest.channel === "stable"
+          ? required("DATABASE_MIGRATION_URL")
+          : undefined,
     },
     root,
-    graphRoot,
   );
   const validate = async () => {
     await vercel.validateProject(manifest);
@@ -104,7 +112,7 @@ async function deploy(
         github,
         graphRoot,
         manifest.sourceNightly!,
-        required("NIGHTLY_VERCEL_PROJECT_ID"),
+        required("VERCEL_PROJECT_ID"),
         bootstrap(),
       );
       sameManifest(current, manifest);
@@ -115,6 +123,26 @@ async function deploy(
   const build = await executeRelease(manifest, {
     validate,
     active: async () => {
+      if (manifest.channel === "nightly") {
+        for (const record of await github.deployments("nightly")) {
+          const payload = deploymentPayloadSchema.safeParse(record.payload);
+          if (
+            !payload.success ||
+            record.sha !== manifest.sha ||
+            payload.data.manifestHash !== fingerprint(manifest) ||
+            payload.data.projectId !== required("VERCEL_PROJECT_ID")
+          )
+            continue;
+          const preview = await vercel.inspect(
+            payload.data.vercelId,
+            "nightly",
+          );
+          if (!matchesDeployment(manifest, preview))
+            throw new Error("Preview journal source mismatch.");
+          return { id: preview.id, url: `https://${preview.url}` };
+        }
+        return undefined;
+      }
       const current = await vercel.current();
       if (!current || !matchesDeployment(manifest, current)) return undefined;
       const records = await github.deployments(
@@ -212,7 +240,7 @@ try {
         (process.env.NIGHTLY_TAG?.trim()
           ? process.env.NIGHTLY_TAG.trim()
           : undefined),
-      required("NIGHTLY_VERCEL_PROJECT_ID"),
+      required("VERCEL_PROJECT_ID"),
       bootstrap(),
     );
     if (intent) sameManifest(intent, manifest);

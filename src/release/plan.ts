@@ -189,7 +189,7 @@ export async function verifiedNightly(
     )
   )
     throw new IneligibleNightly(
-      "Nightly has no successful, matching isolated deployment.",
+      "Nightly has no successful, matching preview deployment.",
     );
   return manifest;
 }

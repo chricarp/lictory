@@ -12,7 +12,7 @@ permissions:
   actions: read
   deployments: read
 
-# Keep queued pushes; source ancestry and run order also guard aliases.
+# Keep every verified candidate in the release queue.
 concurrency:
   group: lictory-nightly-release
   cancel-in-progress: false
@@ -62,7 +62,7 @@ jobs:
       release_version: ${{ needs.plan.outputs.version }}
 
   deploy:
-    name: Deploy and publish isolated nightly
+    name: Deploy and publish nightly preview
     needs: [plan, verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -74,19 +74,9 @@ jobs:
       actions: read
     env:
       GH_TOKEN: ${{ github.token }}
-      VERCEL_TOKEN: ${{ secrets.NIGHTLY_VERCEL_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      NIGHTLY_VERCEL_PROJECT_ID: ${{ vars.NIGHTLY_VERCEL_PROJECT_ID }}
-      PRODUCTION_VERCEL_PROJECT_ID: ${{ vars.PRODUCTION_VERCEL_PROJECT_ID }}
-      NIGHTLY_DATABASE_HOST: ${{ vars.NIGHTLY_DATABASE_HOST }}
-      PRODUCTION_DATABASE_HOST: ${{ vars.PRODUCTION_DATABASE_HOST }}
-      RELEASE_BOOTSTRAP_DEPLOYMENT_ID: ${{ vars.RELEASE_BOOTSTRAP_DEPLOYMENT_ID }}
-      DATABASE_URL: ${{ secrets.NIGHTLY_DATABASE_URL }}
-      DATABASE_URL_UNPOOLED: ${{ secrets.NIGHTLY_DATABASE_URL_UNPOOLED }}
-      DATABASE_MIGRATION_TARGET: nightly
-      DATABASE_MIGRATION_URL: ${{ secrets.NIGHTLY_DATABASE_MIGRATION_URL }}
-      DATABASE_MIGRATION_EXPECTED_HOST: ${{ vars.DATABASE_MIGRATION_EXPECTED_HOST }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -110,6 +100,6 @@ jobs:
         working-directory: control
       - run: bun install --frozen-lockfile
         working-directory: source
-      - name: Build, migrate, activate and publish this exact candidate
+      - name: Build and publish this exact preview candidate
         working-directory: control
         run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source

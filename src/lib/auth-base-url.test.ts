@@ -4,18 +4,23 @@ import { betterAuth } from "better-auth/minimal";
 import { authBaseUrl, matchesAuthOrigin } from "./auth-base-url";
 
 const env = {
-  BETTER_AUTH_URL: "https://nightly.lictory.com",
+  BETTER_AUTH_URL: "https://lictory.com",
   LICTORY_RELEASE_CHANNEL: "nightly",
   VERCEL: "1",
+  VERCEL_ENV: "preview",
   VERCEL_URL: "verified-nightly.vercel.app",
 };
 
 void test("nightly origins are exact and provider-declared, with no wildcard or production expansion", () => {
   assert.deepEqual(authBaseUrl(env), {
-    allowedHosts: ["nightly.lictory.com", "verified-nightly.vercel.app"],
+    allowedHosts: ["verified-nightly.vercel.app"],
     protocol: "https",
-    fallback: env.BETTER_AUTH_URL,
+    fallback: "https://verified-nightly.vercel.app",
   });
+  assert.equal(
+    authBaseUrl({ ...env, VERCEL_ENV: "production" }),
+    env.BETTER_AUTH_URL,
+  );
   for (const deployment of [
     "*.vercel.app",
     "https://evil.example",
@@ -118,11 +123,7 @@ void test("invitation wrappers use the same exact origins, not a client-supplied
     false,
   );
   assert.equal(
-    matchesAuthOrigin(
-      base,
-      null,
-      "https://nightly.lictory.com/api/invitations",
-    ),
+    matchesAuthOrigin(base, null, "https://lictory.com/api/invitations"),
     false,
   );
 });

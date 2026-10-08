@@ -107,7 +107,7 @@ Recovery: rely on Neon point-in-time restore (check the plan's history
 retention) and practice restoring into a separate branch. To retry a failed
 migration after fixing it in a new commit, merge the fix; to re-run without code
 changes, dispatch **Database migrations** on `main` with `production` and the
-exact verified `nightly_tag`. Normal releases apply migrations automatically;
+exact verified `nightly_tag`. Stable releases apply migrations automatically;
 this recovery workflow never activates an application.
 
 ### Setup
@@ -122,11 +122,10 @@ existing required approvals):
   `VERCEL_PROJECT_ID`
 
 Create `staging` the same way to migrate staging with **Database migrations**.
-Create `nightly` with separate database/runtime credentials and a separate
-expected host. Nightly releases use the same migration safety rules, lock and
-transactional failure handling against that isolated target.
+Nightly Preview deployments do not run migrations. Prepare their test database
+through the staging migration workflow when needed.
 See [release setup](releases.md#one-time-github-and-vercel-configuration) for
-channel project IDs, host declarations and bootstrap settings.
+project ID, production host declaration and bootstrap settings.
 Until the production environment is configured, the release stops at the build
 step and production keeps serving the previous deployment.
 
