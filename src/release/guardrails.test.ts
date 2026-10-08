@@ -234,14 +234,14 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
     assert.ok(!JSON.stringify(flow.jobs.plan).includes("secrets."));
     assert.equal(flow.jobs.deploy!.permissions?.contents, "write");
   }
-  assert.equal(nightly.jobs.deploy!.environment, "nightly");
+  assert.equal(nightly.jobs.deploy!.environment, "Production");
   assert.equal(
     nightly.jobs.deploy!.env?.VERCEL_TOKEN,
     "${{ secrets.VERCEL_TOKEN }}",
   );
   assert.equal(nightly.jobs.deploy!.env?.DATABASE_MIGRATION_URL, undefined);
   assert.equal(nightly.jobs.deploy!.env?.DATABASE_URL, undefined);
-  assert.equal(production.jobs.deploy!.environment, "production");
+  assert.equal(production.jobs.deploy!.environment, "Production");
   assert.equal(nightly.jobs.deploy!.env?.DATABASE_MIGRATION_TARGET, undefined);
   assert.equal(
     production.jobs.deploy!.env?.DATABASE_MIGRATION_TARGET,
