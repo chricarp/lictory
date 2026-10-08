@@ -189,6 +189,43 @@ void test("nightly and stable version injection keeps build manifests consistent
   }
 });
 
+void test("nightly and stable publication resume an existing draft without duplicating releases or assets", async () => {
+  for (const manifest of [nightly(), stable()]) {
+    const fixture = new GitHubFixture();
+    const reserved = await fixture.github.reserve(manifest);
+    assert.equal(reserved.draft, true);
+    assert.equal(reserved.assets.length, 1);
+    assert.deepEqual(await fixture.github.manifest(reserved), manifest);
+    const writes = fixture.writes.length;
+    await fixture.github.reserve(manifest);
+    assert.equal(fixture.writes.length, writes);
+    await assert.rejects(
+      fixture.github.reserve({ ...manifest, changes: [] }),
+      /collision/,
+    );
+    await fixture.github.publish(manifest);
+    assert.equal(fixture.releases.length, 1);
+    assert.equal(fixture.releases[0]!.id, reserved.id);
+    assert.equal(fixture.releases[0]!.assets.length, 1);
+    assert.equal(fixture.releases[0]!.draft, false);
+  }
+});
+
+void test("publication resumes a draft whose manifest upload did not complete", async () => {
+  const fixture = new GitHubFixture();
+  const manifest = nightly();
+  fixture.add(manifest, false);
+  fixture.releases[0]!.assets = [];
+  await fixture.github.publish(manifest);
+  assert.equal(fixture.releases.length, 1);
+  assert.equal(fixture.releases[0]!.draft, false);
+  assert.equal(fixture.releases[0]!.assets.length, 1);
+  assert.deepEqual(
+    await fixture.github.manifest(fixture.releases[0]!),
+    manifest,
+  );
+});
+
 void test("tag and release publication are idempotent and never overwrite another source", async () => {
   const fixture = new GitHubFixture();
   const candidate = nightly();

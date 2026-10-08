@@ -250,6 +250,23 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
   assert.ok(!Object.hasOwn(nightly.on, "pull_request"));
 });
 
+void test("pushes verify once through Nightly while PR and manual CI remain available", () => {
+  const ci = workflow("ci");
+  const nightly = workflow("nightly");
+  assert.deepEqual(Object.keys(ci.on).sort(), [
+    "pull_request",
+    "workflow_call",
+    "workflow_dispatch",
+  ]);
+  assert.deepEqual(nightly.on.push, { branches: ["main", "release/*"] });
+  assert.equal(nightly.jobs.verify!.uses, "./.github/workflows/ci.yml");
+  assert.equal(
+    nightly.jobs.verify!.with?.release_version,
+    "${{ needs.plan.outputs.version }}",
+  );
+  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan", "verify"]);
+});
+
 void test("PR title enforcement never checks out or runs untrusted PR code", () => {
   const title = workflow("pr-title");
   assert.ok(Object.hasOwn(title.on, "pull_request_target"));
