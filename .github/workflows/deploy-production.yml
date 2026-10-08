@@ -1,76 +1,124 @@
-name: Deploy production
+name: Release to Production
 
-# Production release order for every push to main:
-#   verify -> build (not serving) -> migrate -> promote
-# A failed check, build or migration stops the run before the new version
-# receives production traffic. Vercel's Git integration is disabled for main
-# (vercel.json) so this is the only path to production. See docs/operations/migrations.md.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      nightly_tag:
+        description: "Verified nightly tag; leave empty for the newest eligible nightly"
+        required: false
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
+  deployments: read
 
-# One release at a time; a newer push waits instead of interrupting a
-# migration. Only the newest pending run is kept.
+# Preserve intentional queued releases instead of replacing the pending run.
 concurrency:
-  group: production-deploy
+  group: lictory-production-release
   cancel-in-progress: false
+  queue: max
 
 jobs:
-  verify:
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/ci.yml
-
-  build:
-    name: Build production deployment
-    needs: verify
+  plan:
+    name: Select verified nightly source
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment: production
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      deployments: write # Selection journal only; no production secrets.
     outputs:
-      url: ${{ steps.deploy.outputs.url }}
+      sha: ${{ steps.plan.outputs.sha }}
+      version: ${{ steps.plan.outputs.version }}
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      GH_TOKEN: ${{ github.token }}
+      NIGHTLY_TAG: ${{ inputs.nightly_tag }}
+      NIGHTLY_VERCEL_PROJECT_ID: ${{ vars.NIGHTLY_VERCEL_PROJECT_ID }}
+      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
     steps:
+      - name: Require dispatch from protected main
+        run: test "$GITHUB_REF" = refs/heads/main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
-      - name: Build on Vercel without assigning production domains
-        id: deploy
-        shell: bash
-        run: |
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "Configure VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID in the production environment."
-            exit 1
-          fi
-          url=$(npx --yes vercel@62.2.0 deploy --prod --skip-domain --yes --token "$VERCEL_TOKEN")
-          case "$url" in https://*) ;; *) echo "Unexpected Vercel output: $url"; exit 1 ;; esac
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Built $url (not serving production traffic yet)."
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - id: plan
+        run: bun run release plan-production "$RUNNER_TEMP/release-plan.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-plan
+          path: ${{ runner.temp }}/release-plan.json
+          retention-days: 30
+          overwrite: true
 
-  migrate:
-    needs: build
-    uses: ./.github/workflows/migrate.yml
+  verify:
+    needs: plan
+    uses: ./.github/workflows/ci.yml
     with:
-      environment: production
-    secrets: inherit
+      ref: ${{ needs.plan.outputs.sha }}
+      release_version: ${{ needs.plan.outputs.version }}
 
-  promote:
-    name: Activate production deployment
-    needs: [build, migrate]
+  deploy:
+    name: Stage, migrate, activate and publish stable
+    needs: [plan, verify]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 45
     environment: production
+    permissions:
+      contents: write
+      deployments: write
+      pull-requests: read
+      actions: read
     env:
+      GH_TOKEN: ${{ github.token }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      DEPLOYMENT_URL: ${{ needs.build.outputs.url }}
+      NIGHTLY_VERCEL_PROJECT_ID: ${{ vars.NIGHTLY_VERCEL_PROJECT_ID }}
+      PRODUCTION_VERCEL_PROJECT_ID: ${{ vars.PRODUCTION_VERCEL_PROJECT_ID }}
+      NIGHTLY_DATABASE_HOST: ${{ vars.NIGHTLY_DATABASE_HOST }}
+      PRODUCTION_DATABASE_HOST: ${{ vars.PRODUCTION_DATABASE_HOST }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
+      RELEASE_BOOTSTRAP_DEPLOYMENT_ID: ${{ vars.RELEASE_BOOTSTRAP_DEPLOYMENT_ID }}
+      DATABASE_MIGRATION_TARGET: production
+      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
+      DATABASE_MIGRATION_EXPECTED_HOST: ${{ vars.DATABASE_MIGRATION_EXPECTED_HOST }}
     steps:
-      - name: Promote the migrated build to production domains
-        run: npx --yes vercel@62.2.0 promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"
+      # Control code comes from protected main. Application code is never main HEAD.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: control/package.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: production-plan
+          path: ${{ runner.temp }}/plan
+      - run: bun install --frozen-lockfile
+        working-directory: control
+      - run: bun install --frozen-lockfile
+        working-directory: source
+      - name: Release the selected source with the clean stable version
+        working-directory: control
+        run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source

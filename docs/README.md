@@ -30,5 +30,6 @@ adding domain writes or synchronized entities.
 ## Operations
 
 - [Deployment and operations](./operations/deployment.md)
+- [Versions, release preparation and hotfixes](./operations/releases.md)
 - [Database migrations](./operations/migrations.md)
 - [Public legal notices](./operations/legal.md)

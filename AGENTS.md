@@ -1174,6 +1174,13 @@ bunx playwright install --with-deps chromium
 bun run test:e2e
 ```
 
+Reusable release verification also runs
+`bun scripts/inject-release-version.ts "$RELEASE_VERSION"` before this sequence
+when its `release_version` input is present. This happens only in the disposable
+candidate checkout so browser checks verify the exact nightly/stable version;
+normal local verification runs the eight commands above without changing the
+developer's package version.
+
 Provide the workflow's PostgreSQL and Mailpit services locally (see
 `compose.yaml`) and use its test authentication and SMTP settings. For the
 migration step, create a new disposable database and point `DATABASE_URL` and

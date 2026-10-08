@@ -1,0 +1,10 @@
+# Enable required code-owner review in branch protections for release changes.
+/.github/workflows/ @chricarp
+/src/release/ @chricarp
+/scripts/release.ts @chricarp
+/scripts/inject-release-version.ts @chricarp
+/scripts/migrate.ts @chricarp
+/src/db/migration-safety.ts @chricarp
+/src/lib/auth-base-url.ts @chricarp
+/src/lib/auth.ts @chricarp
+/src/app/api/invitations/route.ts @chricarp

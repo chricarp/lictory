@@ -85,6 +85,15 @@ bun run db:studio    # inspect local data
 bun run db:test      # verify migrations and constraints in a disposable local database
 ```
 
+## Versions and releases
+
+Conventional Commit PR titles determine semantic versions automatically. Merges
+produce verified Nightly prereleases at `nightly.lictory.com`. Run **Release to
+Production** in GitHub Actions to publish a Stable release from the exact
+nightly you tested, even when `main` has moved ahead. The account menu shows the
+deployed version. See [the release runbook](docs/operations/releases.md) for
+one-time configuration, release selection, recovery and hotfixes.
+
 ## production notes
 
 See [deployment and operations](docs/operations/deployment.md) for environment separation,
