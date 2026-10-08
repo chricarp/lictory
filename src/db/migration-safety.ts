@@ -6,7 +6,6 @@ export const migrationTargets = [
   "test",
   "preview",
   "staging",
-  "nightly",
   "production",
 ] as const;
 export type MigrationTarget = (typeof migrationTargets)[number];
@@ -38,7 +37,7 @@ function value(env: MigrationEnvironment, name: string) {
  *
  * - local/test may fall back to the runtime variables but only for loopback or
  *   Compose hosts.
- * - preview/staging/nightly/production require DATABASE_MIGRATION_URL plus a matching
+ * - preview/staging/production require DATABASE_MIGRATION_URL plus a matching
  *   non-secret DATABASE_MIGRATION_EXPECTED_HOST, and a direct (unpooled) TLS
  *   connection. Swapping a secret between environments therefore fails closed.
  */

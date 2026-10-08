@@ -36,7 +36,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       NIGHTLY_TAG: ${{ inputs.nightly_tag }}
-      NIGHTLY_VERCEL_PROJECT_ID: ${{ vars.NIGHTLY_VERCEL_PROJECT_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
       RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
       MIGRATION_ENVIRONMENT: ${{ inputs.environment }}

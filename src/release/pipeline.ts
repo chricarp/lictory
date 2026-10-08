@@ -17,7 +17,8 @@ export type ReleasePorts = {
   publish: () => Promise<void>;
 };
 
-// Every activation is after source validation, a configured build and migration.
+// Stable activation follows validation, a configured build and migration.
+// Nightlies are previews and never migrate or promote production.
 // An already active matching deployment repairs publication without reactivation.
 export async function executeRelease(
   manifest: Manifest,
@@ -36,15 +37,14 @@ export async function executeRelease(
   const record = await ports.record(build);
   await ports.status(record, "in_progress", build);
   try {
-    await ports.migrate();
+    if (manifest.channel === "stable") await ports.migrate();
     await ports.validate();
     // Reserve stable tags only after gates pass, so a failed migration does not
     // consume the version before a corrected candidate can be selected.
     await ports.reserve();
-    // Nightly publication is another pre-activation gate. A GitHub outage must
-    // not replace the working nightly alias. Stable publishes after activation.
+    // Preview publication does not activate any production domain.
     if (manifest.channel === "nightly") await ports.publish();
-    await ports.promote(build);
+    if (manifest.channel === "stable") await ports.promote(build);
     await ports.status(record, "success", build);
     if (manifest.channel === "stable") await ports.publish();
     return build;

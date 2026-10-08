@@ -86,22 +86,21 @@ Ordinary PR previews do not create release tags or GitHub Releases.
 3. Run the complete reusable CI workflow against that SHA with the candidate
    version embedded: frozen install, audit, types/lint/format, migration checks,
    disposable migrations, all tests, and a production build plus browser suite.
-4. Build a staged deployment in the **separate nightly Vercel project**, migrate
-   its isolated database, and reserve the immutable tag/manifest.
-5. Publish a GitHub prerelease, never marked latest, then activate the eligible
-   nightly alias and record deployment success. Publication failure leaves the
-   working alias untouched. The complete workflow must succeed before production
-   selection treats the release as verified.
+4. Create a **Preview deployment in the existing `lictory` Vercel project**
+   using `vercel deploy --target=preview` and the project's Preview settings.
+   Nightlies never run database migrations or promote a deployment.
+5. Reserve the immutable tag/manifest, publish a GitHub prerelease (never latest),
+   and record deployment success. The complete workflow must succeed before
+   production selection treats the release as verified.
 
-The shared URL is **https://nightly.lictory.com**. Each candidate also has an
-immutable Vercel URL in the Actions summary and deployment journal. Maintenance
-nightlies receive these URLs but never replace the main nightly alias.
+Each candidate has its own immutable Vercel URL in the Actions summary and
+GitHub deployment journal. There is no shared nightly domain or separate project.
+Main and maintenance candidates use the same Preview deployment behavior.
+Publication retries reuse the matching journaled preview.
 
-Nightly runs are serialized with retained queues. Alias updates also require a
-larger run number and source ancestry, so rerunning an old workflow cannot move
-the domain backward. Failed quality gates, builds, or migrations do not activate
-anything. A maintenance-only nightly is still useful for testing, but it cannot
-become a stable release without a new semantic version increment.
+Nightly runs are serialized with retained queues. Failed quality gates, builds,
+or publication cannot change production. A maintenance-only nightly remains
+useful for testing but cannot become stable without a semantic version increment.
 
 `package.json` in Git remains the development baseline. Build checkouts receive
 the calculated version without commits to `main`. Next.js embeds that package
@@ -208,37 +207,29 @@ version's identity instead of creating a second version.
 
 Repository variables:
 
-| Variable                       | Value                                                                        |
-| ------------------------------ | ---------------------------------------------------------------------------- |
-| `RELEASE_BOOTSTRAP_SHA`        | Exact currently deployed legacy source commit; keep this fallback configured |
-| `RELEASE_BOOTSTRAP_VERSION`    | Its clean version, default `0.1.0`; ignored once a stable release exists     |
-| `NIGHTLY_VERCEL_PROJECT_ID`    | Dedicated nightly project ID                                                 |
-| `PRODUCTION_VERCEL_PROJECT_ID` | Existing production project ID; must differ from nightly                     |
-| `NIGHTLY_DATABASE_HOST`        | Dedicated nightly direct database hostname                                   |
-| `PRODUCTION_DATABASE_HOST`     | Production direct database hostname; must differ from nightly                |
+| Variable                    | Value                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `RELEASE_BOOTSTRAP_SHA`     | Exact currently deployed legacy source commit; keep this fallback configured |
+| `RELEASE_BOOTSTRAP_VERSION` | Its clean version, default `0.1.0`; ignored once a stable release exists     |
+| `VERCEL_PROJECT_ID`         | Existing `lictory` project ID, also used to validate nightly journals        |
+| `PRODUCTION_DATABASE_HOST`  | Production direct database hostname                                          |
 
-Configure GitHub environments **nightly** and **production**:
+Configure GitHub environments **nightly** and **production** with the same
+`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`, and a `VERCEL_TOKEN` deployment credential.
+Keep credentials environment-scoped. Nightly needs no database secrets in GitHub.
 
-| Setting                                         | Each environment supplies its own value                                                    |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Secret `VERCEL_TOKEN`                           | Channel-scoped Vercel credentials, preferably separate teams for isolation                 |
-| Variables `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`  | The corresponding channel's team/project IDs                                               |
-| Secrets `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Channel runtime pooled/direct PostgreSQL URLs with TLS                                     |
-| Secret `DATABASE_MIGRATION_URL`                 | Channel administrative direct PostgreSQL URL with TLS                                      |
-| Variable `DATABASE_MIGRATION_EXPECTED_HOST`     | The matching declared direct hostname                                                      |
-| Variable `RELEASE_BOOTSTRAP_DEPLOYMENT_ID`      | Exact existing legacy deployment ID, if that channel already has an untracked active build |
+Only **production** supplies:
 
-Nightly uses uniquely named secrets `NIGHTLY_VERCEL_TOKEN`,
-`NIGHTLY_DATABASE_URL`, `NIGHTLY_DATABASE_URL_UNPOOLED` and
-`NIGHTLY_DATABASE_MIGRATION_URL` in the nightly environment. These names prevent
-an unset environment secret from falling back to a repository-level production
-secret. Production keeps the existing unprefixed secret names in its protected
-environment. Map the channel-specific names to the table's purposes.
+| Setting                                         | Value                                                            |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| Secrets `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Production runtime pooled/direct PostgreSQL URLs with TLS        |
+| Secret `DATABASE_MIGRATION_URL`                 | Production administrative direct PostgreSQL URL with TLS         |
+| Variable `DATABASE_MIGRATION_EXPECTED_HOST`     | Production direct hostname                                       |
+| Variable `RELEASE_BOOTSTRAP_DEPLOYMENT_ID`      | Exact legacy active production deployment for one-time migration |
 
-The workflow explicitly passes the channel's runtime database URLs to Vercel at
-build and runtime, overriding stale project database settings. Pooler hostnames
-may use Neon's `-pooler` form; the direct and administrative hosts must match the
-declared channel host. Secrets are never included in release manifests or logs.
+Production explicitly passes its runtime database URLs to Vercel at build and
+runtime. Pooler hostnames may use Neon's `-pooler` form; direct and administrative
+hosts must match the declared production host. Secrets never enter manifests or logs.
 
 Keep **production** restricted to `main` with its existing reviewers/approvals;
 remove the legacy `v*` deployment allowance. **nightly** permits `main` and
@@ -264,26 +255,23 @@ a reviewed import of release infrastructure and the version display before their
 pushes can create nightlies. Import those changes without merging unrelated main
 features. Future stable tags already contain that infrastructure.
 
-Keep the existing Vercel project for `lictory.com` and isolated PR previews.
-`vercel.json` keeps main Git deployments disabled. Create a separate nightly
-project owning only `nightly.lictory.com` (plus its Vercel domain), and disable
-its automatic Git integration. DNS/domain assignment must be completed before
-the first nightly. Use Next.js with `bun run build` and the repository's pinned
-Bun version. Production tokens must not be available to nightly automation.
+Use the existing `lictory` Vercel project for production, PR previews and nightly
+previews. `vercel.json` keeps main Git deployments disabled. Configure Next.js
+with `bun run build` and the repository's pinned Bun version. No separate nightly
+project, database, custom domain or DNS record is needed.
 
-Configure each Vercel project's own authentication URL/secret, email delivery,
-storage buckets, integration and AI credentials. Nightly uses test data and
-isolated providers; never attach production credentials or data. Do not weaken
-deployment protection for testing: testers need authorized access to protected
-nightly and immutable deployment URLs. Nightly scheduled jobs, if needed, use
-nightly and immutable deployment URLs. Keep Vercel system environment variables
-enabled. The workflow stamps `LICTORY_RELEASE_CHANNEL` and the channel's canonical
-`BETTER_AUTH_URL`; nightly authentication also permits its exact provider-declared
-`VERCEL_URL`, so older candidate URLs remain usable without wildcard origins.
-Use password authentication when testing immutable candidates; OAuth providers
-usually register only the canonical nightly callback. Production authentication
-retains its canonical origin policy. Nightly scheduled jobs, if needed, use their
-own credentials and database; production scheduled jobs are unchanged.
+Configure the project's **Preview** environment with test database, authentication,
+email, storage and integration settings. Preview database schema preparation is
+outside the nightly workflow; use the staging migration runbook when needed.
+Keep production credentials and data out of Preview settings and retain deployment
+protection. Nightlies inherit these settings without overriding database URLs.
+
+Keep Vercel system environment variables enabled. The workflow stamps
+`LICTORY_RELEASE_CHANNEL=nightly`; authentication uses only that Preview deployment's
+exact provider-declared `VERCEL_URL`, so each immutable URL works without wildcard
+origins. Password authentication works for immutable candidates; OAuth requires
+provider callback configuration. Production keeps its canonical origin policy and
+scheduled jobs.
 
 Normal operation has no package bump, changelog edit, local deployment, or tag
 push. Legacy stable releases remain valid baselines; their historical changelog
