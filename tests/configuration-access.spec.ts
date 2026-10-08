@@ -310,13 +310,18 @@ test("organization delegation enables local roles, team configuration, live revo
       workflow.getByRole("button", { name: "Add", exact: true }),
     ).toHaveCount(0);
     await maintainer.reload();
-    await expect(
-      workflow.getByRole("button", { name: "Add", exact: true }),
-    ).toHaveCount(0);
-    await expect(workflow).toContainText("Local triage");
-    await workflow.screenshot({
-      path: "/tmp/lictory-configuration-revoked.png",
-    });
+    // Reload and synchronization can replace the section during screenshot capture.
+    // Re-resolve it and verify revocation again on each capture attempt.
+    await expect(async () => {
+      await expect(workflow).toContainText("Local triage");
+      await expect(
+        workflow.getByRole("button", { name: "Add", exact: true }),
+      ).toHaveCount(0);
+      await workflow.screenshot({
+        path: "/tmp/lictory-configuration-revoked.png",
+        timeout: 5_000,
+      });
+    }).toPass({ timeout: 30_000 });
   } finally {
     await managerContext.close();
     await maintainerContext.close();
