@@ -138,7 +138,7 @@ export function BranchEntry({
 }: {
   onNavigate: (screen: BranchScreen) => void;
 }) {
-  const { branches, prs, item, userId, canEdit } = useBranchData();
+  const { branches, prs, item, userId } = useBranchData();
   const active = prs
     .filter((p) => p.status !== "merged")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
