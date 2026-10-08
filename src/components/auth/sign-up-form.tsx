@@ -21,12 +21,6 @@ export function SignUpForm({ callbackURL = "/app" }: { callbackURL?: string }) {
 
     const formData = new FormData(event.currentTarget);
     const password = formValue(formData, "password");
-    const confirmation = formValue(formData, "confirmation");
-
-    if (password !== confirmation) {
-      setError("The passwords do not match.");
-      return;
-    }
 
     setPending(true);
     const email = formValue(formData, "email");
@@ -74,7 +68,7 @@ export function SignUpForm({ callbackURL = "/app" }: { callbackURL?: string }) {
         placeholder="you@company.com"
         required
       />
-      <NewPasswordFields />
+      <NewPasswordFields confirm={false} />
       <FormMessage>{error}</FormMessage>
       <Button
         size="lg"

@@ -9,12 +9,15 @@ export const runtime = "nodejs";
 // needs: Lictory cookies and auth headers never leave this origin, and PostHog
 // cookies are never set on it. The visitor's IP is forwarded explicitly because
 // PostHog's cookieless mode hashes IP + user agent; without it every visitor
-// would collapse into the relay's server address.
+// would collapse into the relay's server address. `origin` is Lictory's own
+// origin; PostHog's flags service uses it as the site host in that hash and
+// rejects cookieless flag requests without it.
 const forwardedRequestHeaders = [
   "accept",
   "accept-language",
   "content-encoding",
   "content-type",
+  "origin",
   "user-agent",
 ];
 const droppedResponseHeaders = [

@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { OnboardingEntry } from "./onboarding-entry";
+import { ArrowRight } from "lucide-react";
 import { OnboardingFrame, OnboardingHeading } from "./onboarding-frame";
+import { seedSetupDraft } from "./onboarding-draft";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -11,49 +12,104 @@ import { formValue } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import { useWorkspace } from "./provider";
 
-export function Onboarding({
-  step,
-  userName,
-  canCreate = true,
-}: {
-  step: "organization" | "project";
-  userName?: string;
-  canCreate?: boolean;
-}) {
-  return step === "organization" ? (
-    <OnboardingEntry userName={userName} />
-  ) : (
-    <OnboardingFrame stage={1}>
+const keyPattern = /^[A-Z][A-Z0-9]{1,9}$/;
+const cleanKey = (value: string) =>
+  value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 10);
+
+/** Shown when an organization has been set up but has no active project. */
+export function Onboarding({ canCreate = true }: { canCreate?: boolean }) {
+  return (
+    <OnboardingFrame>
       <OnboardingHeading title="Add a project">
-        Your team’s configuration is already in place. Choose a project name and
-        a lasting key for its item identifiers.
+        {canCreate
+          ? "Your team settings are already in place."
+          : "Ask an organization administrator to create a project."}
       </OnboardingHeading>
-      {canCreate ? (
-        <CreateProject />
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Ask an organization administrator to create a project.
-        </p>
-      )}
+      {canCreate && <CreateProject />}
     </OnboardingFrame>
   );
 }
 
-export function CreateOrganization() {
+/** Project name with its derived, editable item key. */
+export function ProjectFields({
+  name,
+  projectKey,
+  onName,
+  onKey,
+  autoFocus = true,
+}: {
+  name: string;
+  projectKey: string;
+  onName: (name: string) => void;
+  onKey: (key: string) => void;
+  autoFocus?: boolean;
+}) {
+  const id = useId();
+  const sample = projectKey || "KEY";
+  return (
+    <div>
+      <div className="grid grid-cols-[1fr_104px] gap-3">
+        <label className="block text-sm font-medium">
+          Project
+          <Input
+            name="name"
+            className="mt-2"
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+            required
+            maxLength={120}
+            autoFocus={autoFocus}
+            placeholder="Payments"
+          />
+        </label>
+        <label className="block text-sm font-medium">
+          Key
+          <Input
+            name="key"
+            className="mt-2 font-mono uppercase"
+            value={projectKey}
+            onChange={(e) => onKey(cleanKey(e.target.value))}
+            pattern="[A-Z][A-Z0-9]{1,9}"
+            maxLength={10}
+            required
+            placeholder="PAY"
+            aria-describedby={id}
+          />
+        </label>
+      </div>
+      <p id={id} className="mt-2 text-xs text-muted-foreground">
+        Items become{" "}
+        <span className="font-mono text-foreground">{sample}-1</span>,{" "}
+        <span className="font-mono text-foreground">{sample}-2</span>. The key
+        is permanent.
+      </p>
+    </div>
+  );
+}
+
+export function CreateOrganization({ userId }: { userId?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [project, setProject] = useState("");
+  const [key, setKey] = useState("");
+  const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+  const effectiveKey = touched ? key : suggestKey(project);
   return (
     <form
-      className="mt-6 space-y-3"
+      className="space-y-6"
       onSubmit={async (e) => {
         e.preventDefault();
-        // Read the DOM value: it is correct even if typing began before hydration.
-        const submitted = (
-          formValue(new FormData(e.currentTarget), "name") || name
-        ).trim();
-        if (!submitted) return;
+        // Read the DOM values: they are correct even if typing began before hydration.
+        const data = new FormData(e.currentTarget);
+        const submitted = (formValue(data, "organization") || name).trim();
+        const projectName = (formValue(data, "name") || project).trim();
+        const projectKey = cleanKey(formValue(data, "key") || effectiveKey);
+        if (!submitted || !projectName || !keyPattern.test(projectKey)) return;
         setPending(true);
         setError(undefined);
         try {
@@ -62,6 +118,12 @@ export function CreateOrganization() {
             slug: `${slugify(submitted) || "org"}-${crypto.randomUUID().slice(0, 6)}`,
           });
           if (result.error) throw new Error(result.error.message);
+          // The project is created with the delivery setup, in one transaction.
+          if (userId)
+            seedSetupDraft(userId, result.data.id, {
+              name: projectName,
+              key: projectKey,
+            });
           router.push(paths.org(result.data.slug));
           router.refresh();
         } catch (err) {
@@ -70,31 +132,52 @@ export function CreateOrganization() {
               ? err.message
               : "Could not create organization. Try again.",
           );
-        } finally {
           setPending(false);
         }
       }}
     >
       <label className="block text-sm font-medium">
-        Organization name
+        Organization
         <Input
-          name="name"
-          className="mt-1.5 h-10 rounded-md text-sm"
+          name="organization"
+          className="mt-2"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
           maxLength={120}
-          placeholder="Your company or workspace"
+          placeholder="Acme Inc."
+          autoComplete="organization"
           autoFocus
         />
       </label>
+      <ProjectFields
+        name={project}
+        projectKey={effectiveKey}
+        autoFocus={false}
+        onName={setProject}
+        onKey={(k) => {
+          setTouched(true);
+          setKey(k);
+        }}
+      />
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? "Creating organization…" : "Create organization"}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={
+          pending ||
+          !name.trim() ||
+          !project.trim() ||
+          !keyPattern.test(effectiveKey)
+        }
+      >
+        {pending ? "Creating…" : "Continue"}
+        {!pending && <ArrowRight className="size-4" />}
       </Button>
     </form>
   );
@@ -108,19 +191,16 @@ export function CreateProject({ onDone }: { onDone?: () => void }) {
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
-  const effectiveKey = (touched ? key : suggestKey(name)).toUpperCase();
+  const effectiveKey = touched ? key : suggestKey(name);
   return (
     <form
-      className="mt-6 space-y-3"
+      className="space-y-6"
       onSubmit={async (e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
         const submittedName = (formValue(data, "name") || name).trim();
-        const submittedKey = (formValue(data, "key") || effectiveKey)
-          .trim()
-          .toUpperCase();
-        if (!submittedName || !/^[A-Z][A-Z0-9]{1,9}$/.test(submittedKey))
-          return;
+        const submittedKey = cleanKey(formValue(data, "key") || effectiveKey);
+        if (!submittedName || !keyPattern.test(submittedKey)) return;
         setPending(true);
         setError(undefined);
         try {
@@ -146,42 +226,15 @@ export function CreateProject({ onDone }: { onDone?: () => void }) {
         }
       }}
     >
-      <label className="block text-sm font-medium">
-        Project name
-        <Input
-          name="name"
-          className="mt-1.5 h-10 rounded-md text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          autoFocus
-          placeholder="Payments"
-        />
-      </label>
-      <label className="block text-sm font-medium">
-        Key
-        <Input
-          name="key"
-          className="mt-1.5 font-mono uppercase"
-          value={effectiveKey}
-          onChange={(e) => {
-            setTouched(true);
-            setKey(
-              e.target.value
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, "")
-                .slice(0, 10),
-            );
-          }}
-          pattern="[A-Z][A-Z0-9]{1,9}"
-          required
-          placeholder="PAY"
-        />
-        <span className="mt-1 block text-xs font-normal text-muted-foreground">
-          2–10 letters or digits. Items become {effectiveKey || "KEY"}-1,{" "}
-          {effectiveKey || "KEY"}-2…
-        </span>
-      </label>
+      <ProjectFields
+        name={name}
+        projectKey={effectiveKey}
+        onName={setName}
+        onKey={(k) => {
+          setTouched(true);
+          setKey(k);
+        }}
+      />
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

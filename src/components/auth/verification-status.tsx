@@ -46,10 +46,7 @@ export function VerificationStatus({
   if (verified && !errorCode) {
     return (
       <>
-        <AuthHeading
-          title="Email verified"
-          description="Your account is ready. Continue into your workspace."
-        />
+        <AuthHeading title="Email verified" />
         <Link href={callbackURL} className="contents">
           <Button size="lg" className="w-full">
             Open workspace

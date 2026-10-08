@@ -140,10 +140,13 @@ export function NewPasswordFields({
   autoFocus,
   passwordLabel = "Password",
   confirmationLabel = "Confirm password",
+  confirm = true,
 }: {
   autoFocus?: boolean;
   passwordLabel?: string;
   confirmationLabel?: string;
+  // Sign-up relies on the visibility toggle instead of a second entry.
+  confirm?: boolean;
 }) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -220,43 +223,45 @@ export function NewPasswordFields({
         {hasPassword ? `${strength.label}. ${strength.hint}` : ""}
       </span>
 
-      <PasswordInput
-        id="confirmation"
-        name="confirmation"
-        label={confirmationLabel}
-        autoComplete="new-password"
-        minLength={MIN_PASSWORD_LENGTH}
-        maxLength={MAX_PASSWORD_LENGTH}
-        required
-        value={confirmation}
-        onChange={(event) => setConfirmation(sanitize(event.target.value))}
-        aria-describedby={matchId}
-        aria-invalid={showConfirmationState && !matches ? true : undefined}
-        hint={
-          showConfirmationState ? (
-            <span
-              id={matchId}
-              className={cn(
-                "inline-flex items-center gap-1",
-                matches
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-destructive",
-              )}
-            >
-              {matches ? (
-                <>
-                  <Check className="size-3" strokeWidth={2.5} />
-                  Passwords match
-                </>
-              ) : (
-                "Passwords don’t match"
-              )}
-            </span>
-          ) : (
-            <span id={matchId} />
-          )
-        }
-      />
+      {confirm && (
+        <PasswordInput
+          id="confirmation"
+          name="confirmation"
+          label={confirmationLabel}
+          autoComplete="new-password"
+          minLength={MIN_PASSWORD_LENGTH}
+          maxLength={MAX_PASSWORD_LENGTH}
+          required
+          value={confirmation}
+          onChange={(event) => setConfirmation(sanitize(event.target.value))}
+          aria-describedby={matchId}
+          aria-invalid={showConfirmationState && !matches ? true : undefined}
+          hint={
+            showConfirmationState ? (
+              <span
+                id={matchId}
+                className={cn(
+                  "inline-flex items-center gap-1",
+                  matches
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-destructive",
+                )}
+              >
+                {matches ? (
+                  <>
+                    <Check className="size-3" strokeWidth={2.5} />
+                    Passwords match
+                  </>
+                ) : (
+                  "Passwords don’t match"
+                )}
+              </span>
+            ) : (
+              <span id={matchId} />
+            )
+          }
+        />
+      )}
     </>
   );
 }

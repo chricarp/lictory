@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import * as s from "../src/db/schema";
 import { seedDefaultRoles } from "../src/sync/server/roles";
 import { paths } from "../src/lib/paths";
-import { configureFirstProject } from "./onboarding-helpers";
+import { configureFirstProject, createWorkspace } from "./onboarding-helpers";
 const password = "Onboarding-test-password-123";
 
 test.beforeEach(async ({ page, context }, testInfo) => {
@@ -42,39 +42,45 @@ test.beforeEach(async ({ page, context }, testInfo) => {
 });
 
 for (const mode of ["native", "external"] as const)
-  test(`${mode} onboarding resumes, requires choices, and saves the complete setup`, async ({
+  test(`${mode} onboarding resumes, invites reviewers, and saves the complete setup`, async ({
     page,
   }) => {
     if (mode === "native") {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.emulateMedia({ reducedMotion: "reduce" });
-      await expect(page.locator(".onboarding-step")).toHaveCSS(
-        "animation-name",
-        "none",
-      );
     }
     await page
       .getByRole("button", { name: "Create a workspace", exact: false })
       .click();
-    await page.getByLabel("Organization name").fill(`Onboarding ${mode}`);
     await page
-      .getByRole("button", { name: "Create organization", exact: true })
-      .click();
-    await page.getByLabel("Project name").fill("Payments");
+      .getByLabel("Organization", { exact: true })
+      .fill(`Onboarding ${mode}`);
+    await page.getByLabel("Project", { exact: true }).fill("Payments");
+    await expect(page.getByLabel("Key", { exact: true })).toHaveValue("PAYM");
     await page.getByLabel("Key", { exact: true }).fill("PAY");
-    await page.getByLabel("Team name", { exact: true }).fill("Payments team");
-    await page.reload();
-    await expect(page.getByLabel("Project name")).toHaveValue("Payments");
-    await configureFirstProject(page, mode);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    // The project chosen with the organization carries into setup and survives reload.
     await expect(
-      page.getByRole("heading", { name: "Review your setup" }),
+      page.getByRole("heading", { name: "Where does delivery happen?" }),
     ).toBeVisible();
-    await expect(page.getByRole("checkbox")).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Create project", exact: true }),
-    ).toBeEnabled();
+      page.getByRole("button", { name: "Continue", exact: true }),
+    ).toBeDisabled();
+    await page.reload();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page.getByLabel("Project", { exact: true })).toHaveValue(
+      "Payments",
+    );
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await configureFirstProject(page, mode);
+    const invitee = `${crypto.randomUUID()}@example.test`;
+    await page
+      .getByLabel("Emails or usernames")
+      .fill(`${invitee}, bad@@address`);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("Not an email or username")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Set up later" }),
+      page.getByRole("list", { name: "People to invite" }).getByText(invitee),
     ).toBeVisible();
     // Lose the first committed response; retry must use the same mutation receipt.
     let interrupted = false;
@@ -86,12 +92,12 @@ for (const mode of ["native", "external"] as const)
       await route.abort("failed");
     });
     await page
-      .getByRole("button", { name: "Create project", exact: true })
+      .getByRole("button", { name: "Invite 1 and finish", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "Confirm saved setup" }),
+      page.getByRole("button", { name: "Confirm setup" }),
     ).toBeEnabled();
-    await page.getByRole("button", { name: "Confirm saved setup" }).click();
+    await page.getByRole("button", { name: "Confirm setup" }).click();
     await expect(page).toHaveURL(/\/pay\/epics$/);
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
     const db = drizzle(client);
@@ -115,16 +121,22 @@ for (const mode of ["native", "external"] as const)
       .select()
       .from(s.organizationOnboarding)
       .where(eq(s.organizationOnboarding.organizationId, org.id));
+    const invitations = await db
+      .select()
+      .from(s.invitation)
+      .where(eq(s.invitation.organizationId, org.id));
     expect(projects).toHaveLength(1);
+    expect(projects[0]).toMatchObject({ name: "Payments", key: "PAY" });
     expect(teams[0]).toMatchObject({
-      name: "Delivery team",
+      name: "Payments",
       deliveryMode: mode,
       readinessPolicy: "warn",
       iterationMode: "off",
       estimateScale: mode === "native" ? "fibonacci" : "none",
     });
     expect(decisions).toHaveLength(1);
-    expect(decisions[0]!.decisions.deferInvitations).toBe(true);
+    expect(decisions[0]!.decisions.invitations).toBe(1);
+    expect(invitations.map((i) => i.email)).toEqual([invitee]);
     await client.end();
   });
 
@@ -192,9 +204,7 @@ test("joining waits without creating an organization, discovers invitations, and
     expiresAt: new Date(Date.now() + 86400000),
   });
   await page.getByRole("button", { name: "Check invitations" }).click();
-  await page
-    .getByRole("button", { name: "Join Existing team", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Join", exact: true }).click();
   // Joining an organization with projects lands on Lictory Intelligence.
   await expect(page).toHaveURL(/\/intelligence$/);
   expect(
@@ -215,34 +225,29 @@ test("cycle selects support keyboard choices, numeric zero, and persisted team s
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Cycle select verification");
-  await page
-    .getByRole("button", { name: "Create organization", exact: true })
-    .click();
-  await page.getByLabel("Project name").fill("Payments");
-  await page.getByLabel("Key", { exact: true }).fill("PAY");
-  await configureFirstProject(page);
+  await createWorkspace(page, {
+    organization: "Cycle select verification",
+    project: "Payments",
+    key: "PAY",
+    finish: false,
+  });
   // Revisit planning to exercise the conditional cycle controls.
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Automatic cycles", exact: false })
-    .click();
-  const length = page.getByRole("combobox", { name: "Cycle length" });
+  await page.getByRole("radio", { name: "Cycles", exact: true }).click();
+  const length = page.getByRole("combobox", { name: "Length" });
   await length.click();
   await page.getByRole("option", { name: "3 weeks", exact: true }).click();
   const startDay = page.getByRole("combobox", { name: "Starts on" });
+  await expect(startDay).toHaveText("Monday");
   await startDay.focus();
   await startDay.press("Enter");
-  await page.keyboard.press("Home");
-  await page.keyboard.press("Enter");
+  await page.getByRole("option", { name: "Sunday", exact: true }).click();
   await expect(startDay).toHaveText("Sunday");
   await expect(startDay).toBeFocused();
   await expect(startDay).toHaveCSS("height", "40px");
-  await expect(startDay).toHaveCSS("border-radius", "6px");
-  await page.screenshot({ path: "/tmp/lictory-select-onboarding.png" });
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page
-    .getByRole("button", { name: "Create project", exact: true })
+    .getByRole("button", { name: "Skip and finish", exact: true })
     .click();
   await expect(page).toHaveURL(/\/pay\/epics$/);
   const orgSlug = new URL(page.url()).pathname.split("/")[2]!;

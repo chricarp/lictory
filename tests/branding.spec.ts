@@ -3,7 +3,7 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
-import { configureFirstProject } from "./onboarding-helpers";
+import { createWorkspace } from "./onboarding-helpers";
 
 const email = "branding@example.test";
 const password = "Local-test-password-123";
@@ -63,15 +63,11 @@ test("an administrator brands the organization switcher with its logos", async (
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Brand Co");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await page.getByLabel("Project name").fill("Brand project");
-  await page.getByLabel("Key", { exact: true }).fill("BRD");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/brd\/epics$/);
+  await createWorkspace(page, {
+    organization: "Brand Co",
+    project: "Brand project",
+    key: "BRD",
+  });
 
   const switcher = page.getByRole("button", { name: "Brand Co" }).first();
   await expect(switcher).toContainText("B");

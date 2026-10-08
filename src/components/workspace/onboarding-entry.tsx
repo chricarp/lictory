@@ -2,11 +2,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Mail,
+  RefreshCw,
+} from "lucide-react";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { CreateOrganization } from "./onboarding";
-import { OnboardingFrame, OnboardingHeading, Choice } from "./onboarding-frame";
+import {
+  OnboardingFrame,
+  OnboardingHeading,
+  Choice,
+  Steps,
+} from "./onboarding-frame";
 
 type Invite = {
   id: string;
@@ -16,11 +27,13 @@ type Invite = {
   expiresAt: Date | string;
 };
 export function OnboardingEntry({
+  userId,
   userName,
   email,
   invitations = [],
   createOnly = false,
 }: {
+  userId?: string;
   userName?: string;
   email?: string;
   invitations?: Invite[];
@@ -73,71 +86,60 @@ export function OnboardingEntry({
   const pending = invites.filter((i) => i.status === "pending");
   const choose = (value: string) => router.replace(`/app?intent=${value}`);
   return (
-    <OnboardingFrame stage={intent ? 1 : 0}>
-      <div key={intent ?? "discover"} className="onboarding-step">
+    <OnboardingFrame>
+      <Steps step={intent ?? "discover"} direction={intent ? 1 : -1}>
         <OnboardingHeading
           title={
             intent === "join"
               ? "Join your organization"
               : intent === "create"
-                ? "Create an organization"
+                ? "Create your workspace"
                 : userName
                   ? `Welcome, ${userName.split(" ")[0]}.`
                   : "Welcome to Lictory"
           }
         >
           {intent === "join"
-            ? "Join an existing organization to use its projects, reviews, and delivery setup. You won’t need to configure them again."
+            ? undefined
             : intent === "create"
-              ? "An organization is your company’s shared workspace. You’ll be its administrator. Next, we’ll help you choose how your first team works."
-              : "Refine specifications with your team, review changes, and prepare work for delivery. Join your organization or create one."}
+              ? "Name your company and the first thing you’ll spec."
+              : "Turn rough product ideas into specs your team has agreed to build."}
         </OnboardingHeading>
         {!intent && (
           <div className="space-y-3">
-            <Choice title="Join my team" onClick={() => choose("join")}>
-              My company already uses Lictory, or I’m expecting an invitation.
-              {pending.length > 0 && (
-                <span className="mt-2 block font-medium text-primary">
+            <Choice
+              title="Join my team"
+              icon={<Mail />}
+              onClick={() => choose("join")}
+            >
+              {pending.length > 0 ? (
+                <span className="font-medium text-primary">
                   {pending.length} invitation{pending.length === 1 ? "" : "s"}{" "}
-                  waiting for you
+                  waiting
                 </span>
+              ) : (
+                "Your company already uses Lictory."
               )}
             </Choice>
-            <Choice title="Create a workspace" onClick={() => choose("create")}>
-              I’m setting up Lictory for a new organization.
+            <Choice
+              title="Create a workspace"
+              icon={<Building2 />}
+              onClick={() => choose("create")}
+            >
+              Set up Lictory for your company.
             </Choice>
           </div>
         )}
-        {intent === "create" && (
-          <>
-            <CreateOrganization />
-            <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
-              Only your organization’s members can access its workspace. Names
-              can change later. Creating an organization does not invite anyone
-              or publish work.
-            </p>
-          </>
-        )}
+        {intent === "create" && <CreateOrganization userId={userId} />}
         {intent === "join" && (
           <div className="space-y-4">
-            <div className="rounded-lg border bg-card p-4">
-              <p className="text-xs text-muted-foreground">
-                Checking invitations for
-              </p>
-              <p className="mt-1 text-sm font-medium break-all">{email}</p>
-            </div>
             {pending.length ? (
               pending.map((invite) => (
                 <div
                   key={invite.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4"
                 >
-                  <div>
-                    <p className="font-medium">{invite.organizationName}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Your organization’s settings are already in place.
-                    </p>
-                  </div>
+                  <p className="font-medium">{invite.organizationName}</p>
                   <Button
                     size="lg"
                     disabled={Boolean(accepting)}
@@ -169,25 +171,20 @@ export function OnboardingEntry({
                       }
                     }}
                   >
-                    {accepting === invite.id
-                      ? "Joining…"
-                      : `Join ${invite.organizationName}`}
+                    {accepting === invite.id ? "Joining…" : "Join"}
                     <ArrowRight className="size-4" />
                   </Button>
                 </div>
               ))
             ) : (
-              <div className="rounded-lg border border-dashed p-6">
+              <div className="rounded-xl border border-dashed p-6">
                 <h2 className="text-sm font-medium">No invitation yet</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Ask your organization’s administrator to invite the email
-                  address above or your username. We’ll email you an invitation.
-                  Keep this page open; we check every 30 seconds while it’s
-                  visible.
-                </p>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Using a different email? You can sign out from your account
-                  and sign in with the invited address.
+                  Ask an admin to invite{" "}
+                  <span className="font-medium break-all text-foreground">
+                    {email}
+                  </span>
+                  . This page updates on its own.
                 </p>
               </div>
             )}
@@ -210,10 +207,11 @@ export function OnboardingEntry({
         {intent && !createOnly && (
           <Button
             variant="ghost"
-            className="mt-7"
+            className="mt-6 -ml-3"
             onClick={() => router.replace("/app")}
           >
-            Back to my options
+            <ArrowLeft className="size-4" />
+            Back
           </Button>
         )}
         {createOnly && (
@@ -224,7 +222,7 @@ export function OnboardingEntry({
             Back to workspace
           </Link>
         )}
-      </div>
+      </Steps>
     </OnboardingFrame>
   );
 }

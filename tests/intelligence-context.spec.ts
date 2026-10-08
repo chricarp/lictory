@@ -3,7 +3,7 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
-import { configureFirstProject } from "./onboarding-helpers";
+import { createWorkspace } from "./onboarding-helpers";
 
 const email = "context-admin@example.test";
 const password = "Local-test-password-123";
@@ -48,15 +48,11 @@ test("an administrator curates versioned Lictory Intelligence Context per scope"
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
-  await page.getByLabel("Organization name").fill("Context Co");
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await page.getByLabel("Project name").fill("Checkout");
-  await page.getByLabel("Key", { exact: true }).fill("CHK");
-  await configureFirstProject(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/chk\/epics$/);
+  await createWorkspace(page, {
+    organization: "Context Co",
+    project: "Checkout",
+    key: "CHK",
+  });
   await page
     .getByRole("link", { name: "Organization settings", exact: true })
     .click();

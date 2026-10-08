@@ -43,7 +43,7 @@ export function Invitation({ id }: { id?: string }) {
     };
   }, [id]);
   return (
-    <OnboardingFrame stage={1}>
+    <OnboardingFrame>
       <OnboardingHeading
         title={
           details
@@ -51,26 +51,16 @@ export function Invitation({ id }: { id?: string }) {
             : "Join your team’s workspace"
         }
       >
-        Lictory brings product, engineering, and QA together to refine
-        proposals, review revisions, and agree on implementation-ready
-        specifications. Your organization’s projects and delivery choices are
-        already configured.
-      </OnboardingHeading>
-      <div className="rounded-xl border bg-card p-5 text-sm leading-relaxed text-muted-foreground">
         {details ? (
           <>
-            This invitation is for{" "}
-            <strong className="text-foreground">{details.email}</strong>.
-            Accepting gives you access to{" "}
-            <strong className="text-foreground">
-              {details.organizationName}
-            </strong>
-            . Your administrator manages your roles and team membership.
+            Invited as{" "}
+            <span className="font-medium text-foreground">{details.email}</span>
+            . Everything is already set up.
           </>
         ) : (
-          "Sign in with the email address your teammate invited. Your administrator can share an invitation link with you."
+          "Sign in with the email address your teammate invited."
         )}
-      </div>
+      </OnboardingHeading>
       {error && (
         <p role="alert" className="mt-4 text-sm text-destructive">
           {error}
@@ -78,7 +68,6 @@ export function Invitation({ id }: { id?: string }) {
       )}
       {id && details && (
         <Button
-          className="mt-6"
           size="lg"
           disabled={pending}
           onClick={async () => {
@@ -109,7 +98,7 @@ export function Invitation({ id }: { id?: string }) {
         href="/app?intent=join"
         className="mt-6 block text-sm text-muted-foreground hover:text-foreground"
       >
-        See my invitations and workspace options
+        Other options
       </Link>
     </OnboardingFrame>
   );
