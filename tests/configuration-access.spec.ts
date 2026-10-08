@@ -8,6 +8,7 @@ import { createSyncService, directory } from "../src/sync/server/service";
 import { PROTOCOL } from "../src/sync/shared/protocol";
 import { paths } from "../src/lib/paths";
 import { consentStatePath } from "./consent-setup";
+import { reloadWhenSaved } from "./sync-helpers";
 
 const password = "Local-test-password-123";
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -102,40 +103,6 @@ async function signIn(page: Page, index: number) {
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app/);
-}
-// Commands resolve once queued locally; the server accepts them asynchronously.
-// Reloading before then aborts the request and races replay against hydration.
-async function reloadWhenSaved(page: Page) {
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            new Promise<number>((resolve, reject) => {
-              const open = indexedDB.open("lictory-sync-v2", 1);
-              open.onerror = () =>
-                reject(new Error("Could not open the local queue."));
-              open.onsuccess = () => {
-                const db = open.result;
-                const count = db
-                  .transaction("queue", "readonly")
-                  .objectStore("queue")
-                  .count();
-                count.onsuccess = () => {
-                  db.close();
-                  resolve(count.result);
-                };
-                count.onerror = () => {
-                  db.close();
-                  reject(new Error("Could not read the local queue."));
-                };
-              };
-            }),
-        ),
-      { timeout: 15_000 },
-    )
-    .toBe(0);
-  await page.reload();
 }
 async function choose(page: Page, label: string, option: string) {
   await page.getByRole("combobox", { name: label, exact: true }).click();

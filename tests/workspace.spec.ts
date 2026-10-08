@@ -12,6 +12,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
 import { createWorkspace } from "./onboarding-helpers";
+import { reloadWhenSaved } from "./sync-helpers";
 import { paths } from "../src/lib/paths";
 import packageJson from "../package.json" with { type: "json" };
 const version = packageJson.version;
@@ -879,7 +880,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     mentionRow.getByRole("checkbox", { name: "Also send an email" }),
   ).toBeChecked();
+  const savedPreference = reviewerInbox.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/notifications") && r.request().method() === "POST",
+  );
   await mentionSwitch.click();
+  expect((await savedPreference).ok()).toBe(true);
   await expect(
     mentionRow.getByRole("checkbox", { name: "Also send an email" }),
   ).toHaveCount(0);
@@ -1282,7 +1288,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(
     page.getByText(/started before its specification is ready/),
   ).toBeVisible();
-  await page.reload();
+  await reloadWhenSaved(page);
   await expect(
     column("In Progress").getByText("Save a card for later"),
   ).toBeVisible();
