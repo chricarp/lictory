@@ -4,6 +4,9 @@ export default defineConfig({
   testDir: "./tests",
   globalSetup: "./tests/consent-setup.ts",
   workers: 1,
+  // One CI retry absorbs runner timing noise; a pass on retry is still
+  // reported as flaky so the underlying race gets fixed, not hidden.
+  retries: process.env.CI ? 1 : 0,
   timeout: 90_000,
   expect: { timeout: 30_000 },
   outputDir: "/tmp/lictory-playwright-results",

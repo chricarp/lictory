@@ -7,6 +7,7 @@ import * as s from "../src/db/schema";
 import { seedDefaultRoles } from "../src/sync/server/roles";
 import { paths } from "../src/lib/paths";
 import { configureFirstProject, createWorkspace } from "./onboarding-helpers";
+import { reloadWhenSaved } from "./sync-helpers";
 const password = "Onboarding-test-password-123";
 
 test.beforeEach(async ({ page, context }, testInfo) => {
@@ -74,7 +75,7 @@ for (const mode of ["native", "external"] as const)
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await configureFirstProject(page, mode, "off", mode === "native");
     await page.getByRole("button", { name: "Back", exact: true }).click();
-    await page.reload();
+    await reloadWhenSaved(page);
     await expect(
       page.getByRole("radio", {
         name: mode === "native" ? "Enable AI" : "Keep AI off",

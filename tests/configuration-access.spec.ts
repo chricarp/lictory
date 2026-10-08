@@ -8,6 +8,7 @@ import { createSyncService, directory } from "../src/sync/server/service";
 import { PROTOCOL } from "../src/sync/shared/protocol";
 import { paths } from "../src/lib/paths";
 import { consentStatePath } from "./consent-setup";
+import { reloadWhenSaved } from "./sync-helpers";
 
 const password = "Local-test-password-123";
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -144,7 +145,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await associations
       .getByRole("checkbox", { name: "Shared operations", exact: true })
       .check();
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     await expect(
       associations.getByRole("checkbox", {
         name: "Shared operations",
@@ -157,7 +158,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await associations
       .getByRole("checkbox", { name: "Shared operations", exact: true })
       .uncheck();
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     await expect(
       associations.getByRole("checkbox", {
         name: "Shared operations",
@@ -167,7 +168,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await associations
       .getByRole("checkbox", { name: "Shared operations", exact: true })
       .check();
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     await expect(
       associations.getByRole("checkbox", {
         name: "Shared operations",
@@ -226,7 +227,7 @@ test("organization delegation enables local roles, team configuration, live revo
       .locator("#delivery")
       .getByRole("radio", { name: /External tool/ })
       .click();
-    await manager.reload();
+    await reloadWhenSaved(manager);
     await expect(
       manager
         .locator("#delivery")
@@ -288,7 +289,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await expect(
       workflow.getByText("Local triage", { exact: true }),
     ).toBeVisible();
-    await maintainer.reload();
+    await reloadWhenSaved(maintainer);
     await expect(
       workflow.getByText("Local triage", { exact: true }),
     ).toBeVisible();
@@ -296,7 +297,7 @@ test("organization delegation enables local roles, team configuration, live revo
       path: "/tmp/lictory-configuration-delegated.png",
     });
     // A reduced organization ceiling disables its customized descendant live.
-    await adminPage.reload();
+    await reloadWhenSaved(adminPage);
     const rootCard = adminPage
       .locator("#configuration-roles")
       .locator("div.rounded-lg")
@@ -312,7 +313,7 @@ test("organization delegation enables local roles, team configuration, live revo
     await expect(
       workflow.getByRole("button", { name: "Add", exact: true }),
     ).toHaveCount(0);
-    await maintainer.reload();
+    await reloadWhenSaved(maintainer);
     // Reload and synchronization can replace the section during screenshot capture.
     // Re-resolve it and verify revocation again on each capture attempt.
     await expect(async () => {

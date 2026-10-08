@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { consentStatePath } from "./consent-setup";
+import { reloadWhenSaved } from "./sync-helpers";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
@@ -312,7 +313,7 @@ test("readiness is checked before queueing, with one toast per attempt and none 
   await expect(
     page.getByText("set priority to", { exact: false }),
   ).toBeVisible();
-  await page.reload();
+  await reloadWhenSaved(page);
   await expect(
     page.getByRole("button", { name: "Priority: High", exact: true }),
   ).toBeVisible();
@@ -439,7 +440,7 @@ test("a handled server rejection is forgotten and never replays its toast after 
   await expect(
     page.getByText("set priority to", { exact: false }).last(),
   ).toBeVisible();
-  await page.reload();
+  await reloadWhenSaved(page);
   await expect(
     properties.getByRole("button", { name: "Priority: Medium", exact: true }),
   ).toBeVisible();
@@ -500,7 +501,7 @@ test("workspace sync explains automatic recovery and safely resumes after retrie
   await dialog.getByRole("button", { name: "Refresh workspace" }).click();
   await expect(dialog).toContainText("Everything is saved");
   await page.keyboard.press("Escape");
-  await page.reload();
+  await reloadWhenSaved(page);
   await expect(
     properties.getByRole("button", { name: "Priority: Low", exact: true }),
   ).toBeVisible();
