@@ -10,9 +10,20 @@ import {
   views,
 } from "~/lib/work-items";
 import type { WorkItem } from "~/sync/shared/protocol";
+import type { IllustrationKind } from "~/components/ui/state-illustration";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
 import { IssueList } from "./issue-list";
+
+const viewIllustrations: Record<ViewId, IllustrationKind> = {
+  all: "proposal",
+  "needs-my-review": "personalReview",
+  "needs-review": "teamReview",
+  blocked: "blocked",
+  ready: "ready",
+  drafts: "drafts",
+  updated: "updated",
+};
 
 // System views derive from real domain state; nothing here is a saved query.
 export function ViewPage({ view }: { view: ViewId }) {
@@ -51,6 +62,7 @@ export function ViewPage({ view }: { view: ViewId }) {
           ? "No reviews waiting for you"
           : `Nothing in “${meta.label}”`
       }
+      emptyIllustration={viewIllustrations[view]}
       emptyBody={
         view === "needs-my-review"
           ? "When someone requests your review, the item appears here with what changed."

@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AuthHeading } from "~/components/auth/auth-layout";
 import { Button } from "~/components/ui/button";
+import { StateIllustration } from "~/components/ui/state-illustration";
 
 export const metadata: Metadata = { title: "Sign-in interrupted" };
 
@@ -17,6 +18,7 @@ export default async function AuthErrorPage({
 
   return (
     <>
+      <StateIllustration kind="recovery" />
       <AuthHeading
         title="Sign-in interrupted"
         description={<span className="capitalize">{message}</span>}

@@ -125,7 +125,7 @@ export function AttentionList({ entries }: { entries: Entry[] }) {
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {entries.length === 0 ? (
-          <EmptyState title="Nothing needs your attention">
+          <EmptyState illustration="inbox" title="Nothing needs your attention">
             Review requests, blocking discussions on your items and requested
             changes appear here.
           </EmptyState>

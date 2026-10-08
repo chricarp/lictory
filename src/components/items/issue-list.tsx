@@ -44,6 +44,7 @@ import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
 import { PeoplePicker } from "~/components/ui/people-picker";
 import { EmptyState, Kbd } from "~/components/ui/primitives";
+import type { IllustrationKind } from "~/components/ui/state-illustration";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useShell } from "~/components/workspace/shell";
 import { IssueRow } from "./issue-row";
@@ -62,6 +63,7 @@ export function IssueList({
   description,
   emptyTitle = "No items",
   emptyBody,
+  emptyIllustration = "proposal",
   createKind,
   showArchivedToggle = true,
   allowEpicFilter = true,
@@ -76,6 +78,7 @@ export function IssueList({
   description?: string;
   emptyTitle?: string;
   emptyBody?: ReactNode;
+  emptyIllustration?: IllustrationKind;
   createKind?: "epic" | "story";
   showArchivedToggle?: boolean;
   allowEpicFilter?: boolean;
@@ -534,6 +537,13 @@ export function IssueList({
           <LoadingState label="Opening work items" />
         ) : visible.length === 0 ? (
           <EmptyState
+            illustration={
+              compact
+                ? undefined
+                : activeFilterCount || filters.search
+                  ? "search"
+                  : emptyIllustration
+            }
             title={
               activeFilterCount || filters.search
                 ? "No matching items"

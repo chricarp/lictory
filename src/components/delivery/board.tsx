@@ -52,6 +52,7 @@ export function Board() {
     memberName,
     mutate,
     capabilities,
+    view,
   } = useWorkspace();
   const { openCreate, toast } = useShell();
   const router = useRouter();
@@ -380,6 +381,7 @@ export function Board() {
       )}
       {usesIterations && iterationParam !== "all" && !iteration ? (
         <EmptyState
+          illustration="planning"
           title="No active iteration"
           action={
             <Link
@@ -514,6 +516,22 @@ export function Board() {
               </section>
             ))}
           </div>
+          {!scoped.length && view.status !== "hydrating" && (
+            <EmptyState
+              illustration={
+                assignees.length || typeFilter.length ? "search" : "planning"
+              }
+              title={
+                assignees.length || typeFilter.length
+                  ? "No matching work"
+                  : "No work on this board yet"
+              }
+            >
+              {assignees.length || typeFilter.length
+                ? "Adjust the filters to see more work."
+                : "Create a work item, or plan work in the backlog to get started."}
+            </EmptyState>
+          )}
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Not found" };
 export default function AppNotFound() {
   return (
     <StatusPage
+      illustration="search"
       brand={<Logo />}
       icon={Search}
       title="This workspace was not found"

@@ -109,9 +109,9 @@ export function SettingsList({
 }) {
   if (isEmpty)
     return (
-      <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">
+      <div className="px-5 py-6 text-center text-[13px] text-muted-foreground">
         {empty}
-      </p>
+      </div>
     );
   return <div className="divide-y divide-border">{children}</div>;
 }

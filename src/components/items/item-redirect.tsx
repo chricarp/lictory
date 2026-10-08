@@ -53,6 +53,7 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
     return <SyncIssue status={view.status} error={view.error} />;
   return (
     <MissingState
+      illustration="search"
       icon={FileSearch}
       title={`${raw} was not found`}
       action={

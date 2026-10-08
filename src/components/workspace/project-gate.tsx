@@ -29,6 +29,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
     if (!projects.length) return <Onboarding canCreate={isAdmin} />;
     return (
       <MissingState
+        illustration="search"
         icon={FolderSearch}
         title={key ? `Project ${key} was not found` : "Project was not found"}
         action={

@@ -6,6 +6,7 @@ import { OnboardingFrame, OnboardingHeading } from "./onboarding-frame";
 import { seedSetupDraft } from "./onboarding-draft";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
+import { StateIllustration } from "~/components/ui/state-illustration";
 import { Input } from "~/components/ui/input";
 import { slugify, suggestKey } from "~/lib/work-items";
 import { formValue } from "~/lib/utils";
@@ -23,6 +24,7 @@ const cleanKey = (value: string) =>
 export function Onboarding({ canCreate = true }: { canCreate?: boolean }) {
   return (
     <OnboardingFrame>
+      <StateIllustration kind="proposal" />
       <OnboardingHeading title="Add a project">
         {canCreate
           ? "Your team settings are already in place."

@@ -81,6 +81,7 @@ export default function WorkspaceError({
 
   return (
     <StatusPage
+      illustration="recovery"
       brand={<Logo />}
       icon={described.icon}
       tone={described.tone}

@@ -25,7 +25,11 @@ export function IterationReportPage() {
   const usePoints = team.estimateScale !== "none";
   if (error)
     return (
-      <MissingState icon={BarChart3} title="Report unavailable">
+      <MissingState
+        illustration="planning"
+        icon={BarChart3}
+        title="Report unavailable"
+      >
         {error} The iteration may belong to another team or be older than the
         synchronized history.
       </MissingState>

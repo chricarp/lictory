@@ -8,6 +8,20 @@ const nextConfig: NextConfig = {
   // PostHog's SDK posts to paths with a trailing slash (`/relay/e/`). The default
   // redirect would cost every analytics request a round trip through the relay.
   skipTrailingSlashRedirect: true,
+  // Content-addressed, pre-sized artwork is served directly, without image transforms.
+  async headers() {
+    return [
+      {
+        source: "/illustrations/:asset*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
   // Native document converter for Lictory Intelligence Context: loaded from
   // node_modules at runtime instead of being bundled.
   serverExternalPackages: ["@firecrawl/anydoc"],

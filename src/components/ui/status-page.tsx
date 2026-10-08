@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
+import { StateIllustration, type IllustrationKind } from "./state-illustration";
 
 type Icon = ComponentType<{ className?: string; strokeWidth?: number }>;
 
@@ -16,6 +17,7 @@ export function StatusPage({
   tone = "neutral",
   kicker,
   title,
+  illustration,
   children,
   actions,
   detail,
@@ -25,6 +27,7 @@ export function StatusPage({
   tone?: keyof typeof wells;
   kicker?: string;
   title: string;
+  illustration?: IllustrationKind;
   children?: ReactNode;
   actions?: ReactNode;
   detail?: ReactNode;
@@ -37,6 +40,7 @@ export function StatusPage({
         </header>
       )}
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16 text-center">
+        {illustration && <StateIllustration kind={illustration} />}
         <div
           className={cn(
             "lictory-enter mx-auto mb-6 grid size-14 place-items-center rounded-2xl",
@@ -80,18 +84,21 @@ export function MissingState({
   icon: Icon,
   tone = "neutral",
   title,
+  illustration,
   children,
   action,
 }: {
   icon: Icon;
   tone?: keyof typeof wells;
   title: string;
+  illustration?: IllustrationKind;
   children?: ReactNode;
   action?: ReactNode;
 }) {
   return (
     <div className="grid min-h-full place-items-center px-6 py-16">
       <div className="mx-auto max-w-sm text-center">
+        {illustration && <StateIllustration kind={illustration} />}
         <div
           className={cn(
             "mx-auto mb-4 grid size-10 place-items-center rounded-[10px]",

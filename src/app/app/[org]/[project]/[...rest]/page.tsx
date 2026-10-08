@@ -14,6 +14,7 @@ export default function UnknownProjectRoute() {
   const { organization } = useWorkspace();
   return (
     <MissingState
+      illustration="search"
       icon={Search}
       title="This page does not exist"
       action={
