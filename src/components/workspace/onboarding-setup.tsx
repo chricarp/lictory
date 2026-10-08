@@ -7,7 +7,15 @@ import {
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Send, SquareKanban, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Send,
+  Sparkles,
+  SquareKanban,
+  Users,
+  X,
+} from "lucide-react";
 import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -47,6 +55,15 @@ const planningHints = {
   off: "A board and ranked backlog, no time boxes.",
   manual: "Your team starts and completes each sprint.",
   automatic: "Cycles roll over on a schedule; unfinished work carries forward.",
+};
+const estimateHints = {
+  none: "Skip sizing work. Items have no estimates.",
+  fibonacci:
+    "Story points: 0, 1, 2, 3, 5, 8, 13, 21. Bigger gaps reflect more uncertainty in larger work. Points compare effort and complexity, not hours.",
+  linear:
+    "Points from 0 to 8 in equal steps. Use this for finer distinctions between similarly sized items. Points compare effort and complexity, not hours.",
+  tshirt:
+    "Sizes: XS, S, M, L, XL. Compare work from extra small to extra large without choosing a point number or estimating hours.",
 };
 const days = [
   "Sunday",
@@ -92,8 +109,20 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     try {
       const saved = sessionStorage.getItem(storageKey);
       if (saved) {
-        const parsed = draftSchema.safeParse(JSON.parse(saved));
-        if (parsed.success) setDraft(parsed.data);
+        const raw: unknown = JSON.parse(saved);
+        const parsed = draftSchema.safeParse(raw);
+        if (parsed.success) {
+          // A draft from before this choice must show it before enabling AI.
+          const legacy = !z.object({ aiEnabled: z.boolean() }).safeParse(raw)
+            .success;
+          setDraft({
+            ...parsed.data,
+            step:
+              legacy && parsed.data.step === steps.team
+                ? steps.intelligence
+                : parsed.data.step,
+          });
+        }
       }
       const submitted = sessionStorage.getItem(`${storageKey}:attempt`);
       if (submitted) {
@@ -133,8 +162,14 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     setDraft((d) => ({ ...d, ...patch }));
   const external = draft.deliveryMode === "external";
   const flow = external
-    ? [steps.project, steps.delivery, steps.team]
-    : [steps.project, steps.delivery, steps.planning, steps.team];
+    ? [steps.project, steps.delivery, steps.intelligence, steps.team]
+    : [
+        steps.project,
+        steps.delivery,
+        steps.planning,
+        steps.intelligence,
+        steps.team,
+      ];
   const position = Math.max(0, flow.indexOf(draft.step as never));
   const go = (offset: number) => {
     const next = flow[position + offset];
@@ -157,6 +192,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
         (draft.iterationWeeks && draft.iterationStartDay)),
     ),
     [steps.team]: true,
+    [steps.intelligence]: true,
   };
   const setupValid = flow.every((s) => valid[s]);
 
@@ -235,6 +271,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           readinessPolicy: draft.readinessPolicy,
           iterationMode: external ? "off" : draft.iterationMode,
           estimateScale: external ? "none" : draft.estimateScale,
+          aiEnabled: draft.aiEnabled,
           iterationWeeks: Number(draft.iterationWeeks) || 2,
           iterationStartDay: Number(draft.iterationStartDay) || 0,
           invitations: draft.invites.length,
@@ -366,8 +403,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       stage={position}
       labels={
         external
-          ? ["Project", "Delivery", "Team"]
-          : ["Project", "Delivery", "Planning", "Team"]
+          ? ["Project", "Delivery", "Intelligence", "Team"]
+          : ["Project", "Delivery", "Planning", "Intelligence", "Team"]
       }
     >
       <form
@@ -493,11 +530,68 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                     onChange={(estimateScale) => update({ estimateScale })}
                     options={[
                       { value: "none", label: "None" },
-                      { value: "fibonacci", label: "1 2 3 5 8" },
-                      { value: "linear", label: "1 2 3 4" },
-                      { value: "tshirt", label: "S M L" },
+                      { value: "fibonacci", label: "Fibonacci" },
+                      { value: "linear", label: "Linear" },
+                      { value: "tshirt", label: "T-shirt" },
                     ]}
+                    hint={
+                      draft.estimateScale
+                        ? estimateHints[draft.estimateScale]
+                        : "Choose how your team compares the size of work: story points, T-shirt sizes, or no estimates. Select a scale to see examples."
+                    }
                   />
+                </div>
+              </>
+            )}
+            {draft.step === steps.intelligence && (
+              <>
+                <OnboardingHeading title="Lictory Intelligence">
+                  Choose whether your organization uses AI to help refine specs.
+                </OnboardingHeading>
+                <CardOptions
+                  label="Lictory Intelligence"
+                  value={draft.aiEnabled ? "enabled" : "disabled"}
+                  onChange={(value) =>
+                    update({ aiEnabled: value === "enabled" })
+                  }
+                  options={[
+                    {
+                      value: "enabled",
+                      title: "Enable AI",
+                      description:
+                        "Chat with Intelligence, spot gaps and contradictions in AI reviews, and get suggested fixes to review changes.",
+                      icon: <Sparkles />,
+                    },
+                    {
+                      value: "disabled",
+                      title: "Keep AI off",
+                      description:
+                        "No AI chat, automated reviews or suggested fixes. Write specs, discuss, review and approve with your team.",
+                      icon: <Users />,
+                    },
+                  ]}
+                />
+                <div className="mt-6 space-y-3 text-xs leading-relaxed text-muted-foreground">
+                  <p>
+                    AI proposes changes. People decide what to accept and
+                    approve.
+                  </p>
+                  <p>
+                    Enabling AI allows relevant specs, discussions and
+                    organization context to be sent to the configured AI
+                    provider when AI features run. With AI off, no content is
+                    sent to an AI provider.
+                  </p>
+                  {!directory.ai.available && (
+                    <p>
+                      AI is not available on this server yet. Your choice will
+                      be saved and AI can run once a provider is configured.
+                    </p>
+                  )}
+                  <p>
+                    An organization administrator can change this later in
+                    Settings → Lictory AI.
+                  </p>
                 </div>
               </>
             )}

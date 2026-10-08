@@ -1863,6 +1863,13 @@ export function createSyncService(
                   upcomingIterations: 2,
                 },
               );
+              if (c.setup.aiEnabled !== undefined)
+                await setAiPolicy(
+                  tx,
+                  organizationId,
+                  userId,
+                  c.setup.aiEnabled,
+                );
             }
             await tx.insert(s.project).values({
               id: projectId,

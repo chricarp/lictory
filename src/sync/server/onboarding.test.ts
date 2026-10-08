@@ -77,6 +77,7 @@ async function fixture() {
     iterationWeeks: 2,
     iterationStartDay: 1,
     invitations: 2,
+    aiEnabled: true,
   };
   const mutation = (patch: Partial<OnboardingSetup> = {}) => ({
     protocol: PROTOCOL,
@@ -104,6 +105,7 @@ void test("setup saves explicit team choices and the decision record with an ide
   assert.equal(roster.teams[0]!.readinessPolicy, "block");
   assert.equal(roster.teams[0]!.iterationMode, "manual");
   assert.equal(roster.teams[0]!.estimateScale, "tshirt");
+  assert.equal(roster.ai.enabled, true);
   const [record] = await db
     .select()
     .from(s.organizationOnboarding)
@@ -135,6 +137,14 @@ void test("initial setup requires an administrator and a team from the same orga
     (await directory(db, f.userId, f.organizationId)).projects.length,
     0,
   );
+  assert.equal(
+    (await directory(db, f.userId, f.organizationId)).ai.enabled,
+    false,
+  );
+  assert.equal(
+    (await directory(db, foreign.userId, foreign.organizationId)).ai.enabled,
+    false,
+  );
 });
 void test("a failed change-log write rolls back the project, setup decisions, team and automatic cycles", async () => {
   const f = await fixture();
@@ -152,6 +162,7 @@ void test("a failed change-log write rolls back the project, setup decisions, te
   assert.equal(roster.projects.length, 0);
   assert.deepEqual(roster.teams[0], f.team);
   assert.equal(roster.iterations.length, 0);
+  assert.equal(roster.ai.enabled, false);
   assert.equal(
     (
       await db
@@ -178,6 +189,7 @@ void test("concurrent first setups have one authoritative winner", async () => {
     deliveryMode: "external",
     iterationMode: "off",
     estimateScale: "none",
+    aiEnabled: false,
   });
   second.command.key = "OTHER";
   const results = await Promise.allSettled([
@@ -193,6 +205,48 @@ void test("concurrent first setups have one authoritative winner", async () => {
     .where(eq(s.organizationOnboarding.organizationId, f.organizationId));
   assert.equal(roster.teams[0]!.deliveryMode, record!.decisions.deliveryMode);
   assert.equal(roster.teams[0]!.name, record!.decisions.teamName);
+  assert.equal(roster.ai.enabled, record!.decisions.aiEnabled);
+});
+void test("opting out applies organization-wide and administrators can change AI later without rewriting the onboarding decision", async () => {
+  const f = await fixture();
+  await service.mutate(f.userId, f.mutation({ aiEnabled: false }));
+  assert.equal(
+    (await directory(db, f.memberId, f.organizationId)).ai.enabled,
+    false,
+  );
+  await service.mutate(f.userId, {
+    protocol: PROTOCOL,
+    id: crypto.randomUUID(),
+    organizationId: f.organizationId,
+    command: { type: "setAiPolicy", enabled: true },
+  });
+  assert.equal(
+    (await directory(db, f.memberId, f.organizationId)).ai.enabled,
+    true,
+  );
+  const [record] = await db
+    .select()
+    .from(s.organizationOnboarding)
+    .where(eq(s.organizationOnboarding.organizationId, f.organizationId));
+  assert.equal(record!.decisions.aiEnabled, false);
+});
+void test("legacy setup without an AI choice preserves the existing organization policy", async () => {
+  for (const enabled of [false, true]) {
+    const f = await fixture();
+    await service.mutate(f.userId, {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      command: { type: "setAiPolicy", enabled },
+    });
+    const mutation = f.mutation();
+    delete mutation.command.setup.aiEnabled;
+    await service.mutate(f.userId, mutation);
+    assert.equal(
+      (await directory(db, f.userId, f.organizationId)).ai.enabled,
+      enabled,
+    );
+  }
 });
 void test("external setup cannot enable native iteration planning", () => {
   const setup = {

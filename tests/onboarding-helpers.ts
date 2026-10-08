@@ -28,14 +28,22 @@ export async function createWorkspace(
       .getByRole("button", { name: "Skip and finish", exact: true })
       .click();
     await expect(page).toHaveURL(new RegExp(`/${key.toLowerCase()}/epics$`));
+    // The URL changes before the onboarding-to-workspace render finishes.
+    await expect(
+      page.getByRole("heading", { name: "Epics", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "New item C", exact: true }),
+    ).toBeVisible();
   }
 }
 
-/** From the delivery step to the team step. */
+/** From the delivery step through Intelligence to the team step. */
 export async function configureFirstProject(
   page: Page,
   mode: "native" | "external" = "native",
   planning: "off" | "manual" = "off",
+  aiEnabled = true,
 ) {
   await expect(
     page.getByRole("heading", { name: "Where does delivery happen?" }),
@@ -55,9 +63,24 @@ export async function configureFirstProject(
         exact: true,
       })
       .click();
-    await page.getByRole("radio", { name: "1 2 3 5 8", exact: true }).click();
+    await page.getByRole("radio", { name: "Fibonacci", exact: true }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
   }
+  await expect(
+    page.getByRole("heading", { name: "Lictory Intelligence", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: "Enable AI", exact: true }),
+  ).toBeChecked();
+  if (!aiEnabled)
+    await page.getByRole("radio", { name: "Keep AI off", exact: true }).click();
+  await expect(
+    page.getByRole("radio", {
+      name: aiEnabled ? "Enable AI" : "Keep AI off",
+      exact: true,
+    }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Who reviews with you?" }),
   ).toBeVisible();

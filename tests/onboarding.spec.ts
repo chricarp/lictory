@@ -72,7 +72,16 @@ for (const mode of ["native", "external"] as const)
       "Payments",
     );
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await configureFirstProject(page, mode);
+    await configureFirstProject(page, mode, "off", mode === "native");
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await page.reload();
+    await expect(
+      page.getByRole("radio", {
+        name: mode === "native" ? "Enable AI" : "Keep AI off",
+        exact: true,
+      }),
+    ).toBeChecked();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     const invitee = `${crypto.randomUUID()}@example.test`;
     await page
       .getByLabel("Emails or usernames")
@@ -136,6 +145,12 @@ for (const mode of ["native", "external"] as const)
     });
     expect(decisions).toHaveLength(1);
     expect(decisions[0]!.decisions.invitations).toBe(1);
+    expect(decisions[0]!.decisions.aiEnabled).toBe(mode === "native");
+    const [aiPolicy] = await db
+      .select()
+      .from(s.organizationAiPolicy)
+      .where(eq(s.organizationAiPolicy.organizationId, org.id));
+    expect(aiPolicy!.enabled).toBe(mode === "native");
     expect(invitations.map((i) => i.email)).toEqual([invitee]);
     await client.end();
   });
@@ -233,6 +248,16 @@ test("cycle selects support keyboard choices, numeric zero, and persisted team s
   });
   // Revisit planning to exercise the conditional cycle controls.
   await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  for (const [name, description] of [
+    ["None", "Items have no estimates."],
+    ["Linear", "Points from 0 to 8 in equal steps."],
+    ["T-shirt", "Sizes: XS, S, M, L, XL."],
+    ["Fibonacci", "Bigger gaps reflect more uncertainty in larger work."],
+  ]) {
+    await page.getByRole("radio", { name, exact: true }).click();
+    await expect(page.getByText(description!, { exact: false })).toBeVisible();
+  }
   await page.getByRole("radio", { name: "Cycles", exact: true }).click();
   const length = page.getByRole("combobox", { name: "Length" });
   await length.click();
@@ -245,6 +270,7 @@ test("cycle selects support keyboard choices, numeric zero, and persisted team s
   await expect(startDay).toHaveText("Sunday");
   await expect(startDay).toBeFocused();
   await expect(startDay).toHaveCSS("height", "40px");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page
     .getByRole("button", { name: "Skip and finish", exact: true })
