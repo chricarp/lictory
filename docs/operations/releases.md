@@ -77,6 +77,11 @@ maintenance branches. It also runs automatically after stable publication so
 the remaining `main` work gets a candidate based on the new stable baseline.
 Ordinary PR previews do not create release tags or GitHub Releases.
 
+CI runs directly for pull requests and manual dispatches. Pushes to `main` and
+maintenance branches are verified through Nightly's reusable CI job, so a merge
+does not also start a duplicate standalone CI run. Nightly verification remains
+a required gate before preview deployment and publication.
+
 1. Pin the triggering SHA and calculate a candidate from the stable baseline.
 2. Form `X.Y.Z-nightly.YYYYMMDD.<run_number>` using the workflow's original UTC
    creation date and run number. Retries do not use today's date or a new run
