@@ -126,7 +126,11 @@ export class GitHub {
     const value = await this.request(
       `/releases/tags/${encodeURIComponent(tag)}`,
     );
-    return value === undefined ? undefined : releaseSchema.parse(value);
+    // The tag endpoint only returns published releases. Find drafts as well so
+    // retries reuse the reservation instead of creating a second release.
+    return value === undefined
+      ? (await this.releases()).find((release) => release.tag_name === tag)
+      : releaseSchema.parse(value);
   }
   async tagSha(tag: string): Promise<string | undefined> {
     const value = await this.request(
@@ -212,7 +216,13 @@ export class GitHub {
         throw new Error(
           `Release manifest upload failed (${response.status}); retry the failed job.`,
         );
-      release = (await this.release(manifest.tag))!;
+      const refreshed = await this.request(`/releases/${release.id}`);
+      if (refreshed === undefined)
+        throw new Error(
+          `Reserved release ${manifest.tag} is unavailable; retry the failed job.`,
+        );
+      release = releaseSchema.parse(refreshed);
+      sameManifest(await this.manifest(release), manifest);
     }
     return release;
   }

@@ -203,7 +203,9 @@ export class GitHubFixture {
     if (path.startsWith("/releases/tags/"))
       return respond(
         this.releases.find(
-          (value) => value.tag_name === decodeURIComponent(path.slice(15)),
+          (value) =>
+            !value.draft &&
+            value.tag_name === decodeURIComponent(path.slice(15)),
         ),
       );
     if (path === "/releases" && method === "GET") return respond(this.releases);
@@ -221,6 +223,10 @@ export class GitHubFixture {
       this.releases.push(release);
       return respond(release);
     }
+    if (/^\/releases\/\d+$/.test(path) && method === "GET")
+      return respond(
+        this.releases.find((value) => value.id === Number(path.split("/")[2])),
+      );
     if (path.startsWith("/releases/") && method === "PATCH") {
       const release = this.releases.find(
         (value) => value.id === Number(path.split("/")[2]),
