@@ -3,7 +3,6 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "~/components/ui/dropdown-select";
-import { canConfigure } from "~/sync/shared/configuration-access";
 import { useState } from "react";
 import { Archive, ArchiveRestore, Flag, Tags } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -12,6 +11,7 @@ import {
   milestoneStatusMeta,
   type Label,
   type Milestone,
+  type Project,
 } from "~/lib/work-items";
 import {
   labelColors,
@@ -24,8 +24,8 @@ import { Input } from "~/components/ui/input";
 import { Popover, Picker } from "~/components/ui/popover";
 import { ColorDot } from "~/components/items/labels";
 import { useWorkspace } from "./provider";
-import { useShell } from "./shell";
 import {
+  InlineError,
   SettingsList,
   SettingsSection,
   SettingsSubheading,
@@ -33,65 +33,37 @@ import {
 
 // Project-scoped labels and milestones. Archiving is reversible and keeps every
 // historical assignment; nothing here deletes.
-export function LabelsAndMilestones() {
-  const {
-    projects: allProjects,
-    labels,
-    milestones,
-    mutate,
-    items,
-    capabilities,
-    directory,
-    userId,
-    isAdmin,
-  } = useWorkspace();
-  const projects = allProjects.filter(
-    (p) =>
-      capabilities.changeProperties ||
-      canConfigure(
-        directory,
-        userId,
-        isAdmin,
-        { scope: "project", scopeId: p.id },
-        "projectTaxonomy",
-      ),
-  );
-  const { project: current } = useShell();
-  const [projectId, setProjectId] = useState(current?.id ?? projects[0]?.id);
-  const project = projects.find((p) => p.id === projectId) ?? projects[0];
-  if (!project) return null;
+export function LabelsAndMilestones({
+  project,
+  canEdit,
+}: {
+  project: Project;
+  canEdit: boolean;
+}) {
+  const { labels, milestones, mutate, items } = useWorkspace();
+  const [error, setError] = useState<string>();
   const projectLabels = labels.filter((l) => l.projectId === project.id);
   const projectMilestones = milestones.filter(
     (m) => m.projectId === project.id,
   );
   const usage = (predicate: (i: (typeof items)[number]) => boolean) =>
-    items.filter((i) => !i.archivedAt && predicate(i)).length;
+    items.filter(
+      (i) => i.projectId === project.id && !i.archivedAt && predicate(i),
+    ).length;
+  const save = async (command: Parameters<typeof mutate>[0]) => {
+    setError(undefined);
+    try {
+      await mutate(command);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The change was not saved.");
+    }
+  };
   return (
     <SettingsSection
       id="labels"
       icon={<Tags />}
       title="Labels & milestones"
-      description={
-        projects.length > 1
-          ? "Scoped to one project. Archiving keeps every historical assignment; nothing here deletes."
-          : `Scoped to ${project.name}. Archiving keeps every historical assignment; nothing here deletes.`
-      }
-      action={
-        projects.length > 1 ? (
-          <DropdownSelect
-            value={project.id}
-            onValueChange={(value) => setProjectId(value)}
-            aria-label="Project"
-            size="sm"
-          >
-            {projects.map((p) => (
-              <DropdownSelectOption key={p.id} value={p.id}>
-                {p.name}
-              </DropdownSelectOption>
-            ))}
-          </DropdownSelect>
-        ) : undefined
-      }
+      description={`Used to group and plan work in ${project.name}. Archiving keeps every historical assignment; nothing here deletes.`}
     >
       <SettingsSubheading>Labels</SettingsSubheading>
       <SettingsList isEmpty={projectLabels.length === 0} empty="No labels yet.">
@@ -99,9 +71,10 @@ export function LabelsAndMilestones() {
           <LabelRow
             key={l.id}
             label={l}
+            canEdit={canEdit}
             count={usage((i) => i.labelIds.includes(l.id))}
             update={(patch) =>
-              mutate({
+              save({
                 type: "updateLabel",
                 projectId: project.id,
                 labelId: l.id,
@@ -111,9 +84,11 @@ export function LabelsAndMilestones() {
           />
         ))}
       </SettingsList>
-      <div className="px-5 pt-2 pb-4">
-        <NewLabel projectId={project.id} />
-      </div>
+      {canEdit && (
+        <div className="px-5 pt-2 pb-4">
+          <NewLabel projectId={project.id} />
+        </div>
+      )}
 
       <div className="border-t border-border">
         <SettingsSubheading>Milestones</SettingsSubheading>
@@ -125,9 +100,10 @@ export function LabelsAndMilestones() {
             <MilestoneRow
               key={m.id}
               milestone={m}
+              canEdit={canEdit}
               count={usage((i) => i.milestoneId === m.id)}
               update={(patch) =>
-                mutate({
+                save({
                   type: "updateMilestone",
                   projectId: project.id,
                   milestoneId: m.id,
@@ -137,10 +113,17 @@ export function LabelsAndMilestones() {
             />
           ))}
         </SettingsList>
-        <div className="px-5 pt-2 pb-4">
-          <NewMilestone projectId={project.id} />
-        </div>
+        {canEdit && (
+          <div className="px-5 pt-2 pb-4">
+            <NewMilestone projectId={project.id} />
+          </div>
+        )}
       </div>
+      {error && (
+        <div className="border-t border-border px-5 py-3">
+          <InlineError>{error}</InlineError>
+        </div>
+      )}
     </SettingsSection>
   );
 }
@@ -148,10 +131,12 @@ export function LabelsAndMilestones() {
 function LabelRow({
   label,
   count,
+  canEdit,
   update,
 }: {
   label: Label;
   count: number;
+  canEdit: boolean;
   update: (patch: {
     name?: string;
     color?: LabelColor;
@@ -168,9 +153,11 @@ function LabelRow({
     >
       <Popover
         width={200}
+        disabled={!canEdit}
         trigger={(props) => (
           <button
             {...props}
+            disabled={!canEdit}
             aria-label={`Color: ${label.color}`}
             className="grid size-6 place-items-center rounded-md hover:bg-muted"
           >
@@ -199,23 +186,26 @@ function LabelRow({
         }
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         aria-label={`Label name ${label.name}`}
-        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none hover:bg-muted focus:bg-muted"
+        disabled={!canEdit}
+        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none focus:bg-muted enabled:hover:bg-muted"
       />
       <span className="text-xs text-muted-foreground tabular-nums">
         {count} item{count === 1 ? "" : "s"}
       </span>
-      <Button
-        size="icon"
-        variant="ghost"
-        aria-label={label.archivedAt ? "Restore label" : "Archive label"}
-        onClick={() => void update({ archived: !label.archivedAt })}
-      >
-        {label.archivedAt ? (
-          <ArchiveRestore className="size-3.5" />
-        ) : (
-          <Archive className="size-3.5" />
-        )}
-      </Button>
+      {canEdit && (
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={label.archivedAt ? "Restore label" : "Archive label"}
+          onClick={() => void update({ archived: !label.archivedAt })}
+        >
+          {label.archivedAt ? (
+            <ArchiveRestore className="size-3.5" />
+          ) : (
+            <Archive className="size-3.5" />
+          )}
+        </Button>
+      )}
     </div>
   );
 }
@@ -294,10 +284,12 @@ function NewLabel({ projectId }: { projectId: string }) {
 function MilestoneRow({
   milestone,
   count,
+  canEdit,
   update,
 }: {
   milestone: Milestone;
   count: number;
+  canEdit: boolean;
   update: (patch: {
     name?: string;
     targetDate?: string | null;
@@ -325,13 +317,15 @@ function MilestoneRow({
         }
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         aria-label={`Milestone name ${milestone.name}`}
-        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none hover:bg-muted focus:bg-muted"
+        disabled={!canEdit}
+        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none focus:bg-muted enabled:hover:bg-muted"
       />
       <input
         type="date"
         value={date}
         onChange={(e) => void update({ targetDate: e.target.value || null })}
         aria-label={`Target date for ${milestone.name}`}
+        disabled={!canEdit}
         className="h-7 rounded-md border bg-card px-1 text-xs"
         title={
           milestone.targetDate
@@ -345,6 +339,7 @@ function MilestoneRow({
           void update({ status: value as MilestoneStatus })
         }
         aria-label={`Status for ${milestone.name}`}
+        disabled={!canEdit}
         size="sm"
       >
         {milestoneStatuses.map((s) => (
@@ -356,20 +351,22 @@ function MilestoneRow({
       <span className="text-xs text-muted-foreground tabular-nums">
         {count} item{count === 1 ? "" : "s"}
       </span>
-      <Button
-        size="icon"
-        variant="ghost"
-        aria-label={
-          milestone.archivedAt ? "Restore milestone" : "Archive milestone"
-        }
-        onClick={() => void update({ archived: !milestone.archivedAt })}
-      >
-        {milestone.archivedAt ? (
-          <ArchiveRestore className="size-3.5" />
-        ) : (
-          <Archive className="size-3.5" />
-        )}
-      </Button>
+      {canEdit && (
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={
+            milestone.archivedAt ? "Restore milestone" : "Archive milestone"
+          }
+          onClick={() => void update({ archived: !milestone.archivedAt })}
+        >
+          {milestone.archivedAt ? (
+            <ArchiveRestore className="size-3.5" />
+          ) : (
+            <Archive className="size-3.5" />
+          )}
+        </Button>
+      )}
     </div>
   );
 }

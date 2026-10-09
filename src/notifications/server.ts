@@ -177,12 +177,15 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
     watchRows.filter((w) => !w.watching).map((w) => w.userId),
   );
   const watchers = watchRows.filter((w) => w.watching).map((w) => w.userId);
-  const roleMembers = (roleId: string | null) =>
-    roster.roles.find((r) => r.id === roleId && !r.archivedAt)?.userIds ?? [];
+  const disciplineMembers = (disciplineId: string | null) =>
+    roster.disciplines.find((d) => d.id === disciplineId && !d.archivedAt)
+      ?.userIds ?? [];
   const reviewTargets = (reviewId: string) =>
     assignments
       .filter((a) => a.reviewId === reviewId && !a.withdrawnAt)
-      .flatMap((a) => (a.userId ? [a.userId] : roleMembers(a.roleId)));
+      .flatMap((a) =>
+        a.userId ? [a.userId] : disciplineMembers(a.disciplineId),
+      );
   const owners = () =>
     [item.createdById, item.assigneeId, ...watchers].filter(
       (u): u is string => !!u,
@@ -390,17 +393,18 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
           (r) =>
             r.pullRequestId === pr.id &&
             (action !== "pull_request_review_requested" ||
-              r.roleId === detail.roleId),
+              r.disciplineId === detail.disciplineId),
         );
         for (const r of requested)
           add(
-            r.userId ? [r.userId] : roleMembers(r.roleId),
+            r.userId ? [r.userId] : disciplineMembers(r.disciplineId),
             "pull_request_review_requested",
             {
               pullRequestId: pr.id,
               pullRequestTitle: pr.title,
-              responsibility: roster.roles.find((role) => role.id === r.roleId)
-                ?.name,
+              responsibility: roster.disciplines.find(
+                (d) => d.id === r.disciplineId,
+              )?.name,
             },
             direct,
           );
@@ -420,7 +424,7 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
               pullRequestId: pr.id,
               pullRequestTitle: pr.title,
               decision: detail.decision,
-              responsibility: detail.role,
+              responsibility: detail.discipline ?? detail.role,
             },
           );
         break;
@@ -591,7 +595,7 @@ async function notifyBlocked(
   );
 }
 
-// Iterations belong to a team; its members are the audience.
+// Iterations belong to a project; its members are the audience.
 export async function notifyIteration(
   tx: Tx,
   input: {
@@ -611,22 +615,22 @@ export async function notifyIteration(
       ),
     );
   if (!it) return;
-  const [team] = await tx
-    .select({ name: s.team.name })
-    .from(s.team)
+  const [project] = await tx
+    .select({ name: s.project.name })
+    .from(s.project)
     .where(
       and(
-        eq(s.team.organizationId, input.organizationId),
-        eq(s.team.id, it.teamId),
+        eq(s.project.organizationId, input.organizationId),
+        eq(s.project.id, it.projectId),
       ),
     );
   const members = await tx
-    .select({ userId: s.teamMember.userId })
-    .from(s.teamMember)
+    .select({ userId: s.projectMember.userId })
+    .from(s.projectMember)
     .where(
       and(
-        eq(s.teamMember.organizationId, input.organizationId),
-        eq(s.teamMember.teamId, it.teamId),
+        eq(s.projectMember.organizationId, input.organizationId),
+        eq(s.projectMember.projectId, it.projectId),
       ),
     );
   const summary = it.summary;
@@ -637,11 +641,11 @@ export async function notifyIteration(
       userId: m.userId,
       kind: input.kind,
       actorId: input.actorId,
-      teamId: it.teamId,
+      projectId: it.projectId,
       detail: {
         iterationId: it.id,
         iterationName: it.name ?? `Iteration ${it.number}`,
-        teamName: team?.name ?? null,
+        projectName: project?.name ?? null,
         ...(input.kind === "iteration_completed" && summary
           ? { carriedOver: summary.carriedOver ?? null }
           : {}),

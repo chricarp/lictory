@@ -35,8 +35,8 @@ const tint: Record<LabelColor, string> = {
   teal: "text-teal-600 dark:text-teal-400",
 };
 
-// The glyph shape comes from the fixed category so every team's workflow reads
-// the same way; the team-chosen color only tints it.
+// The glyph shape comes from the fixed category so every project's workflow
+// reads the same way; the project-chosen color only tints it.
 export function StatusIcon({
   category,
   color = "gray",
@@ -65,16 +65,16 @@ export function StatusIcon({
   }
 }
 
-// Delivery status from the item's team workflow.
+// Delivery status from the item's project workflow.
 export function IssueStatus({
-  teamId,
+  projectId,
   statusId,
   onChange,
   compact = false,
   disabled,
   hint,
 }: {
-  teamId: string;
+  projectId: string;
   statusId: string;
   onChange?: (statusId: string) => void;
   compact?: boolean;
@@ -83,7 +83,6 @@ export function IssueStatus({
   hint?: string;
 }) {
   const delivery = useDelivery();
-  const team = delivery.teams.get(teamId);
   const status = delivery.statuses.get(statusId);
   const label = status?.name ?? "Unknown status";
   const content: ReactNode = (
@@ -120,7 +119,7 @@ export function IssueStatus({
     >
       <Picker
         title="Change status"
-        options={activeStatuses(team).map((x) => ({
+        options={activeStatuses(delivery, projectId).map((x) => ({
           value: x.id,
           label: x.name,
           icon: <StatusIcon category={x.category} color={x.color} />,

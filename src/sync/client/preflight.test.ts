@@ -47,7 +47,8 @@ const directory: Directory = {
   ai: { enabled: false, available: false },
   organizations: [],
   members: [],
-  roles: [],
+  projectMembers: [],
+  disciplines: [],
   iterations: [],
   delivery: { connections: [], targets: [] },
   projects: [
@@ -59,15 +60,6 @@ const directory: Directory = {
       slug: "lic",
       key: "LIC",
       description: null,
-      defaultTeamId: "team",
-      archivedAt: null,
-    },
-  ],
-  teams: [
-    {
-      id: "team",
-      name: "Team",
-      description: null,
       deliveryMode: "native",
       readinessPolicy: "block",
       estimateScale: "none",
@@ -76,35 +68,50 @@ const directory: Directory = {
       iterationStartDay: 1,
       upcomingIterations: 2,
       aiActionPolicy: "advisory",
-      memberIds: [],
-      typeIds: ["story", "task"],
       archivedAt: null,
-      statuses: [
-        {
-          id: "backlog",
-          name: "Backlog",
-          category: "backlog",
-          color: "gray",
-          position: 0,
-          archivedAt: null,
-        },
-        {
-          id: "started",
-          name: "In progress",
-          category: "started",
-          color: "blue",
-          position: 1,
-          archivedAt: null,
-        },
-        {
-          id: "done",
-          name: "Done",
-          category: "done",
-          color: "green",
-          position: 2,
-          archivedAt: null,
-        },
-      ],
+    },
+  ],
+  teams: [
+    {
+      id: "team",
+      projectId: "project",
+      name: "Team",
+      description: null,
+      memberIds: [],
+      archivedAt: null,
+    },
+  ],
+  projectTypes: [
+    { projectId: "project", typeId: "story" },
+    { projectId: "project", typeId: "task" },
+  ],
+  statuses: [
+    {
+      id: "backlog",
+      projectId: "project",
+      name: "Backlog",
+      category: "backlog",
+      color: "gray",
+      position: 0,
+      archivedAt: null,
+    },
+    {
+      id: "started",
+      projectId: "project",
+      name: "In progress",
+      category: "started",
+      color: "blue",
+      position: 1,
+      archivedAt: null,
+    },
+    {
+      id: "done",
+      projectId: "project",
+      name: "Done",
+      category: "done",
+      color: "green",
+      position: 2,
+      archivedAt: null,
     },
   ],
   types: [
@@ -145,7 +152,7 @@ void test("readiness preflight gates only starting unready specification work un
     assert.equal(
       statusChangeBlocker(command, entities, {
         ...directory,
-        teams: [{ ...directory.teams[0]!, readinessPolicy }],
+        projects: [{ ...directory.projects[0]!, readinessPolicy }],
       }),
       undefined,
     );
@@ -176,7 +183,7 @@ void test("readiness preflight gates only starting unready specification work un
   );
   assert.equal(statusChangeBlocker(command, {}, directory), undefined);
   assert.equal(
-    statusChangeBlocker(command, entities, { ...directory, teams: [] }),
+    statusChangeBlocker(command, entities, { ...directory, projects: [] }),
     undefined,
   );
   assert.equal(
@@ -184,7 +191,7 @@ void test("readiness preflight gates only starting unready specification work un
     undefined,
   );
 });
-void test("preflight uses available readiness evidence and the destination team's policy", () => {
+void test("preflight uses available readiness evidence and the project's policy", () => {
   const entities = {
     "workItem:item": item,
     "readiness:item": {
@@ -205,15 +212,20 @@ void test("preflight uses available readiness evidence and the destination team'
     statusChangeBlocker(command, entities, directory)!,
     /current revision approved by every required review/,
   );
-  const warnTeam = {
-    ...directory.teams[0]!,
-    id: "warn-team",
-    readinessPolicy: "warn" as const,
-  };
+  // Moving the item to another team does not change the policy: it is the
+  // project's.
+  assert.match(
+    statusChangeBlocker(
+      { ...command, teamId: "other-team" },
+      entities,
+      directory,
+    )!,
+    /current revision approved by every required review/,
+  );
   assert.equal(
-    statusChangeBlocker({ ...command, teamId: warnTeam.id }, entities, {
+    statusChangeBlocker(command, entities, {
       ...directory,
-      teams: [...directory.teams, warnTeam],
+      projects: [{ ...directory.projects[0]!, readinessPolicy: "warn" }],
     }),
     undefined,
   );

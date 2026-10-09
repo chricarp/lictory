@@ -13,7 +13,10 @@ export const paths = {
     `/app/${org}/intelligence/${chat}`,
   inbox: (org: string) => `/app/${org}/inbox`,
   notificationSettings: (org: string) => `/app/${org}/inbox/settings`,
-  settings: (org: string) => `/app/${org}/settings`,
+  // Organization settings: general, members, projects, types, integrations,
+  // intelligence.
+  settings: (org: string, section?: string) =>
+    `/app/${org}/settings${section ? `/${section}` : ""}`,
   account: (returnTo?: string) =>
     returnTo
       ? `/app/account?returnTo=${encodeURIComponent(returnTo)}`
@@ -45,14 +48,22 @@ export const paths = {
     `/app/${org}/${project.toLowerCase()}/reviews`,
   view: (org: string, project: string, view: string) =>
     `/app/${org}/${project.toLowerCase()}/views/${view}`,
-  // Teams are addressed by id: names may change and are not unique forever.
-  board: (org: string, team: string, searchParams?: SearchParams) =>
-    withSearchParams(`/app/${org}/teams/${team}/board`, searchParams),
-  backlog: (org: string, team: string) => `/app/${org}/teams/${team}/backlog`,
-  iteration: (org: string, team: string, iteration: string) =>
-    `/app/${org}/teams/${team}/iterations/${iteration}`,
-  teamSettings: (org: string, team: string) =>
-    `/app/${org}/teams/${team}/settings`,
+  // Delivery surfaces belong to the project; `team` narrows them to one of
+  // its teams.
+  board: (org: string, project: string, team?: string | null) =>
+    `/app/${org}/${project.toLowerCase()}/board${team ? `?team=${encodeURIComponent(team)}` : ""}`,
+  backlog: (org: string, project: string, team?: string | null) =>
+    `/app/${org}/${project.toLowerCase()}/backlog${team ? `?team=${encodeURIComponent(team)}` : ""}`,
+  iteration: (org: string, project: string, iteration: string) =>
+    `/app/${org}/${project.toLowerCase()}/iterations/${iteration}`,
+  // Projects delivered in an external tool: what is ready, handed off, and
+  // what Jira reports back.
+  handoff: (org: string, project: string) =>
+    `/app/${org}/${project.toLowerCase()}/handoff`,
+  // Project settings: general, members, disciplines, teams, workflow,
+  // planning, delivery, labels, context.
+  projectSettings: (org: string, project: string, section?: string) =>
+    `/app/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
 };
 
 // Only in-app destinations are allowed as post-step redirects.

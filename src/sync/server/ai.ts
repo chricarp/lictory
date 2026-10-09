@@ -165,6 +165,7 @@ async function enqueueAction(
 
 type Context = {
   organizationId: string;
+  projectId: string;
   workItemId: string;
   userId: string;
   capabilities: Capabilities;
@@ -182,6 +183,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
   const branch = (command: Command, actor: string) =>
     applyBranchCommand(tx, command, {
       organizationId,
+      projectId: ctx.projectId,
       workItemId,
       userId: actor,
       capabilities: actor === userId ? ctx.capabilities : noCapabilities,
@@ -205,7 +207,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       )
         throw new DomainError(
           "forbidden",
-          "Your roles cannot request reviews, including Lictory Intelligence reviews.",
+          "Your disciplines in this project cannot request reviews, including Lictory Intelligence reviews.",
         );
       const [active] = await tx
         .select({ id: s.aiRun.id })

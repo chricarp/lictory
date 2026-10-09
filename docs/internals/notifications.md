@@ -37,9 +37,10 @@ from the command itself.
 
 A person is involved in a work item when they created it, are its assignee,
 requested or were named to review it, authored or replied to a discussion,
-authored or reviewed a suggestion, or explicitly watch it. Role-targeted review
-requests reach every member of the role, but only people named directly count
-as involved afterwards.
+authored or reviewed a suggestion, or explicitly watch it. Discipline-targeted
+review requests reach every member of the discipline, but only people named
+directly count as involved afterwards. Iteration notifications reach the
+project's members.
 
 Explicit watch state lives in `work_item_watcher`. Watching subscribes someone
 without involvement; unwatching silences ambient updates despite involvement.
@@ -62,7 +63,8 @@ label is display text; the server trusts only the ID after checking membership.
 
 Only explicit choices are stored. For a kind, the most specific rule wins:
 team, then project, then organization, then the catalog default. A team rule
-beats a project rule because a team is where the work is delivered. Email is a
+beats a project rule because a team is where people do the work; items without
+a team use the project rule. Email is a
 delivery of an in-app notification and is never sent on its own: a
 notification is either off, on, or on with email.
 

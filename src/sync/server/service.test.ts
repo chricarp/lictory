@@ -21,7 +21,7 @@ import {
   type Entity,
 } from "../shared/protocol";
 import { reconcile, optimistic } from "../client/reconciliation";
-import { seedDefaultRoles } from "./roles";
+import { seedOrganization } from "./organization";
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
   "postgresql://lictory:lictory@localhost:5432/postgres";
@@ -77,24 +77,7 @@ async function fixture() {
       createdAt: new Date(),
     },
   ]);
-  // A small team: the owner holds every default role, the reviewer holds the
-  // two reviewer-only roles (Engineering, QA).
-  await seedDefaultRoles(db, organizationId, userId);
-  const roleRows = await db
-    .select()
-    .from(s.organizationRole)
-    .where(eq(s.organizationRole.organizationId, organizationId));
-  const roles = Object.fromEntries(roleRows.map((r) => [r.name, r.id])) as {
-    Product: string;
-    Engineering: string;
-    QA: string;
-  };
-  await db.insert(s.organizationRoleMember).values([
-    { organizationId, roleId: roles.Engineering, userId },
-    { organizationId, roleId: roles.QA, userId },
-    { organizationId, roleId: roles.Engineering, userId: reviewerId },
-    { organizationId, roleId: roles.QA, userId: reviewerId },
-  ]);
+  await seedOrganization(db, organizationId);
   const command = async (
     command: Command,
     actor = userId,
@@ -108,6 +91,40 @@ async function fixture() {
     name: "Payments",
     key: "PAY",
   });
+  // A small project: the owner holds every default discipline, the reviewer
+  // holds the two reviewing disciplines (Engineering, QA), narrowed here to
+  // reviewing only.
+  const seeded = await directory(db, userId, organizationId);
+  const roles = Object.fromEntries(
+    seeded.disciplines
+      .filter((d) => d.projectId === projectId)
+      .map((d) => [d.name, d.id]),
+  ) as { Product: string; Engineering: string; QA: string };
+  await command({
+    type: "updateDiscipline",
+    projectId,
+    disciplineId: roles.Engineering,
+    capabilities: {
+      editSpecifications: false,
+      changeProperties: false,
+      requestReviews: true,
+      review: true,
+      publishDelivery: false,
+    },
+  });
+  for (const [disciplineId, member] of [
+    [roles.Engineering, userId],
+    [roles.QA, userId],
+    [roles.Engineering, reviewerId],
+    [roles.QA, reviewerId],
+  ] as const)
+    await command({
+      type: "setDisciplineMember",
+      projectId,
+      disciplineId,
+      userId: member,
+      member: true,
+    });
   const project = (
     await db
       .select()
@@ -122,9 +139,10 @@ async function fixture() {
     Bug: string;
     Subtask: string;
   };
-  const team = dir.teams[0]!;
   const statuses = Object.fromEntries(
-    team.statuses.map((x) => [x.name, x.id]),
+    dir.statuses
+      .filter((x) => x.projectId === project.id)
+      .map((x) => [x.name, x.id]),
   ) as Record<
     "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled",
     string
@@ -160,7 +178,6 @@ async function fixture() {
     reviewerId,
     roles,
     types,
-    teamId: team.id,
     statuses,
     proposalId,
     projectId: project.id,
@@ -260,7 +277,7 @@ void test("approvals target exact revisions, only assignments authorize, and sug
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
     required: true,
   });
@@ -549,7 +566,7 @@ void test("role membership grants a review decision only after explicit role ass
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.QA,
+    disciplineId: f.roles.QA,
     userId: f.userId,
     required: true,
   });
@@ -570,7 +587,7 @@ void test("role membership grants a review decision only after explicit role ass
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.QA,
+    disciplineId: f.roles.QA,
     userId: null,
     required: true,
   });
@@ -613,7 +630,7 @@ void test("every current required review must complete, even when responsibiliti
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.userId,
     required: true,
   });
@@ -621,7 +638,7 @@ void test("every current required review must complete, even when responsibiliti
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
     required: true,
   });
@@ -667,7 +684,7 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
     type: "requestReview",
     ...base2,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
     required: true,
   });
@@ -842,7 +859,7 @@ void test("labels, milestones and manual ordering are project-scoped, non-materi
     workItemId: f.proposalId,
     baseRevisionId: first.id,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.QA,
+    disciplineId: f.roles.QA,
     userId: f.reviewerId,
     required: true,
   });
@@ -1043,7 +1060,6 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     id: crypto.randomUUID(),
     organizationId: f.organizationId,
     projectId: f.projectId,
-    teamId: f.teamId,
     typeId: f.types.Epic,
     statusId: f.statuses.Backlog,
     rank: `r${String(index).padStart(3, "0")}`,
@@ -1057,7 +1073,6 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     id: crypto.randomUUID(),
     organizationId: f.organizationId,
     projectId: f.projectId,
-    teamId: f.teamId,
     typeId: f.types.Epic,
     statusId: f.statuses.Backlog,
     rank: "z",
@@ -1138,7 +1153,7 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
   );
 });
 
-void test("organization roles grant capabilities; administrators manage roles; reviews target reviewer roles", async () => {
+void test("disciplines grant capabilities in their project; project administrators manage them; reviews target reviewing disciplines", async () => {
   const f = await fixture();
   const revision = await f.current();
   const base = { workItemId: f.proposalId, baseRevisionId: revision.id };
@@ -1220,7 +1235,7 @@ void test("organization roles grant capabilities; administrators manage roles; r
       },
       f.reviewerId,
     ),
-    /both edit Epics and Stories and be asked to review/,
+    /both edit specifications and be asked to review/,
   );
   await f.command(
     {
@@ -1242,11 +1257,12 @@ void test("organization roles grant capabilities; administrators manage roles; r
   await f.command({ type: "mergeSuggestion", ...base, suggestionId });
   const second = await f.current();
   assert.equal(second.number, 2);
-  // Only administrators manage roles.
+  // Only project administrators manage disciplines.
   const roleId = crypto.randomUUID();
   const securityRole = {
-    type: "createRole" as const,
-    roleId,
+    type: "createDiscipline" as const,
+    projectId: f.projectId,
+    disciplineId: roleId,
     name: "Security",
     capabilities: {
       editSpecifications: false,
@@ -1258,40 +1274,42 @@ void test("organization roles grant capabilities; administrators manage roles; r
   };
   await assert.rejects(
     f.command(securityRole, f.reviewerId),
-    /administrator must manage roles/,
+    /project's administrators/,
   );
   await f.command(securityRole);
   await assert.rejects(
     f.command({
       ...securityRole,
-      roleId: crypto.randomUUID(),
+      disciplineId: crypto.randomUUID(),
       name: "security",
     }),
-    /already exists/,
+    /already has a discipline named/,
   );
-  // A role that cannot review cannot be asked, and a person can only be asked
-  // through a role they hold.
+  // A discipline that cannot review cannot be asked, and a person can only be
+  // asked through a discipline they hold.
   const base2 = { workItemId: f.proposalId, baseRevisionId: second.id };
   await assert.rejects(
     f.command({
       type: "requestReview",
       ...base2,
       reviewId: crypto.randomUUID(),
-      roleId,
+      disciplineId: roleId,
       userId: null,
       required: true,
     }),
     /cannot be asked to review/,
   );
   await f.command({
-    type: "setRoleMembership",
-    roleId,
+    type: "setDisciplineMember",
+    projectId: f.projectId,
+    disciplineId: roleId,
     userId: f.reviewerId,
     member: true,
   });
   await f.command({
-    type: "updateRole",
-    roleId,
+    type: "updateDiscipline",
+    projectId: f.projectId,
+    disciplineId: roleId,
     capabilities: { ...securityRole.capabilities, review: true },
   });
   await assert.rejects(
@@ -1299,7 +1317,7 @@ void test("organization roles grant capabilities; administrators manage roles; r
       type: "requestReview",
       ...base2,
       reviewId: crypto.randomUUID(),
-      roleId,
+      disciplineId: roleId,
       userId: f.userId,
       required: true,
     }),
@@ -1310,7 +1328,7 @@ void test("organization roles grant capabilities; administrators manage roles; r
     type: "requestReview",
     ...base2,
     reviewId,
-    roleId,
+    disciplineId: roleId,
     userId: null,
     required: true,
   });
@@ -1319,9 +1337,10 @@ void test("organization roles grant capabilities; administrators manage roles; r
     .flatMap((c) => (c.operation === "upsert" ? [c.entity] : []))
     .find((e) => e.type === "review" && e.id === reviewId);
   assert.ok(review?.type === "review" && review.responsibility === "Security");
-  assert.deepEqual(page.directory.roles.find((r) => r.id === roleId)?.userIds, [
-    f.reviewerId,
-  ]);
+  assert.deepEqual(
+    page.directory.disciplines.find((r) => r.id === roleId)?.userIds,
+    [f.reviewerId],
+  );
   assert.equal(
     page.directory.members.find((m) => m.id === f.userId)?.role,
     "admin",
@@ -1334,10 +1353,16 @@ void test("organization roles grant capabilities; administrators manage roles; r
     { type: "decideReview", ...base2, reviewId, decision: "approve" },
     f.reviewerId,
   );
-  // Archiving a role removes its capabilities and hides it from requests but
-  // keeps the historical assignment legible; restoring brings it back.
-  await f.command({ type: "updateRole", roleId, archived: true });
-  const archived = (await f.read()).directory.roles.find(
+  // Archiving a discipline removes its capabilities and hides it from
+  // requests but keeps the historical assignment legible; restoring brings it
+  // back.
+  await f.command({
+    type: "updateDiscipline",
+    projectId: f.projectId,
+    disciplineId: roleId,
+    archived: true,
+  });
+  const archived = (await f.read()).directory.disciplines.find(
     (r) => r.id === roleId,
   );
   assert.ok(archived?.archivedAt);
@@ -1346,37 +1371,40 @@ void test("organization roles grant capabilities; administrators manage roles; r
       type: "requestReview",
       ...base2,
       reviewId: crypto.randomUUID(),
-      roleId,
+      disciplineId: roleId,
       userId: null,
       required: false,
     }),
     /unavailable/,
   );
-  await f.command({ type: "updateRole", roleId, archived: false });
+  await f.command({
+    type: "updateDiscipline",
+    projectId: f.projectId,
+    disciplineId: roleId,
+    archived: false,
+  });
   assert.equal(
-    (await f.read()).directory.roles.find((r) => r.id === roleId)?.archivedAt,
+    (await f.read()).directory.disciplines.find((r) => r.id === roleId)
+      ?.archivedAt,
     null,
   );
-  // Removing a person from every capable role revokes their access immediately.
-  await f.command({
-    type: "setRoleMembership",
-    roleId: f.roles.Engineering,
-    userId: f.reviewerId,
-    member: false,
-  });
-  await f.command({
-    type: "setRoleMembership",
-    roleId: f.roles.QA,
-    userId: f.reviewerId,
-    member: false,
-  });
+  // Removing a person from every capable discipline revokes their access
+  // immediately.
+  for (const disciplineId of [f.roles.Engineering, f.roles.QA])
+    await f.command({
+      type: "setDisciplineMember",
+      projectId: f.projectId,
+      disciplineId,
+      userId: f.reviewerId,
+      member: false,
+    });
   await assert.rejects(
     f.command(
       {
         type: "requestReview",
         ...base2,
         reviewId: crypto.randomUUID(),
-        roleId: f.roles.Product,
+        disciplineId: f.roles.Product,
         userId: null,
         required: false,
       },
@@ -1423,8 +1451,9 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
   );
   // Even an eligible author cannot review their own suggestion.
   await f.command({
-    type: "setRoleMembership",
-    roleId: f.roles.Product,
+    type: "setDisciplineMember",
+    projectId: f.projectId,
+    disciplineId: f.roles.Product,
     userId: f.reviewerId,
     member: true,
   });
@@ -1441,8 +1470,9 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
     /cannot review your own/,
   );
   await f.command({
-    type: "setRoleMembership",
-    roleId: f.roles.Product,
+    type: "setDisciplineMember",
+    projectId: f.projectId,
+    disciplineId: f.roles.Product,
     userId: f.reviewerId,
     member: false,
   });
@@ -1735,7 +1765,7 @@ void test("type hierarchy follows levels and only spec-backed types are reviewed
       workItemId: task,
       baseRevisionId: revision.id,
       reviewId: crypto.randomUUID(),
-      roleId: f.roles.Engineering,
+      disciplineId: f.roles.Engineering,
       userId: null,
       required: true,
     }),
@@ -1823,8 +1853,8 @@ void test("readiness gates starting spec-backed work according to team policy", 
     statusId: f.statuses.Todo,
   });
   await f.command({
-    type: "updateTeam",
-    teamId: f.teamId,
+    type: "updateProject",
+    projectId: f.projectId,
     readinessPolicy: "block",
   });
   await assert.rejects(
@@ -1842,20 +1872,38 @@ void test("readiness gates starting spec-backed work according to team policy", 
     workItemId: task,
     statusId: f.statuses["In Progress"],
   });
-  // Only administrators configure teams.
+  // Only project administrators configure the project.
   await assert.rejects(
     f.command(
-      { type: "updateTeam", teamId: f.teamId, readinessPolicy: "off" },
+      { type: "updateProject", projectId: f.projectId, readinessPolicy: "off" },
       f.reviewerId,
     ),
-    /administrator/,
+    /project's administrators/,
   );
 });
 
-void test("moving an item between teams keeps its key and maps the workflow", async () => {
+void test("teams are optional groupings inside a project: moving keeps key, status and iteration", async () => {
   const f = await fixture();
-  const other = crypto.randomUUID();
-  await f.command({ type: "createTeam", teamId: other, name: "Platform" });
+  const platform = crypto.randomUUID();
+  await f.command({
+    type: "createTeam",
+    projectId: f.projectId,
+    teamId: platform,
+    name: "Platform",
+  });
+  await assert.rejects(
+    f.command({
+      type: "createTeam",
+      projectId: f.projectId,
+      teamId: crypto.randomUUID(),
+      name: "platform",
+    }),
+    /already has a team named/,
+  );
+  // Items start without a team unless one is chosen.
+  assert.equal((await itemOf(f, f.proposalId)).teamId, null);
+  const withTeam = await create(f, f.types.Task, { teamId: platform });
+  assert.equal((await itemOf(f, withTeam)).teamId, platform);
   await f.command({
     type: "updateWorkItem",
     workItemId: f.proposalId,
@@ -1864,25 +1912,61 @@ void test("moving an item between teams keeps its key and maps the workflow", as
   await f.command({
     type: "updateWorkItem",
     workItemId: f.proposalId,
-    teamId: other,
+    teamId: platform,
   });
   const moved = await itemOf(f, f.proposalId);
-  const page = await orgItems(f);
-  const platform = page.directory.teams.find((t) => t.id === other)!;
-  assert.equal(moved.teamId, other);
+  assert.equal(moved.teamId, platform);
   assert.equal(moved.number, 1);
-  assert.equal(
-    platform.statuses.find((x) => x.id === moved.statusId)?.category,
-    "done",
+  assert.equal(moved.statusId, f.statuses.Done);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    teamId: null,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).teamId, null);
+  // Archived teams keep their items but cannot receive new ones.
+  await f.command({
+    type: "updateTeam",
+    projectId: f.projectId,
+    teamId: platform,
+    archived: true,
+  });
+  assert.equal((await itemOf(f, withTeam)).teamId, platform);
+  await assert.rejects(
+    create(f, f.types.Task, { teamId: platform }),
+    /team is unavailable/,
   );
-  // Statuses of another team are rejected.
+  // Team configuration belongs to project administrators.
+  await assert.rejects(
+    f.command(
+      {
+        type: "createTeam",
+        projectId: f.projectId,
+        teamId: crypto.randomUUID(),
+        name: "Auth",
+      },
+      f.reviewerId,
+    ),
+    /project's administrators/,
+  );
+  // Statuses of another project are rejected.
+  const other = crypto.randomUUID();
+  await f.command({
+    type: "createProject",
+    projectId: other,
+    name: "Billing",
+    key: "BIL",
+  });
+  const otherStatus = (await orgItems(f)).directory.statuses.find(
+    (x) => x.projectId === other,
+  )!;
   await assert.rejects(
     f.command({
       type: "updateWorkItem",
       workItemId: f.proposalId,
-      statusId: f.statuses.Todo,
+      statusId: otherStatus.id,
     }),
-    /unavailable for this team/,
+    /unavailable in this project/,
   );
 });
 
@@ -1896,7 +1980,7 @@ void test("archiving a status requires a replacement and moves its items explici
   await assert.rejects(
     f.command({
       type: "archiveStatus",
-      teamId: f.teamId,
+      projectId: f.projectId,
       statusId: f.statuses["In Review"],
       replacementId: f.statuses["In Review"],
     }),
@@ -1904,7 +1988,7 @@ void test("archiving a status requires a replacement and moves its items explici
   );
   await f.command({
     type: "archiveStatus",
-    teamId: f.teamId,
+    projectId: f.projectId,
     statusId: f.statuses["In Review"],
     replacementId: f.statuses["In Progress"],
   });
@@ -1924,7 +2008,7 @@ void test("archiving a status requires a replacement and moves its items explici
   );
 });
 
-void test("sprints: one active per team, carry-over on completion, frozen reports from recorded events", async () => {
+void test("sprints: one active per project, carry-over on completion, frozen reports from recorded events", async () => {
   const f = await fixture();
   const sprint = crypto.randomUUID();
   const next = crypto.randomUUID();
@@ -1936,7 +2020,7 @@ void test("sprints: one active per team, carry-over on completion, frozen report
   ] as const)
     await f.command({
       type: "createIteration",
-      teamId: f.teamId,
+      projectId: f.projectId,
       iterationId,
       name: null,
       goal: "Ship retries",
@@ -1952,11 +2036,15 @@ void test("sprints: one active per team, carry-over on completion, frozen report
     await f.command({ type: "updateWorkItem", workItemId: id, estimate });
   await f.command({
     type: "startIteration",
-    teamId: f.teamId,
+    projectId: f.projectId,
     iterationId: sprint,
   });
   await assert.rejects(
-    f.command({ type: "startIteration", teamId: f.teamId, iterationId: next }),
+    f.command({
+      type: "startIteration",
+      projectId: f.projectId,
+      iterationId: next,
+    }),
     /already has an active iteration/,
   );
   // Mid-sprint scope change is visible in the report.
@@ -1974,7 +2062,7 @@ void test("sprints: one active per team, carry-over on completion, frozen report
   assert.equal(report.series.at(-1)!.remaining, 7);
   await f.command({
     type: "completeIteration",
-    teamId: f.teamId,
+    projectId: f.projectId,
     iterationId: sprint,
     carryOverTo: next,
   });
@@ -1997,10 +2085,10 @@ void test("sprints: one active per team, carry-over on completion, frozen report
     }),
     /is completed/,
   );
-  // Planning requires a role that changes properties.
+  // Planning requires project administration or changing properties.
   await assert.rejects(
     f.command(
-      { type: "startIteration", teamId: f.teamId, iterationId: next },
+      { type: "startIteration", projectId: f.projectId, iterationId: next },
       f.reviewerId,
     ),
     /cannot plan iterations/,
@@ -2016,8 +2104,8 @@ void test("sprints: one active per team, carry-over on completion, frozen report
 void test("automatic cycles are scheduled idempotently and roll unfinished work over", async () => {
   const f = await fixture();
   await f.command({
-    type: "updateTeam",
-    teamId: f.teamId,
+    type: "updateProject",
+    projectId: f.projectId,
     iterationMode: "automatic",
     iterationWeeks: 1,
     upcomingIterations: 2,
@@ -2026,7 +2114,7 @@ void test("automatic cycles are scheduled idempotently and roll unfinished work 
     db
       .select()
       .from(s.iteration)
-      .where(eq(s.iteration.teamId, f.teamId))
+      .where(eq(s.iteration.projectId, f.projectId))
       .orderBy(s.iteration.number);
   let rows = await cycles();
   assert.equal(rows.filter((r) => r.state === "active").length, 1);
@@ -2108,8 +2196,15 @@ void test("relations stay inside the organization, reject reverse blocks, and to
     ),
   );
   // Foreign teams are unavailable too (tenant isolation on new references).
+  const foreignTeam = crypto.randomUUID();
+  await g.command({
+    type: "createTeam",
+    projectId: g.projectId,
+    teamId: foreignTeam,
+    name: "Elsewhere",
+  });
   await assert.rejects(
-    create(f, f.types.Task, { teamId: g.teamId }),
+    create(f, f.types.Task, { teamId: foreignTeam }),
     /team is unavailable/,
   );
 });
@@ -2365,7 +2460,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     type: "requestPullRequestReview",
     workItemId: f.proposalId,
     pullRequestId,
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
     required: true,
   });
@@ -2451,7 +2546,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     };
   await assert.rejects(
     f.command(mergeCommand, f.reviewerId),
-    /roles cannot merge/,
+    /disciplines in this project cannot merge/,
   );
   // Cleanup and its audit event must roll back with the merge if any write fails.
   await client`CREATE FUNCTION reject_branch_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'branch_deleted' THEN RAISE EXCEPTION 'forced cleanup failure'; END IF; RETURN NEW; END $$`;
@@ -2575,7 +2670,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
       },
       f.reviewerId,
     ),
-    /roles/,
+    /cannot restore specification revisions/,
   );
   await f.command({
     type: "revertSpecification",
@@ -2664,7 +2759,7 @@ for (const scenario of ["non-main", "draft-source", "open-target"] as const) {
       type: "requestPullRequestReview",
       workItemId: f.proposalId,
       pullRequestId,
-      roleId: f.roles.QA,
+      disciplineId: f.roles.QA,
       userId: f.reviewerId,
       required: true,
     });
@@ -2817,865 +2912,331 @@ void test("branch/PR deletion emits tombstones, keeps history, and branches can 
   );
 });
 
-void test("configuration roles delegate only within one scope, retain audit history and revoke immediately", async () => {
+void test("projects start configured; project roles and disciplines are scoped to one project", async () => {
   const f = await fixture();
-  const other = await fixture();
-  const peerId = crypto.randomUUID();
-  await db.insert(s.user).values({
-    id: peerId,
-    name: "Local maintainer",
-    email: `${peerId}@example.test`,
-  });
-  await db.insert(s.member).values({
-    id: crypto.randomUUID(),
-    organizationId: f.organizationId,
-    userId: peerId,
-    role: "member",
-    createdAt: new Date(),
-  });
-  const managerId = crypto.randomUUID();
-  const editorId = crypto.randomUUID();
-  const broadId = crypto.randomUUID();
-  const teamRoleId = crypto.randomUUID();
-  for (const [roleId, name, scope, permissions] of [
-    [
-      managerId,
-      "Project manager",
-      "project",
-      ["projectSettings", "manageAccess"],
-    ],
-    [editorId, "Project maintainer", "project", ["projectSettings"]],
-    [
-      broadId,
-      "Project catalog manager",
-      "project",
-      ["projectSettings", "projectTaxonomy"],
-    ],
-    [
-      teamRoleId,
-      "Team maintainer",
-      "team",
-      [
-        "teamSettings",
-        "teamWorkflow",
-        "teamTypes",
-        "teamMembers",
-        "teamIterations",
-        "manageAccess",
-      ],
-    ],
-  ] as const)
-    await f.command({
-      type: "createConfigurationRole",
-      roleId,
-      name,
-      scope,
-      permissions: [...permissions],
-    });
-  await assert.rejects(
-    f.command({
-      type: "createConfigurationRole",
-      roleId: crypto.randomUUID(),
-      name: "Bad scope",
-      scope: "team",
-      permissions: ["projectSettings"],
-    }),
-    (e) => e instanceof DomainError && e.category === "validation",
+  const page = await orgItems(f);
+  const project = page.directory.projects.find((p) => p.id === f.projectId)!;
+  assert.equal(project.deliveryMode, "native");
+  assert.equal(project.readinessPolicy, "warn");
+  // The creator administers the project and holds Product.
+  assert.deepEqual(
+    page.directory.projectMembers.find(
+      (m) => m.projectId === f.projectId && m.userId === f.userId,
+    )?.role,
+    "admin",
   );
+  assert.deepEqual(
+    page.directory.disciplines
+      .filter((d) => d.projectId === f.projectId)
+      .map((d) => d.name)
+      .sort(),
+    ["Engineering", "Product", "QA"],
+  );
+  assert.ok(
+    page.directory.disciplines
+      .find((d) => d.id === f.roles.Product)
+      ?.userIds.includes(f.userId),
+  );
+  assert.ok(
+    page.directory.projectTypes.filter((t) => t.projectId === f.projectId)
+      .length >= 5,
+  );
+  // Only organization administrators create projects.
   await assert.rejects(
     f.command(
       {
-        type: "updateConfigurationRole",
-        roleId: editorId,
-        permissions: ["projectTaxonomy"],
+        type: "createProject",
+        projectId: crypto.randomUUID(),
+        name: "Other",
+        key: "OTH",
       },
       f.reviewerId,
     ),
-    (e) => e instanceof DomainError && e.category === "forbidden",
+    /administrator must create projects/,
   );
-  const projectTarget = { scope: "project" as const, scopeId: f.projectId };
+  // A second project with its own disciplines: holding Product in PAY grants
+  // nothing in BIL.
+  const billing = crypto.randomUUID();
   await f.command({
-    type: "setConfigurationAssignment",
-    roleId: managerId,
+    type: "createProject",
+    projectId: billing,
+    name: "Billing",
+    key: "BIL",
+  });
+  const product = (await orgItems(f)).directory.disciplines.find(
+    (d) => d.projectId === billing && d.name === "Product",
+  )!;
+  await f.command({
+    type: "setDisciplineMember",
+    projectId: f.projectId,
+    disciplineId: f.roles.Product,
     userId: f.reviewerId,
-    ...projectTarget,
-    assigned: true,
-  });
-  await f.command(
-    {
-      type: "updateProject",
-      projectId: f.projectId,
-      name: "Payments locally managed",
-    },
-    f.reviewerId,
-  );
-  const assignment: Command = {
-    type: "setConfigurationAssignment",
-    roleId: editorId,
-    userId: peerId,
-    ...projectTarget,
-    assigned: true,
-  };
-  const mutationId = crypto.randomUUID();
-  await f.command(assignment, f.reviewerId, mutationId);
-  await f.command(assignment, f.reviewerId, mutationId);
-  await f.command(
-    {
-      type: "updateProject",
-      projectId: f.projectId,
-      name: "Maintainer changed this",
-    },
-    peerId,
-  );
-  await f.command({ ...assignment, roleId: managerId }, f.reviewerId);
-  await f.command(
-    { ...assignment, roleId: managerId, assigned: false },
-    f.reviewerId,
-  );
-  await assert.rejects(
-    f.command({ ...assignment, roleId: broadId }, f.reviewerId),
-    (e) => e instanceof DomainError && e.category === "forbidden",
-  );
-  await assert.rejects(
-    f.command({ ...assignment, scopeId: other.projectId }, f.reviewerId),
-    (e) => e instanceof DomainError && e.category === "unavailable",
-  );
-  await assert.rejects(
-    f.command({ ...assignment, userId: other.userId }, f.reviewerId),
-    (e) => e instanceof DomainError && e.category === "unavailable",
-  );
-  await assert.rejects(
-    f.command({ ...assignment, roleId: teamRoleId }),
-    (e) => e instanceof DomainError && e.category === "forbidden",
-  );
-  await assert.rejects(
-    f.command(
-      {
-        type: "createLabel",
-        projectId: f.projectId,
-        labelId: crypto.randomUUID(),
-        name: "No catalog authority",
-        color: "blue",
-      },
-      peerId,
-    ),
-    (e) => e instanceof DomainError && e.category === "forbidden",
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: editorId,
-    permissions: ["projectSettings", "projectTaxonomy"],
-  });
-  await f.command(
-    {
-      type: "createLabel",
-      projectId: f.projectId,
-      labelId: crypto.randomUUID(),
-      name: "Locally configured",
-      color: "blue",
-    },
-    peerId,
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: editorId,
-    permissions: [],
-  });
-  await assert.rejects(
-    f.command(
-      { type: "updateProject", projectId: f.projectId, name: "Revoked" },
-      peerId,
-    ),
-    (e) => e instanceof DomainError && e.category === "forbidden",
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: editorId,
-    permissions: ["projectSettings"],
-    archived: true,
-  });
-  await assert.rejects(
-    f.command(
-      { type: "updateProject", projectId: f.projectId, name: "Archived" },
-      peerId,
-    ),
-    DomainError,
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: editorId,
-    archived: false,
-  });
-  await f.command(
-    { type: "updateProject", projectId: f.projectId, name: "Restored" },
-    peerId,
-  );
-  await f.command({ ...assignment, assigned: false }, f.reviewerId);
-  await assert.rejects(
-    f.command(
-      { type: "updateProject", projectId: f.projectId, name: "Removed" },
-      peerId,
-    ),
-    DomainError,
-  );
-  const audit = await db
-    .select()
-    .from(s.configurationAudit)
-    .where(eq(s.configurationAudit.organizationId, f.organizationId));
-  assert.equal(
-    audit.filter(
-      (a) =>
-        a.action === "setConfigurationAssignment" &&
-        (a.detail.command as { roleId: string; assigned: boolean }).roleId ===
-          editorId &&
-        (a.detail.command as { assigned: boolean }).assigned,
-    ).length,
-    1,
-  );
-  assert.ok(
-    audit.some((a) => a.actorId === peerId && a.action === "updateProject"),
-  );
-  assert.equal(
-    (await f.read()).directory.configurationAssignments?.some(
-      (a) => a.roleId === editorId && a.userId === peerId,
-    ),
-    false,
-  );
-  assert.equal(
-    (await other.read()).directory.configurationRoles?.some(
-      (r) => r.id === managerId,
-    ),
-    false,
-  );
-
-  // A team role grants no project or specification authority. Governance stays above it.
-  await f.command({
-    type: "setConfigurationAssignment",
-    roleId: teamRoleId,
-    userId: peerId,
-    scope: "team",
-    scopeId: f.teamId,
-    assigned: true,
-  });
-  await f.command(
-    {
-      type: "updateTeam",
-      teamId: f.teamId,
-      estimateScale: "fibonacci",
-      iterationMode: "manual",
-    },
-    peerId,
-  );
-  await f.command(
-    {
-      type: "createStatus",
-      teamId: f.teamId,
-      statusId: crypto.randomUUID(),
-      name: "Local validation",
-      color: "blue",
-      category: "started",
-    },
-    peerId,
-  );
-  await f.command(
-    {
-      type: "setTeamMembership",
-      teamId: f.teamId,
-      userId: f.reviewerId,
-      member: true,
-    },
-    peerId,
-  );
-  await f.command(
-    {
-      type: "setTeamType",
-      teamId: f.teamId,
-      typeId: f.types.Bug,
-      enabled: false,
-    },
-    peerId,
-  );
-  const iterationId = crypto.randomUUID();
-  await f.command(
-    {
-      type: "createIteration",
-      teamId: f.teamId,
-      iterationId,
-      name: "Local sprint",
-      goal: null,
-      startsAt: "2026-10-01",
-      endsAt: "2026-10-15",
-    },
-    peerId,
-  );
-  await f.command(
-    { type: "startIteration", teamId: f.teamId, iterationId },
-    peerId,
-  );
-  await f.command(
-    {
-      type: "completeIteration",
-      teamId: f.teamId,
-      iterationId,
-      carryOverTo: null,
-    },
-    peerId,
-  );
-  for (const command of [
-    { type: "updateTeam", teamId: f.teamId, deliveryMode: "external" },
-    { type: "updateTeam", teamId: f.teamId, readinessPolicy: "off" },
-    { type: "updateTeam", teamId: f.teamId, aiActionPolicy: "off" },
-    { type: "updateTeam", teamId: f.teamId, archived: true },
-    {
-      type: "updateProject",
-      projectId: f.projectId,
-      name: "Team role is not project authority",
-    },
-    {
-      type: "updateSpecification",
-      workItemId: f.proposalId,
-      baseRevisionId: (await f.current()).id,
-      content: "No editorial authority",
-    },
-    {
-      type: "createTeam",
-      teamId: crypto.randomUUID(),
-      name: "No global authority",
-    },
-  ] as Command[])
-    await assert.rejects(
-      f.command(command, peerId),
-      (e) => e instanceof DomainError && e.category === "forbidden",
-    );
-  const secondTeamId = crypto.randomUUID();
-  await f.command({
-    type: "createTeam",
-    teamId: secondTeamId,
-    name: "Another team",
-  });
-  await assert.rejects(
-    f.command(
-      { type: "updateTeam", teamId: secondTeamId, estimateScale: "none" },
-      peerId,
-    ),
-    DomainError,
-  );
-  await f.command({
-    type: "setTeamMembership",
-    teamId: secondTeamId,
-    userId: peerId,
     member: true,
   });
   await assert.rejects(
     f.command(
       {
-        type: "createStatus",
-        teamId: secondTeamId,
-        statusId: crypto.randomUUID(),
-        name: "Membership grants nothing",
-        color: "blue",
-        category: "started",
+        type: "createWorkItem",
+        projectId: billing,
+        workItemId: crypto.randomUUID(),
+        typeId: f.types.Story,
+        parentId: null,
+        title: "Invoices",
       },
-      peerId,
+      f.reviewerId,
     ),
-    DomainError,
+    /cannot edit specifications/,
   );
-  await db
-    .delete(s.member)
-    .where(
-      and(
-        eq(s.member.organizationId, f.organizationId),
-        eq(s.member.userId, peerId),
-      ),
-    );
+  // A discipline belongs to its project.
+  await assert.rejects(
+    f.command({
+      type: "setDisciplineMember",
+      projectId: f.projectId,
+      disciplineId: product.id,
+      userId: f.reviewerId,
+      member: true,
+    }),
+    /discipline is unavailable/,
+  );
+  // Project administrators configure their project, not others; organization
+  // administration is not delegated.
+  await f.command({
+    type: "setProjectMember",
+    projectId: f.projectId,
+    userId: f.reviewerId,
+    role: "admin",
+  });
+  await f.command(
+    { type: "updateProject", projectId: f.projectId, readinessPolicy: "block" },
+    f.reviewerId,
+  );
   await assert.rejects(
     f.command(
-      { type: "updateTeam", teamId: f.teamId, name: "Former member" },
-      peerId,
+      { type: "updateProject", projectId: billing, readinessPolicy: "block" },
+      f.reviewerId,
     ),
-    DomainError,
+    /project's administrators/,
   );
-  assert.equal(
-    (await f.read()).directory.configurationAssignments?.some(
-      (a) => a.userId === peerId,
+  await assert.rejects(
+    f.command(
+      { type: "archiveProject", projectId: f.projectId, archived: true },
+      f.reviewerId,
     ),
-    false,
+    /organization administrator/,
+  );
+  await assert.rejects(
+    f.command(
+      {
+        type: "createType",
+        typeId: crypto.randomUUID(),
+        name: "Spike",
+        icon: "spike",
+        color: "teal",
+        level: 1,
+        hasSpecification: false,
+      },
+      f.reviewerId,
+    ),
+    /organization administrator/,
+  );
+  // Leaving a project removes its disciplines there, so capabilities end.
+  await f.command({
+    type: "setProjectMember",
+    projectId: f.projectId,
+    userId: f.reviewerId,
+    role: null,
+  });
+  const after = (await orgItems(f)).directory;
+  assert.ok(
+    !after.disciplines.some(
+      (d) => d.projectId === f.projectId && d.userIds.includes(f.reviewerId),
+    ),
+  );
+  assert.ok(
+    !after.projectMembers.some(
+      (m) => m.projectId === f.projectId && m.userId === f.reviewerId,
+    ),
+  );
+  // Archived projects are read-only until restored.
+  await f.command({
+    type: "archiveProject",
+    projectId: billing,
+    archived: true,
+  });
+  await assert.rejects(
+    f.command({
+      type: "createWorkItem",
+      projectId: billing,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Story,
+      parentId: null,
+      title: "Late",
+    }),
+    /unavailable/,
+  );
+  await f.command({
+    type: "archiveProject",
+    projectId: billing,
+    archived: false,
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: billing,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Story,
+    parentId: null,
+    title: "Restored",
+  });
+});
+
+void test("enabled types are project configuration and plain work needs no specification rights", async () => {
+  const f = await fixture();
+  await assert.rejects(
+    f.command({
+      type: "setProjectType",
+      projectId: f.projectId,
+      typeId: f.types.Story,
+      enabled: false,
+    }),
+    /Story item belongs/,
+  );
+  await f.command({
+    type: "setProjectType",
+    projectId: f.projectId,
+    typeId: f.types.Bug,
+    enabled: false,
+  });
+  await assert.rejects(create(f, f.types.Bug), /does not use Bug items/);
+  await f.command({
+    type: "setProjectType",
+    projectId: f.projectId,
+    typeId: f.types.Bug,
+    enabled: true,
+  });
+  // A discipline that changes properties but does not edit specifications
+  // can file plain work, never specifications.
+  await f.command({
+    type: "updateDiscipline",
+    projectId: f.projectId,
+    disciplineId: f.roles.QA,
+    capabilities: {
+      editSpecifications: false,
+      changeProperties: true,
+      requestReviews: true,
+      review: true,
+      publishDelivery: false,
+    },
+  });
+  const bug = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: bug,
+      typeId: f.types.Bug,
+      parentId: null,
+      title: "Crash on retry",
+    },
+    f.reviewerId,
+  );
+  await assert.rejects(
+    f.command(
+      {
+        type: "createWorkItem",
+        projectId: f.projectId,
+        workItemId: crypto.randomUUID(),
+        typeId: f.types.Story,
+        parentId: null,
+        title: "Spec",
+      },
+      f.reviewerId,
+    ),
+    /cannot edit specifications/,
   );
 });
 
-void test("project authority inherits into owned teams and customized roles remain bounded by their ancestors", async () => {
+void test("delivery mode decides who owns delivery: external projects never plan or estimate in Lictory", async () => {
   const f = await fixture();
-  const rootId = crypto.randomUUID();
+  const sprint = crypto.randomUUID();
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
   await f.command({
-    type: "createConfigurationRole",
-    roleId: rootId,
-    name: "Project delegation ceiling",
-    scope: "project",
-    permissions: [
-      "projectSettings",
-      "teamSettings",
-      "teamWorkflow",
-      "deliveryMode",
-      "integrations",
-      "manageAccess",
-    ],
+    type: "createIteration",
+    projectId: f.projectId,
+    iterationId: sprint,
+    name: null,
+    goal: null,
+    startsAt: day(-1),
+    endsAt: day(13),
   });
   await f.command({
-    type: "setConfigurationAssignment",
-    roleId: rootId,
-    userId: f.reviewerId,
-    scope: "project",
-    scopeId: f.projectId,
-    assigned: true,
+    type: "startIteration",
+    projectId: f.projectId,
+    iterationId: sprint,
   });
-  const owned = (await f.read()).directory.teams.find(
-    (t) => t.id === f.teamId,
-  )!;
-  assert.deepEqual(owned.projectIds, [f.projectId]);
-  await f.command(
-    { type: "updateTeam", teamId: f.teamId, name: "Project-owned team" },
-    f.reviewerId,
-  );
-  await f.command(
-    { type: "updateTeam", teamId: f.teamId, deliveryMode: "external" },
-    f.reviewerId,
-  );
-  const secondTeamId = crypto.randomUUID();
-  await f.command(
-    {
-      type: "createTeam",
-      teamId: secondTeamId,
-      projectId: f.projectId,
-      name: "Project-owned QA",
-    },
-    f.reviewerId,
-  );
-  const projectRoleId = crypto.randomUUID();
-  await f.command(
-    {
-      type: "createConfigurationRole",
-      roleId: projectRoleId,
-      name: "Local project manager",
-      scope: "project",
-      scopeId: f.projectId,
-      parentRoleId: rootId,
-      permissions: ["teamSettings", "teamWorkflow", "manageAccess"],
-    },
-    f.reviewerId,
-  );
-  await f.command(
-    {
-      type: "setConfigurationAssignment",
-      roleId: projectRoleId,
-      userId: f.reviewerId,
-      scope: "project",
-      scopeId: f.projectId,
-      assigned: true,
-    },
-    f.reviewerId,
-  );
-  const teamRoleId = crypto.randomUUID();
-  await f.command(
-    {
-      type: "createConfigurationRole",
-      roleId: teamRoleId,
-      name: "Team workflow manager",
-      scope: "team",
-      scopeId: secondTeamId,
-      parentRoleId: projectRoleId,
-      permissions: ["teamWorkflow", "manageAccess"],
-    },
-    f.reviewerId,
-  );
-  await f.command(
-    {
-      type: "setConfigurationAssignment",
-      roleId: teamRoleId,
-      userId: f.reviewerId,
-      scope: "team",
-      scopeId: secondTeamId,
-      assigned: true,
-    },
-    f.reviewerId,
-  );
-  await f.command(
-    {
-      type: "updateConfigurationRole",
-      roleId: teamRoleId,
-      name: "Customized QA workflow",
-      permissions: ["teamWorkflow"],
-    },
-    f.reviewerId,
-  );
-  const limitedId = crypto.randomUUID();
-  const limitedRoleId = crypto.randomUUID();
-  await db.insert(s.user).values({
-    id: limitedId,
-    name: "Limited access manager",
-    email: `${limitedId}@example.test`,
-  });
-  await db.insert(s.member).values({
-    id: crypto.randomUUID(),
-    organizationId: f.organizationId,
-    userId: limitedId,
-    role: "member",
-    createdAt: new Date(),
-  });
-  await f.command({
-    type: "createConfigurationRole",
-    roleId: limitedRoleId,
-    name: "Assignment management only",
-    scope: "team",
-    permissions: ["manageAccess"],
-  });
-  await f.command({
-    type: "setConfigurationAssignment",
-    roleId: limitedRoleId,
-    userId: limitedId,
-    scope: "team",
-    scopeId: secondTeamId,
-    assigned: true,
-  });
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: teamRoleId,
-    archived: true,
-  });
-  await assert.rejects(
-    f.command(
-      { type: "updateConfigurationRole", roleId: teamRoleId, archived: false },
-      limitedId,
-    ),
-    /delegated configuration permissions/,
-  );
-  await assert.rejects(
-    f.command(
-      {
-        type: "createConfigurationRole",
-        roleId: crypto.randomUUID(),
-        name: "Cannot bypass local ceiling",
-        scope: "team",
-        scopeId: secondTeamId,
-        parentRoleId: rootId,
-        permissions: ["manageAccess"],
-      },
-      limitedId,
-    ),
-    /parent role you hold/,
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: teamRoleId,
-    archived: false,
-  });
-  await assert.rejects(
-    f.command(
-      {
-        type: "updateConfigurationRole",
-        roleId: teamRoleId,
-        permissions: ["teamMembers"],
-      },
-      f.reviewerId,
-    ),
-    /parent role/,
-  );
-  await assert.rejects(
-    f.command(
-      {
-        type: "updateConfigurationRole",
-        roleId: rootId,
-        permissions: ["projectSettings"],
-      },
-      f.reviewerId,
-    ),
-    /organization administrators/,
-  );
-  await assert.rejects(
-    f.command(
-      {
-        type: "setConfigurationAssignment",
-        roleId: teamRoleId,
-        userId: f.reviewerId,
-        scope: "team",
-        scopeId: f.teamId,
-        assigned: true,
-      },
-      f.reviewerId,
-    ),
-    DomainError,
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: rootId,
-    permissions: ["projectSettings", "teamSettings", "manageAccess"],
-  });
-  await assert.rejects(
-    f.command(
-      {
-        type: "createStatus",
-        teamId: secondTeamId,
-        statusId: crypto.randomUUID(),
-        name: "Beyond reduced ceiling",
-        color: "blue",
-        category: "started",
-      },
-      f.reviewerId,
-    ),
-    DomainError,
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: rootId,
-    archived: true,
-  });
-  // Cleanup and restoration stay reversible while an ancestor is inactive.
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: projectRoleId,
-    archived: true,
-  });
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: projectRoleId,
-    archived: false,
-  });
-  await assert.rejects(
-    f.command(
-      { type: "updateTeam", teamId: secondTeamId, name: "Archived parent" },
-      f.reviewerId,
-    ),
-    DomainError,
-  );
-  await f.command({
-    type: "updateConfigurationRole",
-    roleId: rootId,
-    archived: false,
-  });
-  await f.command(
-    {
-      type: "updateTeam",
-      teamId: secondTeamId,
-      name: "Restored inherited authority",
-    },
-    f.reviewerId,
-  );
-
-  const anotherProjectId = crypto.randomUUID();
-  const unusedTeamId = crypto.randomUUID();
-  await db.insert(s.team).values({
-    id: unusedTeamId,
-    organizationId: f.organizationId,
-    name: "Unassigned legacy team",
-  });
-  await assert.rejects(
-    create(f, f.types.Task, { teamId: unusedTeamId }),
-    DomainError,
-  );
-  await f.command({
-    type: "createProject",
-    projectId: anotherProjectId,
-    name: "Another product",
-    key: "OTHER",
-  });
-  const anotherProject = (await f.read()).directory.projects.find(
-    (p) => p.id === anotherProjectId,
-  )!;
-  assert.notEqual(anotherProject.defaultTeamId, f.teamId);
   await assert.rejects(
     f.command({
       type: "updateProject",
-      projectId: anotherProjectId,
-      name: "Wrong default",
-      defaultTeamId: f.teamId,
+      projectId: f.projectId,
+      deliveryMode: "external",
     }),
-    DomainError,
+    /Complete the active iteration/,
+  );
+  await f.command({
+    type: "completeIteration",
+    projectId: f.projectId,
+    iterationId: sprint,
+    carryOverTo: null,
+  });
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    deliveryMode: "external",
+  });
+  const project = (await orgItems(f)).directory.projects.find(
+    (p) => p.id === f.projectId,
+  )!;
+  assert.equal(project.iterationMode, "off");
+  assert.equal(project.estimateScale, "none");
+  await assert.rejects(
+    f.command({
+      type: "updateProject",
+      projectId: f.projectId,
+      iterationMode: "manual",
+    }),
+    /plans and estimates it/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "createIteration",
+      projectId: f.projectId,
+      iterationId: crypto.randomUUID(),
+      name: null,
+      goal: null,
+      startsAt: day(1),
+      endsAt: day(14),
+    }),
+    /external tool/,
   );
   await assert.rejects(
     f.command({
       type: "updateWorkItem",
       workItemId: f.proposalId,
-      teamId: anotherProject.defaultTeamId!,
+      estimate: 3,
     }),
-    DomainError,
+    /does not estimate work/,
   );
-  await assert.rejects(
-    f.command(
-      {
-        type: "updateTeam",
-        teamId: anotherProject.defaultTeamId!,
-        name: "Outside project",
-      },
-      f.reviewerId,
-    ),
-    DomainError,
-  );
-  await assert.rejects(
-    f.command(
-      {
-        type: "createConfigurationRole",
-        roleId: crypto.randomUUID(),
-        name: "Wrong local project",
-        scope: "project",
-        scopeId: anotherProjectId,
-        parentRoleId: projectRoleId,
-        permissions: [],
-      },
-      f.reviewerId,
-    ),
-    DomainError,
-  );
-  await assert.rejects(
-    f.command({
-      type: "updateTeam",
-      teamId: f.teamId,
-      projectIds: [anotherProjectId],
-    }),
-    /Keep every project/,
-  );
-});
-
-void test("administrators can share a team across projects and inherited authority follows associations", async () => {
-  const f = await fixture();
-  const projectId = crypto.randomUUID();
+  // Switching back lets the project plan again.
   await f.command({
-    type: "createProject",
-    projectId,
-    name: "Shared delivery",
-    key: "SHR",
-  });
-  const managerId = crypto.randomUUID();
-  await db.insert(s.user).values({
-    id: managerId,
-    name: "Shared project manager",
-    email: `${managerId}@example.test`,
-  });
-  await db.insert(s.member).values({
-    id: crypto.randomUUID(),
-    organizationId: f.organizationId,
-    userId: managerId,
-    role: "member",
-    createdAt: new Date(),
-  });
-  const roleId = crypto.randomUUID();
-  await f.command({
-    type: "createConfigurationRole",
-    roleId,
-    scope: "project",
-    name: "Shared team administration",
-    permissions: ["teamSettings"],
+    type: "updateProject",
+    projectId: f.projectId,
+    deliveryMode: "native",
+    iterationMode: "manual",
+    estimateScale: "fibonacci",
   });
   await f.command({
-    type: "setConfigurationAssignment",
-    roleId,
-    userId: managerId,
-    scope: "project",
-    scopeId: projectId,
-    assigned: true,
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    estimate: 3,
   });
-  await assert.rejects(
-    f.command(
-      { type: "updateTeam", teamId: f.teamId, name: "Not associated yet" },
-      managerId,
-    ),
-    DomainError,
-  );
-  await f.command({
-    type: "updateTeam",
-    teamId: f.teamId,
-    projectIds: [f.projectId, projectId],
-  });
-  await f.command(
-    { type: "updateTeam", teamId: f.teamId, name: "Shared team" },
-    managerId,
-  );
-  assert.deepEqual(
-    (await f.read()).directory.teams.find((t) => t.id === f.teamId)?.projectIds,
-    [f.projectId, projectId].sort(),
-  );
-  await assert.rejects(
-    f.command({
-      type: "updateTeam",
-      teamId: f.teamId,
-      projectIds: [projectId],
-    }),
-    /Keep every project/,
-  );
-  await assert.rejects(
-    f.command(
-      { type: "updateTeam", teamId: f.teamId, projectIds: [f.projectId] },
-      managerId,
-    ),
-    /organization administrator/,
-  );
-  const projectRoleId = crypto.randomUUID();
-  const teamRoleId = crypto.randomUUID();
-  await f.command({
-    type: "createConfigurationRole",
-    roleId: projectRoleId,
-    scope: "project",
-    scopeId: projectId,
-    parentRoleId: roleId,
-    name: "Shared project ceiling",
-    permissions: ["teamSettings"],
-  });
-  await f.command({
-    type: "createConfigurationRole",
-    roleId: teamRoleId,
-    scope: "team",
-    scopeId: f.teamId,
-    parentRoleId: projectRoleId,
-    name: "Shared team maintainer",
-    permissions: ["teamSettings"],
-  });
-  await f.command({
-    type: "setConfigurationAssignment",
-    roleId: teamRoleId,
-    userId: managerId,
-    scope: "team",
-    scopeId: f.teamId,
-    assigned: true,
-  });
-  await f.command({
-    type: "setConfigurationAssignment",
-    roleId,
-    userId: managerId,
-    scope: "project",
-    scopeId: projectId,
-    assigned: false,
-  });
-  await db
-    .update(s.project)
-    .set({ archivedAt: new Date() })
-    .where(eq(s.project.id, projectId));
-  await assert.rejects(
-    f.command(
-      {
-        type: "updateTeam",
-        teamId: f.teamId,
-        name: "Archived project ceiling",
-      },
-      managerId,
-    ),
-    DomainError,
-  );
-  await db
-    .update(s.project)
-    .set({ archivedAt: null })
-    .where(eq(s.project.id, projectId));
-  await f.command(
-    { type: "updateTeam", teamId: f.teamId, name: "Restored project ceiling" },
-    managerId,
-  );
-  await f.command({
-    type: "updateTeam",
-    teamId: f.teamId,
-    projectIds: [f.projectId],
-  });
-  await assert.rejects(
-    f.command(
-      { type: "updateTeam", teamId: f.teamId, name: "Association removed" },
-      managerId,
-    ),
-    DomainError,
-  );
 });

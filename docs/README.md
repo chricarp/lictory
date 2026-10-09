@@ -11,13 +11,15 @@ Product principles, the glossary and engineering conventions live in
 
 ## Internals
 
-Durable concepts that are easy to misunderstand. Read the first three before
+Durable concepts that are easy to misunderstand. Read the first four before
 adding domain writes or synchronized entities.
 
+- [Organizations, projects and teams](./internals/organization-model.md):
+  what each scope owns, application roles, project roles and disciplines,
+  delivery modes
 - [Workspace synchronization and review invariants](./internals/synchronization.md)
 - [Delivery model](./internals/delivery.md)
 - [Capabilities, MCP and agents](./internals/capabilities.md)
-- [Delegated configuration](./internals/configuration-access.md)
 - [Database model](./internals/database-model.md)
 - [Lictory Intelligence](./internals/ai.md)
 - [Notifications](./internals/notifications.md)

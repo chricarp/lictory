@@ -11,7 +11,7 @@ import {
   type OnboardingSetup,
 } from "../shared/protocol";
 import { createSyncService, directory } from "./service";
-import { seedDefaultRoles } from "./roles";
+import { seedOrganization } from "./organization";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -64,12 +64,8 @@ async function fixture() {
       createdAt: new Date(),
     },
   ]);
-  await seedDefaultRoles(db, organizationId, userId);
-  const roster = await directory(db, userId, organizationId);
-  const team = roster.teams[0]!;
+  await seedOrganization(db, organizationId);
   const setup: OnboardingSetup = {
-    teamId: team.id,
-    teamName: "Payments",
     deliveryMode: "native",
     readinessPolicy: "block",
     iterationMode: "manual",
@@ -91,9 +87,9 @@ async function fixture() {
       setup: { ...setup, ...patch },
     },
   });
-  return { userId, memberId, organizationId, team, setup, mutation };
+  return { userId, memberId, organizationId, setup, mutation };
 }
-void test("setup saves explicit team choices and the decision record with an idempotent project receipt", async () => {
+void test("setup configures the first project from explicit choices and records the decision with an idempotent receipt", async () => {
   const f = await fixture();
   const mutation = f.mutation();
   const first = await service.mutate(f.userId, mutation);
@@ -101,11 +97,22 @@ void test("setup saves explicit team choices and the decision record with an ide
   assert.equal(first.cursor, retry.cursor);
   const roster = await directory(db, f.userId, f.organizationId);
   assert.equal(roster.projects.length, 1);
-  assert.equal(roster.projects[0]!.defaultTeamId, f.team.id);
-  assert.equal(roster.teams[0]!.readinessPolicy, "block");
-  assert.equal(roster.teams[0]!.iterationMode, "manual");
-  assert.equal(roster.teams[0]!.estimateScale, "tshirt");
+  const project = roster.projects[0]!;
+  assert.equal(project.readinessPolicy, "block");
+  assert.equal(project.iterationMode, "manual");
+  assert.equal(project.estimateScale, "tshirt");
   assert.equal(roster.ai.enabled, true);
+  // No team is needed to start: the project carries the workflow, and its
+  // creator administers it in the Product discipline.
+  assert.equal(roster.teams.length, 0);
+  assert.ok(roster.statuses.some((x) => x.projectId === project.id));
+  assert.deepEqual(roster.projectMembers, [
+    { projectId: project.id, userId: f.userId, role: "admin" },
+  ]);
+  assert.deepEqual(
+    roster.disciplines.find((d) => d.name === "Product")?.userIds,
+    [f.userId],
+  );
   const [record] = await db
     .select()
     .from(s.organizationOnboarding)
@@ -117,22 +124,13 @@ void test("setup saves explicit team choices and the decision record with an ide
     /already used|already been completed/,
   );
 });
-void test("initial setup requires an administrator and a team from the same organization", async () => {
+void test("initial setup requires an organization administrator", async () => {
   const f = await fixture(),
     foreign = await fixture();
   await assert.rejects(
     service.mutate(f.memberId, f.mutation()),
     /administrator/,
   );
-  await assert.rejects(
-    service.mutate(f.userId, f.mutation({ teamId: foreign.team.id })),
-    /unavailable/,
-  );
-  const [unchanged] = await db
-    .select()
-    .from(s.team)
-    .where(eq(s.team.id, foreign.team.id));
-  assert.equal(unchanged!.name, foreign.team.name);
   assert.equal(
     (await directory(db, f.userId, f.organizationId)).projects.length,
     0,
@@ -146,7 +144,7 @@ void test("initial setup requires an administrator and a team from the same orga
     false,
   );
 });
-void test("a failed change-log write rolls back the project, setup decisions, team and automatic cycles", async () => {
+void test("a failed change-log write rolls back the project, setup decisions, disciplines and automatic cycles", async () => {
   const f = await fixture();
   await client`CREATE FUNCTION reject_onboarding_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced sync failure'; END $$`;
   await client`CREATE TRIGGER onboarding_failure BEFORE INSERT ON sync_change FOR EACH ROW EXECUTE FUNCTION reject_onboarding_change()`;
@@ -160,7 +158,8 @@ void test("a failed change-log write rolls back the project, setup decisions, te
   }
   const roster = await directory(db, f.userId, f.organizationId);
   assert.equal(roster.projects.length, 0);
-  assert.deepEqual(roster.teams[0], f.team);
+  assert.equal(roster.disciplines.length, 0);
+  assert.equal(roster.statuses.length, 0);
   assert.equal(roster.iterations.length, 0);
   assert.equal(roster.ai.enabled, false);
   assert.equal(
@@ -185,7 +184,6 @@ void test("a failed change-log write rolls back the project, setup decisions, te
 void test("concurrent first setups have one authoritative winner", async () => {
   const f = await fixture();
   const second = f.mutation({
-    teamName: "Another team",
     deliveryMode: "external",
     iterationMode: "off",
     estimateScale: "none",
@@ -203,8 +201,11 @@ void test("concurrent first setups have one authoritative winner", async () => {
     .select()
     .from(s.organizationOnboarding)
     .where(eq(s.organizationOnboarding.organizationId, f.organizationId));
-  assert.equal(roster.teams[0]!.deliveryMode, record!.decisions.deliveryMode);
-  assert.equal(roster.teams[0]!.name, record!.decisions.teamName);
+  assert.equal(
+    roster.projects[0]!.deliveryMode,
+    record!.decisions.deliveryMode,
+  );
+  assert.equal(roster.projects[0]!.id, record!.projectId);
   assert.equal(roster.ai.enabled, record!.decisions.aiEnabled);
 });
 void test("opting out applies organization-wide and administrators can change Lictory Intelligence later without rewriting the onboarding decision", async () => {
@@ -250,8 +251,6 @@ void test("legacy setup without a Lictory Intelligence choice preserves the exis
 });
 void test("external setup cannot enable native iteration planning", () => {
   const setup = {
-    teamId: "team",
-    teamName: "Team",
     deliveryMode: "external",
     readinessPolicy: "warn",
     estimateScale: "none",

@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "~/db/schema";
 import { createSyncService, directory } from "~/sync/server/service";
-import { seedDefaultRoles } from "~/sync/server/roles";
+import { seedOrganization } from "~/sync/server/organization";
 import { PROTOCOL, pageSchema, type Command } from "~/sync/shared/protocol";
 import type { Analyzer, ItemReviewOutput } from "~/ai/analyzer";
 import type { ItemReviewContext } from "~/ai/context";
@@ -76,7 +76,7 @@ async function fixture() {
       createdAt: new Date(),
     },
   ]);
-  await seedDefaultRoles(db, organizationId, adminId);
+  await seedOrganization(db, organizationId);
   const command = (c: Command, actor = adminId) =>
     service.mutate(actor, {
       protocol: PROTOCOL,
@@ -98,6 +98,8 @@ async function fixture() {
     name: "Search",
     key: "SRC",
   });
+  const teamId = crypto.randomUUID();
+  await command({ type: "createTeam", projectId, teamId, name: "Checkout" });
   const dir = await directory(db, adminId, organizationId);
   const storyType = dir.types.find((t) => t.name === "Story")!.id;
   const storyId = crypto.randomUUID();
@@ -106,6 +108,7 @@ async function fixture() {
     projectId,
     workItemId: storyId,
     typeId: storyType,
+    teamId,
     parentId: null,
     title: "Retry after timeout",
     description: "Retry the payment when the provider times out.",
@@ -138,7 +141,7 @@ async function fixture() {
     memberId,
     projectId,
     otherProjectId,
-    teamId: dir.teams[0]!.id,
+    teamId,
     storyId,
     command,
     note,

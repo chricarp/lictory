@@ -49,25 +49,32 @@ export const isClosedCategory = (c: StatusCategory | undefined) =>
   c === "done" || c === "canceled";
 
 // Directory lookups for delivery configuration. Built once per directory.
-export type TeamStatus = WorkflowStatus & { teamId: string };
 export type Delivery = {
   types: Map<string, WorkItemType>;
   teams: Map<string, Team>;
-  statuses: Map<string, TeamStatus>;
+  statuses: Map<string, WorkflowStatus>;
   iterations: Map<string, Iteration>;
+  // Types each project has enabled.
+  projectTypes: Map<string, Set<string>>;
 };
 export function deliveryIndex(
-  directory: Pick<Directory, "types" | "teams" | "iterations">,
+  directory: Pick<
+    Directory,
+    "types" | "teams" | "iterations" | "statuses" | "projectTypes"
+  >,
 ): Delivery {
-  const statuses = new Map<string, TeamStatus>();
-  for (const team of directory.teams)
-    for (const status of team.statuses)
-      statuses.set(status.id, { ...status, teamId: team.id });
+  const projectTypes = new Map<string, Set<string>>();
+  for (const { projectId, typeId } of directory.projectTypes)
+    projectTypes.set(
+      projectId,
+      (projectTypes.get(projectId) ?? new Set()).add(typeId),
+    );
   return {
     types: new Map(directory.types.map((t) => [t.id, t])),
     teams: new Map(directory.teams.map((t) => [t.id, t])),
-    statuses,
+    statuses: new Map(directory.statuses.map((x) => [x.id, x])),
     iterations: new Map(directory.iterations.map((i) => [i.id, i])),
+    projectTypes,
   };
 }
 const unknownType: WorkItemType = {
@@ -96,15 +103,23 @@ export const isTopLevel = (type: Pick<WorkItemType, "level">) =>
 export function segmentOf(type: Pick<WorkItemType, "level">) {
   return isTopLevel(type) ? "epics" : "stories";
 }
-export function activeStatuses(team: Team | undefined) {
-  return (team?.statuses ?? [])
-    .filter((x) => !x.archivedAt)
+// The project's workflow, in order. Every item of a project uses it.
+export function projectStatuses(d: Delivery, projectId: string | undefined) {
+  return [...d.statuses.values()]
+    .filter((x) => x.projectId === projectId)
     .sort((a, b) => a.position - b.position);
 }
-export function enabledTypes(d: Delivery, team: Team | undefined) {
+export function activeStatuses(d: Delivery, projectId: string | undefined) {
+  return projectStatuses(d, projectId).filter((x) => !x.archivedAt);
+}
+export function enabledTypes(d: Delivery, projectId: string | undefined) {
+  const enabled = projectId ? d.projectTypes.get(projectId) : undefined;
   return [...d.types.values()]
-    .filter((t) => !t.archivedAt && (!team || team.typeIds.includes(t.id)))
+    .filter((t) => !t.archivedAt && (!projectId || enabled?.has(t.id)))
     .sort((a, b) => b.level - a.level || a.position - b.position);
+}
+export function projectTeams(d: Delivery, projectId: string | undefined) {
+  return [...d.teams.values()].filter((t) => t.projectId === projectId);
 }
 // Parents sit strictly above children in the type hierarchy.
 export function canParent(parent: WorkItemType, child: WorkItemType) {
@@ -161,17 +176,18 @@ export function approvalsCount(item: WorkItem) {
   };
 }
 
-// A review "needs me" when I am assigned directly or through a role and I have
-// not approved the current revision yet. The server still enforces authority.
-export function myRoleIds(directory: Directory, userId: string) {
-  return directory.roles
-    .filter((r) => !r.archivedAt && r.userIds.includes(userId))
-    .map((r) => r.id);
+// A review "needs me" when I am assigned directly or through a discipline and
+// I have not approved the current revision yet. The server still enforces
+// authority.
+export function myDisciplineIds(directory: Directory, userId: string) {
+  return directory.disciplines
+    .filter((d) => !d.archivedAt && d.userIds.includes(userId))
+    .map((d) => d.id);
 }
 export function needsMyReview(
   item: WorkItem,
   userId: string,
-  roleIds: string[],
+  disciplineIds: string[],
 ) {
   if (item.archivedAt) return false;
   return (
@@ -180,7 +196,7 @@ export function needsMyReview(
       (r) =>
         r.status !== "cancelled" &&
         r.status !== "completed" &&
-        r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
+        r.assigneeIds.some((id) => id === userId || disciplineIds.includes(id)),
     )
   );
 }
@@ -201,7 +217,7 @@ export const views: { id: ViewId; label: string; description: string }[] = [
     id: "needs-my-review",
     label: "Needs my review",
     description:
-      "Reviews assigned to you or your roles on the current revision, and suggestions waiting for your approval.",
+      "Reviews assigned to you or your disciplines on the current revision, and suggestions waiting for your approval.",
   },
   {
     id: "needs-review",
@@ -233,13 +249,13 @@ export function matchesView(
   item: WorkItem,
   view: ViewId,
   userId: string,
-  roleIds: string[],
+  disciplineIds: string[],
 ) {
   switch (view) {
     case "all":
       return true;
     case "needs-my-review":
-      return needsMyReview(item, userId, roleIds);
+      return needsMyReview(item, userId, disciplineIds);
     case "needs-review":
       return item.reviews.some(
         (r) => r.status === "requested" || r.status === "in_progress",
@@ -256,11 +272,12 @@ export function matchesView(
 }
 
 export type Filters = {
-  // Status categories: meaningful across teams with different workflows.
+  // Status categories: meaningful across projects with different workflows.
   status?: StatusCategory[];
   refinement?: RefinementState[];
   type?: string[];
-  team?: string[];
+  team?: string[]; // team ids, or "none"
+
   priority?: WorkItemPriority[];
   assignee?: string[]; // user ids, or "unassigned"
   parent?: string[];
@@ -291,7 +308,7 @@ export function applyFilters(
       return false;
     if (filters.type?.length && !filters.type.includes(item.typeId))
       return false;
-    if (filters.team?.length && !filters.team.includes(item.teamId))
+    if (filters.team?.length && !filters.team.includes(item.teamId ?? "none"))
       return false;
     if (filters.priority?.length && !filters.priority.includes(item.priority))
       return false;

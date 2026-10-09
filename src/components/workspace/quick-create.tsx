@@ -11,7 +11,13 @@ import { Kbd } from "~/components/ui/primitives";
 import { Popover, Picker } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
-import { enabledTypes, isTopLevel, segmentOf, typeOf } from "~/lib/work-items";
+import {
+  enabledTypes,
+  isTopLevel,
+  projectTeams,
+  segmentOf,
+  typeOf,
+} from "~/lib/work-items";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
 
@@ -21,7 +27,8 @@ export type QuickCreateOptions = {
   typeId?: string;
   parentId?: string | null;
   projectId?: string;
-  teamId?: string;
+  // Optional team of the project; null or absent creates without a team.
+  teamId?: string | null;
   statusId?: string;
   iterationId?: string | null;
 };
@@ -36,23 +43,27 @@ export function QuickCreate({
   options: QuickCreateOptions;
   onClose: () => void;
 }) {
-  const { projects, items, mutate, organization, delivery } = useWorkspace();
+  const { projects, items, mutate, organization, delivery, capabilitiesIn } =
+    useWorkspace();
   const { toast } = useShell();
   const router = useRouter();
   const [projectId, setProjectId] = useState(
     options.projectId ?? projects[0]?.id,
   );
   const project = projects.find((p) => p.id === projectId);
-  const activeTeams = [...delivery.teams.values()].filter(
-    (t) =>
-      !t.archivedAt &&
-      (!t.projectIds || t.projectIds.includes(projectId ?? "")),
+  const capabilities = capabilitiesIn(projectId);
+  const activeTeams = projectTeams(delivery, projectId)
+    .filter((t) => !t.archivedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const [teamId, setTeamId] = useState(options.teamId ?? null);
+  const team = activeTeams.find((t) => t.id === teamId);
+  // Spec-backed types need specification authoring; plain work only needs
+  // property changes.
+  const types = enabledTypes(delivery, projectId).filter((t) =>
+    t.hasSpecification
+      ? capabilities.editSpecifications
+      : capabilities.editSpecifications || capabilities.changeProperties,
   );
-  const [teamId, setTeamId] = useState(options.teamId);
-  const team =
-    activeTeams.find((t) => t.id === (teamId ?? project?.defaultTeamId)) ??
-    activeTeams[0];
-  const types = enabledTypes(delivery, team);
   const [typeId, setTypeId] = useState(options.typeId);
   const type =
     types.find((t) => t.id === typeId) ??
@@ -83,7 +94,7 @@ export function QuickCreate({
   const name = type?.name ?? "item";
   const submit = async (open: boolean) => {
     const trimmed = title.trim();
-    if (!trimmed || !project || !type || !team) return;
+    if (!trimmed || !project || !type) return;
     const workItemId = crypto.randomUUID();
     const submittedDescription = description.trim();
     setError(undefined);
@@ -97,15 +108,16 @@ export function QuickCreate({
         projectId: project.id,
         workItemId,
         typeId: type.id,
-        teamId: team.id,
+        teamId: team?.id ?? null,
         parentId: parent?.id ?? null,
         title: trimmed,
         description: submittedDescription || undefined,
-        ...(options.statusId && team.id === (options.teamId ?? team.id)
+        // Status and iteration only apply in the project they came from.
+        ...(options.statusId && project.id === options.projectId
           ? { statusId: options.statusId }
           : {}),
         ...(options.iterationId !== undefined &&
-        team.id === (options.teamId ?? team.id)
+        project.id === options.projectId
           ? { iterationId: options.iterationId }
           : {}),
       });
@@ -183,36 +195,14 @@ export function QuickCreate({
               />
             </Popover>
           )}
-          {activeTeams.length > 1 && team && (
-            <Popover
-              width={220}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  type="button"
-                  className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
-                >
-                  {team.name}
-                </button>
-              )}
-            >
-              <Picker
-                title="Team"
-                options={activeTeams.map((t) => ({
-                  value: t.id,
-                  label: t.name,
-                }))}
-                value={team.id}
-                onSelect={setTeamId}
-              />
-            </Popover>
-          )}
           {projects.length > 1 && (
             <Popover
               width={220}
               trigger={(props) => (
                 <button
                   {...props}
+                  type="button"
+                  aria-label={`Project: ${project?.name ?? "Choose project"}`}
                   className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
                 >
                   {project?.name ?? "Project"}
@@ -229,9 +219,35 @@ export function QuickCreate({
                 value={projectId}
                 onSelect={(id) => {
                   setProjectId(id);
-                  setTeamId(undefined);
+                  setTeamId(null);
+                  setTypeId(undefined);
                   setParentId(null);
                 }}
+              />
+            </Popover>
+          )}
+          {activeTeams.length > 0 && (
+            <Popover
+              width={220}
+              trigger={(props) => (
+                <button
+                  {...props}
+                  type="button"
+                  aria-label={`Team: ${team?.name ?? "No team"}`}
+                  className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
+                >
+                  {team?.name ?? "No team"}
+                </button>
+              )}
+            >
+              <Picker
+                title="Team"
+                options={[
+                  { value: "none", label: "No team" },
+                  ...activeTeams.map((t) => ({ value: t.id, label: t.name })),
+                ]}
+                value={team?.id ?? "none"}
+                onSelect={(v) => setTeamId(v === "none" ? null : v)}
               />
             </Popover>
           )}
@@ -300,6 +316,13 @@ export function QuickCreate({
               containerClassName="bg-muted/30"
             />
           </div>
+          {!type && project && (
+            <p className="text-xs text-muted-foreground">
+              Your disciplines in {project.name} cannot create work items. Ask a
+              project administrator for a discipline that edits specifications
+              or changes properties.
+            </p>
+          )}
           {error && (
             <p role="alert" className="text-xs text-destructive">
               {error}
@@ -315,12 +338,12 @@ export function QuickCreate({
             type="button"
             variant="secondary"
             size="sm"
-            disabled={!title.trim()}
+            disabled={!title.trim() || !type}
             onClick={() => void submit(true)}
           >
             Create & open
           </Button>
-          <Button type="submit" size="sm" disabled={!title.trim()}>
+          <Button type="submit" size="sm" disabled={!title.trim() || !type}>
             Create {name}
           </Button>
         </div>

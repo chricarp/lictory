@@ -41,7 +41,13 @@ import {
   SettingsSection,
 } from "~/components/workspace/settings-section";
 
-type Listing = { canManage: boolean; entries: ContextEntrySummary[] };
+type Listing = {
+  canManage: boolean;
+  manageableProjectIds?: string[];
+  entries: ContextEntrySummary[];
+};
+export type ContextPin =
+  { scope: "organization" } | { scope: "project"; projectId: string };
 
 const targetKey = (t: ContextTarget) =>
   t.scope === "organization"
@@ -130,27 +136,44 @@ function useContextApi() {
 }
 
 // Lictory Intelligence Context: knowledge administrators give Lictory
-// Intelligence. On the organization page the scope can be switched between the
-// organization, any project and any team; team settings pin it to the team.
-export function IntelligenceContextSection({
-  team,
-}: {
-  team?: { id: string; name: string };
-}) {
+// Intelligence. Organization settings can switch between the organization,
+// any project and any team; project settings offer the project and its teams.
+export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
   const { projects, delivery, directory } = useWorkspace();
   const api = useContextApi();
   const params = useSearchParams();
   const linked = params.get("context");
-  const teams = [...delivery.teams.values()].filter((t) => !t.archivedAt);
+  const pinnedProject =
+    pinned.scope === "project"
+      ? projects.find((p) => p.id === pinned.projectId)
+      : undefined;
+  const scopedProjects =
+    pinned.scope === "project"
+      ? projects.filter((p) => p.id === pinned.projectId)
+      : projects;
+  const teams = [...delivery.teams.values()].filter(
+    (t) =>
+      !t.archivedAt &&
+      (pinned.scope === "organization" || t.projectId === pinned.projectId),
+  );
+  const options = [
+    ...(pinned.scope === "organization"
+      ? [{ key: "organization", label: "Organization" }]
+      : []),
+    ...scopedProjects.map((p) => ({
+      key: `project:${p.id}`,
+      label: `Project · ${p.name}`,
+    })),
+    ...teams.map((t) => ({ key: `team:${t.id}`, label: `Team · ${t.name}` })),
+  ];
   const [chosen, setChosen] = useState<string>();
   const linkedEntry = api.listing?.entries.find((e) => e.id === linked);
+  const linkedKey = linkedEntry && targetKey(entryTarget(linkedEntry));
   const key =
     chosen ??
-    (team
-      ? `team:${team.id}`
-      : linkedEntry
-        ? targetKey(entryTarget(linkedEntry))
-        : "organization");
+    (linkedKey && options.some((o) => o.key === linkedKey)
+      ? linkedKey
+      : (options[0]?.key ?? "organization"));
   const target = targetOf(key);
   const [showArchived, setShowArchived] = useState(false);
   const [adding, setAdding] = useState<"note" | "document" | null>(null);
@@ -160,14 +183,25 @@ export function IntelligenceContextSection({
   const active = entries.filter((e) => !e.archivedAt);
   const archived = entries.filter((e) => e.archivedAt);
   const used = active.reduce((n, e) => n + e.current.content.length, 0);
-  const canManage = api.listing?.canManage ?? false;
+  const targetProjectId =
+    target.scope === "project"
+      ? target.projectId
+      : target.scope === "team"
+        ? delivery.teams.get(target.teamId)?.projectId
+        : undefined;
+  const canManage =
+    !!api.listing &&
+    (api.listing.canManage ||
+      (!!targetProjectId &&
+        (api.listing.manageableProjectIds ?? []).includes(targetProjectId)));
   const nameOf = (id: string) =>
     directory.members.find((m) => m.id === id)?.name ?? "Former member";
-  const inherited = team
-    ? (api.listing?.entries ?? []).filter(
-        (e) => e.scope === "organization" && !e.archivedAt,
-      ).length
-    : 0;
+  const inherited =
+    pinned.scope === "project"
+      ? (api.listing?.entries ?? []).filter(
+          (e) => e.scope === "organization" && !e.archivedAt,
+        ).length
+      : 0;
 
   return (
     <SettingsSection
@@ -175,8 +209,8 @@ export function IntelligenceContextSection({
       icon={<BookOpen />}
       title="Lictory Intelligence Context"
       description={
-        team
-          ? `What Lictory Intelligence should know about how ${team.name} works: conventions, quality standards, constraints. It is added to every Lictory Intelligence review of this team's work, on top of organization and project context.`
+        pinnedProject
+          ? `What Lictory Intelligence should know about ${pinnedProject.name} and its teams: product facts, vocabulary, conventions, quality standards and constraints. It is added to every Lictory Intelligence review of this project's work, on top of organization context; a team's context applies to its items.`
           : "What Lictory Intelligence should know about your organization, projects and teams: product facts, vocabulary, conventions, policies. Context compounds: work in a team of a project gets all three, and the narrower scope wins when they disagree."
       }
       action={
@@ -201,60 +235,52 @@ export function IntelligenceContextSection({
       }
       footer={
         <>
-          Every member can read this context; only administrators can change it.
-          Each change is kept as a version, and Lictory Intelligence findings
-          cite the entries they relied on. Up to {chars(CONTEXT_PROMPT_BUDGET)}{" "}
-          characters reach Lictory Intelligence per review, team context first,
-          then project, then organization. Context is sent to the AI provider
-          only while Lictory Intelligence is enabled.
+          Every member can read this context. Organization administrators can
+          change all of it; project administrators can change their
+          project&apos;s and its teams&apos;. Each change is kept as a version,
+          and Lictory Intelligence findings cite the entries they relied on. Up
+          to {chars(CONTEXT_PROMPT_BUDGET)} characters reach Lictory
+          Intelligence per review, team context first, then project, then
+          organization. Context is sent to the AI provider only while Lictory
+          Intelligence is enabled.
         </>
       }
     >
-      {!team && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
-          <label
-            htmlFor="intelligence-context-scope"
-            className="text-[13px] text-muted-foreground"
-          >
-            Scope
-          </label>
-          <DropdownSelect
-            id="intelligence-context-scope"
-            aria-label="Context scope"
-            className="w-64"
-            value={key}
-            onValueChange={(v) => {
-              setChosen(v);
-              setAdding(null);
-            }}
-          >
-            <DropdownSelectOption value="organization">
-              Organization
-            </DropdownSelectOption>
-            {projects.map((p) => (
-              <DropdownSelectOption key={p.id} value={`project:${p.id}`}>
-                Project · {p.name}
-              </DropdownSelectOption>
-            ))}
-            {teams.map((t) => (
-              <DropdownSelectOption key={t.id} value={`team:${t.id}`}>
-                Team · {t.name}
-              </DropdownSelectOption>
-            ))}
-          </DropdownSelect>
-          <BudgetMeter used={used} />
-        </div>
-      )}
-      {team && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3 text-[13px] text-muted-foreground">
-          <span>
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
+        {options.length > 1 && (
+          <>
+            <label
+              htmlFor="intelligence-context-scope"
+              className="text-[13px] text-muted-foreground"
+            >
+              Scope
+            </label>
+            <DropdownSelect
+              id="intelligence-context-scope"
+              aria-label="Context scope"
+              className="w-64"
+              value={key}
+              onValueChange={(v) => {
+                setChosen(v);
+                setAdding(null);
+              }}
+            >
+              {options.map((o) => (
+                <DropdownSelectOption key={o.key} value={o.key}>
+                  {o.label}
+                </DropdownSelectOption>
+              ))}
+            </DropdownSelect>
+          </>
+        )}
+        {pinned.scope === "project" && (
+          <span className="text-[13px] text-muted-foreground">
             Also applies: {inherited} organization{" "}
-            {inherited === 1 ? "entry" : "entries"} and the context of each
-            item&apos;s project.
+            {inherited === 1 ? "entry" : "entries"}.
           </span>
-          <BudgetMeter used={used} />
-        </div>
-      )}
+        )}
+        <BudgetMeter used={used} />
+      </div>
       {adding && (
         <ContextForm
           kind={adding}

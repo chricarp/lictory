@@ -1,5 +1,4 @@
 "use client";
-import { canConfigure } from "~/sync/shared/configuration-access";
 import { LoadingState } from "~/components/ui/spinner";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -14,6 +13,7 @@ import {
   isTopLevel,
   segmentOf,
   typeOf,
+  type Project,
 } from "~/lib/work-items";
 import {
   iterationLabel,
@@ -27,12 +27,17 @@ import { Input } from "~/components/ui/input";
 import { Popover, Picker } from "~/components/ui/popover";
 import { Avatar, EmptyState } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
+import { useProject } from "~/components/workspace/project-gate";
 import { useShell } from "~/components/workspace/shell";
 import { RefinementIcon, StatusIcon } from "~/components/items/status";
 import { TypeIcon } from "~/components/items/icons";
 import { shortRange } from "~/components/items/delivery-properties";
-import { useTeam } from "./team-gate";
 import { estimateLabel } from "./card";
+import {
+  ExternalProjectNotice,
+  TeamFilterPicker,
+  useTeamFilter,
+} from "./board";
 
 const DAY = 86_400_000;
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
@@ -73,32 +78,29 @@ export function useIterationReport(
 }
 
 export function Backlog() {
-  const team = useTeam();
+  const project = useProject();
+  if (project.deliveryMode === "external")
+    return <ExternalProjectNotice project={project} surface="backlog" />;
+  return <ProjectBacklog project={project} />;
+}
+
+function ProjectBacklog({ project }: { project: Project }) {
   const {
     items,
-    projects,
     delivery,
     organization,
     memberName,
     mutate,
-    capabilities,
-    directory,
-    userId,
-    isAdmin,
+    capabilitiesIn,
+    canManage,
     view,
   } = useWorkspace();
   const { openCreate, toast } = useShell();
-  const canPlan =
-    capabilities.changeProperties ||
-    canConfigure(
-      directory,
-      userId,
-      isAdmin,
-      { scope: "team", scopeId: team.id },
-      "teamIterations",
-    );
+  const capabilities = capabilitiesIn(project.id);
+  const canPlan = canManage(project.id) || capabilities.changeProperties;
+  const teamFilter = useTeamFilter(project);
   const iterations = [...delivery.iterations.values()]
-    .filter((i) => i.teamId === team.id)
+    .filter((i) => i.projectId === project.id)
     .sort((a, b) => a.number - b.number);
   const open = iterations.filter((i) => i.state !== "completed");
   const lastCompleted = iterations
@@ -114,25 +116,27 @@ export function Backlog() {
         velocity.reduce((sum, v) => sum + v.completed, 0) / velocity.length,
       )
     : undefined;
+  const teamValue = teamFilter.value;
   const teamItems = useMemo(
     () =>
       items
         // Epics group work across iterations; they are planned via children.
         .filter(
           (i) =>
-            i.teamId === team.id &&
+            i.projectId === project.id &&
             !i.archivedAt &&
+            (!teamValue ||
+              (teamValue === "none" ? !i.teamId : i.teamId === teamValue)) &&
             !isTopLevel(typeOf(delivery, i)),
         )
         .sort(byRank),
-    [items, team.id, delivery],
+    [items, project.id, teamValue, delivery],
   );
   const backlog = teamItems.filter(
     (i) => !i.iterationId && !isClosedCategory(categoryOf(delivery, i)),
   );
   const [drag, setDrag] = useState<string>();
   const [over, setOver] = useState<{ section: string; index: number }>();
-  const projectOf = (i: WorkItem) => projects.find((p) => p.id === i.projectId);
   const move = (sectionId: string, rows: WorkItem[], index: number) => {
     const item = teamItems.find((i) => i.id === drag);
     setDrag(undefined);
@@ -163,18 +167,18 @@ export function Backlog() {
       last && new Date(last.endsAt) > today ? new Date(last.endsAt) : today;
     void mutate({
       type: "createIteration",
-      teamId: team.id,
+      projectId: project.id,
       iterationId: crypto.randomUUID(),
       name: null,
       goal: null,
       startsAt: isoDate(start),
       endsAt: isoDate(
-        new Date(start.getTime() + team.iterationWeeks * 7 * DAY),
+        new Date(start.getTime() + project.iterationWeeks * 7 * DAY),
       ),
     });
   };
-  const defaultProject =
-    projects.find((p) => p.defaultTeamId === team.id) ?? projects[0];
+  const canCreate =
+    capabilities.editSpecifications || capabilities.changeProperties;
   const section = (
     id: string,
     rows: WorkItem[],
@@ -225,18 +229,19 @@ export function Backlog() {
               )}
               <BacklogRow
                 item={item}
-                label={identifier(projectOf(item), item.number)}
-                href={
-                  projectOf(item)
-                    ? paths.item(
-                        organization.slug,
-                        projectOf(item)!.key,
-                        segmentOf(typeOf(delivery, item)),
-                        identifier(projectOf(item), item.number),
-                      )
-                    : "#"
+                label={identifier(project, item.number)}
+                href={paths.item(
+                  organization.slug,
+                  project.key,
+                  segmentOf(typeOf(delivery, item)),
+                  identifier(project, item.number),
+                )}
+                teamName={
+                  teamFilter.value
+                    ? undefined
+                    : teamFilter.teamName(item.teamId)
                 }
-                estimate={estimateLabel(team, item.estimate)}
+                estimate={estimateLabel(project, item.estimate)}
                 memberName={memberName}
                 draggable={capabilities.changeProperties}
                 dragging={drag === item.id}
@@ -262,29 +267,34 @@ export function Backlog() {
       <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
         <header className="flex flex-wrap items-center gap-2">
           <h1 className="text-lg font-semibold tracking-tight">
-            {team.name} · Backlog
+            {project.name} · Backlog
           </h1>
-          {averageVelocity !== undefined && team.estimateScale !== "none" && (
-            <span
-              className="text-xs text-muted-foreground"
-              title="Average completed points of recent iterations"
-            >
-              Velocity {averageVelocity} pts
-            </span>
-          )}
+          <TeamFilterPicker filter={teamFilter} />
+          {averageVelocity !== undefined &&
+            project.estimateScale !== "none" && (
+              <span
+                className="text-xs text-muted-foreground"
+                title="Average completed points of recent iterations"
+              >
+                Velocity {averageVelocity} pts
+              </span>
+            )}
           <div className="ml-auto flex items-center gap-1">
-            {canPlan && team.iterationMode === "manual" && (
+            {canPlan && project.iterationMode === "manual" && (
               <Button variant="secondary" size="sm" onClick={createSprint}>
                 <Plus className="size-3.5" /> New sprint
               </Button>
             )}
-            {capabilities.editSpecifications && defaultProject && (
+            {canCreate && (
               <Button
                 size="sm"
                 onClick={() =>
                   openCreate({
-                    projectId: defaultProject.id,
-                    teamId: team.id,
+                    projectId: project.id,
+                    teamId:
+                      teamFilter.value && teamFilter.value !== "none"
+                        ? teamFilter.value
+                        : null,
                     iterationId: null,
                   })
                 }
@@ -294,24 +304,48 @@ export function Backlog() {
             )}
           </div>
         </header>
-        {team.iterationMode === "off" && (
+        {project.iterationMode === "off" && (
           <p className="text-[13px] text-muted-foreground">
-            {team.name} works without iterations. Rank the backlog by dragging;
-            enable sprints or cycles in{" "}
-            <Link
-              className="underline"
-              href={paths.teamSettings(organization.slug, team.id)}
-            >
-              team settings
-            </Link>
+            {project.name} works without iterations. Rank the backlog by
+            dragging
+            {canManage(project.id) ? (
+              <>
+                ; enable sprints or cycles in{" "}
+                <Link
+                  className="underline"
+                  href={paths.projectSettings(
+                    organization.slug,
+                    project.key,
+                    "planning",
+                  )}
+                >
+                  project settings
+                </Link>
+              </>
+            ) : null}
             .
           </p>
         )}
-        {team.iterationMode === "automatic" && (
+        {project.iterationMode === "automatic" && (
           <p className="text-[13px] text-muted-foreground">
-            Cycles of {team.iterationWeeks} week
-            {team.iterationWeeks > 1 ? "s" : ""} start and complete
+            Cycles of {project.iterationWeeks} week
+            {project.iterationWeeks > 1 ? "s" : ""} start and complete
             automatically; unfinished work rolls into the next cycle.
+            {canManage(project.id) && (
+              <>
+                {" "}
+                <Link
+                  className="underline"
+                  href={paths.projectSettings(
+                    organization.slug,
+                    project.key,
+                    "planning",
+                  )}
+                >
+                  Planning settings
+                </Link>
+              </>
+            )}
           </p>
         )}
         {view.status === "hydrating" && teamItems.length === 0 ? (
@@ -327,9 +361,11 @@ export function Backlog() {
                   iteration={it}
                   rows={rows}
                   points={points(rows)}
-                  capacity={averageVelocity}
-                  showPoints={team.estimateScale !== "none"}
-                  canPlan={canPlan && team.iterationMode === "manual"}
+                  // Velocity is the whole project's; it is no capacity for
+                  // one team.
+                  capacity={teamFilter.value ? undefined : averageVelocity}
+                  showPoints={project.estimateScale !== "none"}
+                  canPlan={canPlan && project.iterationMode === "manual"}
                   hasActive={open.some((o) => o.state === "active")}
                   nextPlanned={open.find(
                     (o) => o.state === "planned" && o.id !== it.id,
@@ -341,32 +377,36 @@ export function Backlog() {
                   }
                   reportHref={paths.iteration(
                     organization.slug,
-                    team.id,
+                    project.key,
                     it.id,
                   )}
                   onStart={() =>
                     void mutate({
                       type: "startIteration",
-                      teamId: team.id,
+                      projectId: project.id,
                       iterationId: it.id,
                     })
                   }
                   onComplete={(carryOverTo) => {
                     void mutate({
                       type: "completeIteration",
-                      teamId: team.id,
+                      projectId: project.id,
                       iterationId: it.id,
                       carryOverTo,
                     });
                     toast(`${iterationLabel(it)} completed`, {
                       label: "View report",
-                      href: paths.iteration(organization.slug, team.id, it.id),
+                      href: paths.iteration(
+                        organization.slug,
+                        project.key,
+                        it.id,
+                      ),
                     });
                   }}
                   onRename={(name, goal) =>
                     void mutate({
                       type: "updateIteration",
-                      teamId: team.id,
+                      projectId: project.id,
                       iterationId: it.id,
                       name,
                       goal,
@@ -383,7 +423,8 @@ export function Backlog() {
                 <h2 className="text-sm font-semibold">Backlog</h2>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {backlog.length} items
-                  {team.estimateScale !== "none" && ` · ${points(backlog)} pts`}
+                  {project.estimateScale !== "none" &&
+                    ` · ${points(backlog)} pts`}
                 </span>
               </div>,
               "The backlog is empty.",
@@ -402,7 +443,7 @@ export function Backlog() {
                         <Link
                           href={paths.iteration(
                             organization.slug,
-                            team.id,
+                            project.key,
                             i.id,
                           )}
                           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
@@ -421,9 +462,17 @@ export function Backlog() {
           </>
         )}
         {!teamItems.length && view.status !== "hydrating" && (
-          <EmptyState illustration="planning" title="Nothing planned yet">
-            Create items for {team.name}, or move items to this team from their
-            detail page.
+          <EmptyState
+            illustration={teamFilter.value ? "search" : "planning"}
+            title={
+              teamFilter.value ? "No work for this team" : "Nothing planned yet"
+            }
+          >
+            {teamFilter.value === "none"
+              ? "Every item of this project belongs to a team."
+              : teamFilter.team
+                ? `Create items for ${teamFilter.team.name}, or set the team on an item from its detail page.`
+                : `Create work items in ${project.name} to plan them here.`}
           </EmptyState>
         )}
       </div>
@@ -628,6 +677,7 @@ function BacklogRow({
   item,
   label,
   href,
+  teamName,
   estimate,
   memberName,
   draggable,
@@ -638,6 +688,7 @@ function BacklogRow({
   item: WorkItem;
   label: string;
   href: string;
+  teamName?: string;
   estimate: string | null;
   memberName: (id: string | null) => string;
   draggable: boolean;
@@ -674,6 +725,11 @@ function BacklogRow({
       >
         {item.title}
       </Link>
+      {teamName && (
+        <span className="max-w-28 shrink-0 truncate rounded bg-muted px-1.5 text-xs text-muted-foreground">
+          {teamName}
+        </span>
+      )}
       {item.refinementState && item.refinementState !== "ready" && (
         <span title="Specification not ready">
           <RefinementIcon state={item.refinementState} />

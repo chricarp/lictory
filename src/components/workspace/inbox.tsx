@@ -43,19 +43,21 @@ type Entry = {
 // on my items, items of mine that became ready. An entry disappears when the
 // underlying state resolves, unlike notifications, which record events.
 export function useAttention() {
-  const { items, userId, roleIds, delivery } = useWorkspace();
+  const { items, userId, disciplineIds, delivery } = useWorkspace();
   return useMemo<Entry[]>(() => {
     const mine = (i: WorkItem) =>
       i.assigneeId === userId || i.createdById === userId;
     const list: Entry[] = [];
     for (const item of items) {
       if (item.archivedAt) continue;
-      if (needsMyReview(item, userId, roleIds)) {
+      if (needsMyReview(item, userId, disciplineIds)) {
         const pending = item.reviews.filter(
           (r) =>
             r.status !== "completed" &&
             r.status !== "cancelled" &&
-            r.assigneeIds.some((id) => id === userId || roleIds.includes(id)),
+            r.assigneeIds.some(
+              (id) => id === userId || disciplineIds.includes(id),
+            ),
         );
         const suggestion = item.suggestionReviewerIds.includes(userId);
         list.push({
@@ -112,7 +114,7 @@ export function useAttention() {
       (a, b) =>
         a.weight - b.weight || b.item.updatedAt.localeCompare(a.item.updatedAt),
     );
-  }, [items, userId, roleIds, delivery]);
+  }, [items, userId, disciplineIds, delivery]);
 }
 
 export function AttentionList({ entries }: { entries: Entry[] }) {

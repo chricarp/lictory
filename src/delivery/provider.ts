@@ -5,7 +5,8 @@
 //
 // Ownership: title, content and labels are owned by Lictory and pushed
 // one-way on explicit export. Everything else (status, assignee, sprint,
-// comments) is owned externally; status is only read back for display.
+// comments) is owned externally; status and assignee are only read back
+// for display.
 
 export type DeliveryProviderKind = "jira_cloud";
 
@@ -21,9 +22,16 @@ export type DeliveryTarget = {
 
 export type ExternalRef = { id: string; key: string; url: string };
 
+// Provider-neutral status category, so Lictory can tell open from done work
+// without knowing every external workflow.
+export type ExternalStatusCategory = "todo" | "in_progress" | "done";
+
 export type ExternalItem = ExternalRef & {
   title: string;
   status: string;
+  statusCategory: ExternalStatusCategory | null;
+  // Display name of the external assignee, if any.
+  assignee: string | null;
   typeId: string;
   parentId: string | null;
   labels: string[];
@@ -110,6 +118,11 @@ export interface DeliveryProvider {
     connection: DeliveryConnection,
     idOrKey: string,
   ): Promise<ExternalItem | null>;
+  // Batch read by external id for status sync; missing items are omitted.
+  getItems(
+    connection: DeliveryConnection,
+    ids: string[],
+  ): Promise<ExternalItem[]>;
   // Recovers an item Lictory created but never recorded (crash between the
   // external create and the local commit). Must only return items stamped
   // with this Lictory item id.

@@ -10,24 +10,21 @@ export function statusChangeBlocker(
   if (command.type !== "updateWorkItem" || !command.statusId) return;
   const item = entities[`workItem:${command.workItemId}`];
   if (item?.type !== "workItem") return;
-  const team = directory.teams.find(
-    (t) => t.id === (command.teamId ?? item.teamId),
-  );
+  const project = directory.projects.find((p) => p.id === item.projectId);
   const type = directory.types.find(
     (t) => t.id === (command.typeId ?? item.typeId),
   );
-  const from = directory.teams
-    .find((t) => t.id === item.teamId)
-    ?.statuses.find((s) => s.id === item.statusId);
-  const to = team?.statuses.find(
-    (s) => s.id === command.statusId && !s.archivedAt,
+  const statuses = directory.statuses.filter(
+    (s) => s.projectId === item.projectId,
   );
+  const from = statuses.find((s) => s.id === item.statusId);
+  const to = statuses.find((s) => s.id === command.statusId && !s.archivedAt);
   if (
-    !team ||
+    !project ||
     !type ||
     !from ||
     !to ||
-    team.readinessPolicy !== "block" ||
+    project.readinessPolicy !== "block" ||
     !type.hasSpecification ||
     item.refinementState === "ready" ||
     from.category === "started" ||
@@ -35,7 +32,6 @@ export function statusChangeBlocker(
     command.statusId === item.statusId
   )
     return;
-  const project = directory.projects.find((p) => p.id === item.projectId);
   const readiness = entities[`readiness:${item.id}`];
   const failing =
     readiness?.type === "readiness"

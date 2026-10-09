@@ -1,4 +1,3 @@
-import { canConfigure } from "../sync/shared/configuration-access";
 import { createHash } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
@@ -6,7 +5,9 @@ import * as s from "../db/schema";
 import type { DeliveryItemOutcome } from "../db/schema";
 import { paths } from "../lib/paths";
 import {
+  canManageProject,
   capabilitiesOf,
+  type Directory,
   type Entity,
   type EntityOf,
 } from "../sync/shared/protocol";
@@ -30,7 +31,9 @@ import {
   DeliveryError,
   type DeliveryConnection,
   type DeliveryPayload,
+  type ExternalItem,
   type ExternalRef,
+  type ExternalStatusCategory,
   type OwnedField,
 } from "./provider";
 import { deliveryProviders, type DeliveryProviders } from "./registry";
@@ -112,36 +115,36 @@ export function createDeliveryService(db: Database, options: Options = {}) {
   const access = async (tx: Tx, userId: string, organizationId: string) => {
     const membership = await authorize(tx, userId, organizationId);
     const roster = await directory(tx, userId, organizationId);
-    return {
-      admin: isAdmin(membership),
-      capabilities: capabilitiesOf(roster.roles, userId),
-      roster,
-    };
+    return { admin: isAdmin(membership), roster };
   };
-  const requireIntegration = async (
+  // Connections hold organization credentials: administrators only.
+  const requireConnectionAdmin = async (
     tx: Tx,
     userId: string,
     organizationId: string,
-    teamId: string | null | undefined,
   ) => {
     const a = await access(tx, userId, organizationId);
-    if (teamId && !a.roster.teams.some((t) => t.id === teamId))
-      throw new DomainError("unavailable", "The team is unavailable.");
-    if (
-      !a.admin &&
-      (!teamId ||
-        !a.roster.teams.some((t) => t.id === teamId && !t.archivedAt) ||
-        !canConfigure(
-          a.roster,
-          userId,
-          false,
-          { scope: "team", scopeId: teamId },
-          "integrations",
-        ))
-    )
+    if (!a.admin)
       throw new DomainError(
         "forbidden",
-        "An organization administrator or this team's integration manager must manage delivery connections.",
+        "An organization administrator must manage Jira connections.",
+      );
+    return a;
+  };
+  // A project's hand-off target is project configuration.
+  const requireProjectManager = async (
+    tx: Tx,
+    userId: string,
+    organizationId: string,
+    projectId: string,
+  ) => {
+    const a = await access(tx, userId, organizationId);
+    if (!a.roster.projects.some((p) => p.id === projectId))
+      throw new DomainError("unavailable", "This project is unavailable.");
+    if (!canManageProject(a.roster, userId, a.admin, projectId))
+      throw new DomainError(
+        "forbidden",
+        "Only this project's administrators can configure where its work is handed off.",
       );
     return a;
   };
@@ -156,11 +159,40 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       .insert(s.configurationAudit)
       .values({ organizationId, actorId, action, detail });
   };
-  const requirePublisher = (capabilities: { publishDelivery: boolean }) => {
-    if (!capabilities.publishDelivery)
+  const canPublish = (roster: Directory, userId: string, projectId: string) =>
+    capabilitiesOf(roster.disciplines, userId, projectId).publishDelivery;
+  const requirePublisher = (
+    roster: Directory,
+    userId: string,
+    projectId: string,
+  ) => {
+    if (!canPublish(roster, userId, projectId))
       throw new DomainError(
         "forbidden",
-        "Your roles cannot export work to external delivery systems. Ask an administrator to grant “Export to delivery tools”.",
+        "Your disciplines in this project cannot hand work off to external delivery tools. Ask a project administrator to grant “Hand off to delivery tools”.",
+      );
+  };
+
+  // Browsing external projects: administrators, or for a project its
+  // administrators and the people who can hand its work off.
+  const requireBrowser = async (
+    tx: Tx,
+    userId: string,
+    organizationId: string,
+    projectId: string | undefined,
+  ) => {
+    const a = await access(tx, userId, organizationId);
+    if (a.admin) return;
+    if (
+      !projectId ||
+      !(
+        canManageProject(a.roster, userId, false, projectId) ||
+        canPublish(a.roster, userId, projectId)
+      )
+    )
+      throw new DomainError(
+        "forbidden",
+        "Only administrators of a project, or people who can hand its work off, can browse Jira projects for it.",
       );
   };
 
@@ -264,6 +296,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           ),
         )
     )[0]!;
+    // Exactly one system owns delivery: only projects that hand work off to
+    // an external tool export it.
+    if (projectRow.deliveryMode !== "external")
+      throw new DomainError(
+        "validation",
+        `${projectRow.name} delivers its work in Lictory. Switch the project to Jira delivery in project settings to hand work off.`,
+      );
     const all = await tx
       .select()
       .from(s.workItem)
@@ -291,6 +330,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           .where(
             and(
               eq(s.workflowStatus.organizationId, organizationId),
+              eq(s.workflowStatus.projectId, projectId),
               eq(s.workflowStatus.category, "canceled"),
             ),
           )
@@ -327,30 +367,29 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         ordered.push({ item, depth: depthOf(item), under: false });
     }
 
-    const targets = await tx
-      .select()
-      .from(s.deliveryTarget)
-      .innerJoin(
-        s.deliveryConnection,
-        and(
-          eq(
-            s.deliveryConnection.organizationId,
-            s.deliveryTarget.organizationId,
+    const target = (
+      await tx
+        .select()
+        .from(s.deliveryTarget)
+        .innerJoin(
+          s.deliveryConnection,
+          and(
+            eq(
+              s.deliveryConnection.organizationId,
+              s.deliveryTarget.organizationId,
+            ),
+            eq(s.deliveryConnection.id, s.deliveryTarget.connectionId),
           ),
-          eq(s.deliveryConnection.id, s.deliveryTarget.connectionId),
-        ),
-      )
-      .where(
-        and(
-          eq(s.deliveryTarget.organizationId, organizationId),
-          isNull(s.deliveryConnection.archivedAt),
-        ),
-      );
-    const targetFor = (teamId: string) =>
-      targets.find((t) => t.delivery_target.teamId === teamId) ??
-      targets.find((t) => t.delivery_target.teamId === null);
-    const rootTarget = targetFor(ordered[0]!.item.teamId);
-    const connection = rootTarget?.delivery_connection ?? null;
+        )
+        .where(
+          and(
+            eq(s.deliveryTarget.organizationId, organizationId),
+            eq(s.deliveryTarget.projectId, projectId),
+            isNull(s.deliveryConnection.archivedAt),
+          ),
+        )
+    )[0];
+    const connection = target?.delivery_connection ?? null;
 
     const ids = ordered.map((o) => o.item.id);
     const links = connection
@@ -423,13 +462,10 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         );
         continue;
       }
-      const target = targetFor(item.teamId);
-      if (!target || target.delivery_connection.id !== connection?.id) {
+      if (!target) {
         skip(
           "no_target",
-          connection
-            ? "Its team exports to a different Jira connection. Export it separately."
-            : "Connect Jira and choose a project in delivery settings.",
+          "Choose a Jira project in this project's delivery settings.",
         );
         continue;
       }
@@ -437,7 +473,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       if (!externalTypeId) {
         skip(
           "unmapped",
-          `Map ${type.name} to a Jira issue type in delivery settings.`,
+          `Map ${type.name} to a Jira issue type in this project's delivery settings.`,
         );
         continue;
       }
@@ -478,7 +514,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       rows: {
         projectId,
         connection,
-        target: (teamId: string) => targetFor(teamId)?.delivery_target,
+        target: () => target?.delivery_target,
         links: linkOf,
         payloads,
         items: byId,
@@ -493,7 +529,6 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       userId: string,
       input: {
         organizationId: string;
-        teamId?: string | null;
         name: string;
         baseUrl: string;
         email: string;
@@ -503,7 +538,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { organizationId } = input;
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        await requireIntegration(tx, userId, organizationId, input.teamId);
+        await requireConnectionAdmin(tx, userId, organizationId);
       });
       const provider = providers().jira_cloud;
       const baseUrl = provider.normalizeBaseUrl(input.baseUrl);
@@ -515,7 +550,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { accountLabel } = await provider.verify({ baseUrl, credential });
       return db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        await requireIntegration(tx, userId, organizationId, input.teamId);
+        await requireConnectionAdmin(tx, userId, organizationId);
         const encryptedCredential = encryptCredential(
           organizationId,
           credential,
@@ -528,9 +563,6 @@ export function createDeliveryService(db: Database, options: Options = {}) {
               and(
                 eq(s.deliveryConnection.organizationId, organizationId),
                 eq(s.deliveryConnection.provider, "jira_cloud"),
-                input.teamId
-                  ? eq(s.deliveryConnection.teamId, input.teamId)
-                  : isNull(s.deliveryConnection.teamId),
                 eq(s.deliveryConnection.baseUrl, baseUrl),
                 isNull(s.deliveryConnection.archivedAt),
               ),
@@ -558,7 +590,6 @@ export function createDeliveryService(db: Database, options: Options = {}) {
                 .insert(s.deliveryConnection)
                 .values({
                   organizationId,
-                  teamId: input.teamId ?? null,
                   provider: "jira_cloud",
                   baseUrl,
                   createdById: userId,
@@ -568,7 +599,6 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             )[0]!.id;
         await auditIntegration(tx, organizationId, userId, "connectDelivery", {
           connectionId: id,
-          teamId: input.teamId ?? null,
           baseUrl,
         });
         await touch(tx, organizationId);
@@ -585,8 +615,8 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     ) {
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        const row = await connectionRow(tx, organizationId, connectionId);
-        await requireIntegration(tx, userId, organizationId, row.teamId);
+        await connectionRow(tx, organizationId, connectionId);
+        await requireConnectionAdmin(tx, userId, organizationId);
         await tx
           .delete(s.deliveryTarget)
           .where(
@@ -609,7 +639,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           organizationId,
           userId,
           "disconnectDelivery",
-          { connectionId, teamId: row.teamId },
+          { connectionId },
         );
         await touch(tx, organizationId);
       });
@@ -620,26 +650,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       organizationId: string,
       connectionId: string,
       query?: string,
+      projectId?: string,
     ) {
       const row = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        const a = await access(tx, userId, organizationId);
-        const row = await connectionRow(tx, organizationId, connectionId);
-        if (
-          !a.admin &&
-          !(
-            row.teamId &&
-            canConfigure(
-              a.roster,
-              userId,
-              false,
-              { scope: "team", scopeId: row.teamId },
-              "integrations",
-            )
-          )
-        )
-          requirePublisher(a.capabilities);
-        return row;
+        await requireBrowser(tx, userId, organizationId, projectId);
+        return connectionRow(tx, organizationId, connectionId);
       });
       const { provider, connection } = open(row);
       try {
@@ -655,26 +671,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       organizationId: string,
       connectionId: string,
       projectKey: string,
+      projectId?: string,
     ) {
       const row = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        const a = await access(tx, userId, organizationId);
-        const row = await connectionRow(tx, organizationId, connectionId);
-        if (
-          !a.admin &&
-          !(
-            row.teamId &&
-            canConfigure(
-              a.roster,
-              userId,
-              false,
-              { scope: "team", scopeId: row.teamId },
-              "integrations",
-            )
-          )
-        )
-          requirePublisher(a.capabilities);
-        return row;
+        await requireBrowser(tx, userId, organizationId, projectId);
+        return connectionRow(tx, organizationId, connectionId);
       });
       const { provider, connection } = open(row);
       try {
@@ -685,13 +687,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       }
     },
 
-    // Where a team's (or, with teamId null, every team's) exports land.
+    // Where a project's hand-offs land: one Jira project and a type mapping.
     async setTarget(
       userId: string,
       input: {
         organizationId: string;
         connectionId: string;
-        teamId: string | null;
+        projectId: string;
         projectKey: string;
         typeMapping: Record<string, string>;
       },
@@ -699,14 +701,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { organizationId } = input;
       const row = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        await requireIntegration(tx, userId, organizationId, input.teamId);
-        const row = await connectionRow(tx, organizationId, input.connectionId);
-        if (row.teamId && row.teamId !== input.teamId)
-          throw new DomainError(
-            "forbidden",
-            "This connection belongs to another team.",
-          );
-        return row;
+        await requireProjectManager(
+          tx,
+          userId,
+          organizationId,
+          input.projectId,
+        );
+        return connectionRow(tx, organizationId, input.connectionId);
       });
       const { provider, connection } = open(row);
       const project = await provider.describeProject(
@@ -716,27 +717,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const external = new Map(project.types.map((t) => [t.id, t]));
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        const { roster } = await requireIntegration(
+        const { roster } = await requireProjectManager(
           tx,
           userId,
           organizationId,
-          input.teamId,
+          input.projectId,
         );
-        const currentConnection = await connectionRow(
-          tx,
-          organizationId,
-          input.connectionId,
-        );
-        if (
-          currentConnection.teamId &&
-          currentConnection.teamId !== input.teamId
-        )
-          throw new DomainError(
-            "forbidden",
-            "This connection belongs to another team.",
-          );
-        if (input.teamId && !roster.teams.some((t) => t.id === input.teamId))
-          throw new DomainError("unavailable", "The team is unavailable.");
+        await connectionRow(tx, organizationId, input.connectionId);
         const mapping: Record<string, string> = {};
         for (const [typeId, externalTypeId] of Object.entries(
           input.typeMapping,
@@ -765,15 +752,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           .where(
             and(
               eq(s.deliveryTarget.organizationId, organizationId),
-              input.teamId
-                ? eq(s.deliveryTarget.teamId, input.teamId)
-                : isNull(s.deliveryTarget.teamId),
+              eq(s.deliveryTarget.projectId, input.projectId),
             ),
           );
         await tx.insert(s.deliveryTarget).values({
           organizationId,
           connectionId: input.connectionId,
-          teamId: input.teamId,
+          projectId: input.projectId,
           externalProjectId: project.id,
           externalProjectKey: project.key,
           typeMapping: mapping,
@@ -785,7 +770,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           "setDeliveryTarget",
           {
             connectionId: input.connectionId,
-            teamId: input.teamId,
+            projectId: input.projectId,
             projectKey: project.key,
             typeMapping: mapping,
           },
@@ -798,19 +783,17 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     async removeTarget(
       userId: string,
       organizationId: string,
-      teamId: string | null,
+      projectId: string,
     ) {
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        await requireIntegration(tx, userId, organizationId, teamId);
+        await requireProjectManager(tx, userId, organizationId, projectId);
         await tx
           .delete(s.deliveryTarget)
           .where(
             and(
               eq(s.deliveryTarget.organizationId, organizationId),
-              teamId
-                ? eq(s.deliveryTarget.teamId, teamId)
-                : isNull(s.deliveryTarget.teamId),
+              eq(s.deliveryTarget.projectId, projectId),
             ),
           );
         await auditIntegration(
@@ -818,7 +801,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           organizationId,
           userId,
           "removeDeliveryTarget",
-          { teamId },
+          { projectId },
         );
         await touch(tx, organizationId);
       });
@@ -829,10 +812,10 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     async preview(userId: string, request: ExportRequest): Promise<ExportPlan> {
       const { rows, ...result } = await db.transaction(async (tx) => {
         await lock(tx, request.organizationId);
-        requirePublisher(
-          (await access(tx, userId, request.organizationId)).capabilities,
-        );
-        return plan(tx, request);
+        const { roster } = await access(tx, userId, request.organizationId);
+        const planned = await plan(tx, request);
+        requirePublisher(roster, userId, planned.rows.projectId);
+        return planned;
       });
       if (!rows.connection) return result;
       const { provider, connection } = open(rows.connection);
@@ -867,19 +850,18 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     ) {
       const publicationId = await db.transaction(async (tx) => {
         await lock(tx, request.organizationId);
-        requirePublisher(
-          (await access(tx, userId, request.organizationId)).capabilities,
-        );
+        const { roster } = await access(tx, userId, request.organizationId);
         const { rows, entries } = await plan(tx, request);
+        requirePublisher(roster, userId, rows.projectId);
         if (!rows.connection)
           throw new DomainError(
             "validation",
-            "Connect Jira and choose a project in delivery settings before exporting.",
+            "Choose a Jira project in this project's delivery settings before handing work off.",
           );
         if (rows.connection.status === "invalid")
           throw new DomainError(
             "validation",
-            `The Jira connection needs attention: ${rows.connection.lastError ?? "reconnect it in delivery settings."}`,
+            `The Jira connection needs attention: ${rows.connection.lastError ?? "an organization administrator must reconnect it."}`,
           );
         const chosen = entries.filter((e) => exportable.has(e.action));
         if (chosen.length === 0)
@@ -968,26 +950,30 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { organizationId } = input;
       const prepared = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requirePublisher(
-          (await access(tx, userId, organizationId)).capabilities,
-        );
+        const { roster } = await access(tx, userId, organizationId);
         const item = await itemRow(tx, organizationId, input.workItemId);
+        requirePublisher(roster, userId, item.projectId);
+        const project = roster.projects.find((p) => p.id === item.projectId);
+        if (project?.deliveryMode !== "external")
+          throw new DomainError(
+            "validation",
+            `${project?.name ?? "This project"} delivers its work in Lictory. Switch it to Jira delivery to link Jira issues.`,
+          );
         const target = (
           await tx
             .select()
             .from(s.deliveryTarget)
-            .where(eq(s.deliveryTarget.organizationId, organizationId))
-        )
-          .sort(
-            (a, b) =>
-              Number(b.teamId === item.teamId) -
-              Number(a.teamId === item.teamId),
-          )
-          .find((t) => t.teamId === item.teamId || t.teamId === null);
+            .where(
+              and(
+                eq(s.deliveryTarget.organizationId, organizationId),
+                eq(s.deliveryTarget.projectId, item.projectId),
+              ),
+            )
+        )[0];
         if (!target)
           throw new DomainError(
             "validation",
-            "Connect Jira and choose a project in delivery settings first.",
+            "Choose a Jira project in this project's delivery settings first.",
           );
         return {
           item,
@@ -1012,7 +998,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       return db.transaction(async (tx) => {
         await lock(tx, organizationId);
         requirePublisher(
-          (await access(tx, userId, organizationId)).capabilities,
+          (await access(tx, userId, organizationId)).roster,
+          userId,
+          prepared.item.projectId,
         );
         const taken = (
           await tx
@@ -1050,6 +1038,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           externalKey: external.key,
           externalUrl: external.url,
           externalStatus: external.status,
+          externalStatusCategory: external.statusCategory,
+          externalAssignee: external.assignee,
+          externalCheckedAt: now(),
           status: "synced" as const,
           syncedAt: now(),
           // Never exported: the first export must be confirmed.
@@ -1116,10 +1107,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const { organizationId } = input;
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        requirePublisher(
-          (await access(tx, userId, organizationId)).capabilities,
-        );
         const item = await itemRow(tx, organizationId, input.workItemId);
+        requirePublisher(
+          (await access(tx, userId, organizationId)).roster,
+          userId,
+          item.projectId,
+        );
         const before = await externalLinks(tx, organizationId, {
           workItemIds: [item.id],
         });
@@ -1194,6 +1187,34 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     },
 
     // --------------------------------------------------------------- worker
+
+    // Read-only status sync for projects that hand work off: copies each
+    // linked issue's status, status category and assignee. Never writes
+    // externally and never changes Lictory-owned fields.
+    async refreshProject(
+      userId: string,
+      organizationId: string,
+      projectId: string,
+    ) {
+      await db.transaction(async (tx) => {
+        await lock(tx, organizationId);
+        const a = await access(tx, userId, organizationId);
+        const project = a.roster.projects.find((p) => p.id === projectId);
+        if (!project)
+          throw new DomainError("unavailable", "This project is unavailable.");
+        if (project.deliveryMode !== "external")
+          throw new DomainError(
+            "validation",
+            `${project.name} delivers its work in Lictory; there is no external status to sync.`,
+          );
+      });
+      return refreshLinks({ organizationId, projectId });
+    },
+
+    // Scheduled job: the least recently checked links first, bounded.
+    async refreshPending(limit = 200) {
+      return refreshLinks({ limit });
+    },
 
     // Advances one publication. Safe to call concurrently and repeatedly:
     // a lease keeps one runner, finished items are never redone.
@@ -1309,6 +1330,143 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     )[0]!;
   }
 
+  async function refreshLinks(scope: {
+    organizationId?: string;
+    projectId?: string;
+    limit?: number;
+  }) {
+    const rows = await db
+      .select({
+        link: s.workItemExternalLink,
+        connection: s.deliveryConnection,
+      })
+      .from(s.workItemExternalLink)
+      .innerJoin(
+        s.workItem,
+        and(
+          eq(s.workItem.organizationId, s.workItemExternalLink.organizationId),
+          eq(s.workItem.id, s.workItemExternalLink.workItemId),
+        ),
+      )
+      .innerJoin(
+        s.project,
+        and(
+          eq(s.project.organizationId, s.workItem.organizationId),
+          eq(s.project.id, s.workItem.projectId),
+        ),
+      )
+      .innerJoin(
+        s.deliveryConnection,
+        and(
+          eq(
+            s.deliveryConnection.organizationId,
+            s.workItemExternalLink.organizationId,
+          ),
+          eq(s.deliveryConnection.id, s.workItemExternalLink.connectionId),
+        ),
+      )
+      .where(
+        and(
+          scope.organizationId
+            ? eq(s.workItemExternalLink.organizationId, scope.organizationId)
+            : undefined,
+          scope.projectId
+            ? eq(s.workItem.projectId, scope.projectId)
+            : undefined,
+          eq(s.project.deliveryMode, "external"),
+          isNull(s.project.archivedAt),
+          isNull(s.deliveryConnection.archivedAt),
+          eq(s.deliveryConnection.status, "active"),
+          sql`${s.workItemExternalLink.externalId} is not null`,
+          sql`${s.workItemExternalLink.status} <> 'pending'`,
+        ),
+      )
+      .orderBy(
+        sql`${s.workItemExternalLink.externalCheckedAt} asc nulls first`,
+        asc(s.workItemExternalLink.createdAt),
+      )
+      .limit(scope.limit ?? 500);
+    const byConnection = new Map<string, typeof rows>();
+    for (const row of rows)
+      byConnection.set(row.connection.id, [
+        ...(byConnection.get(row.connection.id) ?? []),
+        row,
+      ]);
+    let refreshed = 0;
+    let failedConnections = 0;
+    for (const group of byConnection.values()) {
+      const row = group[0]!.connection;
+      const { provider, connection } = open(row);
+      let external: ExternalItem[];
+      try {
+        // Network outside the lock.
+        external = await provider.getItems(
+          connection,
+          group.map((g) => g.link.externalId!),
+        );
+      } catch (error) {
+        await markConnection(row, error);
+        failedConnections++;
+        continue;
+      }
+      const found = new Map(external.map((e) => [e.id, e]));
+      await db.transaction(async (tx) => {
+        await lock(tx, row.organizationId);
+        const ids = group.map((g) => g.link.workItemId);
+        const before = await externalLinks(tx, row.organizationId, {
+          workItemIds: ids,
+        });
+        const checkedAt = now();
+        for (const { link } of group) {
+          const item = found.get(link.externalId!);
+          await tx
+            .update(s.workItemExternalLink)
+            .set(
+              item
+                ? {
+                    externalStatus: item.status,
+                    externalStatusCategory: item.statusCategory,
+                    externalAssignee: item.assignee,
+                    externalCheckedAt: checkedAt,
+                    ...(link.status === "failed" &&
+                    link.lastError?.includes("no longer")
+                      ? { status: "synced" as const, lastError: null }
+                      : {}),
+                  }
+                : {
+                    externalCheckedAt: checkedAt,
+                    lastError: `${link.externalKey ?? "The issue"} no longer exists in Jira or is not visible to the connection.`,
+                  },
+            )
+            .where(
+              and(
+                eq(s.workItemExternalLink.organizationId, row.organizationId),
+                eq(s.workItemExternalLink.id, link.id),
+                // An export that started meanwhile owns the link.
+                sql`${s.workItemExternalLink.status} <> 'pending'`,
+              ),
+            );
+          refreshed++;
+        }
+        const after = await externalLinks(tx, row.organizationId, {
+          workItemIds: ids,
+        });
+        await publish(
+          tx,
+          row.organizationId,
+          await emitChanges(
+            tx,
+            row.organizationId,
+            before.filter((e) => e.connectionId === row.id),
+            after.filter((e) => e.connectionId === row.id),
+            await clock(tx, row.organizationId),
+          ),
+        );
+      });
+    }
+    return { refreshed, failedConnections };
+  }
+
   // Exports one item. Returns its final result, or undefined when it must be
   // retried later (a create attempt that cannot be confirmed yet).
   async function exportItem(
@@ -1385,7 +1543,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         message: `${key} was not exported because its parent was not. Export it again after fixing the parent.`,
       });
     const base = state.planned.rows.payloads.get(itemId)!;
-    const target = state.planned.rows.target(state.item.teamId)!;
+    const target = state.planned.rows.target()!;
     const destination = {
       projectId: target.externalProjectId,
       projectKey: target.externalProjectKey,
@@ -1422,7 +1580,11 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             });
           return settle(
             { outcome: "unchanged", externalKey: external.key, revisionNumber },
-            { externalStatus: external.status },
+            {
+              externalStatus: external.status,
+              externalStatusCategory: external.statusCategory,
+              externalAssignee: external.assignee,
+            },
           );
         }
         if (!overwrite && link.externalUpdatedAt) {
@@ -1557,6 +1719,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
                 }
               : {}),
             externalStatus: written.externalStatus,
+            externalStatusCategory: written.externalStatusCategory,
+            externalAssignee: written.externalAssignee,
+            externalCheckedAt: now(),
             status: "synced",
             lastError: null,
             syncedAt: now(),
@@ -1630,6 +1795,8 @@ type Written = {
   externalKey?: string;
   externalUrl?: string;
   externalStatus?: string;
+  externalStatusCategory?: ExternalStatusCategory | null;
+  externalAssignee?: string | null;
   externalUpdatedAt?: Date;
   payloadHash?: string;
   revisionNumber?: number;
@@ -1638,18 +1805,14 @@ type Written = {
 const succeeded = (outcome: DeliveryItemOutcome) =>
   outcome === "created" || outcome === "updated" || outcome === "unchanged";
 
-function identity(external: {
-  id: string;
-  key: string;
-  url: string;
-  status: string;
-  updatedAt: Date;
-}): Written {
+function identity(external: ExternalItem): Written {
   return {
     externalId: external.id,
     externalKey: external.key,
     externalUrl: external.url,
     externalStatus: external.status,
+    externalStatusCategory: external.statusCategory,
+    externalAssignee: external.assignee,
     externalUpdatedAt: external.updatedAt,
   };
 }
@@ -1657,7 +1820,7 @@ function identity(external: {
 type PlanRows = {
   projectId: string;
   connection: ConnectionRow | null;
-  target: (teamId: string) => typeof s.deliveryTarget.$inferSelect | undefined;
+  target: () => typeof s.deliveryTarget.$inferSelect | undefined;
   links: Map<string, LinkRow>;
   payloads: Map<string, Omit<DeliveryPayload, "parent">>;
   items: Map<string, ItemRow>;

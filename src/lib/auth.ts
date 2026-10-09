@@ -20,7 +20,7 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "~/lib/password-policy";
 import { deliverAuthEmail } from "~/lib/email";
-import { seedDefaultRoles } from "~/sync/server/roles";
+import { seedOrganization } from "~/sync/server/organization";
 import { trackServer } from "~/lib/analytics/server";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
@@ -224,10 +224,10 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        // Every organization starts with Product, Engineering and QA roles and
-        // its creator (the first administrator) in Product.
+        // Every organization starts with the default work item types; its
+        // first project (with disciplines and workflow) comes from onboarding.
         afterCreateOrganization: async ({ organization, user }) => {
-          await seedDefaultRoles(db, organization.id, user.id);
+          await seedOrganization(db, organization.id);
           trackServer(
             user.id,
             "organization_created",

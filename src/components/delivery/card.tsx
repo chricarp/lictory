@@ -11,28 +11,29 @@ import {
   type Delivery,
   type Project,
 } from "~/lib/work-items";
-import {
-  estimateOptions,
-  type Team,
-  type WorkItem,
-} from "~/sync/shared/protocol";
+import { estimateOptions, type WorkItem } from "~/sync/shared/protocol";
 import { Avatar } from "~/components/ui/primitives";
 import { PriorityIcon, TypeIcon } from "~/components/items/icons";
 import { RefinementIcon, StatusIcon } from "~/components/items/status";
 
-export function estimateLabel(team: Team | undefined, value: number | null) {
-  if (value === null || !team || team.estimateScale === "none") return null;
+export function estimateLabel(
+  project: Pick<Project, "estimateScale"> | undefined,
+  value: number | null,
+) {
+  if (value === null || !project || project.estimateScale === "none")
+    return null;
   return (
-    estimateOptions[team.estimateScale].find((o) => o.value === value)?.label ??
-    String(value)
+    estimateOptions[project.estimateScale].find((o) => o.value === value)
+      ?.label ?? String(value)
   );
 }
 
-// Why a spec-backed item may not start yet, according to the team's policy.
-// The server enforces the same rule; the client explains it before a drag.
+// Why a spec-backed item may not start yet, according to the project's
+// policy. The server enforces the same rule; the client explains it before a
+// drag.
 export function startBlocker(
   delivery: Delivery,
-  team: Team,
+  project: Pick<Project, "readinessPolicy">,
   item: WorkItem,
   statusId: string,
 ) {
@@ -43,11 +44,11 @@ export function startBlocker(
     from?.category === "started" ||
     !typeOf(delivery, item).hasSpecification ||
     item.refinementState === "ready" ||
-    team.readinessPolicy === "off"
+    project.readinessPolicy === "off"
   )
     return undefined;
   return {
-    policy: team.readinessPolicy,
+    policy: project.readinessPolicy,
     detail: `${item.readinessPassed}/${item.readinessTotal} readiness checks pass${item.blockingThreads ? `, ${item.blockingThreads} blocking discussion${item.blockingThreads > 1 ? "s" : ""}` : ""}`,
   };
 }
@@ -55,7 +56,7 @@ export function startBlocker(
 export const ItemCard = memo(function ItemCard({
   item,
   project,
-  team,
+  teamName,
   delivery,
   orgSlug,
   memberName,
@@ -67,7 +68,8 @@ export const ItemCard = memo(function ItemCard({
 }: {
   item: WorkItem;
   project: Project | undefined;
-  team: Team;
+  // Shown when the board is not narrowed to one team.
+  teamName?: string;
   delivery: Delivery;
   orgSlug: string;
   memberName: (id: string | null) => string;
@@ -80,11 +82,11 @@ export const ItemCard = memo(function ItemCard({
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
   const status = delivery.statuses.get(item.statusId);
-  const estimate = estimateLabel(team, item.estimate);
+  const estimate = estimateLabel(project, item.estimate);
   const notReady =
     type.hasSpecification &&
     item.refinementState !== "ready" &&
-    team.readinessPolicy !== "off";
+    project?.readinessPolicy !== "off";
   return (
     <div
       data-card={item.id}
@@ -125,6 +127,11 @@ export const ItemCard = memo(function ItemCard({
       )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {item.priority !== "none" && <PriorityIcon priority={item.priority} />}
+        {teamName && (
+          <span className="max-w-28 truncate rounded bg-muted px-1.5">
+            {teamName}
+          </span>
+        )}
         {estimate && (
           <span className="rounded bg-muted px-1.5 tabular-nums">
             {estimate}

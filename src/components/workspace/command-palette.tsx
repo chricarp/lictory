@@ -13,7 +13,11 @@ import {
   ArrowRight,
   BookOpenCheck,
   Inbox,
+  KanbanSquare,
+  ListOrdered,
+  Send,
   Settings,
+  Settings2,
   UserRound,
 } from "lucide-react";
 import { IntelligenceMark } from "~/components/logo";
@@ -61,10 +65,10 @@ export function CommandPalette({
     items,
     userId,
     mutate,
-    capabilities,
+    capabilitiesIn,
     delivery,
   } = useWorkspace();
-  const { openCreate, currentItem } = useShell();
+  const { openCreate, currentItem, project: shellProject } = useShell();
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,11 +88,13 @@ export function CommandPalette({
     (id: string) => projects.find((p) => p.id === id),
     [projects],
   );
+  // The open item's project, otherwise the project in context.
   const currentProject = currentItem
     ? projectOf(currentItem.projectId)
-    : undefined;
+    : shellProject;
   const commands = useMemo<Item[]>(() => {
     const list: Item[] = [];
+    const capabilities = capabilitiesIn(currentProject?.id);
     if (currentItem && currentProject && capabilities.changeProperties) {
       const id = identifier(currentProject, currentItem.number);
       if (currentItem.assigneeId !== userId)
@@ -106,9 +112,7 @@ export function CommandPalette({
             });
           },
         });
-      for (const status of activeStatuses(
-        delivery.teams.get(currentItem.teamId),
-      ))
+      for (const status of activeStatuses(delivery, currentItem.projectId))
         if (status.id !== currentItem.statusId)
           list.push({
             id: `status-${status.id}`,
@@ -129,35 +133,34 @@ export function CommandPalette({
           });
     }
     if (capabilities.editSpecifications)
-      list.push(
-        {
-          id: "create-epic",
-          label: "Create Epic",
-          group: "Create",
-          icon: <TypeIcon type={epicGlyph} />,
-          run: () => {
-            onClose();
-            openCreate({ kind: "epic", projectId: currentProject?.id });
-          },
+      list.push({
+        id: "create-epic",
+        label: "Create Epic",
+        group: "Create",
+        icon: <TypeIcon type={epicGlyph} />,
+        run: () => {
+          onClose();
+          openCreate({ kind: "epic", projectId: currentProject?.id });
         },
-        {
-          id: "create-story",
-          label: "Create work item",
-          group: "Create",
-          icon: <TypeIcon type={storyGlyph} />,
-          run: () => {
-            onClose();
-            openCreate({
-              kind: "story",
-              projectId: currentProject?.id,
-              parentId:
-                currentItem && isTopLevel(typeOf(delivery, currentItem))
-                  ? currentItem.id
-                  : null,
-            });
-          },
+      });
+    if (capabilities.editSpecifications || capabilities.changeProperties)
+      list.push({
+        id: "create-story",
+        label: "Create work item",
+        group: "Create",
+        icon: <TypeIcon type={storyGlyph} />,
+        run: () => {
+          onClose();
+          openCreate({
+            kind: "story",
+            projectId: currentProject?.id,
+            parentId:
+              currentItem && isTopLevel(typeOf(delivery, currentItem))
+                ? currentItem.id
+                : null,
+          });
         },
-      );
+      });
     list.push(
       {
         id: "intelligence",
@@ -175,12 +178,52 @@ export function CommandPalette({
       },
       {
         id: "settings",
-        label: "Go to Settings",
+        label: "Organization settings",
         group: "Navigate",
         icon: <Settings className="size-4" />,
+        keywords: "settings members projects types integrations",
         run: () => go(paths.settings(org)),
       },
     );
+    if (currentProject) {
+      const p = currentProject;
+      if (p.deliveryMode === "external")
+        list.push({
+          id: `handoff-${p.id}`,
+          label: `${p.name} · Hand-off`,
+          group: "Navigate",
+          icon: <Send className="size-4" />,
+          keywords: "jira export delivery handoff",
+          run: () => go(paths.handoff(org, p.key)),
+        });
+      else
+        list.push(
+          {
+            id: `board-${p.id}`,
+            label: `${p.name} · Board`,
+            group: "Navigate",
+            icon: <KanbanSquare className="size-4" />,
+            keywords: "kanban delivery",
+            run: () => go(paths.board(org, p.key)),
+          },
+          {
+            id: `backlog-${p.id}`,
+            label: `${p.name} · Backlog`,
+            group: "Navigate",
+            icon: <ListOrdered className="size-4" />,
+            keywords: "sprints cycles iterations planning",
+            run: () => go(paths.backlog(org, p.key)),
+          },
+        );
+      list.push({
+        id: `project-settings-${p.id}`,
+        label: `${p.name} · Project settings`,
+        group: "Navigate",
+        icon: <Settings2 className="size-4" />,
+        keywords: "settings workflow teams disciplines members delivery",
+        run: () => go(paths.projectSettings(org, p.key)),
+      });
+    }
     for (const p of projects) {
       list.push(
         {
@@ -220,7 +263,7 @@ export function CommandPalette({
     currentItem,
     currentProject,
     userId,
-    capabilities,
+    capabilitiesIn,
     mutate,
     onClose,
     openCreate,

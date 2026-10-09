@@ -5,7 +5,7 @@ export const steps = {
   project: 0,
   delivery: 1,
   planning: 2,
-  team: 3,
+  people: 3,
   intelligence: 4,
 } as const;
 export const draftSchema = z.object({

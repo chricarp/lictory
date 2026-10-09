@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "~/db/schema";
 import { createSyncService, directory } from "~/sync/server/service";
-import { seedDefaultRoles } from "~/sync/server/roles";
+import { seedOrganization } from "~/sync/server/organization";
 import {
   PROTOCOL,
   pageSchema,
@@ -123,18 +123,7 @@ async function fixture() {
       createdAt: new Date(),
     },
   ]);
-  await seedDefaultRoles(db, organizationId, userId);
-  const roles = Object.fromEntries(
-    (
-      await db
-        .select()
-        .from(s.organizationRole)
-        .where(eq(s.organizationRole.organizationId, organizationId))
-    ).map((r) => [r.name, r.id]),
-  ) as Record<"Product" | "Engineering" | "QA", string>;
-  await db
-    .insert(s.organizationRoleMember)
-    .values({ organizationId, roleId: roles.Engineering, userId: reviewerId });
+  await seedOrganization(db, organizationId);
   const command = (c: Command, actor = userId) =>
     service.mutate(actor, {
       protocol: PROTOCOL,
@@ -148,6 +137,18 @@ async function fixture() {
     projectId,
     name: "Payments",
     key: "PAY",
+  });
+  const roles = Object.fromEntries(
+    (await directory(db, userId, organizationId)).disciplines
+      .filter((d) => d.projectId === projectId)
+      .map((d) => [d.name, d.id]),
+  ) as Record<"Product" | "Engineering" | "QA", string>;
+  await command({
+    type: "setDisciplineMember",
+    projectId,
+    disciplineId: roles.Engineering,
+    userId: reviewerId,
+    member: true,
   });
   const dir = await directory(db, userId, organizationId);
   const types = Object.fromEntries(dir.types.map((t) => [t.name, t.id]));
@@ -195,7 +196,6 @@ async function fixture() {
     projectId,
     epicId,
     storyId,
-    teamId: dir.teams[0]!.id,
     command,
     entities,
     of,
@@ -342,8 +342,8 @@ void test("the Lictory Intelligence review action re-runs per commit, comments w
   const f = await fixture();
   await f.command({ type: "setAiPolicy", enabled: true });
   await f.command({
-    type: "updateTeam",
-    teamId: f.teamId,
+    type: "updateProject",
+    projectId: f.projectId,
     aiActionPolicy: "required",
   });
   const main = await f.latest(f.storyId);
@@ -404,7 +404,7 @@ void test("the Lictory Intelligence review action re-runs per commit, comments w
     type: "requestPullRequestReview",
     workItemId: f.storyId,
     pullRequestId,
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
     required: true,
   });
@@ -556,7 +556,7 @@ void test("provider failures are recorded as actionable errors and never block h
     workItemId: f.storyId,
     baseRevisionId: latest.id,
     reviewId: crypto.randomUUID(),
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: null,
     required: true,
   });

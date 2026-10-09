@@ -1815,7 +1815,10 @@ function PullRequestView({
     memberName,
     activity,
   } = useBranchData();
-  const { directory, delivery } = useWorkspace();
+  const { directory, projects } = useWorkspace();
+  const disciplines = directory.disciplines.filter(
+    (d) => d.projectId === item.projectId,
+  );
   const { run, error, pending } = useAction();
   const [tab, setTab] = useState<
     "conversation" | "commits" | "checks" | "changes"
@@ -1891,15 +1894,15 @@ function PullRequestView({
     r.decision === "approved" &&
     r.resultHash === hash &&
     Boolean(hash) &&
-    directory.roles.some(
+    disciplines.some(
       (role) =>
-        role.id === r.roleId &&
+        role.id === r.disciplineId &&
         !role.archivedAt &&
         role.capabilities.review &&
         role.userIds.includes(r.reviewerId ?? ""),
     );
   const roleName = (id: string) =>
-    directory.roles.find((role) => role.id === id)?.name ?? "Reviewer";
+    disciplines.find((role) => role.id === id)?.name ?? "Reviewer";
   const conflicted = !result || result.conflicted;
   const noChanges =
     result &&
@@ -1916,7 +1919,7 @@ function PullRequestView({
     ...(noChanges ? ["This branch has no changes to merge."] : []),
     ...(!required.length ? ["Request at least one required review."] : []),
     ...pendingRequired.map(
-      (r) => `${roleName(r.roleId)} approval is pending or stale.`,
+      (r) => `${roleName(r.disciplineId)} approval is pending or stale.`,
     ),
     ...(changesRequested ? ["A reviewer requested changes."] : []),
     ...(openBlocking ? ["Blocking discussions remain open."] : []),
@@ -1940,17 +1943,18 @@ function PullRequestView({
       ? ancestry(commits, merged.id)
       : sourceHistory;
   const contributed = sourceHistory.some((c) => c.authorId === userId);
-  const roleOptions = directory.roles.filter(
+  const roleOptions = disciplines.filter(
     (r) =>
       !r.archivedAt &&
       r.capabilities.review &&
-      !reviews.some((review) => review.roleId === r.id),
+      !reviews.some((review) => review.disciplineId === r.id),
   );
   const heads =
     source && target
       ? { sourceHeadId: source.headId, targetHeadId: target.headId }
       : undefined;
-  const policy = delivery.teams.get(item.teamId)?.aiActionPolicy ?? "advisory";
+  const policy =
+    projects.find((x) => x.id === item.projectId)?.aiActionPolicy ?? "advisory";
   const latestRun = actionRuns.find((r) => r.status !== "superseded");
   const checkState = actionCheck(latestRun, source?.headId, policy).state;
   const willDeleteSource =
@@ -1982,7 +1986,7 @@ function PullRequestView({
     rows.push({
       key: `review-${r.id}`,
       state: "pending",
-      text: `${roleName(r.roleId)} approval is pending or stale.`,
+      text: `${roleName(r.disciplineId)} approval is pending or stale.`,
     });
   if (changesRequested)
     rows.push({
@@ -2391,8 +2395,8 @@ function PullRequestView({
               )}
               <ul className="space-y-3">
                 {reviews.map((r) => {
-                  const role = directory.roles.find(
-                      (role) => role.id === r.roleId,
+                  const role = disciplines.find(
+                      (role) => role.id === r.disciplineId,
                     ),
                     assigned =
                       role &&
@@ -2512,8 +2516,8 @@ function PullRequestView({
                 roleOptions.length > 0 && (
                   <div className="flex gap-1.5">
                     <DropdownSelect
-                      placeholder="Add a reviewer role…"
-                      aria-label="PR reviewer role"
+                      placeholder="Add a reviewing discipline…"
+                      aria-label="PR reviewing discipline"
                       className="min-w-0 flex-1"
                       value={roleId}
                       onValueChange={(value) => setRoleId(value)}
@@ -2536,7 +2540,7 @@ function PullRequestView({
                             type: "requestPullRequestReview",
                             workItemId: item.id,
                             pullRequestId: p.id,
-                            roleId,
+                            disciplineId: roleId,
                             userId: null,
                             required: true,
                           },

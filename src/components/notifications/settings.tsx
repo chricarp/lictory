@@ -66,11 +66,14 @@ export function NotificationSettings() {
       label: p.name,
       hint: `Project ${p.key}`,
     })),
-    ...teams.map((t) => ({
-      value: `team:${t.id}`,
-      label: t.name,
-      hint: "Team",
-    })),
+    ...teams.map((t) => {
+      const key = projects.find((p) => p.id === t.projectId)?.key;
+      return {
+        value: `team:${t.id}`,
+        label: key ? `${t.name} · ${key}` : t.name,
+        hint: key ? `Team in ${key}` : "Team",
+      };
+    }),
   ];
   const scopeLabel =
     scopeOptions.find((o) => o.value === `${scope.scope}:${scope.scopeId}`)
@@ -245,7 +248,7 @@ export function NotificationSettings() {
                 ? `Applies to everything in ${organization.name} unless a project or team says otherwise.`
                 : scope.scope === "project"
                   ? `Overrides your ${organization.name} settings for items in this project. Team settings still win for items of that team.`
-                  : `Overrides your project and ${organization.name} settings for items and iterations of this team.`}{" "}
+                  : `Overrides your project and ${organization.name} settings for items of this team.`}{" "}
               Turn a notification on to receive it in your Inbox; you can then
               also choose to get it by email.
             </p>

@@ -22,18 +22,20 @@ import { statusChangeBlocker } from "~/sync/client/preflight";
 import { SyncEngine, type Rejection, type View } from "~/sync/client/engine";
 import {
   applicationRoleOf,
+  canManageProject,
   capabilitiesOf,
   type Capabilities,
   type Command,
   type Directory,
   type Entity,
+  noCapabilities,
   type WorkItem,
 } from "~/sync/shared/protocol";
 import { AI_ACTOR_ID, AI_ACTOR_NAME } from "~/sync/shared/ai";
 import {
   byType,
   deliveryIndex,
-  myRoleIds,
+  myDisciplineIds,
   type Delivery,
   type Label,
   type Milestone,
@@ -56,17 +58,20 @@ type WorkspaceContextValue = {
   relations: Relation[];
   // Teams, types, statuses and iterations indexed from the directory.
   delivery: Delivery;
-  // Active organization roles I hold, and the union of their capabilities.
-  roleIds: string[];
-  capabilities: Capabilities;
-  // Application role: administrators manage the organization, projects and roles.
+  // Active disciplines I hold in any project (for "needs my review").
+  disciplineIds: string[];
+  // Work item capabilities come from my disciplines in one project.
+  capabilitiesIn: (projectId: string | null | undefined) => Capabilities;
+  // Project configuration: organization administrators and project admins.
+  canManage: (projectId: string | null | undefined) => boolean;
+  // Application role: administrators manage the organization and every project.
   isAdmin: boolean;
   mutate: (
     command: Command,
     target?: SyncEngine,
   ) => Promise<string | undefined>;
   memberName: (id: string | null | undefined) => string;
-  roleName: (id: string | null | undefined) => string;
+  disciplineName: (id: string | null | undefined) => string;
   acquireItem: (itemId: string, projectId: string) => SyncEngine;
   releaseItem: (itemId: string) => void;
   refreshWorkspace: () => Promise<void>;
@@ -270,8 +275,19 @@ export function WorkspaceProvider({
       ),
       relations: byType(entities, "relation"),
       delivery,
-      roleIds: myRoleIds(directory, userId),
-      capabilities: capabilitiesOf(directory.roles, userId),
+      disciplineIds: myDisciplineIds(directory, userId),
+      capabilitiesIn: (projectId) =>
+        projectId
+          ? capabilitiesOf(directory.disciplines, userId, projectId)
+          : noCapabilities,
+      canManage: (projectId) =>
+        !!projectId &&
+        canManageProject(
+          directory,
+          userId,
+          applicationRoleOf(organization.role) === "admin",
+          projectId,
+        ),
       isAdmin: applicationRoleOf(organization.role) === "admin",
       mutate,
       memberName: (id) =>
@@ -283,8 +299,8 @@ export function WorkspaceProvider({
               ? (directory.members.find((m) => m.id === id)?.name ??
                 "Former member")
               : "Unassigned",
-      roleName: (id) =>
-        directory.roles.find((r) => r.id === id)?.name ?? "Role",
+      disciplineName: (id) =>
+        directory.disciplines.find((d) => d.id === id)?.name ?? "Discipline",
       acquireItem,
       releaseItem,
       refreshWorkspace,
@@ -371,9 +387,12 @@ const hydratingView: View = {
     organizations: [],
     projects: [],
     members: [],
-    roles: [],
+    projectMembers: [],
+    disciplines: [],
     teams: [],
     types: [],
+    projectTypes: [],
+    statuses: [],
     iterations: [],
     delivery: { connections: [], targets: [] },
     ai: { enabled: false, available: false },

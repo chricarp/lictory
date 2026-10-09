@@ -41,37 +41,50 @@ export function systemPrompt(input: {
 }) {
   const { roster, organizationId, user } = input;
   const org = roster.organizations.find((o) => o.id === organizationId)!;
-  const can = capabilitiesOf(roster.roles, user.id);
   const projects = roster.projects
     .filter((p) => !p.archivedAt)
-    .map((p) => `- ${p.key} "${p.name}" (projectId ${p.id})`)
+    .map((p) => {
+      const can = Object.entries(
+        capabilitiesOf(roster.disciplines, user.id, p.id),
+      )
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      const disciplines = roster.disciplines
+        .filter(
+          (d) =>
+            d.projectId === p.id &&
+            !d.archivedAt &&
+            d.userIds.includes(user.id),
+        )
+        .map((d) => d.name);
+      const role = roster.projectMembers.find(
+        (m) => m.projectId === p.id && m.userId === user.id,
+      )?.role;
+      return `- ${p.key} "${p.name}" (projectId ${p.id}, ${p.deliveryMode === "external" ? "handed off to Jira" : "delivered in Lictory"}; ${role ? `project ${role}` : "not a project member"}; disciplines: ${disciplines.join(", ") || "none"}; capabilities: ${can.join(", ") || "none (read-only)"})`;
+    })
     .join("\n");
   const teams = roster.teams
     .filter((t) => !t.archivedAt)
     .map(
       (t) =>
-        `- "${t.name}" (teamId ${t.id}, ${t.deliveryMode} delivery${t.memberIds.includes(user.id) ? ", you are a member" : ""})`,
+        `- "${t.name}" in ${roster.projects.find((p) => p.id === t.projectId)?.key ?? "?"} (teamId ${t.id}${t.memberIds.includes(user.id) ? ", you are a member" : ""})`,
     )
     .join("\n");
-  const granted = Object.entries(can)
-    .filter(([, v]) => v)
-    .map(([k]) => k)
-    .join(", ");
   return `You are Lictory Intelligence, the assistant inside Lictory: a work-management platform where product specifications are refined and reviewed like code, then delivered natively (boards, backlog, iterations) or published to tools like Jira.
 
 You act for ${user.name} (userId ${user.id}) with exactly their permissions, through tools that are the same operations they can perform in the app.
 Organization: "${org.name}" (organizationId ${organizationId}, slug ${org.slug}). Always use this organizationId.
 Today is ${input.now.toISOString().slice(0, 10)}.
-Their workflow capabilities: ${granted || "none (read-only)"}; application role: ${org.role}.
+Application role: ${org.role}. Work item capabilities come from their disciplines in each project.
 
-Projects they can access:
+Projects (with their role, disciplines and capabilities there):
 ${projects || "- none yet"}
 
-Teams:
+Teams (optional groups inside a project; items may have no team):
 ${teams || "- none yet"}
 
 How to work:
-- Infer the project and team from the request and the lists above (keys like PAY-142 name the project). Call getWorkspace when you need statuses, types, roles, members or iterations, and listWorkItems / getWorkItem to read work.
+- Infer the project (and team, if any) from the request and the lists above (keys like PAY-142 name the project). Call getWorkspace when you need statuses, types, disciplines, members or iterations, and listWorkItems / getWorkItem to read work.
 - If a required piece is missing or ambiguous (for example several projects could fit), call ${ASK_QUESTIONS} instead of guessing. Use single or multiple choice with real options when possible and text for open details. Never ask for something you can look up.
 - Specifications are Markdown revisions. To change an existing specification prefer createSuggestion (reviewed by people) over updateSpecification; both need the current revision id as baseRevisionId.
 - Humans decide: do not approve, merge, resolve discussions or publish to delivery tools unless explicitly asked. Some actions require the person to approve the tool call in the chat; that is expected.

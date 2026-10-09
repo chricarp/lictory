@@ -140,6 +140,8 @@ export async function applyBranchCommand(
     organizationId: string;
     workItemId: string;
     userId: string;
+    // Item's project; disciplines and capabilities are this project's.
+    projectId: string;
     capabilities: Capabilities;
     roster: Directory;
     latest: EntityOf<"revision">;
@@ -150,7 +152,7 @@ export async function applyBranchCommand(
       parents?: string[],
     ) => Promise<string>;
     log: (action: string, detail?: Record<string, unknown>) => void;
-    // Team policy gate for the Lictory Intelligence review action; returns the
+    // Project policy gate for the Lictory Intelligence review action; returns the
     // blocking reason.
     actionCheck?: (
       pullRequestId: string,
@@ -160,6 +162,9 @@ export async function applyBranchCommand(
 ) {
   if (!branchCommands.has(c.type) || !("workItemId" in c)) return;
   const { organizationId, workItemId, userId, capabilities, roster, log } = ctx;
+  const disciplines = roster.disciplines.filter(
+    (d) => d.projectId === ctx.projectId,
+  );
   const main = await ensureMain(tx, organizationId, workItemId);
   const branches = await tx
     .select()
@@ -449,12 +454,12 @@ export async function applyBranchCommand(
           (a) => a.reviewId === review.id && !a.withdrawnAt,
         );
         for (const a of targets) {
-          const role = roster.roles.find(
+          const role = disciplines.find(
             (role) =>
               !role.archivedAt &&
               role.capabilities.review &&
-              (a.roleId
-                ? role.id === a.roleId
+              (a.disciplineId
+                ? role.id === a.disciplineId
                 : role.name === review.responsibility &&
                   role.userIds.includes(a.userId ?? "")),
           );
@@ -464,7 +469,7 @@ export async function applyBranchCommand(
             organizationId,
             workItemId,
             pullRequestId: c.pullRequestId,
-            roleId: role.id,
+            disciplineId: role.id,
             userId: a.userId,
             required: review.required,
           });
@@ -509,15 +514,18 @@ export async function applyBranchCommand(
     case "requestPullRequestReview": {
       const p = pr(c.pullRequestId);
       managePR(p);
-      require(capabilities.requestReviews, "Your roles cannot request reviews.");
+      require(capabilities.requestReviews, "Your disciplines in this project cannot request reviews.");
       require(p.status !== "merged", "This pull request is merged.");
       const role = available(
-        roster.roles.find(
-          (r) => r.id === c.roleId && !r.archivedAt && r.capabilities.review,
+        disciplines.find(
+          (r) =>
+            r.id === c.disciplineId && !r.archivedAt && r.capabilities.review,
         ),
       );
       require(!c.userId ||
-        role.userIds.includes(c.userId), "Choose a reviewer from this role.");
+        role.userIds.includes(
+          c.userId,
+        ), "Choose a reviewer from this discipline.");
       const existing = (
         await tx
           .select()
@@ -525,7 +533,7 @@ export async function applyBranchCommand(
           .where(
             and(
               eq(s.pullRequestReview.pullRequestId, p.id),
-              eq(s.pullRequestReview.roleId, role.id),
+              eq(s.pullRequestReview.disciplineId, role.id),
             ),
           )
       )[0];
@@ -538,14 +546,14 @@ export async function applyBranchCommand(
         organizationId,
         workItemId,
         pullRequestId: p.id,
-        roleId: role.id,
+        disciplineId: role.id,
         userId: c.userId,
         required: c.required,
       });
       log("pull_request_review_requested", {
         title: p.title,
-        role: role.name,
-        roleId: role.id,
+        discipline: role.name,
+        disciplineId: role.id,
         pullRequestId: p.id,
       });
       break;
@@ -568,9 +576,11 @@ export async function applyBranchCommand(
             )
         )[0],
       );
-      const role = roster.roles.find(
+      const role = disciplines.find(
         (role) =>
-          role.id === r.roleId && !role.archivedAt && role.capabilities.review,
+          role.id === r.disciplineId &&
+          !role.archivedAt &&
+          role.capabilities.review,
       );
       require(role?.userIds.includes(userId) &&
         (!r.userId ||
@@ -608,7 +618,7 @@ export async function applyBranchCommand(
       log("pull_request_review_decided", {
         pullRequestId: p.id,
         title: p.title,
-        role: role!.name,
+        discipline: role!.name,
         decision: c.decision,
         resultHash: resultHash(result),
         sourceHeadId: source.headId,
@@ -624,7 +634,7 @@ export async function applyBranchCommand(
         ? capabilities.editSpecifications
         : collaborator(
             target,
-          ), "Your roles cannot merge into the target branch.");
+          ), "Your disciplines in this project cannot merge into the target branch.");
       const result = merge(source, target);
       if (result.conflicted)
         throw new DomainError(
@@ -659,9 +669,9 @@ export async function applyBranchCommand(
             reachable(commits, source.headId, c.id) &&
             !reachable(commits, target.headId, c.id),
         ) &&
-        roster.roles.some(
+        disciplines.some(
           (role) =>
-            role.id === r.roleId &&
+            role.id === r.disciplineId &&
             !role.archivedAt &&
             role.capabilities.review &&
             role.userIds.includes(r.reviewerId ?? ""),
@@ -711,7 +721,7 @@ export async function applyBranchCommand(
         // Main approvals refer to the exact reviewed merge result. Supersede
         // pending carried reviews for the same responsibilities with PR evidence.
         for (const r of reviews.filter(valid)) {
-          const role = roster.roles.find((role) => role.id === r.roleId)!;
+          const role = disciplines.find((role) => role.id === r.disciplineId)!;
           await tx
             .update(s.review)
             .set({ status: "cancelled" })
@@ -738,7 +748,7 @@ export async function applyBranchCommand(
           await tx.insert(s.reviewAssignment).values({
             organizationId,
             reviewId: id,
-            roleId: r.userId ? null : r.roleId,
+            disciplineId: r.userId ? null : r.disciplineId,
             userId: r.userId,
             assignedById: p.authorId,
           });
@@ -792,7 +802,7 @@ export async function applyBranchCommand(
       break;
     }
     case "revertSpecification": {
-      require(capabilities.editSpecifications, "Your roles cannot restore specification revisions.");
+      require(capabilities.editSpecifications, "Your disciplines in this project cannot restore specification revisions.");
       const r = available(
         (
           await tx

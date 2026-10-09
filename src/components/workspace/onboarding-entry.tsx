@@ -109,7 +109,7 @@ export function OnboardingEntry({
         {!intent && (
           <div className="space-y-3">
             <Choice
-              title="Join my team"
+              title="Join my organization"
               icon={<Mail />}
               onClick={() => choose("join")}
             >

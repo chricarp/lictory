@@ -27,7 +27,8 @@ export class ContextError extends Error {
 }
 
 // Reading is a membership right: everyone can see what steers Lictory
-// Intelligence. Changing it is an organization administrator's responsibility.
+// Intelligence. Organization administrators change organization context;
+// project administrators change their project's and its teams' context.
 async function membership(
   db: Database | Tx,
   organizationId: string,
@@ -53,10 +54,60 @@ export async function canManageIntelligenceContext(
 ) {
   return (await membership(db, organizationId, userId)) === "admin";
 }
-async function requireManage(tx: Tx, organizationId: string, userId: string) {
-  if (!(await canManageIntelligenceContext(tx, organizationId, userId)))
+// Projects this person administers (active projects only).
+async function managedProjectIds(
+  db: Database | Tx,
+  organizationId: string,
+  userId: string,
+) {
+  const rows = await db
+    .select({ projectId: s.projectMember.projectId })
+    .from(s.projectMember)
+    .innerJoin(
+      s.project,
+      and(
+        eq(s.project.organizationId, s.projectMember.organizationId),
+        eq(s.project.id, s.projectMember.projectId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.projectMember.organizationId, organizationId),
+        eq(s.projectMember.userId, userId),
+        eq(s.projectMember.role, "admin"),
+        isNull(s.project.archivedAt),
+      ),
+    );
+  return rows.map((r) => r.projectId);
+}
+async function requireManage(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  placement: Pick<Entry, "scope" | "projectId" | "teamId">,
+) {
+  if (await canManageIntelligenceContext(tx, organizationId, userId)) return;
+  let projectId = placement.scope === "project" ? placement.projectId : null;
+  if (placement.scope === "team" && placement.teamId) {
+    const [team] = await tx
+      .select({ projectId: s.team.projectId })
+      .from(s.team)
+      .where(
+        and(
+          eq(s.team.organizationId, organizationId),
+          eq(s.team.id, placement.teamId),
+        ),
+      );
+    projectId = team?.projectId ?? null;
+  }
+  if (
+    !projectId ||
+    !(await managedProjectIds(tx, organizationId, userId)).includes(projectId)
+  )
     throw new ContextError(
-      "Only organization administrators can change Lictory Intelligence Context.",
+      placement.scope === "organization"
+        ? "Only organization administrators can change organization Lictory Intelligence Context."
+        : "Only this project's administrators can change its Lictory Intelligence Context.",
       403,
     );
 }
@@ -150,6 +201,11 @@ export async function listIntelligenceContext(
   );
   return {
     canManage: role === "admin",
+    // Projects whose (and whose teams') context this person may change.
+    manageableProjectIds:
+      role === "admin"
+        ? []
+        : await managedProjectIds(db, organizationId, userId),
     entries: entries
       .map((e) => entrySummary(e, versions))
       .filter((e): e is ContextEntrySummary => Boolean(e)),
@@ -302,13 +358,13 @@ export async function createIntelligenceContext(
     throw new ContextError("The entry has no content.", 422);
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
-    await requireManage(tx, organizationId, userId);
-    await checkTarget(tx, organizationId, target);
     const placement = {
       scope: target.scope,
       projectId: target.scope === "project" ? target.projectId : null,
       teamId: target.scope === "team" ? target.teamId : null,
     };
+    await requireManage(tx, organizationId, userId, placement);
+    await checkTarget(tx, organizationId, target);
     await requireRoom(tx, organizationId, placement);
     const id = crypto.randomUUID();
     await tx.insert(s.intelligenceContextEntry).values({
@@ -343,8 +399,8 @@ export async function reviseIntelligenceContext(
   const parsed = parseInput(input);
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
-    await requireManage(tx, organizationId, userId);
     const entry = await entryOf(tx, organizationId, entryId);
+    await requireManage(tx, organizationId, userId, entry);
     if (entry.archivedAt)
       throw new ContextError("Restore this entry before changing it.", 409);
     if (input.document && entry.kind !== "document")
@@ -402,8 +458,8 @@ export async function setIntelligenceContextArchived(
 ) {
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
-    await requireManage(tx, organizationId, userId);
     const entry = await entryOf(tx, organizationId, entryId);
+    await requireManage(tx, organizationId, userId, entry);
     if (Boolean(entry.archivedAt) === archived) return { id: entry.id };
     if (!archived) {
       await checkTarget(

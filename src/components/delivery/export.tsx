@@ -13,7 +13,13 @@ import {
   Upload,
   XCircle,
 } from "lucide-react";
-import type { EntityOf, WorkItem } from "~/sync/shared/protocol";
+import type {
+  Directory,
+  EntityOf,
+  ExternalStatusCategory,
+  WorkItem,
+} from "~/sync/shared/protocol";
+import type { Project } from "~/lib/work-items";
 import { Button } from "~/components/ui/button";
 import { Badge, SectionLabel } from "~/components/ui/primitives";
 import { useWorkspace } from "~/components/workspace/provider";
@@ -23,7 +29,7 @@ import { cn } from "~/lib/utils";
 // explicit per-item confirmation before overwriting changes made in Jira,
 // and per-item results. All authority is on the server (/api/delivery).
 
-type ExternalLink = EntityOf<"externalLink">;
+export type ExternalLink = EntityOf<"externalLink">;
 type PlanEntry = {
   workItemId: string;
   key: string;
@@ -94,24 +100,61 @@ export function useExternalLinks(workItemId: string) {
   );
 }
 
-// Whether exporting is possible at all for this item's team, and whether the
-// team works in an external tool (then export is the primary action).
-export function useExportAvailability(item: WorkItem) {
-  const { directory, capabilities } = useWorkspace();
-  const target =
-    directory.delivery.targets.find((t) => t.teamId === item.teamId) ??
-    directory.delivery.targets.find((t) => t.teamId === null);
+// Whether this item's project hands work off to Jira, has a Jira target, and
+// whether I may hand off in it. Only external projects export.
+export function useExportAvailability(item: Pick<WorkItem, "projectId">) {
+  const { directory, projects, capabilitiesIn } = useWorkspace();
+  return exportAvailability(
+    directory,
+    projects.find((p) => p.id === item.projectId),
+    capabilitiesIn(item.projectId).publishDelivery,
+  );
+}
+export function exportAvailability(
+  directory: Pick<Directory, "delivery">,
+  project: Pick<Project, "id" | "deliveryMode"> | undefined,
+  allowed: boolean,
+) {
+  const external = project?.deliveryMode === "external";
+  const target = project
+    ? directory.delivery.targets.find((t) => t.projectId === project.id)
+    : undefined;
   const connection = directory.delivery.connections.find(
     (c) => c.id === target?.connectionId,
   );
-  const team = directory.teams.find((t) => t.id === item.teamId);
   return {
-    configured: Boolean(target && connection),
+    configured: Boolean(external && target && connection),
     connection,
     target,
-    allowed: capabilities.publishDelivery,
-    external: team?.deliveryMode === "external",
+    allowed,
+    external,
   };
+}
+
+// Jira's own status category, read back by the status sync.
+export const externalCategoryMeta: Record<
+  ExternalStatusCategory,
+  { label: string; tone: "neutral" | "info" | "good" }
+> = {
+  todo: { label: "To do", tone: "neutral" },
+  in_progress: { label: "In progress", tone: "info" },
+  done: { label: "Done", tone: "good" },
+};
+export function ExternalStatusBadge({ link }: { link: ExternalLink }) {
+  if (!link.externalStatus) return null;
+  const meta = link.externalStatusCategory
+    ? externalCategoryMeta[link.externalStatusCategory]
+    : undefined;
+  return (
+    <Badge tone={meta?.tone ?? "neutral"} className="max-w-40">
+      <span
+        className="truncate"
+        title={meta ? `Jira category: ${meta.label}` : undefined}
+      >
+        {link.externalStatus}
+      </span>
+    </Badge>
+  );
 }
 
 const fieldLabel = {
@@ -121,11 +164,14 @@ const fieldLabel = {
   linked: "linked, never exported",
 } as const;
 
+// Exports one item with its subtree (`item`), or exactly the given items.
 export function ExportDialog({
   item,
+  itemIds,
   onClose,
 }: {
-  item: WorkItem;
+  item?: WorkItem;
+  itemIds?: string[];
   onClose: () => void;
 }) {
   const { organization } = useWorkspace();
@@ -134,13 +180,15 @@ export function ExportDialog({
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
   const [publication, setPublication] = useState<Publication>();
   const [busy, setBusy] = useState(false);
+  const scope = item ? { rootId: item.id } : { itemIds: itemIds ?? [] };
+  const scopeKey = item ? item.id : (itemIds ?? []).join(",");
   // The preview reads Jira (external edits), so it is fetched on open.
   useEffect(() => {
     let live = true;
     deliveryRequest<Plan>({
       action: "preview",
       organizationId: organization.id,
-      rootId: item.id,
+      ...scope,
     }).then(
       (p) => live && setPlan(p),
       (e: Error) => live && setError(e.message),
@@ -148,7 +196,9 @@ export function ExportDialog({
     return () => {
       live = false;
     };
-  }, [organization.id, item.id]);
+    // `scopeKey` identifies `scope`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organization.id, scopeKey]);
   const exportable =
     plan?.entries.filter((e) =>
       ["create", "update", "unchanged"].includes(e.action),
@@ -156,7 +206,7 @@ export function ExportDialog({
   const blockedByConflict = exportable.filter(
     (e) => e.conflict?.length && !overwrite.has(e.workItemId),
   );
-  const run = async (itemIds?: string[]) => {
+  const run = async (retry?: string[]) => {
     setBusy(true);
     setError(undefined);
     try {
@@ -164,7 +214,7 @@ export function ExportDialog({
         await deliveryRequest<Publication>({
           action: "publish",
           organizationId: organization.id,
-          ...(itemIds ? { itemIds } : { rootId: item.id }),
+          ...(retry ? { itemIds: retry } : scope),
           overwriteItemIds: [...overwrite],
         }),
       );
@@ -452,7 +502,7 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  if (!availability.configured && links.length === 0) return null;
+  if (!availability.external && links.length === 0) return null;
   const link =
     links.find((l) => l.connectionId === availability.connection?.id) ??
     links[0];
@@ -487,14 +537,22 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             >
               {link.externalKey} <ArrowUpRight className="size-3" />
             </a>
-            {link.externalStatus && <Badge>{link.externalStatus}</Badge>}
+            <ExternalStatusBadge link={link} />
             <span className="ml-auto">
               <LinkStatus link={link} stale={stale} />
             </span>
           </div>
+          {link.externalAssignee !== null && (
+            <p className="text-xs text-muted-foreground">
+              Assignee in Jira:{" "}
+              <span className="text-foreground">
+                {link.externalAssignee || "Unassigned"}
+              </span>
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             {link.publishedRevisionNumber != null
-              ? `Exported revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
+              ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
               : "Linked, not exported yet"}
             {link.syncedAt &&
               ` · ${new Date(link.syncedAt).toLocaleDateString()}`}
@@ -509,16 +567,18 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
         </p>
       ) : (
         <p className="text-[13px] text-muted-foreground">
-          {ready
-            ? "Not exported yet."
-            : "Exportable once the specification is ready."}
+          {!availability.configured
+            ? "This project has no Jira project to hand off to yet."
+            : ready
+              ? "Not exported yet."
+              : "Exportable once the specification is ready."}
         </p>
       )}
       {availability.allowed && availability.configured && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <Button
             size="sm"
-            variant={availability.external ? "primary" : "secondary"}
+            variant="primary"
             disabled={!ready || link?.status === "pending"}
             title={ready ? undefined : "Only ready items can be exported."}
             onClick={() => setExporting(true)}

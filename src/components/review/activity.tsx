@@ -48,7 +48,7 @@ export function Activity() {
 }
 
 export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
-  const { memberName, roleName } = useItem();
+  const { memberName, disciplineName } = useItem();
   const delivery = useDelivery();
   const iterationName = (id: string | undefined) => {
     const it = id ? delivery.iterations.get(id) : undefined;
@@ -144,11 +144,17 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     case "team_changed":
-      body = (
+      body = str(d.to) ? (
         <>
           moved this to{" "}
-          <b>{delivery.teams.get(str(d.to) ?? "")?.name ?? "another team"}</b>
+          <b>
+            {delivery.teams.get(str(d.to) ?? "")?.name ??
+              str(d.toName) ??
+              "another team"}
+          </b>
         </>
+      ) : (
+        <>removed this from its team</>
       );
       break;
     case "iteration_changed":
@@ -341,8 +347,12 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         <>
           requested <b>{str(d.responsibility)}</b> review from{" "}
           <b>
-            {d.targetType === "role" || d.targetType === "group"
-              ? roleName(str(d.targetId))
+            {d.targetType === "discipline" ||
+            d.targetType === "role" ||
+            d.targetType === "group"
+              ? d.targetType === "discipline"
+                ? disciplineName(str(d.targetId))
+                : `anyone in ${str(d.responsibility)}`
               : memberName(str(d.targetId))}
           </b>
         </>
@@ -485,7 +495,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "pull_request_review_requested":
       body = (
         <>
-          requested {str(d.role)} review of <b>{str(d.title)}</b>
+          requested {str(d.discipline) ?? str(d.role)} review of{" "}
+          <b>{str(d.title)}</b>
         </>
       );
       break;
@@ -497,7 +508,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
             : str(d.decision) === "revoke"
               ? "revoked their review of"
               : "requested changes to"}{" "}
-          <b>{str(d.title)}</b> for {str(d.role)}
+          <b>{str(d.title)}</b> for {str(d.discipline) ?? str(d.role)}
         </>
       );
       break;

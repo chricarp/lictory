@@ -8,6 +8,7 @@ import {
   canParent,
   enabledTypes,
   identifier,
+  projectTeams,
   segmentOf,
   typeOf,
 } from "~/lib/work-items";
@@ -44,10 +45,7 @@ export function TypePicker({
     .filter((i) => i.parentId === item.id && !i.archivedAt)
     .map((i) => typeOf(delivery, i).level);
   // Only offer types that keep the hierarchy valid; the server enforces it too.
-  const options = enabledTypes(
-    delivery,
-    delivery.teams.get(item.teamId),
-  ).filter(
+  const options = enabledTypes(delivery, item.projectId).filter(
     (t) =>
       (!parent || canParent(typeOf(delivery, parent), t)) &&
       childLevels.every((level) => level < t.level),
@@ -92,16 +90,18 @@ export function TeamPicker({
   projectId,
   onChange,
 }: {
-  teamId: string;
-  projectId?: string;
-  onChange?: (teamId: string) => void;
+  teamId: string | null;
+  projectId: string;
+  onChange?: (teamId: string | null) => void;
 }) {
   const delivery = useDelivery();
-  const team = delivery.teams.get(teamId);
+  const team = teamId ? delivery.teams.get(teamId) : undefined;
   const content = (
     <>
       <Users className="size-3.5 text-muted-foreground" />
-      <span className="truncate">{team?.name ?? "No team"}</span>
+      <span className={cn("truncate", !team && "text-muted-foreground")}>
+        {team?.name ?? "No team"}
+      </span>
     </>
   );
   if (!onChange) return <span className={trigger}>{content}</span>;
@@ -111,7 +111,7 @@ export function TeamPicker({
       trigger={(props) => (
         <button
           {...props}
-          aria-label={`Team: ${team?.name}`}
+          aria-label={`Team: ${team?.name ?? "No team"}`}
           className={trigger}
         >
           {content}
@@ -119,22 +119,15 @@ export function TeamPicker({
       )}
     >
       <Picker
-        title="Move to team"
-        options={[...delivery.teams.values()]
-          .filter(
-            (t) =>
-              !t.archivedAt &&
-              (!t.projectIds || t.projectIds.includes(projectId ?? "")),
-          )
-          .map((t) => ({ value: t.id, label: t.name }))}
-        value={teamId}
-        onSelect={onChange}
-        footer={
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            The identifier stays the same. The status moves to the matching
-            category in the new team&apos;s workflow.
-          </p>
-        }
+        title="Team"
+        options={[
+          { value: "none", label: "No team" },
+          ...projectTeams(delivery, projectId)
+            .filter((t) => !t.archivedAt)
+            .map((t) => ({ value: t.id, label: t.name })),
+        ]}
+        value={teamId ?? "none"}
+        onSelect={(v) => onChange(v === "none" ? null : v)}
       />
     </Popover>
   );
@@ -148,13 +141,15 @@ export function IterationPicker({
   onChange?: (iterationId: string | null) => void;
 }) {
   const delivery = useDelivery();
-  const team = delivery.teams.get(item.teamId);
+  const { projects } = useWorkspace();
+  const project = projects.find((p) => p.id === item.projectId);
   const current = item.iterationId
     ? delivery.iterations.get(item.iterationId)
     : undefined;
-  if (!team || team.iterationMode === "off") return null;
+  if (project?.deliveryMode !== "native" || project.iterationMode === "off")
+    return null;
   const options = [...delivery.iterations.values()]
-    .filter((i) => i.teamId === team.id && i.state !== "completed")
+    .filter((i) => i.projectId === project.id && i.state !== "completed")
     .sort((a, b) => a.number - b.number);
   const content = (
     <>
@@ -176,7 +171,7 @@ export function IterationPicker({
       )}
     >
       <Picker
-        title={team.iterationMode === "automatic" ? "Cycle" : "Sprint"}
+        title={project.iterationMode === "automatic" ? "Cycle" : "Sprint"}
         options={[
           { value: "none", label: "Backlog" },
           ...options.map((i) => ({
@@ -199,8 +194,10 @@ export function EstimatePicker({
   item: WorkItem;
   onChange?: (estimate: number | null) => void;
 }) {
-  const delivery = useDelivery();
-  const scale = delivery.teams.get(item.teamId)?.estimateScale ?? "none";
+  const { projects } = useWorkspace();
+  const project = projects.find((p) => p.id === item.projectId);
+  const scale =
+    project?.deliveryMode === "native" ? project.estimateScale : "none";
   if (scale === "none") return null;
   const options = estimateOptions[scale];
   const label =
@@ -373,7 +370,7 @@ export function Relations({
                       className="group relative flex h-9 items-center gap-2 border-b px-2 text-[13px] last:border-b-0 hover:bg-muted/50"
                     >
                       <IssueStatus
-                        teamId={other!.teamId}
+                        projectId={other!.projectId}
                         statusId={other!.statusId}
                         compact
                       />

@@ -3,10 +3,10 @@ import { consentStatePath } from "./consent-setup";
 import { reloadWhenSaved } from "./sync-helpers";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as s from "../src/db/schema";
-import { seedDefaultRoles } from "../src/sync/server/roles";
+import { seedOrganization } from "../src/sync/server/organization";
 import { createSyncService, directory } from "../src/sync/server/service";
 import { PROTOCOL, type Command } from "../src/sync/shared/protocol";
 
@@ -73,19 +73,7 @@ test.beforeAll(async () => {
         createdAt: new Date(),
       },
     ]);
-    await seedDefaultRoles(db, organizationId, authorId);
-    const [qa] = await db
-      .select()
-      .from(s.organizationRole)
-      .where(
-        and(
-          eq(s.organizationRole.organizationId, organizationId),
-          eq(s.organizationRole.name, "QA"),
-        ),
-      );
-    await db
-      .insert(s.organizationRoleMember)
-      .values({ organizationId, roleId: qa!.id, userId: reviewerId });
+    await seedOrganization(db, organizationId);
     const service = createSyncService(db);
     const command = (command: Command) =>
       service.mutate(authorId, {
@@ -102,8 +90,15 @@ test.beforeAll(async () => {
     });
     const roster = await directory(db, authorId, organizationId);
     await command({
-      type: "updateTeam",
-      teamId: roster.teams[0]!.id,
+      type: "setDisciplineMember",
+      projectId,
+      disciplineId: roster.disciplines.find((d) => d.name === "QA")!.id,
+      userId: reviewerId,
+      member: true,
+    });
+    await command({
+      type: "updateProject",
+      projectId,
       readinessPolicy: "block",
     });
     workItemId = crypto.randomUUID();

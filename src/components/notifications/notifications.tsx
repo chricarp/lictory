@@ -186,7 +186,13 @@ export function NotificationFeed() {
   const teams = [...delivery.teams.values()].filter((t) => !t.archivedAt);
   const projectName = (id: string | null) =>
     projects.find((p) => p.id === id)?.name;
-  const teamName = (id: string | null) => teams.find((t) => t.id === id)?.name;
+  // Teams belong to one project; the key tells same-named teams apart.
+  const teamName = (id: string | null) => {
+    const team = teams.find((t) => t.id === id);
+    if (!team) return undefined;
+    const key = projects.find((p) => p.id === team.projectId)?.key;
+    return key ? `${team.name} · ${key}` : team.name;
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -261,7 +267,10 @@ export function NotificationFeed() {
                 title="Team"
                 options={[
                   { value: "", label: "Any team" },
-                  ...teams.map((t) => ({ value: t.id, label: t.name })),
+                  ...teams.map((t) => ({
+                    value: t.id,
+                    label: teamName(t.id) ?? t.name,
+                  })),
                 ]}
                 value={filters.teamId ?? ""}
                 onSelect={(v) =>

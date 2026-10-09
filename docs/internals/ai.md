@@ -61,7 +61,7 @@ collaborator. It reviews like any other pull request.
 ## Lictory Actions
 
 Lictory Actions are the automated checks of a pull request, shown in its
-Actions tab like CI checks. Each action has its own runs and its own team
+Actions tab like CI checks. Each action has its own runs and its own project
 policy. The **Lictory Intelligence review** is the only action today.
 
 The Lictory Intelligence review runs when a pull request is ready for review
@@ -74,7 +74,7 @@ per finding.
 - When an issue is gone, it says so and leaves resolution to people.
 - A suggested change is committed by the person who accepts it.
 
-Each team chooses a policy for it:
+Each project chooses a policy for it:
 
 | Policy   | Behaviour                                                                                                                                                      |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -87,8 +87,9 @@ configured, so turning it off never traps a pull request.
 
 ## Lictory Intelligence Context
 
-Organization administrators give Lictory Intelligence knowledge about how the
-organization works, at three scopes: the organization, a project and a team.
+People give Lictory Intelligence knowledge about how the organization works, at
+three scopes: the organization (organization administrators), a project and its
+teams (that project's administrators).
 Entries are written Markdown notes or uploaded documents (PDF, Office,
 OpenDocument, RTF, EPUB, CSV, Markdown, text) converted to Markdown on the
 server with anydoc. Conversion is local. Scanned PDFs need OCR, which would

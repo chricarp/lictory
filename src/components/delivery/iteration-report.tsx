@@ -8,21 +8,22 @@ import { iterationLabel, type IterationReport } from "~/sync/shared/protocol";
 import { MissingState } from "~/components/ui/status-page";
 import { useWorkspace } from "~/components/workspace/provider";
 import { shortRange } from "~/components/items/delivery-properties";
-import { useTeam } from "./team-gate";
+import { useProject } from "~/components/workspace/project-gate";
 import { useIterationReport } from "./backlog";
 
 export function IterationReportPage() {
-  const team = useTeam();
+  const project = useProject();
   const { iteration: iterationId } = useParams<{ iteration: string }>();
   const { delivery, organization, view } = useWorkspace();
-  const iteration = delivery.iterations.get(iterationId);
+  const found = delivery.iterations.get(iterationId);
+  const iteration = found?.projectId === project.id ? found : undefined;
   // Refetch when anything synchronizes, so an open report follows progress.
   const { report, error } = useIterationReport(
     organization.id,
     iterationId,
     view.cursor,
   );
-  const usePoints = team.estimateScale !== "none";
+  const usePoints = project.estimateScale !== "none";
   if (error)
     return (
       <MissingState
@@ -30,7 +31,7 @@ export function IterationReportPage() {
         icon={BarChart3}
         title="Report unavailable"
       >
-        {error} The iteration may belong to another team or be older than the
+        {error} The iteration may belong to another project or be older than the
         synchronized history.
       </MissingState>
     );
@@ -38,10 +39,10 @@ export function IterationReportPage() {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-6 px-6 py-6">
         <Link
-          href={paths.backlog(organization.slug, team.id)}
+          href={paths.backlog(organization.slug, project.key)}
           className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="size-3.5" /> {team.name} backlog
+          <ChevronLeft className="size-3.5" /> {project.name} backlog
         </Link>
         <header>
           <h1 className="text-lg font-semibold tracking-tight">

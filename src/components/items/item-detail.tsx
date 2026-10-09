@@ -119,7 +119,7 @@ export function ItemDetail({
     ? itemEngine.entities
     : Object.values(workspace.view.entities);
   const type = typeOf(workspace.delivery, item);
-  const team = workspace.delivery.teams.get(item.teamId);
+  const native = project.deliveryMode === "native";
   const ctx = useItemContextValue({
     item,
     type,
@@ -127,10 +127,10 @@ export function ItemDetail({
     entities,
     view: itemEngine.engine ? itemEngine.view : workspace.view,
     userId: workspace.userId,
-    roleIds: workspace.roleIds,
+    disciplineIds: workspace.disciplineIds,
     memberName: workspace.memberName,
-    roleName: workspace.roleName,
-    capabilities: workspace.capabilities,
+    disciplineName: workspace.disciplineName,
+    capabilities: workspace.capabilitiesIn(item.projectId),
     mutate: itemEngine.engine ? itemEngine.mutate : workspace.mutate,
     mutateConfirmed: (command) =>
       (itemEngine.engine ?? workspace.engine).mutateConfirmed(command),
@@ -222,8 +222,8 @@ export function ItemDetail({
   const [panelOpen, setPanelOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const exportAvailability = useExportAvailability(item);
-  // Export is offered for ready specifications; teams delivering in an
-  // external tool get it as a header action, others find it in the menu.
+  // Hand-off is offered for ready specifications of projects delivered in an
+  // external tool.
   const canExport =
     type.hasSpecification &&
     exportAvailability.configured &&
@@ -291,13 +291,12 @@ export function ItemDetail({
   ) =>
     void ctx.mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const failing = ctx.readiness?.checks.filter((c) => !c.passed) ?? [];
-  // Readiness policy of the team, surfaced next to started statuses.
+  // Readiness policy of the project, surfaced next to started statuses.
   const startHint =
     type.hasSpecification &&
     item.refinementState !== "ready" &&
-    team &&
-    team.readinessPolicy !== "off"
-      ? team.readinessPolicy === "block"
+    project.readinessPolicy !== "off"
+      ? project.readinessPolicy === "block"
         ? "Blocked until the specification is ready"
         : "Specification not ready yet"
       : undefined;
@@ -312,7 +311,7 @@ export function ItemDetail({
     <div className="space-y-1">
       <Property label="Status">
         <IssueStatus
-          teamId={item.teamId}
+          projectId={item.projectId}
           statusId={item.statusId}
           onChange={canChange ? (statusId) => update({ statusId }) : undefined}
           hint={startHint}
@@ -350,9 +349,9 @@ export function ItemDetail({
           onChange={canChange ? (teamId) => update({ teamId }) : undefined}
         />
       </Property>
-      {team && team.iterationMode !== "off" && (
+      {native && project.iterationMode !== "off" && (
         <Property
-          label={team.iterationMode === "automatic" ? "Cycle" : "Sprint"}
+          label={project.iterationMode === "automatic" ? "Cycle" : "Sprint"}
         >
           <IterationPicker
             item={item}
@@ -362,7 +361,7 @@ export function ItemDetail({
           />
         </Property>
       )}
-      {team && team.estimateScale !== "none" && (
+      {native && project.estimateScale !== "none" && (
         <Property label="Estimate">
           <EstimatePicker
             item={item}
@@ -603,9 +602,9 @@ export function ItemDetail({
                   )}
                   <button
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
-                    disabled={!workspace.capabilities.changeProperties}
+                    disabled={!ctx.capabilities.changeProperties}
                     title={
-                      workspace.capabilities.changeProperties
+                      ctx.capabilities.changeProperties
                         ? undefined
                         : "Your roles cannot archive or restore items."
                     }
@@ -685,7 +684,7 @@ export function ItemDetail({
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
                     <IssueStatus
-                      teamId={item.teamId}
+                      projectId={item.projectId}
                       statusId={item.statusId}
                       onChange={
                         canChange

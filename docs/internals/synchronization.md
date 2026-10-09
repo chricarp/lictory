@@ -8,8 +8,9 @@ integrations; Lictory Intelligence runs follow the same lock and change-log rule
 
 Every kind of work is one entity, `workItem`. It belongs to exactly one
 **project** (key and per-project `number`, rendered `KEY-number`; numbers are
-allocated under the organization lock) and exactly one **team** (workflow and
-delivery). Moving an item between teams never changes its identifier. Its
+allocated under the organization lock, plus its workflow and delivery
+configuration) and at most one of its **teams**. Moving an item between teams
+never changes its identifier, status or iteration. Its
 `typeId` points into the organization's type registry (see
 [delivery.md](delivery.md)); hierarchy follows type levels, so a parent's level is
 strictly above its child's (Epic 2 > Story/Task/Bug 1 > Subtask 0), and the
@@ -20,7 +21,7 @@ project-scoped and archivable. Sibling order under a parent is a sparse integer
 
 Two orthogonal states exist:
 
-- `statusId` is the delivery status from the item's team workflow. Any transition
+- `statusId` is the delivery status from the project's workflow. Any transition
   is allowed; each status has a fixed category (`backlog`, `unstarted`,
   `started`, `done`, `canceled`) that gives it meaning everywhere.
 - `refinementState` (`draft`, `refinement`, `in_review`, `ready`) exists only on
@@ -30,7 +31,7 @@ Two orthogonal states exist:
   readiness is lost. Requesting a review moves `draft`/`refinement` to
   `in_review`.
 
-A team's readiness policy (`off`, `warn`, `block`) decides whether a spec-backed
+A project's readiness policy (`off`, `warn`, `block`) decides whether a spec-backed
 item may move into a `started` status before it is ready. `block` rejects the
 command with the failing checks; `warn` allows it and records
 `startedBeforeReady` in the activity. Types without a specification are never
@@ -61,49 +62,49 @@ cookie-authenticated writes. Every command checks current Better Auth organizati
 membership inside its transaction. Projects are organization-wide in this baseline:
 there is deliberately no private-project ACL.
 
-Two kinds of role exist and must not be conflated. **Application roles** are fixed:
-Better Auth `member.role` owner/admin is `ADMIN` and everything else is `MEMBER`.
-Administrators create projects, invite people, change application roles
-(through Better Auth `updateMemberRole`; the last administrator cannot be demoted
-in the UI) and manage organization roles. Application roles grant no workflow
-capability. **Organization roles** (`organization_role`, `organization_role_member`)
-are administrator-managed named member collections carrying four capabilities:
-`editSpecifications` (create items, save revisions, rename, close others'
-suggestions, merge suggestions once assigned as reviewer), `changeProperties` (status, priority, owner, epic, labels,
-milestones, ordering, archive, and the label/milestone lists), `requestReviews`
-(request/cancel) and `review` (the role or one of its members can be assigned a
-review). A person's effective capabilities are the union over the active roles
-they hold; the server recomputes this from the database inside every mutation and
-rejects with a message naming the missing capability. Discussion and suggestions
-need only membership. Only an assigned user, or a current member of an assigned
-role, can decide a review; holding a role never grants approval by itself.
-Configuration roles are separate from workflow roles: project permissions inherit
-into associated teams, and locally customized roles remain bounded by parent role
-permissions. Administrators control team/project associations and root roles;
-local managers may configure their scopes and delegate permitted actions. Team
-integration credentials and delivery mode can be delegated without granting
-organization credentials, Lictory Intelligence policy or approval rights. See
-[delegated configuration](configuration-access.md) for ceiling, revocation and
-shared-team semantics. Directory changes use the same locked receipt path and
-synchronization invalidation as existing roles.
+Three access concepts exist and must not be conflated (see
+[organizations, projects and teams](organization-model.md)). **Application
+roles** are fixed: Better Auth `member.role` owner/admin is `ADMIN` and
+everything else is `MEMBER`. Administrators create and archive projects, invite
+people, change application roles (through Better Auth `updateMemberRole`; the
+last administrator cannot be demoted in the UI) and administer every project.
+**Project roles** (`project_member`: admin or member) decide who configures a
+project. **Disciplines** (`discipline`, `discipline_member`, per project) carry
+five work item capabilities: `editSpecifications` (create spec-backed items,
+save revisions, rename, close others' suggestions, merge suggestions once
+assigned as reviewer), `changeProperties` (status, priority, owner, epic,
+labels, milestones, ordering, archive, iteration planning, and plain work
+items), `requestReviews` (request/cancel), `review` (the discipline or one of
+its members can be assigned a review) and `publishDelivery` (hand-off to the
+project's external tool). A person's capabilities in a project are the union
+over the active disciplines they hold there; the server recomputes this from
+the database inside every mutation and rejects with a message naming the
+missing capability. Neither application nor project roles grant work item
+capabilities. Discussion and suggestions need only organization membership.
+Only an assigned user, or a current member of an assigned discipline, can decide
+a review; holding a discipline never grants approval by itself.
 
 Suggestion reviewers are individuals chosen by the suggestion's author and must
-hold one active role that grants **both** `editSpecifications` and `review`
-(`canReviewSuggestions`); the author cannot review their own suggestion.
+hold one active discipline of the item's project that grants **both**
+`editSpecifications` and `review` (`canReviewSuggestions`); the author cannot
+review their own suggestion.
 
-Every organization is seeded with Product (all capabilities), Engineering and QA
-(request + review) by the Better Auth `afterCreateOrganization` hook, and the
-creator joins Product (`src/sync/server/roles.ts`; migration `0007` did the same for
-pre-existing organizations). Roles archive rather than delete: an archived role
-grants nothing and cannot be requested, keeps its name on historical assignments,
-releases its name for reuse, and can be restored. Role commands (`createRole`,
-`updateRole`, `setRoleMembership`) run through the same locked transaction and
-receipt path but emit no entity changes; roles live in the directory.
+Every project is seeded with Product (all capabilities), Engineering (requests,
+reviews and changes properties) and QA (request + review) by `createProject`,
+and its creator becomes a project administrator in Product
+(`src/sync/server/projects.ts`). Disciplines archive rather than delete: an
+archived discipline grants nothing and cannot be requested, keeps its name on
+historical assignments, releases its name for reuse, and can be restored.
+Project configuration commands (`updateProject`, `setProjectMember`,
+disciplines, teams, workflow, enabled types, iterations) run through the same
+locked transaction and receipt path, are recorded in `configuration_audit`, and
+emit only the entities they move; configuration lives in the directory.
 
 Organization creation, naming, invitations and acceptance remain Better Auth
 operations. Settings create shareable invitation links; automated invitation email
 is not configured. The sync directory is a small, fresh projection of Better Auth
-organizations/members (with application role) and domain projects/roles, returned
+organizations/members (with application role) and domain projects, project
+members and disciplines, returned
 on every sync response. This also discovers membership and directory changes made
 through Better Auth; a client that changes an application role calls `sync()`.
 
@@ -141,7 +142,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 11 (delegated configuration, team/project associations and scoped delivery connections; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 12 (project-owned configuration: project settings, members, disciplines, workflows, iterations and hand-off targets; optional teams; version 11 added delegated configuration; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
@@ -152,13 +153,14 @@ projection, because `children_ready` lives in the parent's scope. Relations are
 project-level entities routed with their source item's project; removing one
 writes a tombstone (`delete` change) in the same transaction.
 
-Delivery configuration (teams with their members, enabled types and statuses;
-the type registry; planned, active and the most recent completed iterations) is
-part of the **directory**, like roles, and is refreshed on every read. Its
-commands therefore write no configuration entities, but a command that also
-moves items (archiving a status with a replacement, completing an iteration
-with carry-over, automatic cycles) diffs the organization snapshot and emits the
-affected work items like any other change. Iteration reports are read on demand
+Delivery configuration (project members and disciplines; teams with their
+members; each project's statuses and enabled types; the type registry; planned,
+active and the most recent completed iterations) is part of the **directory**
+and is refreshed on every read. Its commands therefore write no configuration
+entities, but a command that also moves items or changes the project
+(archiving a status with a replacement, completing an iteration with
+carry-over, automatic cycles, project settings) diffs the project snapshot and
+emits the affected entities like any other change. Iteration reports are read on demand
 (`?iteration=1`) and replay recorded events on the server.
 
 Delivery exports (`/api/delivery`, see [delivery.md](delivery.md)) are
@@ -292,8 +294,8 @@ resolution rather than overwriting intervening work. Diff memory is bounded;
 large ambiguous rewrites require manual resolution.
 
 PRs have `draft`, `open` and `merged` states. Source commits continue updating an
-open PR. PR review requests name an active reviewer-capable organization role,
-optionally one person in that role. Existing main review responsibilities are
+open PR. PR review requests name an active reviewing discipline of the item's
+project, optionally one person in it. Existing main review responsibilities are
 copied when the PR is created. Decisions record a SHA-256 fingerprint of the
 **complete resulting title and content**, plus the inspected branch heads in
 activity. Contributors cannot approve their own source changes. Any source or
@@ -341,8 +343,9 @@ wait for server confirmation before navigating or clearing their saved draft;
 definitive rejected commands can be replaced by a corrected draft, while
 transport failures retain their idempotency ID in synchronization.
 
-Reviews are requested from a reviewer-capable role, optionally naming one of its
-members; the role's name is the review responsibility. Approvals belong to a
+Reviews are requested from a reviewing discipline of the item's project,
+optionally naming one of its members; the discipline's name is the review
+responsibility. Approvals belong to a
 review/revision and an assigned reviewer. A material revision
 ends granted approvals as stale with an actor, timestamp, and reason, and
 **re-requests every active review on the new revision with the same assignments**;
@@ -384,9 +387,9 @@ these deferred capabilities exist.
 
 ## Initial workspace setup
 
-Guided onboarding carries explicit team configuration and accepted/deferred setup
-decisions on the first `createProject` command. Its team changes, optional automatic
-cycles, project, historical `organization_onboarding` decision record, change log
+Guided onboarding carries explicit project configuration and accepted/deferred
+setup decisions on the first `createProject` command. Its project, seeded
+workflow and disciplines, optional automatic cycles, historical `organization_onboarding` decision record, change log
 and receipt share the existing authorized organization transaction. The setup
 snapshot is not current configuration and is never used as a client checkpoint.
 See [onboarding.md](onboarding.md) for the decision and recovery semantics.

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { cn } from "~/lib/utils";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
@@ -136,6 +137,102 @@ export function InlineError({ children }: { children?: string }) {
   if (!children) return null;
   return (
     <p role="alert" className="text-xs text-destructive">
+      {children}
+    </p>
+  );
+}
+
+// Settings pages (organization and project) share one frame: a header naming
+// the scope, a section nav with real routes, and one section at a time.
+export type SettingsNavItem = {
+  id: string;
+  label: string;
+  href: string;
+  // Groups render as small captions above their items.
+  group?: string;
+};
+export function SettingsLayout({
+  icon,
+  title,
+  subtitle,
+  nav,
+  active,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle?: ReactNode;
+  nav: SettingsNavItem[];
+  active: string;
+  children: ReactNode;
+}) {
+  const groups: { group?: string; items: SettingsNavItem[] }[] = [];
+  for (const item of nav) {
+    const last = groups.at(-1);
+    if (last && last.group === item.group) last.items.push(item);
+    else groups.push({ group: item.group, items: [item] });
+  }
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <header className="flex items-center gap-3.5">
+          {icon}
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold tracking-tight">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="truncate text-[13px] text-muted-foreground">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </header>
+        <div className="mt-8 gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
+          <nav
+            aria-label="Settings sections"
+            className="mb-6 lg:sticky lg:top-0 lg:mb-0 lg:self-start"
+          >
+            <div className="flex gap-1 overflow-x-auto lg:block lg:space-y-4">
+              {groups.map((g, i) => (
+                <div key={g.group ?? i} className="flex gap-1 lg:block">
+                  {g.group && (
+                    <p className="hidden px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase lg:block">
+                      {g.group}
+                    </p>
+                  )}
+                  <ul className="flex gap-1 lg:block lg:space-y-0.5">
+                    {g.items.map((n) => (
+                      <li key={n.id}>
+                        <Link
+                          href={n.href}
+                          aria-current={n.id === active ? "page" : undefined}
+                          className={cn(
+                            "block rounded-md px-2 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground",
+                            n.id === active &&
+                              "bg-muted font-medium text-foreground",
+                          )}
+                        >
+                          {n.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </nav>
+          <div className="min-w-0 space-y-6">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Read-only notice for people who can see settings but not change them.
+export function ReadOnlyNotice({ children }: { children: ReactNode }) {
+  return (
+    <p className="rounded-lg border border-dashed px-4 py-3 text-[13px] text-muted-foreground">
       {children}
     </p>
   );

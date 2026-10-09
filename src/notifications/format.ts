@@ -147,7 +147,7 @@ export function describeNotification(
     case "iteration_started":
       return {
         headline: `${str(d.iterationName) ?? "An iteration"} started`,
-        body: str(d.teamName),
+        body: str(d.projectName) ?? str(d.teamName),
       };
     case "iteration_completed": {
       const carried = d.carriedOver as { count?: number } | null | undefined;
@@ -155,7 +155,7 @@ export function describeNotification(
         headline: `${str(d.iterationName) ?? "An iteration"} was completed`,
         body:
           [
-            str(d.teamName),
+            str(d.projectName) ?? str(d.teamName),
             carried?.count ? `${carried.count} unfinished carried over` : null,
           ]
             .filter(Boolean)

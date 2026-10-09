@@ -54,14 +54,13 @@ const connectDelivery = defineCapability({
   name: "connectDelivery",
   title: "Connect Jira",
   description:
-    "Connect Jira with an API token: organization admins manage organization connections; delegated integration managers manage their team's connections.",
+    "Organization administrators: connect a Jira site with an API token. Projects then choose a Jira project on this connection to hand work off to.",
   kind: "command",
   surfaces: webOnly,
   external: true,
   input: z.object({
     organizationId,
     name: z.string().max(120).default(""),
-    teamId: id.nullable().optional(),
     baseUrl: z.string().min(1).max(300),
     email: z.string().trim().min(1).max(320),
     apiToken: z.string().trim().min(1).max(2000),
@@ -79,7 +78,7 @@ const disconnectDelivery = defineCapability({
   name: "disconnectDelivery",
   title: "Disconnect delivery tool",
   description:
-    "Organization admins or the connection's team integration managers: remove a delivery connection. Existing links keep their history.",
+    "Organization administrators: remove a Jira connection. Projects using it lose their hand-off target; existing links keep their history.",
   kind: "command",
   surfaces: everywhere,
   destructive: true,
@@ -101,7 +100,7 @@ const listDeliveryProjects = defineCapability({
   name: "listDeliveryProjects",
   title: "List Jira projects",
   description:
-    "Projects visible through a delivery connection (administrators, its team integration managers and members who can export).",
+    "Jira projects visible through a connection. Organization administrators, or with `projectId`, that project's administrators and the people who can hand its work off.",
   kind: "query",
   surfaces: everywhere,
   external: true,
@@ -109,6 +108,7 @@ const listDeliveryProjects = defineCapability({
     organizationId,
     connectionId: id,
     query: z.string().max(120).optional(),
+    projectId: id.optional(),
   }),
   run: (ctx, input) =>
     service(ctx).listProjects(
@@ -116,6 +116,7 @@ const listDeliveryProjects = defineCapability({
       input.organizationId,
       input.connectionId,
       input.query,
+      input.projectId,
     ),
 });
 
@@ -131,6 +132,7 @@ const describeDeliveryProject = defineCapability({
     organizationId,
     connectionId: id,
     projectKey: z.string().min(1).max(64),
+    projectId: id.optional(),
   }),
   run: (ctx, input) =>
     service(ctx).describeProject(
@@ -138,6 +140,7 @@ const describeDeliveryProject = defineCapability({
       input.organizationId,
       input.connectionId,
       input.projectKey,
+      input.projectId,
     ),
 });
 
@@ -145,7 +148,7 @@ const setDeliveryTarget = defineCapability({
   name: "setDeliveryTarget",
   title: "Set delivery target",
   description:
-    "Choose a team's export target and map work item type ids to external issue types. Delegated integration managers configure their own team; only organization admins configure the organization default (teamId null).",
+    "Project administrators: choose the Jira project (on an organization connection) this project hands work off to, and map work item type ids to Jira issue types.",
   kind: "command",
   surfaces: everywhere,
   external: true,
@@ -153,7 +156,7 @@ const setDeliveryTarget = defineCapability({
   input: z.object({
     organizationId,
     connectionId: id,
-    teamId: id.nullable(),
+    projectId: id,
     projectKey: z.string().min(1).max(64),
     typeMapping: z.record(id, z.string().min(1).max(64)),
   }),
@@ -161,7 +164,7 @@ const setDeliveryTarget = defineCapability({
     const result = await service(ctx).setTarget(ctx.principal.userId, input);
     track(ctx, "delivery_target_configured", {
       organization_id: input.organizationId,
-      team_id: input.teamId,
+      project_id: input.projectId,
     });
     return result ?? { ok: true };
   },
@@ -171,20 +174,20 @@ const removeDeliveryTarget = defineCapability({
   name: "removeDeliveryTarget",
   title: "Remove delivery target",
   description:
-    "Organization admins or delegated team integration managers: remove a team's export target. Only organization admins may remove the organization default.",
+    "Project administrators: stop handing this project's work off to its Jira project. Existing links keep their history.",
   kind: "command",
   surfaces: everywhere,
   destructive: true,
-  input: z.object({ organizationId, teamId: id.nullable() }),
+  input: z.object({ organizationId, projectId: id }),
   async run(ctx, input) {
     await service(ctx).removeTarget(
       ctx.principal.userId,
       input.organizationId,
-      input.teamId,
+      input.projectId,
     );
     track(ctx, "delivery_target_removed", {
       organization_id: input.organizationId,
-      team_id: input.teamId,
+      project_id: input.projectId,
     });
     return { ok: true };
   },
@@ -213,7 +216,7 @@ const publishDelivery = defineCapability({
   decision: true,
   title: "Export to delivery tool",
   description:
-    "Create or update issues in the external delivery tool for ready work. Only do this when the person explicitly asked to export. Requires the export capability. Returns per-item results; failed items can be exported again on their own. Items edited externally are only overwritten when listed in overwriteItemIds.",
+    "Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to export. Requires the hand-off capability in the project. Returns per-item results; failed items can be exported again on their own. Items edited externally are only overwritten when listed in overwriteItemIds.",
   kind: "command",
   surfaces: everywhere,
   external: true,
@@ -226,6 +229,31 @@ const publishDelivery = defineCapability({
     track(ctx, "delivery_publish_requested", {
       organization_id: input.organizationId,
       ...publicationProperties(result),
+    });
+    return result;
+  },
+});
+
+const refreshDeliveryStatus = defineCapability({
+  name: "refreshDeliveryStatus",
+  title: "Refresh Jira status",
+  description:
+    "Read the current Jira status, status category and assignee of every issue a project handed off. Read-only in Jira and in Lictory's own fields.",
+  kind: "command",
+  surfaces: everywhere,
+  external: true,
+  idempotent: true,
+  input: z.object({ organizationId, projectId: id }),
+  async run(ctx, input) {
+    const result = await service(ctx).refreshProject(
+      ctx.principal.userId,
+      input.organizationId,
+      input.projectId,
+    );
+    track(ctx, "delivery_status_refreshed", {
+      organization_id: input.organizationId,
+      project_id: input.projectId,
+      refreshed: result.refreshed,
     });
     return result;
   },
@@ -297,6 +325,7 @@ export const deliveryCapabilities = [
   removeDeliveryTarget,
   previewDeliveryExport,
   publishDelivery,
+  refreshDeliveryStatus,
   getDeliveryPublication,
   linkExternalItem,
   unlinkExternalItem,

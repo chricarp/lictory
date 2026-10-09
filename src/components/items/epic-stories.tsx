@@ -32,10 +32,9 @@ export function EpicStories() {
   const { item, project, canEdit, canChangeProperties } = useItem();
   const { items, organization, mutate, delivery } = useWorkspace();
   const parentType = typeOf(delivery, item);
-  const childTypes = enabledTypes(
-    delivery,
-    delivery.teams.get(item.teamId),
-  ).filter((t) => t.level < parentType.level);
+  const childTypes = enabledTypes(delivery, item.projectId).filter(
+    (t) => t.level < parentType.level,
+  );
   // Default to the richest child type one level down (Story under Epic).
   const [childTypeId, setChildTypeId] = useState<string>();
   const childType =
@@ -216,7 +215,7 @@ export function EpicStories() {
               )}
               <span className="relative z-10">
                 <IssueStatus
-                  teamId={story.teamId}
+                  projectId={story.projectId}
                   statusId={story.statusId}
                   compact
                   onChange={

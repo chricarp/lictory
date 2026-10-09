@@ -15,7 +15,8 @@ import { processAiRuns } from "~/ai/runner";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-// Advances automatic cycles and resumes interrupted delivery exports. Called by a scheduler (Trigger.dev, Vercel cron,
+// Advances automatic cycles, resumes interrupted delivery exports and syncs
+// Jira status back onto handed-off work. Called by a scheduler (Trigger.dev, Vercel cron,
 // or `bun scripts/iteration-worker.ts`). Idempotent, so retries and
 // overlapping runs are safe. Disabled unless CRON_SECRET is configured.
 function authorized(request: Request) {
@@ -46,10 +47,16 @@ async function run(request: Request) {
   console.info(JSON.stringify({ event: "jobs.iterations", ...result }));
   // Resume delivery exports left running (deferred create confirmations,
   // interrupted workers).
-  const delivery = await createDeliveryService(db, {
+  const deliveryService = createDeliveryService(db, {
     onPublicationCompleted: trackPublicationCompleted,
-  }).processPending();
+  });
+  const delivery = await deliveryService.processPending();
   console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
+  // Mirror Jira status and assignee onto handed-off work (read-only).
+  const deliveryStatus = await deliveryService.refreshPending();
+  console.info(
+    JSON.stringify({ event: "jobs.delivery_status", ...deliveryStatus }),
+  );
   // Recover Lictory Intelligence runs whose in-request worker was lost
   // (deploys, timeouts).
   const ai = await processAiRuns(db, { limit: 5 });
@@ -59,7 +66,7 @@ async function run(request: Request) {
     JSON.stringify({ event: "jobs.notification_emails", ...emails }),
   );
   logScheduledJobsCompleted();
-  return Response.json({ ...result, delivery, ai, emails });
+  return Response.json({ ...result, delivery, deliveryStatus, ai, emails });
 }
 
 export const GET = run;

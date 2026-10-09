@@ -1,10 +1,4 @@
 import { z } from "zod";
-import {
-  configurationRoleSchema,
-  configurationAssignmentSchema,
-  configurationScopeSchema,
-  configurationPermissions,
-} from "./configuration-access";
 import { isValidBranchName } from "~/lib/branch-name";
 import {
   aiActionPolicies,
@@ -29,7 +23,7 @@ export const refinementStates = [
   "ready",
 ] as const;
 export type RefinementState = (typeof refinementStates)[number];
-// Fixed categories that give meaning to team-defined workflow statuses.
+// Fixed categories that give meaning to project-defined workflow statuses.
 export const statusCategories = [
   "backlog",
   "unstarted",
@@ -39,6 +33,14 @@ export const statusCategories = [
 ] as const;
 export type StatusCategory = (typeof statusCategories)[number];
 export const deliveryModes = ["native", "external"] as const;
+export type DeliveryMode = (typeof deliveryModes)[number];
+// Provider-neutral category of an external status (Jira status categories).
+export const externalStatusCategories = [
+  "todo",
+  "in_progress",
+  "done",
+] as const;
+export type ExternalStatusCategory = (typeof externalStatusCategories)[number];
 export const deliverySyncStatuses = [
   "pending",
   "synced",
@@ -47,7 +49,9 @@ export const deliverySyncStatuses = [
 ] as const;
 export type DeliverySyncStatus = (typeof deliverySyncStatuses)[number];
 export const readinessPolicies = ["off", "warn", "block"] as const;
+export type ReadinessPolicy = (typeof readinessPolicies)[number];
 export const iterationModes = ["off", "manual", "automatic"] as const;
+export type IterationMode = (typeof iterationModes)[number];
 export const iterationStates = ["planned", "active", "completed"] as const;
 export const estimateScales = [
   "none",
@@ -127,7 +131,16 @@ export const entitySchema = z.discriminatedUnion("type", [
     slug: z.string(),
     key: z.string(),
     description: z.string().nullable(),
-    defaultTeamId: id.nullable(),
+    // Delivery configuration is the project's: every item of the project
+    // follows one workflow, readiness policy, estimate scale and cadence.
+    deliveryMode: z.enum(deliveryModes),
+    readinessPolicy: z.enum(readinessPolicies),
+    estimateScale: z.enum(estimateScales),
+    iterationMode: z.enum(iterationModes),
+    iterationWeeks: z.number().int(),
+    iterationStartDay: z.number().int(),
+    upcomingIterations: z.number().int(),
+    aiActionPolicy: z.enum(aiActionPolicies),
     archivedAt: z.string().nullable(),
   }),
   z.object({
@@ -151,7 +164,8 @@ export const entitySchema = z.discriminatedUnion("type", [
     ...base,
     type: z.literal("workItem"),
     projectId: id,
-    teamId: id,
+    // Optional: the team (vertical) of the project working on the item.
+    teamId: id.nullable(),
     typeId: id,
     parentId: id.nullable(),
     number: z.number().int(),
@@ -254,7 +268,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     type: z.literal("prReview"),
     workItemId: id,
     pullRequestId: id,
-    roleId: id,
+    disciplineId: id,
     userId: id.nullable(),
     required: z.boolean(),
     decision: z.enum(["approved", "changes_requested"]).nullable(),
@@ -277,7 +291,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     type: z.literal("assignment"),
     reviewId: id,
     userId: id.nullable(),
-    roleId: id.nullable(),
+    disciplineId: id.nullable(),
     withdrawnAt: z.string().nullable(),
   }),
   z.object({
@@ -380,8 +394,11 @@ export const entitySchema = z.discriminatedUnion("type", [
     connectionId: id,
     externalKey: z.string().nullable(),
     externalUrl: z.string().nullable(),
-    // Read-only copy of the external status, refreshed on each export.
+    // Read-only copy of the external status, assignee and status category,
+    // refreshed on each export and by the scheduled status sync.
     externalStatus: z.string().nullable(),
+    externalStatusCategory: z.enum(externalStatusCategories).nullable(),
+    externalAssignee: z.string().nullable(),
     status: z.enum(deliverySyncStatuses),
     publishedRevisionId: id.nullable(),
     publishedRevisionNumber: z.number().int().nullable(),
@@ -488,9 +505,11 @@ export const changeSchema = z.discriminatedUnion("operation", [
   }),
 ]);
 export type Change = z.infer<typeof changeSchema>;
-// Fixed application roles. `admin` (Better Auth owner/admin) manages the
-// organization, its projects and roles; `member` has every other feature.
-// Workflow capabilities come only from organization roles, never from these.
+// Fixed application roles, held on the organization membership. `admin`
+// (Better Auth owner/admin) administers the organization and every project;
+// `member` works in the organization. Work item capabilities never come from
+// application roles: they come from the disciplines a person holds in a
+// project.
 export const applicationRoles = ["admin", "member"] as const;
 export type ApplicationRole = (typeof applicationRoles)[number];
 export function applicationRoleOf(raw: string): ApplicationRole {
@@ -512,7 +531,19 @@ export const directoryMemberSchema = memberSchema.extend({
   role: z.enum(applicationRoles),
   owner: z.boolean(),
 });
-// Workflow capabilities an organization role grants to its members.
+// Project roles. A project administrator manages the project's configuration
+// (settings, workflow, types, teams, members, disciplines, iterations and its
+// delivery target); a project member works in it. Organization administrators
+// administer every project without being listed.
+export const projectRoles = ["admin", "member"] as const;
+export type ProjectRole = (typeof projectRoles)[number];
+export const projectMemberSchema = z.object({
+  projectId: id,
+  userId: id,
+  role: z.enum(projectRoles),
+});
+export type ProjectMember = z.infer<typeof projectMemberSchema>;
+// Work item capabilities a discipline grants its members in its project.
 export const capabilitySchema = z.object({
   editSpecifications: z.boolean(),
   changeProperties: z.boolean(),
@@ -531,35 +562,76 @@ export const noCapabilities: Capabilities = {
   review: false,
   publishDelivery: false,
 };
-export const roleSchema = z.object({
+// A work discipline (Product, Engineering, QA…) of one project: who reviews
+// what, and what its members may do with the project's work items.
+export const disciplineSchema = z.object({
   id,
+  projectId: id,
   name: z.string(),
   description: z.string().nullable(),
   capabilities: capabilitySchema,
   userIds: z.array(id),
   archivedAt: z.string().nullable(),
 });
-export type Role = z.infer<typeof roleSchema>;
-// Union of capabilities over the active roles a user holds.
-export function capabilitiesOf(roles: Role[], userId: string): Capabilities {
-  const mine = roles.filter((r) => !r.archivedAt && r.userIds.includes(userId));
+export type Discipline = z.infer<typeof disciplineSchema>;
+// Union of capabilities over the active disciplines a user holds in a project.
+export function capabilitiesOf(
+  disciplines: Discipline[],
+  userId: string,
+  projectId: string,
+): Capabilities {
+  const mine = disciplines.filter(
+    (d) =>
+      d.projectId === projectId && !d.archivedAt && d.userIds.includes(userId),
+  );
   return {
-    editSpecifications: mine.some((r) => r.capabilities.editSpecifications),
-    changeProperties: mine.some((r) => r.capabilities.changeProperties),
-    requestReviews: mine.some((r) => r.capabilities.requestReviews),
-    review: mine.some((r) => r.capabilities.review),
-    publishDelivery: mine.some((r) => r.capabilities.publishDelivery),
+    editSpecifications: mine.some((d) => d.capabilities.editSpecifications),
+    changeProperties: mine.some((d) => d.capabilities.changeProperties),
+    requestReviews: mine.some((d) => d.capabilities.requestReviews),
+    review: mine.some((d) => d.capabilities.review),
+    publishDelivery: mine.some((d) => d.capabilities.publishDelivery),
   };
 }
 // Suggestion reviewers merge into the mainline, so they must hold an active
-// role that both edits specifications and can be asked to review.
-export function canReviewSuggestions(roles: Role[], userId: string) {
-  return roles.some(
-    (r) =>
-      !r.archivedAt &&
-      r.userIds.includes(userId) &&
-      r.capabilities.editSpecifications &&
-      r.capabilities.review,
+// discipline of the project that both edits specifications and reviews.
+export function canReviewSuggestions(
+  disciplines: Discipline[],
+  userId: string,
+  projectId: string,
+) {
+  return disciplines.some(
+    (d) =>
+      d.projectId === projectId &&
+      !d.archivedAt &&
+      d.userIds.includes(userId) &&
+      d.capabilities.editSpecifications &&
+      d.capabilities.review,
+  );
+}
+export function projectRoleOf(
+  members: ProjectMember[],
+  userId: string,
+  projectId: string,
+): ProjectRole | null {
+  return (
+    members.find((m) => m.projectId === projectId && m.userId === userId)
+      ?.role ?? null
+  );
+}
+// Project configuration authority: organization administrators, or the
+// project's administrators while the project is active.
+export function canManageProject(
+  directory: Pick<Directory, "projects" | "projectMembers">,
+  userId: string,
+  organizationAdmin: boolean,
+  projectId: string,
+) {
+  if (organizationAdmin) return true;
+  const project = directory.projects.find((p) => p.id === projectId);
+  return (
+    !!project &&
+    !project.archivedAt &&
+    projectRoleOf(directory.projectMembers, userId, projectId) === "admin"
   );
 }
 export const memberSearchSchema = z.object({
@@ -594,6 +666,7 @@ export const epicPageSchema = z.object({
 export type EpicPage = z.infer<typeof epicPageSchema>;
 export const workflowStatusSchema = z.object({
   id,
+  projectId: id,
   name: z.string(),
   color: z.enum(labelColors),
   category: z.enum(statusCategories),
@@ -601,25 +674,18 @@ export const workflowStatusSchema = z.object({
   archivedAt: z.string().nullable(),
 });
 export type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
+// A team is a group of people working on one vertical of a project. It owns
+// no configuration; boards and backlogs can be filtered to it.
 export const teamSchema = z.object({
   id,
-  projectIds: z.array(id).optional(),
+  projectId: id,
   name: z.string(),
   description: z.string().nullable(),
-  deliveryMode: z.enum(deliveryModes),
-  readinessPolicy: z.enum(readinessPolicies),
-  estimateScale: z.enum(estimateScales),
-  iterationMode: z.enum(iterationModes),
-  iterationWeeks: z.number().int(),
-  iterationStartDay: z.number().int(),
-  upcomingIterations: z.number().int(),
-  aiActionPolicy: z.enum(aiActionPolicies).default("advisory"),
   memberIds: z.array(id),
-  typeIds: z.array(id),
-  statuses: z.array(workflowStatusSchema),
   archivedAt: z.string().nullable(),
 });
 export type Team = z.infer<typeof teamSchema>;
+export const projectTypeSchema = z.object({ projectId: id, typeId: id });
 export const workItemTypeSchema = z.object({
   id,
   name: z.string(),
@@ -633,7 +699,7 @@ export const workItemTypeSchema = z.object({
 export type WorkItemType = z.infer<typeof workItemTypeSchema>;
 export const iterationSchema = z.object({
   id,
-  teamId: id,
+  projectId: id,
   number: z.number().int(),
   name: z.string().nullable(),
   goal: z.string().nullable(),
@@ -698,7 +764,7 @@ export const iterationReportSchema = z.object({
     .object({ carriedOver: tally, carriedOverTo: id.nullable() })
     .passthrough()
     .nullable(),
-  // Completed points of the team's recent iterations, oldest first.
+  // Completed points of the project's recent iterations, oldest first.
   velocity: z.array(
     z.object({
       iterationId: id,
@@ -714,7 +780,6 @@ export type IterationReport = z.infer<typeof iterationReportSchema>;
 // remain server checks; directory visibility alone grants no capability.
 export const deliveryConnectionSchema = z.object({
   id,
-  teamId: id.nullable().optional(),
   provider: z.enum(["jira_cloud"]),
   name: z.string(),
   baseUrl: z.string(),
@@ -728,8 +793,7 @@ export type DeliveryConnectionSummary = z.infer<
 export const deliveryTargetSchema = z.object({
   id,
   connectionId: id,
-  // Null: organization default.
-  teamId: id.nullable(),
+  projectId: id,
   externalProjectId: z.string(),
   externalProjectKey: z.string(),
   typeMapping: z.record(z.string(), z.string()),
@@ -750,11 +814,13 @@ export const directorySchema = z.object({
   ),
   projects: z.array(entitySchema.options[0]),
   members: z.array(directoryMemberSchema),
-  roles: z.array(roleSchema),
-  configurationRoles: z.array(configurationRoleSchema).optional(),
-  configurationAssignments: z.array(configurationAssignmentSchema).optional(),
+  projectMembers: z.array(projectMemberSchema),
+  disciplines: z.array(disciplineSchema),
   teams: z.array(teamSchema),
+  // Organization type registry, and the types each project uses.
   types: z.array(workItemTypeSchema),
+  projectTypes: z.array(projectTypeSchema),
+  statuses: z.array(workflowStatusSchema),
   // Planned and active iterations plus recent completed ones.
   iterations: z.array(iterationSchema),
   delivery: z.object({
@@ -768,7 +834,7 @@ export const directorySchema = z.object({
     .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 11 as const;
+export const PROTOCOL = 12 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -784,10 +850,19 @@ const projectKey = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z][A-Z0-9]{1,9}$/, "Use 2-10 letters or digits, e.g. PAY.");
+export const projectSettingsSchema = z.object({
+  deliveryMode: z.enum(deliveryModes),
+  readinessPolicy: z.enum(readinessPolicies),
+  estimateScale: z.enum(estimateScales),
+  iterationMode: z.enum(iterationModes),
+  iterationWeeks: z.number().int().min(1).max(8),
+  iterationStartDay: z.number().int().min(0).max(6),
+  upcomingIterations: z.number().int().min(0).max(6),
+  aiActionPolicy: z.enum(aiActionPolicies),
+});
+export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 export const onboardingSetupSchema = z
   .object({
-    teamId: id,
-    teamName: text.max(60),
     deliveryMode: z.enum(deliveryModes),
     readinessPolicy: z.enum(readinessPolicies),
     estimateScale: z.enum(estimateScales),
@@ -806,32 +881,74 @@ export const onboardingSetupSchema = z
       (s.iterationMode === "off" && s.estimateScale === "none"),
     {
       message:
-        "External teams plan and estimate delivery in their delivery tool.",
+        "Projects delivered in an external tool plan and estimate there.",
     },
   );
 export type OnboardingSetup = z.infer<typeof onboardingSetupSchema>;
 
 export const commandSchema = z.discriminatedUnion("type", [
+  // Organization administrators create and archive projects. The creator
+  // becomes a project administrator and joins its first discipline.
   z.object({
     type: z.literal("createProject"),
     projectId: z.uuid(),
     name: text.max(120),
     key: projectKey,
+    description: z.string().trim().max(2000).optional(),
     setup: onboardingSetupSchema.optional(),
   }),
+  // Project administrators.
   z.object({
     type: z.literal("updateProject"),
     projectId: id,
-    name: text.max(120),
-    defaultTeamId: id.optional(),
+    name: text.max(120).optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    ...projectSettingsSchema.partial().shape,
+  }),
+  z.object({
+    type: z.literal("archiveProject"),
+    projectId: id,
+    archived: z.boolean(),
+  }),
+  // null removes the person from the project (and its disciplines).
+  z.object({
+    type: z.literal("setProjectMember"),
+    projectId: id,
+    userId: id,
+    role: z.enum(projectRoles).nullable(),
+  }),
+  z.object({
+    type: z.literal("createDiscipline"),
+    projectId: id,
+    disciplineId: z.uuid(),
+    name: text.max(60),
+    description: z.string().trim().max(500).optional(),
+    capabilities: capabilitySchema,
+  }),
+  z.object({
+    type: z.literal("updateDiscipline"),
+    projectId: id,
+    disciplineId: id,
+    name: text.max(60).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    capabilities: capabilitySchema.optional(),
+    archived: z.boolean().optional(),
+  }),
+  // Adding someone to a discipline also adds them to the project.
+  z.object({
+    type: z.literal("setDisciplineMember"),
+    projectId: id,
+    disciplineId: id,
+    userId: id,
+    member: z.boolean(),
   }),
   z.object({
     type: z.literal("createWorkItem"),
     projectId: id,
     workItemId: z.uuid(),
     typeId: id,
-    // Defaults to the project's default team.
-    teamId: id.optional(),
+    // Optional team of the project.
+    teamId: id.nullable().optional(),
     parentId: id.nullable(),
     title: text.max(240),
     description: document.optional(),
@@ -848,7 +965,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     statusId: id.optional(),
     refinementState: z.enum(["draft", "refinement", "in_review"]).optional(),
     typeId: id.optional(),
-    teamId: id.optional(),
+    teamId: id.nullable().optional(),
     priority: z.enum(workItemPriorities).optional(),
     assigneeId: id.nullable().optional(),
     parentId: id.nullable().optional(),
@@ -1014,7 +1131,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("requestPullRequestReview"),
     ...itemCommand,
     pullRequestId: id,
-    roleId: id,
+    disciplineId: id,
     userId: id.nullable(),
     required: z.boolean(),
   }),
@@ -1089,13 +1206,14 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...revisionCommand,
     suggestionId: id,
   }),
-  // Reviews are requested from a reviewer role; the role's name becomes the
-  // review responsibility. Optionally a specific member of that role is asked.
+  // Reviews are requested from a reviewing discipline of the item's project;
+  // its name becomes the review responsibility. Optionally a specific member
+  // of that discipline is asked.
   z.object({
     type: z.literal("requestReview"),
     ...revisionCommand,
     reviewId: z.uuid(),
-    roleId: id,
+    disciplineId: id,
     userId: id.nullable(),
     required: z.boolean(),
   }),
@@ -1144,44 +1262,38 @@ export const commandSchema = z.discriminatedUnion("type", [
     runId: id,
     findingId: id,
   }),
-  // Team configuration (administrators or scoped configuration capabilities).
+  // Project configuration (project administrators).
   z.object({
     type: z.literal("createTeam"),
+    projectId: id,
     teamId: z.uuid(),
-    projectId: id.optional(),
     name: text.max(60),
+    description: z.string().trim().max(500).optional(),
   }),
   z.object({
     type: z.literal("updateTeam"),
+    projectId: id,
     teamId: id,
-    projectIds: z.array(id).min(1).max(100).optional(),
     name: text.max(60).optional(),
     description: z.string().trim().max(500).nullable().optional(),
-    deliveryMode: z.enum(deliveryModes).optional(),
-    readinessPolicy: z.enum(readinessPolicies).optional(),
-    estimateScale: z.enum(estimateScales).optional(),
-    iterationMode: z.enum(iterationModes).optional(),
-    iterationWeeks: z.number().int().min(1).max(8).optional(),
-    iterationStartDay: z.number().int().min(0).max(6).optional(),
-    upcomingIterations: z.number().int().min(0).max(6).optional(),
-    aiActionPolicy: z.enum(aiActionPolicies).optional(),
     archived: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("setTeamMembership"),
+    projectId: id,
     teamId: id,
     userId: id,
     member: z.boolean(),
   }),
   z.object({
-    type: z.literal("setTeamType"),
-    teamId: id,
+    type: z.literal("setProjectType"),
+    projectId: id,
     typeId: id,
     enabled: z.boolean(),
   }),
   z.object({
     type: z.literal("createStatus"),
-    teamId: id,
+    projectId: id,
     statusId: z.uuid(),
     name: text.max(40),
     color: z.enum(labelColors),
@@ -1189,7 +1301,7 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("updateStatus"),
-    teamId: id,
+    projectId: id,
     statusId: id,
     name: text.max(40).optional(),
     color: z.enum(labelColors).optional(),
@@ -1200,10 +1312,43 @@ export const commandSchema = z.discriminatedUnion("type", [
   // Archiving moves the status's items explicitly; never a silent default.
   z.object({
     type: z.literal("archiveStatus"),
-    teamId: id,
+    projectId: id,
     statusId: id,
     replacementId: id,
   }),
+  // Iteration planning (project administrators and disciplines that change
+  // properties).
+  z.object({
+    type: z.literal("createIteration"),
+    projectId: id,
+    iterationId: z.uuid(),
+    name: z.string().trim().max(80).nullable(),
+    goal: z.string().trim().max(500).nullable(),
+    startsAt: z.string().date(),
+    endsAt: z.string().date(),
+  }),
+  z.object({
+    type: z.literal("updateIteration"),
+    projectId: id,
+    iterationId: id,
+    name: z.string().trim().max(80).nullable().optional(),
+    goal: z.string().trim().max(500).nullable().optional(),
+    startsAt: z.string().date().optional(),
+    endsAt: z.string().date().optional(),
+  }),
+  z.object({
+    type: z.literal("startIteration"),
+    projectId: id,
+    iterationId: id,
+  }),
+  // Unfinished items move to the chosen iteration or back to the backlog.
+  z.object({
+    type: z.literal("completeIteration"),
+    projectId: id,
+    iterationId: id,
+    carryOverTo: id.nullable(),
+  }),
+  // Organization type registry (organization administrators).
   z.object({
     type: z.literal("createType"),
     typeId: z.uuid(),
@@ -1222,132 +1367,61 @@ export const commandSchema = z.discriminatedUnion("type", [
     hasSpecification: z.boolean().optional(),
     archived: z.boolean().optional(),
   }),
-  // Iteration planning (roles that change properties).
-  z.object({
-    type: z.literal("createIteration"),
-    teamId: id,
-    iterationId: z.uuid(),
-    name: z.string().trim().max(80).nullable(),
-    goal: z.string().trim().max(500).nullable(),
-    startsAt: z.string().date(),
-    endsAt: z.string().date(),
-  }),
-  z.object({
-    type: z.literal("updateIteration"),
-    teamId: id,
-    iterationId: id,
-    name: z.string().trim().max(80).nullable().optional(),
-    goal: z.string().trim().max(500).nullable().optional(),
-    startsAt: z.string().date().optional(),
-    endsAt: z.string().date().optional(),
-  }),
-  z.object({
-    type: z.literal("startIteration"),
-    teamId: id,
-    iterationId: id,
-  }),
-  // Unfinished items move to the chosen iteration or back to the backlog.
-  z.object({
-    type: z.literal("completeIteration"),
-    teamId: id,
-    iterationId: id,
-    carryOverTo: id.nullable(),
-  }),
-  // Organization-owned configuration templates and scope-local assignments.
-  z.object({
-    type: z.literal("createConfigurationRole"),
-    roleId: z.uuid(),
-    name: text.max(60),
-    scope: configurationScopeSchema,
-    scopeId: id.optional(),
-    parentRoleId: id.optional(),
-    permissions: z.array(z.enum(configurationPermissions)).max(10),
-  }),
-  z.object({
-    type: z.literal("updateConfigurationRole"),
-    roleId: id,
-    name: text.max(60).optional(),
-    permissions: z.array(z.enum(configurationPermissions)).max(10).optional(),
-    archived: z.boolean().optional(),
-  }),
-  z.object({
-    type: z.literal("setConfigurationAssignment"),
-    roleId: id,
-    userId: id,
-    scope: configurationScopeSchema,
-    scopeId: id,
-    assigned: z.boolean(),
-  }),
-  // Organization role administration (application-role admins only).
-  z.object({
-    type: z.literal("createRole"),
-    roleId: z.uuid(),
-    name: text.max(60),
-    description: z.string().trim().max(500).optional(),
-    capabilities: capabilitySchema,
-  }),
-  z.object({
-    type: z.literal("updateRole"),
-    roleId: id,
-    name: text.max(60).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
-    capabilities: capabilitySchema.optional(),
-    archived: z.boolean().optional(),
-  }),
-  z.object({
-    type: z.literal("setRoleMembership"),
-    roleId: id,
-    userId: id,
-    member: z.boolean(),
-  }),
 ]);
-export type RoleCommand = Extract<
-  Command,
-  { type: "createRole" | "updateRole" | "setRoleMembership" }
->;
-export type TeamCommand = Extract<
+// Commands that change one project's configuration and may move its items.
+export type ProjectConfigurationCommand = Extract<
   Command,
   {
     type:
+      | "updateProject"
+      | "archiveProject"
+      | "setProjectMember"
+      | "createDiscipline"
+      | "updateDiscipline"
+      | "setDisciplineMember"
       | "createTeam"
       | "updateTeam"
       | "setTeamMembership"
-      | "setTeamType"
+      | "setProjectType"
       | "createStatus"
       | "updateStatus"
       | "archiveStatus"
-      | "createType"
-      | "updateType"
       | "createIteration"
       | "updateIteration"
       | "startIteration"
       | "completeIteration";
   }
 >;
-const teamCommandTypes = new Set<string>([
+const projectConfigurationCommandTypes = new Set<string>([
+  "updateProject",
+  "archiveProject",
+  "setProjectMember",
+  "createDiscipline",
+  "updateDiscipline",
+  "setDisciplineMember",
   "createTeam",
   "updateTeam",
   "setTeamMembership",
-  "setTeamType",
+  "setProjectType",
   "createStatus",
   "updateStatus",
   "archiveStatus",
-  "createType",
-  "updateType",
   "createIteration",
   "updateIteration",
   "startIteration",
   "completeIteration",
 ]);
-export function isTeamCommand(c: Command): c is TeamCommand {
-  return teamCommandTypes.has(c.type);
+export function isProjectConfigurationCommand(
+  c: Command,
+): c is ProjectConfigurationCommand {
+  return projectConfigurationCommandTypes.has(c.type);
 }
-export function isRoleCommand(c: Command): c is RoleCommand {
-  return (
-    c.type === "createRole" ||
-    c.type === "updateRole" ||
-    c.type === "setRoleMembership"
-  );
+export type TypeCommand = Extract<
+  Command,
+  { type: "createType" | "updateType" }
+>;
+export function isTypeCommand(c: Command): c is TypeCommand {
+  return c.type === "createType" || c.type === "updateType";
 }
 export type Command = z.infer<typeof commandSchema>;
 export const mutationSchema = z.object({

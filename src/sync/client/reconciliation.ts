@@ -23,10 +23,11 @@ export function optimistic(
   entities: Entities,
   mutations: Mutation[],
   userId: string,
-  // The server names the review after its role; predict from the directory.
-  roleName: (roleId: string) => string = () => "Review",
-  // Teams and types predict the workflow of new or moved items.
-  directory?: Pick<Directory, "teams" | "types" | "projects">,
+  // The server names the review after its discipline; predict from the
+  // directory.
+  disciplineName: (disciplineId: string) => string = () => "Review",
+  // Project workflows and types predict the status of new items.
+  directory?: Pick<Directory, "statuses" | "types" | "projects">,
 ): Entities {
   const next = { ...entities };
   const now = new Date().toISOString();
@@ -42,20 +43,25 @@ export function optimistic(
           name: c.name,
           slug: c.key.toLowerCase(),
           key: c.key,
-          description: null,
-          defaultTeamId:
-            directory?.teams.find((t) => !t.archivedAt)?.id ?? null,
+          description: c.description?.trim() ? c.description.trim() : null,
+          deliveryMode: c.setup?.deliveryMode ?? "native",
+          readinessPolicy: c.setup?.readinessPolicy ?? "warn",
+          estimateScale: c.setup?.estimateScale ?? "fibonacci",
+          iterationMode: c.setup?.iterationMode ?? "manual",
+          iterationWeeks: c.setup?.iterationWeeks ?? 2,
+          iterationStartDay: c.setup?.iterationStartDay ?? 1,
+          upcomingIterations: 2,
+          aiActionPolicy: "advisory",
           archivedAt: null,
         };
         break;
       case "createWorkItem": {
-        const project = next[`project:${c.projectId}`];
-        const teamId =
-          c.teamId ??
-          (project?.type === "project" ? project.defaultTeamId : null);
-        const team = directory?.teams.find((t) => t.id === teamId);
+        const teamId = c.teamId ?? null;
         const type = directory?.types.find((t) => t.id === c.typeId);
-        const statuses = team?.statuses.filter((x) => !x.archivedAt) ?? [];
+        const statuses =
+          directory?.statuses.filter(
+            (x) => x.projectId === c.projectId && !x.archivedAt,
+          ) ?? [];
         const statusId =
           c.statusId ??
           (
@@ -63,11 +69,12 @@ export function optimistic(
             statuses.find((x) => x.category === "unstarted") ??
             statuses[0]
           )?.id;
-        // Without the team's workflow the server's answer is awaited instead.
-        if (!teamId || !statusId || !type) break;
+        // Without the project's workflow the server's answer is awaited.
+        if (!statusId || !type) break;
         const lastRank = Object.values(next)
           .filter(
-            (e): e is WorkItem => e.type === "workItem" && e.teamId === teamId,
+            (e): e is WorkItem =>
+              e.type === "workItem" && e.projectId === c.projectId,
           )
           .map((e) => e.rank)
           .sort()
@@ -147,8 +154,8 @@ export function optimistic(
         if (old?.type !== "workItem") break;
         next[entityKey(old)] = {
           ...old,
-          // Team moves remap the status on the server; wait for it.
-          statusId: c.teamId ? old.statusId : (c.statusId ?? old.statusId),
+          statusId: c.statusId ?? old.statusId,
+          teamId: c.teamId === undefined ? old.teamId : c.teamId,
           refinementState: c.refinementState ?? old.refinementState,
           priority: c.priority ?? old.priority,
           assigneeId:
@@ -263,7 +270,7 @@ export function optimistic(
           organizationId,
           workItemId: c.workItemId,
           revisionId: c.baseRevisionId,
-          responsibility: roleName(c.roleId),
+          responsibility: disciplineName(c.disciplineId),
           status: "requested",
           required: c.required,
           requestedById: userId,
@@ -275,7 +282,7 @@ export function optimistic(
           organizationId,
           reviewId: c.reviewId,
           userId: c.userId,
-          roleId: c.userId ? null : c.roleId,
+          disciplineId: c.userId ? null : c.disciplineId,
           withdrawnAt: null,
         };
         break;
