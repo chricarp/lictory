@@ -49,7 +49,8 @@ export type Effects = {
   trackFailure(operation: string, error: unknown): void;
   // Notifications may have been queued; deliver pending email.
   notificationsQueued(): void;
-  // Lictory AI runs may have been queued; process them after the response.
+  // Lictory Intelligence runs may have been queued; process them after the
+  // response.
   aiRunsQueued(): void;
   publicationCompleted?(publication: {
     id: string;

@@ -25,7 +25,7 @@ export function serverEffects(
     trackFailure: (operation, error) =>
       trackServerFailure(principal.userId, operation, error, headers),
     notificationsQueued: () => kickNotificationEmails(db),
-    // Lictory AI may take minutes; run it after the response is sent.
+    // Lictory Intelligence may take minutes; run it after the response is sent.
     aiRunsQueued: () => after(() => kickAiRuns(db)),
     publicationCompleted: (publication) =>
       trackPublicationCompleted(publication, headers),

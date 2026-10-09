@@ -17,7 +17,7 @@ This notice is intended to provide information under Articles 13 and 14 of Regul
 
 **Organization and collaboration.** Memberships, invitations, roles, teams, projects, specifications, immutable revisions, review decisions, approvals, anchored discussions, suggestions, readiness checks, work items, estimates, iterations, relations, notifications and associated authorship, timestamps and activity history. Uploaded files and their metadata may contain personal data. Review and delivery history records who did what and which revision was reviewed.
 
-**Integrations and AI.** Connection settings and credentials, external issue identifiers, publishing results, and the content you publish through a configured delivery integration. When AI is enabled, we also handle requests, contextual content, generated findings and the identity of the requester.
+**Integrations and Lictory Intelligence.** Connection settings and credentials, external issue identifiers, publishing results, and the content you publish through a configured delivery integration. When Lictory Intelligence is enabled, we also handle requests, contextual content, generated findings and the identity of the requester.
 
 **Technical, support and usage data.** Requests to the website and APIs, diagnostic and security information, browser and device characteristics, page visits, feature-use events, identifiers and counts, and correspondence you send us. The analytics section below explains which events are collected even without analytics-cookie consent.
 
@@ -35,7 +35,7 @@ We receive data directly from you, from your browser, from organization administ
 - **Optional browser analytics with stored identifiers — consent (Article 6(1)(a)).** Only after you enable Analytics in Privacy preferences. You may withdraw it at any time.
 - **Legal obligations — Article 6(1)(c).** Responding to binding legal requests and keeping records required by applicable law. Establishing, exercising or defending legal claims may instead rely on Article 6(1)(f).
 
-For organization-controlled workspace content, the organization determines the lawful basis; Lictory processes it on the organization’s instructions, including optional AI and external publishing. Enabling a feature is an instruction to provide it, not blanket GDPR consent on behalf of everyone mentioned in its content.
+For organization-controlled workspace content, the organization determines the lawful basis; Lictory processes it on the organization’s instructions, including optional Lictory Intelligence and external publishing. Enabling a feature is an instruction to provide it, not blanket GDPR consent on behalf of everyone mentioned in its content.
 
 Name, email and authentication information are needed to provide an account. Without them we cannot register or authenticate you. Workspace information is needed for the features you choose. Optional analytics consent is not required to create an account or use core collaboration. Account creation acknowledges this notice; it does not waive your rights.`,
   },
@@ -54,19 +54,19 @@ PostHog analytics is hosted on EU servers in this deployment. Open **Privacy pre
   },
   {
     id: "ai",
-    title: "Optional AI analysis",
-    body: `AI is off by default for an organization and requires administrator enablement and a configured provider. Depending on team policy, an authorized request or a review update can trigger analysis. The current provider is **OpenAI**, under the operator’s Zero Data Retention arrangement. Requests also use the API’s storage-disabled setting. Provider retention controls concern OpenAI’s handling of the request; Lictory retains its own AI run history and results with the workspace.
+    title: "Optional Lictory Intelligence analysis",
+    body: `Lictory Intelligence is off by default for an organization and requires administrator enablement and a configured provider. Depending on team policy, an authorized request or a review update can trigger analysis. The current provider is **OpenAI**, under the operator’s Zero Data Retention arrangement. Requests also use the API’s storage-disabled setting. Provider retention controls concern OpenAI’s handling of the request; Lictory retains its own Lictory Intelligence run history and results with the workspace.
 
 Analysis can send specifications of the relevant item and related ancestors or descendants, initial open discussion messages, statuses, estimates, relations and changed lines in a proposed revision. Do not enable analysis for content you are not authorized to disclose to that provider. Your organization must establish any required lawful basis and processing arrangements.
 
-Outputs are proposals for human review and can be wrong. AI does not approve a specification, resolve a discussion or authorize publishing. Lictory does not use AI to make decisions about individuals that produce legal or similarly significant effects. The availability of EU hosting for the application and analytics does not establish that AI processing stays in the EEA; applicable transfer arrangements must cover any access or processing outside it.`,
+Outputs are proposals for human review and can be wrong. Lictory Intelligence does not approve a specification, resolve a discussion or authorize publishing. Lictory does not use AI to make decisions about individuals that produce legal or similarly significant effects. The availability of EU hosting for the application and analytics does not establish that Lictory Intelligence processing stays in the EEA; applicable transfer arrangements must cover any access or processing outside it.`,
   },
   {
     id: "sharing",
     title: "Recipients and international transfers",
     body: `Workspace data is available to members who have access through your organization’s permissions. Administrators manage access and can see membership and activity information. Content you submit is not made public just because the legal pages and landing page are public.
 
-The website/application is hosted by **Vercel in a European datacenter**. **Neon** hosts the PostgreSQL database, **Cloudflare R2** stores private uploaded files, and **Resend** delivers transactional email, using the operator’s EU-hosted configurations. **PostHog on EU servers** receives the analytics described above; **OpenAI** receives context only for enabled AI features under the operator’s Zero Data Retention arrangement. Authorized service providers and personnel may access only the data needed for their functions under appropriate confidentiality and data-processing arrangements.
+The website/application is hosted by **Vercel in a European datacenter**. **Neon** hosts the PostgreSQL database, **Cloudflare R2** stores private uploaded files, and **Resend** delivers transactional email, using the operator’s EU-hosted configurations. **PostHog on EU servers** receives the analytics described above; **OpenAI** receives context only when Lictory Intelligence is enabled, under the operator’s Zero Data Retention arrangement. Authorized service providers and personnel may access only the data needed for their functions under appropriate confidentiality and data-processing arrangements.
 
 Google or Microsoft handles sign-in if you select an enabled provider. A delivery provider, currently Jira where connected, receives the work-item content and metadata your organization instructs Lictory to publish; it handles those data under your organization’s relationship with it. Provider privacy terms apply to processing it independently determines. We may also disclose information where necessary to comply with binding law or protect legal rights. Lictory does not sell personal data or use workspace content for advertising.
 

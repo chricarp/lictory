@@ -15,7 +15,7 @@ The service and these terms are provided in English. Correct registration detail
     title: "What Lictory does",
     body: `Lictory helps software teams turn proposals into reviewed specifications and implementation work. It supports revisions and diffs, contextual discussions, suggestions, reviewer decisions, revision-specific approvals, readiness checks and collaboration history.
 
-A team can manage delivery within Lictory using work items, workflows, boards, backlogs and iterations, or publish work through a configured external delivery provider. A team’s delivery mode determines which system owns delivery state; refinement remains in Lictory. Integrations and AI are available only where configured and authorized.
+A team can manage delivery within Lictory using work items, workflows, boards, backlogs and iterations, or publish work through a configured external delivery provider. A team’s delivery mode determines which system owns delivery state; refinement remains in Lictory. Integrations and Lictory Intelligence are available only where configured and authorized.
 
 Readiness checks and recorded approvals are evidence of the review performed. They are not a certification that a design is secure, legally compliant, complete or free of defects. Your team decides whether the specification is suitable and whether to begin or publish work.`,
   },
@@ -46,10 +46,10 @@ Security research must respect access boundaries and avoid disruption or disclos
   },
   {
     id: "ai",
-    title: "AI assistance and human review",
-    body: `An organization administrator must enable AI before its content is analyzed. When enabled, analysis can run at an authorized user’s request or according to the team’s review policy. Relevant specifications, related work and discussion context can be sent to OpenAI as explained in the Privacy Notice. Check the organization’s confidentiality and data-protection requirements before enabling it.
+    title: "Lictory Intelligence and human review",
+    body: `An organization administrator must enable Lictory Intelligence before its content is analyzed. When enabled, analysis can run at an authorized user’s request or according to the team’s review policy. Relevant specifications, related work and discussion context can be sent to OpenAI as explained in the Privacy Notice. Check the organization’s confidentiality and data-protection requirements before enabling it.
 
-AI findings, questions and proposed edits may be inaccurate or incomplete. Review them before accepting or relying on them. Humans decide what changes become part of a specification, what discussions are resolved, and what is approved or published. An AI result does not constitute professional, legal or security advice. OpenAI Zero Data Retention concerns provider-side request handling; Lictory still records AI runs and results in workspace history.`,
+Lictory Intelligence findings, questions and proposed edits may be inaccurate or incomplete. Review them before accepting or relying on them. Humans decide what changes become part of a specification, what discussions are resolved, and what is approved or published. A Lictory Intelligence result does not constitute professional, legal or security advice. OpenAI Zero Data Retention concerns provider-side request handling; Lictory still records Lictory Intelligence runs and results in workspace history.`,
   },
   {
     id: "integrations",

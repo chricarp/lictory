@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import * as s from "~/db/schema";
 import {
   AI_ACTOR_ID,
+  INTELLIGENCE_REVIEW_ACTION,
   aiFindingSchema,
   aiScore,
   applyAiEdit,
@@ -52,7 +53,7 @@ export async function processAiRuns(
       const message =
         error instanceof AnalyzerError
           ? error.message
-          : "Lictory AI could not finish this run. Run it again.";
+          : "Lictory Intelligence could not finish this run. Run it again.";
       if (!(error instanceof AnalyzerError))
         console.error(
           JSON.stringify({
@@ -317,7 +318,7 @@ async function execute(
   const policy = await aiPolicy(db, run.organizationId);
   if (!policy.enabled || !policy.available)
     throw new AnalyzerError(
-      "AI was turned off for this organization before the run started.",
+      "Lictory Intelligence was turned off for this organization before the run started.",
     );
   if (run.kind === "item_review") {
     const prepared = await db.transaction((tx) =>
@@ -395,7 +396,7 @@ async function execute(
           completedAt: new Date(),
           error: prepared
             ? "A newer commit replaced the reviewed head."
-            : "The pull request closed before Lictory Action ran.",
+            : `The pull request closed before the ${INTELLIGENCE_REVIEW_ACTION} ran.`,
         })
         .where(eq(s.aiRun.id, run.id));
     });
@@ -441,7 +442,7 @@ async function execute(
         .set({
           status: "superseded",
           completedAt: new Date(),
-          error: "The pull request changed while Lictory Action ran.",
+          error: `The pull request changed while the ${INTELLIGENCE_REVIEW_ACTION} ran.`,
         })
         .where(eq(s.aiRun.id, run.id));
       result = "superseded";
@@ -497,7 +498,7 @@ async function execute(
         continue;
       }
       f.threadId = await open(
-        f.edit?.section.trim() ? f.edit.section : "Lictory Action",
+        f.edit?.section.trim() ? f.edit.section : INTELLIGENCE_REVIEW_ACTION,
         // Anchor only to text that exists in the reviewed content.
         f.evidence.find((e) => prepared.head.content.includes(e)),
         renderFinding(f),
@@ -509,7 +510,7 @@ async function execute(
       if (![...repeated.values()].includes(previous.threadId!))
         await reply(
           previous.threadId!,
-          `Lictory Action no longer detects this at commit ${commit}. Resolve the discussion if you agree.`,
+          `The ${INTELLIGENCE_REVIEW_ACTION} no longer detects this at commit ${commit}. Resolve the discussion if you agree.`,
         );
     const rundown = renderRundown(
       output.summary,
@@ -527,12 +528,16 @@ async function execute(
           eq(s.thread.organizationId, run.organizationId),
           eq(s.thread.pullRequestId, pr.id),
           eq(s.thread.authorId, AI_ACTOR_ID),
-          sql`${s.thread.anchor}->>'section' = 'Lictory Action summary'`,
+          // Pull requests reviewed before the rename keep their summary thread.
+          inArray(sql<string>`${s.thread.anchor}->>'section'`, [
+            summarySection,
+            "Lictory Action summary",
+          ]),
         ),
       )
       .limit(1);
     if (summaryThread) await reply(summaryThread.id, rundown);
-    else await open("Lictory Action summary", undefined, rundown, false);
+    else await open(summarySection, undefined, rundown, false);
     await tx
       .update(s.aiRun)
       .set({
@@ -598,11 +603,13 @@ function renderFinding(f: AiFinding) {
           ...f.edit.replace.split("\n").map((l) => `+ ${l}`),
           "```",
           "",
-          "_Commit it from the Lictory Action panel. Nothing changes until someone does._",
+          `_Commit it from the ${INTELLIGENCE_REVIEW_ACTION} in the Actions tab. Nothing changes until someone does._`,
         ]
       : []),
   ].join("\n");
 }
+
+const summarySection = `${INTELLIGENCE_REVIEW_ACTION} summary`;
 
 function renderRundown(
   summary: string,
@@ -615,7 +622,7 @@ function renderRundown(
   const count = (severity: AiFinding["severity"]) =>
     findings.filter((f) => f.severity === severity).length;
   return [
-    `### Lictory Action reviewed commit ${commit}: ${score}/100`,
+    `### ${INTELLIGENCE_REVIEW_ACTION} of commit ${commit}: ${score}/100`,
     "",
     summary.trim(),
     ...(strengths.length
@@ -636,6 +643,6 @@ function renderRundown(
         ]
       : []),
     "",
-    "_AI findings are proposals. The pull request's reviewers decide what is merged._",
+    "_Lictory Intelligence findings are proposals. The pull request's reviewers decide what is merged._",
   ].join("\n");
 }

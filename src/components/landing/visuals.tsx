@@ -24,9 +24,9 @@ import {
   Loader2,
   MessageSquareText,
   MousePointer2,
-  Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { cn } from "~/lib/utils";
 
 /*
@@ -130,7 +130,7 @@ export function DraftVisual() {
   return (
     <Frame
       frameRef={ref}
-      label="Rough proposal notes become a structured specification, and an AI finding about a missing timeout is accepted by a person."
+      label="Rough proposal notes become a structured specification, and a Lictory Intelligence finding about a missing timeout is accepted by a person."
     >
       <div className="flex items-center gap-2 text-xs">
         <FileText aria-hidden className="size-3.5 text-muted-foreground" />
@@ -240,9 +240,9 @@ export function DraftVisual() {
               className="mt-auto rounded-xl bg-[oklch(0.25_0.04_285/0.92)] p-3 text-xs shadow-[inset_0_0_0_1px_oklch(0.7_0.15_285/0.25),0_16px_40px_-12px_oklch(0_0_0/0.8)] backdrop-blur"
             >
               <div className="flex items-center gap-2">
-                <Sparkles aria-hidden className="size-3.5 text-violet-300" />
+                <IntelligenceMark className="size-3.5 text-violet-300" />
                 <span className="font-medium text-violet-200">
-                  AI finding · proposed
+                  Lictory Intelligence finding · proposed
                 </span>
                 <span className="ml-auto">
                   {step === 3 ? (

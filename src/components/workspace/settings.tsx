@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, FolderKanban, Plus, Sparkles } from "lucide-react";
+import { Building2, FolderKanban, Plus } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { cn } from "~/lib/utils";
 import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
@@ -58,8 +59,8 @@ export function Settings() {
     { id: "teams", label: "Teams" },
     { id: "work-item-types", label: "Work item types" },
     { id: "jira", label: "Jira" },
-    { id: "ai", label: "Lictory AI" },
-    { id: "intelligence-context", label: "AI context" },
+    { id: "ai", label: "Lictory Intelligence" },
+    { id: "intelligence-context", label: "Intelligence Context" },
     ...(showLabels ? [{ id: "labels", label: "Labels & milestones" }] : []),
     { id: "people", label: "Members" },
     { id: "roles", label: "Roles" },
@@ -135,7 +136,7 @@ export function Settings() {
 
             <SettingsGroup
               title="Lictory Intelligence"
-              description="Whether Lictory AI may run, and what it knows about how you work."
+              description="Whether Lictory Intelligence may run, and what it knows about how you work."
             >
               <AiSection />
               <IntelligenceContextSection />
@@ -166,14 +167,14 @@ function AiSection() {
   return (
     <SettingsSection
       id="ai"
-      icon={<Sparkles />}
-      title="Lictory AI"
-      description="AI reviews of work items and Lictory Action on pull requests. AI proposes findings and changes; people decide what becomes part of a specification."
+      icon={<IntelligenceMark />}
+      title="Lictory Intelligence"
+      description="Chat, reviews of work items, and the Lictory Intelligence review action on pull requests. It proposes findings and changes; people decide what becomes part of a specification."
       action={
         <button
           role="switch"
           aria-checked={enabled}
-          aria-label="Allow Lictory AI"
+          aria-label="Allow Lictory Intelligence"
           disabled={!isAdmin || (!available && !enabled)}
           onClick={async () => {
             setError("");
@@ -199,14 +200,14 @@ function AiSection() {
       }
       footer={
         available
-          ? "When enabled, the content of reviewed items (specifications, open discussions, pull request changes) and the Lictory Intelligence Context that applies to them is sent to OpenAI without being retained for training. Each team chooses how Lictory Action treats its pull requests in team settings."
-          : "This server has no AI provider configured. Set OPENAI_API_KEY to make Lictory AI available."
+          ? "When enabled, the content of reviewed items (specifications, open discussions, pull request changes) and the Lictory Intelligence Context that applies to them is sent to OpenAI without being retained for training. Each team chooses how the Lictory Intelligence review action treats its pull requests in team settings."
+          : "This server has no AI provider configured. Set OPENAI_API_KEY to make Lictory Intelligence available."
       }
     >
       <SettingsBody className="space-y-1 text-[13px]">
         <p>
           {enabled
-            ? "Enabled. Members who can request reviews can ask for AI reviews."
+            ? "Enabled. Members who can request reviews can ask for Lictory Intelligence reviews."
             : "Off. No content is sent to an AI provider."}
           {!isAdmin && " Only administrators can change this."}
         </p>

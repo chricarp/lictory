@@ -129,8 +129,8 @@ function useContextApi() {
   return { listing, loadError, send, history };
 }
 
-// Lictory Intelligence Context: knowledge administrators give Lictory AI.
-// On the organization page the scope can be switched between the
+// Lictory Intelligence Context: knowledge administrators give Lictory
+// Intelligence. On the organization page the scope can be switched between the
 // organization, any project and any team; team settings pin it to the team.
 export function IntelligenceContextSection({
   team,
@@ -176,8 +176,8 @@ export function IntelligenceContextSection({
       title="Lictory Intelligence Context"
       description={
         team
-          ? `What Lictory AI should know about how ${team.name} works: conventions, quality standards, constraints. It is added to every AI review of this team's work, on top of organization and project context.`
-          : "What Lictory AI should know about your organization, projects and teams: product facts, vocabulary, conventions, policies. Context compounds: work in a team of a project gets all three, and the narrower scope wins when they disagree."
+          ? `What Lictory Intelligence should know about how ${team.name} works: conventions, quality standards, constraints. It is added to every Lictory Intelligence review of this team's work, on top of organization and project context.`
+          : "What Lictory Intelligence should know about your organization, projects and teams: product facts, vocabulary, conventions, policies. Context compounds: work in a team of a project gets all three, and the narrower scope wins when they disagree."
       }
       action={
         canManage && !adding ? (
@@ -202,11 +202,11 @@ export function IntelligenceContextSection({
       footer={
         <>
           Every member can read this context; only administrators can change it.
-          Each change is kept as a version, and AI findings cite the entries
-          they relied on. Up to {chars(CONTEXT_PROMPT_BUDGET)} characters reach
-          the AI per review, team context first, then project, then
-          organization. Context is sent to the AI provider only while Lictory AI
-          is enabled.
+          Each change is kept as a version, and Lictory Intelligence findings
+          cite the entries they relied on. Up to {chars(CONTEXT_PROMPT_BUDGET)}{" "}
+          characters reach Lictory Intelligence per review, team context first,
+          then project, then organization. Context is sent to the AI provider
+          only while Lictory Intelligence is enabled.
         </>
       }
     >
@@ -288,7 +288,7 @@ export function IntelligenceContextSection({
             <>
               <StateIllustration kind="knowledge" />
               {canManage
-                ? `No ${scopeLabel[target.scope].toLowerCase()} context yet. Write a note or upload a document Lictory AI should know about.`
+                ? `No ${scopeLabel[target.scope].toLowerCase()} context yet. Write a note or upload a document Lictory Intelligence should know about.`
                 : `No ${scopeLabel[target.scope].toLowerCase()} context yet.`}
             </>
           }
@@ -572,8 +572,8 @@ function EntryRow({
               )}
               {viewing && (
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Viewing version {viewing.number}. Lictory AI uses version{" "}
-                  {v.number}.
+                  Viewing version {viewing.number}. Lictory Intelligence uses
+                  version {v.number}.
                 </p>
               )}
               <div className="max-h-80 overflow-y-auto rounded-md border bg-background px-4 py-3">

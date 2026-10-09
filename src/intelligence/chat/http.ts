@@ -8,7 +8,8 @@ import { directory } from "~/sync/server/service";
 
 // Resolves the signed-in person and checks they belong to the organization
 // before any chat is read or written. `requireAi` also enforces the
-// organization's AI opt-in and the deployment's provider configuration.
+// organization's Lictory Intelligence opt-in and the deployment's provider
+// configuration.
 export async function chatOwner(
   request: Request,
   organizationId: unknown,
@@ -28,7 +29,7 @@ export async function chatOwner(
     if (!ai.enabled)
       throw new CapabilityError(
         "forbidden",
-        "Lictory AI is turned off for this organization. An administrator can enable it in Settings → Lictory AI.",
+        "Lictory Intelligence is turned off for this organization. An administrator can enable it in Settings → Lictory Intelligence.",
       );
   }
   return { owner: { organizationId, userId }, roster };

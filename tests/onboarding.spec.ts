@@ -78,7 +78,10 @@ for (const mode of ["native", "external"] as const)
     await reloadWhenSaved(page);
     await expect(
       page.getByRole("radio", {
-        name: mode === "native" ? "Enable AI" : "Keep AI off",
+        name:
+          mode === "native"
+            ? "Enable Lictory Intelligence"
+            : "Keep Lictory Intelligence off",
         exact: true,
       }),
     ).toBeChecked();

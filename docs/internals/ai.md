@@ -1,23 +1,32 @@
-# Lictory AI
+# Lictory Intelligence
 
-Lictory AI raises validations, suggestions and questions about work items and
-specification pull requests. It proposes; people decide.
+Lictory Intelligence raises validations, suggestions and questions about work
+items and specification pull requests. It proposes; people decide.
+
+The name covers every AI-assisted activity in Lictory: item reviews, the
+Lictory Intelligence review action on pull requests, chat, dictation and the
+context that grounds them. Its mark is the Lictory logomark with a spark, not
+a generic AI icon. Code keeps the shorter `ai` prefix (`ai_run`,
+`setAiPolicy`, the `lictory-ai` actor id) because those names are stored in
+history and in the protocol.
 
 ## Authority
 
-- AI never writes main, approves, resolves discussions or merges. Its changes
-  are commits on its own branches or suggestions a person commits.
-- Lictory AI is a non-human actor (`lictory-ai`) with no credentials and no
-  organization membership. It authors the commits, pull requests and
+- Lictory Intelligence never writes main, approves, resolves discussions or
+  merges. Its changes are commits on its own branches or suggestions a person
+  commits.
+- Lictory Intelligence is a non-human actor (`lictory-ai`) with no credentials
+  and no organization membership. It authors the commits, pull requests and
   discussions it creates. Every run records who requested it.
-- An organization administrator must enable AI (`setAiPolicy`). It is off by
-  default and unavailable when the server has no `OPENAI_API_KEY`. Turning it
-  off fails queued runs before any content is sent.
+- An organization administrator must enable Lictory Intelligence
+  (`setAiPolicy`). It is off by default and unavailable when the server has no
+  `OPENAI_API_KEY`. Turning it off fails queued runs before any content is
+  sent.
 
 ## Runs
 
-A run (`ai_run`) is one execution: an **item review** or a **Lictory Action**
-on a pull request head. A request is queued inside the organization
+A run (`ai_run`) is one execution: an **item review** or a run of the
+**Lictory Intelligence review** action on a pull request head. A request is queued inside the organization
 transaction. The model runs outside it, after the response (`after()`). Results
 are written back in a short transaction under the organization lock, with
 change-log entries so every client sees queued → running → completed or failed.
@@ -45,14 +54,18 @@ Model output is untrusted:
   reviewed. It must quote existing text, or append under a section.
 
 A corrective pull request applies only the findings a person selected. It does
-so deterministically, without another model call. Lictory AI opens one branch
-and pull request per affected item and invites the requester as a
+so deterministically, without another model call. Lictory Intelligence opens
+one branch and pull request per affected item and invites the requester as a
 collaborator. It reviews like any other pull request.
 
-## Lictory Action
+## Lictory Actions
 
-Lictory Action runs when a pull request is ready for review and on every new
-commit to its source branch. Drafts wait. A new head supersedes pending runs.
+Lictory Actions are the automated checks of a pull request, shown in its
+Actions tab like CI checks. Each action has its own runs and its own team
+policy. The **Lictory Intelligence review** is the only action today.
+
+The Lictory Intelligence review runs when a pull request is ready for review
+and on every new commit to its source branch. Drafts wait. A new head supersedes pending runs.
 
 Results become pull request discussions: one rundown thread, plus one thread
 per finding.
@@ -61,7 +74,7 @@ per finding.
 - When an issue is gone, it says so and leaves resolution to people.
 - A suggested change is committed by the person who accepts it.
 
-Each team chooses a policy:
+Each team chooses a policy for it:
 
 | Policy   | Behaviour                                                                                                                                                      |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -69,12 +82,12 @@ Each team chooses a policy:
 | advisory | Runs automatically; findings inform.                                                                                                                           |
 | required | Merge waits for a completed run on the current head. Blocker findings open blocking discussions, which people can resolve or mark non-blocking like any other. |
 
-The required gate applies only while AI is enabled and configured, so turning
-AI off never traps a pull request.
+The required gate applies only while Lictory Intelligence is enabled and
+configured, so turning it off never traps a pull request.
 
 ## Lictory Intelligence Context
 
-Organization administrators give Lictory AI knowledge about how the
+Organization administrators give Lictory Intelligence knowledge about how the
 organization works, at three scopes: the organization, a project and a team.
 Entries are written Markdown notes or uploaded documents (PDF, Office,
 OpenDocument, RTF, EPUB, CSV, Markdown, text) converted to Markdown on the
@@ -89,14 +102,14 @@ send the file to a third party, so they are rejected.
   out, and the run records this.
 - **Versions.** Content lives in immutable versions. An edit or a re-upload
   adds a version. Archiving is reversible and stops the entry from reaching
-  the AI.
+  Lictory Intelligence.
 - **Citations.** Findings name the entries they relied on, and the run records
-  the exact versions it received. "What was the AI told?" stays answerable
+  the exact versions it received. "What was Lictory Intelligence told?" stays answerable
   after the context changes.
 - **Authority.** Every member can read context; only administrators can change
   it, and the server checks this. Context grounds a review. It cannot change
-  the review rules or output, it is never quoted as evidence, and AI never
-  proposes edits to it.
+  the review rules or output, it is never quoted as evidence, and Lictory
+  Intelligence never proposes edits to it.
 - Uploaded bytes are not kept; the version stores the converted text with the
   file's name, format, size and SHA-256.
 
@@ -115,14 +128,14 @@ interface only.
 
 ## Voice dictation
 
-The Intelligence composer can dictate. Words stream into the draft at the
+The Lictory Intelligence composer can dictate. Words stream into the draft at the
 caret where dictation started, and the person can keep editing while they
 talk. Dictation only fills the draft: nothing is sent until the person sends
 it.
 
 - **Same gate as the chat.** The server issues a dictation session only to a
-  member of the organization, and only while AI is configured and enabled for
-  that organization.
+  member of the organization, and only while Lictory Intelligence is configured and
+  enabled for that organization.
 - **Audio never reaches Lictory.** The server mints a short-lived (60 s),
   transcription-only credential from the provider. The browser streams the
   microphone straight to the provider over WebRTC. The key is never sent to

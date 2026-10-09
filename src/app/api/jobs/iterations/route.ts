@@ -50,7 +50,8 @@ async function run(request: Request) {
     onPublicationCompleted: trackPublicationCompleted,
   }).processPending();
   console.info(JSON.stringify({ event: "jobs.delivery", ...delivery }));
-  // Recover AI runs whose in-request worker was lost (deploys, timeouts).
+  // Recover Lictory Intelligence runs whose in-request worker was lost
+  // (deploys, timeouts).
   const ai = await processAiRuns(db, { limit: 5 });
   console.info(JSON.stringify({ event: "jobs.ai", ...ai }));
   const emails = await dispatchNotificationEmails(db);

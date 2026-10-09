@@ -19,7 +19,7 @@ adding domain writes or synchronized entities.
 - [Capabilities, MCP and agents](./internals/capabilities.md)
 - [Delegated configuration](./internals/configuration-access.md)
 - [Database model](./internals/database-model.md)
-- [Lictory AI](./internals/ai.md)
+- [Lictory Intelligence](./internals/ai.md)
 - [Notifications](./internals/notifications.md)
 - [Account and workspace onboarding](./internals/onboarding.md)
 - [Private file storage](./internals/file-storage.md)

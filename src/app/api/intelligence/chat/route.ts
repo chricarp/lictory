@@ -151,8 +151,8 @@ export async function POST(request: Request) {
       },
       onError: (error) =>
         error instanceof Error
-          ? `The assistant stopped: ${error.message}`
-          : "The assistant stopped unexpectedly. Try again.",
+          ? `Lictory Intelligence stopped: ${error.message}`
+          : "Lictory Intelligence stopped unexpectedly. Try again.",
       onEnd: async ({ messages: final }) => {
         await saveMessages(db, owner, input.id, final).catch((error) =>
           console.error("Saving an Intelligence chat failed", error),

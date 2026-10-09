@@ -12,9 +12,9 @@ import {
   MessageSquarePlus,
   RotateCcw,
   ShieldAlert,
-  Sparkles,
   XCircle,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import {
@@ -24,7 +24,12 @@ import {
   segmentOf,
   typeOf,
 } from "~/lib/work-items";
-import { aiScoreBand, type AiFinding, type AiSeverity } from "~/sync/shared/ai";
+import {
+  aiScoreBand,
+  INTELLIGENCE_REVIEW_ACTION,
+  type AiFinding,
+  type AiSeverity,
+} from "~/sync/shared/ai";
 import type { Command, EntityOf } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Badge, SectionLabel } from "~/components/ui/primitives";
@@ -78,14 +83,16 @@ function useCommand() {
   return { run, pending, error };
 }
 
-// Why AI cannot be used right now, in words the user can act on.
+// Why Lictory Intelligence cannot be used right now, in words the user can act
+// on.
 function useAiBlocker() {
   const { directory, isAdmin } = useWorkspace();
-  if (!directory.ai.available) return "AI is not configured on this server.";
+  if (!directory.ai.available)
+    return "Lictory Intelligence is not configured on this server.";
   if (!directory.ai.enabled)
     return isAdmin
-      ? "AI is off for this organization. Turn it on in Settings → AI."
-      : "AI is off for this organization. Ask an administrator to turn it on.";
+      ? "Lictory Intelligence is off for this organization. Turn it on in Settings → Lictory Intelligence."
+      : "Lictory Intelligence is off for this organization. Ask an administrator to turn it on.";
   return undefined;
 }
 
@@ -115,7 +122,7 @@ export function ScoreRing({
   return (
     <div
       role="img"
-      aria-label={`AI readiness score ${score} out of 100`}
+      aria-label={`Lictory Intelligence readiness score ${score} out of 100`}
       className={cn("relative grid shrink-0 place-items-center", className)}
       style={{ width: size, height: size }}
     >
@@ -219,9 +226,9 @@ export function AiReviewPanel({ onOpen }: { onOpen: (runId: string) => void }) {
   return (
     <section aria-labelledby="ai-review-title">
       <div className="mb-2 flex items-center gap-2">
-        <Sparkles className="size-3.5 text-primary" />
+        <IntelligenceMark className="size-3.5 text-primary" />
         <SectionLabel>
-          <span id="ai-review-title">AI review</span>
+          <span id="ai-review-title">Lictory Intelligence review</span>
         </SectionLabel>
       </div>
       {active ? (
@@ -289,11 +296,11 @@ export function AiReviewPanel({ onOpen }: { onOpen: (runId: string) => void }) {
             ) : lastCompleted ? (
               <RotateCcw className="size-3.5" />
             ) : (
-              <Sparkles className="size-3.5" />
+              <IntelligenceMark className="size-3.5" />
             )}
             {lastCompleted || latest?.status === "failed"
-              ? "Run AI review again"
-              : "Request AI review"}
+              ? "Run Lictory Intelligence review again"
+              : "Request Lictory Intelligence review"}
           </Button>
           {blocker && !runs.length && (
             <p className="mt-1.5 text-xs text-muted-foreground">{blocker}</p>
@@ -344,7 +351,7 @@ export function AiReviewView({
       <div className="space-y-3">
         <BackButton onClose={onClose} />
         <p className="text-sm text-muted-foreground">
-          This AI review is unavailable.
+          This Lictory Intelligence review is unavailable.
         </p>
       </div>
     );
@@ -430,9 +437,9 @@ export function AiReviewView({
       baseRevisionId: target.revisionId,
       threadId: crypto.randomUUID(),
       messageId: crypto.randomUUID(),
-      body: `${f.question}\n\n_Raised by an AI review: ${f.title}_`,
+      body: `${f.question}\n\n_Raised by a Lictory Intelligence review: ${f.title}_`,
       blocking: false,
-      section: f.edit?.section ?? "AI review",
+      section: f.edit?.section ?? "Lictory Intelligence review",
       ...(f.evidence[0] ? { quote: f.evidence[0].slice(0, 2000) } : {}),
     };
     try {
@@ -455,7 +462,8 @@ export function AiReviewView({
         <ScoreRing score={run.score ?? 0} size={72} />
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">
-            AI review of {identifier(ctx.project, ctx.item.number)}
+            Lictory Intelligence review of{" "}
+            {identifier(ctx.project, ctx.item.number)}
           </h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             Requested by {ctx.memberName(run.requestedById)} ·{" "}
@@ -636,8 +644,9 @@ export function AiReviewView({
         <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur">
           <p className="min-w-0 flex-1 text-[13px]">
             <b>{chosen.length}</b> {chosen.length === 1 ? "change" : "changes"}{" "}
-            selected in {chosenItems.map(keyOf).join(", ")}. Lictory AI opens
-            one pull request per item; reviewers decide what merges.
+            selected in {chosenItems.map(keyOf).join(", ")}. Lictory
+            Intelligence opens one pull request per item; reviewers decide what
+            merges.
           </p>
           <Button variant="ghost" onClick={() => setSelected(new Set())}>
             Clear
@@ -755,9 +764,10 @@ export function FindingCard({
   );
 }
 
-// ─── Lictory Action on pull requests ───────────────────────────────────────
-// Modelled on CI checks: every head commit gets a run; the newest run is the
-// check's status; older runs stay inspectable; findings are annotations.
+// ─── Lictory Actions on pull requests ──────────────────────────────────────
+// Modelled on CI checks: every head commit gets a run of each action; the
+// newest run is the check's status; older runs stay inspectable; findings are
+// annotations. The Lictory Intelligence review is the only action today.
 
 const policyCopy = {
   off: "Off for this team: runs only when someone starts it.",
@@ -836,9 +846,9 @@ export function ActionCheckRow({
   return (
     <div className="flex items-center gap-2.5 text-[13px]">
       <CheckIcon state={check.state} />
-      <Sparkles aria-hidden className="size-3.5 text-muted-foreground" />
+      <IntelligenceMark className="size-3.5 text-muted-foreground" />
       <p className="min-w-0 flex-1 truncate">
-        <span className="font-medium">Lictory Action</span>{" "}
+        <span className="font-medium">{INTELLIGENCE_REVIEW_ACTION}</span>{" "}
         <span className="text-muted-foreground">— {check.summary}</span>
       </p>
       {policy === "required" && directory.ai.enabled && (
@@ -895,15 +905,17 @@ export function ActionChecksPanel({
       onClick={rerun}
     >
       <RotateCcw className="size-3.5" />
-      {runs.length ? "Re-run" : "Run Lictory Action"}
+      {runs.length ? "Re-run" : `Run ${INTELLIGENCE_REVIEW_ACTION}`}
     </Button>
   );
   return (
-    <section aria-label="Checks" className="space-y-3">
+    <section aria-label="Lictory Actions" className="space-y-3">
+      <SectionLabel>Lictory Actions</SectionLabel>
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="size-4 text-primary" /> Lictory Action
+            <IntelligenceMark className="size-4 text-primary" />{" "}
+            {INTELLIGENCE_REVIEW_ACTION}
             {policy === "required" && directory.ai.enabled && (
               <Badge tone="info">Required</Badge>
             )}
@@ -924,9 +936,9 @@ export function ActionChecksPanel({
           <StateIllustration kind="knowledge" />
           <p className="mt-2 text-sm font-medium">No runs yet</p>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
-            Lictory Action reads the proposed change against the current
-            specification and reports gaps, contradictions and ambiguity. It
-            never changes the branch on its own.
+            The {INTELLIGENCE_REVIEW_ACTION} reads the proposed change against
+            the current specification and reports gaps, contradictions and
+            ambiguity. It never changes the branch on its own.
           </p>
         </div>
       ) : (
@@ -1032,7 +1044,7 @@ function RunDetail({
         <CheckIcon state={state} className="mt-0.5 size-5" />
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">
-            Lictory Action · Run #{number}
+            {INTELLIGENCE_REVIEW_ACTION} · Run #{number}
           </h3>
           <p className="text-xs text-muted-foreground">{statusLabel}</p>
         </div>
@@ -1171,11 +1183,13 @@ export function useActionGate(
   if (policy !== "required" || !directory.ai.enabled || !directory.ai.available)
     return undefined;
   const [latest] = runs;
-  if (!latest) return "Lictory Action has not reviewed this pull request.";
+  if (!latest)
+    return `The ${INTELLIGENCE_REVIEW_ACTION} has not reviewed this pull request.`;
   if (latest.status === "queued" || latest.status === "running")
-    return "Lictory Action is still reviewing the latest commit.";
-  if (latest.status === "failed") return "Lictory Action failed. Re-run it.";
+    return `The ${INTELLIGENCE_REVIEW_ACTION} is still reviewing the latest commit.`;
+  if (latest.status === "failed")
+    return `The ${INTELLIGENCE_REVIEW_ACTION} failed. Re-run it.`;
   if (latest.headCommitId !== sourceHeadId)
-    return "Lictory Action has not reviewed the latest commit.";
+    return `The ${INTELLIGENCE_REVIEW_ACTION} has not reviewed the latest commit.`;
   return undefined;
 }

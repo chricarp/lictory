@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 type Context = RouteContext<"/api/organizations/[id]/intelligence-context">;
 
-// Every member can read what steers Lictory AI.
+// Every member can read what steers Lictory Intelligence.
 export async function GET(request: Request, context: Context) {
   try {
     const { id } = await context.params;

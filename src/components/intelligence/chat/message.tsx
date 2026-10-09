@@ -19,8 +19,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShieldX,
-  Sparkles,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Markdown } from "~/components/items/markdown";
 import { Button } from "~/components/ui/button";
@@ -365,7 +365,7 @@ export function AssistantMark({ active }: { active?: boolean }) {
         )}
       />
       <span className="absolute inset-[1.5px] rounded-full bg-background" />
-      <Sparkles className="relative size-3.5 text-primary" aria-hidden />
+      <IntelligenceMark className="relative size-3.5 text-primary" />
     </div>
   );
 }

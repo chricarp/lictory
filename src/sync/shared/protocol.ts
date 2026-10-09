@@ -388,8 +388,9 @@ export const entitySchema = z.discriminatedUnion("type", [
     lastError: z.string().nullable(),
     syncedAt: z.string().nullable(),
   }),
-  // One execution of Lictory AI: an item review (the item with its ancestors
-  // and descendants) or a Lictory Action run on a pull request head.
+  // One execution of Lictory Intelligence: an item review (the item with its
+  // ancestors and descendants) or a Lictory Intelligence review action run on a
+  // pull request head.
   z.object({
     ...base,
     type: z.literal("aiRun"),
@@ -793,7 +794,8 @@ export const onboardingSetupSchema = z
     iterationMode: z.enum(iterationModes),
     iterationWeeks: z.number().int().min(1).max(8),
     iterationStartDay: z.number().int().min(0).max(6),
-    // Older clients did not ask for AI consent; preserve their existing policy.
+    // Older clients did not ask for Lictory Intelligence consent; preserve
+    // their existing policy.
     aiEnabled: z.boolean().optional(),
     // Invitations are Better Auth operations sent after setup commits.
     invitations: z.number().int().min(0).max(50).default(0),
@@ -1108,8 +1110,9 @@ export const commandSchema = z.discriminatedUnion("type", [
     reviewId: id,
     decision: z.enum(["approve", "changes_requested", "revoke"]),
   }),
-  // Lictory AI. Organization administrators decide whether content may be sent
-  // to the AI provider; runs are recorded and never change content by themselves.
+  // Lictory Intelligence. Organization administrators decide whether content
+  // may be sent to the AI provider; runs are recorded and never change content
+  // by themselves.
   z.object({ type: z.literal("setAiPolicy"), enabled: z.boolean() }),
   z.object({
     type: z.literal("requestAiReview"),
@@ -1122,8 +1125,9 @@ export const commandSchema = z.discriminatedUnion("type", [
     pullRequestId: id,
     runId: z.uuid(),
   }),
-  // Opens one Lictory AI pull request on this item with the chosen fixable
-  // findings of a current review (which may belong to an ancestor's review).
+  // Opens one Lictory Intelligence pull request on this item with the chosen
+  // fixable findings of a current review (which may belong to an ancestor's
+  // review).
   z.object({
     type: z.literal("createAiCorrectivePr"),
     ...itemCommand,
@@ -1132,7 +1136,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     branchId: z.uuid(),
     pullRequestId: z.uuid(),
   }),
-  // Commits a Lictory Action suggestion to the pull request's source branch.
+  // Commits a Lictory Intelligence review action suggestion to the pull
+  // request's source branch.
   z.object({
     type: z.literal("applyAiSuggestion"),
     ...itemCommand,

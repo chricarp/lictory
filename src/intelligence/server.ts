@@ -26,8 +26,8 @@ export class ContextError extends Error {
   }
 }
 
-// Reading is a membership right: everyone can see what steers Lictory AI.
-// Changing it is an organization administrator's responsibility.
+// Reading is a membership right: everyone can see what steers Lictory
+// Intelligence. Changing it is an organization administrator's responsibility.
 async function membership(
   db: Database | Tx,
   organizationId: string,
@@ -332,7 +332,7 @@ export async function createIntelligenceContext(
 }
 
 // Every change is a new version. The previous one stays readable, so anyone
-// can see what Lictory AI was told before.
+// can see what Lictory Intelligence was told before.
 export async function reviseIntelligenceContext(
   db: Database,
   organizationId: string,
@@ -391,8 +391,8 @@ export async function reviseIntelligenceContext(
   });
 }
 
-// Archived entries stop reaching Lictory AI immediately; restoring brings the
-// same entry back with its history.
+// Archived entries stop reaching Lictory Intelligence immediately; restoring
+// brings the same entry back with its history.
 export async function setIntelligenceContextArchived(
   db: Database,
   organizationId: string,

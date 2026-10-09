@@ -312,7 +312,7 @@ void test("scopes compound for the work's project and team, narrowest kept first
   assert.equal(tighter.omitted, 1);
 });
 
-void test("archived context stops reaching the AI and can be restored", async () => {
+void test("archived context stops reaching Lictory Intelligence and can be restored", async () => {
   const f = await fixture();
   const { id } = await f.note({ scope: "organization" }, "Policy", "Be safe.");
   await setIntelligenceContextArchived(
@@ -340,7 +340,7 @@ void test("archived context stops reaching the AI and can be restored", async ()
   assert.equal((await compose(f)).entries[0]!.title, "Policy");
 });
 
-void test("AI reviews receive the context, cite it, and record the versions used", async () => {
+void test("Lictory Intelligence reviews receive the context, cite it, and record the versions used", async () => {
   const f = await fixture();
   await f.note(
     { scope: "organization" },

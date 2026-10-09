@@ -15,8 +15,8 @@ function useContextHref() {
 const label = (use: IntelligenceContextUse) =>
   use.scope === "organization" ? use.title : `${use.scopeName} › ${use.title}`;
 
-// The entries a finding relied on. Citations let people check the AI against
-// the knowledge it used instead of taking its word for it.
+// The entries a finding relied on. Citations let people check Lictory
+// Intelligence against the knowledge it used instead of taking its word for it.
 export function ContextCitations({
   context,
 }: {

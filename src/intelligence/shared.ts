@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-// Lictory Intelligence Context: what administrators tell Lictory AI about the
-// organization, a project or a team. Shared by server, AI and client.
+// Lictory Intelligence Context: what administrators tell Lictory Intelligence
+// about the organization, a project or a team. Shared by server, Lictory
+// Intelligence and client.
 
 export const contextScopes = ["organization", "project", "team"] as const;
 export type ContextScope = (typeof contextScopes)[number];
@@ -20,7 +21,8 @@ export const MAX_CONTEXT_TITLE = 120;
 // One entry may be long (a converted handbook), but a single entry can never
 // crowd out every other one.
 export const MAX_CONTEXT_CONTENT = 100_000;
-// Characters of context sent with one AI request, across all scopes.
+// Characters of context sent with one Lictory Intelligence request, across all
+// scopes.
 export const CONTEXT_PROMPT_BUDGET = 40_000;
 export const MAX_CONTEXT_ENTRIES_PER_SCOPE = 50;
 // Uploads go through a server function (conversion happens there), whose
@@ -104,12 +106,13 @@ export type ContextEntrySummary = {
   createdById: string;
   createdAt: string;
   archivedAt: string | null;
-  // The current version: what Lictory AI receives while the entry is active.
+  // The current version: what Lictory Intelligence receives while the entry is
+  // active.
   current: ContextVersionSummary;
   versions: number;
 };
 
-// Recorded on an AI run and on each finding that relied on it.
+// Recorded on a Lictory Intelligence run and on each finding that relied on it.
 export const intelligenceContextUseSchema = z.object({
   entryId: z.string().max(160),
   versionId: z.string().max(160),

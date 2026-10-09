@@ -16,7 +16,7 @@ Organization administrators define root configuration roles and assign the first
 local managers. Configuration permissions cover project settings and taxonomy,
 team settings, workflows, enabled organization types, membership and iterations,
 delivery mode, scoped integration credentials, and local access management.
-Readiness enforcement, organization AI policy, the global type registry,
+Readiness enforcement, organization Lictory Intelligence policy, the global type registry,
 organization membership and organization credentials remain administrator-owned.
 
 A local access manager may assign roles and create, rename, customize, archive or

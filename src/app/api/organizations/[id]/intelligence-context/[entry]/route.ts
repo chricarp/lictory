@@ -6,8 +6,8 @@ export const runtime = "nodejs";
 type Context =
   RouteContext<"/api/organizations/[id]/intelligence-context/[entry]">;
 
-// Every version of one entry, newest first: what Lictory AI was told, when,
-// and by whom.
+// Every version of one entry, newest first: what Lictory Intelligence was told,
+// when, and by whom.
 export async function GET(request: Request, context: Context) {
   try {
     const { id, entry } = await context.params;

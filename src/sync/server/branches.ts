@@ -150,7 +150,8 @@ export async function applyBranchCommand(
       parents?: string[],
     ) => Promise<string>;
     log: (action: string, detail?: Record<string, unknown>) => void;
-    // Team policy gate for Lictory Action; returns the blocking reason.
+    // Team policy gate for the Lictory Intelligence review action; returns the
+    // blocking reason.
     actionCheck?: (
       pullRequestId: string,
       sourceHeadId: string,
