@@ -73,6 +73,12 @@ test("an existing member can create and switch to another organization", async (
   await expect(page).toHaveURL(/\/app$/);
   await page.goto("/welcome");
   await expect(page).toHaveURL(/\/app$/);
+  // Signed-in visitors skip the marketing page.
+  const home = await page.request.get("/", { maxRedirects: 0 });
+  expect(home.status()).toBe(307);
+  expect(home.headers().location).toMatch(/\/app$/);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/app$/);
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();

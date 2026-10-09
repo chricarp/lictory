@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { socialMetadata } from "~/lib/social-preview";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { Landing } from "~/components/landing/landing";
 import { auth } from "~/lib/auth";
@@ -13,14 +14,11 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
+  // Validate the session rather than trusting the cookie, so a stale cookie
+  // still sees the landing page instead of bouncing through sign-in.
   const session = await auth.api
     .getSession({ headers: await headers() })
     .catch(() => null);
-  return (
-    <Landing
-      user={
-        session ? { name: session.user.name, email: session.user.email } : null
-      }
-    />
-  );
+  if (session) redirect("/app");
+  return <Landing />;
 }

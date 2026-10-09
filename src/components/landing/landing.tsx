@@ -34,8 +34,6 @@ import {
 } from "~/components/landing/visuals";
 import { cn } from "~/lib/utils";
 
-type LandingUser = { name: string; email: string } | null;
-
 /** Content rises in as it scrolls into view, where scroll-driven CSS exists. */
 function Reveal({
   children,
@@ -90,35 +88,32 @@ function CtaLink({
   );
 }
 
-export function Landing({ user }: { user: LandingUser }) {
+export function Landing() {
   return (
     <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
       <div className="relative overflow-clip">
-        <Header user={user} />
+        <Header />
         <main>
-          <Hero user={user} />
+          <Hero />
           <Journey />
           <Problem />
           <Features />
           <Disciplines />
-          <Delivery user={user} />
+          <Delivery />
           <Comparison />
           <Faq />
-          <FinalCta user={user} />
+          <FinalCta />
         </main>
         <Footer />
       </div>
-      <MobileCta
-        href={user ? "/app" : "/sign-up"}
-        label={user ? "Open your workspace" : "Start for free"}
-      />
+      <MobileCta href="/sign-up" label="Start for free" />
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
 
-function Header({ user }: { user: LandingUser }) {
+function Header() {
   return (
     <header className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-3 sm:top-4">
       <div
@@ -151,25 +146,16 @@ function Header({ user }: { user: LandingUser }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1 md:ml-0">
-          {user ? (
-            <CtaLink href="/app" className="h-9 px-4">
-              Open app
-              <ArrowRight className="size-3.5" />
-            </CtaLink>
-          ) : (
-            <>
-              <CtaLink
-                href="/sign-in"
-                variant="ghost"
-                className="h-9 px-3.5 hover:bg-white/[0.07]"
-              >
-                Log in
-              </CtaLink>
-              <CtaLink href="/sign-up" className="h-9 px-4 shadow-none">
-                Sign up
-              </CtaLink>
-            </>
-          )}
+          <CtaLink
+            href="/sign-in"
+            variant="ghost"
+            className="h-9 px-3.5 hover:bg-white/[0.07]"
+          >
+            Log in
+          </CtaLink>
+          <CtaLink href="/sign-up" className="h-9 px-4 shadow-none">
+            Sign up
+          </CtaLink>
         </div>
       </div>
     </header>
@@ -180,7 +166,7 @@ function rise(delayMs: number) {
   return { animationDelay: `${delayMs}ms` };
 }
 
-function Hero({ user }: { user: LandingUser }) {
+function Hero() {
   return (
     <section
       aria-labelledby="hero-title"
@@ -227,45 +213,39 @@ function Hero({ user }: { user: LandingUser }) {
           className="landing-rise mt-6 flex flex-col items-center justify-center gap-2 sm:mt-8 sm:flex-row sm:gap-3"
         >
           <CtaLink
-            href={user ? "/app" : "/sign-up"}
+            href="/sign-up"
             size="lg"
             className="w-full max-w-80 sm:w-auto"
           >
-            {user ? "Open your workspace" : "Start for free"}
+            Start for free
             <ArrowRight aria-hidden className="size-4" />
           </CtaLink>
           <CtaLink href="#features" variant="ghost" size="lg">
             See how it works <ArrowRight aria-hidden className="size-3.5" />
           </CtaLink>
         </div>
-        {user ? (
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Signed in as {user.name}
-          </p>
-        ) : (
-          <ul
-            aria-label="Why teams start today"
-            style={rise(320)}
-            className="landing-rise mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:mt-4"
-          >
-            {[
-              "Free to start",
-              "Set up in minutes",
-              "Works with Jira & Linear",
-            ].map((item) => (
-              <li
-                key={item}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  item === "Set up in minutes" && "max-sm:hidden",
-                )}
-              >
-                <Check aria-hidden className="size-3 text-emerald-400" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul
+          aria-label="Why teams start today"
+          style={rise(320)}
+          className="landing-rise mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:mt-4"
+        >
+          {[
+            "Free to start",
+            "Set up in minutes",
+            "Works with Jira & Linear",
+          ].map((item) => (
+            <li
+              key={item}
+              className={cn(
+                "flex items-center gap-1.5",
+                item === "Set up in minutes" && "max-sm:hidden",
+              )}
+            >
+              <Check aria-hidden className="size-3 text-emerald-400" />
+              {item}
+            </li>
+          ))}
+        </ul>
         <div style={rise(420)} className="landing-rise mt-6 sm:mt-16">
           <HeroStage>
             <ProductWindow />
@@ -744,7 +724,7 @@ function Disciplines() {
   );
 }
 
-function Delivery({ user }: { user: LandingUser }) {
+function Delivery() {
   return (
     <>
       <Divider />
@@ -810,12 +790,8 @@ function Delivery({ user }: { user: LandingUser }) {
               Start refining in Lictory today. Switch delivery mode any time.
             </p>
           </div>
-          <CtaLink
-            href={user ? "/app" : "/sign-up"}
-            size="lg"
-            className="w-full sm:w-auto"
-          >
-            {user ? "Open your workspace" : "Try it with one spec"}
+          <CtaLink href="/sign-up" size="lg" className="w-full sm:w-auto">
+            Try it with one spec
             <ArrowRight aria-hidden className="size-4" />
           </CtaLink>
         </Reveal>
@@ -910,7 +886,7 @@ function Faq() {
   );
 }
 
-function FinalCta({ user }: { user: LandingUser }) {
+function FinalCta() {
   return (
     <Section className="relative overflow-hidden text-center sm:py-36">
       <div
@@ -930,35 +906,22 @@ function FinalCta({ user }: { user: LandingUser }) {
           data-cta-anchor
           className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
-          {user ? (
-            <CtaLink
-              href="/app"
-              size="lg"
-              className="w-full max-w-80 sm:w-auto"
-            >
-              Open Lictory
-              <ArrowRight className="size-4" />
-            </CtaLink>
-          ) : (
-            <>
-              <CtaLink
-                href="/sign-up"
-                size="lg"
-                className="w-full max-w-80 sm:w-auto"
-              >
-                Start for free
-                <ArrowRight className="size-4" />
-              </CtaLink>
-              <CtaLink
-                href="/sign-in"
-                size="lg"
-                variant="secondary"
-                className="w-full max-w-80 sm:w-auto"
-              >
-                Log in
-              </CtaLink>
-            </>
-          )}
+          <CtaLink
+            href="/sign-up"
+            size="lg"
+            className="w-full max-w-80 sm:w-auto"
+          >
+            Start for free
+            <ArrowRight className="size-4" />
+          </CtaLink>
+          <CtaLink
+            href="/sign-in"
+            size="lg"
+            variant="secondary"
+            className="w-full max-w-80 sm:w-auto"
+          >
+            Log in
+          </CtaLink>
         </div>
       </Reveal>
     </Section>
