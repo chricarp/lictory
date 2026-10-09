@@ -1695,10 +1695,10 @@ export const organizationAiPolicy = pgTable("organization_ai_policy", {
   updatedAt: updatedAt(),
 });
 
-// One Lictory AI execution. Requests are queued inside the organization
-// transaction; the model runs outside it and the result is written back in a
-// short transaction. Runs are history: they are superseded or marked stale,
-// never deleted or rewritten after completion.
+// One Lictory Intelligence execution. Requests are queued inside the
+// organization transaction; the model runs outside it and the result is written
+// back in a short transaction. Runs are history: they are superseded or marked
+// stale, never deleted or rewritten after completion.
 export const aiRun = pgTable(
   "ai_run",
   {
@@ -1727,7 +1727,7 @@ export const aiRun = pgTable(
       .notNull()
       .default([]),
     // The Lictory Intelligence Context versions the model received, so a run
-    // can always answer "what was the AI told?".
+    // can always answer "what was Lictory Intelligence told?".
     intelligenceContext: jsonb("intelligence_context")
       .$type<IntelligenceContextUse[]>()
       .notNull()
@@ -1771,11 +1771,12 @@ export const aiRun = pgTable(
   ],
 );
 
-// Lictory Intelligence Context: knowledge administrators give Lictory AI about
-// an organization, a project or a team. Scopes compound (organization →
-// project → team) and the narrower scope wins on conflict. An entry is a
-// written note or an uploaded document converted to Markdown; its content
-// lives in immutable versions. Archiving is reversible and keeps history.
+// Lictory Intelligence Context: knowledge administrators give Lictory
+// Intelligence about an organization, a project or a team. Scopes compound
+// (organization → project → team) and the narrower scope wins on conflict. An
+// entry is a written note or an uploaded document converted to Markdown; its
+// content lives in immutable versions. Archiving is reversible and keeps
+// history.
 export const intelligenceContextEntry = pgTable(
   "intelligence_context_entry",
   {
@@ -1829,7 +1830,7 @@ export const intelligenceContextEntry = pgTable(
 
 // One immutable snapshot of an entry. Edits and re-uploads add a version;
 // nothing rewrites one. Uploaded documents keep their source metadata but not
-// their bytes: the converted Markdown is what Lictory AI receives.
+// their bytes: the converted Markdown is what Lictory Intelligence receives.
 export const intelligenceContextVersion = pgTable(
   "intelligence_context_version",
   {

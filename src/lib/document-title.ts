@@ -28,7 +28,7 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
     case undefined:
       break;
     case "intelligence":
-      parts.push("Intelligence", ctx.organization.name);
+      parts.push("Lictory Intelligence", ctx.organization.name);
       break;
     case "inbox":
       parts.push("Inbox", ctx.organization.name);

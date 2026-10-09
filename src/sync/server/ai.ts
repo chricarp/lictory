@@ -14,9 +14,9 @@ import { applyBranchCommand, ensureMain } from "./branches";
 import { DomainError } from "./errors";
 import type { Database, Tx } from "./service";
 
-// Commands that ask Lictory AI for something. They only record requests or
-// apply results a human explicitly chose; the model never runs inside the
-// organization transaction.
+// Commands that ask Lictory Intelligence for something. They only record
+// requests or apply results a human explicitly chose; the model never runs
+// inside the organization transaction.
 export const aiCommands = new Set([
   "requestAiReview",
   "rerunAiAction",
@@ -57,12 +57,12 @@ function requireAi(ai: Directory["ai"]) {
   if (!ai.available)
     throw new DomainError(
       "unavailable",
-      "AI is not configured on this server. Ask an administrator to set OPENAI_API_KEY.",
+      "Lictory Intelligence is not configured on this server. Ask an administrator to set OPENAI_API_KEY.",
     );
   if (!ai.enabled)
     throw new DomainError(
       "forbidden",
-      "AI is turned off for this organization. An administrator can enable it in Settings → AI.",
+      "Lictory Intelligence is turned off for this organization. An administrator can enable it in Settings → Lictory Intelligence.",
     );
 }
 
@@ -122,7 +122,11 @@ async function runOf(tx: Tx, organizationId: string, runId: string) {
     .where(
       and(eq(s.aiRun.organizationId, organizationId), eq(s.aiRun.id, runId)),
     );
-  if (!row) throw new DomainError("unavailable", "This AI run is unavailable.");
+  if (!row)
+    throw new DomainError(
+      "unavailable",
+      "This Lictory Intelligence run is unavailable.",
+    );
   return row;
 }
 
@@ -183,9 +187,12 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       capabilities: actor === userId ? ctx.capabilities : noCapabilities,
       roster,
       latest,
-      // AI commands never write main directly.
+      // Lictory Intelligence commands never write main directly.
       revision: () => {
-        throw new DomainError("conflict", "Lictory AI cannot change main.");
+        throw new DomainError(
+          "conflict",
+          "Lictory Intelligence cannot change main.",
+        );
       },
       log,
     });
@@ -198,7 +205,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       )
         throw new DomainError(
           "forbidden",
-          "Your roles cannot request reviews, including AI reviews.",
+          "Your roles cannot request reviews, including Lictory Intelligence reviews.",
         );
       const [active] = await tx
         .select({ id: s.aiRun.id })
@@ -214,7 +221,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       if (active)
         throw new DomainError(
           "conflict",
-          "An AI review of this item is already in progress.",
+          "A Lictory Intelligence review of this item is already in progress.",
         );
       await tx.insert(s.aiRun).values({
         id: c.runId,
@@ -267,11 +274,14 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
     case "createAiCorrectivePr": {
       const run = await runOf(tx, organizationId, c.runId);
       if (run.kind !== "item_review" || run.status !== "completed")
-        throw new DomainError("conflict", "This AI review has not completed.");
+        throw new DomainError(
+          "conflict",
+          "This Lictory Intelligence review has not completed.",
+        );
       if (run.staleAt)
         throw new DomainError(
           "conflict",
-          `This AI review is outdated (${run.staleReason ?? "content changed"}). Run a new review first.`,
+          `This Lictory Intelligence review is outdated (${run.staleReason ?? "content changed"}). Run a new review first.`,
         );
       if (run.contextRevisions[workItemId] !== latest.id)
         throw new DomainError(
@@ -326,7 +336,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
           baseCommitId: main.headId,
           title: latest.title,
           content,
-          message: `Apply ${chosen.length} AI review ${chosen.length === 1 ? "finding" : "findings"}`,
+          message: `Apply ${chosen.length} Lictory Intelligence review ${chosen.length === 1 ? "finding" : "findings"}`,
         },
         AI_ACTOR_ID,
       );
@@ -350,7 +360,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
           pullRequestId: c.pullRequestId,
           sourceId: c.branchId,
           targetId: main.id,
-          title: `Resolve ${chosen.length} AI review ${chosen.length === 1 ? "finding" : "findings"}`,
+          title: `Resolve ${chosen.length} Lictory Intelligence review ${chosen.length === 1 ? "finding" : "findings"}`,
           description: correctiveDescription(
             requester,
             chosen.map((f) => f!),
@@ -381,7 +391,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       if (run.kind !== "pr_action" || run.workItemId !== workItemId)
         throw new DomainError(
           "unavailable",
-          "This Lictory Action run is unavailable.",
+          "This Lictory Intelligence review run is unavailable.",
         );
       const finding = run.findings.find((f) => f.id === c.findingId);
       if (!finding?.edit)
@@ -431,7 +441,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       if (content === undefined)
         throw new DomainError(
           "conflict",
-          "The suggested text is no longer in the branch. Re-run Lictory Action on the latest commit.",
+          "The suggested text is no longer in the branch. Re-run the Lictory Intelligence review on the latest commit.",
         );
       // Committed by the person who accepted it, like a GitHub suggestion.
       await branch(
@@ -442,10 +452,11 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
           baseCommitId: source.headId,
           title: head!.title,
           content,
-          message: `Apply Lictory AI suggestion: ${finding.title}`.slice(
-            0,
-            500,
-          ),
+          message:
+            `Apply Lictory Intelligence suggestion: ${finding.title}`.slice(
+              0,
+              500,
+            ),
         },
         userId,
       );
@@ -468,7 +479,7 @@ function correctiveDescription(
   findings: RunRow["findings"],
 ) {
   return [
-    `Lictory AI proposes these changes from an AI review requested by ${requester}. Review them like any other change: nothing is merged without the required approvals.`,
+    `Lictory Intelligence proposes these changes from a review requested by ${requester}. Review them like any other change: nothing is merged without the required approvals.`,
     "",
     ...findings.flatMap((f) => [
       `### ${f.title}`,
@@ -482,8 +493,9 @@ function correctiveDescription(
     .slice(0, 10_000);
 }
 
-// Lictory Action runs when a pull request opens for review and on every new
-// commit to its source branch. Drafts wait until they are marked ready.
+// The Lictory Intelligence review action runs when a pull request opens for
+// review and on every new commit to its source branch. Drafts wait until they
+// are marked ready.
 export async function scheduleActionRuns(
   tx: Tx,
   input: {
@@ -564,8 +576,8 @@ export async function invalidateItemReviews(
     .returning({ id: s.aiRun.id, workItemId: s.aiRun.workItemId });
 }
 
-// Merge gate for teams that require Lictory Action. Returns the blocking
-// reason, or undefined when the latest head was reviewed.
+// Merge gate for teams that require the Lictory Intelligence review action.
+// Returns the blocking reason, or undefined when the latest head was reviewed.
 export async function actionCheckProblem(
   tx: Tx,
   organizationId: string,
@@ -585,13 +597,13 @@ export async function actionCheckProblem(
     .orderBy(desc(s.aiRun.createdAt))
     .limit(1);
   if (!latest)
-    return "Lictory Action has not reviewed this pull request. Run it before merging.";
+    return "The Lictory Intelligence review has not reviewed this pull request. Run it before merging.";
   if (latest.status === "queued" || latest.status === "running")
-    return "Lictory Action is still reviewing the latest commit.";
+    return "The Lictory Intelligence review is still reviewing the latest commit.";
   if (latest.status === "failed")
-    return `Lictory Action failed: ${latest.error ?? "unknown error"} Run it again before merging.`;
+    return `The Lictory Intelligence review failed: ${latest.error ?? "unknown error"} Run it again before merging.`;
   if (latest.headCommitId !== sourceHeadId)
-    return "Lictory Action has not reviewed the latest commit. Run it again.";
+    return "The Lictory Intelligence review has not reviewed the latest commit. Run it again.";
   return undefined;
 }
 

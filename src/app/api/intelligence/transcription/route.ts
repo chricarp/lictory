@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
 const body = z.object({ organizationId: z.string().min(1) });
 
 // Mints a short-lived, transcription-only credential so the composer can
-// stream the microphone directly to the provider. Same membership and AI
-// opt-in checks as the chat itself; no audio passes through here.
+// stream the microphone directly to the provider. Same membership and
+// Lictory Intelligence opt-in checks as the chat itself; no audio passes
+// through here.
 export async function POST(request: Request) {
   try {
     requireSameOrigin(request);

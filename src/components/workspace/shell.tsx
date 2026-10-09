@@ -39,8 +39,8 @@ import {
   KanbanSquare,
   ListOrdered,
   Users,
-  Sparkles,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
@@ -530,9 +530,9 @@ function Sidebar({
           <NavLink
             href={paths.intelligence(org)}
             active={active(paths.intelligence(org))}
-            icon={<Sparkles className="size-4" />}
+            icon={<IntelligenceMark className="size-4" />}
           >
-            Intelligence
+            Lictory Intelligence
           </NavLink>
           <InboxLink
             organizationId={organization.id}

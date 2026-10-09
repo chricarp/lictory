@@ -525,13 +525,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     case "ai_review_requested":
-      body = <>requested an AI review</>;
+      body = <>requested a Lictory Intelligence review</>;
       break;
     case "ai_review_completed":
       body = (
         <>
-          completed an AI review: <b>{num(d.score)}/100</b> with{" "}
-          {num(d.findings)} {num(d.findings) === 1 ? "finding" : "findings"}
+          completed a Lictory Intelligence review: <b>{num(d.score)}/100</b>{" "}
+          with {num(d.findings)}{" "}
+          {num(d.findings) === 1 ? "finding" : "findings"}
           {str(d.requestedById) && (
             <> (requested by {memberName(str(d.requestedById))})</>
           )}
@@ -541,13 +542,15 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "ai_corrective_pr_created":
       body = (
         <>
-          opened a Lictory AI pull request resolving {num(d.findings)} review{" "}
-          {num(d.findings) === 1 ? "finding" : "findings"}
+          opened a Lictory Intelligence pull request resolving {num(d.findings)}{" "}
+          review {num(d.findings) === 1 ? "finding" : "findings"}
         </>
       );
       break;
     case "ai_action_requested":
-      body = <>re-ran Lictory Action on a pull request</>;
+      body = (
+        <>re-ran the Lictory Intelligence review action on a pull request</>
+      );
       break;
     case "ai_action_completed":
       body = (
@@ -559,7 +562,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     case "ai_suggestion_applied":
-      body = <>committed a Lictory AI suggestion</>;
+      body = <>committed a Lictory Intelligence suggestion</>;
       break;
     default:
       body = <>{entry.action.replaceAll("_", " ")}</>;

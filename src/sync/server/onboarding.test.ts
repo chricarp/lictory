@@ -207,7 +207,7 @@ void test("concurrent first setups have one authoritative winner", async () => {
   assert.equal(roster.teams[0]!.name, record!.decisions.teamName);
   assert.equal(roster.ai.enabled, record!.decisions.aiEnabled);
 });
-void test("opting out applies organization-wide and administrators can change AI later without rewriting the onboarding decision", async () => {
+void test("opting out applies organization-wide and administrators can change Lictory Intelligence later without rewriting the onboarding decision", async () => {
   const f = await fixture();
   await service.mutate(f.userId, f.mutation({ aiEnabled: false }));
   assert.equal(
@@ -230,7 +230,7 @@ void test("opting out applies organization-wide and administrators can change AI
     .where(eq(s.organizationOnboarding.organizationId, f.organizationId));
   assert.equal(record!.decisions.aiEnabled, false);
 });
-void test("legacy setup without an AI choice preserves the existing organization policy", async () => {
+void test("legacy setup without a Lictory Intelligence choice preserves the existing organization policy", async () => {
   for (const enabled of [false, true]) {
     const f = await fixture();
     await service.mutate(f.userId, {

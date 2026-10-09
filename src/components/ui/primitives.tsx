@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { StateIllustration, type IllustrationKind } from "./state-illustration";
 import { cn } from "~/lib/utils";
 import { initials } from "~/lib/work-items";
+import { AI_ACTOR_NAME } from "~/sync/shared/ai";
+import { IntelligenceMark } from "~/components/logo";
 
 export function Avatar({
   name,
@@ -12,6 +14,7 @@ export function Avatar({
   size?: "xs" | "sm" | "md";
   className?: string;
 }) {
+  const intelligence = name === AI_ACTOR_NAME;
   return (
     <span
       title={name}
@@ -21,10 +24,15 @@ export function Avatar({
         size === "xs" && "size-4 text-[8px]",
         size === "sm" && "size-5 text-[9px]",
         size === "md" && "size-6 text-[10px]",
+        intelligence && "bg-primary/10 text-primary",
         className,
       )}
     >
-      {initials(name)}
+      {intelligence ? (
+        <IntelligenceMark className="size-[62%]" />
+      ) : (
+        initials(name)
+      )}
     </span>
   );
 }

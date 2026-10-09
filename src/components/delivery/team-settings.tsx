@@ -347,7 +347,7 @@ function DeliverySection({
             ]}
           />
         </Field>
-        <Field label="Lictory Action on pull requests">
+        <Field label="Lictory Actions · Lictory Intelligence review on pull requests">
           <Choice
             value={team.aiActionPolicy}
             disabled={!canEdit}

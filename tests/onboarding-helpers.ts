@@ -70,13 +70,23 @@ export async function configureFirstProject(
     page.getByRole("heading", { name: "Lictory Intelligence", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("radio", { name: "Enable AI", exact: true }),
+    page.getByRole("radio", {
+      name: "Enable Lictory Intelligence",
+      exact: true,
+    }),
   ).toBeChecked();
   if (!aiEnabled)
-    await page.getByRole("radio", { name: "Keep AI off", exact: true }).click();
+    await page
+      .getByRole("radio", {
+        name: "Keep Lictory Intelligence off",
+        exact: true,
+      })
+      .click();
   await expect(
     page.getByRole("radio", {
-      name: aiEnabled ? "Enable AI" : "Keep AI off",
+      name: aiEnabled
+        ? "Enable Lictory Intelligence"
+        : "Keep Lictory Intelligence off",
       exact: true,
     }),
   ).toBeChecked();

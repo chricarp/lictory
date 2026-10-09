@@ -24,7 +24,7 @@ import {
 } from "./core";
 
 // Lictory Intelligence Context: organization knowledge that steers Lictory
-// AI. Every member can read it; administrators change it.
+// Intelligence. Every member can read it; administrators change it.
 
 const file = z
   .object({
@@ -75,7 +75,7 @@ const listContext = defineCapability({
   name: "listIntelligenceContext",
   title: "List intelligence context",
   description:
-    "Organization, project and team knowledge entries that Lictory AI receives, with their current version.",
+    "Organization, project and team knowledge entries that Lictory Intelligence receives, with their current version.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({ organizationId }),
@@ -142,7 +142,7 @@ const archiveContext = defineCapability({
   name: "archiveIntelligenceContext",
   title: "Archive intelligence context",
   description:
-    "Administrators: archive (true) or restore (false) an entry. Archived entries no longer reach Lictory AI.",
+    "Administrators: archive (true) or restore (false) an entry. Archived entries no longer reach Lictory Intelligence.",
   kind: "command",
   surfaces: everywhere,
   idempotent: true,

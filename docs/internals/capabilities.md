@@ -44,11 +44,11 @@ Surfaces only narrow what is available:
 ## Human decisions
 
 Capabilities that record a human decision (approving or requesting changes on
-reviews, suggestions and pull requests; merging; resolving threads; the AI
-policy; exporting to delivery tools) are marked `decision`. MCP tells agents to
+reviews, suggestions and pull requests; merging; resolving threads; the Lictory
+Intelligence policy; exporting to delivery tools) are marked `decision`. MCP tells agents to
 call them only when the person explicitly asked; the embedded agent requires the
 person's approval before running them or any destructive command
-(`needsApproval`). Nothing about AI changes the domain rule that approvals belong
+(`needsApproval`). Nothing about agents or Lictory Intelligence changes the domain rule that approvals belong
 to a person and a revision.
 
 ## Workspace commands

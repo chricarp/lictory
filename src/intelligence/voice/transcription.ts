@@ -7,7 +7,7 @@ import { CapabilityError } from "~/capabilities/core";
 // The browser streams the microphone straight to the provider over WebRTC, so
 // audio never reaches (and is never stored by) this server. The server only
 // mints a short-lived, transcription-only credential after checking the
-// person's membership and the organization's AI opt-in.
+// person's membership and the organization's Lictory Intelligence opt-in.
 //
 // The AI SDK's streaming transcription cannot drive `gpt-live-transcribe`
 // (and runs server-side over a WebSocket), so this adapter talks to the

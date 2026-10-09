@@ -38,7 +38,7 @@ import {
   type CapabilityContext,
 } from "./core";
 
-// Commands that can queue Lictory AI runs.
+// Commands that can queue Lictory Intelligence runs.
 const aiTriggers = new Set<Command["type"]>([
   "requestAiReview",
   "rerunAiAction",
@@ -302,29 +302,30 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     decision: true,
   },
   setAiPolicy: {
-    title: "Set AI policy",
+    title: "Set Lictory Intelligence policy",
     description:
       "Administrators: allow or forbid sending this organization's content to the AI provider.",
     decision: true,
   },
   requestAiReview: {
-    title: "Request Lictory AI review",
+    title: "Request Lictory Intelligence review",
     description:
-      "Queue a Lictory AI review of the item's specification. Findings are proposals; nothing changes by itself.",
+      "Queue a Lictory Intelligence review of the item's specification. Findings are proposals; nothing changes by itself.",
   },
   rerunAiAction: {
-    title: "Rerun Lictory AI action",
-    description: "Run the Lictory AI check of a pull request again.",
+    title: "Rerun Lictory Intelligence review action",
+    description:
+      "Run the Lictory Intelligence review action of a pull request again.",
   },
   createAiCorrectivePr: {
-    title: "Open AI corrective pull request",
+    title: "Open Lictory Intelligence corrective pull request",
     description:
-      "Open a pull request that applies chosen fixable findings of a Lictory AI review, for human review.",
+      "Open a pull request that applies chosen fixable findings of a Lictory Intelligence review, for human review.",
   },
   applyAiSuggestion: {
-    title: "Apply AI suggestion",
+    title: "Apply Lictory Intelligence suggestion",
     description:
-      "Commit one Lictory AI finding's suggestion to its pull request's source branch.",
+      "Commit one Lictory Intelligence finding's suggestion to its pull request's source branch.",
   },
   createTeam: {
     title: "Create team",
@@ -333,7 +334,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   updateTeam: {
     title: "Update team",
     description:
-      "Administrators: change a team's name, delivery mode (native/external), readiness policy, estimate scale, iteration settings, AI action policy, or archive it.",
+      "Administrators: change a team's name, delivery mode (native/external), readiness policy, estimate scale, iteration settings, Lictory Intelligence review action policy, or archive it.",
   },
   setTeamMembership: {
     title: "Set team membership",
@@ -537,7 +538,7 @@ const getWorkspace = defineCapability({
   name: "getWorkspace",
   title: "Get workspace configuration",
   description:
-    "The organization's projects, members, roles, teams (workflow statuses, enabled types, settings), work item types, iterations, delivery targets and AI policy, plus your own application role and capabilities. Use it to resolve ids for other tools.",
+    "The organization's projects, members, roles, teams (workflow statuses, enabled types, settings), work item types, iterations, delivery targets and Lictory Intelligence policy, plus your own application role and capabilities. Use it to resolve ids for other tools.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({ organizationId }),
@@ -698,7 +699,7 @@ const getWorkItem = defineCapability({
   name: "getWorkItem",
   title: "Get work item",
   description:
-    "A work item with its current specification (Markdown), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory AI runs and recent activity. Identify it by id or by key (e.g. PAY-142). Earlier revision contents are included only with includeRevisionContent.",
+    "A work item with its current specification (Markdown), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. Identify it by id or by key (e.g. PAY-142). Earlier revision contents are included only with includeRevisionContent.",
   kind: "query",
   surfaces: everywhere,
   input: z

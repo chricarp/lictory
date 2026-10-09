@@ -18,8 +18,8 @@ import {
   ChevronRight,
   MessageSquare,
   Users,
-  Sparkles,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { cn } from "~/lib/utils";
 import { byType, relativeTime } from "~/lib/work-items";
 import {
@@ -2139,11 +2139,11 @@ function PullRequestView({
           },
           {
             id: "checks",
-            label: "Checks",
+            label: "Actions",
             icon: actionRuns.length ? (
               <CheckIcon state={checkState} className="size-3.5" />
             ) : (
-              <Sparkles className="size-3.5" />
+              <IntelligenceMark className="size-3.5" />
             ),
           },
           { id: "changes", label: "Changes" },
@@ -2556,7 +2556,7 @@ function PullRequestView({
               )}
             </section>
             <section className="space-y-2">
-              <SectionLabel>Checks</SectionLabel>
+              <SectionLabel>Lictory Actions</SectionLabel>
               {actionRuns.length || policy !== "off" ? (
                 <ActionCheckRow
                   pullRequestId={p.id}
@@ -2569,7 +2569,7 @@ function PullRequestView({
                   className="text-xs text-muted-foreground underline-offset-2 hover:underline"
                   onClick={() => setTab("checks")}
                 >
-                  No checks run on this pull request.
+                  No Lictory Actions have run on this pull request.
                 </button>
               )}
             </section>

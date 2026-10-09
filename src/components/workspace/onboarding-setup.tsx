@@ -11,11 +11,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Send,
-  Sparkles,
   SquareKanban,
   Users,
   X,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -112,7 +112,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
         const raw: unknown = JSON.parse(saved);
         const parsed = draftSchema.safeParse(raw);
         if (parsed.success) {
-          // A draft from before this choice must show it before enabling AI.
+          // A draft from before this choice must show it before enabling
+          // Lictory Intelligence.
           const legacy = !z.object({ aiEnabled: z.boolean() }).safeParse(raw)
             .success;
           setDraft({
@@ -403,8 +404,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       stage={position}
       labels={
         external
-          ? ["Project", "Delivery", "Intelligence", "Team"]
-          : ["Project", "Delivery", "Planning", "Intelligence", "Team"]
+          ? ["Project", "Delivery", "Lictory Intelligence", "Team"]
+          : ["Project", "Delivery", "Planning", "Lictory Intelligence", "Team"]
       }
     >
       <form
@@ -546,7 +547,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
             {draft.step === steps.intelligence && (
               <>
                 <OnboardingHeading title="Lictory Intelligence">
-                  Choose whether your organization uses AI to help refine specs.
+                  Choose whether your organization uses Lictory Intelligence to
+                  help refine specs.
                 </OnboardingHeading>
                 <CardOptions
                   label="Lictory Intelligence"
@@ -557,40 +559,41 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                   options={[
                     {
                       value: "enabled",
-                      title: "Enable AI",
+                      title: "Enable Lictory Intelligence",
                       description:
-                        "Chat with Intelligence, spot gaps and contradictions in AI reviews, and get suggested fixes to review changes.",
-                      icon: <Sparkles />,
+                        "Chat with Lictory Intelligence, spot gaps and contradictions in its reviews, and get suggested fixes to review changes.",
+                      icon: <IntelligenceMark />,
                     },
                     {
                       value: "disabled",
-                      title: "Keep AI off",
+                      title: "Keep Lictory Intelligence off",
                       description:
-                        "No AI chat, automated reviews or suggested fixes. Write specs, discuss, review and approve with your team.",
+                        "No Lictory Intelligence chat, automated reviews or suggested fixes. Write specs, discuss, review and approve with your team.",
                       icon: <Users />,
                     },
                   ]}
                 />
                 <div className="mt-6 space-y-3 text-xs leading-relaxed text-muted-foreground">
                   <p>
-                    AI proposes changes. People decide what to accept and
-                    approve.
+                    Lictory Intelligence proposes changes. People decide what to
+                    accept and approve.
                   </p>
                   <p>
-                    Enabling AI allows relevant specs, discussions and
-                    organization context to be sent to the configured AI
-                    provider when AI features run. With AI off, no content is
-                    sent to an AI provider.
+                    Enabling Lictory Intelligence allows relevant specs,
+                    discussions and organization context to be sent to the
+                    configured AI provider when it runs. With Lictory
+                    Intelligence off, no content is sent to an AI provider.
                   </p>
                   {!directory.ai.available && (
                     <p>
-                      AI is not available on this server yet. Your choice will
-                      be saved and AI can run once a provider is configured.
+                      Lictory Intelligence is not available on this server yet.
+                      Your choice will be saved and it can run once a provider
+                      is configured.
                     </p>
                   )}
                   <p>
                     An organization administrator can change this later in
-                    Settings → Lictory AI.
+                    Settings → Lictory Intelligence.
                   </p>
                 </div>
               </>

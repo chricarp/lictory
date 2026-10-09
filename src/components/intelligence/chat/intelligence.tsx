@@ -16,10 +16,10 @@ import {
   PanelLeft,
   RotateCcw,
   Search,
-  Sparkles,
   SquarePen,
   Zap,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import Link from "next/link";
 import {
   useCallback,
@@ -221,11 +221,11 @@ function useAiState() {
     return {
       ok: false as const,
       message: isAdmin
-        ? "Lictory AI is turned off for this organization. Turn it on to start chatting; organization content is sent to the configured AI provider only after you opt in."
-        : "Lictory AI is turned off for this organization. Ask an administrator to enable it in Settings.",
+        ? "Lictory Intelligence is turned off for this organization. Turn it on to start chatting; organization content is sent to the configured AI provider only after you opt in."
+        : "Lictory Intelligence is turned off for this organization. Ask an administrator to enable it in Settings.",
       action: isAdmin
         ? {
-            label: "Open AI settings",
+            label: "Open Lictory Intelligence settings",
             href: `${paths.settings(organization.slug)}#ai`,
           }
         : null,
@@ -308,7 +308,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             className="mb-6 flex flex-col items-center text-center"
           >
             <span className="mb-4 grid size-11 place-items-center rounded-2xl border bg-card shadow-sm">
-              <Sparkles className="size-5 text-primary" aria-hidden />
+              <IntelligenceMark className="size-5 text-primary" />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
               {greeting(me?.name ?? "")}

@@ -1422,7 +1422,7 @@ export function createSyncService(
           );
         }
         if (c.type === "setAiPolicy") {
-          require(admin, "An organization administrator must decide whether AI may be used.");
+          require(admin, "An organization administrator must decide whether Lictory Intelligence may be used.");
           await setAiPolicy(tx, organizationId, userId, c.enabled);
           return commit(
             tx,
@@ -1548,8 +1548,8 @@ export function createSyncService(
         }[] = [];
         const log = (action: string, detail?: Record<string, unknown>) =>
           activities.push({ action, detail });
-        // AI runs owned by other items (an Epic review covering this Story)
-        // whose projection this command changed.
+        // Lictory Intelligence runs owned by other items (an Epic review
+        // covering this Story) whose projection this command changed.
         const touchedRuns = new Set<string>();
         const revision = async (
           title: string,

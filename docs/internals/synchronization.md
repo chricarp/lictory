@@ -1,8 +1,8 @@
 # Workspace synchronization and review invariants
 
 The authenticated workspace uses Better Auth, the existing Drizzle domain tables,
-and Markdown revisions. The application runs without AI or delivery integrations;
-AI runs follow the same lock and change-log rules (see [Lictory AI](ai.md)).
+and Markdown revisions. The application runs without Lictory Intelligence or delivery
+integrations; Lictory Intelligence runs follow the same lock and change-log rules (see [Lictory Intelligence](ai.md)).
 
 ## Work items
 
@@ -82,7 +82,7 @@ into associated teams, and locally customized roles remain bounded by parent rol
 permissions. Administrators control team/project associations and root roles;
 local managers may configure their scopes and delegate permitted actions. Team
 integration credentials and delivery mode can be delegated without granting
-organization credentials, AI policy or approval rights. See
+organization credentials, Lictory Intelligence policy or approval rights. See
 [delegated configuration](configuration-access.md) for ceiling, revocation and
 shared-team semantics. Directory changes use the same locked receipt path and
 synchronization invalidation as existing roles.
@@ -141,7 +141,7 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 11 (delegated configuration, team/project associations and scoped delivery connections; version 10 added Lictory AI; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 11 (delegated configuration, team/project associations and scoped delivery connections; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to

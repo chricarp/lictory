@@ -64,7 +64,7 @@ const rows: Row[] = [
     linear: "partial",
   },
   {
-    feature: "AI gap and contradiction finding",
+    feature: "Lictory Intelligence gap and contradiction finding",
     lictory: "yes",
     jira: "partial",
     linear: "partial",

@@ -1,7 +1,7 @@
 # Public legal notices
 
 The public `/privacy` and `/terms-of-service` pages describe the deployed service,
-including optional AI, organization review history and both delivery modes. The
+including optional Lictory Intelligence, organization review history and both delivery modes. The
 operator has confirmed Christian Carpinelli, an individual in Italy, as the
 operator; EU configurations for Vercel, Neon, Cloudflare R2, Resend and PostHog;
 and an OpenAI Zero Data Retention arrangement. These are operator declarations,

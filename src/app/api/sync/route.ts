@@ -8,7 +8,7 @@ import { CapabilityError } from "~/capabilities/core";
 import { pageSchema } from "~/sync/shared/protocol";
 
 export const dynamic = "force-dynamic";
-// Lictory AI runs after the response and may take minutes.
+// Lictory Intelligence runs after the response and may take minutes.
 export const maxDuration = 300;
 
 // The browser's synchronization endpoint. Reads and writes are capabilities

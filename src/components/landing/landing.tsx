@@ -584,7 +584,7 @@ function Features() {
             body="Start with a problem, a few notes or an existing ticket. Lictory shapes it into objective, behavior and acceptance criteria, and flags what is still missing."
             points={[
               "Proposals are allowed to start imperfect",
-              "AI finds gaps and proposes; a person decides",
+              "Lictory Intelligence finds gaps and proposes; a person decides",
               "Nothing is rewritten silently",
             ]}
             visual={<DraftVisual />}
@@ -847,8 +847,8 @@ function Faq() {
       "Not at all. The behavior is inspired by pull requests, but the language is about proposals, revisions, reviews and approvals.",
     ],
     [
-      "What happens if AI is disabled?",
-      "Everything core keeps working. The assistant only adds findings and proposals; humans stay authoritative over every change, resolution and approval.",
+      "What happens if Lictory Intelligence is disabled?",
+      "Everything core keeps working. Lictory Intelligence only adds findings and proposals; humans stay authoritative over every change, resolution and approval.",
     ],
     [
       "What happens to approvals when the spec changes?",

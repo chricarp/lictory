@@ -1,10 +1,16 @@
 import { z } from "zod";
 import { intelligenceContextUseSchema } from "../../intelligence/shared";
 
-// Lictory AI is a non-human actor. It authors the commits, pull requests and
-// discussions it proposes; the human who asked is recorded on every run.
+// Lictory Intelligence is a non-human actor. It authors the commits, pull
+// requests and discussions it proposes; the human who asked is recorded on
+// every run. The id predates the name and is stored on history; keep it.
 export const AI_ACTOR_ID = "lictory-ai";
-export const AI_ACTOR_NAME = "Lictory AI";
+export const AI_ACTOR_NAME = "Lictory Intelligence";
+
+// Lictory Actions are the automated checks that run on pull requests, like CI.
+// The Lictory Intelligence review (`pr_action` runs) is the only action today;
+// each action has its own name, and its team policy.
+export const INTELLIGENCE_REVIEW_ACTION = "Lictory Intelligence review";
 
 export const aiRunKinds = ["item_review", "pr_action"] as const;
 export type AiRunKind = (typeof aiRunKinds)[number];
@@ -16,9 +22,10 @@ export const aiRunStatuses = [
   "superseded",
 ] as const;
 export type AiRunStatus = (typeof aiRunStatuses)[number];
-// How a team treats Lictory Action results on its pull requests.
-// advisory: findings are informative discussions; required: merge waits for a
-// completed run on the current head, and blocker findings open blocking threads.
+// How a team treats the Lictory Intelligence review action on its pull
+// requests. advisory: findings are informative discussions; required: merge
+// waits for a completed run on the current head, and blocker findings open
+// blocking threads.
 export const aiActionPolicies = ["off", "advisory", "required"] as const;
 export type AiActionPolicy = (typeof aiActionPolicies)[number];
 
@@ -64,7 +71,7 @@ export const aiFindingSchema = z.object({
   question: z.string().max(1000).nullable(),
   recommendation: z.string().max(2000).nullable(),
   edit: aiEditSchema.nullable(),
-  // Lictory Action only: the pull request discussion carrying this finding.
+  // Pull request runs only: the pull request discussion carrying this finding.
   threadId: z.string().nullable().default(null),
   // Lictory Intelligence Context entries the finding relied on.
   context: z.array(intelligenceContextUseSchema).max(10).default([]),

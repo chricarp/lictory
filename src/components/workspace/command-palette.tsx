@@ -15,8 +15,8 @@ import {
   Inbox,
   Settings,
   UserRound,
-  Sparkles,
 } from "lucide-react";
+import { IntelligenceMark } from "~/components/logo";
 import { cn } from "~/lib/utils";
 import { track } from "~/lib/analytics/client";
 import { paths } from "~/lib/paths";
@@ -163,7 +163,7 @@ export function CommandPalette({
         id: "intelligence",
         label: "Ask Lictory Intelligence",
         group: "Navigate",
-        icon: <Sparkles className="size-4" />,
+        icon: <IntelligenceMark className="size-4" />,
         run: () => go(paths.intelligence(org)),
       },
       {

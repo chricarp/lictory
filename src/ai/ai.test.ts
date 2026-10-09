@@ -204,7 +204,7 @@ async function fixture() {
   };
 }
 
-void test("AI review is opt-in, analyses the tree and scores validated findings", async () => {
+void test("Lictory Intelligence review is opt-in, analyses the tree and scores validated findings", async () => {
   const f = await fixture();
   const request = () =>
     f.command({
@@ -264,7 +264,7 @@ void test("AI review is opt-in, analyses the tree and scores validated findings"
   assert.equal(completed?.actorId, AI_ACTOR_ID);
 });
 
-void test("corrective PRs are AI-authored, owned by the requester, and outdated reviews cannot produce them", async () => {
+void test("corrective PRs are authored by Lictory Intelligence, owned by the requester, and outdated reviews cannot produce them", async () => {
   const f = await fixture();
   await f.command({ type: "setAiPolicy", enabled: true });
   await f.command({
@@ -310,7 +310,7 @@ void test("corrective PRs are AI-authored, owned by the requester, and outdated 
     (await f.runs(f.epicId))[0]!.correctivePullRequests[f.storyId],
     pullRequestId,
   );
-  // Opening the PR queues Lictory Action on it.
+  // Opening the PR queues the Lictory Intelligence review action on it.
   assert.equal((await f.runs(f.storyId))[0]?.kind, "pr_action");
   await assert.rejects(create(), /already exists/);
 
@@ -338,7 +338,7 @@ void test("corrective PRs are AI-authored, owned by the requester, and outdated 
   );
 });
 
-void test("Lictory Action re-runs per commit, comments without resolving, and gates merge when required", async () => {
+void test("the Lictory Intelligence review action re-runs per commit, comments without resolving, and gates merge when required", async () => {
   const f = await fixture();
   await f.command({ type: "setAiPolicy", enabled: true });
   await f.command({
@@ -560,7 +560,8 @@ void test("provider failures are recorded as actionable errors and never block h
     userId: null,
     required: true,
   });
-  // Turning AI off stops queued runs instead of sending content.
+  // Turning Lictory Intelligence off stops queued runs instead of sending
+  // content.
   await f.command({ type: "setAiPolicy", enabled: false });
   const before = analyzer.calls;
   await processAiRuns(db, { analyzer: fakeAnalyzer() });

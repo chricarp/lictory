@@ -37,7 +37,7 @@ export function LegalDocument({
             {title}
           </h1>
           <p className="mt-4 text-sm text-muted-foreground">
-            Version: 5 October 2026
+            Version: 9 October 2026
           </p>
           <p className="mt-6 text-base leading-7 text-muted-foreground">
             {introduction}
