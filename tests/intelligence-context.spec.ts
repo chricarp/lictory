@@ -56,6 +56,10 @@ test("an administrator curates versioned Lictory Intelligence Context per scope"
   await page
     .getByRole("link", { name: "Organization settings", exact: true })
     .click();
+  await page
+    .getByRole("navigation", { name: "Settings sections" })
+    .getByRole("link", { name: "Lictory Intelligence", exact: true })
+    .click();
 
   const section = page.locator("#intelligence-context");
   await expect(section).toContainText("No organization context yet");
