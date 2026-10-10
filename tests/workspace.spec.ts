@@ -733,6 +733,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // Invite the engineer so they can review.
   await page.getByRole("link", { name: "Organization settings" }).click();
+  await page.getByRole("link", { name: "Members", exact: true }).click();
   await page.getByLabel("Teammate email or username").fill("@riley_chen");
   await page.getByRole("button", { name: "Send invitation" }).click();
   const invitation = await page
@@ -1299,13 +1300,18 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     column("In Progress").getByText("Save a card for later"),
   ).toBeVisible();
 
-  // Block: the team now requires a ready specification to start work.
-  await page.getByRole("button", { name: "Team settings" }).click();
-  await page.getByRole("radio", { name: /Block/ }).click();
+  // Block: the project now requires a ready specification to start work.
+  await page.getByRole("link", { name: "Project settings" }).click();
+  await page.getByRole("link", { name: "Delivery", exact: true }).click();
+  await page.getByRole("radio", { name: /^Block/ }).click();
+  await expect(page.getByRole("radio", { name: /^Block/ })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
   await expect(
     page.getByRole("button", { name: "Everything is saved" }),
   ).toBeVisible();
-  await page.getByRole("link", { name: /board$/ }).click();
+  await page.getByRole("link", { name: "Board", exact: true }).click();
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("Todo"));

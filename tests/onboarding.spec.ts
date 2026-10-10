@@ -163,7 +163,7 @@ test("joining waits without creating an organization, discovers invitations, and
   page,
 }) => {
   await page
-    .getByRole("button", { name: "Join my team", exact: false })
+    .getByRole("button", { name: "Join my organization", exact: false })
     .click();
   await expect(
     page.getByRole("heading", { name: "No invitation yet" }),
