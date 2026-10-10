@@ -40,6 +40,7 @@ import { useShell } from "~/components/workspace/shell";
 import { shortRange } from "~/components/items/delivery-properties";
 import { estimateLabel } from "./card";
 import { BacklogRow } from "./backlog";
+import { ItemPeek, useItemPeek } from "./item-peek";
 
 // A team's own backlog: the work it has taken on but not yet planned (into an
 // iteration, or for external projects, handed off), ranked by the team, plus
@@ -144,6 +145,11 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
 
   const [drag, setDrag] = useState<string>();
   const [over, setOver] = useState<number>();
+  const peek = useItemPeek();
+  const peekProps = (item: WorkItem) => ({
+    selected: peek.peeked === identifier(project, item.number),
+    onOpen: peek.onLinkClick,
+  });
   const hrefOf = (item: WorkItem) =>
     paths.item(
       org,
@@ -215,8 +221,15 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
     ) : null;
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
+    <div
+      className={cn("h-full overflow-y-auto", peek.peeked && "2xl:pr-[452px]")}
+    >
+      <div
+        className={cn(
+          "mx-auto max-w-4xl space-y-4 px-6 py-6",
+          peek.peeked && "pb-[60dvh]",
+        )}
+      >
         <header className="flex flex-wrap items-center gap-3">
           <span
             aria-hidden
@@ -356,6 +369,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                       )}
                       <BacklogRow
                         item={item}
+                        {...peekProps(item)}
                         label={identifier(project, item.number)}
                         href={hrefOf(item)}
                         estimate={estimateLabel(project, item.estimate)}
@@ -474,6 +488,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                     <li key={item.id}>
                       <BacklogRow
                         item={item}
+                        {...peekProps(item)}
                         label={identifier(project, item.number)}
                         href={hrefOf(item)}
                         estimate={estimateLabel(project, item.estimate)}
@@ -518,6 +533,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
           </EmptyState>
         )}
       </div>
+      <ItemPeek project={project} peek={peek} />
     </div>
   );
 }

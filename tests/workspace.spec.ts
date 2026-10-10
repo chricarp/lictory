@@ -1317,11 +1317,65 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(page.getByText(/requires a ready specification/)).toBeVisible();
   await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
 
+  // Cards open a preview docked over the board instead of leaving it.
+  const storyCard = page.locator("[data-card]", {
+    hasText: "Save a card for later",
+  });
+  const taskCard = page.locator("[data-card]", {
+    hasText: "Add payment method column",
+  });
+  await storyCard.click();
+  const storyPreview = page.getByRole("complementary", {
+    name: "Preview of CHK-2",
+  });
+  await expect(
+    storyPreview.getByRole("heading", { name: "Save a card for later" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/board\?(.*&)?item=CHK-2/);
+  await expect(storyPreview.getByText("Readiness checks")).toBeVisible();
+  // Another card swaps the content in place, and its status can be changed
+  // from the preview.
+  await taskCard.click();
+  const taskPreview = page.getByRole("complementary", {
+    name: "Preview of CHK-1",
+  });
+  await expect(
+    taskPreview.getByRole("heading", { name: "Add payment method column" }),
+  ).toBeVisible();
+  await expect(storyPreview).toBeHidden();
+  await taskPreview
+    .getByRole("button", { name: "Status: In Progress" })
+    .click();
+  await page.getByRole("option", { name: /^Todo/ }).click();
+  await expect(
+    column("Todo").getByText("Add payment method column"),
+  ).toBeVisible();
+  await taskPreview.getByRole("button", { name: "Status: Todo" }).click();
+  await page.getByRole("option", { name: /^In Progress/ }).click();
+  await expect(
+    column("In Progress").getByText("Add payment method column"),
+  ).toBeVisible();
+  // The close icon, an outside click and Escape all dismiss it; a reload
+  // keeps it open.
+  await taskPreview.getByRole("button", { name: "Close preview" }).click();
+  await expect(taskPreview).toBeHidden();
+  await expect(page).not.toHaveURL(/item=/);
+  await storyCard.click();
+  await reloadWhenSaved(page);
+  await expect(
+    storyPreview.getByRole("heading", { name: "Save a card for later" }),
+  ).toBeVisible();
+  await page.getByRole("heading", { name: "Checkout", exact: true }).click();
+  await expect(storyPreview).toBeHidden();
+  await storyCard.click();
+  await page.keyboard.press("Escape");
+  await expect(storyPreview).toBeHidden();
+
   // The detail picker checks readiness before queueing: a blocked transition keeps
   // the status, explains why in a toast, and leaves the item usable.
-  await page
-    .getByRole("link", { name: "Save a card for later", exact: true })
-    .click();
+  await storyCard.click();
+  await storyPreview.getByRole("link", { name: "Open", exact: true }).click();
+  await expect(page).toHaveURL(/\/stories\/CHK-2$/);
   const detailProperties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");

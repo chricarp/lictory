@@ -33,6 +33,7 @@ import { RefinementIcon, StatusIcon } from "~/components/items/status";
 import { TypeIcon } from "~/components/items/icons";
 import { shortRange } from "~/components/items/delivery-properties";
 import { estimateLabel } from "./card";
+import { ItemPeek, useItemPeek } from "./item-peek";
 import {
   ExternalProjectNotice,
   TeamFilterPicker,
@@ -99,6 +100,7 @@ function ProjectBacklog({ project }: { project: Project }) {
   const capabilities = capabilitiesIn(project.id);
   const canPlan = canManage(project.id) || capabilities.changeProperties;
   const teamFilter = useTeamFilter(project);
+  const peek = useItemPeek();
   const iterations = [...delivery.iterations.values()]
     .filter((i) => i.projectId === project.id)
     .sort((a, b) => a.number - b.number);
@@ -245,6 +247,8 @@ function ProjectBacklog({ project }: { project: Project }) {
                 memberName={memberName}
                 draggable={capabilities.changeProperties}
                 dragging={drag === item.id}
+                selected={peek.peeked === identifier(project, item.number)}
+                onOpen={peek.onLinkClick}
                 onDragStart={() => setDrag(item.id)}
                 onDragEnd={() => {
                   setDrag(undefined);
@@ -263,8 +267,19 @@ function ProjectBacklog({ project }: { project: Project }) {
   const points = (rows: WorkItem[]) =>
     rows.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
+    <div
+      className={cn(
+        "h-full overflow-y-auto",
+        // Wide screens keep the list clear of the docked preview.
+        peek.peeked && "2xl:pr-[452px]",
+      )}
+    >
+      <div
+        className={cn(
+          "mx-auto max-w-4xl space-y-4 px-6 py-6",
+          peek.peeked && "pb-[60dvh]",
+        )}
+      >
         <header className="flex flex-wrap items-center gap-2">
           <h1 className="text-lg font-semibold tracking-tight">
             {project.name} · Backlog
@@ -476,6 +491,7 @@ function ProjectBacklog({ project }: { project: Project }) {
           </EmptyState>
         )}
       </div>
+      <ItemPeek project={project} peek={peek} />
     </div>
   );
 }
@@ -685,6 +701,8 @@ export function BacklogRow({
   onDragStart,
   onDragEnd,
   actions,
+  selected,
+  onOpen,
 }: {
   item: WorkItem;
   label: string;
@@ -698,12 +716,17 @@ export function BacklogRow({
   onDragEnd: () => void;
   // Row-level actions sit above the row link.
   actions?: React.ReactNode;
+  // The row is open in the item preview.
+  selected?: boolean;
+  // Plain clicks preview the item instead of following the link.
+  onOpen?: (event: React.MouseEvent, id: string) => void;
 }) {
   const { delivery } = useWorkspace();
   const status = delivery.statuses.get(item.statusId);
   return (
     <div
       data-row={item.id}
+      data-peek-item
       draggable={draggable}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = "move";
@@ -715,6 +738,8 @@ export function BacklogRow({
         "relative flex h-9 items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50",
         draggable && "cursor-grab",
         dragging && "opacity-40",
+        selected &&
+          "bg-primary/8 shadow-[inset_2px_0_0_var(--color-primary)] hover:bg-primary/10",
       )}
     >
       <TypeIcon type={typeOf(delivery, item)} />
@@ -724,6 +749,8 @@ export function BacklogRow({
       <Link
         href={href}
         draggable={false}
+        aria-current={selected ? true : undefined}
+        onClick={onOpen ? (e) => onOpen(e, label) : undefined}
         className="min-w-0 flex-1 truncate after:absolute after:inset-0"
       >
         {item.title}

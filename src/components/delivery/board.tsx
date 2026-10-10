@@ -43,6 +43,7 @@ import { StatusIcon } from "~/components/items/status";
 import { PriorityIcon, TypeIcon } from "~/components/items/icons";
 import { shortRange } from "~/components/items/delivery-properties";
 import { ItemCard, startBlocker } from "./card";
+import { ItemPeek, useItemPeek } from "./item-peek";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
@@ -177,6 +178,7 @@ function ProjectBoard({ project }: { project: Project }) {
   const { openCreate, toast } = useShell();
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;
+  const peek = useItemPeek();
   const iterations = [...delivery.iterations.values()]
     .filter((i) => i.projectId === project.id && i.state !== "completed")
     .sort((a, b) => a.number - b.number);
@@ -523,7 +525,14 @@ function ProjectBoard({ project }: { project: Project }) {
         </EmptyState>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="inline-flex min-w-full flex-col gap-3 p-3">
+          <div
+            className={cn(
+              "inline-flex min-w-full flex-col gap-3 p-3",
+              // Room to scroll the last column and cards out from under the
+              // docked preview.
+              peek.peeked && "pb-[60dvh] sm:pr-[400px] sm:pb-3 2xl:pr-[440px]",
+            )}
+          >
             {lanes.map((l) => (
               <section key={l.key} aria-label={l.label || "Board"}>
                 {lane !== "none" && (
@@ -622,6 +631,11 @@ function ProjectBoard({ project }: { project: Project }) {
                                 memberName={memberName}
                                 dragging={drag === item.id}
                                 draggable={canMove}
+                                selected={
+                                  peek.peeked ===
+                                  identifier(project, item.number)
+                                }
+                                onOpen={peek.onLinkClick}
                                 onDragStart={(e) => {
                                   setDrag(item.id);
                                   e.dataTransfer.effectAllowed = "move";
@@ -661,6 +675,7 @@ function ProjectBoard({ project }: { project: Project }) {
           )}
         </div>
       )}
+      <ItemPeek project={project} peek={peek} />
     </div>
   );
 }

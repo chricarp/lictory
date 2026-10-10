@@ -63,6 +63,8 @@ export const ItemCard = memo(function ItemCard({
   showStatus,
   dragging,
   draggable,
+  selected,
+  onOpen,
   onDragStart,
   onDragEnd,
 }: {
@@ -76,6 +78,10 @@ export const ItemCard = memo(function ItemCard({
   showStatus?: boolean;
   dragging?: boolean;
   draggable: boolean;
+  // The card is open in the item preview.
+  selected?: boolean;
+  // Plain clicks preview the item instead of following the link.
+  onOpen?: (event: React.MouseEvent, id: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
 }) {
@@ -90,6 +96,7 @@ export const ItemCard = memo(function ItemCard({
   return (
     <div
       data-card={item.id}
+      data-peek-item
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -97,6 +104,7 @@ export const ItemCard = memo(function ItemCard({
         "group relative rounded-lg bg-card p-2.5 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-panel)",
         draggable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-40",
+        selected && "ring-2 ring-primary/60",
       )}
     >
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -120,6 +128,8 @@ export const ItemCard = memo(function ItemCard({
         <Link
           href={paths.item(orgSlug, project.key, segmentOf(type), id)}
           draggable={false}
+          aria-current={selected ? true : undefined}
+          onClick={onOpen ? (e) => onOpen(e, id) : undefined}
           className="mt-1 line-clamp-3 block font-medium outline-none after:absolute after:inset-0 focus-visible:text-primary"
         >
           {item.title}
