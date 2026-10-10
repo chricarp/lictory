@@ -39,10 +39,16 @@ export function IntelligenceMark({ className }: { className?: string }) {
   );
 }
 
-export function Logo({ className }: { className?: string }) {
+export function Logo({
+  className,
+  href = "/",
+}: {
+  className?: string;
+  href?: string;
+}) {
   return (
     <Link
-      href="/"
+      href={href}
       aria-label="Lictory home"
       className={cn(
         "inline-flex shrink-0 items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-ring",
