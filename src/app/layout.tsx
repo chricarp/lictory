@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "~/app/globals.css";
 import { ConsentProvider } from "~/components/app/consent-provider";
 import { appearanceBootScript } from "~/lib/appearance";
+import { siteDescription, siteName, siteUrl } from "~/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,12 +17,29 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(siteUrl),
+  applicationName: siteName,
   title: {
-    default: "Lictory",
-    template: "%s · Lictory",
+    default: siteName,
+    template: `%s · ${siteName}`,
   },
-  description: "Collaborative engineering readiness.",
+  description: siteDescription,
+  creator: siteName,
+  publisher: siteName,
+  category: "technology",
+  formatDetection: { email: false, address: false, telephone: false },
+  // Lets search engines and AI answers show full snippets and large previews.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
