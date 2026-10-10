@@ -25,6 +25,7 @@ import {
   BookOpenCheck,
   CircleCheckBig,
   Check,
+  ChevronRight,
   ChevronsUpDown,
   FilePenLine,
   FolderOpen,
@@ -45,7 +46,6 @@ import {
   UserRound,
   KanbanSquare,
   ListOrdered,
-  Users,
 } from "lucide-react";
 import { IntelligenceMark } from "~/components/logo";
 import { authClient } from "~/lib/auth-client";
@@ -574,57 +574,15 @@ function Sidebar({
           </NavLink>
         </div>
         <div>
-          <div className={cn("mb-1 flex items-center", !collapsed && "px-2")}>
-            <Popover
-              width={220}
-              side={collapsed ? "right" : "bottom"}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  aria-label={
-                    collapsed
-                      ? `Switch project: ${project?.name ?? "Project"}`
-                      : undefined
-                  }
-                  title={
-                    collapsed
-                      ? `Project: ${project?.name ?? "Choose project"}`
-                      : undefined
-                  }
-                  className={cn(
-                    "flex min-w-0 items-center gap-1 rounded-md text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-                    collapsed ? "size-8 justify-center" : "h-6 px-1",
-                  )}
-                >
-                  {collapsed ? (
-                    <FolderOpen className="size-4" aria-hidden />
-                  ) : (
-                    <>
-                      <span className="truncate">
-                        {project?.name ?? "Project"}
-                      </span>
-                      <ChevronsUpDown className="size-3" />
-                    </>
-                  )}
-                </button>
-              )}
-            >
-              <Picker
-                title="Projects"
-                options={projects.map((p) => ({
-                  value: p.key,
-                  label: p.name,
-                  hint: p.key,
-                }))}
-                value={project?.key ?? null}
-                onSelect={(key) => router.push(paths.list(org, key, "epics"))}
-              />
-            </Popover>
-          </div>
+          <ProjectSwitcher
+            project={project}
+            projects={projects}
+            onSelect={(key) => router.push(paths.list(org, key, "epics"))}
+          />
           {project ? (
             <ProjectNav project={project} active={active} />
           ) : (
-            <p className="px-2 text-xs text-muted-foreground">
+            <p className="px-2 pt-1 text-xs text-muted-foreground">
               {projects.length ? "Choose a project." : "No projects yet."}
             </p>
           )}
@@ -763,9 +721,137 @@ function InboxLink({
   );
 }
 
-// Everything the sidebar offers inside the current project: refinement
-// surfaces, the delivery surface for its mode, its teams, saved views and
-// settings.
+// The project is the main context: a clear switcher naming it, with its
+// settings one click away.
+function ProjectSwitcher({
+  project,
+  projects,
+  onSelect,
+}: {
+  project?: Project;
+  projects: Project[];
+  onSelect: (key: string) => void;
+}) {
+  const { organization } = useWorkspace();
+  const collapsed = useContext(CollapsedSidebarContext);
+  const pathname = usePathname();
+  const settings = project
+    ? paths.projectSettings(organization.slug, project.key)
+    : undefined;
+  return (
+    <div
+      className={cn("mb-2 flex items-center gap-1", collapsed && "flex-col")}
+    >
+      <Popover
+        width={240}
+        side={collapsed ? "right" : "bottom"}
+        trigger={(props) => (
+          <button
+            {...props}
+            aria-label={`Switch project: ${project?.name ?? "none"}`}
+            title={collapsed ? (project?.name ?? "Choose project") : undefined}
+            className={cn(
+              "flex min-w-0 items-center gap-2 rounded-md text-left text-[13px] hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+              collapsed ? "size-8 justify-center" : "h-9 flex-1 px-2",
+            )}
+          >
+            {project ? (
+              <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground">
+                {collapsed ? project.key.slice(0, 2) : project.key}
+              </span>
+            ) : (
+              <FolderOpen
+                className="size-4 text-muted-foreground"
+                aria-hidden
+              />
+            )}
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {project?.name ?? "Choose project"}
+                </span>
+                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+              </>
+            )}
+          </button>
+        )}
+      >
+        <Picker
+          title="Projects"
+          options={projects.map((p) => ({
+            value: p.key,
+            label: p.name,
+            hint: p.key,
+          }))}
+          value={project?.key ?? null}
+          onSelect={onSelect}
+        />
+      </Popover>
+      {settings && !collapsed && (
+        <Link
+          href={settings}
+          aria-label="Project settings"
+          title="Project settings"
+          aria-current={pathname.startsWith(settings) ? "page" : undefined}
+          className={cn(
+            "grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+            pathname.startsWith(settings) &&
+              "bg-sidebar-accent text-foreground",
+          )}
+        >
+          <Settings2 className="size-4" aria-hidden />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function NavGroup({
+  label,
+  children,
+  toggle,
+}: {
+  label: string;
+  children?: ReactNode;
+  // Collapsible groups render their caption as a disclosure button.
+  toggle?: { open: boolean; onToggle: () => void };
+}) {
+  const collapsed = useContext(CollapsedSidebarContext);
+  return (
+    <div className={collapsed ? "mt-2" : "mt-4"}>
+      {collapsed ? (
+        <div className="mx-1 mb-2 border-t" />
+      ) : toggle ? (
+        <button
+          type="button"
+          aria-expanded={toggle.open}
+          onClick={toggle.onToggle}
+          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
+        >
+          {label}
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "size-3 transition-transform duration-150",
+              toggle.open && "rotate-90",
+            )}
+          />
+        </button>
+      ) : (
+        <p className="mb-1 px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          {label}
+        </p>
+      )}
+      {(!toggle || toggle.open || collapsed) && (
+        <div className="space-y-px">{children}</div>
+      )}
+    </div>
+  );
+}
+
+// Inside a project the sidebar follows the work: refine it (Work), deliver
+// it (Delivery, by the project's mode), and the teams doing it. Saved views
+// stay one click away without crowding the rest.
 function ProjectNav({
   project,
   active,
@@ -774,13 +860,16 @@ function ProjectNav({
   active: (href: string, exact?: boolean) => boolean;
 }) {
   const { delivery, organization, userId } = useWorkspace();
-  const collapsed = useContext(CollapsedSidebarContext);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const org = organization.slug;
   const key = project.key;
   const external = project.deliveryMode === "external";
   const teamParam = searchParams.get("team");
+  const [viewsOpen, toggleViews] = usePanelCollapsed(
+    organization.id,
+    "sidebar-views",
+  );
   // Teams I belong to first; membership is not access.
   const teams = projectTeams(delivery, project.id)
     .filter((t) => !t.archivedAt)
@@ -792,20 +881,10 @@ function ProjectNav({
   const board = paths.board(org, key);
   const backlog = paths.backlog(org, key);
   const stories = paths.list(org, key, "stories");
-  // Native teams open the board narrowed to them; external projects have no
-  // board, so the team's work items instead.
-  const teamHref = (id: string) =>
-    external
-      ? paths.list(org, key, "stories", new URLSearchParams({ team: id }))
-      : paths.board(org, key, id);
-  const teamActive = (id: string) =>
-    teamParam === id &&
-    (external
-      ? pathname === stories
-      : pathname === board || pathname === backlog);
+  const viewActive = views.some((v) => active(paths.view(org, key, v.id)));
   return (
     <>
-      <div className="space-y-px">
+      <NavGroup label="Work">
         <NavLink
           href={paths.list(org, key, "epics")}
           active={active(paths.list(org, key, "epics"))}
@@ -815,7 +894,7 @@ function ProjectNav({
         </NavLink>
         <NavLink
           href={stories}
-          active={active(stories) && !(external && teamParam)}
+          active={active(stories) && !teamParam}
           icon={<TypeIcon type={storyGlyph} />}
         >
           Work items
@@ -827,6 +906,8 @@ function ProjectNav({
         >
           Reviews
         </NavLink>
+      </NavGroup>
+      <NavGroup label={external ? "Delivery · Jira" : "Delivery"}>
         {external ? (
           <NavLink
             href={paths.handoff(org, key)}
@@ -860,62 +941,48 @@ function ProjectNav({
             </NavLink>
           </>
         )}
-      </div>
+      </NavGroup>
       {teams.length > 0 && (
-        <div className={collapsed ? "mt-2" : "mt-4"}>
-          {collapsed ? (
-            <div className="mx-1 mb-2 border-t" />
-          ) : (
-            <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              Teams
-            </p>
-          )}
-          <div className="space-y-px">
-            {teams.map((t) => (
+        <NavGroup label="Teams">
+          {teams.map((t) => {
+            const href = paths.team(org, key, t.id);
+            return (
               <NavLink
                 key={t.id}
-                href={teamHref(t.id)}
-                active={teamActive(t.id)}
-                icon={<Users className="size-4" />}
+                href={href}
+                active={active(href) || teamParam === t.id}
+                icon={
+                  <span className="grid size-4 place-items-center rounded bg-muted text-[9px] font-semibold text-foreground/70">
+                    {t.name.slice(0, 1).toUpperCase()}
+                  </span>
+                }
               >
                 {t.name}
               </NavLink>
-            ))}
-          </div>
-        </div>
+            );
+          })}
+        </NavGroup>
       )}
-      <div className={collapsed ? "mt-2" : "mt-4"}>
-        {collapsed ? (
-          <div className="mx-1 mb-2 border-t" />
-        ) : (
-          <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Views
-          </p>
-        )}
-        <div className="space-y-px">
-          {views
-            .filter((v) => v.id !== "needs-my-review")
-            .map((v) => (
-              <NavLink
-                key={v.id}
-                href={paths.view(org, key, v.id)}
-                active={active(paths.view(org, key, v.id))}
-                icon={<ViewIcon view={v.id} />}
-              >
-                {v.label}
-              </NavLink>
-            ))}
-        </div>
-      </div>
-      <div className={cn("space-y-px", collapsed ? "mt-2" : "mt-4")}>
-        <NavLink
-          href={paths.projectSettings(org, key)}
-          active={active(paths.projectSettings(org, key))}
-          icon={<Settings2 className="size-4" />}
-        >
-          Project settings
-        </NavLink>
-      </div>
+      <NavGroup
+        label="Views"
+        toggle={{
+          open: viewsOpen || viewActive,
+          onToggle: toggleViews,
+        }}
+      >
+        {views
+          .filter((v) => v.id !== "needs-my-review")
+          .map((v) => (
+            <NavLink
+              key={v.id}
+              href={paths.view(org, key, v.id)}
+              active={active(paths.view(org, key, v.id))}
+              icon={<ViewIcon view={v.id} />}
+            >
+              {v.label}
+            </NavLink>
+          ))}
+      </NavGroup>
     </>
   );
 }

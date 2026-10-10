@@ -215,6 +215,17 @@ export function CommandPalette({
             run: () => go(paths.backlog(org, p.key)),
           },
         );
+      for (const t of [...delivery.teams.values()].filter(
+        (x) => x.projectId === p.id && !x.archivedAt,
+      ))
+        list.push({
+          id: `team-${t.id}`,
+          label: `${t.name} · Team backlog`,
+          group: "Navigate",
+          icon: <ListOrdered className="size-4" />,
+          keywords: `team ${p.name} backlog triage`,
+          run: () => go(paths.team(org, p.key, t.id)),
+        });
       list.push({
         id: `project-settings-${p.id}`,
         label: `${p.name} · Project settings`,

@@ -673,7 +673,7 @@ function IterationHeader({
   );
 }
 
-function BacklogRow({
+export function BacklogRow({
   item,
   label,
   href,
@@ -684,6 +684,7 @@ function BacklogRow({
   dragging,
   onDragStart,
   onDragEnd,
+  actions,
 }: {
   item: WorkItem;
   label: string;
@@ -695,6 +696,8 @@ function BacklogRow({
   dragging: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
+  // Row-level actions sit above the row link.
+  actions?: React.ReactNode;
 }) {
   const { delivery } = useWorkspace();
   const status = delivery.statuses.get(item.statusId);
@@ -745,6 +748,9 @@ function BacklogRow({
         <Avatar name={memberName(item.assigneeId)} size="xs" />
       ) : (
         <span className="size-4" />
+      )}
+      {actions && (
+        <span className="relative z-10 flex items-center gap-1">{actions}</span>
       )}
     </div>
   );

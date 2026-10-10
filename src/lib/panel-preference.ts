@@ -16,7 +16,8 @@ function read(key: string) {
 
 export function usePanelCollapsed(
   organizationId: string,
-  panel: "sidebar" | "work-item-list",
+  // "sidebar-views" stores whether the sidebar's Views group is expanded.
+  panel: "sidebar" | "work-item-list" | "sidebar-views",
 ) {
   const key = `lictory:panel-collapsed:${organizationId}:${panel}`;
   const subscribe = useCallback(

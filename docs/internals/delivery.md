@@ -12,7 +12,8 @@ mode, readiness policy, labels and milestones. A **team** is an optional group
 of people inside one project (a vertical such as Board or Auth). Every item
 belongs to one project and at most one of its teams; moving it between teams
 keeps its key, status and iteration. Boards and backlogs are project views that
-can be narrowed to a team. See [organizations, projects and teams](organization-model.md)
+can be narrowed to a team, and each team has a backlog of its unplanned work
+with an intake of the project's unclaimed items. See [organizations, projects and teams](organization-model.md)
 for ownership and access.
 
 ## Types

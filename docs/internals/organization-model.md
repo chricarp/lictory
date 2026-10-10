@@ -24,6 +24,15 @@ workflow, readiness policy, estimate scale and iteration cadence, whichever
 team (if any) works on it. Boards and backlogs can be narrowed to a team; that
 is a view, not a different process.
 
+Each team has its own backlog page: the open work it has taken on but not yet
+planned (not in an iteration; for external projects, not yet handed off),
+ranked by the team, and the project's work that no team has taken yet. Taking
+an item sets its team; releasing it clears the team. A team's ranking moves
+items between their neighbours in the team's list, so it also orders them
+within the project; there is no second rank. Ranking, taking and planning use
+the same `changeProperties` capability as everywhere else in the project:
+team membership still grants nothing.
+
 Work items belong to exactly one project and optionally one of that project's
 teams. Foreign keys enforce that an item's team, status and iteration belong to
 its project. Moving an item between teams never changes its key, status or

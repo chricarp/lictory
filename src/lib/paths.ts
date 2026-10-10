@@ -56,6 +56,9 @@ export const paths = {
     `/app/${org}/${project.toLowerCase()}/backlog${team ? `?team=${encodeURIComponent(team)}` : ""}`,
   iteration: (org: string, project: string, iteration: string) =>
     `/app/${org}/${project.toLowerCase()}/iterations/${iteration}`,
+  // A team's own page: its backlog of unplanned work and its intake.
+  team: (org: string, project: string, team: string) =>
+    `/app/${org}/${project.toLowerCase()}/teams/${encodeURIComponent(team)}`,
   // Projects delivered in an external tool: what is ready, handed off, and
   // what Jira reports back.
   handoff: (org: string, project: string) =>

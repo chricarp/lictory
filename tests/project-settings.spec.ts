@@ -161,9 +161,36 @@ test("project administrators configure teams, disciplines and delivery; capabili
     ).toBeVisible();
     await lead.screenshot({ path: "/tmp/lictory-project-members.png" });
 
-    // The team appears in navigation and narrows the board.
+    // The team owns a backlog: it takes unclaimed project work, ranks it,
+    // and its board is the project board narrowed to the team.
     await engineer.goto(paths.board(slug, "JIRA"));
-    await engineer.locator('a[href*="/jira/board?team="]').click();
+    await engineer
+      .getByRole("navigation", { name: "Workspace" })
+      .getByRole("link", { name: "Board", exact: true })
+      .and(engineer.locator('a[href*="/jira/teams/"]'))
+      .click();
+    await expect(engineer).toHaveURL(/\/jira\/teams\//);
+    const intake = engineer.getByRole("region", {
+      name: "Unassigned project work",
+    });
+    const teamBacklog = engineer.getByRole("region", { name: "Team backlog" });
+    await expect(intake.getByText("Virtualize board columns")).toBeVisible();
+    await intake
+      .getByRole("button", { name: /^Take JIRA-1 into Board$/ })
+      .click();
+    await expect(
+      teamBacklog.getByText("Virtualize board columns"),
+    ).toBeVisible();
+    await expect(intake.getByText("Virtualize board columns")).toHaveCount(0);
+    await reloadWhenSaved(engineer);
+    await expect(
+      teamBacklog.getByText("Virtualize board columns"),
+    ).toBeVisible();
+    await engineer.screenshot({ path: "/tmp/lictory-team-backlog.png" });
+    await engineer
+      .getByRole("main")
+      .getByRole("link", { name: "Board" })
+      .click();
     await expect(engineer).toHaveURL(/\/jira\/board\?team=/);
 
     // Handing delivery off to Jira replaces the board with the hand-off view.
