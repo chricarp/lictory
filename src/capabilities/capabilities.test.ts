@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "../db/schema";
 import { handleMcp } from "../mcp/server";
-import { seedDefaultRoles } from "../sync/server/roles";
+import { seedOrganization } from "../sync/server/organization";
 import { commandSchema } from "../sync/shared/protocol";
 import { authenticateAccessToken } from "./access-tokens";
 import {
@@ -61,8 +61,7 @@ async function organization(ownerId: string, memberIds: string[] = []) {
       createdAt: new Date(),
     })),
   );
-  // The owner joins Product (every capability); members hold no role.
-  await seedDefaultRoles(db, organizationId, ownerId);
+  await seedOrganization(db, organizationId);
   return organizationId;
 }
 async function user(name: string) {
@@ -84,6 +83,14 @@ async function fixture() {
     projectId,
     name: "Payments",
     key: "PAY",
+  });
+  // The creator administers the project and holds Product (every
+  // capability); the member joins the project without a discipline.
+  await invoke(web, "setProjectMember", {
+    organizationId,
+    projectId,
+    userId: memberId,
+    role: "member",
   });
   const workspace = (await invoke(web, "getWorkspace", {
     organizationId,
@@ -233,14 +240,20 @@ void test("agents hold exactly the person's permissions and tenant boundary", as
       create(context({ userId: f.memberId, surface })),
       "forbidden",
     );
-  // Administrators only.
+  // Project administrators only.
   await rejected(
     invoke(context({ userId: f.memberId, surface: "mcp" }), "createTeam", {
       organizationId: f.organizationId,
+      projectId: f.projectId,
       name: "Platform",
     }),
     "forbidden",
   );
+  await invoke(f.mcp, "createTeam", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    name: "Platform",
+  });
   // Another organization's people cannot read or write it.
   const outsider = context({ userId: f.outsiderId, surface: "mcp" });
   await rejected(

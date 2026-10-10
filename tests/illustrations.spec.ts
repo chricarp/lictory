@@ -122,7 +122,7 @@ test("empty states load compact static artwork and remain actionable", async ({
   await page.screenshot({ path: "/tmp/lictory-views-updated.png" });
   await page.getByRole("link", { name: "Board", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "No active iteration" }),
+    page.getByRole("heading", { name: /^No active (sprint|cycle|iteration)$/ }),
   ).toBeVisible();
   await expect(artwork).toHaveAttribute("src", illustrationAssets.planning);
   await page.getByRole("button", { name: "Plan in the backlog" }).click();

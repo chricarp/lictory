@@ -1,0 +1,109 @@
+"use client";
+import { useWorkspace } from "~/components/workspace/provider";
+import { useProject } from "~/components/workspace/project-gate";
+import {
+  ReadOnlyNotice,
+  SettingsLayout,
+  type SettingsNavItem,
+} from "~/components/workspace/settings-section";
+import { LabelsAndMilestones } from "~/components/workspace/labels-settings";
+import { IntelligenceContextSection } from "~/components/intelligence/context-settings";
+import { paths } from "~/lib/paths";
+import { ProjectGeneral } from "./project-general";
+import { ProjectMembers } from "./project-members";
+import { ProjectDisciplines } from "./project-disciplines";
+import { ProjectTeams } from "./project-teams";
+import { ProjectWorkflow } from "./project-workflow";
+import { ProjectPlanning } from "./project-planning";
+import { ProjectDelivery } from "./project-delivery";
+import { plural } from "./project-shared";
+
+const sections = [
+  { id: "general", label: "General", group: "Project" },
+  { id: "members", label: "Members", group: "People" },
+  { id: "disciplines", label: "Disciplines", group: "People" },
+  { id: "teams", label: "Teams", group: "People" },
+  { id: "workflow", label: "Workflow & types", group: "Work" },
+  { id: "planning", label: "Planning", group: "Work" },
+  { id: "delivery", label: "Delivery", group: "Work" },
+  { id: "labels", label: "Labels & milestones", group: "Work" },
+  {
+    id: "context",
+    label: "Intelligence context",
+    group: "Lictory Intelligence",
+  },
+] as const;
+type SectionId = (typeof sections)[number]["id"];
+
+export function ProjectSettings({ section }: { section: string }) {
+  const project = useProject();
+  const { organization, directory, canManage, capabilitiesIn } = useWorkspace();
+  const active: SectionId = sections.some((s) => s.id === section)
+    ? (section as SectionId)
+    : "general";
+  const canEdit = canManage(project.id);
+  const canEditLabels =
+    canEdit ||
+    (!project.archivedAt && capabilitiesIn(project.id).changeProperties);
+  const members = directory.projectMembers.filter(
+    (m) => m.projectId === project.id,
+  ).length;
+  const nav: SettingsNavItem[] = sections.map((s) => ({
+    id: s.id,
+    label: s.label,
+    group: s.group,
+    href: paths.projectSettings(organization.slug, project.key, s.id),
+  }));
+  const readOnly =
+    active === "labels" ? !canEditLabels : active !== "context" && !canEdit;
+  return (
+    <SettingsLayout
+      icon={
+        <span className="grid h-9 min-w-9 place-items-center rounded-lg bg-muted px-1.5 font-mono text-[11px] font-semibold tracking-wide">
+          {project.key}
+        </span>
+      }
+      title={project.name}
+      subtitle={`Project settings · ${plural(members, "member")}`}
+      nav={nav}
+      active={active}
+    >
+      {readOnly && (
+        <ReadOnlyNotice>
+          {active === "labels"
+            ? "You can view this project's labels and milestones. Project administrators and people whose discipline changes properties can edit them."
+            : "You can view this project's settings. Project administrators and organization administrators can change them."}
+        </ReadOnlyNotice>
+      )}
+      {active === "general" && (
+        <ProjectGeneral project={project} canEdit={canEdit} />
+      )}
+      {active === "members" && (
+        <ProjectMembers project={project} canEdit={canEdit} />
+      )}
+      {active === "disciplines" && (
+        <ProjectDisciplines project={project} canEdit={canEdit} />
+      )}
+      {active === "teams" && (
+        <ProjectTeams project={project} canEdit={canEdit} />
+      )}
+      {active === "workflow" && (
+        <ProjectWorkflow project={project} canEdit={canEdit} />
+      )}
+      {active === "planning" && (
+        <ProjectPlanning project={project} canEdit={canEdit} />
+      )}
+      {active === "delivery" && (
+        <ProjectDelivery project={project} canEdit={canEdit} />
+      )}
+      {active === "labels" && (
+        <LabelsAndMilestones project={project} canEdit={canEditLabels} />
+      )}
+      {active === "context" && (
+        <IntelligenceContextSection
+          pinned={{ scope: "project", projectId: project.id }}
+        />
+      )}
+    </SettingsLayout>
+  );
+}

@@ -8,9 +8,9 @@ Teams can use Lictory in two ways, on the same data model:
 1. **Refinement + export.** Refine and approve specifications in Lictory, decompose
    them, and publish the resulting work into Jira, Linear or another delivery system.
 2. **Full stack.** Refine specifications and also run delivery natively: custom work
-   item types, team workflows, boards, backlog, sprints/cycles, estimates, relations.
+   item types, project workflows, boards, backlog, sprints/cycles, estimates, relations.
 
-Delivery mode is a per-team setting, not a different product. Both modes must keep
+Delivery mode is a per-project setting, not a different product. Both modes must keep
 working; a feature for one mode must not degrade the other.
 
 The product exists, first of all, to solve the gap between:
@@ -177,14 +177,14 @@ The workflow should surface the right concerns for the feature being reviewed.
 ## 5. Delivery is native or external, never both at once for the same work
 
 Lictory can run delivery natively (boards, backlog, sprints/cycles, estimates,
-relations) or hand it off to Jira, Linear or another delivery system. Each team
+relations) or hand it off to Jira, Linear or another delivery system. Each project
 chooses. The refinement workflow is identical in both modes.
 
 Native delivery should cover what small and medium software teams need to work
 every day, with Linear-like simplicity:
 
 - configurable work item types (Epic, Story, Task, Bug, Subtask by default)
-- per-team workflow statuses grouped into fixed categories
+- per-project workflow statuses grouped into fixed categories
 - kanban board and ranked backlog
 - sprints (manual) and cycles (automatic)
 - estimates, burndown, velocity, sprint reports
@@ -198,7 +198,7 @@ It should not grow into:
 - an arbitrary workflow builder with transition rules
 
 Readiness connects the two worlds: a spec-backed item's refinement state gates
-starting work (native mode, per team policy) or publishing (external mode).
+starting work (native mode, per project policy) or publishing (external mode).
 
 For the same piece of work, exactly one system owns delivery state. Do not create
 ambiguous dual tracking.
@@ -325,51 +325,41 @@ Authentication may be local during development but enterprise deployments will n
 
 ---
 
-## Group
+## Application role
 
-A collection of users representing an organizational capability.
+What a person may administer. Organization administrators (Better Auth
+owner/admin) manage the organization and every project; members work in it.
+Within a project, the project role (admin or member) decides who configures that
+project.
 
-Examples:
-
-- Product
-- Backend
-- Frontend
-- QA
-- Architecture
-- Security
-- UX
-- SRE
-
-Groups are not permissions.
-
-They represent organizational membership.
+Application and project roles grant no work item capabilities.
 
 ---
 
-## Role
+## Discipline
 
-A set of permissions or responsibilities.
+A kind of work a person does in one project, such as Product, Engineering, QA,
+Security or UX. Disciplines are configured per project, route reviews (the
+discipline's name is the review responsibility) and carry the work item
+capabilities their members have in that project: edit specifications, change
+properties, request reviews, be asked to review, hand off to delivery tools.
 
-Examples:
+A person may hold several disciplines in a project and different ones in another.
 
-- Product Owner
-- Reviewer
-- Technical Owner
-- QA Approver
-- Product Administrator
-- Organization Administrator
-
-A user may belong to a group and hold different roles in different contexts.
-
-Do not conflate groups and roles.
+Do not conflate disciplines (what kind of work, what you may do with items) and
+roles (what you may administer).
 
 ---
 
-## Product
+## Organization, project and team
 
-A logical product or system whose requirements are managed by the platform.
+An organization is a company (or a very large department of one). A **project**
+is a product area inside it (Jira or Confluence inside Atlassian): it owns its
+work items and identifiers, members and disciplines, workflow, enabled types,
+iterations, delivery mode, readiness policy and delivery integration target.
+"Product" in older documents means project.
 
-A product contains feature proposals, knowledge, policies, reviewers, and delivery integrations.
+See [organizations, projects and teams](docs/internals/organization-model.md).
 
 ---
 
@@ -530,18 +520,13 @@ to systems such as Jira.
 
 ## Team
 
-A group of people who deliver work together. A team owns its workflow, enabled
-work item types, estimate scale, iterations, board, delivery mode and readiness
-policy.
+A group of people working on one vertical of a project (Board or Auth inside
+Jira). A team belongs to one project and owns no configuration: boards and
+backlogs can be narrowed to it. Team membership grants nothing.
 
-A team is not an access-visibility boundary. Roles grant capabilities.
-Organization administrators associate a team with one or more projects. Project
-configuration roles apply to associated teams; local roles remain bounded by
-permission ceilings delegated from above. Shared team configuration affects every
-associated project.
-
-Work items belong to exactly one project (identity: `PAY-142`) and one team
-(delivery). Moving an item between teams never changes its identifier.
+Work items belong to exactly one project (identity: `PAY-142`) and optionally
+one of its teams. Moving an item between teams never changes its identifier,
+status or iteration.
 
 ---
 
@@ -556,7 +541,7 @@ Only spec-backed types are refined, reviewed and checked for readiness.
 
 ## Workflow status
 
-A team-defined delivery status in a fixed category: backlog, unstarted,
+A project-defined delivery status in a fixed category: backlog, unstarted,
 started, done, canceled.
 
 Refinement state (draft, refinement, in review, ready) is separate from delivery
@@ -567,7 +552,7 @@ status. Never merge them back into one field.
 ## Iteration
 
 A time-box of planned work: a sprint (started and completed by hand) or a cycle
-(scheduled automatically). One iteration per team is active at a time. Reports
+(scheduled automatically). One iteration per project is active at a time. Reports
 come from recorded events and are frozen at completion.
 
 ---

@@ -1,27 +1,12 @@
 "use client";
-import { useState } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  ChevronDown,
-  Plus,
-  ShieldCheck,
-  UserPlus,
-  Users,
-  X,
-} from "lucide-react";
-import { cn } from "~/lib/utils";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Mail, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { authClient } from "~/lib/auth-client";
-import {
-  capabilityKeys,
-  noCapabilities,
-  type Capabilities,
-  type Role,
-} from "~/sync/shared/protocol";
+import { paths } from "~/lib/paths";
+import type { Capabilities } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Popover } from "~/components/ui/popover";
-import { PeoplePicker } from "~/components/ui/people-picker";
 import { Avatar, Badge } from "~/components/ui/primitives";
 import { useWorkspace } from "./provider";
 import {
@@ -36,38 +21,41 @@ export const capabilityMeta: Record<
   { label: string; description: string }
 > = {
   editSpecifications: {
-    label: "Edit Epics and Stories directly",
+    label: "Edit specifications",
     description:
-      "Create items and save specification revisions without going through a suggestion.",
+      "Create spec-backed items, revise the specification and merge suggestions without going through review of each change.",
   },
   changeProperties: {
     label: "Change properties",
     description:
-      "Status, priority, owner, epic, labels and milestones, and the label and milestone lists.",
+      "Status, priority, owner, parent, labels, milestones, iterations and ordering.",
   },
   requestReviews: {
     label: "Request reviews",
-    description: "Ask other roles to review a revision, or cancel a request.",
+    description: "Ask a discipline to review a revision, or cancel a request.",
   },
   review: {
     label: "Can be asked to review",
     description:
-      "This role, or one of its members, can be assigned a review and approve it.",
+      "This discipline, or one of its members, can be assigned a review and approve it.",
   },
   publishDelivery: {
-    label: "Export to delivery tools",
+    label: "Hand off",
     description:
-      "Export ready Epics and Stories to Jira, and link items to existing Jira issues.",
+      "Export ready work to the project's Jira project and link existing issues.",
   },
 };
 
-// People: fixed application roles (Admin / Member) plus the organization roles
-// each person holds. Only administrators change either.
+// Organization members: the application role (Admin / Member) and a summary
+// of the projects each person works in. Only administrators change roles.
 export function People() {
   const { organization, directory, isAdmin, userId, engine } = useWorkspace();
   const [error, setError] = useState<string>();
-  const activeRoles = directory.roles.filter((r) => !r.archivedAt);
+  const [invitesVersion, setInvitesVersion] = useState(0);
   const admins = directory.members.filter((m) => m.role === "admin").length;
+  const projects = new Map(
+    directory.projects.filter((p) => !p.archivedAt).map((p) => [p.id, p]),
+  );
   const setApplicationRole = async (
     memberId: string,
     role: "admin" | "member",
@@ -83,99 +71,217 @@ export function People() {
     await engine.sync();
   };
   return (
-    <SettingsSection
-      id="people"
-      icon={<Users />}
-      title="Members"
-      description="Administrators manage the organization, projects and roles. What a person can do with Epics and Stories comes from the roles they hold."
-      action={
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {directory.members.length}{" "}
-          {directory.members.length === 1 ? "member" : "members"}
-        </span>
-      }
-    >
-      <SettingsList
-        isEmpty={directory.members.length === 0}
-        empty="No members."
+    <>
+      <SettingsSection
+        id="members"
+        icon={<Users />}
+        title="Members"
+        description="Admins manage the organization and every project. What people can do inside a project comes from their project role and disciplines."
+        action={
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {directory.members.length}{" "}
+            {directory.members.length === 1 ? "member" : "members"}
+          </span>
+        }
       >
-        {directory.members.map((m) => {
-          const held = activeRoles.filter((r) => r.userIds.includes(m.id));
-          const lastAdmin = m.role === "admin" && admins === 1;
-          return (
-            <div
-              key={m.id}
-              className="group flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 text-[13px]"
-            >
-              <Avatar name={m.name} size="md" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">
-                    {m.name}
-                    {m.id === userId && (
-                      <span className="font-normal text-muted-foreground">
-                        {" "}
-                        (you)
+        <SettingsList
+          isEmpty={directory.members.length === 0}
+          empty="No members."
+        >
+          {directory.members.map((m) => {
+            const lastAdmin = m.role === "admin" && admins === 1;
+            const memberships = directory.projectMembers
+              .filter((pm) => pm.userId === m.id && projects.has(pm.projectId))
+              .map((pm) => ({ ...pm, project: projects.get(pm.projectId)! }))
+              .sort((a, b) => a.project.name.localeCompare(b.project.name));
+            return (
+              <div
+                key={m.id}
+                className="group flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 text-[13px]"
+              >
+                <Avatar name={m.name} size="md" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">
+                      {m.name}
+                      {m.id === userId && (
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          (you)
+                        </span>
+                      )}
+                    </span>
+                    {m.role === "admin" && (
+                      <Badge tone="info">
+                        {m.owner ? "Admin · owner" : "Admin"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {m.handle && (
+                      <>
+                        @{m.handle}
+                        <span className="mx-1.5 text-muted-foreground/50">
+                          ·
+                        </span>
+                      </>
+                    )}
+                    {m.email}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    {memberships.map((pm) => (
+                      <Link
+                        key={pm.projectId}
+                        href={paths.projectSettings(
+                          organization.slug,
+                          pm.project.key,
+                          "members",
+                        )}
+                        title={`${pm.project.name}: project ${pm.role}`}
+                        className="inline-flex h-5 items-center gap-1 rounded bg-muted px-1.5 text-[11px] text-muted-foreground transition-colors duration-100 hover:text-foreground"
+                      >
+                        <span className="font-mono font-medium">
+                          {pm.project.key}
+                        </span>
+                        {pm.role === "admin" && <span>· Admin</span>}
+                      </Link>
+                    ))}
+                    {memberships.length === 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {m.role === "admin"
+                          ? "Manages every project"
+                          : "Not in a project yet"}
                       </span>
                     )}
-                  </span>
-                  {m.role === "admin" && (
-                    <Badge tone="info">
-                      {m.owner ? "Admin · owner" : "Admin"}
-                    </Badge>
-                  )}
+                  </div>
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {m.handle && (
-                    <>
-                      @{m.handle}
-                      <span className="mx-1.5 text-muted-foreground/50">·</span>
-                    </>
-                  )}
-                  {m.email}
-                  <span className="mx-1.5 text-muted-foreground/50">·</span>
-                  {held.length > 0
-                    ? held.map((r) => r.name).join(", ")
-                    : "No role"}
-                </div>
+                {isAdmin && !m.owner && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={lastAdmin}
+                    className="opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus-visible:opacity-100 disabled:group-hover:opacity-50"
+                    title={
+                      lastAdmin
+                        ? "An organization needs at least one administrator."
+                        : m.role === "admin"
+                          ? "Remove organization administration rights"
+                          : "Allow managing the organization and every project"
+                    }
+                    onClick={() =>
+                      void setApplicationRole(
+                        m.memberId,
+                        m.role === "admin" ? "member" : "admin",
+                      )
+                    }
+                  >
+                    <ShieldCheck className="size-3.5" />
+                    {m.role === "admin" ? "Make member" : "Make admin"}
+                  </Button>
+                )}
               </div>
-              {isAdmin && !m.owner && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={lastAdmin}
-                  className="opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus-visible:opacity-100 disabled:group-hover:opacity-50"
-                  title={
-                    lastAdmin
-                      ? "An organization needs at least one administrator."
-                      : m.role === "admin"
-                        ? "Remove organization management rights"
-                        : "Allow managing settings, projects and roles"
-                  }
-                  onClick={() =>
-                    void setApplicationRole(
-                      m.memberId,
-                      m.role === "admin" ? "member" : "admin",
-                    )
-                  }
-                >
-                  <ShieldCheck className="size-3.5" />
-                  {m.role === "admin" ? "Make member" : "Make admin"}
-                </Button>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </SettingsList>
+        {error && (
+          <SettingsBody className="py-2">
+            <InlineError>{error}</InlineError>
+          </SettingsBody>
+        )}
+        {isAdmin && (
+          <div className="border-t border-border bg-muted/40 px-5 py-4">
+            <Invite
+              organizationId={organization.id}
+              onSent={() => setInvitesVersion((v) => v + 1)}
+            />
+          </div>
+        )}
+      </SettingsSection>
+      {isAdmin && (
+        <PendingInvitations
+          organizationId={organization.id}
+          version={invitesVersion}
+        />
+      )}
+    </>
+  );
+}
+
+type PendingInvitation = {
+  id: string;
+  email: string;
+  expiresAt: Date | string;
+};
+
+// Pending Better Auth invitations, so a mistaken invitation can be withdrawn.
+function PendingInvitations({
+  organizationId,
+  version,
+}: {
+  organizationId: string;
+  version: number;
+}) {
+  const [invitations, setInvitations] = useState<PendingInvitation[]>();
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    let current = true;
+    void authClient.organization
+      .listInvitations({ query: { organizationId } })
+      .then((result) => {
+        if (!current) return;
+        if (result.error) return setError(result.error.message);
+        const now = Date.now();
+        setInvitations(
+          (result.data ?? []).filter(
+            (i) =>
+              i.status === "pending" && new Date(i.expiresAt).getTime() > now,
+          ),
+        );
+      });
+    return () => {
+      current = false;
+    };
+  }, [organizationId, version]);
+  if (!invitations?.length && !error) return null;
+  return (
+    <SettingsSection
+      id="invitations"
+      icon={<Mail />}
+      title="Pending invitations"
+      description="People invited who have not joined yet. Withdrawing an invitation makes its link stop working."
+    >
+      <SettingsList isEmpty={!invitations?.length} empty="No invitations.">
+        {invitations?.map((i) => (
+          <div
+            key={i.id}
+            className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
+          >
+            <span className="min-w-0 flex-1 truncate">{i.email}</span>
+            <span className="text-xs text-muted-foreground">
+              Expires {new Date(i.expiresAt).toLocaleDateString()}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Withdraw invitation for ${i.email}`}
+              onClick={async () => {
+                setError(undefined);
+                const result = await authClient.organization.cancelInvitation({
+                  invitationId: i.id,
+                });
+                if (result.error) return setError(result.error.message);
+                setInvitations((list) => list?.filter((x) => x.id !== i.id));
+              }}
+            >
+              <X className="size-3.5" /> Withdraw
+            </Button>
+          </div>
+        ))}
       </SettingsList>
       {error && (
         <SettingsBody className="py-2">
           <InlineError>{error}</InlineError>
         </SettingsBody>
-      )}
-      {isAdmin && (
-        <div className="border-t border-border bg-muted/40 px-5 py-4">
-          <Invite organizationId={organization.id} />
-        </div>
       )}
     </SettingsSection>
   );
@@ -183,7 +289,13 @@ export function People() {
 
 // Invitation form. Lives inside Members so "who is here" and "who should be
 // here" share one context. Invitations are Better Auth operations.
-function Invite({ organizationId }: { organizationId: string }) {
+function Invite({
+  organizationId,
+  onSent,
+}: {
+  organizationId: string;
+  onSent: () => void;
+}) {
   const [recipient, setRecipient] = useState("");
   const [url, setUrl] = useState<string>();
   const [error, setError] = useState<string>();
@@ -211,6 +323,7 @@ function Invite({ organizationId }: { organizationId: string }) {
               result.error?.message ?? "Could not send the invitation.",
             );
           setUrl(`${window.location.origin}/app/invitation?id=${result.id}`);
+          onSent();
         } catch (error) {
           setError(
             error instanceof Error
@@ -225,7 +338,7 @@ function Invite({ organizationId }: { organizationId: string }) {
       <label className="block text-[13px] font-medium">
         <span className="inline-flex items-center gap-1.5">
           <UserPlus className="size-3.5 text-muted-foreground" />
-          Invite a teammate
+          Invite to the organization
         </span>
         <div className="mt-1.5 flex gap-2">
           <Input
@@ -250,6 +363,10 @@ function Invite({ organizationId }: { organizationId: string }) {
           </Button>
         </div>
       </label>
+      <p className="text-xs text-muted-foreground">
+        People join as members. Add them to projects and disciplines in each
+        project’s settings.
+      </p>
       <InlineError>{error}</InlineError>
       {url && (
         <label className="block text-xs text-muted-foreground">
@@ -263,339 +380,6 @@ function Invite({ organizationId }: { organizationId: string }) {
           />
         </label>
       )}
-    </form>
-  );
-}
-
-// Organization roles: name, capabilities and members. Archiving is reversible
-// and keeps every historical review assignment.
-export function Roles() {
-  const { directory, isAdmin } = useWorkspace();
-  const [creating, setCreating] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const active = directory.roles.filter((r) => !r.archivedAt);
-  const archived = directory.roles.filter((r) => r.archivedAt);
-  return (
-    <SettingsSection
-      id="roles"
-      icon={<ShieldCheck />}
-      title="Roles"
-      description="A role bundles capabilities and the people who hold them. Archiving is reversible and keeps every historical review assignment."
-      action={
-        isAdmin && !creating ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="size-3.5" /> Add role
-          </Button>
-        ) : undefined
-      }
-    >
-      <SettingsBody className="space-y-3">
-        {active.map((role) => (
-          <RoleCard key={role.id} role={role} canEdit={isAdmin} />
-        ))}
-        {active.length === 0 && !creating && (
-          <p className="py-4 text-center text-[13px] text-muted-foreground">
-            No roles. Nobody can edit, change properties or request reviews
-            until an administrator adds one.
-          </p>
-        )}
-        {isAdmin && creating && <NewRole onDone={() => setCreating(false)} />}
-      </SettingsBody>
-      {archived.length > 0 && (
-        <div className="border-t border-border px-5 py-3">
-          <button
-            onClick={() => setShowArchived((v) => !v)}
-            aria-expanded={showArchived}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                "size-3 transition-transform duration-150",
-                showArchived && "rotate-180",
-              )}
-            />
-            {archived.length} archived role{archived.length > 1 ? "s" : ""}
-          </button>
-          {showArchived && (
-            <div className="mt-3 space-y-3">
-              {archived.map((role) => (
-                <RoleCard key={role.id} role={role} canEdit={isAdmin} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </SettingsSection>
-  );
-}
-
-function RoleCard({ role, canEdit }: { role: Role; canEdit: boolean }) {
-  const { mutate, directory, memberName } = useWorkspace();
-  const [name, setName] = useState(role.name);
-  const [error, setError] = useState<string>();
-  const update = async (
-    patch: Partial<{
-      name: string;
-      capabilities: Capabilities;
-      archived: boolean;
-    }>,
-  ) => {
-    setError(undefined);
-    try {
-      await mutate({ type: "updateRole", roleId: role.id, ...patch });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update role.");
-    }
-  };
-  const editable = canEdit && !role.archivedAt;
-  const members = role.userIds
-    .map((id) => directory.members.find((m) => m.id === id))
-    .filter((m): m is NonNullable<typeof m> => Boolean(m));
-  return (
-    <div
-      className={cn(
-        "rounded-lg border border-border bg-background p-3",
-        role.archivedAt && "opacity-60",
-      )}
-    >
-      <div className="flex items-center gap-2">
-        {editable ? (
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => {
-              const trimmed = name.trim();
-              if (!trimmed) return setName(role.name);
-              if (trimmed !== role.name) void update({ name: trimmed });
-            }}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-            aria-label={`Role name ${role.name}`}
-            className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-[13px] font-medium outline-none hover:bg-muted focus:bg-muted"
-          />
-        ) : (
-          <span className="flex-1 px-1 text-[13px] font-medium">
-            {role.name}
-          </span>
-        )}
-        {role.archivedAt && <Badge>Archived</Badge>}
-        {canEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={
-              role.archivedAt
-                ? `Restore role ${role.name}`
-                : `Archive role ${role.name}`
-            }
-            title={role.archivedAt ? "Restore" : "Archive"}
-            onClick={() => void update({ archived: !role.archivedAt })}
-          >
-            {role.archivedAt ? (
-              <ArchiveRestore className="size-3.5" />
-            ) : (
-              <Archive className="size-3.5" />
-            )}
-          </Button>
-        )}
-      </div>
-      <CapabilityList
-        value={role.capabilities}
-        disabled={!editable}
-        onChange={(capabilities) => void update({ capabilities })}
-        idPrefix={role.id}
-      />
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {members.map((m) => (
-          <span
-            key={m.id}
-            className="inline-flex h-6 items-center gap-1 rounded-md bg-muted pr-1 pl-0.5 text-xs"
-          >
-            <Avatar name={m.name} size="xs" />
-            {m.name}
-            {editable && (
-              <button
-                aria-label={`Remove ${m.name} from ${role.name}`}
-                className="ml-0.5 rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
-                onClick={() =>
-                  void mutate({
-                    type: "setRoleMembership",
-                    roleId: role.id,
-                    userId: m.id,
-                    member: false,
-                  })
-                }
-              >
-                <X className="size-3" />
-              </button>
-            )}
-          </span>
-        ))}
-        {members.length === 0 && (
-          <span className="text-xs text-muted-foreground">
-            Nobody holds this role yet.
-          </span>
-        )}
-        {editable && (
-          <Popover
-            width={280}
-            trigger={(props) => (
-              <button
-                {...props}
-                aria-label={`Add person to ${role.name}`}
-                className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <UserPlus className="size-3.5" /> Add person
-              </button>
-            )}
-          >
-            {(close) => (
-              <PeoplePicker
-                title={`Add to ${role.name}`}
-                excludeIds={role.userIds}
-                onSelect={(userId) => {
-                  void mutate({
-                    type: "setRoleMembership",
-                    roleId: role.id,
-                    userId,
-                    member: true,
-                  });
-                  close();
-                }}
-              />
-            )}
-          </Popover>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="mt-2 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      {/* memberName keeps former members legible if the directory lags. */}
-      {role.userIds.length !== members.length && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          {role.userIds
-            .filter((id) => !members.some((m) => m.id === id))
-            .map(memberName)
-            .join(", ")}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function CapabilityList({
-  value,
-  onChange,
-  disabled,
-  idPrefix,
-}: {
-  value: Capabilities;
-  onChange: (next: Capabilities) => void;
-  disabled?: boolean;
-  idPrefix: string;
-}) {
-  return (
-    <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-      {capabilityKeys.map((key) => (
-        <li key={key}>
-          <label
-            className={cn(
-              "flex items-start gap-2 rounded-md px-1 py-1 text-[13px]",
-              !disabled && "cursor-pointer hover:bg-muted",
-            )}
-          >
-            <input
-              id={`${idPrefix}-${key}`}
-              type="checkbox"
-              className="mt-0.5"
-              checked={value[key]}
-              disabled={disabled}
-              onChange={(e) => onChange({ ...value, [key]: e.target.checked })}
-            />
-            <span>
-              <span className={cn(!value[key] && "text-muted-foreground")}>
-                {capabilityMeta[key].label}
-              </span>
-              <span className="block text-[11px] text-muted-foreground">
-                {capabilityMeta[key].description}
-              </span>
-            </span>
-          </label>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function NewRole({ onDone }: { onDone: () => void }) {
-  const { mutate } = useWorkspace();
-  const [name, setName] = useState("");
-  const [capabilities, setCapabilities] = useState<Capabilities>({
-    ...noCapabilities,
-    review: true,
-  });
-  const [error, setError] = useState<string>();
-  const [pending, setPending] = useState(false);
-  return (
-    <form
-      className="space-y-3 rounded-lg border border-dashed border-border bg-muted/40 p-3"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        setPending(true);
-        setError(undefined);
-        try {
-          await mutate({
-            type: "createRole",
-            roleId: crypto.randomUUID(),
-            name: name.trim(),
-            capabilities,
-          });
-          onDone();
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : "Could not create role.",
-          );
-        } finally {
-          setPending(false);
-        }
-      }}
-    >
-      <label className="block text-[13px] font-medium">
-        Role name
-        <Input
-          className="mt-1.5 h-8 rounded-md text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Security"
-          required
-          autoFocus
-          aria-label="New role name"
-        />
-      </label>
-      <CapabilityList
-        value={capabilities}
-        onChange={setCapabilities}
-        idPrefix="new-role"
-      />
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      <div className="flex justify-end gap-1">
-        <Button type="button" variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={pending || !name.trim()}>
-          Create role
-        </Button>
-      </div>
     </form>
   );
 }

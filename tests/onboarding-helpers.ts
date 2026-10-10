@@ -38,7 +38,7 @@ export async function createWorkspace(
   }
 }
 
-/** From the delivery step through Intelligence to the team step. */
+/** From the delivery step through Intelligence to the people step. */
 export async function configureFirstProject(
   page: Page,
   mode: "native" | "external" = "native",
@@ -92,6 +92,6 @@ export async function configureFirstProject(
   ).toBeChecked();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Who reviews with you?" }),
+    page.getByRole("heading", { name: /^Invite people to / }),
   ).toBeVisible();
 }

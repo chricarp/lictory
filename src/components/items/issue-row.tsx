@@ -77,7 +77,7 @@ export const IssueRow = memo(function IssueRow({
         />
       )}
       <IssueStatus
-        teamId={item.teamId}
+        projectId={item.projectId}
         statusId={item.statusId}
         compact
         onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}

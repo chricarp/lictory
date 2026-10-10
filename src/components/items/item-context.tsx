@@ -32,14 +32,14 @@ export type ItemContextValue = {
   activity: EntityOf<"activity">[];
   view: View;
   userId: string;
-  roleIds: string[];
+  disciplineIds: string[];
   memberName: (id: string | null | undefined) => string;
-  roleName: (id: string | null | undefined) => string;
+  disciplineName: (id: string | null | undefined) => string;
   mutate: (command: Command) => Promise<string | undefined>;
   mutateConfirmed: (command: Command) => Promise<string>;
   // Archived or not yet confirmed: nothing about the item can change.
   readOnly: boolean;
-  // What my organization roles allow on this item; the server re-checks.
+  // What my disciplines in the item's project allow; the server re-checks.
   // Configured type; `reviewable` when it carries a specification (revisions,
   // suggestions, threads, reviews, readiness). Other types keep a plain,
   // revisioned description.
@@ -68,9 +68,9 @@ export function useItemContextValue(input: {
   entities: Entity[];
   view: View;
   userId: string;
-  roleIds: string[];
+  disciplineIds: string[];
   memberName: ItemContextValue["memberName"];
-  roleName: ItemContextValue["roleName"];
+  disciplineName: ItemContextValue["disciplineName"];
   capabilities: Capabilities;
   mutate: ItemContextValue["mutate"];
   mutateConfirmed: ItemContextValue["mutateConfirmed"];
@@ -82,9 +82,9 @@ export function useItemContextValue(input: {
     entities,
     view,
     userId,
-    roleIds,
+    disciplineIds,
     memberName,
-    roleName,
+    disciplineName,
     capabilities,
     mutate,
     mutateConfirmed,
@@ -133,9 +133,9 @@ export function useItemContextValue(input: {
       ),
       view,
       userId,
-      roleIds,
+      disciplineIds,
       memberName,
-      roleName,
+      disciplineName,
       mutate,
       mutateConfirmed,
       readOnly,
@@ -154,9 +154,9 @@ export function useItemContextValue(input: {
     entities,
     view,
     userId,
-    roleIds,
+    disciplineIds,
     memberName,
-    roleName,
+    disciplineName,
     capabilities,
     mutate,
     mutateConfirmed,

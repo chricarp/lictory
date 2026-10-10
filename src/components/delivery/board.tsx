@@ -2,18 +2,29 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
-import { Plus, Repeat, Rows3, Settings2, UserRound } from "lucide-react";
+import {
+  Plus,
+  Repeat,
+  Rows3,
+  Send,
+  Settings2,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import {
   activeStatuses,
   byRank,
+  enabledTypes,
   isClosedCategory,
   isTopLevel,
   priorityMeta,
   priorityOrder,
   identifier,
+  projectTeams,
   typeOf,
+  type Project,
 } from "~/lib/work-items";
 import {
   iterationLabel,
@@ -24,12 +35,13 @@ import { Button } from "~/components/ui/button";
 import { Popover, Picker } from "~/components/ui/popover";
 import { PeoplePicker } from "~/components/ui/people-picker";
 import { EmptyState } from "~/components/ui/primitives";
+import { MissingState } from "~/components/ui/status-page";
 import { useWorkspace } from "~/components/workspace/provider";
+import { useProject } from "~/components/workspace/project-gate";
 import { useShell } from "~/components/workspace/shell";
 import { StatusIcon } from "~/components/items/status";
 import { PriorityIcon, TypeIcon } from "~/components/items/icons";
 import { shortRange } from "~/components/items/delivery-properties";
-import { useTeam } from "./team-gate";
 import { ItemCard, startBlocker } from "./card";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
@@ -42,8 +54,114 @@ const laneLabel: Record<Lane, string> = {
 // Closed work drops off the board after two weeks; history stays in lists.
 const DONE_WINDOW = 14 * 86_400_000;
 
+// Board and backlog are project views; `?team=` narrows them to one team of
+// the project, or to work without a team ("none").
+export function useTeamFilter(project: Project) {
+  const { delivery } = useWorkspace();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const all = projectTeams(delivery, project.id);
+  const raw = params.get("team");
+  const team = raw ? all.find((t) => t.id === raw) : undefined;
+  const value: string | undefined = raw === "none" ? "none" : team?.id;
+  const setParam = (key: string, next: string | undefined) => {
+    const query = new URLSearchParams(params);
+    if (next) query.set(key, next);
+    else query.delete(key);
+    const search = query.toString();
+    router.replace(search ? `${pathname}?${search}` : pathname, {
+      scroll: false,
+    });
+  };
+  return {
+    // undefined: all teams; "none": work without a team; otherwise a team id.
+    value,
+    team,
+    teams: all
+      .filter((t) => !t.archivedAt || t.id === value)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    teamName: (id: string | null) =>
+      id ? delivery.teams.get(id)?.name : undefined,
+    matches: (teamId: string | null) =>
+      !value || (value === "none" ? !teamId : teamId === value),
+    setTeam: (next: string | undefined) => setParam("team", next),
+    setParam,
+    params,
+  };
+}
+
+export function TeamFilterPicker({
+  filter,
+}: {
+  filter: ReturnType<typeof useTeamFilter>;
+}) {
+  if (!filter.teams.length && !filter.value) return null;
+  return (
+    <Popover
+      width={220}
+      trigger={(props) => (
+        <Button {...props} variant="ghost" size="sm">
+          <Users className="size-3.5" />
+          {filter.value === "none"
+            ? "No team"
+            : (filter.team?.name ?? "All teams")}
+        </Button>
+      )}
+    >
+      <Picker
+        title="Team"
+        options={[
+          { value: "all", label: "All teams" },
+          ...filter.teams.map((t) => ({ value: t.id, label: t.name })),
+          { value: "none", label: "No team" },
+        ]}
+        value={filter.value ?? "all"}
+        onSelect={(v) => filter.setTeam(v === "all" ? undefined : v)}
+      />
+    </Popover>
+  );
+}
+
+// External projects deliver in Jira: Lictory shows the hand-off instead of a
+// board, backlog or iterations.
+export function ExternalProjectNotice({
+  project,
+  surface,
+}: {
+  project: Project;
+  surface: string;
+}) {
+  const { organization } = useWorkspace();
+  return (
+    <MissingState
+      illustration="planning"
+      icon={Send}
+      title={`${project.name} delivers in Jira`}
+      action={
+        <Link
+          href={paths.handoff(organization.slug, project.key)}
+          className="contents"
+        >
+          <Button variant="secondary">Open hand-off</Button>
+        </Link>
+      }
+    >
+      Statuses, sprints and estimates for this project are owned by Jira, so
+      there is no {surface} in Lictory. The hand-off shows what is ready, what
+      changed since it was handed off and what Jira reports back.
+    </MissingState>
+  );
+}
+
 export function Board() {
-  const team = useTeam();
+  const project = useProject();
+  if (project.deliveryMode === "external")
+    return <ExternalProjectNotice project={project} surface="board" />;
+  return <ProjectBoard project={project} />;
+}
+
+function ProjectBoard({ project }: { project: Project }) {
   const {
     items,
     projects,
@@ -51,27 +169,19 @@ export function Board() {
     organization,
     memberName,
     mutate,
-    capabilities,
+    capabilitiesIn,
+    canManage,
     view,
   } = useWorkspace();
+  const capabilities = capabilitiesIn(project.id);
   const { openCreate, toast } = useShell();
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const setParam = (key: string, value: string | undefined) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    const query = next.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
-    });
-  };
+  const teamFilter = useTeamFilter(project);
+  const { params, setParam } = teamFilter;
   const iterations = [...delivery.iterations.values()]
-    .filter((i) => i.teamId === team.id && i.state !== "completed")
+    .filter((i) => i.projectId === project.id && i.state !== "completed")
     .sort((a, b) => a.number - b.number);
   const active = iterations.find((i) => i.state === "active");
-  const usesIterations = team.iterationMode !== "off";
+  const usesIterations = project.iterationMode !== "off";
   const iterationParam = params.get("iteration");
   const iterationId =
     iterationParam === "all"
@@ -83,7 +193,7 @@ export function Board() {
   const lane = (params.get("lanes") as Lane | null) ?? "none";
   const assignees = params.get("assignee")?.split(",").filter(Boolean) ?? [];
   const typeFilter = params.get("type")?.split(",").filter(Boolean) ?? [];
-  const statuses = activeStatuses(team);
+  const statuses = activeStatuses(delivery, project.id);
   const [showCanceled, setShowCanceled] = useState(false);
   const columns = statuses.filter(
     (s) => showCanceled || s.category !== "canceled",
@@ -94,7 +204,8 @@ export function Board() {
     () =>
       items
         .filter((i) => {
-          if (i.teamId !== team.id || i.archivedAt) return false;
+          if (i.projectId !== project.id || i.archivedAt) return false;
+          if (!teamFilter.matches(i.teamId)) return false;
           // Epics are containers; the board shows the work inside them.
           if (isTopLevel(typeOf(delivery, i))) return false;
           if (iterationId && i.iterationId !== iterationId) return false;
@@ -116,7 +227,7 @@ export function Board() {
         .sort(byRank),
     // Filters are read from `params`; listing it covers each of them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, team.id, iterationId, delivery, params, now],
+    [items, project.id, iterationId, delivery, params, now],
   );
   const lanes = useMemo(() => {
     if (lane === "none") return [{ key: "all", label: "", items: scoped }];
@@ -164,11 +275,11 @@ export function Board() {
     const column = laneItems.filter(
       (i) => i.statusId === statusId && i.id !== item.id,
     );
-    const blocker = startBlocker(delivery, team, item, statusId);
+    const blocker = startBlocker(delivery, project, item, statusId);
     const label = identifier(projectOf(item), item.number);
     if (blocker?.policy === "block") {
       toast(
-        `${label} is not ready to start: ${blocker.detail}. ${team.name} requires a ready specification.`,
+        `${label} is not ready to start: ${blocker.detail}. ${project.name} requires a ready specification.`,
       );
       return;
     }
@@ -219,14 +330,20 @@ export function Board() {
     });
     return index === -1 ? cards.length : index;
   };
-  const defaultProject =
-    projects.find((p) => p.defaultTeamId === team.id) ?? projects[0];
+  const canCreate =
+    capabilities.editSpecifications || capabilities.changeProperties;
+  const createTeamId =
+    teamFilter.value && teamFilter.value !== "none" ? teamFilter.value : null;
+  const filtered = Boolean(
+    assignees.length || typeFilter.length || teamFilter.value,
+  );
   const points = scoped.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-        <h1 className="truncate text-sm font-semibold">{team.name}</h1>
+        <h1 className="truncate text-sm font-semibold">{project.name}</h1>
         <span className="text-xs text-muted-foreground">Board</span>
+        <TeamFilterPicker filter={teamFilter} />
         {usesIterations && (
           <Popover
             width={260}
@@ -243,7 +360,7 @@ export function Board() {
             )}
           >
             <Picker
-              title={team.iterationMode === "automatic" ? "Cycle" : "Sprint"}
+              title={project.iterationMode === "automatic" ? "Cycle" : "Sprint"}
               options={[
                 { value: "all", label: "All work" },
                 ...iterations.map((i) => ({
@@ -259,7 +376,7 @@ export function Board() {
         )}
         <span className="text-xs text-muted-foreground tabular-nums">
           {scoped.length} items
-          {team.estimateScale !== "none" && points > 0 && ` · ${points} pts`}
+          {project.estimateScale !== "none" && points > 0 && ` · ${points} pts`}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <Popover
@@ -300,8 +417,8 @@ export function Board() {
             <Picker
               multiple
               title="Types"
-              options={[...delivery.types.values()]
-                .filter((t) => team.typeIds.includes(t.id) && !t.archivedAt)
+              options={enabledTypes(delivery, project.id)
+                .filter((t) => !isTopLevel(t))
                 .map((t) => ({
                   value: t.id,
                   label: t.name,
@@ -362,37 +479,47 @@ export function Board() {
               </label>
             </div>
           </Popover>
-          <Link
-            href={paths.teamSettings(organization.slug, team.id)}
-            className="contents"
-          >
-            <Button variant="ghost" size="icon" aria-label="Team settings">
-              <Settings2 className="size-3.5" />
-            </Button>
-          </Link>
+          {canManage(project.id) && (
+            <Link
+              href={paths.projectSettings(
+                organization.slug,
+                project.key,
+                "workflow",
+              )}
+              className="contents"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Workflow settings"
+                title="Workflow settings"
+              >
+                <Settings2 className="size-3.5" />
+              </Button>
+            </Link>
+          )}
         </div>
       </header>
-      {team.deliveryMode === "external" && (
-        <p className="border-b bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
-          {team.name} tracks delivery in an external tool. This board is a
-          read-mostly view; export ready work to Jira from each item instead of
-          moving it here.
-        </p>
-      )}
       {usesIterations && iterationParam !== "all" && !iteration ? (
         <EmptyState
           illustration="planning"
-          title="No active iteration"
+          title={`No active ${project.iterationMode === "automatic" ? "cycle" : "sprint"}`}
           action={
             <Link
-              href={paths.backlog(organization.slug, team.id)}
+              href={paths.backlog(
+                organization.slug,
+                project.key,
+                teamFilter.value,
+              )}
               className="contents"
             >
               <Button variant="secondary">Plan in the backlog</Button>
             </Link>
           }
         >
-          Start a sprint from the backlog, or view all work on the board.
+          {project.iterationMode === "automatic"
+            ? "The next cycle starts automatically. Plan work in the backlog, or view all work on the board."
+            : "Start a sprint from the backlog, or view all work on the board."}
         </EmptyState>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
@@ -461,16 +588,16 @@ export function Board() {
                             status={status}
                             count={cards.length}
                             points={
-                              team.estimateScale !== "none"
+                              project.estimateScale !== "none"
                                 ? columnPoints
                                 : undefined
                             }
                             onCreate={
-                              capabilities.editSpecifications && defaultProject
+                              canCreate
                                 ? () =>
                                     openCreate({
-                                      projectId: defaultProject.id,
-                                      teamId: team.id,
+                                      projectId: project.id,
+                                      teamId: createTeamId,
                                       statusId: status.id,
                                       iterationId: iterationId ?? null,
                                     })
@@ -485,7 +612,11 @@ export function Board() {
                               <ItemCard
                                 item={item}
                                 project={projectOf(item)}
-                                team={team}
+                                teamName={
+                                  teamFilter.value
+                                    ? undefined
+                                    : teamFilter.teamName(item.teamId)
+                                }
                                 delivery={delivery}
                                 orgSlug={organization.slug}
                                 memberName={memberName}
@@ -518,16 +649,12 @@ export function Board() {
           </div>
           {!scoped.length && view.status !== "hydrating" && (
             <EmptyState
-              illustration={
-                assignees.length || typeFilter.length ? "search" : "planning"
-              }
+              illustration={filtered ? "search" : "planning"}
               title={
-                assignees.length || typeFilter.length
-                  ? "No matching work"
-                  : "No work on this board yet"
+                filtered ? "No matching work" : "No work on this board yet"
               }
             >
-              {assignees.length || typeFilter.length
+              {filtered
                 ? "Adjust the filters to see more work."
                 : "Create a work item, or plan work in the backlog to get started."}
             </EmptyState>

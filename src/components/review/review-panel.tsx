@@ -27,12 +27,12 @@ export function ReviewPanel() {
     approvals,
     current,
     userId,
-    roleIds,
+    disciplineIds,
     mutate,
     base,
     item,
     memberName,
-    roleName,
+    disciplineName,
     readOnly,
     canRequestReviews,
     revisionNumber,
@@ -51,7 +51,9 @@ export function ReviewPanel() {
     assignments.filter((a) => a.reviewId === review.id && !a.withdrawnAt);
   const canDecide = (review: EntityOf<"review">) =>
     assigneesOf(review).some(
-      (a) => a.userId === userId || (a.roleId && roleIds.includes(a.roleId)),
+      (a) =>
+        a.userId === userId ||
+        (a.disciplineId && disciplineIds.includes(a.disciplineId)),
     );
   return (
     <section>
@@ -153,7 +155,7 @@ export function ReviewPanel() {
                       ) : null}
                       {a.userId
                         ? memberName(a.userId)
-                        : `Anyone in ${roleName(a.roleId)}`}
+                        : `Anyone in ${disciplineName(a.disciplineId)}`}
                     </span>
                   ))}
                   {granted.map((a) => (
@@ -253,10 +255,11 @@ export function RequestReview({
   trigger: Parameters<typeof Popover>[0]["trigger"];
 }) {
   const { directory, memberName, userId } = useWorkspace();
-  const { mutate, base, reviews, current } = useItem();
-  // Only roles an administrator marked as reviewers can be asked.
-  const reviewerRoles = directory.roles.filter(
-    (r) => !r.archivedAt && r.capabilities.review,
+  const { mutate, base, reviews, current, item } = useItem();
+  // Only the project's disciplines marked as reviewers can be asked.
+  const reviewerRoles = directory.disciplines.filter(
+    (r) =>
+      r.projectId === item.projectId && !r.archivedAt && r.capabilities.review,
   );
   const [roleId, setRoleId] = useState<string | undefined>(
     () =>
@@ -282,13 +285,13 @@ export function RequestReview({
           className="space-y-3 p-3 text-[13px]"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!role) return setError("Choose a reviewer role.");
+            if (!role) return setError("Choose a reviewing discipline.");
             try {
               await mutate({
                 type: "requestReview",
                 ...base,
                 reviewId: crypto.randomUUID(),
-                roleId: role.id,
+                disciplineId: role.id,
                 userId: reviewer === "any" ? null : reviewer,
                 required,
               });
@@ -307,13 +310,16 @@ export function RequestReview({
           </p>
           {reviewerRoles.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No role can be asked to review yet. An administrator can enable
-              “Can be asked to review” on a role in Settings.
+              No discipline of this project can be asked to review yet. A
+              project administrator can enable “Can be asked to review” on a
+              discipline in project settings.
             </p>
           ) : (
             <>
               <div>
-                <span className="text-xs text-muted-foreground">Role</span>
+                <span className="text-xs text-muted-foreground">
+                  Discipline
+                </span>
                 <Popover
                   width="trigger"
                   trigger={(props) => (
@@ -321,10 +327,10 @@ export function RequestReview({
                       {...props}
                       type="button"
                       className="mt-1 flex h-8 w-full items-center justify-between rounded-md border bg-card px-2 text-left text-sm hover:bg-muted"
-                      aria-label="Reviewer role"
+                      aria-label="Reviewing discipline"
                     >
                       <span className={cn(!role && "text-muted-foreground")}>
-                        {role?.name ?? "Choose a role…"}
+                        {role?.name ?? "Choose a discipline…"}
                       </span>
                       <ChevronDown className="size-3.5 text-muted-foreground" />
                     </button>
@@ -332,7 +338,7 @@ export function RequestReview({
                 >
                   {(closeRole) => (
                     <Picker
-                      title="Reviewer role"
+                      title="Reviewing discipline"
                       hideSearch={reviewerRoles.length < 8}
                       options={reviewerRoles.map((r) => ({
                         value: r.id,
@@ -368,7 +374,7 @@ export function RequestReview({
                     >
                       <span>
                         {reviewer === "any"
-                          ? `Anyone in ${role?.name ?? "the role"}`
+                          ? `Anyone in ${role?.name ?? "the discipline"}`
                           : reviewer === userId
                             ? `${memberName(reviewer)} (me)`
                             : memberName(reviewer)}
@@ -384,7 +390,7 @@ export function RequestReview({
                       options={[
                         {
                           value: "any",
-                          label: `Anyone in ${role?.name ?? "the role"}`,
+                          label: `Anyone in ${role?.name ?? "the discipline"}`,
                           hint: people.length
                             ? `${people.length} ${people.length === 1 ? "person" : "people"}`
                             : "No members yet",

@@ -96,41 +96,51 @@ type CommandDoc = {
 // protocol therefore exposes it to every surface once it has a description,
 // and the type checker refuses a command without one.
 const commandDocs: Record<CommandType, CommandDoc> = {
-  createConfigurationRole: {
-    title: "Create configuration role",
-    description:
-      "Organization administrators define project or team role templates. Local access managers create scoped roles bounded by a parent role they hold and their own permissions. Roles grant no access until assigned.",
-  },
-  updateConfigurationRole: {
-    title: "Update configuration role",
-    description:
-      "Change, archive or restore a configuration role. Organization administrators manage templates; local access managers customize roles within their scope and permission ceilings. Current assignments immediately use the effective permissions.",
-  },
-  setConfigurationAssignment: {
-    title: "Assign configuration role",
-    description:
-      "Assign or revoke a role in one project or team. Local access managers may delegate only permissions they hold, including local access management. Project authority inherits into associated teams.",
-    decision: true,
-  },
   createProject: {
     title: "Create project",
     description:
-      "Create a project (administrators). `key` prefixes item identifiers, e.g. PAY. Optional `setup` configures the first team during onboarding.",
+      "Organization administrators: create a project (a product area). `key` prefixes item identifiers, e.g. PAY. The project starts with the default workflow, every active type and the Product, Engineering and QA disciplines; the creator becomes its administrator. Optional `setup` records onboarding decisions.",
   },
   updateProject: {
     title: "Update project",
     description:
-      "Rename a project or change its default team (organization administrators or project settings roles).",
+      "Project administrators: rename or describe the project and change its delivery settings: delivery mode (native = delivered in Lictory, external = handed off to Jira), readiness policy, estimate scale, iteration mode and cadence, and the Lictory Intelligence review action policy. External projects never plan iterations or estimate in Lictory.",
+  },
+  archiveProject: {
+    title: "Archive project",
+    description:
+      "Organization administrators: archive (archived: true) or restore a project. Archived projects are read-only; history is kept.",
+    destructive: true,
+  },
+  setProjectMember: {
+    title: "Set project member",
+    description:
+      "Project administrators: add a person to the project as `admin` or `member`, change their project role, or remove them (role null), which also removes their disciplines and team memberships in the project.",
+  },
+  createDiscipline: {
+    title: "Create discipline",
+    description:
+      "Project administrators: add a work discipline (e.g. Security) with the work item capabilities it grants in this project and whether it can be asked to review.",
+  },
+  updateDiscipline: {
+    title: "Update discipline",
+    description:
+      "Project administrators: rename, describe, change capabilities, archive or restore a discipline. Archived disciplines grant nothing; reviews keep their name.",
+  },
+  setDisciplineMember: {
+    title: "Set discipline member",
+    description:
+      "Project administrators: add or remove a person from a discipline. Adding someone also makes them a project member.",
   },
   createWorkItem: {
     title: "Create work item",
     description:
-      "Create a work item (Epic, Story, Task, Bug, Subtask or a custom type) in a project. Requires the edit-specifications capability. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision.",
+      "Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision.",
   },
   updateWorkItem: {
     title: "Update work item properties",
     description:
-      "Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team, priority, assignee, parent, milestone, iteration, estimate, labels. Never creates a revision or stales approvals. Requires change-properties.",
+      "Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. Never creates a revision or stales approvals. Requires change-properties in the item's project.",
   },
   rankWorkItem: {
     title: "Rank work item",
@@ -235,12 +245,12 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   requestPullRequestReview: {
     title: "Request pull request review",
     description:
-      "Ask a reviewer role (optionally one member of it) to review a pull request.",
+      "Ask a reviewing discipline of the item's project (optionally one member of it) to review a pull request.",
   },
   decidePullRequest: {
     title: "Review pull request",
     description:
-      "Approve, request changes or revoke a decision on a pull request review assigned to you or your role. Heads pin the reviewed content.",
+      "Approve, request changes or revoke a decision on a pull request review assigned to you or your discipline. Heads pin the reviewed content.",
     decision: true,
   },
   mergePullRequest: {
@@ -271,7 +281,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   setSuggestionReviewer: {
     title: "Set suggestion reviewer",
     description:
-      "Author: assign or unassign a reviewer who holds a role that can both edit specifications and review.",
+      "Author: assign or unassign a reviewer who holds a discipline in the project that can both edit specifications and review.",
   },
   decideSuggestion: {
     title: "Review suggestion",
@@ -288,7 +298,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   requestReview: {
     title: "Request review",
     description:
-      "Request a review of the current revision from a reviewer role, optionally from one member, as required or optional. Requires request-reviews.",
+      "Request a review of the current revision from a reviewing discipline of the item's project, optionally from one member, as required or optional. Requires request-reviews.",
   },
   cancelReview: {
     title: "Cancel review",
@@ -298,7 +308,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   decideReview: {
     title: "Decide review",
     description:
-      "Approve, request changes or revoke your decision on a review assigned to you or your role. Approval applies to `baseRevisionId`.",
+      "Approve, request changes or revoke your decision on a review assigned to you or your discipline. Approval applies to `baseRevisionId`.",
     decision: true,
   },
   setAiPolicy: {
@@ -329,50 +339,44 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   createTeam: {
     title: "Create team",
-    description: "Administrators: create a delivery team.",
+    description:
+      "Project administrators: create a team, a group of people working on one vertical of the project. Teams own no configuration; items may have no team.",
   },
   updateTeam: {
     title: "Update team",
     description:
-      "Administrators: change a team's name, delivery mode (native/external), readiness policy, estimate scale, iteration settings, Lictory Intelligence review action policy, or archive it.",
+      "Project administrators: rename or describe a team, or archive/restore it. Archived teams stay on their items as history.",
   },
   setTeamMembership: {
     title: "Set team membership",
-    description: "Administrators: add or remove a team member.",
+    description:
+      "Project administrators: add or remove a team member. Adding someone also makes them a project member.",
   },
-  setTeamType: {
+  setProjectType: {
     title: "Enable work item type",
     description:
-      "Administrators: enable or disable a work item type for a team.",
+      "Project administrators: enable or disable an organization work item type in the project. Disabling is refused while active items use it.",
   },
   createStatus: {
     title: "Create workflow status",
     description:
-      "Administrators: add a team workflow status in a fixed category (backlog, unstarted, started, done, canceled).",
+      "Project administrators: add a workflow status in a fixed category (backlog, unstarted, started, done, canceled).",
   },
   updateStatus: {
     title: "Update workflow status",
     description:
-      "Administrators: rename, recolor, recategorize or reorder a status.",
+      "Project administrators: rename, recolor, recategorize or reorder a status.",
   },
   archiveStatus: {
     title: "Archive workflow status",
     description:
-      "Administrators: archive a status, moving its items to `replacementId`.",
+      "Project administrators: archive a status, moving its items to `replacementId`.",
     destructive: true,
-  },
-  createType: {
-    title: "Create work item type",
-    description:
-      "Administrators: add an organization-wide work item type with a hierarchy level and whether it carries a specification.",
-  },
-  updateType: {
-    title: "Update work item type",
-    description: "Administrators: change or archive a work item type.",
   },
   createIteration: {
     title: "Create iteration",
-    description: "Plan a sprint for a team (change-properties).",
+    description:
+      "Plan a sprint in a project that delivers in Lictory with manual sprints (project administrators or change-properties).",
   },
   updateIteration: {
     title: "Update iteration",
@@ -380,26 +384,22 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   startIteration: {
     title: "Start iteration",
-    description: "Start a planned sprint; one iteration per team is active.",
+    description: "Start a planned sprint; one iteration per project is active.",
   },
   completeIteration: {
     title: "Complete iteration",
     description:
       "Complete the active sprint, moving unfinished items to `carryOverTo` (or the backlog when null). The report is frozen.",
   },
-  createRole: {
-    title: "Create organization role",
+  createType: {
+    title: "Create work item type",
     description:
-      "Administrators: create a role granting workflow capabilities to its members.",
+      "Organization administrators: add an organization-wide work item type with a hierarchy level and whether it carries a specification. It is enabled in every project.",
   },
-  updateRole: {
-    title: "Update organization role",
+  updateType: {
+    title: "Update work item type",
     description:
-      "Administrators: rename, change capabilities, archive or restore a role.",
-  },
-  setRoleMembership: {
-    title: "Set role membership",
-    description: "Administrators: add or remove a member from a role.",
+      "Organization administrators: change or archive a work item type.",
   },
 };
 
@@ -538,7 +538,7 @@ const getWorkspace = defineCapability({
   name: "getWorkspace",
   title: "Get workspace configuration",
   description:
-    "The organization's projects, members, roles, teams (workflow statuses, enabled types, settings), work item types, iterations, delivery targets and Lictory Intelligence policy, plus your own application role and capabilities. Use it to resolve ids for other tools.",
+    "The organization's projects (with their delivery settings, workflow statuses, enabled types, members, disciplines, teams and iterations), work item types, delivery targets and Lictory Intelligence policy, plus your application role and your capabilities in each project. Use it to resolve ids for other tools.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({ organizationId }),
@@ -557,7 +557,18 @@ const getWorkspace = defineCapability({
       me: {
         userId: ctx.principal.userId,
         applicationRole: me?.role ?? "member",
-        capabilities: capabilitiesOf(roster.roles, ctx.principal.userId),
+        projects: roster.projects.map((p) => ({
+          projectId: p.id,
+          role:
+            roster.projectMembers.find(
+              (m) => m.projectId === p.id && m.userId === ctx.principal.userId,
+            )?.role ?? null,
+          capabilities: capabilitiesOf(
+            roster.disciplines,
+            ctx.principal.userId,
+            p.id,
+          ),
+        })),
       },
     };
   },

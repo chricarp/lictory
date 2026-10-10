@@ -8,11 +8,13 @@ export type AnalyticsEvent = { event: string; properties: AnalyticsProperties };
 
 // Exhaustive: adding a domain command requires choosing its analytics event.
 export const commandEvents = {
-  createConfigurationRole: "configuration_role_created",
-  updateConfigurationRole: "configuration_role_updated",
-  setConfigurationAssignment: "configuration_assignment_changed",
   createProject: "project_created",
   updateProject: "project_updated",
+  archiveProject: "project_archive_changed",
+  setProjectMember: "project_member_changed",
+  createDiscipline: "discipline_created",
+  updateDiscipline: "discipline_updated",
+  setDisciplineMember: "discipline_membership_changed",
   createWorkItem: "work_item_created",
   updateWorkItem: "work_item_updated",
   rankWorkItem: "work_item_ranked",
@@ -52,7 +54,7 @@ export const commandEvents = {
   createTeam: "team_created",
   updateTeam: "team_updated",
   setTeamMembership: "team_membership_changed",
-  setTeamType: "team_type_changed",
+  setProjectType: "project_type_changed",
   createStatus: "workflow_status_created",
   updateStatus: "workflow_status_updated",
   archiveStatus: "workflow_status_archived",
@@ -62,9 +64,6 @@ export const commandEvents = {
   updateIteration: "iteration_updated",
   startIteration: "iteration_started",
   completeIteration: "iteration_completed",
-  createRole: "role_created",
-  updateRole: "role_updated",
-  setRoleMembership: "role_membership_changed",
   setAiPolicy: "ai_policy_changed",
   requestAiReview: "ai_review_requested",
   rerunAiAction: "ai_action_requested",
@@ -83,7 +82,7 @@ const safeFields = [
   "iterationId",
   "milestoneId",
   "reviewId",
-  "roleId",
+  "disciplineId",
   "threadId",
   "suggestionId",
   "relationId",
@@ -106,6 +105,8 @@ const safeFields = [
   "readinessPolicy",
   "estimateScale",
   "iterationMode",
+  "aiActionPolicy",
+  "role",
   "hasSpecification",
   "level",
   "category",
@@ -142,7 +143,8 @@ export function commandEvent(command: Command): AnalyticsEvent {
       properties.has_iteration = command.iterationId !== null;
   }
   if (
-    (command.type === "createRole" || command.type === "updateRole") &&
+    (command.type === "createDiscipline" ||
+      command.type === "updateDiscipline") &&
     command.capabilities
   )
     properties.enabled_capabilities = Object.entries(command.capabilities)
@@ -150,7 +152,7 @@ export function commandEvent(command: Command): AnalyticsEvent {
       .map(([name]) => name);
   if (command.type === "requestReview")
     properties.reviewer_assignment =
-      command.userId === null ? "role" : "specific";
+      command.userId === null ? "discipline" : "specific";
   if (command.type === "createThread") {
     properties.anchored = Boolean(command.quote) || Boolean(command.section);
     properties.context = command.suggestionId ? "suggestion" : "specification";
@@ -179,26 +181,21 @@ export function committedEvents(
     (entity) => entity.type === "workItem" && entity.id === itemId,
   );
   if (item?.type === "workItem") {
-    const team = directory?.teams.find((team) => team.id === item.teamId);
+    const project = directory?.projects.find((p) => p.id === item.projectId);
+    const status = directory?.statuses.find((x) => x.id === item.statusId);
     const type = directory?.types.find((type) => type.id === item.typeId);
     const previous = before.find(
       (entity) => entity.type === "workItem" && entity.id === itemId,
     );
     Object.assign(primary.properties, {
-      ...(team ? { delivery_mode: team.deliveryMode } : {}),
+      ...(project ? { delivery_mode: project.deliveryMode } : {}),
       ...(type
         ? {
             work_item_type: type.name,
             has_specification: type.hasSpecification,
           }
         : {}),
-      ...(team?.statuses.find((status) => status.id === item.statusId)
-        ? {
-            status_category: team.statuses.find(
-              (status) => status.id === item.statusId,
-            )!.category,
-          }
-        : {}),
+      ...(status ? { status_category: status.category } : {}),
       ...(previous?.type === "workItem"
         ? {
             previous_status_id: previous.statusId,

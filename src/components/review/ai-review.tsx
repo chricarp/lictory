@@ -286,7 +286,7 @@ export function AiReviewPanel({ onOpen }: { onOpen: (runId: string) => void }) {
             title={
               blocker ??
               (!allowed
-                ? "Your roles cannot request reviews."
+                ? "Your disciplines in this project cannot request reviews."
                 : "Analyse this item with its parent and child items for missing information.")
             }
             onClick={request}
@@ -770,7 +770,7 @@ export function FindingCard({
 // annotations. The Lictory Intelligence review is the only action today.
 
 const policyCopy = {
-  off: "Off for this team: runs only when someone starts it.",
+  off: "Off for this project: runs only when someone starts it.",
   advisory:
     "Advisory: reviews every new commit. Findings inform, merge isn't blocked.",
   required:
@@ -779,8 +779,10 @@ const policyCopy = {
 
 function useActionPolicy() {
   const { item } = useItem();
-  const { delivery } = useWorkspace();
-  return delivery.teams.get(item.teamId)?.aiActionPolicy ?? "advisory";
+  const { projects } = useWorkspace();
+  return (
+    projects.find((p) => p.id === item.projectId)?.aiActionPolicy ?? "advisory"
+  );
 }
 
 export function actionCheck(
@@ -1175,11 +1177,11 @@ export function useActionGate(
   sourceHeadId: string | undefined,
 ) {
   const { item } = useItem();
-  const { directory, delivery } = useWorkspace();
+  const { directory, projects } = useWorkspace();
   const runs = useAiRuns("pr_action", pullRequestId).filter(
     (r) => r.status !== "superseded",
   );
-  const policy = delivery.teams.get(item.teamId)?.aiActionPolicy;
+  const policy = projects.find((p) => p.id === item.projectId)?.aiActionPolicy;
   if (policy !== "required" || !directory.ai.enabled || !directory.ai.available)
     return undefined;
   const [latest] = runs;

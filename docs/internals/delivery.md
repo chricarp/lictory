@@ -1,26 +1,25 @@
 # Delivery model
 
-Lictory runs delivery natively or hands it to an external tool, per team. The
-refinement workflow (revisions, reviews, approvals, readiness) is identical in
-both modes; this document covers the delivery concepts built around it.
+Lictory runs delivery natively or hands it to an external tool, per project.
+The refinement workflow (revisions, reviews, approvals, readiness) is identical
+in both modes; this document covers the delivery concepts built around it.
 
 ## Projects and teams
 
-A **project** owns identity: the key and item numbers (`PAY-142`), labels,
-milestones and specifications. A **team** owns how work is delivered: its
-workflow, enabled types, estimate scale, iterations, board, delivery mode and
-readiness policy. Every item belongs to one project and one team; a project has
-a default team for new items. Administrators associate each team with one or more
-projects. Project configuration roles inherit into associated teams; local roles
-remain bounded by their parent permissions (see [delegated configuration](configuration-access.md)).
-Moving an item to another team associated with its project keeps its key and
-maps its status to the first active status of the same category in the new
-team. Team membership organizes people and never grants permissions; roles do.
+A **project** owns identity (the key and item numbers, `PAY-142`) and how its
+work is delivered: workflow, enabled types, estimate scale, iterations, delivery
+mode, readiness policy, labels and milestones. A **team** is an optional group
+of people inside one project (a vertical such as Board or Auth). Every item
+belongs to one project and at most one of its teams; moving it between teams
+keeps its key, status and iteration. Boards and backlogs are project views that
+can be narrowed to a team, and each team has a backlog of its unplanned work
+with an intake of the project's unclaimed items. See [organizations, projects and teams](organization-model.md)
+for ownership and access.
 
 ## Types
 
 Types are an organization-wide registry (Epic, Story, Task, Bug, Subtask by
-default, seeded with every organization) that teams opt into. A type has a
+default, seeded with every organization) that projects opt into. A type has a
 **level** that orders the hierarchy and a **specification** flag. Spec-backed
 types are refined and reviewed; others are plain work with a revisioned
 description. Turning the flag on starts refinement at `draft`; turning it off
@@ -29,7 +28,7 @@ stops new use; existing items keep it.
 
 ## Workflows
 
-Each team has its own statuses, each in a fixed category (`backlog`,
+Each project has its own statuses, each in a fixed category (`backlog`,
 `unstarted`, `started`, `done`, `canceled`). Any transition is allowed; there are
 no transition rules. Categories give statuses meaning for boards, burndown,
 child progress and readiness gating. Archiving a status requires choosing a
@@ -37,7 +36,7 @@ replacement: its items move explicitly and each move is recorded in activity.
 
 ## Readiness policy
 
-Readiness connects refinement to delivery. The team policy decides what happens
+Readiness connects refinement to delivery. The project policy decides what happens
 when a spec-backed item that is not `ready` moves into a `started` status:
 
 - `off`: readiness is informative only.
@@ -46,7 +45,7 @@ when a spec-backed item that is not `ready` moves into a `started` status:
 
 ## Iterations
 
-Sprints and cycles are one concept, `iteration`, with a team-level mode:
+Sprints and cycles are one concept, `iteration`, with a project-level mode:
 
 - `manual` (sprints): create, plan, start and complete explicitly. Completion
   moves unfinished work to a chosen planned iteration or the backlog.
@@ -54,11 +53,11 @@ Sprints and cycles are one concept, `iteration`, with a team-level mode:
   cycle active and a configured number planned ahead, completes a cycle when it
   ends and rolls unfinished work into the next one.
 
-At most one iteration per team is active. Completed iterations are history:
+At most one iteration per project is active. Completed iterations are history:
 work cannot be planned into them, and later edits do not change their reports.
-Planning requires the `changeProperties` workflow capability or delegated
-`teamIterations` configuration authority. Moving cards still requires the
-`changeProperties` capability.
+Planning requires project administration or the `changeProperties`
+capability of a discipline in the project. Moving cards requires
+`changeProperties`.
 
 ## Estimates and reports
 
@@ -85,17 +84,18 @@ runs are safe. Three runners call the same function:
   the recommended target for Trigger.dev or another hosted scheduler when running
   on serverless Next.js. The route is disabled until `CRON_SECRET` is set.
 - `bun scripts/iteration-worker.ts` for self-hosted/Docker installations.
-- A team switching to automatic cycles runs the job for that team immediately.
+- A project switching to automatic cycles runs the job for it immediately.
 
 Nothing in the domain depends on a scheduler vendor.
 
 ## External delivery
 
-In external mode a team refines in Lictory and exports to a delivery system
-through a provider adapter (`src/delivery/provider.ts`; Jira Cloud first).
-Exactly one system owns delivery state for a given item: Lictory does not plan
-iterations for external teams. Any team may export; external teams get it as
-the primary action.
+In external mode a project refines in Lictory and hands work off to a delivery
+system through a provider adapter (`src/delivery/provider.ts`; Jira Cloud
+first). Exactly one system owns delivery state for a project's work: external
+projects do not plan iterations or estimate in Lictory, and only external
+projects export. Their hand-off view shows what is ready, what changed since it
+was handed off, what Jira reports, and what needs attention.
 
 Export is explicit and evidence-gated, independent of the readiness policy:
 
@@ -105,8 +105,10 @@ Export is explicit and evidence-gated, independent of the readiness policy:
   along only under an exported parent.
 - Lictory owns summary, description (latest revision, including acceptance
   criteria) and labels, pushed one-way on each export. Labels added in Jira
-  are kept. Status, assignee, sprint and comments are Jira's; status is copied
-  back read-only on each export.
+  are kept. Status, assignee, sprint and comments are Jira's; status, its
+  category and the assignee are copied back read-only on each export and by
+  the scheduled status sync or an on-demand refresh. The sync never writes
+  Jira and never changes Lictory-owned fields.
 - Unchanged items (same payload hash) are not written. Items whose owned
   fields were edited in Jira since the last export, and items linked to an
   existing issue but never exported, are held as conflicts until the
@@ -120,5 +122,7 @@ Export is explicit and evidence-gated, independent of the readiness policy:
   confirmed yet is left running and resumed by the scheduled job.
 - Network calls never run inside the organization lock; each item's outcome
   commits with its change-log entries and an `exported` activity.
-- Only administrators connect Jira and choose the project and type mapping;
-  exporting and linking require the "Export to delivery tools" capability.
+- Organization administrators connect Jira sites (credentials). Each project's
+  administrators choose its Jira project and type mapping. Exporting and
+  linking require the "Hand off to delivery tools" capability of a discipline
+  in the project.

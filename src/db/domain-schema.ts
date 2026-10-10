@@ -154,69 +154,6 @@ export const deliverySyncStatus = pgEnum("delivery_sync_status", [
   "conflict",
 ]);
 
-// Organization roles are named, administrator-managed collections of members
-// that carry workflow capabilities (Product, Engineering, QA by default). They
-// are distinct from the fixed application roles on Better Auth `member.role`
-// (owner/admin = ADMIN manages the organization; member = MEMBER), which never
-// grant workflow capabilities. A user may hold several organization roles; the
-// union of their capabilities applies. Archiving keeps history and can be undone.
-export const organizationRole = pgTable(
-  "organization_role",
-  {
-    id: id(),
-    organizationId: organizationId(),
-    name: text("name").notNull(),
-    description: text("description"),
-    // Edit specifications (and create items) directly, not only via suggestion.
-    canEditSpecifications: boolean("can_edit_specifications")
-      .default(false)
-      .notNull(),
-    // Change status, priority, owner, epic, labels and milestones.
-    canChangeProperties: boolean("can_change_properties")
-      .default(false)
-      .notNull(),
-    canRequestReviews: boolean("can_request_reviews").default(false).notNull(),
-    // The role (or one of its members) can be asked to review.
-    canReview: boolean("can_review").default(false).notNull(),
-    // Export ready work to external delivery systems (Jira).
-    canPublishDelivery: boolean("can_publish_delivery")
-      .default(false)
-      .notNull(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-    archivedAt: timestamp("archived_at"),
-  },
-  (t) => [
-    unique("role_org_id_unique").on(t.organizationId, t.id),
-    uniqueIndex("role_org_active_name_unique")
-      .on(t.organizationId, sql`lower(${t.name})`)
-      .where(sql`${t.archivedAt} IS NULL`),
-    check("role_name_present", sql`length(trim(${t.name})) > 0`),
-  ],
-);
-
-// Role membership only. Better Auth member remains the authority for
-// organization access; the server must validate it before assigning a user.
-export const organizationRoleMember = pgTable(
-  "organization_role_member",
-  {
-    organizationId: organizationId(),
-    roleId: text("role_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.roleId, t.userId] }),
-    foreignKey({
-      columns: [t.organizationId, t.roleId],
-      foreignColumns: [organizationRole.organizationId, organizationRole.id],
-    }).onDelete("cascade"),
-    index("role_member_org_user_idx").on(t.organizationId, t.userId),
-  ],
-);
-
 export const project = pgTable(
   "project",
   {
@@ -227,8 +164,20 @@ export const project = pgTable(
     // Short uppercase identifier prefix for work items, e.g. PAY in PAY-142.
     key: text("key").notNull(),
     description: text("description"),
-    // Team that new items of this project land in unless another is chosen.
-    defaultTeamId: text("default_team_id"),
+    deliveryMode: deliveryMode("delivery_mode").default("native").notNull(),
+    readinessPolicy: readinessPolicy("readiness_policy")
+      .default("warn")
+      .notNull(),
+    estimateScale: estimateScale("estimate_scale")
+      .default("fibonacci")
+      .notNull(),
+    iterationMode: iterationMode("iteration_mode").default("manual").notNull(),
+    iterationWeeks: integer("iteration_weeks").default(2).notNull(),
+    iterationStartDay: integer("iteration_start_day").default(1).notNull(),
+    upcomingIterations: integer("upcoming_iterations").default(2).notNull(),
+    aiActionPolicy: aiActionPolicy("ai_action_policy")
+      .default("advisory")
+      .notNull(),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -238,12 +187,100 @@ export const project = pgTable(
     unique("project_org_id_unique").on(t.organizationId, t.id),
     unique("project_org_slug_unique").on(t.organizationId, t.slug),
     unique("project_org_key_unique").on(t.organizationId, t.key),
-    foreignKey({
-      name: "project_default_team_fk",
-      columns: [t.organizationId, t.defaultTeamId],
-      foreignColumns: [team.organizationId, team.id],
-    }).onDelete("restrict"),
     check("project_key_format", sql`${t.key} ~ '^[A-Z][A-Z0-9]{1,9}$'`),
+  ],
+);
+
+// Project administrators manage the project's configuration; members do the
+// work. Organization administrators manage every project without a row here.
+export const projectRole = pgEnum("project_role", ["admin", "member"]);
+export const projectMember = pgTable(
+  "project_member",
+  {
+    organizationId: organizationId(),
+    projectId: text("project_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: projectRole("role").default("member").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.userId] }),
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("cascade"),
+    index("project_member_org_user_idx").on(t.organizationId, t.userId),
+  ],
+);
+
+// Work disciplines (Product, Engineering, QA by default) are project-owned
+// groups of project members. They route reviews and carry the work item
+// capabilities their members have in that project. They are not application
+// roles: those stay on the Better Auth membership and the project role.
+export const discipline = pgTable(
+  "discipline",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    projectId: text("project_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Edit specifications directly and create spec-backed items.
+    canEditSpecifications: boolean("can_edit_specifications")
+      .default(false)
+      .notNull(),
+    // Change status, priority, owner, parent, labels, milestones, iterations.
+    canChangeProperties: boolean("can_change_properties")
+      .default(false)
+      .notNull(),
+    canRequestReviews: boolean("can_request_reviews").default(false).notNull(),
+    // The discipline (or one of its members) can be asked to review.
+    canReview: boolean("can_review").default(false).notNull(),
+    // Hand ready work to the project's external delivery tool.
+    canPublishDelivery: boolean("can_publish_delivery")
+      .default(false)
+      .notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (t) => [
+    unique("discipline_org_id_unique").on(t.organizationId, t.id),
+    unique("discipline_project_id_unique").on(
+      t.organizationId,
+      t.projectId,
+      t.id,
+    ),
+    uniqueIndex("discipline_project_active_name_unique")
+      .on(t.organizationId, t.projectId, sql`lower(${t.name})`)
+      .where(sql`${t.archivedAt} IS NULL`),
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("restrict"),
+    check("discipline_name_present", sql`length(trim(${t.name})) > 0`),
+  ],
+);
+
+export const disciplineMember = pgTable(
+  "discipline_member",
+  {
+    organizationId: organizationId(),
+    disciplineId: text("discipline_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.disciplineId, t.userId] }),
+    foreignKey({
+      columns: [t.organizationId, t.disciplineId],
+      foreignColumns: [discipline.organizationId, discipline.id],
+    }).onDelete("cascade"),
+    index("discipline_member_org_user_idx").on(t.organizationId, t.userId),
   ],
 );
 
@@ -310,66 +347,33 @@ export const milestone = pgTable(
   ],
 );
 
-// A team owns how work is delivered: workflow, enabled types, estimates,
-// iterations, board and readiness policy. Items keep their project key when
-// they move between teams. Team membership is organizational, not permission.
+// A team is a group of people working on one vertical of a project (for
+// example Board or Auth inside Jira). It owns no configuration: workflow,
+// types, iterations and delivery belong to the project. Items may have no
+// team. Team membership organizes people and grants nothing.
 export const team = pgTable(
   "team",
   {
     id: id(),
     organizationId: organizationId(),
+    projectId: text("project_id").notNull(),
     name: text("name").notNull(),
     description: text("description"),
-    deliveryMode: deliveryMode("delivery_mode").default("native").notNull(),
-    readinessPolicy: readinessPolicy("readiness_policy")
-      .default("warn")
-      .notNull(),
-    estimateScale: estimateScale("estimate_scale")
-      .default("fibonacci")
-      .notNull(),
-    iterationMode: iterationMode("iteration_mode").default("manual").notNull(),
-    iterationWeeks: integer("iteration_weeks").default(2).notNull(),
-    // 0 = Sunday … 6 = Saturday; used by automatic cycles.
-    iterationStartDay: integer("iteration_start_day").default(1).notNull(),
-    upcomingIterations: integer("upcoming_iterations").default(2).notNull(),
-    aiActionPolicy: aiActionPolicy("ai_action_policy")
-      .default("advisory")
-      .notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: timestamp("archived_at"),
   },
   (t) => [
     unique("team_org_id_unique").on(t.organizationId, t.id),
-    uniqueIndex("team_org_active_name_unique")
-      .on(t.organizationId, sql`lower(${t.name})`)
+    unique("team_project_id_unique").on(t.organizationId, t.projectId, t.id),
+    uniqueIndex("team_project_active_name_unique")
+      .on(t.organizationId, t.projectId, sql`lower(${t.name})`)
       .where(sql`${t.archivedAt} IS NULL`),
-    check("team_name_present", sql`length(trim(${t.name})) > 0`),
-    check("team_iteration_weeks", sql`${t.iterationWeeks} BETWEEN 1 AND 8`),
-    check("team_start_day", sql`${t.iterationStartDay} BETWEEN 0 AND 6`),
-    check("team_upcoming", sql`${t.upcomingIterations} BETWEEN 0 AND 6`),
-  ],
-);
-
-// Administrators associate a team with every project whose work it delivers.
-export const teamProject = pgTable(
-  "team_project",
-  {
-    organizationId: organizationId(),
-    teamId: text("team_id").notNull(),
-    projectId: text("project_id").notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.teamId, t.projectId] }),
-    foreignKey({
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
-    }).onDelete("cascade"),
     foreignKey({
       columns: [t.organizationId, t.projectId],
       foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
-    index("team_project_org_project_idx").on(t.organizationId, t.projectId),
+    check("team_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );
 
@@ -421,18 +425,18 @@ export const workItemType = pgTable(
   ],
 );
 
-export const teamWorkItemType = pgTable(
-  "team_work_item_type",
+export const projectWorkItemType = pgTable(
+  "project_work_item_type",
   {
     organizationId: organizationId(),
-    teamId: text("team_id").notNull(),
+    projectId: text("project_id").notNull(),
     typeId: text("type_id").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.teamId, t.typeId] }),
+    primaryKey({ columns: [t.projectId, t.typeId] }),
     foreignKey({
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("cascade"),
     foreignKey({
       columns: [t.organizationId, t.typeId],
@@ -441,13 +445,13 @@ export const teamWorkItemType = pgTable(
   ],
 );
 
-// Team workflow. Any transition is allowed; categories carry the meaning.
+// Project workflow. Any transition is allowed; categories carry the meaning.
 export const workflowStatus = pgTable(
   "workflow_status",
   {
     id: id(),
     organizationId: organizationId(),
-    teamId: text("team_id").notNull(),
+    projectId: text("project_id").notNull(),
     name: text("name").notNull(),
     color: text("color").default("gray").notNull(),
     category: statusCategory("category").notNull(),
@@ -458,29 +462,30 @@ export const workflowStatus = pgTable(
   },
   (t) => [
     unique("workflow_status_org_id_unique").on(t.organizationId, t.id),
-    unique("workflow_status_team_id_unique").on(
+    unique("workflow_status_project_id_unique").on(
       t.organizationId,
-      t.teamId,
+      t.projectId,
       t.id,
     ),
-    uniqueIndex("workflow_status_team_active_name_unique")
-      .on(t.organizationId, t.teamId, sql`lower(${t.name})`)
+    uniqueIndex("workflow_status_project_active_name_unique")
+      .on(t.organizationId, t.projectId, sql`lower(${t.name})`)
       .where(sql`${t.archivedAt} IS NULL`),
     foreignKey({
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
     check("workflow_status_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );
 
-// Sprints (manual) and cycles (automatic) are the same concept.
+// Sprints (manual) and cycles (automatic) are the same concept, planned per
+// project; team boards are filtered views of the project's iteration.
 export const iteration = pgTable(
   "iteration",
   {
     id: id(),
     organizationId: organizationId(),
-    teamId: text("team_id").notNull(),
+    projectId: text("project_id").notNull(),
     number: integer("number").notNull(),
     name: text("name"),
     goal: text("goal"),
@@ -496,18 +501,22 @@ export const iteration = pgTable(
   },
   (t) => [
     unique("iteration_org_id_unique").on(t.organizationId, t.id),
-    unique("iteration_team_id_unique").on(t.organizationId, t.teamId, t.id),
-    unique("iteration_team_number_unique").on(
+    unique("iteration_project_id_unique").on(
       t.organizationId,
-      t.teamId,
+      t.projectId,
+      t.id,
+    ),
+    unique("iteration_project_number_unique").on(
+      t.organizationId,
+      t.projectId,
       t.number,
     ),
-    uniqueIndex("iteration_one_active_per_team")
-      .on(t.organizationId, t.teamId)
+    uniqueIndex("iteration_one_active_per_project")
+      .on(t.organizationId, t.projectId)
       .where(sql`${t.state} = 'active'`),
     foreignKey({
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
     check("iteration_dates", sql`${t.endsAt} > ${t.startsAt}`),
     check(
@@ -517,15 +526,16 @@ export const iteration = pgTable(
   ],
 );
 
-// Work items belong to exactly one project (key and number) and one team
-// (workflow and delivery). Refinement and delivery state are orthogonal.
+// Work items belong to exactly one project (key, number, workflow, iteration)
+// and optionally one of its teams. Refinement and delivery state are
+// orthogonal.
 export const workItem = pgTable(
   "work_item",
   {
     id: id(),
     organizationId: organizationId(),
     projectId: text("project_id").notNull(),
-    teamId: text("team_id").notNull(),
+    teamId: text("team_id"),
     typeId: text("type_id").notNull(),
     parentId: text("parent_id"),
     // Per-project sequence rendered as KEY-number. Allocated under the
@@ -569,34 +579,34 @@ export const workItem = pgTable(
       columns: [t.organizationId, t.projectId],
       foreignColumns: [project.organizationId, project.id],
     }).onDelete("restrict"),
+    // The team, status and iteration must belong to the item's project.
     foreignKey({
       name: "work_item_team_fk",
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
+      columns: [t.organizationId, t.projectId, t.teamId],
+      foreignColumns: [team.organizationId, team.projectId, team.id],
     }).onDelete("restrict"),
-    foreignKey({
-      name: "work_item_type_fk",
-      columns: [t.organizationId, t.typeId],
-      foreignColumns: [workItemType.organizationId, workItemType.id],
-    }).onDelete("restrict"),
-    // The status must belong to the item's team.
     foreignKey({
       name: "work_item_status_fk",
-      columns: [t.organizationId, t.teamId, t.statusId],
+      columns: [t.organizationId, t.projectId, t.statusId],
       foreignColumns: [
         workflowStatus.organizationId,
-        workflowStatus.teamId,
+        workflowStatus.projectId,
         workflowStatus.id,
       ],
     }).onDelete("restrict"),
     foreignKey({
       name: "work_item_iteration_fk",
-      columns: [t.organizationId, t.teamId, t.iterationId],
+      columns: [t.organizationId, t.projectId, t.iterationId],
       foreignColumns: [
         iteration.organizationId,
-        iteration.teamId,
+        iteration.projectId,
         iteration.id,
       ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "work_item_type_fk",
+      columns: [t.organizationId, t.typeId],
+      foreignColumns: [workItemType.organizationId, workItemType.id],
     }).onDelete("restrict"),
     foreignKey({
       name: "work_item_parent_fk",
@@ -622,7 +632,12 @@ export const workItem = pgTable(
       t.projectId,
       t.updatedAt,
     ),
-    index("work_item_team_rank_idx").on(t.organizationId, t.teamId, t.rank),
+    index("work_item_project_rank_idx").on(
+      t.organizationId,
+      t.projectId,
+      t.rank,
+    ),
+    index("work_item_team_idx").on(t.organizationId, t.teamId),
     index("work_item_iteration_idx").on(t.organizationId, t.iterationId),
     index("work_item_creator_idx").on(t.organizationId, t.createdById),
     index("work_item_parent_idx").on(t.organizationId, t.parentId),
@@ -894,7 +909,7 @@ export const pullRequestReview = pgTable(
     organizationId: organizationId(),
     workItemId: text("work_item_id").notNull(),
     pullRequestId: text("pull_request_id").notNull(),
-    roleId: text("role_id").notNull(),
+    disciplineId: text("discipline_id").notNull(),
     userId: optionalActor("user_id"),
     required: boolean("required").notNull().default(true),
     decision: text("decision").$type<"approved" | "changes_requested" | null>(),
@@ -912,10 +927,10 @@ export const pullRequestReview = pgTable(
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.roleId],
-      foreignColumns: [organizationRole.organizationId, organizationRole.id],
+      columns: [t.organizationId, t.disciplineId],
+      foreignColumns: [discipline.organizationId, discipline.id],
     }).onDelete("restrict"),
-    unique("pr_review_role_unique").on(t.pullRequestId, t.roleId),
+    unique("pr_review_discipline_unique").on(t.pullRequestId, t.disciplineId),
   ],
 );
 
@@ -971,7 +986,7 @@ export const reviewAssignment = pgTable(
     organizationId: organizationId(),
     reviewId: text("review_id").notNull(),
     userId: optionalActor("user_id"),
-    roleId: text("role_id"),
+    disciplineId: text("discipline_id"),
     assignedById: actor("assigned_by_id"),
     createdAt: createdAt(),
     withdrawnAt: timestamp("withdrawn_at"),
@@ -982,21 +997,24 @@ export const reviewAssignment = pgTable(
       foreignColumns: [review.organizationId, review.id],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.roleId],
-      foreignColumns: [organizationRole.organizationId, organizationRole.id],
+      columns: [t.organizationId, t.disciplineId],
+      foreignColumns: [discipline.organizationId, discipline.id],
     }).onDelete("restrict"),
     check(
       "review_assignment_one_target",
-      sql`(${t.userId} IS NOT NULL) <> (${t.roleId} IS NOT NULL)`,
+      sql`(${t.userId} IS NOT NULL) <> (${t.disciplineId} IS NOT NULL)`,
     ),
     uniqueIndex("review_assignment_active_user_unique")
       .on(t.reviewId, t.userId)
       .where(sql`${t.withdrawnAt} IS NULL`),
-    uniqueIndex("review_assignment_active_role_unique")
-      .on(t.reviewId, t.roleId)
+    uniqueIndex("review_assignment_active_discipline_unique")
+      .on(t.reviewId, t.disciplineId)
       .where(sql`${t.withdrawnAt} IS NULL`),
     index("review_assignment_user_idx").on(t.organizationId, t.userId),
-    index("review_assignment_role_idx").on(t.organizationId, t.roleId),
+    index("review_assignment_discipline_idx").on(
+      t.organizationId,
+      t.disciplineId,
+    ),
     index("review_assignment_review_idx").on(t.organizationId, t.reviewId),
   ],
 );
@@ -1410,7 +1428,7 @@ export const deliveryConnectionStatus = pgEnum("delivery_connection_status", [
 ]);
 
 // An organization's authenticated access to one external delivery system
-// installation (a Jira Cloud site). The credential is encrypted at rest
+// installation (a Jira Cloud site), managed by organization administrators. The credential is encrypted at rest
 // (src/delivery/credentials.ts) and never leaves the server. `baseUrl` is the
 // external namespace: it never changes for a connection, so links stay valid.
 export const deliveryConnection = pgTable(
@@ -1418,8 +1436,6 @@ export const deliveryConnection = pgTable(
   {
     id: id(),
     organizationId: organizationId(),
-    // Null is an organization connection; otherwise credentials belong to one team.
-    teamId: text("team_id"),
     provider: deliveryProviderKind("provider").notNull(),
     name: text("name").notNull(),
     baseUrl: text("base_url").notNull(),
@@ -1435,31 +1451,23 @@ export const deliveryConnection = pgTable(
     archivedAt: timestamp("archived_at"),
   },
   (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
-    }).onDelete("restrict"),
     unique("delivery_connection_org_id_unique").on(t.organizationId, t.id),
     uniqueIndex("delivery_connection_active_site_unique")
       .on(t.organizationId, t.provider, t.baseUrl)
-      .where(sql`${t.archivedAt} IS NULL AND ${t.teamId} IS NULL`),
-    uniqueIndex("delivery_connection_active_team_site_unique")
-      .on(t.organizationId, t.teamId, t.provider, t.baseUrl)
-      .where(sql`${t.archivedAt} IS NULL AND ${t.teamId} IS NOT NULL`),
+      .where(sql`${t.archivedAt} IS NULL`),
     check("delivery_connection_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );
 
-// Where exported work lands: an external project plus the mapping from
-// Lictory work item types to external types. `teamId` null is the
-// organization default; a team row overrides it.
+// Where a project's work is handed off: an external project plus the mapping
+// from Lictory work item types to external types. One per project.
 export const deliveryTarget = pgTable(
   "delivery_target",
   {
     id: id(),
     organizationId: organizationId(),
     connectionId: text("connection_id").notNull(),
-    teamId: text("team_id"),
+    projectId: text("project_id").notNull(),
     externalProjectId: text("external_project_id").notNull(),
     externalProjectKey: text("external_project_key").notNull(),
     // Lictory work item type id → external issue type id.
@@ -1480,15 +1488,13 @@ export const deliveryTarget = pgTable(
       ],
     }).onDelete("restrict"),
     foreignKey({
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
     }).onDelete("cascade"),
-    uniqueIndex("delivery_target_org_default_unique")
-      .on(t.organizationId)
-      .where(sql`${t.teamId} IS NULL`),
-    uniqueIndex("delivery_target_team_unique")
-      .on(t.organizationId, t.teamId)
-      .where(sql`${t.teamId} IS NOT NULL`),
+    uniqueIndex("delivery_target_project_unique").on(
+      t.organizationId,
+      t.projectId,
+    ),
   ],
 );
 
@@ -1506,6 +1512,13 @@ export const workItemExternalLink = pgTable(
     externalKey: text("external_key"),
     externalUrl: text("external_url"),
     externalStatus: text("external_status"),
+    // Provider-neutral category of the external status and the external
+    // assignee, refreshed by the scheduled status sync. Read-only here.
+    // `externalCheckedAt` orders that sync; it is not synchronized to clients
+    // so routine checks never churn the change log.
+    externalStatusCategory: text("external_status_category"),
+    externalAssignee: text("external_assignee"),
+    externalCheckedAt: timestamp("external_checked_at"),
     status: deliverySyncStatus("status").default("pending").notNull(),
     // Revision whose content was last pushed, and a hash of the pushed
     // payload so unchanged items are skipped on re-export.
@@ -1644,7 +1657,6 @@ export const organizationOnboarding = pgTable(
   {
     organizationId: organizationId().primaryKey(),
     projectId: text("project_id").notNull(),
-    teamId: text("team_id").notNull(),
     decidedById: actor("decided_by_id"),
     decisions: jsonb("decisions").$type<OnboardingSetup>().notNull(),
     completedAt: timestamp("completed_at").defaultNow().notNull(),
@@ -1654,11 +1666,6 @@ export const organizationOnboarding = pgTable(
       name: "onboarding_project_fk",
       columns: [t.organizationId, t.projectId],
       foreignColumns: [project.organizationId, project.id],
-    }).onDelete("restrict"),
-    foreignKey({
-      name: "onboarding_team_fk",
-      columns: [t.organizationId, t.teamId],
-      foreignColumns: [team.organizationId, team.id],
     }).onDelete("restrict"),
   ],
 );

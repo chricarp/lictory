@@ -448,11 +448,16 @@ async function execute(
       result = "superseded";
       return;
     }
-    const [team] = await tx
-      .select({ policy: s.team.aiActionPolicy })
-      .from(s.team)
-      .where(eq(s.team.id, prepared.item.teamId));
-    const required = team?.policy === "required";
+    const [project] = await tx
+      .select({ policy: s.project.aiActionPolicy })
+      .from(s.project)
+      .where(
+        and(
+          eq(s.project.organizationId, run.organizationId),
+          eq(s.project.id, prepared.item.projectId),
+        ),
+      );
+    const required = project?.policy === "required";
     const revisionId = (
       await currentRevisions(tx, run.organizationId, [prepared.item.id])
     ).get(prepared.item.id)!.id;

@@ -12,6 +12,7 @@ import {
   type ExternalItem,
   type ExternalItemType,
   type ExternalRef,
+  type ExternalStatusCategory,
   type OwnedField,
 } from "../provider";
 
@@ -23,7 +24,13 @@ import {
 
 export const JIRA_PROPERTY = "lictory.item";
 const SUMMARY_MAX = 255;
-const ISSUE_FIELDS = "summary,status,issuetype,parent,labels,updated";
+const ISSUE_FIELDS = "summary,status,assignee,issuetype,parent,labels,updated";
+// Jira's fixed status categories, by key.
+const STATUS_CATEGORIES: Record<string, ExternalStatusCategory> = {
+  new: "todo",
+  indeterminate: "in_progress",
+  done: "done",
+};
 // Fields Lictory fills on create; any other required field without a
 // default blocks export of that type until the Jira admin adds one.
 const FILLED_FIELDS = new Set([
@@ -43,7 +50,8 @@ type JiraIssue = {
   key: string;
   fields: {
     summary: string;
-    status?: { name: string };
+    status?: { name: string; statusCategory?: { key: string } };
+    assignee?: { displayName?: string } | null;
     issuetype: { id: string };
     parent?: { id: string };
     labels?: string[];
@@ -78,6 +86,10 @@ export function createJiraCloudProvider(
       url: `${connection.baseUrl}/browse/${issue.key}`,
       title: issue.fields.summary,
       status: issue.fields.status?.name ?? "",
+      statusCategory:
+        STATUS_CATEGORIES[issue.fields.status?.statusCategory?.key ?? ""] ??
+        null,
+      assignee: issue.fields.assignee?.displayName ?? null,
       typeId: issue.fields.issuetype.id,
       parentId: issue.fields.parent?.id ?? null,
       labels: issue.fields.labels ?? [],
@@ -216,6 +228,29 @@ export function createJiraCloudProvider(
     async getItem(connection, idOrKey) {
       const issue = await getIssue(connection, idOrKey);
       return issue ? toItem(connection, issue) : null;
+    },
+
+    async getItems(connection, ids) {
+      const found: ExternalItem[] = [];
+      // JQL accepts numeric ids; batches stay well under Jira's page size.
+      const numeric = ids.filter((id) => /^\d+$/.test(id));
+      for (let i = 0; i < numeric.length; i += 50) {
+        const batch = numeric.slice(i, i + 50);
+        const result = await call<{ issues: JiraIssue[] }>(
+          connection,
+          "POST",
+          "/rest/api/3/search/jql",
+          {
+            jql: `id in (${batch.join(",")})`,
+            fields: ISSUE_FIELDS.split(","),
+            properties: [JIRA_PROPERTY],
+            maxResults: batch.length,
+          },
+        );
+        for (const issue of result?.issues ?? [])
+          found.push(toItem(connection, issue));
+      }
+      return found;
     },
 
     async findCreated(connection, target, hint) {

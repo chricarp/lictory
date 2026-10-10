@@ -27,7 +27,8 @@ const viewIllustrations: Record<ViewId, IllustrationKind> = {
 
 // System views derive from real domain state; nothing here is a saved query.
 export function ViewPage({ view }: { view: ViewId }) {
-  const { items, organization, userId, roleIds, delivery } = useWorkspace();
+  const { items, organization, userId, disciplineIds, delivery } =
+    useWorkspace();
   const project = useProject();
   const meta = views.find((v) => v.id === view)!;
   const scoped = useMemo(
@@ -36,9 +37,9 @@ export function ViewPage({ view }: { view: ViewId }) {
         (i) =>
           i.projectId === project.id &&
           !i.archivedAt &&
-          matchesView(i, view, userId, roleIds),
+          matchesView(i, view, userId, disciplineIds),
       ),
-    [items, project.id, view, userId, roleIds],
+    [items, project.id, view, userId, disciplineIds],
   );
   const hrefFor = useCallback(
     (item: WorkItem) =>

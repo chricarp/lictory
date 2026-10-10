@@ -64,6 +64,27 @@
       "when": 1791401851750,
       "tag": "0008_green_newton_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791588078357,
+      "tag": "0009_project_owned_configuration",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791588078605,
+      "tag": "0010_project_owned_configuration_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791588201143,
+      "tag": "0011_project_owned_configuration_cleanup",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "../db/schema";
 import { createSyncService, directory } from "../sync/server/service";
-import { seedDefaultRoles } from "../sync/server/roles";
+import { seedOrganization } from "../sync/server/organization";
 import { PROTOCOL, type Command } from "../sync/shared/protocol";
 import { dispatchNotificationEmails } from "./email";
 import { mentionToken } from "./mentions";
@@ -35,8 +35,8 @@ after(async () => {
   await admin.end();
 });
 
-// Owner (Product, holds every role), a reviewer (Engineering, QA) and a
-// bystander member with no involvement.
+// Owner (project administrator, Product), a reviewer (Engineering, QA) and a
+// bystander organization member with no involvement in the project.
 async function fixture() {
   const organizationId = crypto.randomUUID();
   const ownerId = crypto.randomUUID();
@@ -68,19 +68,7 @@ async function fixture() {
       createdAt: new Date(),
     })),
   );
-  await seedDefaultRoles(db, organizationId, ownerId);
-  const roles = Object.fromEntries(
-    (
-      await db
-        .select()
-        .from(s.organizationRole)
-        .where(eq(s.organizationRole.organizationId, organizationId))
-    ).map((r) => [r.name, r.id]),
-  ) as Record<"Product" | "Engineering" | "QA", string>;
-  await db.insert(s.organizationRoleMember).values([
-    { organizationId, roleId: roles.Engineering, userId: reviewerId },
-    { organizationId, roleId: roles.QA, userId: reviewerId },
-  ]);
+  await seedOrganization(db, organizationId);
   const command = (command: Command, actor = ownerId) =>
     sync.mutate(actor, {
       protocol: PROTOCOL,
@@ -95,15 +83,31 @@ async function fixture() {
     name: "Payments",
     key: "PAY",
   });
+  const teamId = crypto.randomUUID();
+  await command({ type: "createTeam", projectId, teamId, name: "Checkout" });
   const dir = await directory(db, ownerId, organizationId);
+  const roles = Object.fromEntries(
+    dir.disciplines
+      .filter((d) => d.projectId === projectId)
+      .map((d) => [d.name, d.id]),
+  ) as Record<"Product" | "Engineering" | "QA", string>;
+  for (const disciplineId of [roles.Engineering, roles.QA])
+    await command({
+      type: "setDisciplineMember",
+      projectId,
+      disciplineId,
+      userId: reviewerId,
+      member: true,
+    });
   const storyType = dir.types.find((t) => t.name === "Story")!.id;
-  const team = dir.teams[0]!;
+  const statuses = dir.statuses.filter((x) => x.projectId === projectId);
   const itemId = crypto.randomUUID();
   await command({
     type: "createWorkItem",
     projectId,
     workItemId: itemId,
     typeId: storyType,
+    teamId,
     parentId: null,
     title: "Safe retries",
     description: "Avoid duplicate payments after timeout.",
@@ -126,8 +130,8 @@ async function fixture() {
     bystanderId,
     roles,
     projectId,
-    teamId: team.id,
-    team,
+    teamId,
+    statuses,
     itemId,
     command,
     latest,
@@ -145,7 +149,7 @@ void test("review workflow notifies the people it asks something of, never the a
     workItemId: f.itemId,
     baseRevisionId: first.id,
     reviewId,
-    roleId: f.roles.Engineering,
+    disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
     required: true,
   });
@@ -302,9 +306,7 @@ void test("unwatching silences ambient updates but not direct requests", async (
     workItemId: f.itemId,
     watching: false,
   });
-  const done = (
-    await directory(db, f.ownerId, f.organizationId)
-  ).teams[0]!.statuses.find((x) => x.category === "started")!.id;
+  const done = f.statuses.find((x) => x.category === "started")!.id;
   await f.command({
     type: "updateWorkItem",
     workItemId: f.itemId,
@@ -318,7 +320,7 @@ void test("unwatching silences ambient updates but not direct requests", async (
     workItemId: f.itemId,
     watching: true,
   });
-  const todo = f.team.statuses.find((x) => x.category === "unstarted")!.id;
+  const todo = f.statuses.find((x) => x.category === "unstarted")!.id;
   await f.command({
     type: "updateWorkItem",
     workItemId: f.itemId,
@@ -413,41 +415,40 @@ void test("email outbox sends once, retries failures, and skips former members",
   );
 });
 
-void test("iteration start and completion notify team members once", async () => {
+void test("iteration start and completion notify project members once", async () => {
   const f = await fixture();
   await f.command({
-    type: "updateTeam",
-    teamId: f.teamId,
+    type: "updateProject",
+    projectId: f.projectId,
     iterationMode: "manual",
   });
-  for (const userId of [f.ownerId, f.reviewerId])
-    await f.command({
-      type: "setTeamMembership",
-      teamId: f.teamId,
-      userId,
-      member: true,
-    });
   const iterationId = crypto.randomUUID();
   await f.command({
     type: "createIteration",
-    teamId: f.teamId,
+    projectId: f.projectId,
     iterationId,
     name: "Sprint 1",
     goal: null,
     startsAt: "2026-01-05",
     endsAt: "2026-01-19",
   });
-  await f.command({ type: "startIteration", teamId: f.teamId, iterationId });
+  await f.command({
+    type: "startIteration",
+    projectId: f.projectId,
+    iterationId,
+  });
   await f.command({
     type: "completeIteration",
-    teamId: f.teamId,
+    projectId: f.projectId,
     iterationId,
     carryOverTo: null,
   });
-  assert.deepEqual(await f.kinds(f.reviewerId), [
+  const reviewer = await f.inbox(f.reviewerId);
+  assert.deepEqual(reviewer.map((n) => n.kind).sort(), [
     "iteration_completed",
     "iteration_started",
   ]);
+  assert.equal(reviewer[0]!.detail.projectName, "Payments");
   assert.deepEqual(await f.kinds(f.ownerId), [], "the actor is not notified");
   assert.deepEqual(await f.kinds(f.bystanderId), [], "non-members are not");
 });

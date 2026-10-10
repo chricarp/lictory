@@ -17,39 +17,34 @@ import * as s from "../../db/schema";
 import {
   PROTOCOL,
   applicationRoleOf,
+  canManageProject,
   canReviewSuggestions,
   capabilitiesOf,
   entityKey,
   entitySchema,
-  isRoleCommand,
+  isProjectConfigurationCommand,
+  isTypeCommand,
+  noCapabilities,
   type Capabilities,
   type Directory,
+  type Discipline,
   type Entity,
   type EntityOf,
   type Mutation,
   type ReadinessCheck,
-  type Role,
-  type RoleCommand,
   type Scope,
   type Change,
   type Iteration,
   type IterationReport,
   type RefinementState,
   type StatusCategory,
-  type Team,
+  type WorkflowStatus,
   type WorkItemType,
-  isTeamCommand,
 } from "../shared/protocol";
-import { canConfigure } from "../shared/configuration-access";
-import {
-  configurationDirectory,
-  isConfigurationCommand,
-  applyConfigurationCommand,
-  auditConfiguration,
-} from "./configuration-access";
 import { rankBetween } from "../shared/rank";
 import { hasAcceptanceCriteria } from "../shared/specification";
-import { roleColumns } from "./roles";
+import { applyProjectCommand, applyTypeCommand, seedProject } from "./projects";
+import { auditConfiguration } from "./audit";
 import {
   applyBranchCommand,
   branchCommands,
@@ -76,10 +71,8 @@ export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError } from "./errors";
 import { logoUrl, type LogoKind } from "../../branding/logo";
 import {
-  advanceTeamSchedule,
-  applyTeamCommand,
-  createTeamRows,
-  automaticTeams,
+  advanceProjectSchedule,
+  automaticProjects,
   iterationReportRows,
 } from "./delivery";
 export { DomainError };
@@ -194,11 +187,12 @@ export async function directory(
       organizations,
       projects: [],
       members: [],
-      roles: [],
-      configurationRoles: [],
-      configurationAssignments: [],
+      projectMembers: [],
+      disciplines: [],
       teams: [],
       types: [],
+      projectTypes: [],
+      statuses: [],
       iterations: [],
       delivery: { connections: [], targets: [] },
       ai: { enabled: false, available: aiConfigured() },
@@ -235,51 +229,62 @@ export async function directory(
     owner: rawRole.split(",").includes("owner"),
   }));
   const memberIds = new Set(members.map((m) => m.id));
-  const memberships = await db
-    .select()
-    .from(s.organizationRoleMember)
-    .where(eq(s.organizationRoleMember.organizationId, organizationId));
-  // Archived roles stay in the directory so historical assignments keep their
-  // name and an administrator can restore them; they grant nothing.
-  const roles: Role[] = (
+  // Project and discipline memberships never outlive organization membership.
+  const projectMembers = (
     await db
       .select()
-      .from(s.organizationRole)
-      .where(eq(s.organizationRole.organizationId, organizationId))
-      .orderBy(asc(s.organizationRole.createdAt))
-  ).map((r) => ({
-    id: r.id,
-    name: r.name,
-    description: r.description,
+      .from(s.projectMember)
+      .where(eq(s.projectMember.organizationId, organizationId))
+      .orderBy(asc(s.projectMember.createdAt))
+  )
+    .filter((m) => memberIds.has(m.userId))
+    .map((m) => ({ projectId: m.projectId, userId: m.userId, role: m.role }));
+  const disciplineMembers = await db
+    .select()
+    .from(s.disciplineMember)
+    .where(eq(s.disciplineMember.organizationId, organizationId));
+  const projectMemberKeys = new Set(
+    projectMembers.map((m) => `${m.projectId}:${m.userId}`),
+  );
+  // Archived disciplines stay in the directory so historical reviews keep
+  // their name and an administrator can restore them; they grant nothing.
+  const disciplines: Discipline[] = (
+    await db
+      .select()
+      .from(s.discipline)
+      .where(eq(s.discipline.organizationId, organizationId))
+      .orderBy(asc(s.discipline.createdAt))
+  ).map((d) => ({
+    id: d.id,
+    projectId: d.projectId,
+    name: d.name,
+    description: d.description,
     capabilities: {
-      editSpecifications: r.canEditSpecifications,
-      changeProperties: r.canChangeProperties,
-      requestReviews: r.canRequestReviews,
-      review: r.canReview,
-      publishDelivery: r.canPublishDelivery,
+      editSpecifications: d.canEditSpecifications,
+      changeProperties: d.canChangeProperties,
+      requestReviews: d.canRequestReviews,
+      review: d.canReview,
+      publishDelivery: d.canPublishDelivery,
     },
-    // Role membership never outlives organization membership.
-    userIds: memberships
-      .filter((m) => m.roleId === r.id && memberIds.has(m.userId))
+    userIds: disciplineMembers
+      .filter(
+        (m) =>
+          m.disciplineId === d.id &&
+          projectMemberKeys.has(`${d.projectId}:${m.userId}`),
+      )
       .map((m) => m.userId)
       .sort(),
-    archivedAt: r.archivedAt?.toISOString() ?? null,
+    archivedAt: d.archivedAt?.toISOString() ?? null,
   }));
-  const { teams, types, iterations } = await deliveryDirectory(
-    db,
-    organizationId,
-    memberIds,
-  );
+  const configuration = await deliveryDirectory(db, organizationId, memberIds);
   const delivery = await deliveryConfiguration(db, organizationId);
   return {
     organizations,
     projects,
     members,
-    roles,
-    ...(await configurationDirectory(db, organizationId, memberIds)),
-    teams,
-    types,
-    iterations,
+    projectMembers,
+    disciplines,
+    ...configuration,
     delivery,
     ai: await aiPolicy(db, organizationId),
   };
@@ -293,7 +298,6 @@ async function deliveryConfiguration(
   const connections = await db
     .select({
       id: s.deliveryConnection.id,
-      teamId: s.deliveryConnection.teamId,
       provider: s.deliveryConnection.provider,
       name: s.deliveryConnection.name,
       baseUrl: s.deliveryConnection.baseUrl,
@@ -315,7 +319,7 @@ async function deliveryConfiguration(
       .select({
         id: s.deliveryTarget.id,
         connectionId: s.deliveryTarget.connectionId,
-        teamId: s.deliveryTarget.teamId,
+        projectId: s.deliveryTarget.projectId,
         externalProjectId: s.deliveryTarget.externalProjectId,
         externalProjectKey: s.deliveryTarget.externalProjectKey,
         typeMapping: s.deliveryTarget.typeMapping,
@@ -327,8 +331,8 @@ async function deliveryConfiguration(
   return { connections, targets };
 }
 
-// Delivery configuration is small and read on every sync, like roles, so its
-// commands need no entity changes: the refreshed directory carries them.
+// Delivery configuration is small and read on every sync, like disciplines,
+// so its commands need no entity changes: the refreshed directory carries them.
 async function deliveryDirectory(
   db: Database | Tx,
   organizationId: string,
@@ -343,10 +347,17 @@ async function deliveryDirectory(
     .select()
     .from(s.teamMember)
     .where(eq(s.teamMember.organizationId, organizationId));
-  const teamTypes = await db
-    .select()
-    .from(s.teamWorkItemType)
-    .where(eq(s.teamWorkItemType.organizationId, organizationId));
+  const projectTypes = await db
+    .select({
+      projectId: s.projectWorkItemType.projectId,
+      typeId: s.projectWorkItemType.typeId,
+    })
+    .from(s.projectWorkItemType)
+    .where(eq(s.projectWorkItemType.organizationId, organizationId))
+    .orderBy(
+      asc(s.projectWorkItemType.projectId),
+      asc(s.projectWorkItemType.typeId),
+    );
   const statuses = await db
     .select()
     .from(s.workflowStatus)
@@ -357,8 +368,8 @@ async function deliveryDirectory(
     .from(s.workItemType)
     .where(eq(s.workItemType.organizationId, organizationId))
     .orderBy(asc(s.workItemType.position), asc(s.workItemType.createdAt));
-  // Completed iterations are bounded to the most recent per team; reports for
-  // older ones are fetched on demand.
+  // Completed iterations are bounded to the most recent per project; reports
+  // for older ones are fetched on demand.
   const iterationRows = await db
     .select()
     .from(s.iteration)
@@ -367,53 +378,24 @@ async function deliveryDirectory(
         eq(s.iteration.organizationId, organizationId),
         or(
           sql`${s.iteration.state} <> 'completed'`,
-          sql`${s.iteration.number} > (select coalesce(max(i2.number), 0) - 12 from ${s.iteration} i2 where i2.organization_id = ${s.iteration.organizationId} and i2.team_id = ${s.iteration.teamId} and i2.state = 'completed')`,
+          sql`${s.iteration.number} > (select coalesce(max(i2.number), 0) - 12 from ${s.iteration} i2 where i2.organization_id = ${s.iteration.organizationId} and i2.project_id = ${s.iteration.projectId} and i2.state = 'completed')`,
         ),
       ),
     )
-    .orderBy(asc(s.iteration.teamId), asc(s.iteration.number));
+    .orderBy(asc(s.iteration.projectId), asc(s.iteration.number));
   const iso = (d: Date | null) => d?.toISOString() ?? null;
-  const teamProjects = await db
-    .select()
-    .from(s.teamProject)
-    .where(eq(s.teamProject.organizationId, organizationId));
   return {
     teams: teamRows.map((t) => ({
       id: t.id,
-      projectIds: teamProjects
-        .filter((p) => p.teamId === t.id)
-        .map((p) => p.projectId)
-        .sort(),
+      projectId: t.projectId,
       name: t.name,
       description: t.description,
-      deliveryMode: t.deliveryMode,
-      readinessPolicy: t.readinessPolicy,
-      estimateScale: t.estimateScale,
-      iterationMode: t.iterationMode,
-      iterationWeeks: t.iterationWeeks,
-      iterationStartDay: t.iterationStartDay,
-      upcomingIterations: t.upcomingIterations,
-      aiActionPolicy: t.aiActionPolicy,
       memberIds: teamMembers
         .filter((m) => m.teamId === t.id && memberIds.has(m.userId))
         .map((m) => m.userId)
         .sort(),
-      typeIds: teamTypes
-        .filter((x) => x.teamId === t.id)
-        .map((x) => x.typeId)
-        .sort(),
-      statuses: statuses
-        .filter((x) => x.teamId === t.id)
-        .map((x) => ({
-          id: x.id,
-          name: x.name,
-          color: x.color as Team["statuses"][number]["color"],
-          category: x.category,
-          position: x.position,
-          archivedAt: iso(x.archivedAt),
-        })),
       archivedAt: iso(t.archivedAt),
-    })) satisfies Team[],
+    })),
     types: typeRows.map((t) => ({
       id: t.id,
       name: t.name,
@@ -424,9 +406,19 @@ async function deliveryDirectory(
       position: t.position,
       archivedAt: iso(t.archivedAt),
     })) satisfies WorkItemType[],
+    projectTypes,
+    statuses: statuses.map((x) => ({
+      id: x.id,
+      projectId: x.projectId,
+      name: x.name,
+      color: x.color as WorkflowStatus["color"],
+      category: x.category,
+      position: x.position,
+      archivedAt: iso(x.archivedAt),
+    })) satisfies WorkflowStatus[],
     iterations: iterationRows.map((i) => ({
       id: i.id,
-      teamId: i.teamId,
+      projectId: i.projectId,
       number: i.number,
       name: i.name,
       goal: i.goal,
@@ -448,17 +440,18 @@ function require(
 ) {
   if (!allowed) throw new DomainError(category, message);
 }
-// Capability failures name the missing capability so an administrator knows
-// which role to adjust, rather than a generic "not allowed".
+// Capability failures name the missing capability so a project administrator
+// knows which discipline to adjust, rather than a generic "not allowed".
 const capabilityMessages: Record<keyof Capabilities, string> = {
   editSpecifications:
-    "Your roles cannot edit specifications directly. Create a branch and pull request instead.",
+    "Your disciplines in this project cannot edit specifications directly. Create a branch and pull request instead.",
   changeProperties:
-    "Your roles cannot change item properties such as status, priority, owner, labels or milestones.",
-  requestReviews: "Your roles cannot request or cancel reviews.",
-  review: "Your roles cannot be asked to review.",
+    "Your disciplines in this project cannot change item properties such as status, priority, owner, labels or milestones.",
+  requestReviews:
+    "Your disciplines in this project cannot request or cancel reviews.",
+  review: "Your disciplines in this project cannot be asked to review.",
   publishDelivery:
-    "Your roles cannot export work to external delivery systems. Ask an administrator to grant “Export to delivery tools”.",
+    "Your disciplines in this project cannot hand work off to external delivery tools. Ask a project administrator to grant “Hand off to delivery tools”.",
 };
 function requireCapability(
   capabilities: Capabilities,
@@ -841,7 +834,7 @@ function summarize(
       required: r.required,
       assigneeIds: ctx.assignments
         .filter((a) => a.reviewId === r.id && !a.withdrawnAt)
-        .map((a) => a.userId ?? a.roleId!)
+        .map((a) => a.userId ?? a.disciplineId!)
         .filter(Boolean),
       approved: ctx.approvals.some(
         (a) => a.reviewId === r.id && a.status === "granted",
@@ -1026,11 +1019,11 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .from(s.specificationCommit)
         .where(eq(s.specificationCommit.organizationId, organizationId))
     : [];
-  const roleMemberships = prReviews.length
+  const disciplineMemberships = prReviews.length
     ? await tx
         .select()
-        .from(s.organizationRoleMember)
-        .where(eq(s.organizationRoleMember.organizationId, organizationId))
+        .from(s.disciplineMember)
+        .where(eq(s.disciplineMember.organizationId, organizationId))
     : [];
   const projectFilter = <
     T extends { organizationId: AnyPgColumn; projectId: AnyPgColumn },
@@ -1085,8 +1078,8 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
               .flatMap((r) =>
                 r.userId
                   ? [r.userId]
-                  : roleMemberships
-                      .filter((m) => m.roleId === r.roleId)
+                  : disciplineMemberships
+                      .filter((m) => m.disciplineId === r.disciplineId)
                       .map((m) => m.userId),
               ),
           ]),
@@ -1251,6 +1244,8 @@ export async function externalLinks(
         externalKey: link.externalKey,
         externalUrl: link.externalUrl,
         externalStatus: link.externalStatus,
+        externalStatusCategory: link.externalStatusCategory,
+        externalAssignee: link.externalAssignee,
         status: link.status,
         publishedRevisionId: link.publishedRevisionId,
         publishedRevisionNumber: revisionNumber ?? null,
@@ -1390,28 +1385,12 @@ export function createSyncService(
         }
         const admin = isAdmin(membership);
         const roster = await directory(tx, userId, organizationId);
-        const capabilities = capabilitiesOf(roster.roles, userId);
-        if (isConfigurationCommand(c)) {
-          await applyConfigurationCommand(
+        if (isTypeCommand(c)) {
+          await applyTypeCommand(
             tx,
-            organizationId,
-            userId,
-            admin,
-            roster,
+            { organizationId, userId, admin, roster },
             c,
           );
-          return commit(
-            tx,
-            organizationId,
-            mutation.id,
-            userId,
-            fingerprint,
-            await clock(tx, organizationId),
-          );
-        }
-        if (isRoleCommand(c)) {
-          require(admin, "An organization administrator must manage roles.");
-          await applyRoleCommand(tx, organizationId, roster, c);
           return commit(
             tx,
             organizationId,
@@ -1433,16 +1412,32 @@ export function createSyncService(
             await clock(tx, organizationId),
           );
         }
-        if (isTeamCommand(c)) {
-          // Team configuration and iteration planning can touch items across
-          // projects (carry-over, status replacement): diff the whole org.
-          const before = await snapshot(tx, { organizationId });
-          await applyTeamCommand(
+        if (isProjectConfigurationCommand(c)) {
+          // Configuration lives in the directory; commands that also move
+          // items (status replacement, iteration carry-over, automatic
+          // cycles) or change the project emit those entities.
+          const scope = { organizationId, projectId: c.projectId };
+          requireValue(
+            roster.projects.find((p) => p.id === c.projectId),
+            "This project is unavailable.",
+          );
+          const before = await snapshot(tx, scope);
+          await applyProjectCommand(
             tx,
-            { organizationId, userId, admin, capabilities, roster },
+            {
+              organizationId,
+              userId,
+              admin,
+              capabilities: capabilitiesOf(
+                roster.disciplines,
+                userId,
+                c.projectId,
+              ),
+              roster,
+            },
             c,
           );
-          const after = await snapshot(tx, { organizationId });
+          const after = await snapshot(tx, scope);
           snapshots = { before, after, directory: roster };
           const cursor = await emitChanges(
             tx,
@@ -1514,6 +1509,22 @@ export function createSyncService(
             )[0],
           );
         if (c.type === "createWorkItem") workItemId = c.workItemId;
+        // Work item capabilities come from the disciplines held in this
+        // project; organization administration grants none of them.
+        const capabilities =
+          c.type === "createProject"
+            ? noCapabilities
+            : capabilitiesOf(roster.disciplines, userId, projectId);
+        const projectManager =
+          c.type !== "createProject" &&
+          canManageProject(roster, userId, admin, projectId);
+        const project = () =>
+          requireValue(
+            roster.projects.find((p) => p.id === projectId),
+            "This project is unavailable.",
+          );
+        const projectStatuses = () =>
+          roster.statuses.filter((x) => x.projectId === projectId);
         const scope = { organizationId, projectId, workItemId };
         const before =
           c.type === "createProject"
@@ -1651,7 +1662,7 @@ export function createSyncService(
                     reviewId,
                     assignedById: userId,
                     userId: t.userId,
-                    roleId: t.roleId,
+                    disciplineId: t.disciplineId,
                   })),
                 );
             }
@@ -1708,11 +1719,9 @@ export function createSyncService(
           requireValue(
             roster.teams.find(
               (t) =>
-                t.id === teamId &&
-                !t.archivedAt &&
-                t.projectIds?.includes(projectId),
+                t.id === teamId && !t.archivedAt && t.projectId === projectId,
             ),
-            "The team is unavailable.",
+            "The team is unavailable in this project.",
           );
         const iterationEvent = async (
           iterationId: string | null,
@@ -1734,12 +1743,12 @@ export function createSyncService(
             createdAt: at,
           });
         };
-        const openIteration = (teamId: string, iterationId: string) => {
+        const openIteration = (iterationId: string) => {
           const found = requireValue(
             roster.iterations.find(
-              (i) => i.id === iterationId && i.teamId === teamId,
+              (i) => i.id === iterationId && i.projectId === projectId,
             ),
-            "The iteration is unavailable for this team.",
+            "The iteration is unavailable in this project.",
           );
           if (found.state === "completed")
             throw new DomainError(
@@ -1771,6 +1780,7 @@ export function createSyncService(
         if (branchCommands.has(c.type)) {
           await applyBranchCommand(tx, c, {
             organizationId,
+            projectId,
             workItemId: workItemId!,
             userId,
             capabilities,
@@ -1782,7 +1792,7 @@ export function createSyncService(
             actionCheck: (pullRequestId, sourceHeadId) =>
               roster.ai.enabled &&
               roster.ai.available &&
-              teamOf(item!.teamId).aiActionPolicy === "required"
+              project().aiActionPolicy === "required"
                 ? actionCheckProblem(
                     tx,
                     organizationId,
@@ -1795,6 +1805,7 @@ export function createSyncService(
         if (aiCommands.has(c.type))
           await applyAiCommand(tx, c, {
             organizationId,
+            projectId,
             workItemId: workItemId!,
             userId,
             capabilities,
@@ -1839,30 +1850,6 @@ export function createSyncService(
                 .limit(1);
               require(!roster.projects.length &&
                 !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.");
-              // Initial setup associates the starter team below, after creating
-              // the first project. It must already belong to this organization.
-              const setupTeam = requireValue(
-                roster.teams.find(
-                  (t) => t.id === c.setup!.teamId && !t.archivedAt,
-                ),
-                "The team is unavailable.",
-              );
-              await applyTeamCommand(
-                tx,
-                { organizationId, userId, admin, capabilities, roster },
-                {
-                  type: "updateTeam",
-                  teamId: setupTeam.id,
-                  name: c.setup.teamName,
-                  deliveryMode: c.setup.deliveryMode,
-                  readinessPolicy: c.setup.readinessPolicy,
-                  estimateScale: c.setup.estimateScale,
-                  iterationMode: c.setup.iterationMode,
-                  iterationWeeks: c.setup.iterationWeeks,
-                  iterationStartDay: c.setup.iterationStartDay,
-                  upcomingIterations: 2,
-                },
-              );
               if (c.setup.aiEnabled !== undefined)
                 await setAiPolicy(
                   tx,
@@ -1877,100 +1864,65 @@ export function createSyncService(
               name: c.name,
               slug: c.key.toLowerCase(),
               key: c.key,
-              defaultTeamId: null,
+              description: c.description?.trim() ? c.description.trim() : null,
               createdById: userId,
+              ...(c.setup
+                ? {
+                    deliveryMode: c.setup.deliveryMode,
+                    readinessPolicy: c.setup.readinessPolicy,
+                    estimateScale: c.setup.estimateScale,
+                    iterationMode: c.setup.iterationMode,
+                    iterationWeeks: c.setup.iterationWeeks,
+                    iterationStartDay: c.setup.iterationStartDay,
+                  }
+                : {}),
             });
-            let defaultTeamId =
-              c.setup?.teamId ??
-              roster.teams.find(
-                (t) =>
-                  !t.archivedAt &&
-                  !t.projectIds?.length &&
-                  !roster.projects.some((p) => p.defaultTeamId === t.id),
-              )?.id;
-            if (!defaultTeamId) {
-              defaultTeamId = crypto.randomUUID();
-              await createTeamRows(
-                tx,
-                organizationId,
-                defaultTeamId,
-                `${c.name} (${c.key})`,
-                projectId,
-              );
-            } else {
-              await tx
-                .insert(s.teamProject)
-                .values({ organizationId, teamId: defaultTeamId, projectId })
-                .onConflictDoNothing();
-            }
-            await tx
-              .update(s.project)
-              .set({ defaultTeamId })
-              .where(
-                and(
-                  eq(s.project.organizationId, organizationId),
-                  eq(s.project.id, projectId),
-                ),
-              );
-            if (c.setup)
+            await seedProject(tx, organizationId, projectId, userId);
+            if (c.setup) {
               await tx.insert(s.organizationOnboarding).values({
                 organizationId,
                 projectId,
-                teamId: c.setup.teamId,
                 decidedById: userId,
                 decisions: c.setup,
               });
+              if (c.setup.iterationMode === "automatic")
+                await advanceProjectSchedule(
+                  tx,
+                  organizationId,
+                  projectId,
+                  now,
+                  userId,
+                );
+            }
             break;
           }
-          case "updateProject":
-            require(canConfigure(
-              roster,
-              userId,
-              admin,
-              { scope: "project", scopeId: projectId },
-              "projectSettings",
-            ), "Your roles cannot configure this project.");
-            await auditConfiguration(tx, organizationId, userId, c, projectRow);
-            if (c.defaultTeamId) teamOf(c.defaultTeamId);
-            await tx
-              .update(s.project)
-              .set({
-                name: c.name,
-                ...(c.defaultTeamId ? { defaultTeamId: c.defaultTeamId } : {}),
-              })
-              .where(
-                and(
-                  eq(s.project.organizationId, organizationId),
-                  eq(s.project.id, projectId),
-                ),
-              );
-            break;
           case "createWorkItem": {
-            requireCapability(capabilities, "editSpecifications");
             const type = typeOf(c.typeId);
+            // Spec-backed work starts a specification; plain work only
+            // needs the right to shape the project's delivery.
+            if (type.hasSpecification || !capabilities.changeProperties)
+              requireCapability(capabilities, "editSpecifications");
             if (type.archivedAt)
               throw new DomainError(
                 "validation",
                 `${type.name} is archived. Restore it or choose another type.`,
               );
-            const teamId = c.teamId ?? projectRow!.defaultTeamId;
-            if (!teamId)
+            if (
+              !roster.projectTypes.some(
+                (x) => x.projectId === projectId && x.typeId === type.id,
+              )
+            )
               throw new DomainError(
                 "validation",
-                "Choose a team for this item; the project has no default team.",
+                `${projectRow!.name} does not use ${type.name} items. Enable the type in project settings.`,
               );
-            const team = teamOf(teamId);
-            if (!team.typeIds.includes(type.id))
-              throw new DomainError(
-                "validation",
-                `${team.name} does not use ${type.name} items. Enable the type in team settings.`,
-              );
+            const teamId = c.teamId ? teamOf(c.teamId).id : null;
             const parent = await validateParent(c.parentId, c.typeId);
-            const statuses = team.statuses.filter((x) => !x.archivedAt);
+            const statuses = projectStatuses().filter((x) => !x.archivedAt);
             const status = c.statusId
               ? requireValue(
                   statuses.find((x) => x.id === c.statusId),
-                  "The status is unavailable for this team.",
+                  "The status is unavailable in this project.",
                 )
               : (statuses.find((x) => x.category === "backlog") ??
                 statuses.find((x) => x.category === "unstarted") ??
@@ -1978,9 +1930,16 @@ export function createSyncService(
             if (!status)
               throw new DomainError(
                 "validation",
-                `${team.name} has no workflow statuses.`,
+                `${projectRow!.name} has no workflow statuses.`,
               );
-            if (c.iterationId) openIteration(team.id, c.iterationId);
+            if (c.iterationId) {
+              if (projectRow!.deliveryMode === "external")
+                throw new DomainError(
+                  "validation",
+                  `${projectRow!.name} hands delivery to an external tool; plan iterations there.`,
+                );
+              openIteration(c.iterationId);
+            }
             if (c.assigneeId)
               requireValue(
                 roster.members.find((m) => m.id === c.assigneeId),
@@ -2003,7 +1962,7 @@ export function createSyncService(
               .where(
                 and(
                   eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.teamId, team.id),
+                  eq(s.workItem.projectId, projectId),
                 ),
               )) as [{ last: string | null }];
             // Decomposition keeps traceability: a child of a specification
@@ -2031,7 +1990,7 @@ export function createSyncService(
               id: workItemId!,
               organizationId,
               projectId,
-              teamId: team.id,
+              teamId,
               typeId: type.id,
               parentId: c.parentId,
               number: Number(next),
@@ -2064,8 +2023,6 @@ export function createSyncService(
                 ? checks.checks.filter((k) => !k.passed)
                 : [];
             };
-            // Team change: the key stays, the workflow follows the new team.
-            let teamId = item!.teamId;
             let statusId = item!.statusId;
             let iterationId = item!.iterationId;
             let typeId = item!.typeId;
@@ -2074,6 +2031,15 @@ export function createSyncService(
               const from = typeOf(item!.typeId);
               if (to.archivedAt)
                 throw new DomainError("validation", `${to.name} is archived.`);
+              if (
+                !roster.projectTypes.some(
+                  (x) => x.projectId === projectId && x.typeId === to.id,
+                )
+              )
+                throw new DomainError(
+                  "validation",
+                  `${projectRow!.name} does not use ${to.name} items.`,
+                );
               await validateParent(item!.parentId, to.id);
               const children = before.filter(
                 (e): e is EntityOf<"workItem"> =>
@@ -2095,62 +2061,38 @@ export function createSyncService(
               if (!to.hasSpecification) patch.refinementState = null;
               log("type_changed", { from: from.name, to: to.name });
             }
+            // Team is an optional grouping inside the project: changing it
+            // keeps the key, status and iteration.
             if (c.teamId !== undefined && c.teamId !== item!.teamId) {
-              const to = teamOf(c.teamId);
-              const category = roster.teams
-                .find((t) => t.id === item!.teamId)
-                ?.statuses.find((x) => x.id === item!.statusId)?.category;
-              const statuses = to.statuses.filter((x) => !x.archivedAt);
-              const mapped =
-                statuses.find((x) => x.category === category) ?? statuses[0];
-              if (!mapped)
-                throw new DomainError(
-                  "validation",
-                  `${to.name} has no workflow statuses.`,
-                );
-              teamId = to.id;
-              statusId = mapped.id;
-              patch.teamId = to.id;
-              patch.statusId = mapped.id;
-              if (item!.iterationId) {
-                await iterationEvent(
-                  item!.iterationId,
-                  "removed",
-                  item!.estimate,
-                );
-                iterationId = null;
-                patch.iterationId = null;
-              }
+              const to = c.teamId ? teamOf(c.teamId) : null;
+              patch.teamId = to?.id ?? null;
               log("team_changed", {
                 from: item!.teamId,
-                to: to.id,
-                statusId: mapped.id,
+                to: to?.id ?? null,
+                fromName:
+                  roster.teams.find((t) => t.id === item!.teamId)?.name ?? null,
+                toName: to?.name ?? null,
               });
             }
-            const team = teamOf(teamId);
-            if (!team.typeIds.includes(typeId))
-              throw new DomainError(
-                "validation",
-                `${team.name} does not use ${typeOf(typeId).name} items.`,
-              );
+            const statuses = projectStatuses();
             if (c.statusId !== undefined && c.statusId !== statusId) {
               const to = requireValue(
-                team.statuses.find((x) => x.id === c.statusId && !x.archivedAt),
-                "The status is unavailable for this team.",
+                statuses.find((x) => x.id === c.statusId && !x.archivedAt),
+                "The status is unavailable in this project.",
               );
-              const from = team.statuses.find((x) => x.id === statusId);
-              // Readiness gates starting spec-backed work, per team policy.
-              // `warn` lets the move through but records the override.
+              const from = statuses.find((x) => x.id === statusId);
+              // Readiness gates starting spec-backed work, per project
+              // policy. `warn` lets the move through but records the override.
               let override: string[] | undefined;
               if (
                 to.category === "started" &&
                 from?.category !== "started" &&
                 typeOf(typeId).hasSpecification &&
                 item!.refinementState !== "ready" &&
-                team.readinessPolicy !== "off"
+                projectRow!.readinessPolicy !== "off"
               ) {
                 const failing = failingChecks().map((k) => k.label);
-                if (team.readinessPolicy === "block")
+                if (projectRow!.readinessPolicy === "block")
                   throw new DomainError(
                     "validation",
                     `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.map((f) => f.toLowerCase()).join("; ")}` : ""}.`,
@@ -2168,6 +2110,7 @@ export function createSyncService(
                   item!.estimate,
                 );
               patch.statusId = to.id;
+              statusId = to.id;
               log("status_changed", {
                 from: from?.name ?? null,
                 to: to.name,
@@ -2193,18 +2136,18 @@ export function createSyncService(
             }
             if (c.iterationId !== undefined && c.iterationId !== iterationId) {
               if (c.iterationId) {
-                if (team.deliveryMode === "external")
+                if (projectRow!.deliveryMode === "external")
                   throw new DomainError(
                     "validation",
-                    `${team.name} tracks delivery in an external tool; plan iterations there.`,
+                    `${projectRow!.name} hands delivery to an external tool; plan iterations there.`,
                   );
-                openIteration(teamId, c.iterationId);
+                openIteration(c.iterationId);
               }
               await iterationEvent(iterationId, "removed", item!.estimate);
               await iterationEvent(c.iterationId, "added", item!.estimate);
               // Already-finished work counts as completed scope, not remaining.
-              const category = team.statuses.find(
-                (x) => x.id === (patch.statusId ?? statusId),
+              const category = statuses.find(
+                (x) => x.id === statusId,
               )?.category;
               if (category && closedCategories.includes(category))
                 await iterationEvent(
@@ -2220,10 +2163,10 @@ export function createSyncService(
               iterationId = c.iterationId;
             }
             if (c.estimate !== undefined && c.estimate !== item!.estimate) {
-              if (team.estimateScale === "none")
+              if (projectRow!.estimateScale === "none")
                 throw new DomainError(
                   "validation",
-                  `${team.name} does not estimate work.`,
+                  `${projectRow!.name} does not estimate work in Lictory.`,
                 );
               if (iterationId && c.iterationId === undefined)
                 await iterationEvent(
@@ -2536,15 +2479,7 @@ export function createSyncService(
           }
           case "createLabel":
           case "updateLabel": {
-            if (
-              !canConfigure(
-                roster,
-                userId,
-                admin,
-                { scope: "project", scopeId: projectId },
-                "projectTaxonomy",
-              )
-            )
+            if (!projectManager)
               requireCapability(capabilities, "changeProperties");
             await auditConfiguration(tx, organizationId, userId, c);
             if (c.type === "createLabel") {
@@ -2596,15 +2531,7 @@ export function createSyncService(
           }
           case "createMilestone":
           case "updateMilestone": {
-            if (
-              !canConfigure(
-                roster,
-                userId,
-                admin,
-                { scope: "project", scopeId: projectId },
-                "projectTaxonomy",
-              )
-            )
+            if (!projectManager)
               requireCapability(capabilities, "changeProperties");
             await auditConfiguration(tx, organizationId, userId, c);
             if (c.type === "createMilestone") {
@@ -2966,9 +2893,10 @@ export function createSyncService(
                 const existing = reviewers.find((r) => r.userId === c.userId);
                 if (c.assigned) {
                   require(canReviewSuggestions(
-                    roster.roles,
+                    roster.disciplines,
                     c.userId,
-                  ), "Suggestion reviewers need a role that can both edit Epics and Stories and be asked to review.", "validation");
+                    projectId,
+                  ), "Suggestion reviewers need a discipline in this project that can both edit specifications and be asked to review.", "validation");
                   require(c.userId !==
                     userId, "You cannot review your own suggestion.", "validation");
                   if (existing) break;
@@ -3112,20 +3040,25 @@ export function createSyncService(
           }
           case "requestReview": {
             requireCapability(capabilities, "requestReviews");
-            const role = requireValue(
-              roster.roles.find((r) => r.id === c.roleId && !r.archivedAt),
-              "The reviewer role is unavailable in this organization.",
+            const discipline = requireValue(
+              roster.disciplines.find(
+                (d) =>
+                  d.id === c.disciplineId &&
+                  d.projectId === projectId &&
+                  !d.archivedAt,
+              ),
+              "The reviewing discipline is unavailable in this project.",
             );
-            require(role.capabilities
-              .review, `${role.name} cannot be asked to review. An administrator can change the role's capabilities.`, "validation");
+            require(discipline.capabilities
+              .review, `${discipline.name} cannot be asked to review. A project administrator can change the discipline's capabilities.`, "validation");
             if (c.userId)
-              require(role.userIds.includes(
+              require(discipline.userIds.includes(
                 c.userId,
-              ), `The chosen reviewer is not a member of ${role.name}.`, "validation");
+              ), `The chosen reviewer is not a member of ${discipline.name}.`, "validation");
             await tx.insert(s.review).values({
               id: c.reviewId,
               ...context,
-              responsibility: role.name,
+              responsibility: discipline.name,
               required: c.required,
               requestedById: userId,
             });
@@ -3134,13 +3067,13 @@ export function createSyncService(
               reviewId: c.reviewId,
               assignedById: userId,
               userId: c.userId,
-              roleId: c.userId ? null : c.roleId,
+              disciplineId: c.userId ? null : c.disciplineId,
             });
             log("review_requested", {
               reviewId: c.reviewId,
-              responsibility: role.name,
-              targetType: c.userId ? "user" : "role",
-              targetId: c.userId ?? c.roleId,
+              responsibility: discipline.name,
+              targetType: c.userId ? "user" : "discipline",
+              targetId: c.userId ?? c.disciplineId,
               required: c.required,
             });
             if (
@@ -3190,11 +3123,11 @@ export function createSyncService(
                 e.reviewId === c.reviewId &&
                 !e.withdrawnAt &&
                 (e.userId === userId ||
-                  roster.roles.some(
-                    (r) =>
-                      r.id === e.roleId &&
-                      !r.archivedAt &&
-                      r.userIds.includes(userId),
+                  roster.disciplines.some(
+                    (d) =>
+                      d.id === e.disciplineId &&
+                      !d.archivedAt &&
+                      d.userIds.includes(userId),
                   )),
             );
             if (!canReviewSpecification)
@@ -3262,9 +3195,7 @@ export function createSyncService(
             workItemId: item.id,
             userId,
             before,
-            policy:
-              roster.teams.find((t) => t.id === item.teamId)?.aiActionPolicy ??
-              "advisory",
+            policy: project().aiActionPolicy,
             ai: roster.ai,
           });
         if (workItemId && c.type !== "createWorkItem")
@@ -3468,6 +3399,9 @@ const reservedKeys = new Set([
   "ACCOUNT",
   "ITEMS",
   "TEAMS",
+  "PROJECTS",
+  "INTELLIGENCE",
+  "NOTIFICATIONS",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.
@@ -3558,22 +3492,22 @@ export async function emitChanges(
 // completes automatic cycles. Idempotent; each organization commits
 // separately under its lock with the same change-log guarantees as commands.
 export async function advanceSchedules(db: Database, now = new Date()) {
-  const teams = await automaticTeams(db);
+  const projects = await automaticProjects(db);
   const byOrganization = new Map<string, string[]>();
-  for (const t of teams)
-    byOrganization.set(t.organizationId, [
-      ...(byOrganization.get(t.organizationId) ?? []),
-      t.teamId,
+  for (const p of projects)
+    byOrganization.set(p.organizationId, [
+      ...(byOrganization.get(p.organizationId) ?? []),
+      p.projectId,
     ]);
   let changedOrganizations = 0;
-  for (const [organizationId, teamIds] of byOrganization)
+  for (const [organizationId, projectIds] of byOrganization)
     await db.transaction(async (tx) => {
       await lock(tx, organizationId);
       const before = await snapshot(tx, { organizationId });
       let changed = false;
-      for (const teamId of teamIds)
+      for (const projectId of projectIds)
         changed =
-          (await advanceTeamSchedule(tx, organizationId, teamId, now)) ||
+          (await advanceProjectSchedule(tx, organizationId, projectId, now)) ||
           changed;
       if (!changed) return;
       changedOrganizations++;
@@ -3587,7 +3521,7 @@ export async function advanceSchedules(db: Database, now = new Date()) {
       );
       await publish(tx, organizationId, cursor);
     });
-  return { teams: teams.length, changedOrganizations };
+  return { projects: projects.length, changedOrganizations };
 }
 
 export async function iterationReport(
@@ -3623,7 +3557,7 @@ export async function iterationReport(
       .where(
         and(
           eq(s.iteration.organizationId, organizationId),
-          eq(s.iteration.teamId, it.teamId),
+          eq(s.iteration.projectId, it.projectId),
           eq(s.iteration.state, "completed"),
         ),
       )
@@ -3692,100 +3626,4 @@ async function commit(
     mutationId,
     cursor: cursor.toString(),
   };
-}
-
-const blankToNull = (value: string | null | undefined) =>
-  value?.trim().length ? value.trim() : null;
-// Roles live in the directory, which every sync response refreshes, so these
-// writes emit no entity changes; the invalidation still wakes other clients.
-async function applyRoleCommand(
-  tx: Tx,
-  organizationId: string,
-  roster: Directory,
-  c: RoleCommand,
-) {
-  const nameTaken = (name: string, exceptId?: string) =>
-    roster.roles.some(
-      (r) =>
-        r.id !== exceptId &&
-        !r.archivedAt &&
-        r.name.toLowerCase() === name.toLowerCase(),
-    );
-  switch (c.type) {
-    case "createRole":
-      require(!nameTaken(
-        c.name,
-      ), `A role named “${c.name}” already exists.`, "validation");
-      await tx.insert(s.organizationRole).values({
-        id: c.roleId,
-        organizationId,
-        name: c.name,
-        description: blankToNull(c.description),
-        ...roleColumns(c.capabilities),
-      });
-      break;
-    case "updateRole": {
-      const role = requireValue(
-        roster.roles.find((r) => r.id === c.roleId),
-        "This role is unavailable.",
-      );
-      if (c.name !== undefined)
-        require(!nameTaken(
-          c.name,
-          role.id,
-        ), `A role named “${c.name}” already exists.`, "validation");
-      if (c.archived === false)
-        require(!nameTaken(
-          c.name ?? role.name,
-          role.id,
-        ), `Rename the active role named “${c.name ?? role.name}” before restoring this one.`, "validation");
-      await tx
-        .update(s.organizationRole)
-        .set({
-          ...(c.name !== undefined ? { name: c.name } : {}),
-          ...(c.description !== undefined
-            ? { description: blankToNull(c.description) }
-            : {}),
-          ...(c.capabilities ? roleColumns(c.capabilities) : {}),
-          ...(c.archived !== undefined
-            ? { archivedAt: c.archived ? new Date() : null }
-            : {}),
-        })
-        .where(
-          and(
-            eq(s.organizationRole.organizationId, organizationId),
-            eq(s.organizationRole.id, c.roleId),
-          ),
-        );
-      break;
-    }
-    case "setRoleMembership": {
-      const role = requireValue(
-        roster.roles.find((r) => r.id === c.roleId && !r.archivedAt),
-        "This role is unavailable.",
-      );
-      requireValue(
-        roster.members.find((m) => m.id === c.userId),
-        "That person is not a member of this organization.",
-      );
-      if (c.member) {
-        if (!role.userIds.includes(c.userId))
-          await tx.insert(s.organizationRoleMember).values({
-            organizationId,
-            roleId: c.roleId,
-            userId: c.userId,
-          });
-      } else
-        await tx
-          .delete(s.organizationRoleMember)
-          .where(
-            and(
-              eq(s.organizationRoleMember.organizationId, organizationId),
-              eq(s.organizationRoleMember.roleId, c.roleId),
-              eq(s.organizationRoleMember.userId, c.userId),
-            ),
-          );
-      break;
-    }
-  }
 }

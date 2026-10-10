@@ -27,7 +27,7 @@ export function Onboarding({ canCreate = true }: { canCreate?: boolean }) {
       <StateIllustration kind="proposal" />
       <OnboardingHeading title="Add a project">
         {canCreate
-          ? "Your team settings are already in place."
+          ? "It starts with the default workflow and the Product, Engineering and QA disciplines. Change either in the project’s settings."
           : "Ask an organization administrator to create a project."}
       </OnboardingHeading>
       {canCreate && <CreateProject />}
@@ -185,11 +185,22 @@ export function CreateOrganization({ userId }: { userId?: string }) {
   );
 }
 
-export function CreateProject({ onDone }: { onDone?: () => void }) {
+// Projects start with the default workflow, every organization type and the
+// Product, Engineering and QA disciplines; the creator becomes its admin.
+export function CreateProject({
+  onDone,
+  withDescription = false,
+  destination,
+}: {
+  onDone?: () => void;
+  withDescription?: boolean;
+  destination?: (key: string) => string;
+}) {
   const router = useRouter();
   const { mutate, engine, organization } = useWorkspace();
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
+  const [description, setDescription] = useState("");
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -211,6 +222,7 @@ export function CreateProject({ onDone }: { onDone?: () => void }) {
             projectId: crypto.randomUUID(),
             name: submittedName,
             key: submittedKey,
+            ...(description.trim() && { description: description.trim() }),
           });
           await engine.sync();
           const failed = engine
@@ -218,7 +230,10 @@ export function CreateProject({ onDone }: { onDone?: () => void }) {
             .pending.find((q) => q.mutation.id === id && q.error);
           if (failed) throw new Error(failed.error);
           onDone?.();
-          router.push(paths.list(organization.slug, submittedKey, "epics"));
+          router.push(
+            destination?.(submittedKey) ??
+              paths.list(organization.slug, submittedKey, "epics"),
+          );
         } catch (err) {
           setError(
             err instanceof Error ? err.message : "Could not create project.",
@@ -237,6 +252,20 @@ export function CreateProject({ onDone }: { onDone?: () => void }) {
           setKey(k);
         }}
       />
+      {withDescription && (
+        <label className="block text-sm font-medium">
+          Description{" "}
+          <span className="font-normal text-muted-foreground">(optional)</span>
+          <textarea
+            name="description"
+            className="mt-2 block min-h-20 w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-[15px] shadow-[0_1px_2px_oklch(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-3 focus:ring-primary/10"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={2000}
+            placeholder="What this product area covers"
+          />
+        </label>
+      )}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

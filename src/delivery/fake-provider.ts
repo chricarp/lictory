@@ -96,6 +96,13 @@ export function createFakeProvider() {
         [...items.values()].find((i) => i.key === idOrKey);
       return item ? { ...item } : null;
     },
+    async getItems(_connection, ids) {
+      fail("getItems");
+      return ids.flatMap((id) => {
+        const item = items.get(id);
+        return item ? [{ ...item }] : [];
+      });
+    },
     async findCreated(_connection, _target, hint) {
       fail("findCreated");
       const item = [...items.values()].find(
@@ -112,6 +119,8 @@ export function createFakeProvider() {
         url: `https://fake.test/browse/${target.projectKey}-${sequence}`,
         title: "",
         status: "To Do",
+        statusCategory: "todo",
+        assignee: null,
         typeId: payload.externalTypeId,
         parentId: null,
         labels: [],
@@ -169,6 +178,20 @@ export function createFakeProvider() {
       stored.updatedAt = at;
       edits.push({ id, field, at });
     },
+    // Simulate work progressing in the external tool (not an owned field).
+    progressExternally(
+      id: string,
+      status: string,
+      statusCategory: Stored["statusCategory"],
+      assignee: string | null = null,
+    ) {
+      const stored = items.get(id);
+      if (!stored) throw new Error(`No fake item ${id}`);
+      stored.status = status;
+      stored.statusCategory = statusCategory;
+      stored.assignee = assignee;
+      stored.updatedAt = now();
+    },
     // Simulate an import: an issue that exists before Lictory links it.
     seed(item: Partial<Stored> & { key: string }) {
       const id = String(++sequence);
@@ -177,6 +200,8 @@ export function createFakeProvider() {
         url: `https://fake.test/browse/${item.key}`,
         title: "",
         status: "To Do",
+        statusCategory: "todo",
+        assignee: null,
         typeId: "story",
         parentId: null,
         labels: [],

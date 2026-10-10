@@ -28,6 +28,7 @@ import {
   categoryOrder,
   categoryOf,
   isTopLevel,
+  projectTeams,
   refinementMeta,
   refinementOrder,
   typeOf,
@@ -37,6 +38,7 @@ import {
 } from "~/lib/work-items";
 import type {
   StatusCategory,
+  Team,
   WorkItem,
   WorkItemType,
 } from "~/sync/shared/protocol";
@@ -93,13 +95,16 @@ export function IssueList({
     view,
     labels: allLabels,
     milestones: allMilestones,
-    capabilities,
+    capabilitiesIn,
+    canManage,
     delivery,
     isAdmin,
     directory,
   } = useWorkspace();
   const { openCreate } = useShell();
-  const canCreate = capabilities.editSpecifications;
+  const capabilities = capabilitiesIn(project?.id);
+  const canCreate =
+    capabilities.editSpecifications || capabilities.changeProperties;
   const router = useRouter();
   // Filters, sort, grouping and the archived toggle are URL state.
   const searchParams = useSearchParams();
@@ -247,6 +252,7 @@ export function IssueList({
     (filters.status?.length ? 1 : 0) +
     (filters.refinement?.length ? 1 : 0) +
     (filters.type?.length ? 1 : 0) +
+    (filters.team?.length ? 1 : 0) +
     (filters.priority?.length ? 1 : 0) +
     (filters.assignee?.length ? 1 : 0) +
     (filters.parent?.length ? 1 : 0) +
@@ -263,6 +269,9 @@ export function IssueList({
   const types = [...delivery.types.values()].filter(
     (t) => !t.archivedAt && items.some((i) => i.typeId === t.id),
   );
+  const teams = projectTeams(delivery, project?.id)
+    .filter((t) => !t.archivedAt || filters.team?.includes(t.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
@@ -302,6 +311,7 @@ export function IssueList({
               setFilters={setFilters}
               epics={allowEpicFilter ? epics : []}
               types={types}
+              teams={teams}
               project={project}
               labels={allLabels.filter(
                 (l) => l.projectId === project?.id && !l.archivedAt,
@@ -436,6 +446,21 @@ export function IssueList({
               }
             >
               {delivery.types.get(t)?.name ?? "Type"}
+            </Chip>
+          ))}
+          {filters.team?.map((t) => (
+            <Chip
+              key={t}
+              onRemove={() =>
+                setFilters((f) => ({
+                  ...f,
+                  team: f.team?.filter((x) => x !== t),
+                }))
+              }
+            >
+              {t === "none"
+                ? "No team"
+                : (delivery.teams.get(t)?.name ?? "Team")}
             </Chip>
           ))}
           {filters.priority?.map((p) => (
@@ -586,33 +611,47 @@ export function IssueList({
                     Start with a rough proposal. It doesn’t need to be complete;
                     review is where it gets sharp.
                   </span>
-                  {directory.members.length === 1 && (
-                    <Link
-                      href={`${paths.settings(organization.slug)}#people`}
-                      className="mt-3 block text-primary hover:underline"
-                    >
-                      Invite teammates and assign their roles →
-                    </Link>
-                  )}
-                  {delivery.teams.get(project.defaultTeamId ?? "")
-                    ?.deliveryMode === "external" &&
-                    !directory.delivery.targets.length && (
+                  {canManage(project.id) &&
+                    directory.projectMembers.filter(
+                      (m) => m.projectId === project.id,
+                    ).length <= 1 && (
                       <Link
-                        href={`${paths.settings(organization.slug)}#jira`}
+                        href={paths.projectSettings(
+                          organization.slug,
+                          project.key,
+                          "members",
+                        )}
                         className="mt-3 block text-primary hover:underline"
                       >
-                        Connect Jira to export ready work →
+                        Add people and their disciplines →
                       </Link>
                     )}
-                  <Link
-                    href={paths.teamSettings(
-                      organization.slug,
-                      project.defaultTeamId ?? "",
+                  {project.deliveryMode === "external" &&
+                    !directory.delivery.targets.some(
+                      (t) => t.projectId === project.id,
+                    ) && (
+                      <Link
+                        href={paths.projectSettings(
+                          organization.slug,
+                          project.key,
+                          "delivery",
+                        )}
+                        className="mt-3 block text-primary hover:underline"
+                      >
+                        Choose a Jira project to hand ready work off to →
+                      </Link>
                     )}
-                    className="mt-3 block text-primary hover:underline"
-                  >
-                    Revisit your team’s delivery choices →
-                  </Link>
+                  {canManage(project.id) && (
+                    <Link
+                      href={paths.projectSettings(
+                        organization.slug,
+                        project.key,
+                      )}
+                      className="mt-3 block text-primary hover:underline"
+                    >
+                      Revisit this project’s delivery choices →
+                    </Link>
+                  )}
                 </span>
               )}
           </EmptyState>
@@ -697,6 +736,7 @@ function FilterPanel({
   setFilters,
   epics,
   types,
+  teams,
   project,
   labels,
   milestones,
@@ -705,6 +745,7 @@ function FilterPanel({
   setFilters: (fn: (f: Filters) => Filters) => void;
   epics: WorkItem[];
   types: WorkItemType[];
+  teams: Team[];
   project: Project | undefined;
   labels: Label[];
   milestones: Milestone[];
@@ -713,6 +754,7 @@ function FilterPanel({
     | "status"
     | "refinement"
     | "type"
+    | "team"
     | "priority"
     | "assignee"
     | "parent"
@@ -767,6 +809,19 @@ function FilterPanel({
         }))}
         value={filters.type ?? []}
         onSelect={(v) => toggle("type", v)}
+      />
+    );
+  if (section === "team")
+    return (
+      <Picker
+        multiple
+        title="Team"
+        options={[
+          ...teams.map((t) => ({ value: t.id, label: t.name })),
+          { value: "none", label: "No team" },
+        ]}
+        value={filters.team ?? []}
+        onSelect={(v) => toggle("team", v)}
       />
     );
   if (section === "priority")
@@ -846,6 +901,7 @@ function FilterPanel({
     status: "Status",
     refinement: "Refinement",
     type: "Type",
+    team: "Team",
     priority: "Priority",
     assignee: "Assignee",
     parent: "Epic",
@@ -862,6 +918,7 @@ function FilterPanel({
           "status",
           "refinement",
           ...(types.length > 1 ? (["type"] as const) : []),
+          ...(teams.length || filters.team?.length ? (["team"] as const) : []),
           "priority",
           "assignee",
           ...(epics.length ? (["parent"] as const) : []),

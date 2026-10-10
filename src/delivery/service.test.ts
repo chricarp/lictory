@@ -7,7 +7,7 @@ import postgres from "postgres";
 
 import * as s from "../db/schema";
 import { PROTOCOL, type Command } from "../sync/shared/protocol";
-import { seedDefaultRoles } from "../sync/server/roles";
+import { seedOrganization } from "../sync/server/organization";
 import { createSyncService, directory } from "../sync/server/service";
 import { createFakeProvider } from "./fake-provider";
 import { DeliveryError } from "./provider";
@@ -73,9 +73,9 @@ async function fixture(
       createdAt: new Date(),
     },
   ]);
-  await seedDefaultRoles(db, organizationId, userId);
-  const command = (command: Command) =>
-    sync.mutate(userId, {
+  await seedOrganization(db, organizationId);
+  const command = (command: Command, actor = userId) =>
+    sync.mutate(actor, {
       protocol: PROTOCOL,
       id: crypto.randomUUID(),
       organizationId,
@@ -87,6 +87,12 @@ async function fixture(
     projectId,
     name: "Payments",
     key: "PAY",
+  });
+  // The project hands its work off to Jira.
+  await command({
+    type: "updateProject",
+    projectId,
+    deliveryMode: "external",
   });
   const dir = await directory(db, userId, organizationId);
   const types = Object.fromEntries(
@@ -140,7 +146,7 @@ async function fixture(
   await service.setTarget(userId, {
     organizationId,
     connectionId,
-    teamId: null,
+    projectId,
     projectKey: "EXT",
     typeMapping: {
       [types.Epic]: "epic",
@@ -177,6 +183,7 @@ async function fixture(
     reviewerId,
     projectId,
     connectionId,
+    command,
     types,
     epic,
     story,
@@ -561,7 +568,7 @@ void test("exporting and configuring delivery are authorized on the server", asy
       organizationId: f.organizationId,
       rootId: f.epic,
     }),
-    /cannot export work/,
+    /cannot hand work off/,
   );
   await assert.rejects(
     f.service.connect(f.reviewerId, {
@@ -642,163 +649,195 @@ void test("publication observers fire once at settlement, survive observer failu
   assert.equal(completed.length, 2);
 });
 
-void test("delegated integration managers change only their team's encrypted credentials and targets", async () => {
+void test("organization administrators own Jira connections; project administrators choose their project's target", async () => {
   const f = await fixture();
-  const dir = await directory(db, f.userId, f.organizationId);
-  const teamId = dir.teams[0]!.id;
-  const command = (command: Command, actor = f.userId) =>
-    sync.mutate(actor, {
-      protocol: PROTOCOL,
-      id: crypto.randomUUID(),
-      organizationId: f.organizationId,
-      command,
-    });
-  const roleId = crypto.randomUUID();
-  await command({
-    type: "createConfigurationRole",
-    roleId,
-    name: "Project integrations",
-    scope: "project",
-    permissions: ["integrations"],
-  });
-  await command({
-    type: "setConfigurationAssignment",
-    roleId,
-    userId: f.reviewerId,
-    scope: "project",
-    scopeId: f.projectId,
-    assigned: true,
-  });
   const input = {
     organizationId: f.organizationId,
-    teamId,
-    name: "Team Jira",
-    baseUrl: "https://acme.atlassian.net",
-    email: "local@acme.test",
-    apiToken: "local-secret-token",
+    name: "Second site",
+    baseUrl: "https://second.atlassian.net",
+    email: "bot@acme.test",
+    apiToken: "second-secret-token",
   };
-  const { connectionId } = await f.service.connect(f.reviewerId, input);
-  assert.notEqual(connectionId, f.connectionId);
-  const row = (
-    await db
-      .select()
-      .from(s.deliveryConnection)
-      .where(eq(s.deliveryConnection.id, connectionId))
-  )[0]!;
-  assert.equal(row.teamId, teamId);
-  assert.ok(!row.encryptedCredential.includes(input.apiToken));
-  assert.equal(
-    (
-      await f.service.connect(f.reviewerId, {
-        ...input,
-        apiToken: "replacement-secret-token",
-      })
-    ).connectionId,
-    connectionId,
-  );
-  await f.service.listProjects(f.reviewerId, f.organizationId, connectionId);
-  await f.service.setTarget(f.reviewerId, {
-    organizationId: f.organizationId,
-    teamId,
-    connectionId,
-    projectKey: "EXT",
-    typeMapping: { [f.types.Story]: "story" },
-  });
+  // Credentials are organization administration, never delegated.
+  await assert.rejects(f.service.connect(f.reviewerId, input), /administrator/);
   await assert.rejects(
     f.service.disconnect(f.reviewerId, f.organizationId, f.connectionId),
     /administrator/,
   );
-  await assert.rejects(
-    f.service.connect(f.reviewerId, { ...input, teamId: null }),
-    /administrator/,
-  );
+  // A project member cannot change where the project hands off…
   await assert.rejects(
     f.service.setTarget(f.reviewerId, {
       organizationId: f.organizationId,
-      teamId: null,
-      connectionId,
+      connectionId: f.connectionId,
+      projectId: f.projectId,
       projectKey: "EXT",
       typeMapping: {},
     }),
-    /administrator/,
+    /project's administrators/,
   );
-  const anotherProjectId = crypto.randomUUID();
-  await command({
-    type: "createProject",
-    projectId: anotherProjectId,
-    name: "Other",
-    key: "OTHER",
+  await assert.rejects(
+    f.service.listProjects(
+      f.reviewerId,
+      f.organizationId,
+      f.connectionId,
+      undefined,
+      f.projectId,
+    ),
+    /project/,
+  );
+  // …a project administrator can, for their own project only.
+  await f.command({
+    type: "setProjectMember",
+    projectId: f.projectId,
+    userId: f.reviewerId,
+    role: "admin",
   });
-  const otherTeamId = (
-    await directory(db, f.userId, f.organizationId)
-  ).projects.find((p) => p.id === anotherProjectId)!.defaultTeamId!;
-  await assert.rejects(
-    f.service.connect(f.reviewerId, { ...input, teamId: otherTeamId }),
-    /administrator/,
+  await f.service.listProjects(
+    f.reviewerId,
+    f.organizationId,
+    f.connectionId,
+    undefined,
+    f.projectId,
   );
+  await f.service.setTarget(f.reviewerId, {
+    organizationId: f.organizationId,
+    connectionId: f.connectionId,
+    projectId: f.projectId,
+    projectKey: "EXT",
+    typeMapping: { [f.types.Story]: "story", [f.types.Epic]: "epic" },
+  });
+  const billing = crypto.randomUUID();
+  await f.command({
+    type: "createProject",
+    projectId: billing,
+    name: "Billing",
+    key: "BIL",
+  });
   await assert.rejects(
-    f.service.setTarget(f.userId, {
+    f.service.setTarget(f.reviewerId, {
       organizationId: f.organizationId,
-      teamId: otherTeamId,
-      connectionId,
+      connectionId: f.connectionId,
+      projectId: billing,
       projectKey: "EXT",
       typeMapping: {},
     }),
-    /another team/,
+    /project's administrators/,
   );
-  const currentDirectory = await directory(db, f.reviewerId, f.organizationId);
-  assert.equal(
-    currentDirectory.delivery.connections.find((c) => c.id === connectionId)
-      ?.teamId,
-    teamId,
+  const dir = await directory(db, f.reviewerId, f.organizationId);
+  assert.deepEqual(
+    dir.delivery.targets.map((t) => t.projectId),
+    [f.projectId],
   );
-  assert.ok(!JSON.stringify(currentDirectory).includes(input.apiToken));
+  assert.ok(!JSON.stringify(dir).includes("secret-token"));
   const audit = await db
     .select()
     .from(s.configurationAudit)
     .where(eq(s.configurationAudit.organizationId, f.organizationId));
   assert.ok(
     audit.some(
-      (a) => a.actorId === f.reviewerId && a.action === "connectDelivery",
+      (a) => a.actorId === f.reviewerId && a.action === "setDeliveryTarget",
     ),
   );
-  assert.ok(!JSON.stringify(audit).includes("secret-token"));
-  // Network verification must not commit after the authority is revoked mid-call.
-  const gated = createDeliveryService(db, {
-    providers: {
-      jira_cloud: {
-        ...f.fake.provider,
-        verify: async (connection) => {
-          await command({
-            type: "updateConfigurationRole",
-            roleId,
-            permissions: [],
-          });
-          return f.fake.provider.verify(connection);
-        },
-      },
-    },
+  await f.service.removeTarget(f.reviewerId, f.organizationId, f.projectId);
+  assert.equal(
+    (await directory(db, f.userId, f.organizationId)).delivery.targets.length,
+    0,
+  );
+});
+
+void test("only projects that hand work off export it", async () => {
+  const f = await fixture();
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    deliveryMode: "native",
   });
   await assert.rejects(
-    gated.connect(f.reviewerId, {
-      ...input,
-      apiToken: "revoked-during-verify",
+    f.service.preview(f.userId, {
+      organizationId: f.organizationId,
+      rootId: f.epic,
     }),
-    /administrator/,
+    /delivers its work in Lictory/,
   );
-  assert.ok(
-    !JSON.stringify(
+  await assert.rejects(
+    f.service.linkExisting(f.userId, {
+      organizationId: f.organizationId,
+      workItemId: f.story,
+      externalKey: "EXT-1",
+    }),
+    /delivers its work in Lictory/,
+  );
+});
+
+void test("status sync reads Jira status and assignee back without writing either system's owned fields", async () => {
+  const f = await fixture();
+  await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  const story = (await f.linkOf(f.story))!;
+  const before = { ...story };
+  const writes = f.fake.calls.filter((c) =>
+    ["createItem", "updateItem", "linkBack"].includes(c),
+  ).length;
+  f.fake.progressExternally(
+    story.externalId!,
+    "In Progress",
+    "in_progress",
+    "Dana",
+  );
+  const result = await f.service.refreshProject(
+    f.userId,
+    f.organizationId,
+    f.projectId,
+  );
+  assert.equal(result.failedConnections, 0);
+  const after = (await f.linkOf(f.story))!;
+  assert.equal(after.externalStatus, "In Progress");
+  assert.equal(after.externalStatusCategory, "in_progress");
+  assert.equal(after.externalAssignee, "Dana");
+  // Lictory-owned export state is untouched, and nothing was written to Jira.
+  assert.equal(after.payloadHash, before.payloadHash);
+  assert.equal(after.publishedRevisionId, before.publishedRevisionId);
+  assert.equal(
+    f.fake.calls.filter((c) =>
+      ["createItem", "updateItem", "linkBack"].includes(c),
+    ).length,
+    writes,
+  );
+  // The item's own Lictory status never follows Jira.
+  const [item] = await db
+    .select()
+    .from(s.workItem)
+    .where(eq(s.workItem.id, f.story));
+  const statuses = (await directory(db, f.userId, f.organizationId)).statuses;
+  assert.notEqual(
+    statuses.find((x) => x.id === item!.statusId)?.category,
+    "started",
+  );
+  // A routine check that finds nothing new does not churn the change log.
+  const changes = async () =>
+    (
       await db
         .select()
-        .from(s.configurationAudit)
-        .where(eq(s.configurationAudit.organizationId, f.organizationId)),
-    ).includes("revoked-during-verify"),
-  );
-  await command({
-    type: "updateConfigurationRole",
-    roleId,
-    permissions: ["integrations"],
+        .from(s.syncChange)
+        .where(eq(s.syncChange.organizationId, f.organizationId))
+    ).length;
+  const logged = await changes();
+  await f.service.refreshPending();
+  assert.equal(await changes(), logged);
+  // An issue deleted in Jira is reported, not silently dropped.
+  f.fake.items.delete(story.externalId!);
+  await f.service.refreshPending();
+  assert.match((await f.linkOf(f.story))!.lastError ?? "", /no longer exists/);
+  // Native projects have nothing to sync.
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    deliveryMode: "native",
   });
-  await f.service.removeTarget(f.reviewerId, f.organizationId, teamId);
-  await f.service.disconnect(f.reviewerId, f.organizationId, connectionId);
+  await assert.rejects(
+    f.service.refreshProject(f.userId, f.organizationId, f.projectId),
+    /delivers its work in Lictory/,
+  );
 });

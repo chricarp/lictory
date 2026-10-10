@@ -119,7 +119,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           setDraft({
             ...parsed.data,
             step:
-              legacy && parsed.data.step === steps.team
+              legacy && parsed.data.step === steps.people
                 ? steps.intelligence
                 : parsed.data.step,
           });
@@ -136,7 +136,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
         ) {
           attempt.current = parsed.data;
           setUncertain(true);
-          setDraft((d) => ({ ...d, step: steps.team }));
+          setDraft((d) => ({ ...d, step: steps.people }));
         }
       }
     } catch {
@@ -163,13 +163,13 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     setDraft((d) => ({ ...d, ...patch }));
   const external = draft.deliveryMode === "external";
   const flow = external
-    ? [steps.project, steps.delivery, steps.intelligence, steps.team]
+    ? [steps.project, steps.delivery, steps.intelligence, steps.people]
     : [
         steps.project,
         steps.delivery,
         steps.planning,
         steps.intelligence,
-        steps.team,
+        steps.people,
       ];
   const position = Math.max(0, flow.indexOf(draft.step as never));
   const go = (offset: number) => {
@@ -179,7 +179,6 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     setError(undefined);
     update({ step: next });
   };
-  const team = directory.teams.find((t) => !t.archivedAt);
   const effectiveKey = draft.keyTouched ? draft.key : suggestKey(draft.name);
   const valid = {
     [steps.project]: Boolean(
@@ -192,7 +191,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       (draft.iterationMode !== "automatic" ||
         (draft.iterationWeeks && draft.iterationStartDay)),
     ),
-    [steps.team]: true,
+    [steps.people]: true,
     [steps.intelligence]: true,
   };
   const setupValid = flow.every((s) => valid[s]);
@@ -260,14 +259,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     setError(undefined);
     try {
       if (!attempt.current) {
-        if (!team)
-          throw new Error(
-            "The starter team is unavailable. Reload to try again.",
-          );
         const setup = onboardingSetupSchema.parse({
-          teamId: team.id,
-          // Teams are renamed in settings; the project name is the best default.
-          teamName: draft.name.trim().slice(0, 60),
           deliveryMode: draft.deliveryMode,
           readinessPolicy: draft.readinessPolicy,
           iterationMode: external ? "off" : draft.iterationMode,
@@ -404,8 +396,14 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       stage={position}
       labels={
         external
-          ? ["Project", "Delivery", "Lictory Intelligence", "Team"]
-          : ["Project", "Delivery", "Planning", "Lictory Intelligence", "Team"]
+          ? ["Project", "Delivery", "Lictory Intelligence", "People"]
+          : [
+              "Project",
+              "Delivery",
+              "Planning",
+              "Lictory Intelligence",
+              "People",
+            ]
       }
     >
       <form
@@ -475,15 +473,17 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 </Reveal>
                 <Reveal show={external}>
                   <p className="pt-6 text-xs leading-relaxed text-muted-foreground">
-                    Export requires every readiness check to pass. Connect Jira
-                    from the project once you’re in.
+                    Export requires every readiness check to pass. Once you’re
+                    in, connect Jira in organization settings → Integrations,
+                    then pick the Jira project in the project’s delivery
+                    settings.
                   </p>
                 </Reveal>
               </>
             )}
             {draft.step === steps.planning && (
               <>
-                <OnboardingHeading title="How does the team plan?" />
+                <OnboardingHeading title="How does the project plan?" />
                 <div className="space-y-8">
                   <div>
                     <Segmented
@@ -593,16 +593,18 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                   )}
                   <p>
                     An organization administrator can change this later in
-                    Settings → Lictory Intelligence.
+                    organization settings → Lictory Intelligence.
                   </p>
                 </div>
               </>
             )}
-            {draft.step === steps.team && (
+            {draft.step === steps.people && (
               <>
-                <OnboardingHeading title="Who reviews with you?">
+                <OnboardingHeading
+                  title={`Invite people to ${organization.name}`}
+                >
                   Specs get better with engineering and QA in the loop. You can
-                  skip this and invite people later.
+                  skip this and invite people later from organization settings.
                 </OnboardingHeading>
                 <Invites
                   value={draft.invites}
@@ -767,7 +769,8 @@ function Invites({
       </ul>
       {value.length > 0 && (
         <p className="mt-4 text-xs text-muted-foreground">
-          They join as members. Assign roles once they’re in.
+          They join the organization as members. Add them to the project’s
+          disciplines once they’re in.
         </p>
       )}
     </div>

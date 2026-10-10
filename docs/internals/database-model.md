@@ -20,16 +20,18 @@ follow the existing timestamp-without-time-zone convention; application values
 are UTC. `updatedAt` uses Drizzle's application-side update hook, not a database
 trigger.
 
-Organization roles (`organization_role`, formerly `functional_group`) are named
-organization-owned collections of Better Auth users carrying workflow capability
-flags; see [synchronization.md](synchronization.md) for their semantics. Better
-Auth `member` is the sole source of organization membership and of the fixed
-application role. Review responsibilities are strings on reviews (the requested
-role's name at request time), not foreign keys. A review may have multiple
-individual/role assignments; each assignment targets exactly one kind. Withdrawing
-an assignment retains its record and permits reassignment. Active role names are
-unique per organization case-insensitively; archived roles keep their rows so
-history stays legible. Project access rules are intentionally deferred.
+Better Auth `member` is the sole source of organization membership and of the
+fixed application role. `project_member` records who works in a project and
+whether they administer it. Disciplines (`discipline`, per project) are named
+groups of project members carrying work item capability flags; see
+[organizations, projects and teams](organization-model.md). Review
+responsibilities are strings on reviews (the requested discipline's name at
+request time), not foreign keys. A review may have multiple individual or
+discipline assignments; each assignment targets exactly one kind. Withdrawing
+an assignment retains its record and permits reassignment. Active discipline
+names are unique per project case-insensitively; archived disciplines keep
+their rows so history stays legible. Private projects are intentionally
+deferred.
 
 ## Tenancy and authorization
 
@@ -109,18 +111,17 @@ are not themselves versioned in this initial model.
 
 Delivery work is ordinary work items (see [delivery.md](delivery.md)); there is
 no separate delivery-item table. Composite foreign keys keep a work item's
-status inside its own team (`organization_id, team_id, status_id`) and its
-iteration inside the same team, and keep teams, types, statuses, iterations,
-relations and iteration events inside one organization. One active iteration per
-team is a partial unique index; iteration state and its timestamps are
-constrained together.
+team, status and iteration inside its own project
+(`organization_id, project_id, …`), and keep teams, types, statuses,
+iterations, relations and iteration events inside one organization. One active
+iteration per project is a partial unique index; iteration state and its
+timestamps are constrained together.
 
 A `delivery_connection` is an organization's authenticated access to one
 external installation (a Jira Cloud site). Its base URL is the namespace and
 never changes; the credential is AES-GCM encrypted with the organization id as
-associated data and never leaves the server. A `delivery_target` maps an
-external project and work item types to external types, as an organization
-default or a team override.
+associated data and never leaves the server. A `delivery_target` maps one
+project to an external project and its work item types to external types.
 
 `work_item_external_link` records where an item was exported: at most one link
 per item and connection, and an external identity maps to at most one local
@@ -137,13 +138,13 @@ external status is a read-only copy. Adapters live behind
 Domain history and actor references use restrictive foreign keys. Deleting a
 project/proposal/organization with referenced history, or a referenced author,
 fails instead of silently cascading. Archive timestamps on projects, proposals,
-roles, teams, types, statuses, and decisions support reversible removal from active
-views. Better Auth's original auth-table cascades are preserved, but domain
+disciplines, teams, types, statuses, and decisions support reversible removal
+from active views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
 history exists. A future account erasure/anonymization policy and actionable error
 handling must account for this. Removing an organization membership remains
-possible and does not delete reviews or approvals. Only organization role
-membership rows cascade with their parent role/user.
+possible and does not delete reviews or approvals. Only project, discipline and
+team membership rows cascade with their parent rows.
 
 ## Generation and verification
 

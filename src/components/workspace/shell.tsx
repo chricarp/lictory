@@ -4,7 +4,12 @@ import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
 import { APP_VERSION } from "~/lib/app-version";
 import { toast as toastManager } from "~/components/ui/toast";
 import { resetAnalytics, track } from "~/lib/analytics/client";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -20,6 +25,7 @@ import {
   BookOpenCheck,
   CircleCheckBig,
   Check,
+  ChevronRight,
   ChevronsUpDown,
   FilePenLine,
   FolderOpen,
@@ -33,12 +39,13 @@ import {
   OctagonAlert,
   Plus,
   Search,
+  Send,
   Settings,
+  Settings2,
   ShieldCheck,
   UserRound,
   KanbanSquare,
   ListOrdered,
-  Users,
 } from "lucide-react";
 import { IntelligenceMark } from "~/components/logo";
 import { authClient } from "~/lib/auth-client";
@@ -49,6 +56,7 @@ import { rememberProject, useLastProjectKey } from "~/lib/last-project";
 import { usePanelCollapsed } from "~/lib/panel-preference";
 import {
   needsMyReview,
+  projectTeams,
   views,
   type Project,
   type ViewId,
@@ -111,11 +119,10 @@ export function Shell({
     projects,
     items,
     userId,
-    roleIds,
+    disciplineIds,
     directory,
-    capabilities,
+    capabilitiesIn,
   } = useWorkspace();
-  const canCreate = capabilities.editSpecifications;
   const pathname = usePathname();
   const router = useRouter();
   const [palette, setPalette] = useState<{ open: boolean; query: string }>({
@@ -173,6 +180,14 @@ export function Shell({
   useEffect(() => {
     if (routeProject) rememberProject(organization.id, routeProject.key);
   }, [routeProject, organization.id]);
+  const canCreateIn = useCallback(
+    (projectId: string | undefined) => {
+      const capabilities = capabilitiesIn(projectId);
+      return capabilities.editSpecifications || capabilities.changeProperties;
+    },
+    [capabilitiesIn],
+  );
+  const canCreate = canCreateIn(project?.id);
   // The shell owns the document title: it stays mounted across in-workspace
   // navigations, so React updates the hoisted <title> in place instead of the
   // route metadata swapping the node on every page change.
@@ -182,24 +197,33 @@ export function Shell({
     item: currentItem,
   });
   // Creation is authoring: every entry point (button, shortcut, palette)
-  // funnels here so a role without the capability gets one clear message.
+  // funnels here so a person without the capability gets one clear message.
   const openCreate = useCallback(
     (options?: QuickCreateOptions) => {
-      if (!canCreate)
+      const projectId = options?.projectId ?? project?.id;
+      if (!canCreateIn(projectId))
         return toast(
-          "Your roles cannot create Epics or Stories. Ask an administrator for a role that can edit specifications.",
+          "Your disciplines in this project cannot create work items. Ask a project administrator for a discipline that edits specifications or changes properties.",
         );
       track("work_item_create_opened", {
         organization_id: organization.id,
-        project_id: options?.projectId ?? project?.id ?? null,
+        project_id: projectId ?? null,
       });
+      // A board or backlog narrowed to a team creates work for that team.
+      const team =
+        options?.teamId === undefined &&
+        projectId === routeProject?.id &&
+        /\/(board|backlog)$/.test(window.location.pathname)
+          ? new URLSearchParams(window.location.search).get("team")
+          : null;
       setCreate({
         kind: "story",
         ...options,
-        projectId: options?.projectId ?? project?.id,
+        projectId,
+        teamId: options?.teamId ?? (team && team !== "none" ? team : null),
       });
     },
-    [project?.id, canCreate, toast, organization.id],
+    [project?.id, routeProject?.id, canCreateIn, toast, organization.id],
   );
   const openPalette = useCallback(
     (query = "") => {
@@ -235,8 +259,8 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey);
   }, [project, pathname, openCreate, openPalette, palette.open]);
   const inboxCount = useMemo(
-    () => items.filter((i) => needsMyReview(i, userId, roleIds)).length,
-    [items, userId, roleIds],
+    () => items.filter((i) => needsMyReview(i, userId, disciplineIds)).length,
+    [items, userId, disciplineIds],
   );
   const shell = useMemo<ShellContextValue>(
     () => ({
@@ -459,6 +483,14 @@ function Sidebar({
               ))}
               <div className="my-1 border-t" />
               <Link
+                href={paths.settings(organization.slug)}
+                onClick={close}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+              >
+                <Settings className="size-3.5" aria-hidden />
+                Organization settings
+              </Link>
+              <Link
                 href={paths.newOrganization}
                 onClick={close}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
@@ -527,6 +559,12 @@ function Sidebar({
         aria-label="Workspace"
       >
         <div className="space-y-px">
+          <InboxLink
+            organizationId={organization.id}
+            href={paths.inbox(org)}
+            active={active(paths.inbox(org))}
+            todo={inboxCount}
+          />
           <NavLink
             href={paths.intelligence(org)}
             active={active(paths.intelligence(org))}
@@ -534,117 +572,21 @@ function Sidebar({
           >
             Lictory Intelligence
           </NavLink>
-          <InboxLink
-            organizationId={organization.id}
-            href={paths.inbox(org)}
-            active={active(paths.inbox(org))}
-            todo={inboxCount}
-          />
         </div>
         <div>
-          <div className={cn("mb-1 flex items-center", !collapsed && "px-2")}>
-            <Popover
-              width={220}
-              side={collapsed ? "right" : "bottom"}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  aria-label={
-                    collapsed
-                      ? `Switch project: ${project?.name ?? "Project"}`
-                      : undefined
-                  }
-                  title={
-                    collapsed
-                      ? `Project: ${project?.name ?? "Choose project"}`
-                      : undefined
-                  }
-                  className={cn(
-                    "flex min-w-0 items-center gap-1 rounded-md text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-                    collapsed ? "size-8 justify-center" : "h-6 px-1",
-                  )}
-                >
-                  {collapsed ? (
-                    <FolderOpen className="size-4" aria-hidden />
-                  ) : (
-                    <>
-                      <span className="truncate">
-                        {project?.name ?? "Project"}
-                      </span>
-                      <ChevronsUpDown className="size-3" />
-                    </>
-                  )}
-                </button>
-              )}
-            >
-              <Picker
-                title="Projects"
-                options={projects.map((p) => ({
-                  value: p.key,
-                  label: p.name,
-                  hint: p.key,
-                }))}
-                value={project?.key ?? null}
-                onSelect={(key) => router.push(paths.list(org, key, "epics"))}
-              />
-            </Popover>
-          </div>
+          <ProjectSwitcher
+            project={project}
+            projects={projects}
+            onSelect={(key) => router.push(paths.list(org, key, "epics"))}
+          />
           {project ? (
-            <div className="space-y-px">
-              <NavLink
-                href={paths.list(org, project.key, "epics")}
-                active={active(paths.list(org, project.key, "epics"))}
-                icon={<TypeIcon type={epicGlyph} />}
-              >
-                Epics
-              </NavLink>
-              <NavLink
-                href={paths.list(org, project.key, "stories")}
-                active={active(paths.list(org, project.key, "stories"))}
-                icon={<TypeIcon type={storyGlyph} />}
-              >
-                Work items
-              </NavLink>
-              <NavLink
-                href={paths.reviews(org, project.key)}
-                active={active(paths.reviews(org, project.key))}
-                icon={<BookOpenCheck className="size-4" />}
-              >
-                Reviews
-              </NavLink>
-            </div>
+            <ProjectNav project={project} active={active} />
           ) : (
-            <p className="px-2 text-xs text-muted-foreground">
+            <p className="px-2 pt-1 text-xs text-muted-foreground">
               {projects.length ? "Choose a project." : "No projects yet."}
             </p>
           )}
         </div>
-        <TeamsNav active={active} pathname={pathname} />
-        {project && (
-          <div>
-            {collapsed ? (
-              <div className="mx-1 mb-2 border-t" />
-            ) : (
-              <p className="mb-1 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                Views
-              </p>
-            )}
-            <div className="space-y-px">
-              {views
-                .filter((v) => v.id !== "needs-my-review")
-                .map((v) => (
-                  <NavLink
-                    key={v.id}
-                    href={paths.view(org, project.key, v.id)}
-                    active={active(paths.view(org, project.key, v.id))}
-                    icon={<ViewIcon view={v.id} />}
-                  >
-                    {v.label}
-                  </NavLink>
-                ))}
-            </div>
-          </div>
-        )}
         <div className="mt-auto space-y-px">
           <NavLink
             href={paths.settings(org)}
@@ -779,91 +721,269 @@ function InboxLink({
   );
 }
 
-// Teams I belong to first; everyone sees all teams (membership is not access).
-function TeamsNav({
-  active,
-  pathname,
+// The project is the main context: a clear switcher naming it, with its
+// settings one click away.
+function ProjectSwitcher({
+  project,
+  projects,
+  onSelect,
 }: {
-  active: (href: string) => boolean;
-  pathname: string;
+  project?: Project;
+  projects: Project[];
+  onSelect: (key: string) => void;
+}) {
+  const { organization } = useWorkspace();
+  const collapsed = useContext(CollapsedSidebarContext);
+  const pathname = usePathname();
+  const settings = project
+    ? paths.projectSettings(organization.slug, project.key)
+    : undefined;
+  return (
+    <div
+      className={cn("mb-2 flex items-center gap-1", collapsed && "flex-col")}
+    >
+      <Popover
+        width={240}
+        side={collapsed ? "right" : "bottom"}
+        trigger={(props) => (
+          <button
+            {...props}
+            aria-label={`Switch project: ${project?.name ?? "none"}`}
+            title={collapsed ? (project?.name ?? "Choose project") : undefined}
+            className={cn(
+              "flex min-w-0 items-center gap-2 rounded-md text-left text-[13px] hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+              collapsed ? "size-8 justify-center" : "h-9 flex-1 px-2",
+            )}
+          >
+            {project ? (
+              <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground">
+                {collapsed ? project.key.slice(0, 2) : project.key}
+              </span>
+            ) : (
+              <FolderOpen
+                className="size-4 text-muted-foreground"
+                aria-hidden
+              />
+            )}
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {project?.name ?? "Choose project"}
+                </span>
+                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+              </>
+            )}
+          </button>
+        )}
+      >
+        <Picker
+          title="Projects"
+          options={projects.map((p) => ({
+            value: p.key,
+            label: p.name,
+            hint: p.key,
+          }))}
+          value={project?.key ?? null}
+          onSelect={onSelect}
+        />
+      </Popover>
+      {settings && !collapsed && (
+        <Link
+          href={settings}
+          aria-label="Project settings"
+          title="Project settings"
+          aria-current={pathname.startsWith(settings) ? "page" : undefined}
+          className={cn(
+            "grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+            pathname.startsWith(settings) &&
+              "bg-sidebar-accent text-foreground",
+          )}
+        >
+          <Settings2 className="size-4" aria-hidden />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function NavGroup({
+  label,
+  children,
+  toggle,
+}: {
+  label: string;
+  children?: ReactNode;
+  // Collapsible groups render their caption as a disclosure button.
+  toggle?: { open: boolean; onToggle: () => void };
+}) {
+  const collapsed = useContext(CollapsedSidebarContext);
+  return (
+    <div className={collapsed ? "mt-2" : "mt-4"}>
+      {collapsed ? (
+        <div className="mx-1 mb-2 border-t" />
+      ) : toggle ? (
+        <button
+          type="button"
+          aria-expanded={toggle.open}
+          onClick={toggle.onToggle}
+          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
+        >
+          {label}
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "size-3 transition-transform duration-150",
+              toggle.open && "rotate-90",
+            )}
+          />
+        </button>
+      ) : (
+        <p className="mb-1 px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          {label}
+        </p>
+      )}
+      {(!toggle || toggle.open || collapsed) && (
+        <div className="space-y-px">{children}</div>
+      )}
+    </div>
+  );
+}
+
+// Inside a project the sidebar follows the work: refine it (Work), deliver
+// it (Delivery, by the project's mode), and the teams doing it. Saved views
+// stay one click away without crowding the rest.
+function ProjectNav({
+  project,
+  active,
+}: {
+  project: Project;
+  active: (href: string, exact?: boolean) => boolean;
 }) {
   const { delivery, organization, userId } = useWorkspace();
-  const collapsed = useContext(CollapsedSidebarContext);
-  const router = useRouter();
-  const [chosenId, setChosenId] = useState<string | null>(null);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const org = organization.slug;
-  const teams = [...delivery.teams.values()]
-    .filter((t) => !t.archivedAt && t.deliveryMode === "native")
+  const key = project.key;
+  const external = project.deliveryMode === "external";
+  const teamParam = searchParams.get("team");
+  const [viewsOpen, toggleViews] = usePanelCollapsed(
+    organization.id,
+    "sidebar-views",
+  );
+  // Teams I belong to first; membership is not access.
+  const teams = projectTeams(delivery, project.id)
+    .filter((t) => !t.archivedAt)
     .sort(
       (a, b) =>
         Number(b.memberIds.includes(userId)) -
           Number(a.memberIds.includes(userId)) || a.name.localeCompare(b.name),
     );
-  if (!teams.length) return null;
-  // The team in the URL wins; otherwise the last one picked, then my first team.
-  const routeTeamId = /\/teams\/([^/]+)/.exec(pathname)?.[1];
-  const t =
-    teams.find((x) => x.id === routeTeamId) ??
-    teams.find((x) => x.id === chosenId) ??
-    teams[0]!;
+  const board = paths.board(org, key);
+  const backlog = paths.backlog(org, key);
+  const stories = paths.list(org, key, "stories");
+  const viewActive = views.some((v) => active(paths.view(org, key, v.id)));
   return (
-    <div>
-      <div className={cn("mb-1 flex items-center", !collapsed && "px-2")}>
-        <Popover
-          width={220}
-          side={collapsed ? "right" : "bottom"}
-          trigger={(props) => (
-            <button
-              {...props}
-              aria-label={collapsed ? `Switch team: ${t.name}` : undefined}
-              title={collapsed ? `Team: ${t.name}` : undefined}
-              className={cn(
-                "flex min-w-0 items-center gap-1 rounded-md text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-                collapsed ? "size-8 justify-center" : "h-6 px-1",
-              )}
+    <>
+      <NavGroup label="Work">
+        <NavLink
+          href={paths.list(org, key, "epics")}
+          active={active(paths.list(org, key, "epics"))}
+          icon={<TypeIcon type={epicGlyph} />}
+        >
+          Epics
+        </NavLink>
+        <NavLink
+          href={stories}
+          active={active(stories) && !teamParam}
+          icon={<TypeIcon type={storyGlyph} />}
+        >
+          Work items
+        </NavLink>
+        <NavLink
+          href={paths.reviews(org, key)}
+          active={active(paths.reviews(org, key))}
+          icon={<BookOpenCheck className="size-4" />}
+        >
+          Reviews
+        </NavLink>
+      </NavGroup>
+      <NavGroup label={external ? "Delivery · Jira" : "Delivery"}>
+        {external ? (
+          <NavLink
+            href={paths.handoff(org, key)}
+            active={active(paths.handoff(org, key))}
+            icon={<Send className="size-4" />}
+          >
+            Hand-off
+          </NavLink>
+        ) : (
+          <>
+            <NavLink
+              href={board}
+              active={pathname === board && !teamParam}
+              icon={<KanbanSquare className="size-4" />}
             >
-              <Users className={collapsed ? "size-4" : "size-3"} aria-hidden />
-              {!collapsed && (
-                <>
-                  <span className="truncate">{t.name}</span>
-                  <ChevronsUpDown className="size-3" />
-                </>
-              )}
-            </button>
-          )}
-        >
-          <Picker
-            title="Teams"
-            options={teams.map((x) => ({ value: x.id, label: x.name }))}
-            value={t.id}
-            onSelect={(id) => {
-              setChosenId(id);
-              router.push(paths.board(org, id));
-            }}
-          />
-        </Popover>
-      </div>
-      <div className="space-y-px">
-        <NavLink
-          href={paths.board(org, t.id)}
-          active={active(paths.board(org, t.id))}
-          icon={<KanbanSquare className="size-4" />}
-        >
-          Board
-        </NavLink>
-        <NavLink
-          href={paths.backlog(org, t.id)}
-          active={active(paths.backlog(org, t.id))}
-          icon={<ListOrdered className="size-4" />}
-        >
-          {t.iterationMode === "manual"
-            ? "Backlog & sprints"
-            : t.iterationMode === "automatic"
-              ? "Backlog & cycles"
-              : "Backlog"}
-        </NavLink>
-      </div>
-    </div>
+              Board
+            </NavLink>
+            <NavLink
+              href={backlog}
+              active={
+                (pathname === backlog && !teamParam) ||
+                active(`/app/${org}/${key.toLowerCase()}/iterations`)
+              }
+              icon={<ListOrdered className="size-4" />}
+            >
+              {project.iterationMode === "manual"
+                ? "Backlog & sprints"
+                : project.iterationMode === "automatic"
+                  ? "Backlog & cycles"
+                  : "Backlog"}
+            </NavLink>
+          </>
+        )}
+      </NavGroup>
+      {teams.length > 0 && (
+        <NavGroup label="Teams">
+          {teams.map((t) => {
+            const href = paths.team(org, key, t.id);
+            return (
+              <NavLink
+                key={t.id}
+                href={href}
+                active={active(href) || teamParam === t.id}
+                icon={
+                  <span className="grid size-4 place-items-center rounded bg-muted text-[9px] font-semibold text-foreground/70">
+                    {t.name.slice(0, 1).toUpperCase()}
+                  </span>
+                }
+              >
+                {t.name}
+              </NavLink>
+            );
+          })}
+        </NavGroup>
+      )}
+      <NavGroup
+        label="Views"
+        toggle={{
+          open: viewsOpen || viewActive,
+          onToggle: toggleViews,
+        }}
+      >
+        {views
+          .filter((v) => v.id !== "needs-my-review")
+          .map((v) => (
+            <NavLink
+              key={v.id}
+              href={paths.view(org, key, v.id)}
+              active={active(paths.view(org, key, v.id))}
+              icon={<ViewIcon view={v.id} />}
+            >
+              {v.label}
+            </NavLink>
+          ))}
+      </NavGroup>
+    </>
   );
 }
 

@@ -372,7 +372,7 @@ function Reviewers({
   const eligible = directory.members.filter(
     (m) =>
       m.id !== suggestion.authorId &&
-      canReviewSuggestions(directory.roles, m.id) &&
+      canReviewSuggestions(directory.disciplines, m.id, item.projectId) &&
       !state.reviewers.some((r) => r.userId === m.id),
   );
   const decide = (decision: "approve" | "changes_requested" | "revoke") =>

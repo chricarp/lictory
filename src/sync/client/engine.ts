@@ -41,9 +41,12 @@ const emptyDirectory: Directory = {
   organizations: [],
   projects: [],
   members: [],
-  roles: [],
+  projectMembers: [],
+  disciplines: [],
   teams: [],
   types: [],
+  projectTypes: [],
+  statuses: [],
   iterations: [],
   delivery: { connections: [], targets: [] },
   ai: { enabled: false, available: false },
@@ -111,9 +114,9 @@ export class SyncEngine {
         this.cache.entities,
         this.queue.filter((q) => !q.blocked).map((q) => q.mutation),
         this.userId,
-        (roleId) =>
-          this.cache.directory.roles.find((r) => r.id === roleId)?.name ??
-          "Review",
+        (disciplineId) =>
+          this.cache.directory.disciplines.find((d) => d.id === disciplineId)
+            ?.name ?? "Review",
         this.cache.directory,
       ),
       directory: this.cache.directory,

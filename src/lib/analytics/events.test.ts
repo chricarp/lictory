@@ -58,8 +58,9 @@ void describe("product analytics contract", () => {
         open: true,
       },
       {
-        type: "createRole",
-        roleId: "role",
+        type: "createDiscipline",
+        projectId: "project",
+        disciplineId: "discipline",
         name: privateText,
         description: privateText,
         capabilities: {

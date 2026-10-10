@@ -21,8 +21,8 @@ import postgres from "postgres";
 import { authSchemaOptions } from "../lib/auth-schema-options";
 import * as authSchema from "./auth-schema";
 import * as s from "./schema";
-import { seedDefaultRoles } from "../sync/server/roles";
-import { seedDelivery } from "../sync/server/delivery";
+import { seedOrganization } from "../sync/server/organization";
+import { seedTypes } from "../sync/server/delivery";
 
 // Never use DATABASE_URL: create and remove an isolated database, even locally.
 const adminUrl =
@@ -126,7 +126,7 @@ async function fixture() {
     userId,
     createdAt: new Date(),
   });
-  const teamId = await seedDelivery(db, organizationId, "Team", [userId]);
+  await seedTypes(db, organizationId);
   const [epic] = await db
     .select()
     .from(s.workItemType)
@@ -136,19 +136,27 @@ async function fixture() {
         eq(s.workItemType.name, "Epic"),
       ),
     );
-  const [backlog] = await db
-    .select()
-    .from(s.workflowStatus)
-    .where(eq(s.workflowStatus.teamId, teamId));
   await db.insert(s.project).values({
     id: projectId,
     organizationId,
     name: "Project",
     slug: "project",
     key: "PRD",
-    defaultTeamId: teamId,
     createdById: userId,
   });
+  const teamId = crypto.randomUUID();
+  await db
+    .insert(s.team)
+    .values({ id: teamId, organizationId, projectId, name: "Team" });
+  const [backlog] = await db
+    .insert(s.workflowStatus)
+    .values({
+      organizationId,
+      projectId,
+      name: "Backlog",
+      category: "backlog",
+    })
+    .returning();
   const delivery = {
     teamId,
     typeId: epic!.id,
@@ -359,36 +367,47 @@ void test("revision numbering is unique and merged suggestions retain both snaps
   );
 });
 
-void test("role membership grants no approval; assignments have exactly one tenant-scoped target", async () => {
+void test("discipline membership grants no approval; assignments have exactly one tenant-scoped target", async () => {
   const a = await fixture();
   const b = await fixture();
   const roleId = crypto.randomUUID();
-  await db.insert(s.organizationRole).values({
+  await db.insert(s.discipline).values({
     id: roleId,
     organizationId: a.organizationId,
+    projectId: a.projectId,
     name: "QA",
     canReview: true,
   });
-  await db
-    .insert(s.organizationRoleMember)
-    .values({ organizationId: a.organizationId, roleId, userId: a.userId });
-  // Active role names are unique per organization, case-insensitively; an
-  // archived role releases its name.
+  await db.insert(s.disciplineMember).values({
+    organizationId: a.organizationId,
+    disciplineId: roleId,
+    userId: a.userId,
+  });
+  // Active discipline names are unique per project, case-insensitively; an
+  // archived discipline releases its name, and another project may reuse it.
   await rejectsCode(
-    db.insert(s.organizationRole).values({
+    db.insert(s.discipline).values({
       organizationId: a.organizationId,
+      projectId: a.projectId,
       name: "qa",
     }),
     "23505",
   );
-  await db.insert(s.organizationRole).values({
+  await db.insert(s.discipline).values({
     organizationId: a.organizationId,
+    projectId: a.projectId,
     name: "Archived QA",
     archivedAt: new Date(),
   });
-  await db.insert(s.organizationRole).values({
+  await db.insert(s.discipline).values({
     organizationId: a.organizationId,
+    projectId: a.projectId,
     name: "archived qa",
+  });
+  await db.insert(s.discipline).values({
+    organizationId: b.organizationId,
+    projectId: b.projectId,
+    name: "QA",
   });
   const assignment = {
     organizationId: a.organizationId,
@@ -399,7 +418,7 @@ void test("role membership grants no approval; assignments have exactly one tena
   await rejectsCode(
     db
       .insert(s.reviewAssignment)
-      .values({ ...assignment, roleId, userId: a.userId }),
+      .values({ ...assignment, disciplineId: roleId, userId: a.userId }),
     "23514",
   );
   await rejectsCode(
@@ -407,13 +426,17 @@ void test("role membership grants no approval; assignments have exactly one tena
       ...assignment,
       organizationId: b.organizationId,
       reviewId: b.reviewId,
-      roleId,
+      disciplineId: roleId,
     }),
     "23503",
   );
-  await db.insert(s.reviewAssignment).values({ ...assignment, roleId });
+  await db
+    .insert(s.reviewAssignment)
+    .values({ ...assignment, disciplineId: roleId });
   await rejectsCode(
-    db.insert(s.reviewAssignment).values({ ...assignment, roleId }),
+    db
+      .insert(s.reviewAssignment)
+      .values({ ...assignment, disciplineId: roleId }),
     "23505",
   );
   assert.equal(
@@ -607,29 +630,16 @@ void test("decision provenance and delivery hierarchy cannot cross their source 
   );
 });
 
-void test("new organizations are seeded idempotently with roles, types and a working team", async () => {
+void test("new organizations are seeded idempotently with the type registry only", async () => {
   const organizationId = crypto.randomUUID();
-  const userId = crypto.randomUUID();
-  await db
-    .insert(s.user)
-    .values({ id: userId, name: "Owner", email: `${userId}@example.test` });
   await db.insert(s.organization).values({
     id: organizationId,
     name: "Acme",
     slug: organizationId,
     createdAt: new Date(),
   });
-  await seedDefaultRoles(db, organizationId, userId);
-  await seedDefaultRoles(db, organizationId, userId);
-  const roles = await db
-    .select()
-    .from(s.organizationRole)
-    .where(eq(s.organizationRole.organizationId, organizationId));
-  assert.deepEqual(roles.map((r) => r.name).sort(), [
-    "Engineering",
-    "Product",
-    "QA",
-  ]);
+  await seedOrganization(db, organizationId);
+  await seedOrganization(db, organizationId);
   const types = await db
     .select()
     .from(s.workItemType)
@@ -644,54 +654,43 @@ void test("new organizations are seeded idempotently with roles, types and a wor
       ["Task", 1, false],
     ],
   );
-  const teams = await db
-    .select()
-    .from(s.team)
-    .where(eq(s.team.organizationId, organizationId));
-  assert.deepEqual(
-    teams.map((t) => t.name),
-    ["Acme"],
-  );
-  const statuses = await db
-    .select()
-    .from(s.workflowStatus)
-    .where(eq(s.workflowStatus.teamId, teams[0]!.id));
-  assert.deepEqual([...new Set(statuses.map((x) => x.category))].sort(), [
-    "backlog",
-    "canceled",
-    "done",
-    "started",
-    "unstarted",
-  ]);
-  const members = await db
-    .select()
-    .from(s.teamMember)
-    .where(eq(s.teamMember.teamId, teams[0]!.id));
-  assert.deepEqual(
-    members.map((m) => m.userId),
-    [userId],
+  assert.equal(
+    (
+      await db
+        .select()
+        .from(s.team)
+        .where(eq(s.team.organizationId, organizationId))
+    ).length,
+    0,
   );
 });
 
-void test("a work item's status must belong to its team and only one iteration is active per team", async () => {
+void test("a work item's team, status and iteration must belong to its project; one iteration is active per project", async () => {
   const a = await fixture();
-  // Moving teams without remapping the status violates the composite key.
-  const otherTeamId = crypto.randomUUID();
-  await db.insert(s.team).values({
-    id: otherTeamId,
-    organizationId: a.organizationId,
-    name: "Platform",
-  });
+  const b = await fixture();
+  // Another project's team or status violates the composite keys.
   await rejectsCode(
     db
       .update(s.workItem)
-      .set({ teamId: otherTeamId })
+      .set({ teamId: b.teamId })
       .where(eq(s.workItem.id, a.workItemId)),
     "23503",
   );
+  await rejectsCode(
+    db
+      .update(s.workItem)
+      .set({ statusId: b.statusId })
+      .where(eq(s.workItem.id, a.workItemId)),
+    "23503",
+  );
+  // Team is optional.
+  await db
+    .update(s.workItem)
+    .set({ teamId: null })
+    .where(eq(s.workItem.id, a.workItemId));
   const iteration = (number: number, state: "planned" | "active") => ({
     organizationId: a.organizationId,
-    teamId: a.teamId,
+    projectId: a.projectId,
     number,
     startsAt: new Date("2026-01-01"),
     endsAt: new Date("2026-01-15"),
@@ -709,10 +708,25 @@ void test("a work item's status must belong to its team and only one iteration i
       .values({ ...iteration(3, "planned"), startedAt: new Date() }),
     "23514",
   );
+  const [foreignIteration] = await db
+    .insert(s.iteration)
+    .values({
+      ...iteration(1, "planned"),
+      organizationId: b.organizationId,
+      projectId: b.projectId,
+    })
+    .returning();
+  await rejectsCode(
+    db
+      .update(s.workItem)
+      .set({ iterationId: foreignIteration!.id })
+      .where(eq(s.workItem.id, a.workItemId)),
+    "23503",
+  );
 });
 
-void test("delegation migration preserves shared teams and discovers all project associations", async () => {
-  const name = `lictory_configuration_upgrade_${crypto.randomUUID().replaceAll("-", "")}`;
+void test("project-owned configuration migration moves workflow, teams, roles and targets to projects", async () => {
+  const name = `lictory_project_upgrade_${crypto.randomUUID().replaceAll("-", "")}`;
   const upgradeUrl = new URL(adminUrl);
   upgradeUrl.pathname = `/${name}`;
   await admin`CREATE DATABASE ${admin(name)}`;
@@ -720,13 +734,13 @@ void test("delegation migration preserves shared teams and discovers all project
     max: 1,
     onnotice: () => undefined,
   });
-  const baseline = await mkdtemp(join(tmpdir(), "lictory-config-upgrade-"));
+  const baseline = await mkdtemp(join(tmpdir(), "lictory-project-upgrade-"));
   try {
     await mkdir(join(baseline, "meta"));
     const journal = JSON.parse(
       await readFile("drizzle/meta/_journal.json", "utf8"),
     ) as { entries: { idx: number; tag: string }[] };
-    journal.entries = journal.entries.filter((e) => e.idx < 7);
+    journal.entries = journal.entries.filter((e) => e.idx < 9);
     await writeFile(
       join(baseline, "meta/_journal.json"),
       JSON.stringify(journal),
@@ -738,42 +752,148 @@ void test("delegation migration preserves shared teams and discovers all project
       );
     const upgradeDb = drizzle(upgradeClient, { schema: s });
     await migrate(upgradeDb, { migrationsFolder: baseline });
-    await upgradeClient`INSERT INTO "user" (id, name, email) VALUES ('upgrade-user', 'Upgrade owner', 'config-upgrade@example.test')`;
-    await upgradeClient`INSERT INTO organization (id, name, slug, created_at) VALUES ('upgrade-org', 'Shared organization', 'shared-upgrade', now())`;
-    await upgradeClient`INSERT INTO team (id, organization_id, name) VALUES ('shared-team', 'upgrade-org', 'Shared team'), ('unused-team', 'upgrade-org', 'Unused team')`;
-    await upgradeClient`INSERT INTO project (id, organization_id, name, slug, key, created_by_id, default_team_id) VALUES ('project-a', 'upgrade-org', 'Payments', 'pay', 'PAY', 'upgrade-user', 'shared-team'), ('project-b', 'upgrade-org', 'Platform', 'plt', 'PLT', 'upgrade-user', 'shared-team')`;
-    await upgradeClient`INSERT INTO workflow_status (id, organization_id, team_id, name, color, category, position) VALUES ('shared-status', 'upgrade-org', 'shared-team', 'Working', 'blue', 'started', 0)`;
-    await upgradeClient`INSERT INTO iteration (id, organization_id, team_id, number, name, state, starts_at, ends_at, started_at, completed_at, summary) VALUES ('shared-iteration', 'upgrade-org', 'shared-team', 1, 'Completed shared sprint', 'completed', '2026-09-01', '2026-09-15', '2026-09-01', '2026-09-15', '{"frozen":"preserved"}'::jsonb)`;
-    const before = await upgradeClient`SELECT * FROM team ORDER BY id`;
-    const beforeIteration = await upgradeClient`SELECT * FROM iteration`;
+    const q = upgradeClient;
+    type Row = Record<string, string | boolean | number | string[] | null>;
+    await q`INSERT INTO "user" (id, name, email) VALUES ('owner', 'Owner', 'owner@upgrade.test'), ('dev', 'Dev', 'dev@upgrade.test')`;
+    await q`INSERT INTO organization (id, name, slug, created_at) VALUES ('org', 'Acme', 'acme-upgrade', now()), ('empty', 'Empty', 'empty-upgrade', now())`;
+    await q`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('m1', 'org', 'owner', 'owner', now()), ('m2', 'org', 'dev', 'member', now())`;
+    await q`INSERT INTO work_item_type (id, organization_id, name, icon, color, level, has_specification) VALUES ('story', 'org', 'Story', 'story', 'green', 1, true), ('task', 'org', 'Task', 'task', 'blue', 1, false)`;
+    // A team shared by two projects, a second team in PAY, and an orphan team
+    // of an organization that never created a project.
+    await q`INSERT INTO team (id, organization_id, name, delivery_mode, readiness_policy, iteration_mode) VALUES ('shared', 'org', 'Core', 'native', 'block', 'manual'), ('mobile', 'org', 'Mobile', 'native', 'warn', 'manual'), ('orphan', 'empty', 'Empty', 'native', 'warn', 'manual')`;
+    await q`INSERT INTO project (id, organization_id, name, slug, key, created_by_id, default_team_id, created_at) VALUES ('pay', 'org', 'Payments', 'pay', 'PAY', 'owner', 'shared', now() - interval '1 day'), ('plt', 'org', 'Platform', 'plt', 'PLT', 'owner', 'shared', now())`;
+    await q`INSERT INTO team_project (organization_id, team_id, project_id) VALUES ('org', 'shared', 'pay'), ('org', 'shared', 'plt'), ('org', 'mobile', 'pay')`;
+    await q`INSERT INTO team_work_item_type (organization_id, team_id, type_id) VALUES ('org', 'shared', 'story')`;
+    await q`INSERT INTO team_member (organization_id, team_id, user_id) VALUES ('org', 'shared', 'dev')`;
+    await q`INSERT INTO workflow_status (id, organization_id, team_id, name, color, category, position) VALUES ('s-todo', 'org', 'shared', 'Todo', 'gray', 'unstarted', 0), ('s-doing', 'org', 'shared', 'Doing', 'blue', 'started', 1), ('m-todo', 'org', 'mobile', 'Todo', 'gray', 'unstarted', 0), ('m-qa', 'org', 'mobile', 'QA check', 'amber', 'started', 1), ('o-todo', 'empty', 'orphan', 'Todo', 'gray', 'unstarted', 0)`;
+    await q`INSERT INTO iteration (id, organization_id, team_id, number, state, starts_at, ends_at, started_at) VALUES ('it-shared', 'org', 'shared', 1, 'active', '2026-09-01', '2026-09-15', '2026-09-01'), ('it-mobile', 'org', 'mobile', 1, 'active', '2026-09-02', '2026-09-16', '2026-09-02')`;
+    await q`INSERT INTO work_item (id, organization_id, project_id, team_id, type_id, number, title, status_id, iteration_id, rank, created_by_id, refinement_state) VALUES ('w1', 'org', 'pay', 'shared', 'story', 1, 'Retries', 's-doing', 'it-shared', 'a', 'owner', 'draft'), ('w2', 'org', 'pay', 'mobile', 'task', 2, 'QA', 'm-qa', 'it-mobile', 'b', 'owner', null), ('w3', 'org', 'plt', 'shared', 'story', 1, 'Platform', 's-todo', 'it-shared', 'c', 'owner', 'draft')`;
+    await q`INSERT INTO specification_revision (id, organization_id, work_item_id, number, title, content, author_id) VALUES ('r1', 'org', 'w1', 1, 'Retries', 'x', 'owner'), ('r3', 'org', 'w3', 1, 'Platform', 'y', 'owner')`;
+    await q`INSERT INTO organization_role (id, organization_id, name, can_review, can_edit_specifications) VALUES ('eng', 'org', 'Engineering', true, false)`;
+    await q`INSERT INTO organization_role_member (organization_id, role_id, user_id) VALUES ('org', 'eng', 'dev')`;
+    await q`INSERT INTO review (id, organization_id, work_item_id, revision_id, responsibility, requested_by_id) VALUES ('rv1', 'org', 'w1', 'r1', 'Engineering', 'owner'), ('rv3', 'org', 'w3', 'r3', 'Engineering', 'owner')`;
+    await q`INSERT INTO review_assignment (id, organization_id, review_id, role_id, assigned_by_id) VALUES ('a1', 'org', 'rv1', 'eng', 'owner'), ('a3', 'org', 'rv3', 'eng', 'owner')`;
+    await q`INSERT INTO delivery_connection (id, organization_id, provider, name, base_url, account_label, encrypted_credential, last_verified_at, created_by_id) VALUES ('conn', 'org', 'jira_cloud', 'Jira', 'https://acme.atlassian.net', 'bot', 'x', now(), 'owner')`;
+    await q`INSERT INTO delivery_target (id, organization_id, connection_id, team_id, external_project_id, external_project_key) VALUES ('default-target', 'org', 'conn', null, '1', 'ORG')`;
+    await q`INSERT INTO configuration_role (id, organization_id, name, scope, permissions) VALUES ('tpl', 'org', 'Manager', 'project', '["projectSettings"]'::jsonb)`;
+    await q`INSERT INTO configuration_assignment (id, organization_id, role_id, user_id, project_id) VALUES ('ca', 'org', 'tpl', 'dev', 'plt')`;
     await migrate(upgradeDb, { migrationsFolder: "drizzle" });
+
+    const projects = await q<
+      Row[]
+    >`SELECT id, readiness_policy FROM project ORDER BY id`;
     assert.deepEqual(
-      await upgradeClient`SELECT * FROM team ORDER BY id`,
-      before,
-    );
-    assert.deepEqual(
-      await upgradeClient`SELECT * FROM iteration`,
-      beforeIteration,
-    );
-    assert.deepEqual(
-      (await upgradeDb.select().from(s.teamProject))
-        .map((p) => [p.teamId, p.projectId])
-        .sort(),
+      projects.map((p) => [p.id, p.readiness_policy]),
       [
-        ["shared-team", "project-a"],
-        ["shared-team", "project-b"],
+        ["pay", "block"],
+        ["plt", "block"],
       ],
     );
-    assert.equal(
-      (await upgradeDb.select().from(s.workflowStatus))[0]!.id,
-      "shared-status",
+    // The shared team stays with its first project; Platform gets a copy
+    // with the same members, and its work moves to the copy.
+    const teams = await q<
+      Row[]
+    >`SELECT id, project_id, name FROM team ORDER BY name`;
+    assert.equal(teams.length, 3);
+    const copy = teams.find((t) => t.project_id === "plt")!;
+    assert.equal(copy.name, "Core (PLT)");
+    assert.equal(teams.find((t) => t.id === "shared")!.project_id, "pay");
+    assert.equal(teams.find((t) => t.id === "mobile")!.project_id, "pay");
+    assert.deepEqual(
+      (
+        await q<
+          Row[]
+        >`SELECT user_id FROM team_member WHERE team_id = ${String(copy.id)}`
+      ).map((m) => m.user_id),
+      ["dev"],
     );
-    await assert.rejects(
-      upgradeDb.insert(s.teamProject).values({
-        organizationId: "upgrade-org",
-        teamId: "unused-team",
-        projectId: "foreign-project",
-      }),
+    const items = await q<
+      Row[]
+    >`SELECT w.id, w.team_id, w.iteration_id, s.name, s.category, s.project_id FROM work_item w JOIN workflow_status s ON s.id = w.status_id ORDER BY w.id`;
+    assert.deepEqual(
+      items.map((i) => [i.id, i.name, i.category, i.project_id]),
+      [
+        ["w1", "Doing", "started", "pay"],
+        // Mobile's "QA check" is not part of PAY's workflow: same category.
+        ["w2", "Doing", "started", "pay"],
+        ["w3", "Todo", "unstarted", "plt"],
+      ],
+    );
+    assert.equal(items.find((i) => i.id === "w3")!.team_id, copy.id);
+    // One active iteration per project; Platform's work leaves Core's sprint.
+    const iterations = await q<
+      Row[]
+    >`SELECT id, project_id, state FROM iteration ORDER BY id`;
+    assert.deepEqual(
+      iterations.map((i) => [i.id, i.project_id, i.state]),
+      [
+        ["it-mobile", "pay", "active"],
+        ["it-shared", "pay", "completed"],
+      ],
+    );
+    assert.equal(items.find((i) => i.id === "w3")!.iteration_id, null);
+    // Roles become disciplines per project and assignments follow the item.
+    const disciplines = await q<
+      Row[]
+    >`SELECT d.id, d.project_id, d.can_review, (SELECT array_agg(user_id) FROM discipline_member m WHERE m.discipline_id = d.id) AS members FROM discipline d ORDER BY d.project_id`;
+    assert.deepEqual(
+      disciplines.map((d) => [d.project_id, d.can_review, d.members]),
+      [
+        ["pay", true, ["dev"]],
+        ["plt", true, ["dev"]],
+      ],
+    );
+    const assignments = await q<
+      Row[]
+    >`SELECT a.review_id, d.project_id FROM review_assignment a JOIN discipline d ON d.id = a.discipline_id ORDER BY a.review_id`;
+    assert.deepEqual(
+      assignments.map((a) => [a.review_id, a.project_id]),
+      [
+        ["rv1", "pay"],
+        ["rv3", "plt"],
+      ],
+    );
+    // Everyone stays in every project; project managers become admins.
+    const members = await q<
+      Row[]
+    >`SELECT project_id, user_id, role FROM project_member ORDER BY project_id, user_id`;
+    assert.deepEqual(
+      members.map((m) => [m.project_id, m.user_id, m.role]),
+      [
+        ["pay", "dev", "member"],
+        ["pay", "owner", "member"],
+        ["plt", "dev", "admin"],
+        ["plt", "owner", "member"],
+      ],
+    );
+    // The organization default target applies to each project.
+    assert.deepEqual(
+      (
+        await q<
+          Row[]
+        >`SELECT project_id, external_project_key FROM delivery_target ORDER BY project_id`
+      ).map((t) => [t.project_id, t.external_project_key]),
+      [
+        ["pay", "ORG"],
+        ["plt", "ORG"],
+      ],
+    );
+    assert.deepEqual(
+      (
+        await q<
+          Row[]
+        >`SELECT type_id FROM project_work_item_type WHERE project_id = 'pay' ORDER BY type_id`
+      ).map((t) => t.type_id),
+      ["story", "task"],
+    );
+    // An organization without projects keeps no orphan team.
+    assert.equal(
+      (
+        await q<
+          Row[]
+        >`SELECT count(*)::int AS n FROM team WHERE organization_id = 'empty'`
+      )[0]!.n,
+      0,
     );
   } finally {
     await upgradeClient.end();

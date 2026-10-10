@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { eq } from "drizzle-orm";
 import * as s from "../src/db/schema";
-import { seedDefaultRoles } from "../src/sync/server/roles";
+import { seedOrganization } from "../src/sync/server/organization";
 import { paths } from "../src/lib/paths";
 import { configureFirstProject, createWorkspace } from "./onboarding-helpers";
 import { reloadWhenSaved } from "./sync-helpers";
@@ -163,7 +163,7 @@ test("joining waits without creating an organization, discovers invitations, and
   page,
 }) => {
   await page
-    .getByRole("button", { name: "Join my team", exact: false })
+    .getByRole("button", { name: "Join my organization", exact: false })
     .click();
   await expect(
     page.getByRole("heading", { name: "No invitation yet" }),
@@ -200,19 +200,18 @@ test("joining waits without creating an organization, discovers invitations, and
     role: "owner",
     createdAt: new Date(),
   });
-  await seedDefaultRoles(db, orgId, adminId);
-  const team = (
-    await db.select().from(s.team).where(eq(s.team.organizationId, orgId))
-  )[0]!;
-  await db.insert(s.project).values({
-    id: crypto.randomUUID(),
-    organizationId: orgId,
-    name: "Existing project",
-    slug: "exist",
-    key: "EXIST",
-    defaultTeamId: team.id,
-    createdById: adminId,
-  });
+  await seedOrganization(db, orgId);
+  const [project] = await db
+    .insert(s.project)
+    .values({
+      id: crypto.randomUUID(),
+      organizationId: orgId,
+      name: "Existing project",
+      slug: "exist",
+      key: "EXIST",
+      createdById: adminId,
+    })
+    .returning();
   await db.insert(s.invitation).values({
     id: crypto.randomUUID(),
     organizationId: orgId,
@@ -233,12 +232,17 @@ test("joining waits without creating an organization, discovers invitations, and
       .where(eq(s.organizationOnboarding.organizationId, orgId)),
   ).toHaveLength(0);
   expect(
-    (await db.select().from(s.team).where(eq(s.team.organizationId, orgId)))[0],
-  ).toEqual(team);
+    (
+      await db
+        .select()
+        .from(s.project)
+        .where(eq(s.project.organizationId, orgId))
+    )[0],
+  ).toEqual(project);
   await client.end();
 });
 
-test("cycle selects support keyboard choices, numeric zero, and persisted team settings", async ({
+test("cycle selects support keyboard choices, numeric zero, and persisted project settings", async ({
   page,
 }) => {
   await page
@@ -287,16 +291,16 @@ test("cycle selects support keyboard choices, numeric zero, and persisted team s
     .select()
     .from(s.organization)
     .where(eq(s.organization.slug, orgSlug));
-  const [team] = await db
+  const [project] = await db
     .select()
-    .from(s.team)
-    .where(eq(s.team.organizationId, organization!.id));
-  expect(team).toMatchObject({
+    .from(s.project)
+    .where(eq(s.project.organizationId, organization!.id));
+  expect(project).toMatchObject({
     iterationWeeks: 3,
     iterationStartDay: 0,
     estimateScale: "fibonacci",
   });
-  await page.goto(paths.teamSettings(orgSlug, team!.id));
+  await page.goto(paths.projectSettings(orgSlug, "PAY", "planning"));
   const upcoming = page.getByRole("combobox", { name: "Upcoming cycles" });
   await expect(upcoming).toHaveCSS("height", "32px");
   await upcoming.click();
@@ -306,8 +310,8 @@ test("cycle selects support keyboard choices, numeric zero, and persisted team s
     .poll(async () => {
       const [saved] = await db
         .select()
-        .from(s.team)
-        .where(eq(s.team.id, team!.id));
+        .from(s.project)
+        .where(eq(s.project.id, project!.id));
       return saved?.upcomingIterations;
     })
     .toBe(0);
@@ -315,6 +319,6 @@ test("cycle selects support keyboard choices, numeric zero, and persisted team s
   await page.reload();
   await expect(upcoming).toHaveText("0");
   await page.getByRole("combobox", { name: "Estimate scale" }).click();
-  await page.screenshot({ path: "/tmp/lictory-select-team-settings.png" });
+  await page.screenshot({ path: "/tmp/lictory-select-project-settings.png" });
   await page.keyboard.press("Escape");
 });
