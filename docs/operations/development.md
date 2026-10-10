@@ -55,9 +55,10 @@ land in `/tmp/lictory-playwright-results`.
 
 ## Full verification before a pull request
 
-The `verify` job in [the CI workflow](../../.github/workflows/ci.yml) is the
-source of truth; `AGENTS.md` lists the current sequence. Run it against a
-disposable database, never your development database:
+The jobs in [the CI workflow](../../.github/workflows/ci.yml) are the source of
+truth; `AGENTS.md` lists the current sequence. CI runs static checks, domain
+tests and sharded browser workflows in parallel; locally, run them in order
+against a disposable database, never your development database:
 
 ```sh
 docker compose up -d postgres mailpit
@@ -77,7 +78,7 @@ bun run check
 bun run db:check
 bun run db:migrate
 bun test src
-bunx playwright install --with-deps chromium
+bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 
 docker compose exec -T postgres dropdb -U lictory --force "$DB"

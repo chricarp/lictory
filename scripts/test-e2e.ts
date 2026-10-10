@@ -17,19 +17,23 @@ try {
   });
   await migrate(drizzle(client), { migrationsFolder: "drizzle" });
   await client.end();
-  const child = spawn("bunx", ["playwright", "test"], {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: url.toString(),
-      DATABASE_URL_UNPOOLED: url.toString(),
-      BETTER_AUTH_URL: "http://localhost:3001",
-      BETTER_AUTH_SECRET:
-        "e2e-local-only-secret-with-at-least-thirty-two-characters",
-      NEXT_DIST_DIR: ".next-e2e",
-      RESEND_API_KEY: "",
+  const child = spawn(
+    "bunx",
+    ["playwright", "test", ...process.argv.slice(2)],
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: url.toString(),
+        DATABASE_URL_UNPOOLED: url.toString(),
+        BETTER_AUTH_URL: "http://localhost:3001",
+        BETTER_AUTH_SECRET:
+          "e2e-local-only-secret-with-at-least-thirty-two-characters",
+        NEXT_DIST_DIR: ".next-e2e",
+        RESEND_API_KEY: "",
+      },
     },
-  });
+  );
   process.exitCode = await new Promise<number>((resolve) =>
     child.on("exit", (code) => resolve(code ?? 1)),
   );

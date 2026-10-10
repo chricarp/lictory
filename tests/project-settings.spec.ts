@@ -189,7 +189,7 @@ test("project administrators configure teams, disciplines and delivery; capabili
     await engineer.screenshot({ path: "/tmp/lictory-team-backlog.png" });
     await engineer
       .getByRole("main")
-      .getByRole("link", { name: "Board" })
+      .getByRole("link", { name: "Board", exact: true })
       .click();
     await expect(engineer).toHaveURL(/\/jira\/board\?team=/);
 

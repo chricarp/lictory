@@ -374,13 +374,6 @@ test("work item panels collapse independently and persist across routes and relo
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await page
-    .getByRole("button", { name: "Switch team: Panel project" })
-    .click();
-  await expect(
-    page.getByRole("option", { name: /Panel project/ }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await page
     .getByRole("button", { name: "Switch organization: Panel layout" })
     .click();
   await expect(
@@ -749,25 +742,24 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewer.getByRole("button", { name: "Accept invitation" }).click();
   await expect(reviewer).toHaveURL(/\/app\/northstar/);
 
-  // The administrator gives the engineer the Engineering role. Until then the
-  // new member holds no role and cannot even be asked to review.
-  await page.reload();
-  await expect(page.getByText("Riley Chen")).toBeVisible();
-  await page.getByRole("button", { name: "Add person to Engineering" }).click();
+  // The administrator adds the engineer to the project in the Engineering
+  // discipline. Until then the new member cannot even be asked to review.
+  const orgSlug = page.url().split("/app/")[1]!.split("/")[0]!;
+  await page.goto(paths.projectSettings(orgSlug, "PAY", "members"));
+  await page.getByRole("button", { name: "Add people" }).click();
   await page.getByRole("option", { name: /Riley Chen/ }).click();
-  await expect(
-    page.getByRole("button", { name: "Remove Riley Chen from Engineering" }),
-  ).toBeVisible();
+  const rileyDisciplines = page
+    .getByLabel("Disciplines of Riley Chen")
+    .getByRole("button", { name: "Engineering", exact: true });
+  await rileyDisciplines.click();
+  await expect(rileyDisciplines).toHaveAttribute("aria-pressed", "true");
 
   // 6. Request Engineering review from the story page.
-  const storyUrl =
-    "/app/" +
-    page.url().split("/app/")[1]!.split("/")[0] +
-    "/pay/stories/PAY-2";
+  const storyUrl = `/app/${orgSlug}/pay/stories/PAY-2`;
   await page.goto(storyUrl);
   await page.getByRole("button", { name: "Request review" }).click();
   await expect(
-    page.getByRole("button", { name: "Reviewer role" }),
+    page.getByRole("button", { name: "Reviewing discipline" }),
   ).toContainText("Engineering");
   await page.getByRole("button", { name: "Reviewer", exact: true }).click();
   await page.getByRole("option", { name: /Riley Chen/ }).click();

@@ -40,7 +40,9 @@ Mailpit, frozen Bun dependencies, lint/types/format, committed migrations, all
 domain tests, signup/verification/password-reset emails through Mailpit,
 two-browser workflow tests against a production build. Production
 credentials are never supplied to this workflow. Failure screenshots are retained
-for seven days. Jobs time out and superseded CI runs are canceled to limit minutes.
+for seven days. Static checks, domain tests and four browser-test shards run as
+parallel jobs; `Verify` passes only when all of them pass. Jobs time out and
+superseded CI runs are canceled to limit minutes.
 
 Action dependencies are pinned to verified release commits. Dependabot proposes
 weekly Bun and Actions updates; review and merge them after CI passes. Do not

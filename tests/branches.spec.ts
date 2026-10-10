@@ -11,8 +11,10 @@ import { createSyncService, directory } from "../src/sync/server/service";
 import { PROTOCOL, type Command } from "../src/sync/shared/protocol";
 
 const password = "Branch-test-password-123!";
-const authorEmail = "branch-author@example.test";
-const reviewerEmail = "branch-reviewer@example.test";
+// A retry runs in a new worker that seeds again; each worker gets its own users.
+const run = crypto.randomUUID().slice(0, 8);
+const authorEmail = `branch-author-${run}@example.test`;
+const reviewerEmail = `branch-reviewer-${run}@example.test`;
 let itemUrl: string;
 let workItemId: string;
 const initial =
@@ -33,8 +35,8 @@ test.beforeAll(async () => {
     const slug = `branches-${organizationId.slice(0, 8)}`;
     const hash = await hashPassword(password);
     for (const [id, name, email, handle] of [
-      [authorId, "Branch Author", authorEmail, "branch_author"],
-      [reviewerId, "Branch QA", reviewerEmail, "branch_qa"],
+      [authorId, "Branch Author", authorEmail, `branch_author_${run}`],
+      [reviewerId, "Branch QA", reviewerEmail, `branch_qa_${run}`],
     ]) {
       await db.insert(s.user).values({
         id: id!,
@@ -523,7 +525,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     "Tighten timeout criterion",
   );
   const pr = await openPR(page, "Review tighter criterion");
-  await page.getByRole("combobox", { name: "PR reviewer role" }).click();
+  await page.getByRole("combobox", { name: "PR reviewing discipline" }).click();
   await page.getByRole("option", { name: "QA", exact: true }).click();
   await page
     .getByRole("button", { name: "Request required review", exact: true })
@@ -668,7 +670,9 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await expect(
       page.getByRole("button", { name: "Merge pull request", exact: true }),
     ).toBeDisabled();
-    await page.getByRole("combobox", { name: "PR reviewer role" }).click();
+    await page
+      .getByRole("combobox", { name: "PR reviewing discipline" })
+      .click();
     await page.getByRole("option", { name: "QA", exact: true }).click();
     await page
       .getByRole("button", { name: "Request required review", exact: true })
