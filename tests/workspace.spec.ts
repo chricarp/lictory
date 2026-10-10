@@ -79,6 +79,14 @@ test("an existing member can create and switch to another organization", async (
   expect(home.headers().location).toMatch(/\/app$/);
   await page.goto("/");
   await expect(page).toHaveURL(/\/app$/);
+  // The landing page stays reachable at /home and leads back to the app.
+  await page.goto("/home");
+  const header = page.getByRole("banner");
+  await expect(header.getByRole("link", { name: "Log in" })).toHaveCount(0);
+  await header.getByRole("link", { name: "Lictory home" }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await header.getByRole("link", { name: "Open Lictory" }).click();
+  await expect(page).toHaveURL(/\/app$/);
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();

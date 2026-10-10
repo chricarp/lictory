@@ -88,32 +88,43 @@ function CtaLink({
   );
 }
 
-export function Landing() {
+/**
+ * Where the primary calls to action lead. Signed-in visitors reach the landing
+ * page at /home, so they are sent back to the app rather than to sign-up.
+ */
+type Cta = { href: string; label: string };
+
+export function Landing({ signedIn = false }: { signedIn?: boolean }) {
+  const cta: Cta = signedIn
+    ? { href: "/app", label: "Open Lictory" }
+    : { href: "/sign-up", label: "Start for free" };
+  // "/" sends signed-in visitors to the app, so the logo keeps them here.
+  const home = signedIn ? "/home" : "/";
   return (
     <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
       <div className="relative overflow-clip">
-        <Header />
+        <Header home={home} signedIn={signedIn} />
         <main>
-          <Hero />
+          <Hero cta={cta} />
           <Journey />
           <Problem />
           <Features />
           <Disciplines />
-          <Delivery />
+          <Delivery cta={cta} />
           <Comparison />
           <Faq />
-          <FinalCta />
+          <FinalCta cta={cta} signedIn={signedIn} />
         </main>
-        <Footer />
+        <Footer home={home} />
       </div>
-      <MobileCta href="/sign-up" label="Start for free" />
+      <MobileCta href={cta.href} label={cta.label} />
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
 
-function Header() {
+function Header({ home, signedIn }: { home: string; signedIn: boolean }) {
   return (
     <header className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-3 sm:top-4">
       <div
@@ -125,7 +136,7 @@ function Header() {
           "before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:-z-10 before:h-1/2 before:rounded-t-full before:bg-[radial-gradient(60%_100%_at_50%_0%,oklch(1_0_0/0.12),transparent)]",
         )}
       >
-        <Logo className="[&>span]:h-5" />
+        <Logo href={home} className="[&>span]:h-5" />
         <nav
           aria-label="Sections"
           className="mx-auto hidden items-center text-[13px] md:flex"
@@ -146,16 +157,24 @@ function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1 md:ml-0">
-          <CtaLink
-            href="/sign-in"
-            variant="ghost"
-            className="h-9 px-3.5 hover:bg-white/[0.07]"
-          >
-            Log in
-          </CtaLink>
-          <CtaLink href="/sign-up" className="h-9 px-4 shadow-none">
-            Sign up
-          </CtaLink>
+          {signedIn ? (
+            <CtaLink href="/app" className="h-9 px-4 shadow-none">
+              Open Lictory
+            </CtaLink>
+          ) : (
+            <>
+              <CtaLink
+                href="/sign-in"
+                variant="ghost"
+                className="h-9 px-3.5 hover:bg-white/[0.07]"
+              >
+                Log in
+              </CtaLink>
+              <CtaLink href="/sign-up" className="h-9 px-4 shadow-none">
+                Sign up
+              </CtaLink>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -166,7 +185,7 @@ function rise(delayMs: number) {
   return { animationDelay: `${delayMs}ms` };
 }
 
-function Hero() {
+function Hero({ cta }: { cta: Cta }) {
   return (
     <section
       aria-labelledby="hero-title"
@@ -213,11 +232,11 @@ function Hero() {
           className="landing-rise mt-6 flex flex-col items-center justify-center gap-2 sm:mt-8 sm:flex-row sm:gap-3"
         >
           <CtaLink
-            href="/sign-up"
+            href={cta.href}
             size="lg"
             className="w-full max-w-80 sm:w-auto"
           >
-            Start for free
+            {cta.label}
             <ArrowRight aria-hidden className="size-4" />
           </CtaLink>
           <CtaLink href="#features" variant="ghost" size="lg">
@@ -724,7 +743,7 @@ function Disciplines() {
   );
 }
 
-function Delivery() {
+function Delivery({ cta }: { cta: Cta }) {
   return (
     <>
       <Divider />
@@ -790,7 +809,7 @@ function Delivery() {
               Start refining in Lictory today. Switch delivery mode any time.
             </p>
           </div>
-          <CtaLink href="/sign-up" size="lg" className="w-full sm:w-auto">
+          <CtaLink href={cta.href} size="lg" className="w-full sm:w-auto">
             Try it with one spec
             <ArrowRight aria-hidden className="size-4" />
           </CtaLink>
@@ -886,7 +905,7 @@ function Faq() {
   );
 }
 
-function FinalCta() {
+function FinalCta({ cta, signedIn }: { cta: Cta; signedIn: boolean }) {
   return (
     <Section className="relative overflow-hidden text-center sm:py-36">
       <div
@@ -907,35 +926,37 @@ function FinalCta() {
           className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
           <CtaLink
-            href="/sign-up"
+            href={cta.href}
             size="lg"
             className="w-full max-w-80 sm:w-auto"
           >
-            Start for free
+            {cta.label}
             <ArrowRight className="size-4" />
           </CtaLink>
-          <CtaLink
-            href="/sign-in"
-            size="lg"
-            variant="secondary"
-            className="w-full max-w-80 sm:w-auto"
-          >
-            Log in
-          </CtaLink>
+          {!signedIn && (
+            <CtaLink
+              href="/sign-in"
+              size="lg"
+              variant="secondary"
+              className="w-full max-w-80 sm:w-auto"
+            >
+              Log in
+            </CtaLink>
+          )}
         </div>
       </Reveal>
     </Section>
   );
 }
 
-function Footer() {
+function Footer({ home }: { home: string }) {
   return (
     <footer
       data-cta-anchor
       className="border-t border-white/6 px-5 py-10 sm:px-8"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center">
-        <Logo className="text-foreground [&>span]:h-6" />
+        <Logo href={home} className="text-foreground [&>span]:h-6" />
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
           <a href="#features" className="hover:text-foreground">
             Features

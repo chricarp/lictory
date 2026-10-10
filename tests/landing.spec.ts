@@ -120,3 +120,17 @@ test("desktop landing shows the comparison table and autoplays the example", asy
   await page.waitForTimeout(5000);
   await expect(demo.getByText("Rev 12", { exact: true })).toBeVisible();
 });
+
+test("anonymous visitors also reach the landing page at /home", async ({
+  page,
+}) => {
+  await page.goto("/home");
+  await expect(page).toHaveURL(/\/home$/);
+  // Search engines index the landing page once, at "/".
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    /^https?:\/\/[^/]+\/?$/,
+  );
+  await page.getByRole("banner").getByRole("link", { name: "Sign up" }).click();
+  await expect(page).toHaveURL(/\/sign-up$/);
+});
