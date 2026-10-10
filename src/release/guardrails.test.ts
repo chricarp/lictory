@@ -281,19 +281,27 @@ void test("PR title enforcement never checks out or runs untrusted PR code", () 
 });
 
 void test("the complete CI verification sequence and package-sourced version display are preserved", async () => {
-  const runs = workflow("ci").jobs.verify!.steps!.flatMap((step) =>
-    step.run ? [step.run] : [],
-  );
-  assert.deepEqual(runs.slice(1), [
-    "bun install --frozen-lockfile",
+  const jobs = workflow("ci").jobs;
+  const runs = (name: string) =>
+    jobs[name]!.steps!.flatMap((step) => (step.run ? [step.run] : []));
+  for (const name of ["static", "unit", "e2e"]) {
+    assert.match(runs(name)[0]!, /inject-release-version/);
+    assert.equal(runs(name)[1], "bun install --frozen-lockfile");
+  }
+  assert.deepEqual(runs("static").slice(2), [
     "bun audit --audit-level=high",
     "bun run check",
     "bun run db:check",
+  ]);
+  assert.deepEqual(runs("unit").slice(2), [
     "bun run db:migrate",
     "bun test src",
-    "bunx playwright install --with-deps chromium",
-    "bun run test:e2e",
   ]);
+  assert.deepEqual(runs("e2e").slice(2), [
+    "bunx playwright install --with-deps --only-shell chromium",
+    'bun run test:e2e --shard="$SHARD"',
+  ]);
+  assert.deepEqual(jobs.verify!.needs, ["static", "unit", "e2e"]);
   const config = await readFile(
     new URL("../../next.config.ts", import.meta.url),
     "utf8",

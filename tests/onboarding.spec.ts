@@ -139,14 +139,16 @@ for (const mode of ["native", "external"] as const)
       .from(s.invitation)
       .where(eq(s.invitation.organizationId, org.id));
     expect(projects).toHaveLength(1);
-    expect(projects[0]).toMatchObject({ name: "Payments", key: "PAY" });
-    expect(teams[0]).toMatchObject({
+    expect(projects[0]).toMatchObject({
       name: "Payments",
+      key: "PAY",
       deliveryMode: mode,
       readinessPolicy: "warn",
       iterationMode: "off",
       estimateScale: mode === "native" ? "fibonacci" : "none",
     });
+    // Delivery configuration belongs to the project; no team is needed to start.
+    expect(teams).toHaveLength(0);
     expect(decisions).toHaveLength(1);
     expect(decisions[0]!.decisions.invitations).toBe(1);
     expect(decisions[0]!.decisions.aiEnabled).toBe(mode === "native");

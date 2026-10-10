@@ -1144,9 +1144,11 @@ request, run the complete verification sequence from
 is mandatory for AI agents, including documentation-only changes. Targeted tests
 during implementation do not replace this final step.
 
-Read the workflow each time; its `verify` job is the source of truth. Execute
-every `run` command in order, with the same arguments and equivalent test
-environment. The current sequence is:
+Read the workflow each time; its jobs (static checks, domain tests and browser
+workflows, gathered by `Verify`) are the source of truth. CI runs them in
+parallel and splits the browser suite into shards; locally, execute every `run`
+command in this order with the same arguments and equivalent test environment,
+running the browser suite unsharded. The current sequence is:
 
 ```sh
 bun install --frozen-lockfile
@@ -1155,7 +1157,7 @@ bun run check
 bun run db:check
 bun run db:migrate
 bun test src
-bunx playwright install --with-deps chromium
+bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 ```
 
