@@ -22,6 +22,8 @@ import {
 
 import { Logo } from "~/components/logo";
 import { ComparisonTable } from "~/components/landing/comparison";
+import { faqs } from "~/components/landing/content";
+import { StructuredData } from "~/components/landing/structured-data";
 import { MobileCta } from "~/components/landing/mobile-cta";
 import { ReviewDemo } from "~/components/landing/review-demo";
 import {
@@ -118,6 +120,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
         <Footer home={home} />
       </div>
       <MobileCta href={cta.href} label={cta.label} />
+      <StructuredData />
     </div>
   );
 }
@@ -852,32 +855,6 @@ function Comparison() {
 }
 
 function Faq() {
-  const items = [
-    [
-      "Do we have to leave Jira or Linear?",
-      "No. Set a team to external delivery and Lictory handles refinement, review and decomposition, then publishes approved work into your existing tracker. Teams can switch to native delivery whenever they like.",
-    ],
-    [
-      "Is this just a document editor with comments?",
-      "No. Specifications have immutable revisions, diffs, anchored threads, actionable suggestions, per-revision approvals and readiness checks. The review workflow is the product.",
-    ],
-    [
-      "Do product people need to understand Git?",
-      "Not at all. The behavior is inspired by pull requests, but the language is about proposals, revisions, reviews and approvals.",
-    ],
-    [
-      "What happens if Lictory Intelligence is disabled?",
-      "Everything core keeps working. Lictory Intelligence only adds findings and proposals; humans stay authoritative over every change, resolution and approval.",
-    ],
-    [
-      "What happens to approvals when the spec changes?",
-      "Approvals reference the revision that was reviewed. Material changes mark relevant approvals as stale, so reviewers see exactly what changed since they approved.",
-    ],
-    [
-      "How long does setup take?",
-      "Minutes. Create an organization, a project and a team; defaults for work item types, workflow and readiness are ready to use.",
-    ],
-  ];
   return (
     <>
       <Divider />
@@ -885,16 +862,19 @@ function Faq() {
         <div className="grid gap-7 lg:grid-cols-[1fr_1.4fr] lg:gap-12">
           <SectionHeading eyebrow="FAQ" title="Questions, answered." />
           <div className="divide-y divide-white/6 border-y border-white/6">
-            {items.map(([q, a]) => (
-              <details key={q} className="group py-4">
+            {faqs.map(({ question, answer }) => (
+              <details key={question} className="group py-4">
                 <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-[15px] [&::-webkit-details-marker]:hidden">
-                  {q}
-                  <span className="text-muted-foreground transition-transform duration-200 group-open:rotate-45">
+                  <h3>{question}</h3>
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground transition-transform duration-200 group-open:rotate-45"
+                  >
                     +
                   </span>
                 </summary>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  {a}
+                  {answer}
                 </p>
               </details>
             ))}

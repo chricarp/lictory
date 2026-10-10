@@ -74,7 +74,7 @@ for (const width of [320, 390]) {
     await expect(page.getByRole("table")).toBeHidden();
     await expect(
       comparison.getByText("Estimates, burndown, velocity"),
-    ).toHaveCount(0);
+    ).toBeHidden();
     await page.getByRole("button", { name: /Show full comparison/ }).click();
     await expect(
       comparison.getByText("Estimates, burndown, velocity"),

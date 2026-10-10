@@ -26,6 +26,7 @@ adding domain writes or synchronized entities.
 - [Account and workspace onboarding](./internals/onboarding.md)
 - [Private file storage](./internals/file-storage.md)
 - [Social link previews](./internals/social-previews.md)
+- [Search and AI discoverability](./internals/discoverability.md)
 - [Product analytics](./internals/analytics.md)
 - [Brand identity](./internals/brand.md)
 - [State illustrations and design brief](./internals/illustrations.md)

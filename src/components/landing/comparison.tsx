@@ -2,111 +2,17 @@
 
 import { useId, useState } from "react";
 import { Check, ChevronDown, Minus } from "lucide-react";
+import {
+  comparisonCellText as cellText,
+  comparisonProducts as products,
+  comparisonRows as rows,
+  type ComparisonCell as Cell,
+} from "~/components/landing/content";
 import { cn } from "~/lib/utils";
 
-type Cell = "yes" | "no" | "partial" | "n/a";
-
-type Row = {
-  feature: string;
-  lictory: Cell;
-  jira: Cell;
-  linear: Cell;
-  /** Differentiators are always shown; shared capabilities sit behind "Show all". */
-  differentiator?: boolean;
-};
-
-const rows: Row[] = [
-  {
-    feature: "Approvals bound to a specific revision",
-    lictory: "yes",
-    jira: "no",
-    linear: "no",
-    differentiator: true,
-  },
-  {
-    feature: "Approvals go stale after material edits",
-    lictory: "yes",
-    jira: "no",
-    linear: "no",
-    differentiator: true,
-  },
-  {
-    feature: "Accept or reject suggested changes",
-    lictory: "yes",
-    jira: "no",
-    linear: "no",
-    differentiator: true,
-  },
-  {
-    feature: "Readiness as evidence-based checks",
-    lictory: "yes",
-    jira: "partial",
-    linear: "no",
-    differentiator: true,
-  },
-  {
-    feature: "Durable decision records",
-    lictory: "yes",
-    jira: "no",
-    linear: "no",
-    differentiator: true,
-  },
-  {
-    feature: "Specification revisions with diffs",
-    lictory: "yes",
-    jira: "partial",
-    linear: "no",
-  },
-  {
-    feature: "Threads anchored to text ranges",
-    lictory: "yes",
-    jira: "partial",
-    linear: "partial",
-  },
-  {
-    feature: "Lictory Intelligence gap and contradiction finding",
-    lictory: "yes",
-    jira: "partial",
-    linear: "partial",
-  },
-  {
-    feature: "Boards, backlog, sprints and cycles",
-    lictory: "yes",
-    jira: "yes",
-    linear: "yes",
-  },
-  {
-    feature: "Estimates, burndown, velocity",
-    lictory: "yes",
-    jira: "yes",
-    linear: "yes",
-  },
-  {
-    feature: "Publish approved work to Jira or Linear",
-    lictory: "yes",
-    jira: "n/a",
-    linear: "n/a",
-  },
-  {
-    feature: "Set up without an admin project",
-    lictory: "yes",
-    jira: "no",
-    linear: "yes",
-  },
-];
-
-const products = [
-  { key: "lictory", label: "Lictory" },
-  { key: "jira", label: "Jira" },
-  { key: "linear", label: "Linear" },
-] as const;
-
-const cellText: Record<Cell, string> = {
-  yes: "Yes",
-  no: "No",
-  partial: "Partial",
-  "n/a": "Not applicable",
-};
+// Every row stays in the HTML, so crawlers and AI assistants read the full
+// comparison; collapsed rows are only hidden visually.
+const differentiatorCount = rows.filter((row) => row.differentiator).length;
 
 function CellValue({ value, highlight }: { value: Cell; highlight?: boolean }) {
   if (value === "yes")
@@ -139,8 +45,9 @@ function CellValue({ value, highlight }: { value: Cell; highlight?: boolean }) {
 export function ComparisonTable() {
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
-  const visible = expanded ? rows : rows.filter((row) => row.differentiator);
-  const hiddenCount = rows.length - rows.filter((r) => r.differentiator).length;
+  const hiddenCount = rows.length - differentiatorCount;
+  const collapsed = (row: (typeof rows)[number]) =>
+    !expanded && !row.differentiator;
 
   return (
     <div id={listId} className="mt-7 max-w-4xl sm:mt-10">
@@ -175,8 +82,8 @@ export function ComparisonTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {visible.map((row) => (
-              <tr key={row.feature}>
+            {rows.map((row) => (
+              <tr key={row.feature} hidden={collapsed(row)}>
                 <th
                   scope="row"
                   className="px-5 py-3.5 text-left font-normal text-foreground/85"
@@ -210,9 +117,10 @@ export function ComparisonTable() {
         aria-label="Lictory compared with Jira and Linear"
         className="space-y-2 sm:hidden"
       >
-        {visible.map((row) => (
+        {rows.map((row) => (
           <li
             key={row.feature}
+            hidden={collapsed(row)}
             className="rounded-xl bg-white/2.5 p-4 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]"
           >
             <p className="text-sm font-medium text-foreground/90">

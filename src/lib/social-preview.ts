@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { siteName, siteTitle } from "~/lib/site";
+
 // Public, closed vocabulary only. Never load workspace data or echo URL values.
 export const previewLabels = {
   workspace: "Workspace",
@@ -39,9 +41,7 @@ export function previewKind(path: string): PreviewKind {
 
 export function socialMetadata(kind: PreviewKind | "marketing"): Metadata {
   const marketing = kind === "marketing";
-  const title = marketing
-    ? "Lictory: requirements, reviewed like code"
-    : `${previewLabels[kind]} in Lictory`;
+  const title = marketing ? siteTitle : `${previewLabels[kind]} in Lictory`;
   const description = marketing
     ? "Turn rough product intent into agreed, implementation-ready specifications. Review together, then deliver in Lictory or publish to Jira and Linear."
     : "Open this link in Lictory. Sign in with an account that has access to see the details.";
@@ -51,8 +51,10 @@ export function socialMetadata(kind: PreviewKind | "marketing"): Metadata {
     openGraph: {
       title,
       description,
-      siteName: "Lictory",
+      siteName,
       type: "website",
+      locale: "en_US",
+      ...(marketing ? { url: "/" } : {}),
       images,
     },
     twitter: { card: "summary_large_image", title, description, images },

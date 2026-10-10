@@ -11,7 +11,13 @@ import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
 import { safeAppPath } from "~/lib/paths";
 
-export const metadata: Metadata = { title: "Create your account" };
+export const metadata: Metadata = {
+  title: "Create your account",
+  description:
+    "Start refining specifications with your team in Lictory for free.",
+  robots: { index: true, follow: true },
+  alternates: { canonical: "/sign-up" },
+};
 
 export default async function SignUpPage({
   searchParams,
