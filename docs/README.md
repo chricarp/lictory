@@ -23,7 +23,8 @@ adding domain writes or synchronized entities.
 - [Database model](./internals/database-model.md)
 - [Lictory Intelligence](./internals/ai.md)
 - [Notifications](./internals/notifications.md)
-- [Account and workspace onboarding](./internals/onboarding.md)
+- [Account and workspace onboarding](./internals/onboarding.md): including
+  sign-in methods and account linking
 - [Private file storage](./internals/file-storage.md)
 - [Social link previews](./internals/social-previews.md)
 - [Search and AI discoverability](./internals/discoverability.md)

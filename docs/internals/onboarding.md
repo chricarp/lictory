@@ -15,6 +15,31 @@ kept in the URL, so reloading preserves the choice. The person can return to
 creating an organization or use account settings to sign out and change accounts.
 Invitation links preserve the existing authentication and handle flow.
 
+## Sign-in methods and account linking
+
+An account is one person identified by one email address. Password and identity
+providers (Google, and Microsoft where configured) are sign-in methods on that
+account, never separate accounts.
+
+- Continuing with Google on sign-in or sign-up creates an account only when no
+  account uses that email. Otherwise Google is linked to the existing account,
+  provided its email is already verified. An unverified account is never linked
+  implicitly: whoever registered the address with a password has not proved
+  they own it. The person signs in with the password (which resends the
+  verification link) and connects Google from account settings. Google is a
+  trusted provider because it always verifies addresses; Microsoft links only
+  when its token marks the address verified.
+- Account settings connect a provider explicitly. The provider account must use
+  the same email as the Lictory account, and must not belong to another
+  Lictory account.
+- Any method can be disconnected except the last one. A provider-only account
+  adds a password through an emailed link, which proves control of the address
+  and then signs out every session.
+- Provider failures return to the page that started the flow with an
+  explanation of what to do next, rather than a generic error.
+
+Linking never changes the account's email or profile.
+
 ## Explicit initial decisions
 
 Onboarding asks only for decisions that change how the workspace behaves, and

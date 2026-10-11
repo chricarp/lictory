@@ -56,15 +56,18 @@ bun run dev
 
 ## OAuth setup
 
-OAuth buttons are visible but disabled until their provider has credentials in
-`.env`. Configure these redirect URIs in the provider consoles:
+Each OAuth button appears once its provider has credentials in `.env`.
+Configure these redirect URIs in the provider consoles (and the production
+origin's equivalents):
 
 - Google: `http://localhost:3000/api/auth/callback/google`
 - Microsoft: `http://localhost:3000/api/auth/callback/microsoft`
 
 Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
 `MICROSOFT_CLIENT_SECRET`. Microsoft defaults to the `common` tenant; override
-`MICROSOFT_TENANT_ID` when the app should be tenant-specific.
+`MICROSOFT_TENANT_ID` when the app should be tenant-specific. See
+[sign-in methods and account linking](docs/internals/onboarding.md#sign-in-methods-and-account-linking)
+for how provider sign-ins attach to existing accounts.
 
 ## Database workflow
 

@@ -31,12 +31,18 @@ export default async function SignInPage({
   const requestedCallback =
     typeof params.callbackUrl === "string" ? params.callbackUrl : "/app";
   const callbackURL = safeAppPath(requestedCallback);
+  const here = `/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`;
 
   return (
     <>
       <AuthHeading title="Sign in to Lictory" />
       <AccountLegalNotice signIn />
-      <SocialButtons providers={authProviders} callbackURL={callbackURL} />
+      <SocialButtons
+        providers={authProviders}
+        callbackURL={callbackURL}
+        errorCallbackURL={here}
+        error={typeof params.error === "string" ? params.error : undefined}
+      />
       <SignInForm callbackURL={callbackURL} />
       <AuthFooter>
         New to Lictory?{" "}

@@ -15,7 +15,15 @@ import { initials } from "~/lib/work-items";
 import { directory } from "~/sync/server/service";
 
 // Personal settings for the signed-in user, independent of any organization.
-export async function AccountPage({ returnTo }: { returnTo?: string }) {
+export async function AccountPage({
+  returnTo,
+  connected,
+  connectionError,
+}: {
+  returnTo?: string;
+  connected?: string;
+  connectionError?: string;
+}) {
   const requestHeaders = await headers();
   const session = await auth.api.getSession({ headers: requestHeaders });
 
@@ -27,7 +35,7 @@ export async function AccountPage({ returnTo }: { returnTo?: string }) {
   // mutations that revoke sessions or change account security.
   const [accounts, sessions, initialDirectory] = await Promise.all([
     db
-      .select({ providerId: accountTable.providerId })
+      .select({ id: accountTable.id, providerId: accountTable.providerId })
       .from(accountTable)
       .where(eq(accountTable.userId, session.user.id)),
     db
@@ -88,7 +96,10 @@ export async function AccountPage({ returnTo }: { returnTo?: string }) {
           handle: session.user.handle ?? "",
         }}
         providers={authProviders}
-        connectedProviders={accounts.map((account) => account.providerId)}
+        accounts={accounts}
+        returnTo={safeReturnTo}
+        connected={connected}
+        connectionError={connectionError}
         sessionCount={sessions.length}
       />
     </div>

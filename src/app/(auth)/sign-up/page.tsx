@@ -30,7 +30,12 @@ export default async function SignUpPage({
     <>
       <AuthHeading title="Create your account" />
       <AccountLegalNotice />
-      <SocialButtons providers={authProviders} callbackURL={callbackURL} />
+      <SocialButtons
+        providers={authProviders}
+        callbackURL={callbackURL}
+        errorCallbackURL={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
+        error={typeof params.error === "string" ? params.error : undefined}
+      />
       <SignUpForm callbackURL={callbackURL} />
       <AuthFooter>
         Already have an account?{" "}
