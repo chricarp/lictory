@@ -100,10 +100,19 @@ export const auth = betterAuth({
         }
       : {}),
   },
+  // Signing in with a provider whose email matches an existing account links
+  // it to that account instead of creating a duplicate. Linking only happens
+  // when the local email is verified (Better Auth's `requireLocalEmailVerified`
+  // default), so nobody can pre-register someone else's address with a
+  // password and inherit their Google sign-in. Google always verifies email
+  // ownership, so it is trusted; Microsoft links only when its token says the
+  // address is verified. Explicit linking from account settings requires the
+  // same email, and the last sign-in method cannot be removed.
   account: {
     accountLinking: {
       enabled: true,
-      trustedProviders: ["google", "microsoft"],
+      trustedProviders: ["google"],
+      allowDifferentEmails: false,
     },
   },
   databaseHooks: {

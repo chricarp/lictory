@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AtSign,
   Monitor,
@@ -19,6 +19,12 @@ import {
 import { AgentAccessSection } from "~/components/app/agent-access";
 import { useAppearance } from "~/components/app/appearance-provider";
 import { HandleForm } from "~/components/auth/handle-form";
+import {
+  ProviderIcon,
+  providerLabels,
+  socialProviders,
+  type SocialProvider,
+} from "~/components/auth/provider-icons";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/primitives";
@@ -31,6 +37,7 @@ import {
 } from "~/components/workspace/settings-section";
 import type { Appearance } from "~/lib/appearance";
 import { authClient } from "~/lib/auth-client";
+import { oauthErrorMessage } from "~/lib/oauth-errors";
 import { cn, formValue } from "~/lib/utils";
 
 type AccountSettingsProps = {
@@ -40,22 +47,29 @@ type AccountSettingsProps = {
     emailVerified: boolean;
     handle: string;
   };
-  providers: { google: boolean; microsoft: boolean };
-  connectedProviders: string[];
+  providers: Record<SocialProvider, boolean>;
+  // Sign-in methods on this account: "credential" (password) or a provider.
+  accounts: { id: string; providerId: string }[];
   sessionCount: number;
+  returnTo?: string;
+  // Set by the provider redirect after connecting an account.
+  connected?: string;
+  connectionError?: string;
 };
 
 // Personal settings, laid out like organization settings: an anchor nav on the
 // left and grouped cards on the right. Groups separate who you are from how
 // you sign in, with the irreversible action kept apart at the end.
 export function AccountSettings(props: AccountSettingsProps) {
-  const hasPassword = props.connectedProviders.includes("credential");
+  const hasPassword = props.accounts.some(
+    (account) => account.providerId === "credential",
+  );
   const nav = [
     { id: "profile", label: "Profile" },
     { id: "handle", label: "Handle" },
     { id: "email", label: "Email" },
     { id: "appearance", label: "Appearance" },
-    ...(hasPassword ? [{ id: "password", label: "Password" }] : []),
+    { id: "password", label: "Password" },
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
     { id: "agents", label: "AI agents" },
@@ -103,10 +117,17 @@ export function AccountSettings(props: AccountSettingsProps) {
           title="Sign-in & security"
           description="The ways you sign in and the devices currently signed in."
         >
-          {hasPassword && <PasswordSection />}
+          {hasPassword ? (
+            <PasswordSection />
+          ) : (
+            <SetPasswordSection email={props.user.email} />
+          )}
           <ConnectionsSection
             providers={props.providers}
-            connectedProviders={props.connectedProviders}
+            accounts={props.accounts}
+            returnTo={props.returnTo}
+            connected={props.connected}
+            connectionError={props.connectionError}
           />
           <SessionsSection sessionCount={props.sessionCount} />
         </SettingsGroup>
@@ -396,15 +417,147 @@ function PasswordSection() {
   );
 }
 
-const providerLabels = { google: "Google", microsoft: "Microsoft" } as const;
+function SetPasswordSection({ email }: { email: string }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  // Better Auth has no client endpoint to add a password without proving
+  // control of the email address, so the reset link doubles as "set".
+  async function send() {
+    setPending(true);
+    const result = await authClient.requestPasswordReset({
+      email,
+      redirectTo: "/reset-password",
+    });
+    setSent(!result.error);
+    setMessage(
+      result.error
+        ? (result.error.message ?? "We could not send the link.")
+        : `Check ${email} for a link to set your password.`,
+    );
+    setPending(false);
+  }
+
+  return (
+    <SettingsSection
+      id="password"
+      icon={<KeyRound />}
+      title="Password"
+      description="You sign in through a connected account. Add a password to also sign in with your email address."
+      action={<Badge>Not set</Badge>}
+    >
+      <SettingsBody className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-md text-[13px] leading-5 text-muted-foreground">
+          We email you a link to choose one. Setting it signs out every session,
+          then you can sign in either way.
+        </p>
+        <div className="flex items-center gap-3">
+          <Status tone={sent ? "success" : "error"}>{message}</Status>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={send}
+            disabled={pending || sent}
+          >
+            {pending ? "Sending…" : "Email me a link"}
+          </Button>
+        </div>
+      </SettingsBody>
+    </SettingsSection>
+  );
+}
+
+const unlinkErrors: Record<string, string> = {
+  SESSION_EXPIRED:
+    "For your security, sign out and sign in again before disconnecting.",
+  FAILED_TO_UNLINK_LAST_ACCOUNT:
+    "This is your only way to sign in. Set a password first.",
+};
 
 function ConnectionsSection({
   providers,
-  connectedProviders,
-}: Pick<AccountSettingsProps, "providers" | "connectedProviders">) {
-  const pathname = usePathname();
-  async function connect(provider: "google" | "microsoft") {
-    await authClient.linkSocial({ provider, callbackURL: pathname });
+  accounts,
+  returnTo,
+  connected,
+  connectionError,
+}: Pick<
+  AccountSettingsProps,
+  "providers" | "accounts" | "returnTo" | "connected" | "connectionError"
+>) {
+  const router = useRouter();
+  const [pending, setPending] = useState<SocialProvider | null>(null);
+  const [message, setMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(() => {
+    const error = oauthErrorMessage(connectionError, "connect");
+    if (error) return { tone: "error", text: error };
+    if (connected && connected in providerLabels)
+      return {
+        tone: "success",
+        text: `${providerLabels[connected as SocialProvider]} connected. You can now sign in with it.`,
+      };
+    return null;
+  });
+  const back = returnTo
+    ? `/app/account?returnTo=${encodeURIComponent(returnTo)}`
+    : "/app/account";
+
+  // Returning from the provider: show the outcome where it happened, then
+  // drop the one-time parameters so a reload doesn't repeat it.
+  useEffect(() => {
+    if (!connected && !connectionError) return;
+    document.getElementById("connections")?.scrollIntoView({ block: "center" });
+    router.replace(back, { scroll: false });
+  }, [connected, connectionError, back, router]);
+
+  const visible = socialProviders.filter(
+    (provider) =>
+      providers[provider] ||
+      accounts.some((account) => account.providerId === provider),
+  );
+  const canDisconnect = accounts.length > 1;
+
+  async function connect(provider: SocialProvider) {
+    setPending(provider);
+    setMessage(null);
+    const result = await authClient.linkSocial({
+      provider,
+      callbackURL: `${back}${back.includes("?") ? "&" : "?"}connected=${provider}`,
+      errorCallbackURL: back,
+    });
+    if (result.error) {
+      setMessage({
+        tone: "error",
+        text:
+          result.error.message ??
+          `We couldn't reach ${providerLabels[provider]}. Try again.`,
+      });
+      setPending(null);
+    }
+  }
+
+  async function disconnect(provider: SocialProvider, accountId: string) {
+    setPending(provider);
+    setMessage(null);
+    const result = await authClient.unlinkAccount({ accountId });
+    setPending(null);
+    if (result.error) {
+      setMessage({
+        tone: "error",
+        text:
+          unlinkErrors[result.error.code ?? ""] ??
+          result.error.message ??
+          "Could not disconnect that account.",
+      });
+      return;
+    }
+    setMessage({
+      tone: "success",
+      text: `${providerLabels[provider]} disconnected. You can connect it again at any time.`,
+    });
+    router.refresh();
   }
 
   return (
@@ -412,40 +565,59 @@ function ConnectionsSection({
       id="connections"
       icon={<Link2 />}
       title="Connected accounts"
-      description="Sign in with an identity provider instead of, or alongside, a password."
+      description="Sign in with an identity provider instead of, or alongside, a password. Only an account with the same email address can be connected."
+      footer={
+        message ? (
+          <Status tone={message.tone}>{message.text}</Status>
+        ) : undefined
+      }
     >
-      <SettingsList isEmpty={false} empty={null}>
-        {(["google", "microsoft"] as const).map((provider) => {
-          const connected = connectedProviders.includes(provider);
-          const configured = providers[provider];
+      <SettingsList
+        isEmpty={visible.length === 0}
+        empty="No identity providers are enabled on this installation."
+      >
+        {visible.map((provider) => {
+          const account = accounts.find((a) => a.providerId === provider);
           return (
             <div
               key={provider}
               className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
             >
+              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted">
+                <ProviderIcon provider={provider} />
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">
                     {providerLabels[provider]}
                   </span>
-                  {connected && <Badge tone="good">Connected</Badge>}
+                  {account && <Badge tone="good">Connected</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {connected
-                    ? "You can sign in with this account."
-                    : configured
-                      ? "Not connected."
-                      : "Not available on this installation."}
+                  {!account
+                    ? "Not connected."
+                    : canDisconnect
+                      ? "You can sign in with this account."
+                      : "Your only way to sign in. Set a password before disconnecting it."}
                 </p>
               </div>
-              {!connected && (
+              {account ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending !== null || !canDisconnect}
+                  onClick={() => disconnect(provider, account.id)}
+                >
+                  {pending === provider ? "Disconnecting…" : "Disconnect"}
+                </Button>
+              ) : (
                 <Button
                   size="sm"
                   variant="secondary"
-                  disabled={!configured}
+                  disabled={pending !== null || !providers[provider]}
                   onClick={() => connect(provider)}
                 >
-                  Connect
+                  {pending === provider ? "Redirecting…" : "Connect"}
                 </Button>
               )}
             </div>
@@ -625,7 +797,11 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
       callbackURL: "/",
     });
     if (result.error) {
-      setError(result.error.message ?? "Account deletion failed.");
+      setError(
+        result.error.code === "SESSION_EXPIRED"
+          ? "For your security, sign out and sign in again, then delete your account."
+          : (result.error.message ?? "Account deletion failed."),
+      );
       setPending(false);
       return;
     }

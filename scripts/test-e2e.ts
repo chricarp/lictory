@@ -31,6 +31,10 @@ try {
           "e2e-local-only-secret-with-at-least-thirty-two-characters",
         NEXT_DIST_DIR: ".next-e2e",
         RESEND_API_KEY: "",
+        // Placeholder credentials enable the Google flow up to the provider
+        // redirect; tests intercept accounts.google.com.
+        GOOGLE_CLIENT_ID: "e2e-google-client-id",
+        GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
       },
     },
   );
