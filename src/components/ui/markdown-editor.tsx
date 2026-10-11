@@ -485,7 +485,7 @@ export const MarkdownEditor = forwardRef<
                   i === mentionIndex && "bg-muted",
                 )}
               >
-                <Avatar name={m.name} size="xs" />
+                <Avatar userId={m.id} name={m.name} size="xs" />
                 <span className="truncate">{m.name}</span>
                 {(m.handle ?? m.email) && (
                   <span className="ml-auto truncate text-[11px] text-muted-foreground">

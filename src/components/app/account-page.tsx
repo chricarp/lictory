@@ -11,7 +11,7 @@ import {
 } from "~/db/auth-schema";
 import { auth, authProviders } from "~/lib/auth";
 import { paths } from "~/lib/paths";
-import { initials } from "~/lib/work-items";
+import { Avatar } from "~/components/ui/primitives";
 import { directory } from "~/sync/server/service";
 
 // Personal settings for the signed-in user, independent of any organization.
@@ -71,12 +71,11 @@ export async function AccountPage({
       </Link>
 
       <header className="flex items-center gap-3.5">
-        <span
-          aria-hidden
-          className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
-        >
-          {initials(session.user.name)}
-        </span>
+        <Avatar
+          name={session.user.name}
+          image={session.user.image}
+          className="size-10 text-sm"
+        />
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold tracking-tight">
             Account settings
@@ -91,6 +90,7 @@ export async function AccountPage({
       <AccountSettings
         user={{
           name: session.user.name,
+          image: session.user.image ?? null,
           email: session.user.email,
           emailVerified: session.user.emailVerified,
           handle: session.user.handle ?? "",

@@ -202,6 +202,7 @@ function TeamRow({
             {t.memberIds.slice(0, 8).map((id) => (
               <Avatar
                 key={id}
+                userId={id}
                 name={memberName(id)}
                 size="md"
                 className="ring-2 ring-card"

@@ -257,7 +257,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                   title={m.name}
                   className="rounded-full ring-2 ring-background"
                 >
-                  <Avatar name={m.name} size="sm" />
+                  <Avatar image={m.image} name={m.name} size="sm" />
                 </span>
               ))}
             </div>

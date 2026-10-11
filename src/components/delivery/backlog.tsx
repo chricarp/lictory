@@ -772,7 +772,11 @@ export function BacklogRow({
         </span>
       )}
       {item.assigneeId ? (
-        <Avatar name={memberName(item.assigneeId)} size="xs" />
+        <Avatar
+          userId={item.assigneeId}
+          name={memberName(item.assigneeId)}
+          size="xs"
+        />
       ) : (
         <span className="size-4" />
       )}

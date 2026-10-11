@@ -55,6 +55,7 @@ export default async function OrganizationLayout({
         <Shell
           user={{
             name: session.user.name,
+            image: session.user.image,
             email: session.user.email,
             handle: session.user.handle ?? null,
           }}

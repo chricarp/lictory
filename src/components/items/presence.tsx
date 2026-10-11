@@ -51,6 +51,7 @@ export function Presence({ itemId }: { itemId: string }) {
         {viewers.slice(0, 3).map((id) => (
           <Avatar
             key={id}
+            userId={id}
             name={memberName(id)}
             size="xs"
             className="ring-1 ring-background"

@@ -1678,6 +1678,14 @@ export const organizationOnboarding = pgTable(
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
+// Small normalized profile photos; kept out of auth/session and sync payloads.
+export const profilePhoto = pgTable("profile_photo", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  content: bytea("content").notNull(),
+  sha256: text("sha256").notNull(),
+});
 export const organizationLogo = pgTable(
   "organization_logo",
   {

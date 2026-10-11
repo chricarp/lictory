@@ -214,6 +214,7 @@ export async function directory(
       .select({
         id: s.user.id,
         name: s.user.name,
+        image: s.user.image,
         email: s.user.email,
         handle: s.user.handle,
         memberId: s.member.id,
@@ -491,6 +492,7 @@ export async function searchMembers(
     .select({
       id: s.user.id,
       name: s.user.name,
+      image: s.user.image,
       email: s.user.email,
       handle: s.user.handle,
     })

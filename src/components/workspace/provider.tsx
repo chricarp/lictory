@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { AvatarImages } from "~/components/ui/avatar";
 import { toast, Toaster } from "~/components/ui/toast";
 import {
   analyticsConfigured,
@@ -320,7 +321,7 @@ export function WorkspaceProvider({
   return (
     <WorkspaceContext.Provider value={value}>
       <DeliveryContext.Provider value={delivery}>
-        {children}
+        <AvatarImages members={directory.members}>{children}</AvatarImages>
         <Toaster />
       </DeliveryContext.Provider>
     </WorkspaceContext.Provider>

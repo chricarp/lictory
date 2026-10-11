@@ -1,41 +1,8 @@
 import type { ReactNode } from "react";
 import { StateIllustration, type IllustrationKind } from "./state-illustration";
 import { cn } from "~/lib/utils";
-import { initials } from "~/lib/work-items";
-import { AI_ACTOR_NAME } from "~/sync/shared/ai";
-import { IntelligenceMark } from "~/components/logo";
 
-export function Avatar({
-  name,
-  size = "sm",
-  className,
-}: {
-  name: string;
-  size?: "xs" | "sm" | "md";
-  className?: string;
-}) {
-  const intelligence = name === AI_ACTOR_NAME;
-  return (
-    <span
-      title={name}
-      aria-label={name}
-      className={cn(
-        "inline-grid shrink-0 place-items-center rounded-full bg-secondary font-semibold text-secondary-foreground",
-        size === "xs" && "size-4 text-[8px]",
-        size === "sm" && "size-5 text-[9px]",
-        size === "md" && "size-6 text-[10px]",
-        intelligence && "bg-primary/10 text-primary",
-        className,
-      )}
-    >
-      {intelligence ? (
-        <IntelligenceMark className="size-[62%]" />
-      ) : (
-        initials(name)
-      )}
-    </span>
-  );
-}
+export { Avatar } from "./avatar";
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (

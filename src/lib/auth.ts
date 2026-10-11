@@ -22,6 +22,7 @@ import {
 import { deliverAuthEmail } from "~/lib/email";
 import { seedOrganization } from "~/sync/server/organization";
 import { trackServer } from "~/lib/analytics/server";
+import { importProviderPhoto } from "~/profile/server";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
   "/sign-up/email": "password",
@@ -86,6 +87,7 @@ export const auth = betterAuth({
             clientId: process.env.GOOGLE_CLIENT_ID!,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
             prompt: "select_account" as const,
+            overrideUserInfoOnSignIn: false,
           },
         }
       : {}),
@@ -96,6 +98,7 @@ export const auth = betterAuth({
             clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
             tenantId: process.env.MICROSOFT_TENANT_ID ?? "common",
             prompt: "select_account" as const,
+            overrideUserInfoOnSignIn: false,
           },
         }
       : {}),
@@ -113,12 +116,14 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: ["google"],
       allowDifferentEmails: false,
+      updateUserInfoOnLink: false,
     },
   },
   databaseHooks: {
     user: {
       create: {
         after: async (user, ctx) => {
+          await importProviderPhoto(db, user);
           trackServer(
             user.id,
             "signed_up",
@@ -183,6 +188,15 @@ export const auth = betterAuth({
     // that set a new password are checked, so sign-in keeps working for any
     // password that already exists.
     before: createAuthMiddleware(async (ctx) => {
+      if (
+        ["/update-user", "/sign-up/email"].includes(ctx.path) &&
+        ctx.body &&
+        Object.hasOwn(ctx.body as object, "image")
+      ) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Change your photo from Account settings.",
+        });
+      }
       const field = NEW_PASSWORD_FIELD[ctx.path];
       if (!field) return;
       const value = (ctx.body as Record<string, unknown> | undefined)?.[field];

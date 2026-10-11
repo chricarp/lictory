@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { AgentAccessSection } from "~/components/app/agent-access";
+import { ProfilePhoto } from "~/components/app/profile-photo";
 import { useAppearance } from "~/components/app/appearance-provider";
 import { HandleForm } from "~/components/auth/handle-form";
 import {
@@ -43,6 +44,7 @@ import { cn, formValue } from "~/lib/utils";
 type AccountSettingsProps = {
   user: {
     name: string;
+    image: string | null;
     email: string;
     emailVerified: boolean;
     handle: string;
@@ -222,9 +224,12 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
       id="profile"
       icon={<UserRound />}
       title="Profile"
-      description="Your name, as shown to collaborators on threads and reviews."
+      description="Your name and photo, as shown to collaborators on threads and reviews."
     >
       <SettingsBody>
+        <div className="mb-6">
+          <ProfilePhoto name={user.name} image={user.image} />
+        </div>
         <form onSubmit={submit} className="space-y-2">
           <label className="block text-[13px] font-medium">
             Full name

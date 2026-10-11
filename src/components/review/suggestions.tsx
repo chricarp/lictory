@@ -191,7 +191,11 @@ function SuggestionRow({
         </span>
         <SuggestionStatusBadge suggestion={suggestion} />
         <span className="flex w-full items-center gap-2 pl-7 text-xs text-muted-foreground">
-          <Avatar name={memberName(suggestion.authorId)} size="xs" />
+          <Avatar
+            userId={suggestion.authorId}
+            name={memberName(suggestion.authorId)}
+            size="xs"
+          />
           {memberName(suggestion.authorId)}
           <span>· {relativeTime(suggestion.updatedAt)}</span>
           <span>
@@ -212,6 +216,7 @@ function SuggestionRow({
               {reviewers.map((r) => (
                 <Avatar
                   key={r.id}
+                  userId={r.userId}
                   name={memberName(r.userId)}
                   size="xs"
                   className={cn(

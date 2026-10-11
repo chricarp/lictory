@@ -99,7 +99,7 @@ export function People() {
                 key={m.id}
                 className="group flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 text-[13px]"
               >
-                <Avatar name={m.name} size="md" />
+                <Avatar image={m.image} name={m.name} size="md" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">

@@ -152,7 +152,11 @@ export const IssueRow = memo(function IssueRow({
         />
       ) : (
         item.assigneeId && (
-          <Avatar name={memberName(item.assigneeId)} size="xs" />
+          <Avatar
+            userId={item.assigneeId}
+            name={memberName(item.assigneeId)}
+            size="xs"
+          />
         )
       )}
       {!compact && (

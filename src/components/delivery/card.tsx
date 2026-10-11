@@ -118,6 +118,7 @@ export const ItemCard = memo(function ItemCard({
         )}
         {item.assigneeId && (
           <Avatar
+            userId={item.assigneeId}
             name={memberName(item.assigneeId)}
             size="xs"
             className="ml-auto"
