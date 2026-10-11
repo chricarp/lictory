@@ -13,7 +13,7 @@ import {
 } from "./repository";
 import { planNightly, planProduction, verifiedNightly } from "./plan";
 import { nightlyVersion, predictedStable } from "./version";
-import type { Manifest } from "./model";
+import { changelog, type Manifest } from "./model";
 
 async function repository() {
   const root = await mkdtemp(join(tmpdir(), "lictory-release-graph-"));
@@ -274,6 +274,102 @@ void test("rebase merges count their PR once across all rewritten commits", asyn
       ).version,
       "1.4.3",
     );
+  } finally {
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+void test("stacked PRs targeting feature branches drive nightly versions and survive stable promotion", async () => {
+  const repo = await repository();
+  try {
+    const parent = change("fix(editor): recover drafts", repo.feature, 1);
+    await git(
+      repo.root,
+      "commit",
+      "--allow-empty",
+      "-m",
+      "Finish stacked work",
+    );
+    const head = await git(repo.root, "rev-parse", "HEAD");
+    await git(repo.root, "update-ref", "refs/remotes/origin/main", head);
+    const stacked = {
+      ...change("feat(editor): edit offline", head, 2),
+      notes: "Keep editing when the network is unavailable.",
+    };
+    repo.fixture.associate(repo.feature, [parent]);
+    repo.fixture.associate(repo.fix, [stacked], "t3/editor-recovery");
+    repo.fixture.associate(head, [stacked], "t3/editor-recovery");
+    const candidate = repo.candidate(head, 143, [parent, stacked]);
+    repo.fixture.responses.set(`/actions/runs/${candidate.run.id}`, {
+      id: candidate.run.id,
+      run_number: candidate.run.number,
+      head_sha: head,
+      head_branch: "main",
+      event: "push",
+      path: ".github/workflows/nightly.yml",
+      created_at: candidate.run.createdAt,
+      conclusion: null,
+    });
+    const plan = await planNightly(
+      repo.fixture.github,
+      repo.root,
+      head,
+      "main",
+      candidate.run.id,
+      repo.baseline,
+    );
+    assert.equal(plan.stableVersion, "1.5.0");
+    assert.deepEqual(plan.changes, [parent, stacked]);
+    assert.match(
+      changelog(plan),
+      /Keep editing when the network is unavailable\./,
+    );
+    repo.fixture.add(plan);
+    const promoted = await planProduction(
+      repo.fixture.github,
+      repo.root,
+      plan.tag,
+      "night-project",
+      repo.baseline,
+    );
+    assert.equal(promoted.version, "1.5.0");
+    assert.deepEqual(promoted.changes, [parent, stacked]);
+    assert.deepEqual(
+      await collectChanges(
+        repo.fixture.github,
+        repo.root,
+        repo.baseline,
+        repo.feature,
+      ),
+      [parent],
+    );
+  } finally {
+    await rm(repo.root, { recursive: true, force: true });
+  }
+});
+
+void test("unmerged, unrelated and already released stacked PRs cannot account for new commits", async () => {
+  const repo = await repository();
+  try {
+    repo.fixture.associate(repo.fix, [repo.changes[1]!], "t3/editor-recovery");
+    const path = `/commits/${repo.fix}/pulls`;
+    const [pull] = repo.fixture.responses.get(path) as Record<
+      string,
+      unknown
+    >[];
+    for (const associated of [
+      [],
+      [{ ...pull, merged_at: null }],
+      [{ ...pull, merge_commit_sha: null }],
+      [{ ...pull, merge_commit_sha: "c".repeat(40) }],
+      [{ ...pull, merge_commit_sha: repo.base }],
+    ]) {
+      repo.fixture.responses.set(path, associated);
+      await assert.rejects(
+        collectChanges(repo.fixture.github, repo.root, repo.baseline, repo.fix),
+        new RegExp(`Unattributed direct commits block release: ${repo.fix}`),
+      );
+    }
   } finally {
     await rm(repo.root, { recursive: true, force: true });
   }

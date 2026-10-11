@@ -63,6 +63,13 @@ merge-commit and rebase merges are supported; dates and Git subject lines do not
 determine whether a change is included. An older candidate cannot acquire PRs
 merged later just because `main` has advanced.
 
+Stacked PRs may retain a feature branch as their recorded target after their
+changes reach `main`. They count like any other merged PR when their merge
+commit is in the candidate's unreleased graph, regardless of that target branch.
+Unmerged PRs and PRs whose merge commits are outside the release range cannot
+account for new commits. Commits without an eligible PR still require explicit
+direct-push recovery.
+
 Use human-readable titles. Optionally add a `## Release notes` section to a PR
 body with a concise description of user behavior and upgrade actions. Notes are
 grouped into Breaking changes, Added, Fixed, Performance and Maintenance, with PR
