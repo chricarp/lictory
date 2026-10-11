@@ -11,7 +11,7 @@ const messages: Record<string, Partial<Record<Situation, string>>> = {
   },
   account_not_linked: {
     "sign-in":
-      "A Lictory account with this email already exists and can't be connected automatically because its email address hasn't been verified. Sign in with your password (we'll resend the verification link), then connect this provider from Account settings.",
+      "A Lictory account with this email already exists and can't be connected automatically. Sign in with your password (we'll resend the verification link if needed) or a connected provider, then connect this provider from Account settings.",
   },
   email_does_not_match: {
     connect:

@@ -33,6 +33,33 @@ the separate `DATABASE_MIGRATION_URL`, which is never configured in Vercel. SSE 
 must stay below the host's function duration limit and reconnect; synchronization
 recovery is authoritative even when presence/realtime is temporarily unavailable.
 
+## Microsoft Entra sign-in
+
+Set the server-only `MICROSOFT_CLIENT_ID` to
+`674718cd-ca91-451c-84eb-02aa492d2b10` and `MICROSOFT_CLIENT_SECRET` in the
+deployment's secret store. Both values are required to show Microsoft alongside
+Google on sign-in, sign-up and Account settings. Keep secrets out of source
+control; local development can use an ignored `.env.local`.
+
+In the Entra application registration, add a **Web** redirect URI of
+`https://lictory.com/api/auth/callback/microsoft` (and
+`http://localhost:3000/api/auth/callback/microsoft` for local development).
+`MICROSOFT_TENANT_ID` defaults to `common`; the app registration's supported
+account types must allow the intended organizational and/or personal accounts.
+For a single-tenant installation, set it to that tenant's ID.
+
+Add the `email` optional claim to **ID tokens** in Entra Token configuration so
+managed users supply a contact address. Lictory requires a real email for
+verification and invitations; it does not substitute a username or a fabricated
+mailbox. Microsoft email claims do not prove ownership: new accounts verify
+through Lictory, and existing accounts connect Microsoft while signed in.
+See [Better Auth's Microsoft setup](https://better-auth.com/docs/authentication/microsoft).
+
+The public publisher-domain association is served without authentication at
+`https://lictory.com/.well-known/microsoft-identity-association.json`. It contains
+only the application ID and ships with the application; deploy it before
+verifying `lictory.com` as the publisher domain in Entra.
+
 ## Verification and updates
 
 `CI / Verify` runs on pull requests, main pushes and explicit releases. It uses PostgreSQL 17 and

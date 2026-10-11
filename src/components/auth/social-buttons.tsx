@@ -48,18 +48,21 @@ export function SocialButtons({
     setPending(provider);
     setFailure(null);
     track("social_sign_in_started", { provider });
-    const result = await authClient.signIn.social({
-      provider,
-      callbackURL,
-      errorCallbackURL,
-    });
-    // On success the browser is already leaving for the provider.
-    if (result.error) {
-      setFailure(
-        `We couldn't reach ${providerLabels[provider]}. Check your connection and try again.`,
-      );
-      setPending(null);
+    try {
+      const result = await authClient.signIn.social({
+        provider,
+        callbackURL,
+        errorCallbackURL,
+      });
+      // On success the browser is already leaving for the provider.
+      if (!result.error) return;
+    } catch {
+      // Network failures should leave both sign-in methods available to retry.
     }
+    setFailure(
+      `We couldn't reach ${providerLabels[provider]}. Check your connection and try again.`,
+    );
+    setPending(null);
   }
 
   return (
@@ -71,17 +74,20 @@ export function SocialButtons({
             key={provider}
             size="lg"
             variant="secondary"
-            className="w-full gap-2.5"
+            className="w-full gap-2.5 transition-[background-color,color,box-shadow,transform] active:scale-[0.98] motion-reduce:transition-none"
             disabled={pending !== null}
             onClick={() => signIn(provider)}
           >
             <ProviderIcon provider={provider} />
             {pending === provider
-              ? "Redirecting…"
+              ? `Redirecting to ${providerLabels[provider]}…`
               : `Continue with ${providerLabels[provider]}`}
           </Button>
         ))}
       </div>
+      <span role="status" className="sr-only">
+        {pending ? `Redirecting to ${providerLabels[pending]}…` : ""}
+      </span>
       <AuthDivider />
     </>
   );

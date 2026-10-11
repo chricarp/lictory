@@ -23,6 +23,10 @@ import { deliverAuthEmail } from "~/lib/email";
 import { seedOrganization } from "~/sync/server/organization";
 import { trackServer } from "~/lib/analytics/server";
 import { importProviderPhoto } from "~/profile/server";
+import {
+  microsoftEmailPolicy,
+  validateMicrosoftAccountLink,
+} from "~/lib/microsoft-auth";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
   "/sign-up/email": "password",
@@ -79,6 +83,7 @@ export const auth = betterAuth({
     ...authSchemaOptions.user,
     changeEmail: { enabled: true },
     deleteUser: { enabled: true },
+    validateUserInfo: validateMicrosoftAccountLink,
   },
   socialProviders: {
     ...(googleEnabled
@@ -99,6 +104,7 @@ export const auth = betterAuth({
             tenantId: process.env.MICROSOFT_TENANT_ID ?? "common",
             prompt: "select_account" as const,
             overrideUserInfoOnSignIn: false,
+            ...microsoftEmailPolicy,
           },
         }
       : {}),
@@ -108,13 +114,15 @@ export const auth = betterAuth({
   // when the local email is verified (Better Auth's `requireLocalEmailVerified`
   // default), so nobody can pre-register someone else's address with a
   // password and inherit their Google sign-in. Google always verifies email
-  // ownership, so it is trusted; Microsoft links only when its token says the
-  // address is verified. Explicit linking from account settings requires the
+  // ownership, so it is trusted; Microsoft requires explicit linking from an
+  // authenticated account. Explicit linking from account settings requires the
   // same email, and the last sign-in method cannot be removed.
   account: {
     accountLinking: {
       enabled: true,
-      trustedProviders: ["google"],
+      // Microsoft is allowed for explicit links; the user validation gate
+      // rejects implicit links regardless of the provider's email claim.
+      trustedProviders: ["google", "microsoft"],
       allowDifferentEmails: false,
       updateUserInfoOnLink: false,
     },

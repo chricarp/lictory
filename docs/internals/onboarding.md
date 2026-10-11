@@ -27,8 +27,11 @@ account, never separate accounts.
   implicitly: whoever registered the address with a password has not proved
   they own it. The person signs in with the password (which resends the
   verification link) and connects Google from account settings. Google is a
-  trusted provider because it always verifies addresses; Microsoft links only
-  when its token marks the address verified.
+  trusted provider because it always verifies addresses. Microsoft email claims
+  are tenant-managed profile attributes, so Microsoft never links implicitly by
+  email. An existing account connects Microsoft from authenticated Account
+  settings. A new Microsoft account verifies its mailbox through Lictory before
+  receiving its first session; later sign-ins use the linked provider identity.
 - Account settings connect a provider explicitly. The provider account must use
   the same email as the Lictory account, and must not belong to another
   Lictory account.
