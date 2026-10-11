@@ -520,6 +520,7 @@ export function applicationRoleOf(raw: string): ApplicationRole {
 export const memberSchema = z.object({
   id,
   name: z.string(),
+  image: z.string().nullable().optional(),
   email: z.string(),
   // Platform-wide handle; null only for accounts that have not chosen one.
   handle: z.string().nullable(),

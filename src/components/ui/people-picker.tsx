@@ -133,17 +133,19 @@ export function PeoplePicker({
 
 export function PersonTrigger({
   name,
+  userId,
   compact = false,
   unassigned = "Unassigned",
 }: {
   name: string | null;
+  userId?: string | null;
   compact?: boolean;
   unassigned?: string;
 }) {
   return (
     <>
       {name ? (
-        <Avatar name={name} size="sm" />
+        <Avatar userId={userId} name={name} size="sm" />
       ) : (
         <span className="grid size-5 place-items-center rounded-full border border-dashed text-muted-foreground">
           <UserRound className="size-3" />
@@ -170,7 +172,12 @@ export function AssigneePicker({
   const { memberName } = useWorkspace();
   const name = assigneeId ? memberName(assigneeId) : null;
   const content = (
-    <PersonTrigger name={name} compact={compact} unassigned="Unassigned" />
+    <PersonTrigger
+      userId={assigneeId}
+      name={name}
+      compact={compact}
+      unassigned="Unassigned"
+    />
   );
   if (!onChange)
     return (
@@ -270,7 +277,12 @@ function PersonCombobox({
             inputRef.current?.focus();
           }}
         >
-          <PersonTrigger name={name} compact unassigned="Unassigned" />
+          <PersonTrigger
+            userId={value === "none" ? null : value}
+            name={name}
+            compact
+            unassigned="Unassigned"
+          />
           <input
             ref={inputRef}
             role="combobox"
@@ -352,7 +364,7 @@ function memberOption(
     label: member.id === userId ? `${member.name} (me)` : member.name,
     hint: member.handle ? `@${member.handle}` : member.email,
     keywords: `${member.name} ${member.handle ? `@${member.handle}` : ""} ${member.email}`,
-    icon: <Avatar name={member.name} size="xs" />,
+    icon: <Avatar image={member.image} name={member.name} size="xs" />,
   };
 }
 

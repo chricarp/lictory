@@ -132,7 +132,11 @@ function SuggestionBody({
           {suggestion.title ?? suggestion.rationale ?? "Proposed change"}
         </h2>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <Avatar name={memberName(suggestion.authorId)} size="xs" />
+          <Avatar
+            userId={suggestion.authorId}
+            name={memberName(suggestion.authorId)}
+            size="xs"
+          />
           <span className="font-medium text-foreground">
             {memberName(suggestion.authorId)}
           </span>
@@ -434,7 +438,7 @@ function Reviewers({
                     label: m.name,
                     hint: m.email,
                     keywords: m.email,
-                    icon: <Avatar name={m.name} size="xs" />,
+                    icon: <Avatar image={m.image} name={m.name} size="xs" />,
                   }))}
                   onSelect={(id) => {
                     close();
@@ -483,7 +487,11 @@ function Reviewers({
                 ) : (
                   <span className="grid size-4 place-items-center rounded-full border border-dashed border-muted-foreground/60" />
                 )}
-                <Avatar name={memberName(r.userId)} size="xs" />
+                <Avatar
+                  userId={r.userId}
+                  name={memberName(r.userId)}
+                  size="xs"
+                />
                 <span className="font-medium">
                   {memberName(r.userId)}
                   {r.userId === userId ? " (me)" : ""}

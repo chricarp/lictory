@@ -580,7 +580,12 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   }
   return (
     <li className="flex items-start gap-2 text-[13px] leading-5">
-      <Avatar name={actor} size="xs" className="mt-0.5" />
+      <Avatar
+        userId={entry.actorId}
+        name={actor}
+        size="xs"
+        className="mt-0.5"
+      />
       <p className="min-w-0 flex-1">
         <span className="font-medium">{actor}</span> {body}
       </p>

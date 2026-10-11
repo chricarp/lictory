@@ -174,7 +174,11 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         {own.map((m) => (
           <li key={m.id} className="px-3 py-2 text-[13px]">
             <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-              <Avatar name={memberName(m.authorId)} size="xs" />
+              <Avatar
+                userId={m.authorId}
+                name={memberName(m.authorId)}
+                size="xs"
+              />
               <span className="font-medium text-foreground">
                 {memberName(m.authorId)}
               </span>

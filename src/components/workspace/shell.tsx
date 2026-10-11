@@ -111,7 +111,12 @@ export function Shell({
   user,
   children,
 }: {
-  user: { name: string; email: string; handle: string | null };
+  user: {
+    name: string;
+    email: string;
+    handle: string | null;
+    image?: string | null;
+  };
   children: ReactNode;
 }) {
   const {
@@ -282,7 +287,12 @@ export function Shell({
       project={project}
       pathname={pathname}
       inboxCount={inboxCount}
-      user={user}
+      user={{
+        ...user,
+        image: directory.members.find((m) => m.id === userId)
+          ? directory.members.find((m) => m.id === userId)!.image
+          : user.image,
+      }}
       onCreate={canCreate ? () => openCreate() : undefined}
       onSearch={() => openPalette()}
       onCollapse={toggleSidebar}
@@ -395,7 +405,12 @@ function Sidebar({
   project?: Project;
   pathname: string;
   inboxCount: number;
-  user: { name: string; email: string; handle: string | null };
+  user: {
+    name: string;
+    email: string;
+    handle: string | null;
+    image?: string | null;
+  };
   onCreate?: () => void;
   onSearch: () => void;
   onSignOut: () => void;
@@ -618,7 +633,11 @@ function Sidebar({
                 collapsed ? "size-8 justify-center" : "-ml-1 flex-1",
               )}
             >
-              <Avatar name={user.name || user.email} size="sm" />
+              <Avatar
+                image={user.image}
+                name={user.name || user.email}
+                size="sm"
+              />
               {!collapsed && (
                 <>
                   <span className="min-w-0 flex-1 truncate text-xs font-medium">

@@ -151,7 +151,11 @@ export function ReviewPanel() {
                   {assigneesOf(review).map((a) => (
                     <span key={a.id} className="inline-flex items-center gap-1">
                       {a.userId ? (
-                        <Avatar name={memberName(a.userId)} size="xs" />
+                        <Avatar
+                          userId={a.userId}
+                          name={memberName(a.userId)}
+                          size="xs"
+                        />
                       ) : null}
                       {a.userId
                         ? memberName(a.userId)
@@ -400,7 +404,9 @@ export function RequestReview({
                           label: m.id === userId ? `${m.name} (me)` : m.name,
                           hint: m.email,
                           keywords: m.email,
-                          icon: <Avatar name={m.name} size="xs" />,
+                          icon: (
+                            <Avatar image={m.image} name={m.name} size="xs" />
+                          ),
                         })),
                       ]}
                       value={reviewer}

@@ -466,7 +466,9 @@ function Row({
               unread && "font-medium text-foreground",
             )}
           >
-            {n.actorName && <Avatar name={n.actorName} size="xs" />}
+            {n.actorName && (
+              <Avatar userId={n.actorId} name={n.actorName} size="xs" />
+            )}
             <span className="min-w-0 truncate">{headline}</span>
           </p>
           {(title ?? body) && (
