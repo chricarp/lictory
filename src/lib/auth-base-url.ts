@@ -1,12 +1,13 @@
 type AuthEnvironment = Readonly<Record<string, string | undefined>>;
 
-// Only the nightly realm accepts its own provider-declared immutable URL.
+// Nightlies and opted-in OAuth previews accept their provider-declared URL.
 // Client headers never add origins; production retains its canonical base URL.
 export function authBaseUrl(env: AuthEnvironment) {
   const base = env.BETTER_AUTH_URL;
   const deployment = env.VERCEL_URL;
   if (
-    env.LICTORY_RELEASE_CHANNEL !== "nightly" ||
+    (env.LICTORY_RELEASE_CHANNEL !== "nightly" &&
+      !(env.OAUTH_PROXY_URL && env.OAUTH_PROXY_SECRET)) ||
     env.VERCEL !== "1" ||
     env.VERCEL_ENV !== "preview" ||
     !deployment ||

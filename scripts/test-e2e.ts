@@ -29,6 +29,10 @@ try {
         BETTER_AUTH_URL: "http://localhost:3001",
         BETTER_AUTH_SECRET:
           "e2e-local-only-secret-with-at-least-thirty-two-characters",
+        // Never inherit a developer's live OAuth proxy or its shared secret.
+        OAUTH_PROXY_URL: "",
+        OAUTH_PROXY_SECRET: "",
+        OAUTH_PROXY_TRUSTED_ORIGINS: "",
         NEXT_DIST_DIR: ".next-e2e",
         RESEND_API_KEY: "",
         // Placeholder credentials enable the Google flow up to the provider

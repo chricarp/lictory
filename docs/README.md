@@ -36,6 +36,8 @@ adding domain writes or synchronized entities.
 ## Operations
 
 - [Deployment and operations](./operations/deployment.md)
+- [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and
+  separate production/development clients
 - [Versions, release preparation and hotfixes](./operations/releases.md)
 - [Database migrations](./operations/migrations.md)
 - [Public legal notices](./operations/legal.md)

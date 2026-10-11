@@ -14,6 +14,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 
 import { authSchemaOptions } from "~/lib/auth-schema-options";
 import { authBaseUrl } from "~/lib/auth-base-url";
+import { oauthProxyConfig } from "~/lib/oauth-proxy";
 import {
   containsWhitespace,
   MAX_PASSWORD_LENGTH,
@@ -37,11 +38,13 @@ const googleEnabled = Boolean(
 const microsoftEnabled = Boolean(
   process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET,
 );
+const oauthProxy = oauthProxyConfig(process.env);
 
 export const auth = betterAuth({
   ...authSchemaOptions,
   appName: "Lictory",
   baseURL: authBaseUrl(process.env),
+  trustedOrigins: oauthProxy.trustedOrigins,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -212,6 +215,7 @@ export const auth = betterAuth({
     errorURL: "/auth-error",
   },
   plugins: [
+    ...oauthProxy.plugins,
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
       sendInvitationEmail: async ({
