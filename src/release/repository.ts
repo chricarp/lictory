@@ -168,11 +168,12 @@ export async function collectChanges(
           associated.map((pull) => pull.number),
         );
         for (const pull of associated) {
+          // Stacked PRs can retain a feature branch as their base after reaching
+          // main. Their merge commit's presence in this range proves inclusion.
           if (
             pull.merged_at &&
             pull.merge_commit_sha &&
-            commits.includes(pull.merge_commit_sha) &&
-            /^(main|release\/\d+\.\d+)$/.test(pull.base.ref)
+            commits.includes(pull.merge_commit_sha)
           )
             pulls.set(pull.number, pull);
         }

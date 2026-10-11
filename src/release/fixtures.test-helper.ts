@@ -126,7 +126,7 @@ export class GitHubFixture {
     return release;
   }
 
-  associate(sha: string, changes: Change[]) {
+  associate(sha: string, changes: Change[], base = "main") {
     this.responses.set(
       `/commits/${sha}/pulls`,
       changes.map((value) => ({
@@ -135,7 +135,7 @@ export class GitHubFixture {
         body: value.notes ? `## Release notes\n${value.notes}` : "",
         merged_at: value.mergedAt,
         merge_commit_sha: value.mergeSha,
-        base: { ref: "main" },
+        base: { ref: base },
         user: { login: value.author },
         labels: value.stableApi ? [{ name: "release:stable-api" }] : [],
       })),
