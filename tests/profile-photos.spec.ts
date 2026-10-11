@@ -65,6 +65,21 @@ async function loaded(page: Page, selector: string) {
     .toBeGreaterThan(0);
 }
 
+async function choosePhoto(
+  page: Page,
+  photo: { name: string; mimeType: string; buffer: Buffer },
+) {
+  const picker = page.waitForEvent("filechooser");
+  await page
+    .locator("section#profile")
+    .getByRole("button", { name: /^(Upload|Change) photo$/ })
+    .click();
+  await (await picker).setFiles(photo);
+  await expect(
+    page.locator("section#profile").getByRole("button", { name: "Save photo" }),
+  ).toBeVisible();
+}
+
 for (const social of [false, true]) {
   test(`${social ? "social" : "password"} users preview, replace and remove their photo before joining a workspace`, async ({
     page,
@@ -105,8 +120,7 @@ for (const social of [false, true]) {
           }),
       );
     } else await expect(profile.locator("img")).toHaveCount(0);
-    const choose = profile.getByLabel("Choose profile photo");
-    await choose.setInputFiles({
+    await choosePhoto(page, {
       name: "photo.png",
       mimeType: "image/png",
       buffer: png,
@@ -117,7 +131,7 @@ for (const social of [false, true]) {
     await expect(
       profile.getByRole("button", { name: "Save photo" }),
     ).toHaveCount(0);
-    await choose.setInputFiles({
+    await choosePhoto(page, {
       name: "photo.png",
       mimeType: "image/png",
       buffer: png,
@@ -138,7 +152,7 @@ for (const social of [false, true]) {
       headers: { Origin: "https://other.example.test" },
     });
     expect(crossOrigin.status()).toBe(403);
-    await choose.setInputFiles({
+    await choosePhoto(page, {
       name: "broken.png",
       mimeType: "image/png",
       buffer: Buffer.from("corrupt"),
@@ -152,7 +166,7 @@ for (const social of [false, true]) {
     })
       .png()
       .toBuffer();
-    await choose.setInputFiles({
+    await choosePhoto(page, {
       name: "replacement.png",
       mimeType: "image/png",
       buffer: blue,
@@ -214,15 +228,36 @@ test("a saved photo appears in the workspace and online collaborators refresh it
       workspaceUrl.replace(/\/pht\/epics$/, "/settings/members"),
     );
     // Keep a separate signed-in workspace view open while personal settings change.
-    await page.goto("/app/account");
+    // Hold scripts to exercise the server-rendered controls before hydration.
+    let releaseScripts!: () => void;
+    const scriptsReady = new Promise<void>((resolve) => {
+      releaseScripts = resolve;
+    });
+    await page.route("**/_next/**/*.js", async (route) => {
+      await scriptsReady;
+      await route.continue();
+    });
+    try {
+      await page.goto("/app/account", { waitUntil: "commit" });
+      await expect(
+        page.getByRole("button", { name: "Upload photo", exact: true }),
+      ).toBeDisabled();
+      await expect(page.getByLabel("Choose profile photo")).toBeDisabled();
+    } finally {
+      releaseScripts();
+    }
+    await page.waitForLoadState();
+    await page.unroute("**/_next/**/*.js");
     const png = await sharp({
       create: { width: 4, height: 4, channels: 3, background: "red" },
     })
       .png()
       .toBuffer();
-    await page
-      .getByLabel("Choose profile photo")
-      .setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: png });
+    await choosePhoto(page, {
+      name: "photo.png",
+      mimeType: "image/png",
+      buffer: png,
+    });
     await page.getByRole("button", { name: "Save photo" }).click();
     await expect(page.locator("section#profile")).toContainText(
       "Profile photo updated.",

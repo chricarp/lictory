@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Camera } from "lucide-react";
 import { Avatar } from "~/components/ui/primitives";
@@ -8,6 +8,10 @@ import { Button } from "~/components/ui/button";
 import { InlineError } from "~/components/workspace/settings-section";
 import { authClient } from "~/lib/auth-client";
 import { ACCEPT_PROFILE_PHOTO, MAX_PROFILE_PHOTO_SIZE } from "~/profile/photo";
+
+const subscribe = () => () => undefined;
+const clientReady = () => true;
+const serverReady = () => false;
 
 export function ProfilePhoto({
   name,
@@ -17,6 +21,8 @@ export function ProfilePhoto({
   image: string | null;
 }) {
   const router = useRouter();
+  // Do not accept a selection before React has attached the change handler.
+  const ready = useSyncExternalStore(subscribe, clientReady, serverReady);
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -87,7 +93,7 @@ export function ProfilePhoto({
             <Button
               type="button"
               variant="secondary"
-              disabled={pending}
+              disabled={!ready || pending}
               onClick={() => input.current?.click()}
             >
               <Camera aria-hidden className="size-3.5" />
@@ -97,7 +103,7 @@ export function ProfilePhoto({
               <Button
                 type="button"
                 variant="ghost"
-                disabled={pending}
+                disabled={!ready || pending}
                 onClick={() => void save(true)}
               >
                 Remove photo
@@ -116,7 +122,7 @@ export function ProfilePhoto({
         aria-describedby="profile-photo-hint"
         accept={ACCEPT_PROFILE_PHOTO}
         className="sr-only"
-        disabled={pending}
+        disabled={!ready || pending}
         tabIndex={-1}
         onChange={(event) => {
           const selected = event.target.files?.[0];
