@@ -283,8 +283,9 @@ protection. Nightlies inherit these settings without overriding database URLs.
 Keep Vercel system environment variables enabled. The workflow stamps
 `LICTORY_RELEASE_CHANNEL=nightly`; authentication uses only that Preview deployment's
 exact provider-declared `VERCEL_URL`, so each immutable URL works without wildcard
-origins. Password authentication works for immutable candidates; OAuth requires
-provider callback configuration. Production keeps its canonical origin policy and
+origins. Password authentication works for immutable candidates; social login can
+use the [OAuth proxy](oauth-proxy.md) with a fixed callback server. Opted-in PR
+previews also use their exact `VERCEL_URL`. Production keeps its canonical origin policy and
 scheduled jobs.
 
 Normal operation has no package bump, changelog edit, local deployment, or tag

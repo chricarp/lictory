@@ -96,6 +96,23 @@ void test("the auth server accepts its own immutable nightly origin and rejects 
   );
 });
 
+void test("ordinary previews opt into their exact Vercel origin only with an OAuth proxy", () => {
+  const preview = { ...env, LICTORY_RELEASE_CHANNEL: "development" };
+  assert.equal(authBaseUrl(preview), env.BETTER_AUTH_URL);
+  assert.deepEqual(
+    authBaseUrl({
+      ...preview,
+      OAUTH_PROXY_URL: "https://oauth.example.test",
+      OAUTH_PROXY_SECRET: "test-only-shared-secret",
+    }),
+    authBaseUrl(env),
+  );
+  assert.equal(
+    authBaseUrl({ ...preview, OAUTH_PROXY_URL: "https://oauth.example.test" }),
+    env.BETTER_AUTH_URL,
+  );
+});
+
 void test("invitation wrappers use the same exact origins, not a client-supplied request host", () => {
   const base = authBaseUrl(env);
   assert.equal(

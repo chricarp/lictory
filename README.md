@@ -69,6 +69,11 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
 [sign-in methods and account linking](docs/internals/onboarding.md#sign-in-methods-and-account-linking)
 for how provider sign-ins attach to existing accounts.
 
+For changing local/preview URLs, configure the optional
+[OAuth proxy](docs/operations/oauth-proxy.md). Keep separate production and
+development clients by using a stable staging callback server with the
+development client; every participant must use the callback server's client.
+
 ## Database workflow
 
 The schema entry point is `src/db/schema.ts`, which exports the generated Better

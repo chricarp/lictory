@@ -35,6 +35,9 @@ services:
     environment:
       BETTER_AUTH_URL: http://localhost:3000
       BETTER_AUTH_SECRET: local-development-secret-change-before-production
+      OAUTH_PROXY_URL: ${OAUTH_PROXY_URL:-}
+      OAUTH_PROXY_SECRET: ${OAUTH_PROXY_SECRET:-}
+      OAUTH_PROXY_TRUSTED_ORIGINS: ${OAUTH_PROXY_TRUSTED_ORIGINS:-}
       DATABASE_URL: postgresql://lictory:lictory@postgres:5432/lictory
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Lictory <no-reply@email.lictory.com>}

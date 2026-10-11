@@ -24,6 +24,11 @@ that origin and register OAuth callbacks against it. R2 public access stays
 disabled; configure upload CORS for exact supported origins. Do not use wildcard
 CORS to make arbitrary preview deployments work.
 
+For social login on local development and trusted previews, see
+[OAuth proxy setup](oauth-proxy.md). A dedicated shared proxy secret is optional;
+the main authentication secrets remain separate. Prefer a staging callback
+server when keeping separate production and development OAuth clients.
+
 The realtime hub uses PostgreSQL LISTEN/NOTIFY and needs a direct connection.
 Configure `DATABASE_URL` for pooled application queries and
 `DATABASE_URL_UNPOOLED` for the direct TLS listener. Neon's Vercel
