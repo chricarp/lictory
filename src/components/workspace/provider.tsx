@@ -259,7 +259,12 @@ export function WorkspaceProvider({
     return {
       userId,
       organization: live
-        ? { ...organization, name: live.name, logos: live.logos }
+        ? {
+            ...organization,
+            name: live.name,
+            slug: live.slug,
+            logos: live.logos,
+          }
         : organization,
       engine,
       view,

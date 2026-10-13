@@ -4,6 +4,7 @@ export async function createWorkspace(
   page: Page,
   {
     organization,
+    handle,
     project,
     key,
     mode = "native",
@@ -11,6 +12,7 @@ export async function createWorkspace(
     finish = true,
   }: {
     organization: string;
+    handle?: string;
     project: string;
     key: string;
     mode?: "native" | "external";
@@ -19,6 +21,8 @@ export async function createWorkspace(
   },
 ) {
   await page.getByLabel("Organization", { exact: true }).fill(organization);
+  if (handle)
+    await page.getByLabel("Organization handle", { exact: true }).fill(handle);
   await page.getByLabel("Project", { exact: true }).fill(project);
   await page.getByLabel("Key", { exact: true }).fill(key);
   await page.getByRole("button", { name: "Continue", exact: true }).click();

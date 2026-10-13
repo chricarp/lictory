@@ -1,12 +1,18 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { Building2, TriangleAlert } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { authClient } from "~/lib/auth-client";
 import { ACCEPT_LOGO, MAX_LOGO_SIZE, type LogoKind } from "~/branding/logo";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import {
+  OrganizationHandleField,
+  useOrganizationHandle,
+} from "~/components/workspace/organization-handle-field";
+import { organizationHandleError } from "~/lib/organization-handles";
+import { paths } from "~/lib/paths";
 import { useWorkspace } from "~/components/workspace/provider";
 import {
   InlineError,
@@ -22,7 +28,7 @@ export function OrganizationGeneral() {
       id="general"
       icon={<Building2 />}
       title="General"
-      description="The organization's name and logos, as shown to every member."
+      description="The organization's name, handle and logos, as shown to every member."
     >
       <SettingsBody>
         {isAdmin ? (
@@ -43,9 +49,96 @@ export function OrganizationGeneral() {
             <dd className="font-medium">{organization.name}</dd>
           </dl>
         )}
+        {isAdmin ? (
+          <ChangeOrganizationHandle key={organization.slug} />
+        ) : (
+          <dl className="mt-4 grid gap-1 text-[13px]">
+            <dt className="text-xs text-muted-foreground">
+              Organization handle
+            </dt>
+            <dd className="font-mono">{organization.slug}</dd>
+          </dl>
+        )}
         <Branding />
       </SettingsBody>
     </SettingsSection>
+  );
+}
+
+function ChangeOrganizationHandle() {
+  const { organization, engine } = useWorkspace();
+  const router = useRouter();
+  const [value, setValue] = useState(organization.slug);
+  const status = useOrganizationHandle(value, organization.slug);
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState(false);
+  return (
+    <form
+      className="mt-5 flex max-w-sm flex-col gap-2"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (status.blocked || status.handle === organization.slug) return;
+        setError(undefined);
+        setPending(true);
+        try {
+          const result = await authClient.organization.update({
+            organizationId: organization.id,
+            data: { slug: status.handle },
+          });
+          if (result.error)
+            throw new Error(organizationHandleError(result.error));
+          // Cached directory links need the new URL before navigating. A reset
+          // also discards stale directory data when there are no item changes.
+          await engine.reset();
+          router.replace(paths.settings(result.data.slug, "general"));
+          router.refresh();
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "Could not change the handle.",
+          );
+        } finally {
+          setPending(false);
+        }
+      }}
+    >
+      <OrganizationHandleField
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          setError(undefined);
+        }}
+        status={status}
+        disabled={pending}
+      />
+      <div
+        role="note"
+        aria-label="Organization handle warning"
+        className="flex gap-2 rounded-lg border border-warning/25 bg-warning/5 p-3"
+      >
+        <TriangleAlert
+          aria-hidden
+          className="mt-0.5 size-4 shrink-0 text-warning"
+        />
+        <div className="flex flex-col gap-1 text-xs leading-5">
+          <p className="font-medium">Existing links will stop working</p>
+          <p className="text-muted-foreground">
+            Changing the organization handle will invalidate all previously
+            shared links to this workspace. Share updated links after saving.
+          </p>
+        </div>
+      </div>
+      <InlineError>{error}</InlineError>
+      <Button
+        type="submit"
+        variant="secondary"
+        className="self-start"
+        disabled={
+          pending || status.blocked || status.handle === organization.slug
+        }
+      >
+        {pending ? "Saving…" : "Save handle"}
+      </Button>
+    </form>
   );
 }
 

@@ -8,6 +8,7 @@ import { seedOrganization } from "../src/sync/server/organization";
 import { paths } from "../src/lib/paths";
 import { configureFirstProject, createWorkspace } from "./onboarding-helpers";
 import { reloadWhenSaved } from "./sync-helpers";
+import { consentStatePath } from "./consent-setup";
 const password = "Onboarding-test-password-123";
 
 test.beforeEach(async ({ page, context }, testInfo) => {
@@ -160,6 +161,212 @@ for (const mode of ["native", "external"] as const)
     expect(invitations.map((i) => i.email)).toEqual([invitee]);
     await client.end();
   });
+
+test("organizations choose and change URL handles with server validation and administrator permissions", async ({
+  page,
+  browser,
+}) => {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const handle = `chosen-${suffix}`;
+  const nextHandle = `renamed-${suffix}`;
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await page
+    .getByLabel("Organization", { exact: true })
+    .fill(`Handle Team ${suffix}`);
+  await expect(
+    page.getByLabel("Organization handle", { exact: true }),
+  ).toHaveValue(`handle-team-${suffix}`);
+  await page.getByLabel("Organization handle", { exact: true }).fill("account");
+  await expect(
+    page.getByText("That organization handle is reserved."),
+  ).toBeVisible();
+  await createWorkspace(page, {
+    organization: `Handle Team ${suffix}`,
+    handle: `Chosen-${suffix}`,
+    project: "Payments",
+    key: "PAY",
+  });
+  await expect(page).toHaveURL(new RegExp(`/app/${handle}/pay/epics$`));
+
+  const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+  const db = drizzle(client);
+  const memberContext = await browser.newContext({
+    baseURL: "http://localhost:3001",
+    storageState: consentStatePath,
+    extraHTTPHeaders: {
+      Origin: "http://localhost:3001",
+      "x-forwarded-for": "198.51.100.250",
+    },
+  });
+  try {
+    const [org] = await db
+      .select()
+      .from(s.organization)
+      .where(eq(s.organization.slug, handle));
+    const memberId = crypto.randomUUID();
+    const memberEmail = `${memberId}@example.test`;
+    await db.insert(s.user).values({
+      id: memberId,
+      name: "Handle member",
+      email: memberEmail,
+      emailVerified: true,
+      handle: `member_${suffix}`,
+    });
+    await db.insert(s.account).values({
+      id: crypto.randomUUID(),
+      userId: memberId,
+      accountId: memberId,
+      providerId: "credential",
+      password: await hashPassword(password),
+    });
+    await db.insert(s.member).values({
+      id: crypto.randomUUID(),
+      organizationId: org!.id,
+      userId: memberId,
+      role: "member",
+      createdAt: new Date(),
+    });
+    const login = await memberContext.request.post("/api/auth/sign-in/email", {
+      headers: { Origin: "http://localhost:3001" },
+      data: { email: memberEmail, password },
+    });
+    expect(login.ok()).toBe(true);
+    const memberPage = await memberContext.newPage();
+    await memberPage.goto(paths.settings(handle, "general"));
+    await expect(
+      memberPage.getByRole("button", { name: "Save handle" }),
+    ).toHaveCount(0);
+    const denied = await memberContext.request.post(
+      "/api/auth/organization/update",
+      {
+        headers: { Origin: "http://localhost:3001" },
+        data: { organizationId: org!.id, data: { slug: nextHandle } },
+      },
+    );
+    expect(denied.status()).toBe(403);
+
+    // Existing generated handles are preserved by unrelated name updates.
+    const legacy = `handle-team-${suffix}-generated`;
+    await db
+      .update(s.organization)
+      .set({ slug: legacy })
+      .where(eq(s.organization.id, org!.id));
+    await page.goto(paths.settings(legacy, "general"));
+    await expect(
+      page.getByLabel("Organization handle", { exact: true }),
+    ).toHaveValue(legacy);
+    const renamed = await page.request.post("/api/auth/organization/update", {
+      headers: { Origin: "http://localhost:3001" },
+      data: { organizationId: org!.id, data: { name: "Handle Team renamed" } },
+    });
+    expect(renamed.ok()).toBe(true);
+    expect(((await renamed.json()) as { slug: string }).slug).toBe(legacy);
+
+    for (const bad of [
+      "account",
+      "invitation",
+      "new-organization",
+      "bad/handle",
+      "bad--handle",
+      "ab",
+    ]) {
+      const rejected = await page.request.post(
+        "/api/auth/organization/update",
+        {
+          headers: { Origin: "http://localhost:3001" },
+          data: { organizationId: org!.id, data: { slug: bad } },
+        },
+      );
+      expect(rejected.status()).toBe(400);
+      const createRejected = await page.request.post(
+        "/api/auth/organization/create",
+        {
+          headers: { Origin: "http://localhost:3001" },
+          data: { name: "Rejected", slug: bad },
+        },
+      );
+      expect(createRejected.status()).toBe(400);
+    }
+    const other = await page.request.post("/api/auth/organization/create", {
+      headers: { Origin: "http://localhost:3001" },
+      data: {
+        name: "Other handle team",
+        slug: `taken-${suffix}`,
+        keepCurrentActiveOrganization: true,
+      },
+    });
+    expect(other.ok()).toBe(true);
+    const duplicate = await page.request.post("/api/auth/organization/create", {
+      headers: { Origin: "http://localhost:3001" },
+      data: { name: "Duplicate", slug: `TAKEN-${suffix}` },
+    });
+    expect(duplicate.status()).toBe(400);
+    const duplicateUpdate = await page.request.post(
+      "/api/auth/organization/update",
+      {
+        headers: { Origin: "http://localhost:3001" },
+        data: { organizationId: org!.id, data: { slug: `TAKEN-${suffix}` } },
+      },
+    );
+    expect(duplicateUpdate.status()).toBe(400);
+
+    await page
+      .getByLabel("Organization handle", { exact: true })
+      .fill(`taken-${suffix}`);
+    await expect(
+      page.getByText("That organization handle is already taken."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save handle" }),
+    ).toBeDisabled();
+    await page
+      .getByLabel("Organization handle", { exact: true })
+      .fill(`Renamed-${suffix}`);
+    await expect(
+      page.getByRole("button", { name: "Save handle" }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("note", { name: "Organization handle warning" }),
+    ).toContainText(
+      "Changing the organization handle will invalidate all previously shared links to this workspace.",
+    );
+    await page.getByRole("button", { name: "Save handle" }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/app/${nextHandle}/settings/general$`),
+    );
+    await page.reload();
+    await expect(
+      page.getByLabel("Organization handle", { exact: true }),
+    ).toHaveValue(nextHandle);
+    await expect(
+      page.getByRole("link", { name: "Epics", exact: true }),
+    ).toHaveAttribute("href", paths.list(nextHandle, "PAY", "epics"));
+    await expect(
+      memberPage.getByRole("link", { name: "General", exact: true }),
+    ).toHaveAttribute("href", paths.settings(nextHandle, "general"));
+    await memberPage.goto(paths.settings(nextHandle, "general"));
+    await expect(
+      memberPage.getByRole("button", { name: "Save handle" }),
+    ).toHaveCount(0);
+    const [saved] = await db
+      .select()
+      .from(s.organization)
+      .where(eq(s.organization.id, org!.id));
+    expect(saved!.slug).toBe(nextHandle);
+    expect(
+      await db
+        .select()
+        .from(s.project)
+        .where(eq(s.project.organizationId, org!.id)),
+    ).toHaveLength(1);
+    await page.screenshot({ path: "/tmp/lictory-organization-handle.png" });
+  } finally {
+    await memberContext.close();
+    await client.end();
+  }
+});
 
 test("joining waits without creating an organization, discovers invitations, and keeps the existing setup", async ({
   page,
