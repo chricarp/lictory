@@ -61,7 +61,7 @@
     "posthog-node": "^5.54.1",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.28.1",
