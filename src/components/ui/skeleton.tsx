@@ -154,7 +154,25 @@ export function BoardSkeleton() {
   );
 }
 
-// Centered document pages: settings, backlog, iteration reports.
+// Organization settings keep their header and navigation in a shared layout.
+// Only the content column is replaced while a section loads.
+export function SettingsSectionSkeleton() {
+  return (
+    <Frame label="Loading settings section" className="space-y-6">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className="space-y-4 rounded-xl border p-5">
+          <div className="flex items-center gap-3">
+            <Bone className="size-8 rounded-lg" />
+            <Bone className="h-4 w-32" />
+          </div>
+          <Paragraph lines={2} />
+        </div>
+      ))}
+    </Frame>
+  );
+}
+
+// Centered document pages: project settings, backlog, iteration reports.
 export function DocumentSkeleton({
   headerBar = false,
 }: {
