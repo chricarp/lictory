@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type APIResponse, type Page } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
@@ -104,6 +104,148 @@ async function signIn(page: Page, index: number) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app/);
 }
+
+test("organization settings keep their header and sidebar while sections load and history changes", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.223" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, 0);
+
+  const membersPath = paths.settings(slug, "members");
+  let prefetchDelivered!: (response: APIResponse) => void;
+  const membersPrefetch = new Promise<APIResponse>(
+    (resolve) => (prefetchDelivered = resolve),
+  );
+  await page.route("**/app/**", async (route) => {
+    const request = route.request();
+    const headers = request.headers();
+    if (
+      new URL(request.url()).pathname === membersPath &&
+      headers["next-router-prefetch"] === "1" &&
+      !headers["next-router-segment-prefetch"]
+    ) {
+      const response = await route.fetch();
+      await route.fulfill({ response });
+      prefetchDelivered(response);
+    } else {
+      await route.continue();
+    }
+  });
+  // The base settings URL still opens General and selects its navigation link.
+  await page.goto(paths.settings(slug));
+  const header = page.getByRole("heading", { name: "Organization settings" });
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await expect(
+    page.getByRole("heading", { name: "General", exact: true }),
+  ).toBeVisible();
+  await expect(
+    nav.getByRole("link", { name: "General", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  const headerNode = await header.elementHandle();
+  const navNode = await nav.elementHandle();
+  const headerBox = await header.boundingBox();
+  const navBox = await nav.boundingBox();
+
+  await nav.getByRole("link", { name: "Members", exact: true }).hover();
+  expect((await membersPrefetch).ok()).toBe(true);
+  await page.unroute("**/app/**");
+
+  let release!: () => void;
+  let navigationHeld = false;
+  const slowServer = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/app/**", async (route) => {
+    const request = route.request();
+    const headers = request.headers();
+    if (
+      new URL(request.url()).pathname === membersPath &&
+      headers.rsc === "1" &&
+      !headers["next-router-prefetch"]
+    ) {
+      navigationHeld = true;
+      await slowServer;
+    }
+    await route.continue();
+  });
+
+  const loading = page.getByRole("status", {
+    name: "Loading settings section",
+  });
+  try {
+    await nav.getByRole("link", { name: "Members", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${membersPath}$`), {
+      timeout: 2_000,
+    });
+    await expect(loading).toBeVisible({ timeout: 2_000 });
+    await expect.poll(() => navigationHeld).toBe(true);
+    await expect(header).toBeVisible();
+    await expect(nav).toBeVisible();
+    expect(await header.boundingBox()).toEqual(headerBox);
+    expect(await nav.boundingBox()).toEqual(navBox);
+    expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
+    expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
+    await expect(
+      nav.getByRole("link", { name: "Members", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByRole("heading", { name: "Members", exact: true }),
+  ).toBeVisible();
+  await expect(loading).toHaveCount(0);
+  await page.unroute("**/app/**");
+
+  for (const [section, label, heading] of [
+    ["projects", "Projects", "Projects"],
+    ["types", "Work item types", "Work item types"],
+    ["integrations", "Integrations", "Jira"],
+    ["intelligence", "Lictory Intelligence", "Lictory Intelligence"],
+    ["general", "General", "General"],
+  ] as const) {
+    await nav.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`${paths.settings(slug, section)}$`),
+    );
+    await expect(
+      page.getByRole("heading", { name: heading, exact: true }),
+    ).toBeVisible();
+    await expect(
+      nav.getByRole("link", { name: label, exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
+    expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
+  }
+  await page.goBack();
+  await expect(
+    nav.getByRole("link", { name: "Lictory Intelligence", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("heading", { name: "Lictory Intelligence", exact: true }),
+  ).toBeVisible();
+  await page.goForward();
+  await expect(
+    page.getByRole("heading", { name: "General", exact: true }),
+  ).toBeVisible();
+  expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
+  expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
+
+  // A direct link or reload restores the same section and selected link.
+  await page.goto(membersPath);
+  await expect(
+    page.getByRole("heading", { name: "Members", exact: true }),
+  ).toBeVisible();
+  await expect(
+    nav.getByRole("link", { name: "Members", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Members", exact: true }),
+  ).toBeVisible();
+  await expect(header).toBeVisible();
+});
 
 test("project administrators configure teams, disciplines and delivery; capabilities follow disciplines live", async ({
   page: lead,

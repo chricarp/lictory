@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { useWorkspace } from "~/components/workspace/provider";
 import { OrganizationMark } from "~/components/workspace/organization-logo";
 import { People } from "~/components/workspace/roles-settings";
@@ -28,10 +29,12 @@ type Section = (typeof sections)[number]["id"];
 // application roles, the project list, the type registry, Jira credentials
 // and whether Lictory Intelligence may run. Everything about how a project
 // works lives in its own settings.
-export function OrganizationSettings({ section }: { section: string }) {
+export function OrganizationSettingsLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const { organization, directory, isAdmin } = useWorkspace();
-  const active: Section =
-    sections.find((s) => s.id === section)?.id ?? "general";
   const nav: SettingsNavItem[] = sections.map((s) => ({
     ...s,
     href: paths.settings(organization.slug, s.id),
@@ -62,15 +65,24 @@ export function OrganizationSettings({ section }: { section: string }) {
         </>
       }
       nav={nav}
-      active={active}
     >
+      {children}
+    </SettingsLayout>
+  );
+}
+
+export function OrganizationSettingsSection({ section }: { section: string }) {
+  const active: Section =
+    sections.find((s) => s.id === section)?.id ?? "general";
+  return (
+    <>
       {active === "general" && <OrganizationGeneral />}
       {active === "members" && <People />}
       {active === "projects" && <OrganizationProjects />}
       {active === "types" && <OrganizationTypes />}
       {active === "integrations" && <Integrations />}
       {active === "intelligence" && <OrganizationIntelligence />}
-    </SettingsLayout>
+    </>
   );
 }
 

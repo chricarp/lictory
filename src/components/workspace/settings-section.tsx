@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { SettingsNavigation } from "./settings-navigation";
 import { cn } from "~/lib/utils";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
@@ -163,15 +163,9 @@ export function SettingsLayout({
   title: string;
   subtitle?: ReactNode;
   nav: SettingsNavItem[];
-  active: string;
+  active?: string;
   children: ReactNode;
 }) {
-  const groups: { group?: string; items: SettingsNavItem[] }[] = [];
-  for (const item of nav) {
-    const last = groups.at(-1);
-    if (last && last.group === item.group) last.items.push(item);
-    else groups.push({ group: item.group, items: [item] });
-  }
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-6 py-8">
@@ -189,39 +183,7 @@ export function SettingsLayout({
           </div>
         </header>
         <div className="mt-8 gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
-          <nav
-            aria-label="Settings sections"
-            className="mb-6 lg:sticky lg:top-0 lg:mb-0 lg:self-start"
-          >
-            <div className="flex gap-1 overflow-x-auto lg:block lg:space-y-4">
-              {groups.map((g, i) => (
-                <div key={g.group ?? i} className="flex gap-1 lg:block">
-                  {g.group && (
-                    <p className="hidden px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase lg:block">
-                      {g.group}
-                    </p>
-                  )}
-                  <ul className="flex gap-1 lg:block lg:space-y-0.5">
-                    {g.items.map((n) => (
-                      <li key={n.id}>
-                        <Link
-                          href={n.href}
-                          aria-current={n.id === active ? "page" : undefined}
-                          className={cn(
-                            "block rounded-md px-2 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground",
-                            n.id === active &&
-                              "bg-muted font-medium text-foreground",
-                          )}
-                        >
-                          {n.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </nav>
+          <SettingsNavigation nav={nav} active={active} />
           <div className="min-w-0 space-y-6">{children}</div>
         </div>
       </div>
