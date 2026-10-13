@@ -8,7 +8,16 @@ import { authClient } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { StateIllustration } from "~/components/ui/state-illustration";
 import { Input } from "~/components/ui/input";
-import { slugify, suggestKey } from "~/lib/work-items";
+import { suggestKey } from "~/lib/work-items";
+import {
+  normalizeOrganizationHandle,
+  organizationHandleError,
+  suggestOrganizationHandle,
+} from "~/lib/organization-handles";
+import {
+  OrganizationHandleField,
+  useOrganizationHandle,
+} from "./organization-handle-field";
 import { formValue } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import { useWorkspace } from "./provider";
@@ -95,6 +104,9 @@ export function ProjectFields({
 export function CreateOrganization({ userId }: { userId?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [handle, setHandle] = useState<string | null>(null);
+  const handleValue = handle ?? suggestOrganizationHandle(name);
+  const handleStatus = useOrganizationHandle(handleValue);
   const [project, setProject] = useState("");
   const [key, setKey] = useState("");
   const [touched, setTouched] = useState(false);
@@ -117,9 +129,12 @@ export function CreateOrganization({ userId }: { userId?: string }) {
         try {
           const result = await authClient.organization.create({
             name: submitted,
-            slug: `${slugify(submitted) || "org"}-${crypto.randomUUID().slice(0, 6)}`,
+            slug: normalizeOrganizationHandle(
+              formValue(data, "organizationHandle"),
+            ),
           });
-          if (result.error) throw new Error(result.error.message);
+          if (result.error)
+            throw new Error(organizationHandleError(result.error));
           // The project is created with the delivery setup, in one transaction.
           if (userId)
             seedSetupDraft(userId, result.data.id, {
@@ -152,6 +167,12 @@ export function CreateOrganization({ userId }: { userId?: string }) {
           autoFocus
         />
       </label>
+      <OrganizationHandleField
+        value={handleValue}
+        onChange={setHandle}
+        status={handleStatus}
+        disabled={pending}
+      />
       <ProjectFields
         name={project}
         projectKey={effectiveKey}
@@ -173,6 +194,7 @@ export function CreateOrganization({ userId }: { userId?: string }) {
         className="w-full"
         disabled={
           pending ||
+          handleStatus.blocked ||
           !name.trim() ||
           !project.trim() ||
           !keyPattern.test(effectiveKey)

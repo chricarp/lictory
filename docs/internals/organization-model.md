@@ -38,6 +38,16 @@ teams. Foreign keys enforce that an item's team, status and iteration belong to
 its project. Moving an item between teams never changes its key, status or
 iteration; items do not move between projects.
 
+## Organization identity
+
+Organizations choose a unique, lowercase handle for their `/app/<handle>` URL.
+The handle is separate from the immutable organization ID and from person
+handles. Organization administrators can change it in General settings;
+membership, projects, work item identifiers and history keep the same IDs.
+Changing a handle changes the URL for every member, and previously shared links
+need the new handle. Existing generated handles remain unchanged until an
+administrator chooses a replacement. Static app routes are reserved.
+
 ## Access: application roles, project roles and disciplines
 
 Three concepts answer three different questions. They are never combined into

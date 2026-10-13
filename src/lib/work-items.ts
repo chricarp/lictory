@@ -411,12 +411,6 @@ export function initials(name: string) {
     ).toUpperCase() || "?"
   );
 }
-export function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
 // PAY from "Payments", PLT from "Platform Tools", trimmed to the key format.
 export function suggestKey(name: string) {
   const words = name

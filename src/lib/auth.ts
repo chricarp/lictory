@@ -6,7 +6,7 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 
 import { db } from "~/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createInvitationEmail } from "~/emails/invitation-email";
 import { sendEmail } from "~/lib/mailer";
 import * as schema from "~/db/auth-schema";
@@ -15,6 +15,10 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { authSchemaOptions } from "~/lib/auth-schema-options";
 import { authBaseUrl } from "~/lib/auth-base-url";
 import { oauthProxyConfig } from "~/lib/oauth-proxy";
+import {
+  normalizeOrganizationHandle,
+  organizationHandleProblem,
+} from "~/lib/organization-handles";
 import {
   containsWhitespace,
   MAX_PASSWORD_LENGTH,
@@ -199,6 +203,28 @@ export const auth = betterAuth({
     // that set a new password are checked, so sign-in keeps working for any
     // password that already exists.
     before: createAuthMiddleware(async (ctx) => {
+      // Normalize before Better Auth's uniqueness checks, including direct API
+      // callers. Name-only updates leave legacy generated handles untouched.
+      const body = ctx.body as
+        { slug?: unknown; data?: { slug?: unknown } } | undefined;
+      const organizationData =
+        ctx.path === "/organization/update"
+          ? body?.data
+          : ["/organization/create", "/organization/check-slug"].includes(
+                ctx.path,
+              )
+            ? body
+            : undefined;
+      if (organizationData && typeof organizationData.slug === "string") {
+        const slug = normalizeOrganizationHandle(organizationData.slug);
+        const problem = organizationHandleProblem(slug);
+        if (problem)
+          throw new APIError("BAD_REQUEST", {
+            code: "INVALID_ORGANIZATION_HANDLE",
+            message: problem,
+          });
+        organizationData.slug = slug;
+      }
       if (
         ["/update-user", "/sign-up/email"].includes(ctx.path) &&
         ctx.body &&
@@ -272,10 +298,14 @@ export const auth = betterAuth({
           );
         },
         afterUpdateOrganization: async ({ organization, user }) => {
-          if (organization)
+          if (organization) {
+            await db.execute(
+              sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId: organization.id, cursor: "0" })})`,
+            );
             trackServer(user.id, "organization_updated", {
               organization_id: organization.id,
             });
+          }
         },
         afterCreateInvitation: async ({
           invitation,
