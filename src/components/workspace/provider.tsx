@@ -87,9 +87,11 @@ export function useDelivery() {
   return value;
 }
 
-// Keeps recently opened item engines alive so moving between Stories only
-// selects data that already exists locally. Each engine has its own IndexedDB
-// cache, so a revisit after eviction is still instant from disk.
+// Keeps recently opened item engines in memory so moving between Stories only
+// selects data that already exists locally. Engines nobody displays are
+// suspended: they stop following realtime signals and catch up when shown
+// again. Each engine has its own IndexedDB cache, so a revisit after eviction
+// is still instant from disk.
 const ITEM_ENGINE_LIMIT = 8;
 
 export function WorkspaceProvider({
@@ -219,6 +221,7 @@ export function WorkspaceProvider({
       }
       entry.refs++;
       entry.used = Date.now();
+      entry.engine.resume();
       return entry.engine;
     },
     [organization.id, userId, notifyRejection],
@@ -233,6 +236,7 @@ export function WorkspaceProvider({
     const entry = cache.get(itemId);
     if (!entry) return;
     entry.refs = Math.max(0, entry.refs - 1);
+    if (entry.refs === 0) entry.engine.suspend();
     const idle = [...cache.entries()]
       .filter(([, e]) => e.refs === 0)
       .sort((a, b) => a[1].used - b[1].used);
@@ -247,12 +251,55 @@ export function WorkspaceProvider({
     ? view.directory
     : initialDirectory;
   const delivery = useMemo(() => deliveryIndex(directory), [directory]);
-  const value = useMemo<WorkspaceContextValue>(() => {
+  // Directory-derived helpers keep their identity while only entities change,
+  // so memoized rows receiving them do not re-render on every sync.
+  const roles = useMemo(() => {
+    const admin = applicationRoleOf(organization.role) === "admin";
+    const memberNames = new Map(directory.members.map((m) => [m.id, m.name]));
+    const disciplineNames = new Map(
+      directory.disciplines.map((d) => [d.id, d.name]),
+    );
+    return {
+      disciplineIds: myDisciplineIds(directory, userId),
+      capabilitiesIn: (projectId: string | null | undefined) =>
+        projectId
+          ? capabilitiesOf(directory.disciplines, userId, projectId)
+          : noCapabilities,
+      canManage: (projectId: string | null | undefined) =>
+        !!projectId && canManageProject(directory, userId, admin, projectId),
+      isAdmin: admin,
+      memberName: (id: string | null | undefined) =>
+        id === "system"
+          ? "Lictory"
+          : id === AI_ACTOR_ID
+            ? AI_ACTOR_NAME
+            : id
+              ? (memberNames.get(id) ?? "Former member")
+              : "Unassigned",
+      disciplineName: (id: string | null | undefined) =>
+        (id ? disciplineNames.get(id) : undefined) ?? "Discipline",
+    };
+  }, [directory, userId, organization.role]);
+  const lists = useMemo(() => {
     const entities = Object.values(view.entities);
     const projects = byType(entities, "project")
       .filter((p) => !p.archivedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
-    const merged = projects.length ? projects : directory.projects;
+    return {
+      projects: projects.length ? projects : directory.projects,
+      items: byType(entities, "workItem"),
+      labels: byType(entities, "label").sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      milestones: byType(entities, "milestone").sort(
+        (a, b) =>
+          (a.targetDate ?? "9").localeCompare(b.targetDate ?? "9") ||
+          a.name.localeCompare(b.name),
+      ),
+      relations: byType(entities, "relation"),
+    };
+  }, [view.entities, directory.projects]);
+  const value = useMemo<WorkspaceContextValue>(() => {
     // Name and branding follow the live directory, so a change made elsewhere
     // appears without a reload. Access still comes from the server render.
     const live = directory.organizations.find((o) => o.id === organization.id);
@@ -264,44 +311,10 @@ export function WorkspaceProvider({
       engine,
       view,
       directory,
-      projects: merged,
-      items: byType(entities, "workItem"),
-      labels: byType(entities, "label").sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
-      milestones: byType(entities, "milestone").sort(
-        (a, b) =>
-          (a.targetDate ?? "9").localeCompare(b.targetDate ?? "9") ||
-          a.name.localeCompare(b.name),
-      ),
-      relations: byType(entities, "relation"),
+      ...lists,
       delivery,
-      disciplineIds: myDisciplineIds(directory, userId),
-      capabilitiesIn: (projectId) =>
-        projectId
-          ? capabilitiesOf(directory.disciplines, userId, projectId)
-          : noCapabilities,
-      canManage: (projectId) =>
-        !!projectId &&
-        canManageProject(
-          directory,
-          userId,
-          applicationRoleOf(organization.role) === "admin",
-          projectId,
-        ),
-      isAdmin: applicationRoleOf(organization.role) === "admin",
+      ...roles,
       mutate,
-      memberName: (id) =>
-        id === "system"
-          ? "Lictory"
-          : id === AI_ACTOR_ID
-            ? AI_ACTOR_NAME
-            : id
-              ? (directory.members.find((m) => m.id === id)?.name ??
-                "Former member")
-              : "Unassigned",
-      disciplineName: (id) =>
-        directory.disciplines.find((d) => d.id === id)?.name ?? "Discipline",
       acquireItem,
       releaseItem,
       refreshWorkspace,
@@ -309,6 +322,8 @@ export function WorkspaceProvider({
   }, [
     view,
     directory,
+    lists,
+    roles,
     delivery,
     userId,
     organization,

@@ -1,0 +1,2 @@
+CREATE INDEX "suggestion_decision_item_idx" ON "suggestion_decision" USING btree ("organization_id","work_item_id");--> statement-breakpoint
+CREATE INDEX "suggestion_reviewer_item_idx" ON "suggestion_reviewer" USING btree ("organization_id","work_item_id");

@@ -1,8 +1,9 @@
 // One realtime invalidation source per organization, shared by every engine in
 // the tab. Engines subscribe with a callback; the hub owns the EventSource,
 // focus/online listeners and the recovery interval, and closes them when the
-// last subscriber leaves. It carries no data: every signal triggers a delta read.
-type Listener = () => void;
+// last subscriber leaves. It carries no data: a signal names at most the
+// organization's new cursor, and engines behind it read a delta.
+type Listener = (cursor?: string) => void;
 type PresenceEntry = { userId: string; workItemId: string | null; at: number };
 type PresenceListener = () => void;
 type Connection = {
@@ -14,6 +15,7 @@ type Connection = {
   timer?: ReturnType<typeof setInterval>;
   wake: () => void;
 };
+const RECOVERY_INTERVAL = 60_000;
 const connections = new Map<string, Connection>();
 
 export function subscribeInvalidations(
@@ -23,21 +25,24 @@ export function subscribeInvalidations(
   let connection = connections.get(organizationId);
   if (!connection) {
     const listeners = new Set<Listener>();
-    const wake = () => {
-      for (const l of listeners) l();
+    const wake = (cursor?: string) => {
+      for (const l of listeners) l(cursor);
     };
+    const recover = () => wake();
     connection = {
       listeners,
-      wake,
+      wake: recover,
       presence: new Map(),
       presenceListeners: new Set(),
       notificationListeners: new Set(),
     };
     connections.set(organizationId, connection);
     if (typeof window !== "undefined") {
-      window.addEventListener("online", wake);
-      window.addEventListener("focus", wake);
-      connection.timer = setInterval(wake, 15_000);
+      window.addEventListener("online", recover);
+      window.addEventListener("focus", recover);
+      // A backstop only: each new stream starts with an invalidation, so
+      // reconnects already resynchronize.
+      connection.timer = setInterval(recover, RECOVERY_INTERVAL);
       const source = new EventSource(
         `/api/sync/events?organizationId=${encodeURIComponent(organizationId)}`,
       );
@@ -46,6 +51,7 @@ export function subscribeInvalidations(
         try {
           const data = JSON.parse(event.data) as {
             type: string;
+            cursor?: string;
             userId?: string;
             workItemId?: string | null;
             at?: number;
@@ -63,13 +69,13 @@ export function subscribeInvalidations(
             for (const l of conn.notificationListeners) l();
             return;
           }
+          wake(typeof data.cursor === "string" ? data.cursor : undefined);
+          return;
         } catch {
           /* invalidation without payload */
         }
         wake();
       };
-      source.onopen = wake;
-      source.onerror = wake;
       connection.source = source;
     }
   }

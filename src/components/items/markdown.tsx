@@ -1,4 +1,4 @@
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown, {
   defaultUrlTransform,
   type Components,
@@ -157,9 +157,13 @@ const components: Components = {
 const urlTransform = (url: string) =>
   /^mention:[A-Za-z0-9_-]+$/.test(url) ? url : defaultUrlTransform(url);
 
+const remarkPlugins = [remarkGfm];
+
 // CommonMark plus GitHub-flavored tables, task lists, strikethrough and
 // autolinks. react-markdown emits React nodes and does not execute raw HTML.
-export function Markdown({
+// Parsing is the expensive part, so a document is only re-parsed when its
+// source changes.
+export const Markdown = memo(function Markdown({
   source,
   className,
 }: {
@@ -169,7 +173,7 @@ export function Markdown({
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={remarkPlugins}
         components={components}
         urlTransform={urlTransform}
       >
@@ -177,4 +181,4 @@ export function Markdown({
       </ReactMarkdown>
     </div>
   );
-}
+});

@@ -23,7 +23,7 @@ import {
   typeOf,
   type Project,
 } from "~/lib/work-items";
-import type { WorkItem } from "~/sync/shared/protocol";
+import type { Command, WorkItem } from "~/sync/shared/protocol";
 import { Button } from "~/components/ui/button";
 import { Popover } from "~/components/ui/popover";
 import { Badge, SectionLabel } from "~/components/ui/primitives";
@@ -115,11 +115,26 @@ export function ItemDetail({
   const itemEngine = useItemEngine(item.id, item.projectId, !pendingCreate);
   // While creation is still queued the organization store already holds the
   // optimistic item and its first revision; the item engine opens afterwards.
-  const entities = itemEngine.engine
-    ? itemEngine.entities
-    : Object.values(workspace.view.entities);
+  const organizationEntities = workspace.view.entities;
+  const pendingEntities = useMemo(
+    () => (itemEngine.engine ? [] : Object.values(organizationEntities)),
+    [itemEngine.engine, organizationEntities],
+  );
+  const entities = itemEngine.engine ? itemEngine.entities : pendingEntities;
   const type = typeOf(workspace.delivery, item);
   const native = project.deliveryMode === "native";
+  const { capabilitiesIn, engine: workspaceEngine } = workspace;
+  // Stable inputs keep the item context (and every consumer) from being
+  // rebuilt on renders that changed nothing about this item.
+  const capabilities = useMemo(
+    () => capabilitiesIn(item.projectId),
+    [capabilitiesIn, item.projectId],
+  );
+  const mutateConfirmed = useCallback(
+    (command: Command) =>
+      (itemEngine.engine ?? workspaceEngine).mutateConfirmed(command),
+    [itemEngine.engine, workspaceEngine],
+  );
   const ctx = useItemContextValue({
     item,
     type,
@@ -130,10 +145,9 @@ export function ItemDetail({
     disciplineIds: workspace.disciplineIds,
     memberName: workspace.memberName,
     disciplineName: workspace.disciplineName,
-    capabilities: workspace.capabilitiesIn(item.projectId),
+    capabilities,
     mutate: itemEngine.engine ? itemEngine.mutate : workspace.mutate,
-    mutateConfirmed: (command) =>
-      (itemEngine.engine ?? workspace.engine).mutateConfirmed(command),
+    mutateConfirmed,
   });
   // Branch and pull request workspaces are linkable and survive navigation.
   const [mode, setModeState] = useState<DetailMode>(() => {

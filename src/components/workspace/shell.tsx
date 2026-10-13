@@ -1,4 +1,5 @@
 "use client";
+import dynamic from "next/dynamic";
 import Link, { useLinkStatus } from "next/link";
 import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
 import { APP_VERSION } from "~/lib/app-version";
@@ -67,11 +68,19 @@ import { Popover, Picker } from "~/components/ui/popover";
 import { Avatar, Kbd } from "~/components/ui/primitives";
 import { useWorkspace } from "./provider";
 import { useUnreadNotifications } from "~/components/notifications/client";
-import { CommandPalette } from "./command-palette";
-import { QuickCreate, type QuickCreateOptions } from "./quick-create";
+import type { QuickCreateOptions } from "./quick-create";
 import { SyncStatus } from "./sync-status";
 import { OrganizationMark } from "./organization-logo";
 import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
+
+// Overlays open on demand. They carry the Markdown editor and search, so they
+// load after the workspace is interactive instead of with every page.
+const loadCommandPalette = () =>
+  import("./command-palette").then((m) => m.CommandPalette);
+const loadQuickCreate = () =>
+  import("./quick-create").then((m) => m.QuickCreate);
+const CommandPalette = dynamic(loadCommandPalette, { ssr: false });
+const QuickCreate = dynamic(loadQuickCreate, { ssr: false });
 
 type Organization = Directory["organizations"][number];
 
@@ -144,6 +153,20 @@ export function Shell({
   const sidebarId = useId();
   const sidebarRef = useRef<HTMLElement>(null);
   const restoreSidebarFocus = useRef(false);
+  // Warm the on-demand overlays once the workspace is idle, so the first
+  // shortcut opens them without a visible load.
+  useEffect(() => {
+    const preload = () => {
+      void loadCommandPalette();
+      void loadQuickCreate();
+    };
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(preload, { timeout: 3000 });
+      return () => cancelIdleCallback(id);
+    }
+    const timer = setTimeout(preload, 1500);
+    return () => clearTimeout(timer);
+  }, []);
   const toggleSidebar = () => {
     restoreSidebarFocus.current = true;
     toggleSidebarPreference();

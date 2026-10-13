@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "~/lib/auth";
+import { requestSession } from "~/lib/session";
 import { db } from "~/db";
 import { directory } from "~/sync/server/service";
 import { paths } from "~/lib/paths";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Welcome to Lictory" };
 
 // Entry point: land in the first organization, or create one.
 export default async function AppIndex() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await requestSession();
   if (!session) redirect("/sign-in");
   const initial = await directory(db, session.user.id);
   const organization = initial.organizations[0];

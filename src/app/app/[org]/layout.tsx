@@ -1,9 +1,8 @@
 import { eq } from "drizzle-orm";
 import { project } from "~/db/domain-schema";
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { auth } from "~/lib/auth";
+import { requestSession } from "~/lib/session";
 import { db } from "~/db";
 import { directory } from "~/sync/server/service";
 import { directorySchema } from "~/sync/shared/protocol";
@@ -21,7 +20,7 @@ export default async function OrganizationLayout({
   children,
   params,
 }: LayoutProps<"/app/[org]">) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await requestSession();
   if (!session) redirect("/sign-in");
   const { org } = await params;
   const initial = await directory(db, session.user.id);

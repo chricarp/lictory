@@ -57,6 +57,8 @@ export class SyncEngine {
   private listeners = new Set<() => void>();
   private rejectionListeners = new Set<(rejection: Rejection) => void>();
   private stopped = false;
+  // A suspended engine keeps its data but no longer follows realtime signals.
+  private suspended = false;
   private generation = 0;
   private revoked = false;
   private unsubscribe?: () => void;
@@ -108,19 +110,41 @@ export class SyncEngine {
     return retained;
   }
   getSnapshot = () => this.view;
+  // Publishes a new view only when something a component can see changed, so
+  // a background check that found nothing new re-renders nothing.
   private emit() {
+    const previous = this.view;
+    const mutations = this.queue
+      .filter((q) => !q.blocked)
+      .map((q) => q.mutation);
+    const entities = mutations.length
+      ? optimistic(
+          this.cache.entities,
+          mutations,
+          this.userId,
+          (disciplineId) =>
+            this.cache.directory.disciplines.find((d) => d.id === disciplineId)
+              ?.name ?? "Review",
+          this.cache.directory,
+        )
+      : this.cache.entities;
+    const pending =
+      JSON.stringify(previous.pending) === JSON.stringify(this.queue)
+        ? previous.pending
+        : this.queue;
+    if (
+      entities === previous.entities &&
+      this.cache.directory === previous.directory &&
+      pending === previous.pending &&
+      this.status === previous.status &&
+      this.error === previous.error &&
+      this.revoked === (previous.accessUnavailable ?? false)
+    )
+      return;
     this.view = {
-      entities: optimistic(
-        this.cache.entities,
-        this.queue.filter((q) => !q.blocked).map((q) => q.mutation),
-        this.userId,
-        (disciplineId) =>
-          this.cache.directory.disciplines.find((d) => d.id === disciplineId)
-            ?.name ?? "Review",
-        this.cache.directory,
-      ),
+      entities,
       directory: this.cache.directory,
-      pending: this.queue,
+      pending,
       status: this.status,
       cursor: this.cache.cursor,
       error: this.error,
@@ -161,7 +185,10 @@ export class SyncEngine {
           this.queue = [];
           this.emit();
         }
-        void this.sync();
+        // Another engine sends the shared queue; a suspended one only keeps
+        // its view of pending commands current.
+        if (this.suspended) void this.refreshQueue();
+        else void this.sync();
       };
       window.addEventListener("offline", this.offline);
       await this.sync();
@@ -174,6 +201,20 @@ export class SyncEngine {
       this.fail(error);
     }
   }
+  // Idle item engines keep their data for an instant revisit, but stop reading
+  // on every organization change until they are shown again.
+  suspend() {
+    this.suspended = true;
+  }
+  resume() {
+    if (!this.suspended) return;
+    this.suspended = false;
+    void this.sync();
+  }
+  private async refreshQueue() {
+    this.queue = await this.loadQueue();
+    this.emit();
+  }
   stop() {
     this.stopped = true;
     this.unsubscribe?.();
@@ -181,7 +222,17 @@ export class SyncEngine {
     this.channel?.close();
     window.removeEventListener("offline", this.offline);
   }
-  private wake = () => {
+  private wake = (cursor?: string) => {
+    if (this.suspended) return;
+    // Engines that already read up to the announced cursor and have nothing
+    // to send skip the request; the change was their own or already read.
+    if (
+      cursor !== undefined &&
+      this.cache.cursor !== undefined &&
+      BigInt(this.cache.cursor) >= BigInt(cursor) &&
+      !this.queue.some((q) => !applicationRejected(q))
+    )
+      return;
     void this.sync();
   };
   private offline = () => {
@@ -350,13 +401,25 @@ export class SyncEngine {
       if (!response.ok) throw new Error(errorSchema.parse(body).error.message);
       const page = pageSchema.parse(body);
       if (this.stopped) return;
+      const directory =
+        JSON.stringify(page.directory) === JSON.stringify(this.cache.directory)
+          ? this.cache.directory
+          : page.directory;
+      const unchanged =
+        page.changes.length === 0 &&
+        directory === this.cache.directory &&
+        this.cache.cursor !== undefined;
       this.cache = {
-        entities: reconcile(this.cache.entities, page.changes),
+        entities: page.changes.length
+          ? reconcile(this.cache.entities, page.changes)
+          : this.cache.entities,
         cursor: page.nextCursor,
-        directory: page.directory,
+        directory,
         lastSync: Date.now(),
       };
-      await this.persistence.save(this.key, this.cache); // data + cursor commit atomically
+      // An empty delta only moves the checkpoint; losing that write is safe
+      // (the same empty range is read again), so skip rewriting the cache.
+      if (!unchanged) await this.persistence.save(this.key, this.cache); // data + cursor commit atomically
       hasMore = page.hasMore;
       this.emit();
     }
@@ -364,8 +427,10 @@ export class SyncEngine {
   sync(): Promise<void> {
     if (this.stopped || this.revoked) return Promise.resolve();
     if (this.running) {
+      // The running cycle may have read the queue before the caller's change;
+      // resolve after the follow-up cycle it schedules on completion.
       this.invalidated = true;
-      return this.running;
+      return this.running.then(() => this.running);
     }
     this.running = (
       navigator.locks
@@ -396,7 +461,9 @@ export class SyncEngine {
       this.offline();
       return;
     }
-    this.status = "syncing";
+    // A routine check of an up-to-date workspace is not visible work; only
+    // recovery from hydration, failure or offline shows as syncing.
+    if (this.status !== "synced") this.status = "syncing";
     this.error = undefined;
     this.emit();
     await this.read();

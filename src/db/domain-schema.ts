@@ -1117,6 +1117,7 @@ export const suggestionReviewer = pgTable(
       t.organizationId,
       t.suggestionId,
     ),
+    index("suggestion_reviewer_item_idx").on(t.organizationId, t.workItemId),
   ],
 );
 
@@ -1153,6 +1154,7 @@ export const suggestionDecision = pgTable(
       t.organizationId,
       t.suggestionId,
     ),
+    index("suggestion_decision_item_idx").on(t.organizationId, t.workItemId),
     check(
       "suggestion_decision_supersede_consistent",
       sql`(${t.supersededAt} IS NULL AND ${t.supersededReason} IS NULL) OR (${t.supersededAt} IS NOT NULL AND ${t.supersededReason} IS NOT NULL)`,

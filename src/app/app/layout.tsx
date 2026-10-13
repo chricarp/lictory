@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { AppearanceProvider } from "~/components/app/appearance-provider";
 import { PostHogIdentity } from "~/components/app/posthog-identity";
 import { parseAppearance } from "~/lib/appearance";
-import { auth } from "~/lib/auth";
+import { requestSession } from "~/lib/session";
 import { safeAppPath } from "~/lib/paths";
 
 export async function generateMetadata() {
@@ -21,7 +21,7 @@ export default async function ProtectedLayout({
   children: ReactNode;
 }) {
   const requestHeaders = await headers();
-  const session = await auth.api.getSession({ headers: requestHeaders });
+  const session = await requestSession();
   if (!session) redirect("/sign-in");
   // Every account, however it signed up, chooses a handle before entering.
   if (!session.user.handle) {

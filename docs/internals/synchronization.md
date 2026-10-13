@@ -121,9 +121,17 @@ partition. Browser storage is not a substitute for server authorization.
 
 `sync_clock` holds a PostgreSQL bigint counter per organization. The wire format is
 a decimal **string**, preserving values above JavaScript's safe-integer limit.
-All sync reads and domain writes take the same organization advisory transaction
-lock, before checking access or reading the clock. This deliberately serializes a
-small organization's mutations and coherent snapshots.
+All domain writes take the same organization advisory transaction lock, before
+checking access or reading the clock. This deliberately serializes a small
+organization's mutations.
+
+Reads take no lock. Every writer advances the clock and inserts its change rows in
+one transaction while holding the lock, and PostgreSQL makes a transaction visible
+before releasing its locks, so commits become visible in cursor order. A read runs
+in one `READ ONLY`, `REPEATABLE READ` transaction: its snapshot contains a gap-free
+prefix of the change log whose last cursor is the clock it reads. Never add a
+writer of `sync_change` that does not hold the organization lock and publish the
+clock in the same transaction.
 
 Do not replace this with a bare sequence/serial and `MAX(id)`: sequences allocate
 before commit, so a later transaction can commit first and a client can permanently
@@ -177,7 +185,7 @@ organization's lock, writes change-log rows and advances the clock exactly like 
 command, but writes no mutation receipt. Historical content is currently loaded for one proposal as a
 whole; pagination of very long revision/message histories is future work.
 
-A request without a checkpoint bootstraps under the lock. Delta requests return
+A request without a checkpoint bootstraps from the read snapshot. Delta requests return
 ordered changes, `nextCursor`, and `hasMore`; clients drain every page. Empty deltas
 can advance to the organization head even when changes belonged to another scope.
 Checkpoints belong to **one scope**, never to a user or organization globally. A
@@ -193,8 +201,12 @@ transaction and tests. Organization locks are the initial throughput boundary.
 
 The `WorkspaceProvider` owns one organization-scope engine for the session and a
 small LRU of work item engines (opened items stay warm; each has its own IndexedDB
-cache). One realtime hub per organization shares the SSE connection, focus/online
-handlers and the recovery interval across engines. The mutation queue is per
+cache). An item engine nobody displays is suspended: it keeps its data but stops
+following realtime signals, and synchronizes again when it is shown. One realtime
+hub per organization shares the SSE connection, focus/online handlers and the
+recovery interval across engines. An engine publishes a new view only when
+something visible changed, so a check that found nothing new re-renders nothing
+and does not rewrite its IndexedDB cache. The mutation queue is per
 user/organization and shared by all engines, so an optimistic change made from an
 item engine is visible in lists after the next BroadcastChannel signal.
 React reads normalized `{type}:{id}` entities through `useSyncExternalStore`.
@@ -244,16 +256,21 @@ no service worker for a completely offline cold application launch.
 ## Realtime
 
 PostgreSQL `NOTIFY` fires after commit and a process-wide `LISTEN` connection fans
-out generic organization invalidations over SSE. It carries no document content.
+out organization invalidations over SSE. An invalidation carries at most the
+organization's new cursor, never document content; engines whose checkpoint has
+already reached it and that have nothing to send skip the delta request.
 The same SSE stream forwards **presence** events (`lictory_presence`): a viewing
 tab posts `/api/presence` heartbeats (membership-checked) and the client expires
 entries after 45 seconds. Presence is never stored and never affects correctness.
 SSE fits Next route handlers without replacing the server with a WebSocket runtime.
-Connections are bounded to revalidate authentication; a heartbeat, focus/online
-handlers, and a 15-second recovery interval catch missed invalidations and sleeps.
-Every notification triggers the normal delta path. Correctness never depends on
-continuous SSE or PostgreSQL LISTEN connectivity. Deploy behind a proxy that permits
-streaming and configure connection/time limits accordingly.
+Streams end after four minutes so reconnection revalidates authentication and
+membership. Every new stream begins with an invalidation, and a reconnect of the
+server's `LISTEN` connection sends one to its streams, so changes missed while
+disconnected are read. Keep-alive heartbeats are SSE comments that wake no engine;
+focus/online handlers and a 60-second recovery interval catch anything else, such
+as sleeps. Every invalidation triggers the normal delta path. Correctness never
+depends on continuous SSE or PostgreSQL LISTEN connectivity. Deploy behind a proxy
+that permits streaming and configure connection/time limits accordingly.
 
 ## Revisions, reviews and conflicts
 
