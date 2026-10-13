@@ -1,9 +1,8 @@
 // One realtime invalidation source per organization, shared by every engine in
 // the tab. Engines subscribe with a callback; the hub owns the EventSource,
 // focus/online listeners and the recovery interval, and closes them when the
-// last subscriber leaves. It carries no data: a signal names at most the
-// organization's new cursor, and engines behind it read a delta.
-type Listener = (cursor?: string) => void;
+// last subscriber leaves. It carries no data: every signal triggers a delta read.
+type Listener = () => void;
 type PresenceEntry = { userId: string; workItemId: string | null; at: number };
 type PresenceListener = () => void;
 type Connection = {
@@ -25,10 +24,10 @@ export function subscribeInvalidations(
   let connection = connections.get(organizationId);
   if (!connection) {
     const listeners = new Set<Listener>();
-    const wake = (cursor?: string) => {
-      for (const l of listeners) l(cursor);
+    const wake = () => {
+      for (const l of listeners) l();
     };
-    const recover = () => wake();
+    const recover = wake;
     connection = {
       listeners,
       wake: recover,
@@ -51,7 +50,6 @@ export function subscribeInvalidations(
         try {
           const data = JSON.parse(event.data) as {
             type: string;
-            cursor?: string;
             userId?: string;
             workItemId?: string | null;
             at?: number;
@@ -69,8 +67,6 @@ export function subscribeInvalidations(
             for (const l of conn.notificationListeners) l();
             return;
           }
-          wake(typeof data.cursor === "string" ? data.cursor : undefined);
-          return;
         } catch {
           /* invalidation without payload */
         }

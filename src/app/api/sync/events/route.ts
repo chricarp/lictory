@@ -31,11 +31,9 @@ export async function GET(request: Request) {
         if (!closed) controller.enqueue(encoder.encode(chunk));
       };
       const send = (data: string) => write(`data: ${data}\n\n`);
-      // Invalidations carry the organization's new cursor so engines that
-      // already read up to it can skip the delta request.
       const unsubscribe = await realtime.subscribe((event) => {
         if (event.organizationId === organizationId)
-          send(JSON.stringify({ type: "invalidate", cursor: event.cursor }));
+          send(JSON.stringify({ type: "invalidate" }));
       });
       const unsubscribePresence = await realtime.subscribePresence((event) => {
         if (event.organizationId === organizationId)

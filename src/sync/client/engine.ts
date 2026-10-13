@@ -59,6 +59,7 @@ export class SyncEngine {
   private stopped = false;
   // A suspended engine keeps its data but no longer follows realtime signals.
   private suspended = false;
+  private retryTimer?: ReturnType<typeof setTimeout>;
   private generation = 0;
   private revoked = false;
   private unsubscribe?: () => void;
@@ -217,22 +218,14 @@ export class SyncEngine {
   }
   stop() {
     this.stopped = true;
+    clearTimeout(this.retryTimer);
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     this.channel?.close();
     window.removeEventListener("offline", this.offline);
   }
-  private wake = (cursor?: string) => {
+  private wake = () => {
     if (this.suspended) return;
-    // Engines that already read up to the announced cursor and have nothing
-    // to send skip the request; the change was their own or already read.
-    if (
-      cursor !== undefined &&
-      this.cache.cursor !== undefined &&
-      BigInt(this.cache.cursor) >= BigInt(cursor) &&
-      !this.queue.some((q) => !applicationRejected(q))
-    )
-      return;
     void this.sync();
   };
   private offline = () => {
@@ -539,6 +532,23 @@ export class SyncEngine {
     )?.error;
     this.status = this.error ? "failed" : "synced";
     this.emit();
+    this.scheduleRetry();
+  }
+  // Backed-off commands are retried when they are due, independent of
+  // realtime signals or the hub's recovery interval.
+  private scheduleRetry() {
+    clearTimeout(this.retryTimer);
+    const now = Date.now();
+    const due = this.queue
+      .filter(
+        (q) => !q.blocked && !applicationRejected(q) && q.nextAttempt > now,
+      )
+      .map((q) => q.nextAttempt);
+    if (!due.length || this.stopped) return;
+    this.retryTimer = setTimeout(
+      () => void this.sync(),
+      Math.min(...due) - now,
+    );
   }
 }
 export async function loadDirectory(organizationId?: string) {

@@ -256,9 +256,9 @@ no service worker for a completely offline cold application launch.
 ## Realtime
 
 PostgreSQL `NOTIFY` fires after commit and a process-wide `LISTEN` connection fans
-out organization invalidations over SSE. An invalidation carries at most the
-organization's new cursor, never document content; engines whose checkpoint has
-already reached it and that have nothing to send skip the delta request.
+out generic organization invalidations over SSE. It carries no document content.
+Directory changes (configuration, profiles) notify without advancing the cursor,
+so every invalidation triggers a delta read.
 The same SSE stream forwards **presence** events (`lictory_presence`): a viewing
 tab posts `/api/presence` heartbeats (membership-checked) and the client expires
 entries after 45 seconds. Presence is never stored and never affects correctness.
