@@ -1,8 +1,10 @@
 name: CI
 
-# PRs verify proposed changes; Nightly owns push verification on main and release/*.
+# Community pushes verify without cloud credentials. Cloud Nightly verifies its exact candidate.
 # Release callers verify the exact candidate source, with its embedded version.
 on:
+  push:
+    branches: [main, "release/*"]
   pull_request:
   workflow_call:
     inputs:

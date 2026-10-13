@@ -1,5 +1,25 @@
 # Public legal notices
 
+## Deployment ownership
+
+These existing cloud notices describe the official operator's service. The
+software license does not impose that service contract on self-hosted users.
+The default `LICTORY_LEGAL_TEMPLATE=self-hosted` shows an explicit draft without
+claiming the cloud operator's identity, EU vendor configurations or AI retention
+arrangement. There is no inferred default operator name. Provide name, address
+and contact email for every deployment.
+
+The official cloud must explicitly set `LICTORY_LEGAL_TEMPLATE=cloud` to preserve
+its existing notices. Other operators must replace the draft through their own
+reviewed `LegalSection` content and page introductions/version, describing actual
+vendors, purposes, retention, rights and terms. Configuration of contact details
+alone does not complete a self-hosted notice. Changing infrastructure or enabling
+AI/analytics requires reviewing the applicable notices before inviting users.
+These pages read operator settings at runtime rather than freezing identity into
+a production image. No compliance or provider contract is inferred from a flag.
+
+## Existing official cloud notices
+
 The public `/privacy` and `/terms-of-service` pages describe the deployed service,
 including optional Lictory Intelligence, organization review history and both delivery modes. The
 operator has confirmed Christian Carpinelli, an individual in Italy, as the

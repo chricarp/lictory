@@ -672,6 +672,13 @@ function Sidebar({
                 <ShieldCheck className="size-3.5 text-muted-foreground" />{" "}
                 Privacy preferences
               </PrivacyPreferencesButton>
+              <Link
+                href="/source"
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
+              >
+                <BookOpenCheck className="size-3.5 text-muted-foreground" />{" "}
+                Source code
+              </Link>
               <button
                 onClick={onSignOut}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"

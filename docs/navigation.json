@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "title": "Lictory documentation",
+  "sections": [
+    {
+      "id": "guides",
+      "title": "User guides",
+      "pages": [
+        {
+          "path": "guides/first-specification.md",
+          "title": "Your first specification"
+        }
+      ]
+    },
+    {
+      "id": "operations",
+      "title": "Hosting and operations",
+      "pages": [
+        {
+          "path": "operations/deployment.md",
+          "title": "Deployment and operations"
+        },
+        {
+          "path": "operations/development.md",
+          "title": "Development runbook"
+        },
+        {
+          "path": "operations/legal.md",
+          "title": "Public legal notices"
+        },
+        {
+          "path": "operations/migrations.md",
+          "title": "Database migrations"
+        },
+        {
+          "path": "operations/oauth-proxy.md",
+          "title": "OAuth in local development and previews"
+        },
+        {
+          "path": "operations/releases.md",
+          "title": "Versions and releases"
+        },
+        {
+          "path": "operations/self-hosting.md",
+          "title": "Community self-hosting"
+        },
+        {
+          "path": "operations/documentation.md",
+          "title": "Documentation authoring"
+        },
+        {
+          "path": "operations/open-source-release.md",
+          "title": "Open source publication"
+        }
+      ]
+    },
+    {
+      "id": "internals",
+      "title": "Architecture and product concepts",
+      "pages": [
+        {
+          "path": "internals/ai.md",
+          "title": "Lictory Intelligence"
+        },
+        {
+          "path": "internals/analytics.md",
+          "title": "Product analytics"
+        },
+        {
+          "path": "internals/brand.md",
+          "title": "Lictory identity"
+        },
+        {
+          "path": "internals/capabilities.md",
+          "title": "Capabilities, MCP and agents"
+        },
+        {
+          "path": "internals/database-model.md",
+          "title": "> The schema descriptions below document the original domain foundation. The implemented"
+        },
+        {
+          "path": "internals/delivery.md",
+          "title": "Delivery model"
+        },
+        {
+          "path": "internals/discoverability.md",
+          "title": "Search and AI discoverability"
+        },
+        {
+          "path": "internals/distribution.md",
+          "title": "Community and cloud distribution"
+        },
+        {
+          "path": "internals/file-storage.md",
+          "title": "Private file storage"
+        },
+        {
+          "path": "internals/illustrations.md",
+          "title": "State illustrations"
+        },
+        {
+          "path": "internals/notifications.md",
+          "title": "Notifications"
+        },
+        {
+          "path": "internals/onboarding.md",
+          "title": "Account and workspace onboarding"
+        },
+        {
+          "path": "internals/organization-model.md",
+          "title": "Organizations, projects and teams"
+        },
+        {
+          "path": "internals/profile-photos.md",
+          "title": "Profile photos"
+        },
+        {
+          "path": "internals/social-previews.md",
+          "title": "Social link previews"
+        },
+        {
+          "path": "internals/synchronization.md",
+          "title": "Workspace synchronization and review invariants"
+        }
+      ]
+    }
+  ]
+}

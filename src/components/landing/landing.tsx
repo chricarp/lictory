@@ -956,6 +956,9 @@ function Footer({ home }: { home: string }) {
           <Link href="/terms-of-service" className="hover:text-foreground">
             Terms of Service
           </Link>
+          <Link href="/source" className="hover:text-foreground">
+            Source code
+          </Link>
           <PrivacyPreferencesButton className="hover:text-foreground">
             Privacy preferences
           </PrivacyPreferencesButton>

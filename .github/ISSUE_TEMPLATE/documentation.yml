@@ -1,0 +1,22 @@
+name: Documentation
+description: Report missing, incorrect or confusing documentation.
+title: "[Docs]: "
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or guide
+      description: Link to the document or name the missing topic.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What were you trying to do?
+      description: Explain the missing or misleading information. Redact credentials and customer data.
+    validations:
+      required: true
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Suggested improvement

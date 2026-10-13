@@ -3,6 +3,14 @@
 Product principles, the glossary and engineering conventions live in
 [`AGENTS.md`](../AGENTS.md). Read it first; these documents build on it.
 
+## Using and hosting Lictory
+
+- [Your first specification](./guides/first-specification.md)
+- [Community self-hosting](./operations/self-hosting.md)
+- [Community and cloud distribution](./internals/distribution.md)
+- [Open source launch checklist](./operations/open-source-release.md)
+- [Documentation authoring and future website](./operations/documentation.md)
+
 ## Working on Lictory
 
 - [Development runbook](./operations/development.md): setup, daily commands,

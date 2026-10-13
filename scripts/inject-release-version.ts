@@ -1,4 +1,4 @@
-import { injectVersion } from "../src/release/build";
+import { injectVersion } from "../src/cloud/release/build";
 
 const [version, ...extra] = process.argv.slice(2);
 if (!version || extra.length)

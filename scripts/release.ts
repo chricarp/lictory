@@ -5,19 +5,23 @@ import {
   GitHub,
   deploymentPayloadSchema,
   runSchema,
-} from "../src/release/github";
+} from "../src/cloud/release/github";
 import {
   baselineSchema,
   fingerprint,
   manifestSchema,
   sameManifest,
   type Manifest,
-} from "../src/release/model";
-import { injectVersion } from "../src/release/build";
-import { assertRun, planNightly, planProduction } from "../src/release/plan";
-import { executeRelease } from "../src/release/pipeline";
-import { git } from "../src/release/repository";
-import { matchesDeployment, Vercel } from "../src/release/vercel";
+} from "../src/cloud/release/model";
+import { injectVersion } from "../src/cloud/release/build";
+import {
+  assertRun,
+  planNightly,
+  planProduction,
+} from "../src/cloud/release/plan";
+import { executeRelease } from "../src/cloud/release/pipeline";
+import { git } from "../src/cloud/release/repository";
+import { matchesDeployment, Vercel } from "../src/cloud/release/vercel";
 
 function required(name: string): string {
   const value = process.env[name];

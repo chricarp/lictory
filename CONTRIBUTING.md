@@ -7,12 +7,30 @@ agreed scope, visible evidence.
 Opening a pull request does not oblige maintainers to review or merge it. We may
 ask for a smaller scope, defer it, or solve the problem differently.
 
+## License and contributor sign-off
+
+Contributions to the core are under [AGPL-3.0-only](LICENSE). You retain your
+copyright. Certify that you may submit the contribution by signing off your
+commits under the [Developer Certificate of Origin](DCO):
+
+```sh
+git commit -s
+```
+
+Use your own name and email in the `Signed-off-by` trailer. Do not certify for
+someone else. Maintainers review sign-offs before merging; an agent must not
+invent the human author's sign-off. No CLA, copyright assignment or proprietary
+relicensing permission is implied. Preserve third-party notices and identify
+copied or generated material and its source.
+
 ## Before you start
 
 1. Read [`AGENTS.md`](AGENTS.md). Its product principles and glossary apply to
    code, UI copy and docs from every contributor, human or agent.
-2. Set up your machine with the [development runbook](docs/operations/development.md).
-3. Search existing issues before filing or starting work.
+2. Read [the community/cloud boundary](docs/internals/distribution.md). All current
+   features are open; community deployment is single-node without seat limits.
+3. Set up your machine with the [development runbook](docs/operations/development.md).
+4. Search existing issues before filing or starting work.
 
 ## Agree on the problem first
 
@@ -77,6 +95,11 @@ you observed. "Tests pass" alone is not evidence.
 
 If an agent did the work, name the model and harness at the end of the
 description. We judge the problem, scope and evidence, not who or what wrote it.
+
+Documentation uses Markdown, relative links and `docs/navigation.json`. See
+[documentation authoring](docs/operations/documentation.md); run `bun run docs:check`
+when editing guides. `bun run verify` runs the full local CI sequence and cleans
+up its disposable verification database, including on failure.
 
 ## Security
 

@@ -185,6 +185,7 @@ type Workflow = {
   jobs: Record<
     string,
     {
+      if?: string;
       needs?: string[];
       uses?: string;
       with?: Record<string, string>;
@@ -196,8 +197,10 @@ type Workflow = {
   >;
 };
 function workflow(name: string): Workflow {
-  const path = new URL(`../../.github/workflows/${name}.yml`, import.meta.url)
-    .pathname;
+  const path = new URL(
+    `../../../.github/workflows/${name}.yml`,
+    import.meta.url,
+  ).pathname;
   // Bun's built-in parser avoids a new YAML dependency in the application.
   return JSON.parse(
     execFileSync(
@@ -250,14 +253,17 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
   assert.ok(!Object.hasOwn(nightly.on, "pull_request"));
 });
 
-void test("pushes verify once through Nightly while PR and manual CI remain available", () => {
+void test("community pushes verify without cloud configuration while cloud candidates retain version checks", () => {
   const ci = workflow("ci");
   const nightly = workflow("nightly");
   assert.deepEqual(Object.keys(ci.on).sort(), [
     "pull_request",
+    "push",
     "workflow_call",
     "workflow_dispatch",
   ]);
+  assert.deepEqual(ci.on.push, { branches: ["main", "release/*"] });
+  assert.equal(nightly.jobs.plan!.if, "vars.LICTORY_CLOUD_ENABLED == 'true'");
   assert.deepEqual(nightly.on.push, { branches: ["main", "release/*"] });
   assert.equal(nightly.jobs.verify!.uses, "./.github/workflows/ci.yml");
   assert.equal(
@@ -303,7 +309,7 @@ void test("the complete CI verification sequence and package-sourced version dis
   ]);
   assert.deepEqual(jobs.verify!.needs, ["static", "unit", "e2e"]);
   const config = await readFile(
-    new URL("../../next.config.ts", import.meta.url),
+    new URL("../../../next.config.ts", import.meta.url),
     "utf8",
   );
   assert.match(config, /import \{ version \} from "\.\/package\.json"/);

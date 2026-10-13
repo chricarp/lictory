@@ -1,5 +1,10 @@
 # Versions and releases
 
+This is the official cloud release runbook. Set the repository variable
+`LICTORY_CLOUD_ENABLED=true` only after configuring its protected environments.
+Community deployments use [self-hosting](self-hosting.md); forks run CI without
+activating these release or deployment workflows.
+
 Lictory releases through two channels: **Nightly** and **Stable**. Maintainers
 merge reviewed PRs normally. GitHub Actions calculates versions, writes release
 notes, creates tags, and deploys nightlies. The release decision is selecting

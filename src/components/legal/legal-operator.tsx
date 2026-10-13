@@ -1,11 +1,12 @@
 // Server-rendered deployment facts. Never infer the controller from a brand,
 // repository author, hosting provider or authentication identity.
 export function LegalOperator() {
-  const name = process.env.LICTORY_LEGAL_NAME ?? "Christian Carpinelli";
+  const configuredName = process.env.LICTORY_LEGAL_NAME?.trim();
+  const name = configuredName?.length ? configuredName : "Not published";
   const address = process.env.LICTORY_LEGAL_ADDRESS;
   const email = process.env.LICTORY_LEGAL_EMAIL;
   const registration = process.env.LICTORY_LEGAL_REGISTRATION;
-  const complete = address && email;
+  const complete = name !== "Not published" && address && email;
 
   return (
     <section

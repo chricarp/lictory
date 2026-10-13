@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("legal notices are public, linked from the landing footer, and usable on mobile", async ({
+test("self-hosted legal drafts are public, linked from the footer, and usable on mobile", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 740 });
@@ -12,14 +12,14 @@ test("legal notices are public, linked from the landing footer, and usable on mo
     page.getByRole("heading", { name: "Privacy Notice", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Christian Carpinelli", { exact: true }),
+    page.getByText(/This is a self-hosted Lictory installation/),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Privacy Notice contents" })
-    .getByRole("link", { name: "Your rights and how to contact us" })
+    .getByRole("link", { name: "This deployment’s legal notices" })
     .click();
   await expect(
-    page.getByRole("heading", { name: /Your rights and how to contact us/ }),
+    page.getByRole("heading", { name: /This deployment’s legal notices/ }),
   ).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     320,
@@ -78,3 +78,21 @@ for (const path of ["/sign-up", "/sign-in"]) {
     ).toBeVisible();
   });
 }
+
+test("source offers are linked publicly and identify this deployment’s corresponding source", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("navigation", { name: "Footer", exact: true })
+    .getByRole("link", { name: "Source code" })
+    .click();
+  await expect(page).toHaveURL(/\/source$/);
+  await expect(
+    page.getByRole("heading", { name: "Source code", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Get this deployment’s source code" }),
+  ).toHaveAttribute("href", "https://example.org/lictory/test-source.tar.gz");
+  await expect(page.getByText(/AGPL-3.0-only/)).toBeVisible();
+});

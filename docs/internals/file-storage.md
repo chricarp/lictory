@@ -1,13 +1,15 @@
 # Private file storage
 
-The database holds file metadata only. Object bytes live in a private R2 bucket.
+The database holds file metadata only. Object bytes live in a private R2 or configured S3 bucket.
 The S3-compatible `ObjectStorage` boundary in `src/storage` signs PUT and GET
-requests, checks object metadata, and can delete objects. R2 endpoint and
-credentials are confined to its configuration function; another S3 provider
-can replace them without changing file routes or editors.
+requests, checks object metadata, and can delete objects. Provider endpoint and credentials are confined to the configuration boundary.
+`LICTORY_STORAGE_PROVIDER` selects legacy-compatible `r2` (the default) or `s3`;
+S3 uses a configured region/bucket, an optional custom HTTPS endpoint and either
+explicit credentials or the standard AWS credential chain. See
+[self-hosting](../operations/self-hosting.md#optional-private-storage).
 
 Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and
-`R2_BUCKET_NAME` in Vercel's server environment. Use a bucket-scoped R2 token
+`R2_BUCKET_NAME` in the deployment's server environment. Use a bucket-scoped R2 token
 with object read/write permission. If using a jurisdiction-specific R2 S3
 endpoint, set `R2_S3_ENDPOINT` to the account-level S3 host (without the
 bucket path). Keep the bucket private. A public/custom domain
@@ -20,7 +22,7 @@ previews use separate buckets and their own origins:
 ```json
 [
   {
-    "AllowedOrigins": ["https://lictory.com", "https://www.lictory.com"],
+    "AllowedOrigins": ["https://lictory.example.org"],
     "AllowedMethods": ["PUT"],
     "AllowedHeaders": ["Content-Type", "Content-Length", "If-None-Match"],
     "MaxAgeSeconds": 300

@@ -1,0 +1,19 @@
+Lictory
+
+Lictory's original source code and documentation are licensed under the GNU
+Affero General Public License, version 3 only (SPDX: AGPL-3.0-only), unless a
+file carries an explicit third-party notice. See LICENSE for the full terms.
+There are no current commercial feature exceptions.
+
+Contributors retain copyright in their contributions. Permanent publisher and
+copyright attribution must be confirmed before the initial public release.
+No copyright assignment or permission for proprietary relicensing is implied
+by a contribution sign-off.
+
+Third-party dependencies, copied material and bundled assets retain their own
+applicable licenses. Preserve their notices when distributing Lictory. The
+vendored .agents/skills resources and dependency patches require provenance
+review before public release; this notice does not relicense others' work.
+
+The Lictory name and marks identify the project. The software license does not
+grant trademark rights or authorize implying official hosting or endorsement.

@@ -17,3 +17,8 @@ skills-lock.json
 .next-e2e
 test-results
 playwright-report
+
+# Verbatim legal texts and generated documentation exports
+LICENSE
+DCO
+.docs-build

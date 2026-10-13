@@ -28,6 +28,7 @@ concurrency:
 
 jobs:
   plan:
+    if: vars.LICTORY_CLOUD_ENABLED == 'true'
     name: Resolve migration source
     runs-on: ubuntu-24.04
     timeout-minutes: 15

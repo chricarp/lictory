@@ -138,7 +138,9 @@ for (const {
         .toContain(authorizationPath);
       const url = authorize()!;
       expect(url.searchParams.get("client_id")).toBe(
-        `e2e-${provider}-client-id`,
+        process.env[
+          provider === "microsoft" ? "MICROSOFT_CLIENT_ID" : "GOOGLE_CLIENT_ID"
+        ],
       );
       expect(url.searchParams.get("redirect_uri")).toBe(
         `http://localhost:3001/api/auth/callback/${provider}`,
@@ -329,7 +331,9 @@ for (const {
   });
 }
 
-test("Microsoft publisher association is public JSON", async ({ request }) => {
+test("Microsoft publisher association publishes the deployment’s own client ID", async ({
+  request,
+}) => {
   const response = await request.get(
     "/.well-known/microsoft-identity-association.json",
   );
@@ -337,7 +341,7 @@ test("Microsoft publisher association is public JSON", async ({ request }) => {
   expect(response.headers()["content-type"]).toContain("application/json");
   expect(await response.json()).toEqual({
     associatedApplications: [
-      { applicationId: "674718cd-ca91-451c-84eb-02aa492d2b10" },
+      { applicationId: "00000000-0000-4000-8000-000000000042" },
     ],
   });
 });

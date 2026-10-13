@@ -40,7 +40,7 @@ services:
       OAUTH_PROXY_TRUSTED_ORIGINS: ${OAUTH_PROXY_TRUSTED_ORIGINS:-}
       DATABASE_URL: postgresql://lictory:lictory@postgres:5432/lictory
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Lictory <no-reply@email.lictory.com>}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_FROM: Lictory <no-reply@lictory.local>
@@ -49,6 +49,9 @@ services:
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
       MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-common}
+    env_file:
+      - path: .env
+        required: false
     command:
       [
         "sh",

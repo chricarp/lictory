@@ -80,6 +80,7 @@ export function LegalDocument({
           className="mx-auto flex max-w-5xl flex-wrap gap-x-6 gap-y-4 text-sm text-muted-foreground [&_a]:rounded [&_a]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-ring [&_a:hover]:text-foreground"
         >
           <Link href="/">Home</Link>
+          <Link href="/source">Source code</Link>
           <Link href="/privacy">Privacy Notice</Link>
           <Link href="/terms-of-service">Terms of Service</Link>
           <PrivacyPreferencesButton className="rounded outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">

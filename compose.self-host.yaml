@@ -1,0 +1,65 @@
+# Community distribution: one machine, one application instance, no HA.
+name: lictory-community
+
+x-runtime: &runtime
+  image: lictory-community:${LICTORY_IMAGE_TAG:-local}
+  build:
+    context: .
+    target: production
+    args:
+      LICTORY_PUBLIC_ORIGIN: ${BETTER_AUTH_URL:?Set the canonical HTTPS origin in .env}
+  env_file: ${LICTORY_ENV_FILE:-.env}
+  environment:
+    DATABASE_URL: postgresql://lictory:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/lictory
+    DATABASE_URL_UNPOOLED: postgresql://lictory:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/lictory
+    NEXT_TELEMETRY_DISABLED: "1"
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: lictory
+      POSTGRES_USER: lictory
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lictory -d lictory"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  migrate:
+    <<: *runtime
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://lictory:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/lictory
+      DATABASE_URL_UNPOOLED: postgresql://lictory:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/lictory
+      # The private Compose database is local to this machine; never use a cloud URL here.
+      DATABASE_MIGRATION_TARGET: local
+      DATABASE_MIGRATION_URL: ""
+    command: ["bun", "run", "db:migrate"]
+    profiles: [maintenance]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    <<: *runtime
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    <<: *runtime
+    command: ["bun", "scripts/iteration-worker.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

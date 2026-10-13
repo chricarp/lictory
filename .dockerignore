@@ -6,3 +6,9 @@ node_modules
 !.env.example
 coverage
 *.log
+
+.docs-build
+
+.next-e2e
+playwright-report
+test-results

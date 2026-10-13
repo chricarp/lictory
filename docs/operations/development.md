@@ -55,6 +55,11 @@ land in `/tmp/lictory-playwright-results`.
 
 ## Full verification before a pull request
 
+`bun run verify` starts the local services and runs all eight commands below
+against a new disposable database, dropping it on exit even on failure. It clears
+optional integration credentials in its subprocess environment. The script
+does not stop your services or change your application database.
+
 The jobs in [the CI workflow](../../.github/workflows/ci.yml) are the source of
 truth; `AGENTS.md` lists the current sequence. CI runs static checks, domain
 tests and sharded browser workflows in parallel; locally, run them in order

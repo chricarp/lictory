@@ -33,13 +33,19 @@ try {
         OAUTH_PROXY_URL: "",
         OAUTH_PROXY_SECRET: "",
         OAUTH_PROXY_TRUSTED_ORIGINS: "",
+        // Deployment notices/source must not inherit the developer's cloud identity.
+        LICTORY_LEGAL_TEMPLATE: "self-hosted",
+        LICTORY_LEGAL_NAME: "Test installation operator",
+        LICTORY_LEGAL_ADDRESS: "",
+        LICTORY_LEGAL_EMAIL: "",
+        LICTORY_SOURCE_URL: "https://example.org/lictory/test-source.tar.gz",
         NEXT_DIST_DIR: ".next-e2e",
         RESEND_API_KEY: "",
         // Placeholder credentials enable social flows up to the provider
         // redirect; tests intercept Google and Microsoft authorization pages.
         GOOGLE_CLIENT_ID: "e2e-google-client-id",
         GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
-        MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",
+        MICROSOFT_CLIENT_ID: "00000000-0000-4000-8000-000000000042",
         MICROSOFT_CLIENT_SECRET: "e2e-microsoft-client-secret",
         MICROSOFT_TENANT_ID: "common",
       },

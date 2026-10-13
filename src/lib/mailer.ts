@@ -17,14 +17,13 @@ export type OutgoingEmail = {
 
 const resendApiKey = process.env.RESEND_API_KEY?.trim();
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const resendFromEmail =
-  process.env.RESEND_FROM_EMAIL?.trim() ??
-  "Lictory <no-reply@email.lictory.com>";
+const resendFromEmail = process.env.RESEND_FROM_EMAIL?.trim();
 
 const smtpTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST ?? "localhost",
   port: Number(process.env.SMTP_PORT ?? 1025),
-  secure: false,
+  secure: process.env.SMTP_SECURE === "true",
+  requireTLS: process.env.SMTP_REQUIRE_TLS === "true",
   auth:
     process.env.SMTP_USER && process.env.SMTP_PASSWORD
       ? {
@@ -36,6 +35,10 @@ const smtpTransporter = nodemailer.createTransport({
 
 export async function sendEmail(email: OutgoingEmail) {
   if (resend) {
+    if (!resendFromEmail)
+      throw new Error(
+        "RESEND_FROM_EMAIL must identify your verified sending domain.",
+      );
     const { error } = await resend.emails.send(
       {
         from: resendFromEmail,

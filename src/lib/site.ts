@@ -24,6 +24,13 @@ export const siteSummary =
 /** Public, indexable pages. Signed-in and authentication pages are excluded. */
 export const publicPages = [
   {
+    path: "/source",
+    title: "Source code",
+    description: "Get the corresponding source for this Lictory deployment.",
+    changeFrequency: "monthly",
+    priority: 0.3,
+  },
+  {
     path: "/",
     title: siteTitle,
     description: siteDescription,

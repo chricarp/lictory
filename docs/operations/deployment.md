@@ -1,6 +1,13 @@
 # Deployment and operations
 
-The minimum hosted stack is Vercel, managed PostgreSQL, Resend and private
+This runbook covers the **official cloud**. Community operators start with
+[single-node self-hosting](self-hosting.md); all current features are in the same
+core. Official cloud automation requires the repository variable
+`LICTORY_CLOUD_ENABLED=true`. Forks leave it unset; ordinary CI still runs.
+Set `LICTORY_LEGAL_TEMPLATE=cloud`, the full operator contact details and an exact
+`LICTORY_SOURCE_URL` before serving the official cloud to users.
+
+The current official cloud stack is Vercel, managed PostgreSQL, Resend and private
 Cloudflare R2. OAuth is optional; verified email/password authentication works
 without Google or Microsoft credentials. No AI provider is required.
 
@@ -32,8 +39,7 @@ server when keeping separate production and development OAuth clients.
 The realtime hub uses PostgreSQL LISTEN/NOTIFY and needs a direct connection.
 Configure `DATABASE_URL` for pooled application queries and
 `DATABASE_URL_UNPOOLED` for the direct TLS listener. Neon's Vercel
-integration supplies both. Without the unpooled variable, the listener and
-listener falls back to `DATABASE_URL`, which must then be direct. Migrations use
+integration supplies both. Without the unpooled variable, the listener falls back to `DATABASE_URL`, which must then be direct. Migrations use
 the separate `DATABASE_MIGRATION_URL`, which is never configured in Vercel. SSE streams
 must stay below the host's function duration limit and reconnect; synchronization
 recovery is authoritative even when presence/realtime is temporarily unavailable.
@@ -62,7 +68,7 @@ See [Better Auth's Microsoft setup](https://better-auth.com/docs/authentication/
 
 The public publisher-domain association is served without authentication at
 `https://lictory.com/.well-known/microsoft-identity-association.json`. It contains
-only the application ID and ships with the application; deploy it before
+only the configured valid `MICROSOFT_CLIENT_ID`, and returns 404 without one; deploy it before
 verifying `lictory.com` as the publisher domain in Entra.
 
 ## Verification and updates
@@ -84,7 +90,8 @@ Keep Actions spending capped at zero and monitor included minutes. Hosted Linux
 CI and the hourly job consume the private repository's included allowance.
 Branch protection for a private personal repository may require GitHub Pro.
 Once available, require `Verify` and `Conventional PR title`, prohibit force pushes and require PR review
-when another maintainer joins. Keep the repository private.
+when another maintainer joins. Repository publication follows the [open source checklist](open-source-release.md);
+production credentials and customer data remain private.
 
 Production deploys only through the manually dispatched **Release to Production**.
 It selects a verified Nightly source, validates its provenance and semantic

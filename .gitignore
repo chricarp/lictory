@@ -32,3 +32,6 @@ Thumbs.db
 /.next-e2e/
 /test-results/
 /playwright-report/
+
+# Generated documentation website content
+/.docs-build/

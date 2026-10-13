@@ -1,6 +1,7 @@
+# Owner handles are provisional; update on public repository transfer.
 # Enable required code-owner review in branch protections for release changes.
 /.github/workflows/ @chricarp
-/src/release/ @chricarp
+/src/cloud/release/ @chricarp
 /scripts/release.ts @chricarp
 /scripts/inject-release-version.ts @chricarp
 /scripts/migrate.ts @chricarp
@@ -8,3 +9,9 @@
 /src/lib/auth-base-url.ts @chricarp
 /src/lib/auth.ts @chricarp
 /src/app/api/invitations/route.ts @chricarp
+
+/LICENSE @chricarp
+/NOTICE @chricarp
+/src/cloud/ @chricarp
+/src/storage/configuration.ts @chricarp
+/compose.self-host.yaml @chricarp
