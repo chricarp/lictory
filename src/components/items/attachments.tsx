@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Paperclip, Trash2, Upload } from "lucide-react";
 import {
   ACCEPT_FILES,
@@ -11,6 +11,9 @@ import {
   type FileEntry,
 } from "./file-upload";
 
+// Last known list per item: a revisit renders it at once and refreshes after.
+const known = new Map<string, FileEntry[]>();
+
 export function Attachments({
   context,
   userId,
@@ -18,7 +21,17 @@ export function Attachments({
   context: FileContext;
   userId: string;
 }) {
-  const [files, setFiles] = useState<FileEntry[]>([]);
+  const key = `${context.organizationId}:${context.workItemId}`;
+  const [files, setState] = useState<FileEntry[]>(() => known.get(key) ?? []);
+  const setFiles = useCallback(
+    (update: FileEntry[] | ((current: FileEntry[]) => FileEntry[])) =>
+      setState((current) => {
+        const next = typeof update === "function" ? update(current) : update;
+        known.set(key, next);
+        return next;
+      }),
+    [key],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);

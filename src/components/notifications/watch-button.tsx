@@ -1,8 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { notificationRequest } from "./client";
+
+// Last known explicit choice per item, so revisiting an item shows its button
+// immediately while the request below revalidates it.
+const known = new Map<string, boolean | null>();
 
 // Involvement (author, assignee, reviewer, participant) subscribes a person
 // implicitly; this lets them opt in without involvement or opt out despite it.
@@ -16,7 +20,17 @@ export function WatchButton({
   workItemId: string;
   involved: boolean;
 }) {
-  const [explicit, setExplicit] = useState<boolean | null | undefined>();
+  const key = `${organizationId}:${workItemId}`;
+  const [explicit, setState] = useState<boolean | null | undefined>(() =>
+    known.get(key),
+  );
+  const setExplicit = useCallback(
+    (value: boolean | null | undefined) => {
+      if (value !== undefined) known.set(key, value);
+      setState(value);
+    },
+    [key],
+  );
   useEffect(() => {
     let cancelled = false;
     void notificationRequest<{ watching: boolean | null }>({
@@ -31,7 +45,7 @@ export function WatchButton({
     return () => {
       cancelled = true;
     };
-  }, [organizationId, workItemId]);
+  }, [organizationId, workItemId, setExplicit]);
   if (explicit === undefined) return null;
   const watching = explicit ?? involved;
   const toggle = async () => {
