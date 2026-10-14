@@ -74,6 +74,7 @@ type WorkspaceContextValue = {
   memberName: (id: string | null | undefined) => string;
   disciplineName: (id: string | null | undefined) => string;
   acquireItem: (itemId: string, projectId: string) => SyncEngine;
+  peekItem: (itemId: string) => SyncEngine | undefined;
   releaseItem: (itemId: string) => void;
   refreshWorkspace: () => Promise<void>;
 };
@@ -222,9 +223,26 @@ export function WorkspaceProvider({
       entry.refs++;
       entry.used = Date.now();
       entry.engine.resume();
+      // Evicting after acquisition, not on release, guarantees the item being
+      // opened is never the one dropped.
+      const idle = [...cache.entries()]
+        .filter(([, e]) => e.refs === 0)
+        .sort((a, b) => a[1].used - b[1].used);
+      while (cache.size > ITEM_ENGINE_LIMIT && idle.length) {
+        const [id, victim] = idle.shift()!;
+        victim.unsubscribe();
+        victim.engine.stop();
+        cache.delete(id);
+      }
       return entry.engine;
     },
     [organization.id, userId, notifyRejection],
+  );
+  // Render-time read of a cached engine, so a revisited item paints from its
+  // local history on the first frame instead of after an effect.
+  const peekItem = useCallback(
+    (itemId: string) => itemEngines.current.get(itemId)?.engine,
+    [],
   );
   const refreshWorkspace = useCallback(async () => {
     await engine.reset();
@@ -237,15 +255,6 @@ export function WorkspaceProvider({
     if (!entry) return;
     entry.refs = Math.max(0, entry.refs - 1);
     if (entry.refs === 0) entry.engine.suspend();
-    const idle = [...cache.entries()]
-      .filter(([, e]) => e.refs === 0)
-      .sort((a, b) => a[1].used - b[1].used);
-    while (cache.size > ITEM_ENGINE_LIMIT && idle.length) {
-      const [id, victim] = idle.shift()!;
-      victim.unsubscribe();
-      victim.engine.stop();
-      cache.delete(id);
-    }
   }, []);
   const directory = view.directory.organizations.length
     ? view.directory
@@ -321,6 +330,7 @@ export function WorkspaceProvider({
       ...roles,
       mutate,
       acquireItem,
+      peekItem,
       releaseItem,
       refreshWorkspace,
     };
@@ -334,6 +344,7 @@ export function WorkspaceProvider({
     organization,
     engine,
     acquireItem,
+    peekItem,
     releaseItem,
     refreshWorkspace,
     mutate,
@@ -361,20 +372,36 @@ export function useItemEngine(
   projectId: string,
   enabled = true,
 ) {
-  const { acquireItem, releaseItem, mutate: mutateWorkspace } = useWorkspace();
-  const [engine, setEngine] = useState<SyncEngine>();
+  const {
+    acquireItem,
+    peekItem,
+    releaseItem,
+    mutate: mutateWorkspace,
+  } = useWorkspace();
+  const [acquired, setAcquired] = useState<{
+    itemId: string;
+    engine: SyncEngine;
+  }>();
   useEffect(() => {
     if (!enabled) return;
     const e = acquireItem(itemId, projectId);
     // Synchronizes with an external engine cache; the engine only exists
     // after acquisition, so it cannot be derived during render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEngine(e);
+    setAcquired({ itemId, engine: e });
     return () => {
-      setEngine(undefined);
+      setAcquired(undefined);
       releaseItem(itemId);
     };
   }, [itemId, projectId, enabled, acquireItem, releaseItem]);
+  // A revisit finds its engine already cached: render from it immediately and
+  // let the acquisition above resume it in the background, rather than paint
+  // one frame of fallback data and then swap everything.
+  const engine = !enabled
+    ? undefined
+    : acquired?.itemId === itemId
+      ? acquired.engine
+      : peekItem(itemId);
   const subscribe = useCallback(
     (listener: () => void) =>
       engine

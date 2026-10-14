@@ -20,6 +20,7 @@ const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
 const multiOrgEmail = "multi-org@example.test";
 const loadingEmail = "loading@example.test";
+const revisitEmail = "revisit@example.test";
 const password = "Local-test-password-123";
 // Give independent browser scenarios distinct client addresses. Production auth
 // throttles rapid sign-ins by IP; unrelated tests must not share that budget.
@@ -37,6 +38,7 @@ test.beforeAll(async () => {
     ["Riley Chen", reviewerEmail, "riley_chen"],
     ["Taylor Rivera", multiOrgEmail, null],
     ["Jordan Lee", loadingEmail, "jordan_lee"],
+    ["Casey Park", revisitEmail, "casey_park"],
   ] as const) {
     const id = crypto.randomUUID();
     // A worker restarted after a failure re-runs this hook on the same database.
@@ -306,6 +308,80 @@ test("prefetched navigation commits immediately and shows a loading state while 
     page.getByRole("heading", { name: "Loading project", exact: true }),
   ).toBeVisible();
   await expect(board).toHaveAttribute("aria-current", "page");
+});
+
+test("revisiting a work item paints its local history on the first frame", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, revisitEmail);
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await createWorkspace(page, {
+    organization: "Revisits",
+    project: "Revisit project",
+    key: "RVT",
+  });
+  const rail = page.getByRole("navigation", { name: "Workspace" });
+  const watch = page.getByRole("button", { name: /^Watch(ing)?$/ });
+  for (const title of ["First epic", "Second epic"]) {
+    await rail.getByRole("link", { name: "Epics", exact: true }).click();
+    await expect(page).toHaveURL(/\/rvt\/epics$/);
+    await page.getByRole("button", { name: "New epic", exact: true }).click();
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
+    await page.getByRole("button", { name: "Create & open" }).click();
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await expect(page.getByText(/^Revision 1 ·/).first()).toBeVisible();
+    await expect(watch).toBeVisible();
+  }
+  // Record every painted frame of the revisit in which the first epic's
+  // heading is shown without the rest of its page.
+  await page.evaluate(() => {
+    const gaps: string[] = [];
+    let frames = 0;
+    (window as unknown as { revisit: unknown }).revisit = {
+      gaps,
+      frames: () => frames,
+    };
+    const sample = () => {
+      frames++;
+      const main = document.querySelector("main");
+      const shown = [...(main?.querySelectorAll("h1") ?? [])].some(
+        (h) => h.textContent?.trim() === "First epic",
+      );
+      if (shown) {
+        const text = main!.textContent ?? "";
+        const watching = [...main!.querySelectorAll("button")].some((b) =>
+          /^Watch(ing)?$/.test(b.textContent?.trim() ?? ""),
+        );
+        if (!text.includes("Revision 1 ·"))
+          gaps.push(`frame ${frames}: revision`);
+        if (!watching) gaps.push(`frame ${frames}: watch`);
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  // A slower device makes every intermediate render observable.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  await page.getByRole("link", { name: /First epic/ }).click();
+  await expect(page).toHaveURL(/\/epics\/RVT-1$/);
+  await expect(page.getByRole("heading", { name: "First epic" })).toBeVisible();
+  const frames = () =>
+    page.evaluate(() =>
+      (
+        window as unknown as { revisit: { frames: () => number } }
+      ).revisit.frames(),
+    );
+  const settled = (await frames()) + 30;
+  await expect.poll(frames).toBeGreaterThan(settled);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { revisit: { gaps: string[] } }).revisit.gaps,
+    ),
+  ).toEqual([]);
 });
 
 test("work item panels collapse independently and persist across routes and reloads", async ({

@@ -113,14 +113,16 @@ export function ItemDetail({
   const router = useRouter();
   const pathname = usePathname();
   const itemEngine = useItemEngine(item.id, item.projectId, !pendingCreate);
-  // While creation is still queued the organization store already holds the
-  // optimistic item and its first revision; the item engine opens afterwards.
+  // The organization store holds the optimistic item while creation is queued,
+  // and keeps the page populated while a newly opened item engine loads, so
+  // the page never drops to an empty frame between the two.
+  const local = !!itemEngine.view.entities[`workItem:${item.id}`];
   const organizationEntities = workspace.view.entities;
   const pendingEntities = useMemo(
-    () => (itemEngine.engine ? [] : Object.values(organizationEntities)),
-    [itemEngine.engine, organizationEntities],
+    () => (local ? [] : Object.values(organizationEntities)),
+    [local, organizationEntities],
   );
-  const entities = itemEngine.engine ? itemEngine.entities : pendingEntities;
+  const entities = local ? itemEngine.entities : pendingEntities;
   const type = typeOf(workspace.delivery, item);
   const native = project.deliveryMode === "native";
   const { capabilitiesIn, engine: workspaceEngine } = workspace;
@@ -140,7 +142,7 @@ export function ItemDetail({
     type,
     project,
     entities,
-    view: itemEngine.engine ? itemEngine.view : workspace.view,
+    view: local ? itemEngine.view : workspace.view,
     userId: workspace.userId,
     disciplineIds: workspace.disciplineIds,
     memberName: workspace.memberName,
