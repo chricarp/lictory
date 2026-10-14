@@ -8,6 +8,7 @@ import {
   ilike,
   inArray,
   isNull,
+  lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -103,7 +104,7 @@ function serializeSuggestion(row: SuggestionRow): Entity {
   });
 }
 export async function authorize(
-  tx: Tx,
+  tx: Database | Tx,
   userId: string,
   organizationId: string,
 ) {
@@ -143,36 +144,39 @@ export async function directory(
   userId: string,
   organizationId?: string,
 ) {
-  const joined = await db
-    .select({
-      id: s.organization.id,
-      name: s.organization.name,
-      slug: s.organization.slug,
-      role: s.member.role,
-    })
-    .from(s.organization)
-    .innerJoin(
-      s.member,
-      and(
-        eq(s.member.organizationId, s.organization.id),
-        eq(s.member.userId, userId),
+  const [joined, logos] = await Promise.all([
+    db
+      .select({
+        id: s.organization.id,
+        name: s.organization.name,
+        slug: s.organization.slug,
+        role: s.member.role,
+      })
+      .from(s.organization)
+      .innerJoin(
+        s.member,
+        and(
+          eq(s.member.organizationId, s.organization.id),
+          eq(s.member.userId, userId),
+        ),
       ),
-    );
-  const logos = joined.length
-    ? await db
-        .select({
-          organizationId: s.organizationLogo.organizationId,
-          kind: s.organizationLogo.kind,
-          sha256: s.organizationLogo.sha256,
-        })
-        .from(s.organizationLogo)
-        .where(
-          inArray(
-            s.organizationLogo.organizationId,
-            joined.map((o) => o.id),
-          ),
-        )
-    : [];
+    db
+      .select({
+        organizationId: s.organizationLogo.organizationId,
+        kind: s.organizationLogo.kind,
+        sha256: s.organizationLogo.sha256,
+      })
+      .from(s.organizationLogo)
+      .where(
+        inArray(
+          s.organizationLogo.organizationId,
+          db
+            .select({ id: s.member.organizationId })
+            .from(s.member)
+            .where(eq(s.member.userId, userId)),
+        ),
+      ),
+  ]);
   const organizations = joined.map((o) => {
     const url = (kind: LogoKind) => {
       const logo = logos.find(
@@ -202,15 +206,24 @@ export async function directory(
     "Organization access has been removed.",
     "forbidden",
   );
-  const projects = (
-    await db
+  // Independent reads are issued together; inside a transaction postgres.js
+  // pipelines them on one connection, so the directory costs one round trip.
+  const [
+    projectRows,
+    memberRows,
+    projectMemberRows,
+    disciplineMembers,
+    disciplineRows,
+    configurationRows,
+    delivery,
+    ai,
+  ] = await Promise.all([
+    db
       .select()
       .from(s.project)
       .where(eq(s.project.organizationId, organizationId))
-      .orderBy(asc(s.project.createdAt))
-  ).map((row) => serialize("project", row)) as Directory["projects"];
-  const members = (
-    await db
+      .orderBy(asc(s.project.createdAt)),
+    db
       .select({
         id: s.user.id,
         name: s.user.name,
@@ -223,39 +236,44 @@ export async function directory(
       .from(s.member)
       .innerJoin(s.user, eq(s.member.userId, s.user.id))
       .where(eq(s.member.organizationId, organizationId))
-      .orderBy(asc(s.user.name), asc(s.user.email))
-  ).map(({ rawRole, ...m }) => ({
+      .orderBy(asc(s.user.name), asc(s.user.email)),
+    db
+      .select()
+      .from(s.projectMember)
+      .where(eq(s.projectMember.organizationId, organizationId))
+      .orderBy(asc(s.projectMember.createdAt)),
+    db
+      .select()
+      .from(s.disciplineMember)
+      .where(eq(s.disciplineMember.organizationId, organizationId)),
+    db
+      .select()
+      .from(s.discipline)
+      .where(eq(s.discipline.organizationId, organizationId))
+      .orderBy(asc(s.discipline.createdAt)),
+    deliveryDirectoryRows(db, organizationId),
+    deliveryConfiguration(db, organizationId),
+    aiPolicy(db, organizationId),
+  ]);
+  const projects = projectRows.map((row) =>
+    serialize("project", row),
+  ) as Directory["projects"];
+  const members = memberRows.map(({ rawRole, ...m }) => ({
     ...m,
     role: applicationRoleOf(rawRole),
     owner: rawRole.split(",").includes("owner"),
   }));
   const memberIds = new Set(members.map((m) => m.id));
   // Project and discipline memberships never outlive organization membership.
-  const projectMembers = (
-    await db
-      .select()
-      .from(s.projectMember)
-      .where(eq(s.projectMember.organizationId, organizationId))
-      .orderBy(asc(s.projectMember.createdAt))
-  )
+  const projectMembers = projectMemberRows
     .filter((m) => memberIds.has(m.userId))
     .map((m) => ({ projectId: m.projectId, userId: m.userId, role: m.role }));
-  const disciplineMembers = await db
-    .select()
-    .from(s.disciplineMember)
-    .where(eq(s.disciplineMember.organizationId, organizationId));
   const projectMemberKeys = new Set(
     projectMembers.map((m) => `${m.projectId}:${m.userId}`),
   );
   // Archived disciplines stay in the directory so historical reviews keep
   // their name and an administrator can restore them; they grant nothing.
-  const disciplines: Discipline[] = (
-    await db
-      .select()
-      .from(s.discipline)
-      .where(eq(s.discipline.organizationId, organizationId))
-      .orderBy(asc(s.discipline.createdAt))
-  ).map((d) => ({
+  const disciplines: Discipline[] = disciplineRows.map((d) => ({
     id: d.id,
     projectId: d.projectId,
     name: d.name,
@@ -277,8 +295,7 @@ export async function directory(
       .sort(),
     archivedAt: d.archivedAt?.toISOString() ?? null,
   }));
-  const configuration = await deliveryDirectory(db, organizationId, memberIds);
-  const delivery = await deliveryConfiguration(db, organizationId);
+  const configuration = deliveryDirectory(configurationRows, memberIds);
   return {
     organizations,
     projects,
@@ -287,7 +304,7 @@ export async function directory(
     disciplines,
     ...configuration,
     delivery,
-    ai: await aiPolicy(db, organizationId),
+    ai,
   };
 }
 
@@ -296,27 +313,26 @@ async function deliveryConfiguration(
   db: Database | Tx,
   organizationId: string,
 ): Promise<Directory["delivery"]> {
-  const connections = await db
-    .select({
-      id: s.deliveryConnection.id,
-      provider: s.deliveryConnection.provider,
-      name: s.deliveryConnection.name,
-      baseUrl: s.deliveryConnection.baseUrl,
-      accountLabel: s.deliveryConnection.accountLabel,
-      status: s.deliveryConnection.status,
-      lastError: s.deliveryConnection.lastError,
-    })
-    .from(s.deliveryConnection)
-    .where(
-      and(
-        eq(s.deliveryConnection.organizationId, organizationId),
-        isNull(s.deliveryConnection.archivedAt),
-      ),
-    )
-    .orderBy(asc(s.deliveryConnection.createdAt));
-  const active = new Set(connections.map((c) => c.id));
-  const targets = (
-    await db
+  const [connections, targetRows] = await Promise.all([
+    db
+      .select({
+        id: s.deliveryConnection.id,
+        provider: s.deliveryConnection.provider,
+        name: s.deliveryConnection.name,
+        baseUrl: s.deliveryConnection.baseUrl,
+        accountLabel: s.deliveryConnection.accountLabel,
+        status: s.deliveryConnection.status,
+        lastError: s.deliveryConnection.lastError,
+      })
+      .from(s.deliveryConnection)
+      .where(
+        and(
+          eq(s.deliveryConnection.organizationId, organizationId),
+          isNull(s.deliveryConnection.archivedAt),
+        ),
+      )
+      .orderBy(asc(s.deliveryConnection.createdAt)),
+    db
       .select({
         id: s.deliveryTarget.id,
         connectionId: s.deliveryTarget.connectionId,
@@ -327,63 +343,94 @@ async function deliveryConfiguration(
       })
       .from(s.deliveryTarget)
       .where(eq(s.deliveryTarget.organizationId, organizationId))
-      .orderBy(asc(s.deliveryTarget.createdAt))
-  ).filter((t) => active.has(t.connectionId));
+      .orderBy(asc(s.deliveryTarget.createdAt)),
+  ]);
+  const active = new Set(connections.map((c) => c.id));
+  const targets = targetRows.filter((t) => active.has(t.connectionId));
   return { connections, targets };
 }
 
 // Delivery configuration is small and read on every sync, like disciplines,
 // so its commands need no entity changes: the refreshed directory carries them.
-async function deliveryDirectory(
+async function deliveryDirectoryRows(
   db: Database | Tx,
   organizationId: string,
+) {
+  const [
+    teamRows,
+    teamMembers,
+    projectTypes,
+    statuses,
+    typeRows,
+    iterationRows,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(s.team)
+      .where(eq(s.team.organizationId, organizationId))
+      .orderBy(asc(s.team.createdAt), asc(s.team.name)),
+    db
+      .select()
+      .from(s.teamMember)
+      .where(eq(s.teamMember.organizationId, organizationId)),
+    db
+      .select({
+        projectId: s.projectWorkItemType.projectId,
+        typeId: s.projectWorkItemType.typeId,
+      })
+      .from(s.projectWorkItemType)
+      .where(eq(s.projectWorkItemType.organizationId, organizationId))
+      .orderBy(
+        asc(s.projectWorkItemType.projectId),
+        asc(s.projectWorkItemType.typeId),
+      ),
+    db
+      .select()
+      .from(s.workflowStatus)
+      .where(eq(s.workflowStatus.organizationId, organizationId))
+      .orderBy(asc(s.workflowStatus.position), asc(s.workflowStatus.createdAt)),
+    db
+      .select()
+      .from(s.workItemType)
+      .where(eq(s.workItemType.organizationId, organizationId))
+      .orderBy(asc(s.workItemType.position), asc(s.workItemType.createdAt)),
+    // Completed iterations are bounded to the most recent per project; reports
+    // for older ones are fetched on demand.
+    db
+      .select()
+      .from(s.iteration)
+      .where(
+        and(
+          eq(s.iteration.organizationId, organizationId),
+          or(
+            sql`${s.iteration.state} <> 'completed'`,
+            sql`${s.iteration.number} > (select coalesce(max(i2.number), 0) - 12 from ${s.iteration} i2 where i2.organization_id = ${s.iteration.organizationId} and i2.project_id = ${s.iteration.projectId} and i2.state = 'completed')`,
+          ),
+        ),
+      )
+      .orderBy(asc(s.iteration.projectId), asc(s.iteration.number)),
+  ]);
+  return {
+    teamRows,
+    teamMembers,
+    projectTypes,
+    statuses,
+    typeRows,
+    iterationRows,
+  };
+}
+
+function deliveryDirectory(
+  {
+    teamRows,
+    teamMembers,
+    projectTypes,
+    statuses,
+    typeRows,
+    iterationRows,
+  }: Awaited<ReturnType<typeof deliveryDirectoryRows>>,
   memberIds: Set<string>,
 ) {
-  const teamRows = await db
-    .select()
-    .from(s.team)
-    .where(eq(s.team.organizationId, organizationId))
-    .orderBy(asc(s.team.createdAt), asc(s.team.name));
-  const teamMembers = await db
-    .select()
-    .from(s.teamMember)
-    .where(eq(s.teamMember.organizationId, organizationId));
-  const projectTypes = await db
-    .select({
-      projectId: s.projectWorkItemType.projectId,
-      typeId: s.projectWorkItemType.typeId,
-    })
-    .from(s.projectWorkItemType)
-    .where(eq(s.projectWorkItemType.organizationId, organizationId))
-    .orderBy(
-      asc(s.projectWorkItemType.projectId),
-      asc(s.projectWorkItemType.typeId),
-    );
-  const statuses = await db
-    .select()
-    .from(s.workflowStatus)
-    .where(eq(s.workflowStatus.organizationId, organizationId))
-    .orderBy(asc(s.workflowStatus.position), asc(s.workflowStatus.createdAt));
-  const typeRows = await db
-    .select()
-    .from(s.workItemType)
-    .where(eq(s.workItemType.organizationId, organizationId))
-    .orderBy(asc(s.workItemType.position), asc(s.workItemType.createdAt));
-  // Completed iterations are bounded to the most recent per project; reports
-  // for older ones are fetched on demand.
-  const iterationRows = await db
-    .select()
-    .from(s.iteration)
-    .where(
-      and(
-        eq(s.iteration.organizationId, organizationId),
-        or(
-          sql`${s.iteration.state} <> 'completed'`,
-          sql`${s.iteration.number} > (select coalesce(max(i2.number), 0) - 12 from ${s.iteration} i2 where i2.organization_id = ${s.iteration.organizationId} and i2.project_id = ${s.iteration.projectId} and i2.state = 'completed')`,
-        ),
-      ),
-    )
-    .orderBy(asc(s.iteration.projectId), asc(s.iteration.number));
   const iso = (d: Date | null) => d?.toISOString() ?? null;
   return {
     teams: teamRows.map((t) => ({
@@ -626,33 +673,32 @@ type SuggestionReviewerRow = typeof s.suggestionReviewer.$inferSelect;
 type SuggestionDecisionRow = typeof s.suggestionDecision.$inferSelect;
 
 // Everything a list, inbox or readiness evaluation needs about a set of items.
+// Lists and readiness need only each item's current revision; the full history
+// (with its content) is loaded only for `historyFor`, the item being opened.
 async function loadItemContext(
   tx: Tx,
   organizationId: string,
   items: ItemRow[],
+  historyFor?: string,
 ) {
   const ids = items.map((i) => i.id);
-  const types = new Map(
-    (
-      await tx
-        .select()
-        .from(s.workItemType)
-        .where(eq(s.workItemType.organizationId, organizationId))
-    ).map((t) => [t.id, t]),
-  );
-  const categories = new Map(
-    (
-      await tx
-        .select({
-          id: s.workflowStatus.id,
-          category: s.workflowStatus.category,
-        })
-        .from(s.workflowStatus)
-        .where(eq(s.workflowStatus.organizationId, organizationId))
-    ).map((x) => [x.id, x.category]),
-  );
+  const [typeRows, categoryRows] = await Promise.all([
+    tx
+      .select()
+      .from(s.workItemType)
+      .where(eq(s.workItemType.organizationId, organizationId)),
+    tx
+      .select({
+        id: s.workflowStatus.id,
+        category: s.workflowStatus.category,
+      })
+      .from(s.workflowStatus)
+      .where(eq(s.workflowStatus.organizationId, organizationId)),
+  ]);
+  const types = new Map(typeRows.map((t) => [t.id, t]));
+  const categories = new Map(categoryRows.map((x) => [x.id, x.category]));
   if (ids.length === 0)
-    return {
+    return indexItemContext({
       types,
       categories,
       revisions: new Map<string, RevisionRow[]>(),
@@ -664,62 +710,79 @@ async function loadItemContext(
       assignments: [] as AssignmentRow[],
       approvals: [] as ApprovalRow[],
       labels: [] as (typeof s.workItemLabel.$inferSelect)[],
-    };
+    });
   const where = (t: { organizationId: AnyPgColumn; workItemId: AnyPgColumn }) =>
     and(eq(t.organizationId, organizationId), inArray(t.workItemId, ids));
-  const revisionRows = await tx
-    .select({
-      id: s.specificationRevision.id,
-      organizationId: s.specificationRevision.organizationId,
-      workItemId: s.specificationRevision.workItemId,
-      number: s.specificationRevision.number,
-      title: s.specificationRevision.title,
-      content: s.specificationRevision.content,
-      changeSummary: s.specificationRevision.changeSummary,
-      authorId: s.specificationRevision.authorId,
-      createdAt: s.specificationRevision.createdAt,
-    })
-    .from(s.specificationRevision)
-    .where(where(s.specificationRevision))
-    .orderBy(desc(s.specificationRevision.number));
-  const revisions = new Map<string, RevisionRow[]>();
-  for (const r of revisionRows) {
-    const list = revisions.get(r.workItemId) ?? [];
-    list.push(r);
-    revisions.set(r.workItemId, list);
-  }
-  const threads = await tx.select().from(s.thread).where(where(s.thread));
-  const suggestions = await tx
-    .select()
-    .from(s.suggestion)
-    .where(where(s.suggestion));
-  const suggestionReviewers = await tx
-    .select()
-    .from(s.suggestionReviewer)
-    .where(where(s.suggestionReviewer));
-  const suggestionDecisions = await tx
-    .select()
-    .from(s.suggestionDecision)
-    .where(where(s.suggestionDecision));
-  const reviews = await tx.select().from(s.review).where(where(s.review));
-  const reviewIds = reviews.map((r) => r.id);
-  const assignments = reviewIds.length
-    ? await tx
-        .select()
-        .from(s.reviewAssignment)
-        .where(
-          and(
-            eq(s.reviewAssignment.organizationId, organizationId),
-            inArray(s.reviewAssignment.reviewId, reviewIds),
+  const revisionColumns = {
+    id: s.specificationRevision.id,
+    organizationId: s.specificationRevision.organizationId,
+    workItemId: s.specificationRevision.workItemId,
+    number: s.specificationRevision.number,
+    title: s.specificationRevision.title,
+    content: s.specificationRevision.content,
+    changeSummary: s.specificationRevision.changeSummary,
+    authorId: s.specificationRevision.authorId,
+    createdAt: s.specificationRevision.createdAt,
+  };
+  const [
+    currentRevisions,
+    history,
+    threads,
+    suggestions,
+    suggestionReviewers,
+    suggestionDecisions,
+    reviews,
+    assignments,
+    approvals,
+    labels,
+  ] = await Promise.all([
+    tx
+      .selectDistinctOn([s.specificationRevision.workItemId], revisionColumns)
+      .from(s.specificationRevision)
+      .where(where(s.specificationRevision))
+      .orderBy(
+        s.specificationRevision.workItemId,
+        desc(s.specificationRevision.number),
+      ),
+    historyFor && ids.includes(historyFor)
+      ? tx
+          .select(revisionColumns)
+          .from(s.specificationRevision)
+          .where(
+            and(
+              eq(s.specificationRevision.organizationId, organizationId),
+              eq(s.specificationRevision.workItemId, historyFor),
+            ),
+          )
+          .orderBy(desc(s.specificationRevision.number))
+      : Promise.resolve([] as RevisionRow[]),
+    tx.select().from(s.thread).where(where(s.thread)),
+    tx.select().from(s.suggestion).where(where(s.suggestion)),
+    tx.select().from(s.suggestionReviewer).where(where(s.suggestionReviewer)),
+    tx.select().from(s.suggestionDecision).where(where(s.suggestionDecision)),
+    tx.select().from(s.review).where(where(s.review)),
+    tx
+      .select()
+      .from(s.reviewAssignment)
+      .where(
+        and(
+          eq(s.reviewAssignment.organizationId, organizationId),
+          inArray(
+            s.reviewAssignment.reviewId,
+            tx
+              .select({ id: s.review.id })
+              .from(s.review)
+              .where(where(s.review)),
           ),
-        )
-    : [];
-  const approvals = await tx.select().from(s.approval).where(where(s.approval));
-  const labels = await tx
-    .select()
-    .from(s.workItemLabel)
-    .where(where(s.workItemLabel));
-  return {
+        ),
+      ),
+    tx.select().from(s.approval).where(where(s.approval)),
+    tx.select().from(s.workItemLabel).where(where(s.workItemLabel)),
+  ]);
+  const revisions = new Map<string, RevisionRow[]>();
+  for (const r of currentRevisions) revisions.set(r.workItemId, [r]);
+  if (history.length) revisions.set(historyFor!, history);
+  return indexItemContext({
     types,
     categories,
     revisions,
@@ -731,6 +794,49 @@ async function loadItemContext(
     assignments,
     approvals,
     labels,
+  });
+}
+function groupBy<T>(rows: T[], key: (row: T) => string) {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const k = key(row);
+    const list = groups.get(k);
+    if (list) list.push(row);
+    else groups.set(k, [row]);
+  }
+  return groups;
+}
+// Lookups built once per context so summaries stay linear in the item count.
+function indexItemContext<
+  T extends {
+    threads: ThreadRow[];
+    suggestions: SuggestionRow[];
+    suggestionReviewers: SuggestionReviewerRow[];
+    suggestionDecisions: SuggestionDecisionRow[];
+    reviews: ReviewRow[];
+    assignments: AssignmentRow[];
+    approvals: ApprovalRow[];
+    labels: (typeof s.workItemLabel.$inferSelect)[];
+  },
+>(ctx: T) {
+  return {
+    ...ctx,
+    threadsByItem: groupBy(ctx.threads, (t) => t.workItemId),
+    suggestionsByItem: groupBy(ctx.suggestions, (x) => x.workItemId),
+    reviewersBySuggestion: groupBy(
+      ctx.suggestionReviewers,
+      (r) => r.suggestionId,
+    ),
+    approvedSuggestionVersions: new Set(
+      ctx.suggestionDecisions
+        .filter((d) => d.decision === "approved" && !d.supersededAt)
+        .map((d) => `${d.suggestionId}:${d.reviewerId}:${d.version}`),
+    ),
+    reviewsByItem: groupBy(ctx.reviews, (r) => r.workItemId),
+    assignmentsByReview: groupBy(ctx.assignments, (a) => a.reviewId),
+    approvalsByReview: groupBy(ctx.approvals, (a) => a.reviewId),
+    labelsByItem: groupBy(ctx.labels, (l) => l.workItemId),
+    children: new WeakMap<ItemRow[], Map<string, ItemRow[]>>(),
   };
 }
 type ItemContext = Awaited<ReturnType<typeof loadItemContext>>;
@@ -743,30 +849,32 @@ function isClosed(item: ItemRow, ctx: ItemContext) {
   return category !== undefined && closedCategories.includes(category);
 }
 function activeChildren(item: ItemRow, all: ItemRow[], ctx: ItemContext) {
-  return all.filter(
-    (c) =>
-      c.parentId === item.id &&
-      !c.archivedAt &&
-      ctx.categories.get(c.statusId) !== "canceled",
-  );
+  let byParent = ctx.children.get(all);
+  if (!byParent) {
+    byParent = groupBy(
+      all.filter(
+        (c) =>
+          c.parentId !== null &&
+          !c.archivedAt &&
+          ctx.categories.get(c.statusId) !== "canceled",
+      ),
+      (c) => c.parentId!,
+    );
+    ctx.children.set(all, byParent);
+  }
+  return byParent.get(item.id) ?? [];
 }
 
 // Reviewers of open suggestions still waiting to approve the current version.
 function pendingSuggestionReviewers(itemId: string, ctx: ItemContext) {
   const ids = new Set<string>();
-  for (const x of ctx.suggestions)
-    if (x.workItemId === itemId && x.status === "open")
-      for (const r of ctx.suggestionReviewers)
+  for (const x of ctx.suggestionsByItem.get(itemId) ?? [])
+    if (x.status === "open")
+      for (const r of ctx.reviewersBySuggestion.get(x.id) ?? [])
         if (
-          r.suggestionId === x.id &&
           !r.withdrawnAt &&
-          !ctx.suggestionDecisions.some(
-            (d) =>
-              d.suggestionId === x.id &&
-              d.reviewerId === r.userId &&
-              d.version === x.version &&
-              d.decision === "approved" &&
-              !d.supersededAt,
+          !ctx.approvedSuggestionVersions.has(
+            `${x.id}:${r.userId}:${x.version}`,
           )
         )
           ids.add(r.userId);
@@ -780,14 +888,11 @@ function summarize(
 ): EntityOf<"workItem"> {
   const current = ctx.revisions.get(item.id)?.[0];
   // Discussions about a suggestion belong to that suggestion's review.
-  const threads = ctx.threads.filter(
-    (t) => t.workItemId === item.id && !t.suggestionId && !t.pullRequestId,
+  const threads = (ctx.threadsByItem.get(item.id) ?? []).filter(
+    (t) => !t.suggestionId && !t.pullRequestId,
   );
-  const reviews = ctx.reviews.filter(
-    (r) =>
-      r.workItemId === item.id &&
-      r.status !== "cancelled" &&
-      r.revisionId === current?.id,
+  const reviews = (ctx.reviewsByItem.get(item.id) ?? []).filter(
+    (r) => r.status !== "cancelled" && r.revisionId === current?.id,
   );
   const children = activeChildren(item, all, ctx);
   const checks = readiness(item, all, ctx);
@@ -809,8 +914,7 @@ function summarize(
     milestoneId: item.milestoneId,
     iterationId: item.iterationId,
     estimate: item.estimate,
-    labelIds: ctx.labels
-      .filter((l) => l.workItemId === item.id)
+    labelIds: (ctx.labelsByItem.get(item.id) ?? [])
       .map((l) => l.labelId)
       .sort(),
     position: item.position,
@@ -825,8 +929,8 @@ function summarize(
     openThreads: threads.filter((t) => t.status === "open").length,
     blockingThreads: threads.filter((t) => t.status === "open" && t.blocking)
       .length,
-    openSuggestions: ctx.suggestions.filter(
-      (x) => x.workItemId === item.id && x.status === "open",
+    openSuggestions: (ctx.suggestionsByItem.get(item.id) ?? []).filter(
+      (x) => x.status === "open",
     ).length,
     suggestionReviewerIds: pendingSuggestionReviewers(item.id, ctx),
     reviews: reviews.map((r) => ({
@@ -834,12 +938,12 @@ function summarize(
       responsibility: r.responsibility,
       status: r.status,
       required: r.required,
-      assigneeIds: ctx.assignments
-        .filter((a) => a.reviewId === r.id && !a.withdrawnAt)
+      assigneeIds: (ctx.assignmentsByReview.get(r.id) ?? [])
+        .filter((a) => !a.withdrawnAt)
         .map((a) => a.userId ?? a.disciplineId!)
         .filter(Boolean),
-      approved: ctx.approvals.some(
-        (a) => a.reviewId === r.id && a.status === "granted",
+      approved: (ctx.approvalsByReview.get(r.id) ?? []).some(
+        (a) => a.status === "granted",
       ),
     })),
     readinessPassed: checks.filter((c) => c.passed).length,
@@ -864,11 +968,11 @@ function readiness(
   const level = ctx.types.get(item.typeId)?.level ?? 1;
   const current = ctx.revisions.get(item.id)?.[0];
   const content = current?.content ?? "";
-  const threads = ctx.threads.filter(
-    (t) => t.workItemId === item.id && !t.suggestionId && !t.pullRequestId,
+  const threads = (ctx.threadsByItem.get(item.id) ?? []).filter(
+    (t) => !t.suggestionId && !t.pullRequestId,
   );
-  const reviews = ctx.reviews.filter(
-    (r) => r.workItemId === item.id && r.status !== "cancelled",
+  const reviews = (ctx.reviewsByItem.get(item.id) ?? []).filter(
+    (r) => r.status !== "cancelled",
   );
   const responsibilities = [
     ...new Set(reviews.filter((r) => r.required).map((r) => r.responsibility)),
@@ -885,11 +989,8 @@ function readiness(
       candidates.every(
         (r) =>
           r.status === "completed" &&
-          ctx.approvals.some(
-            (a) =>
-              a.reviewId === r.id &&
-              a.status === "granted" &&
-              a.revisionId === current?.id,
+          (ctx.approvalsByReview.get(r.id) ?? []).some(
+            (a) => a.status === "granted" && a.revisionId === current?.id,
           ),
       )
     );
@@ -970,63 +1071,6 @@ function readiness(
 
 export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
   const { organizationId, projectId, workItemId } = scope;
-  const projects = await tx
-    .select()
-    .from(s.project)
-    .where(
-      and(
-        eq(s.project.organizationId, organizationId),
-        projectId ? eq(s.project.id, projectId) : undefined,
-      ),
-    );
-  if (projectId) requireValue(projects[0]);
-  const items = await tx
-    .select()
-    .from(s.workItem)
-    .where(
-      and(
-        eq(s.workItem.organizationId, organizationId),
-        projectId ? eq(s.workItem.projectId, projectId) : undefined,
-      ),
-    )
-    .orderBy(asc(s.workItem.createdAt));
-  const ctx = await loadItemContext(tx, organizationId, items);
-  const pullRequests = await tx
-    .select()
-    .from(s.specificationPullRequest)
-    .where(
-      and(
-        eq(s.specificationPullRequest.organizationId, organizationId),
-        isNull(s.specificationPullRequest.deletedAt),
-      ),
-    );
-  const prReviews = await tx
-    .select()
-    .from(s.pullRequestReview)
-    .where(eq(s.pullRequestReview.organizationId, organizationId));
-  const prBranches = pullRequests.some((p) => p.status === "open")
-    ? await tx
-        .select()
-        .from(s.specificationBranch)
-        .where(
-          and(
-            eq(s.specificationBranch.organizationId, organizationId),
-            isNull(s.specificationBranch.deletedAt),
-          ),
-        )
-    : [];
-  const prCommits = prBranches.length
-    ? await tx
-        .select()
-        .from(s.specificationCommit)
-        .where(eq(s.specificationCommit.organizationId, organizationId))
-    : [];
-  const disciplineMemberships = prReviews.length
-    ? await tx
-        .select()
-        .from(s.disciplineMember)
-        .where(eq(s.disciplineMember.organizationId, organizationId))
-    : [];
   const projectFilter = <
     T extends { organizationId: AnyPgColumn; projectId: AnyPgColumn },
   >(
@@ -1036,53 +1080,161 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
       eq(t.organizationId, organizationId),
       projectId ? eq(t.projectId, projectId) : undefined,
     );
-  const labels = await tx.select().from(s.label).where(projectFilter(s.label));
-  const milestones = await tx
-    .select()
-    .from(s.milestone)
-    .where(projectFilter(s.milestone));
-  const itemProject = new Map(items.map((i) => [i.id, i.projectId]));
-  const relations = (
-    await tx
+  // Pull requests, their reviews and relations are read only for items in scope.
+  const scopeItemIds = () =>
+    tx
+      .select({ id: s.workItem.id })
+      .from(s.workItem)
+      .where(projectFilter(s.workItem));
+  const scopePullRequests = () =>
+    and(
+      eq(s.specificationPullRequest.organizationId, organizationId),
+      isNull(s.specificationPullRequest.deletedAt),
+      projectId
+        ? inArray(s.specificationPullRequest.workItemId, scopeItemIds())
+        : undefined,
+    );
+  const [
+    projects,
+    items,
+    pullRequests,
+    prReviews,
+    labels,
+    milestones,
+    relationRows,
+    links,
+  ] = await Promise.all([
+    tx
+      .select()
+      .from(s.project)
+      .where(
+        and(
+          eq(s.project.organizationId, organizationId),
+          projectId ? eq(s.project.id, projectId) : undefined,
+        ),
+      ),
+    tx
+      .select()
+      .from(s.workItem)
+      .where(projectFilter(s.workItem))
+      .orderBy(asc(s.workItem.createdAt)),
+    tx.select().from(s.specificationPullRequest).where(scopePullRequests()),
+    tx
+      .select()
+      .from(s.pullRequestReview)
+      .where(
+        and(
+          eq(s.pullRequestReview.organizationId, organizationId),
+          inArray(
+            s.pullRequestReview.pullRequestId,
+            tx
+              .select({ id: s.specificationPullRequest.id })
+              .from(s.specificationPullRequest)
+              .where(scopePullRequests()),
+          ),
+        ),
+      ),
+    tx.select().from(s.label).where(projectFilter(s.label)),
+    tx.select().from(s.milestone).where(projectFilter(s.milestone)),
+    tx
       .select()
       .from(s.workItemRelation)
-      .where(eq(s.workItemRelation.organizationId, organizationId))
-      .orderBy(asc(s.workItemRelation.createdAt))
-  ).filter((r) => itemProject.has(r.fromId));
-  const links = await externalLinks(tx, organizationId, {
-    projectId,
-  });
+      .where(
+        and(
+          eq(s.workItemRelation.organizationId, organizationId),
+          projectId
+            ? inArray(s.workItemRelation.fromId, scopeItemIds())
+            : undefined,
+        ),
+      )
+      .orderBy(asc(s.workItemRelation.createdAt)),
+    externalLinks(tx, organizationId, { projectId }),
+  ]);
+  if (projectId) requireValue(projects[0]);
+  // Result hashes need the commit graph of items with an open pull request.
+  const openPrItemIds = [
+    ...new Set(
+      pullRequests.filter((p) => p.status === "open").map((p) => p.workItemId),
+    ),
+  ];
+  const [ctx, prBranches, prCommits, disciplineMemberships] = await Promise.all(
+    [
+      loadItemContext(tx, organizationId, items, workItemId),
+      openPrItemIds.length
+        ? tx
+            .select()
+            .from(s.specificationBranch)
+            .where(
+              and(
+                eq(s.specificationBranch.organizationId, organizationId),
+                inArray(s.specificationBranch.workItemId, openPrItemIds),
+                isNull(s.specificationBranch.deletedAt),
+              ),
+            )
+        : Promise.resolve([]),
+      openPrItemIds.length
+        ? tx
+            .select()
+            .from(s.specificationCommit)
+            .where(
+              and(
+                eq(s.specificationCommit.organizationId, organizationId),
+                inArray(s.specificationCommit.workItemId, openPrItemIds),
+              ),
+            )
+        : Promise.resolve([]),
+      prReviews.length
+        ? tx
+            .select()
+            .from(s.disciplineMember)
+            .where(eq(s.disciplineMember.organizationId, organizationId))
+        : Promise.resolve([]),
+    ],
+  );
+  const itemProject = new Map(items.map((i) => [i.id, i.projectId]));
+  const relations = relationRows.filter((r) => itemProject.has(r.fromId));
+  const openPullRequests = groupBy(
+    pullRequests.filter((p) => p.status === "open"),
+    (p) => p.workItemId,
+  );
+  const reviewsByPullRequest = groupBy(prReviews, (r) => r.pullRequestId);
+  const membersByDiscipline = groupBy(
+    disciplineMemberships,
+    (m) => m.disciplineId,
+  );
+  const resultHashes = new Map<string, string | null>();
+  const resultHash = (pr: (typeof pullRequests)[number]) => {
+    if (!resultHashes.has(pr.id))
+      resultHashes.set(pr.id, pullRequestResultHash(pr, prBranches, prCommits));
+    return resultHashes.get(pr.id);
+  };
   const entities: Entity[] = [
     ...projects.map((p) => serialize("project", p)),
     ...labels.map((l) => serialize("label", l)),
     ...milestones.map((m) => serialize("milestone", m)),
     ...items.map((item) => {
       const summary = summarize(item, items, ctx);
-      const active = pullRequests.filter(
-        (p) => p.workItemId === item.id && p.status === "open",
-      );
+      const active = openPullRequests.get(item.id) ?? [];
       return {
         ...summary,
         openSuggestions: summary.openSuggestions + active.length,
         suggestionReviewerIds: [
           ...new Set([
             ...summary.suggestionReviewerIds,
-            ...prReviews
-              .filter((r) => {
-                const pr = active.find((p) => p.id === r.pullRequestId);
-                return (
-                  pr &&
-                  (r.decision !== "approved" ||
-                    r.resultHash !==
-                      pullRequestResultHash(pr, prBranches, prCommits))
-                );
-              })
+            ...active
+              .flatMap((pr) =>
+                (reviewsByPullRequest.get(pr.id) ?? []).filter(
+                  (r) =>
+                    r.decision !== "approved" ||
+                    r.resultHash !== resultHash(pr),
+                ),
+              )
               .flatMap((r) =>
                 r.userId
                   ? [r.userId]
-                  : disciplineMemberships
-                      .filter((m) => m.disciplineId === r.disciplineId)
-                      .map((m) => m.userId),
+                  : (membersByDiscipline.get(r.disciplineId) ?? []).map(
+                      (m) => m.userId,
+                    ),
               ),
           ]),
         ],
@@ -1104,52 +1256,55 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
       t.workItemId === workItemId &&
       (!t.pullRequestId || activePrIds.has(t.pullRequestId)),
   );
-  const branchRows = await tx
-    .select()
-    .from(s.specificationBranch)
-    .where(
-      and(
-        eq(s.specificationBranch.organizationId, organizationId),
-        eq(s.specificationBranch.workItemId, workItemId),
-        isNull(s.specificationBranch.deletedAt),
+  const [branchRows, commitRows, messages, activity, runs] = await Promise.all([
+    tx
+      .select()
+      .from(s.specificationBranch)
+      .where(
+        and(
+          eq(s.specificationBranch.organizationId, organizationId),
+          eq(s.specificationBranch.workItemId, workItemId),
+          isNull(s.specificationBranch.deletedAt),
+        ),
       ),
-    );
-  const commitRows = await tx
-    .select()
-    .from(s.specificationCommit)
-    .where(
-      and(
-        eq(s.specificationCommit.organizationId, organizationId),
-        eq(s.specificationCommit.workItemId, workItemId),
+    tx
+      .select()
+      .from(s.specificationCommit)
+      .where(
+        and(
+          eq(s.specificationCommit.organizationId, organizationId),
+          eq(s.specificationCommit.workItemId, workItemId),
+        ),
       ),
-    );
+    threads.length
+      ? tx
+          .select()
+          .from(s.threadMessage)
+          .where(
+            and(
+              eq(s.threadMessage.organizationId, organizationId),
+              inArray(
+                s.threadMessage.threadId,
+                threads.map((t) => t.id),
+              ),
+            ),
+          )
+          .orderBy(asc(s.threadMessage.createdAt), asc(s.threadMessage.id))
+      : Promise.resolve([]),
+    tx
+      .select()
+      .from(s.activity)
+      .where(
+        and(
+          eq(s.activity.organizationId, organizationId),
+          eq(s.activity.workItemId, workItemId),
+        ),
+      )
+      .orderBy(asc(s.activity.createdAt)),
+    aiRunEntities(tx, organizationId, workItemId),
+  ]);
   const reviews = ctx.reviews.filter((r) => r.workItemId === workItemId);
   const reviewIds = new Set(reviews.map((r) => r.id));
-  const messages = threads.length
-    ? await tx
-        .select()
-        .from(s.threadMessage)
-        .where(
-          and(
-            eq(s.threadMessage.organizationId, organizationId),
-            inArray(
-              s.threadMessage.threadId,
-              threads.map((t) => t.id),
-            ),
-          ),
-        )
-        .orderBy(asc(s.threadMessage.createdAt), asc(s.threadMessage.id))
-    : [];
-  const activity = await tx
-    .select()
-    .from(s.activity)
-    .where(
-      and(
-        eq(s.activity.organizationId, organizationId),
-        eq(s.activity.workItemId, workItemId),
-      ),
-    )
-    .orderBy(asc(s.activity.createdAt));
   for (const [type, rows] of [
     ["revision", revisions],
     ["specBranch", branchRows],
@@ -1184,7 +1339,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     workItemId,
     checks: readiness(item, items, ctx),
   });
-  entities.push(...(await aiRunEntities(tx, organizationId, workItemId)));
+  entities.push(...runs);
   return entities;
 }
 
@@ -1272,77 +1427,84 @@ export function createSyncService(
   return {
     async read(userId: string, scope: Scope, cursor?: string, limit = 100) {
       const pageSize = Math.min(500, Math.max(1, Math.floor(limit)));
-      return db.transaction(async (tx) => {
-        await lock(tx, scope.organizationId);
-        await authorize(tx, userId, scope.organizationId);
-        const head = await clock(tx, scope.organizationId);
-        if (cursor !== undefined && BigInt(cursor) > head)
-          throw new DomainError(
-            "conflict",
-            "Checkpoint is ahead of the server. Reset this workspace cache.",
-          );
-        const roster = await directory(tx, userId, scope.organizationId);
-        if (scope.projectId !== undefined)
-          requireValue(roster.projects.find((p) => p.id === scope.projectId));
-        if (scope.workItemId && scope.projectId)
-          requireValue(
-            (
-              await tx
-                .select({ id: s.workItem.id })
-                .from(s.workItem)
-                .where(
-                  and(
-                    eq(s.workItem.organizationId, scope.organizationId),
-                    eq(s.workItem.projectId, scope.projectId),
-                    eq(s.workItem.id, scope.workItemId),
-                  ),
-                )
-            )[0],
-          );
-        if (cursor === undefined)
+      // Reads take no organization lock. Writers commit the clock together
+      // with their change rows while holding the lock, so commits become
+      // visible in cursor order; one REPEATABLE READ snapshot therefore sees
+      // a gap-free prefix of the change log that matches the clock it reads.
+      return db.transaction(
+        async (tx) => {
+          const [, head, roster, scopedItem] = await Promise.all([
+            authorize(tx, userId, scope.organizationId),
+            clock(tx, scope.organizationId),
+            directory(tx, userId, scope.organizationId),
+            scope.workItemId && scope.projectId
+              ? tx
+                  .select({ id: s.workItem.id })
+                  .from(s.workItem)
+                  .where(
+                    and(
+                      eq(s.workItem.organizationId, scope.organizationId),
+                      eq(s.workItem.projectId, scope.projectId),
+                      eq(s.workItem.id, scope.workItemId),
+                    ),
+                  )
+              : Promise.resolve([]),
+          ]);
+          if (cursor !== undefined && BigInt(cursor) > head)
+            throw new DomainError(
+              "conflict",
+              "Checkpoint is ahead of the server. Reset this workspace cache.",
+            );
+          if (scope.projectId !== undefined)
+            requireValue(roster.projects.find((p) => p.id === scope.projectId));
+          if (scope.workItemId && scope.projectId) requireValue(scopedItem[0]);
+          if (cursor === undefined)
+            return {
+              protocol: PROTOCOL,
+              changes: (await snapshot(tx, scope)).map((entity) => ({
+                operation: "upsert" as const,
+                cursor: head.toString(),
+                entity,
+              })),
+              nextCursor: head.toString(),
+              hasMore: false,
+              directory: roster,
+            };
+          const rows = await tx
+            .select()
+            .from(s.syncChange)
+            .where(
+              and(
+                eq(s.syncChange.organizationId, scope.organizationId),
+                !scope.projectId
+                  ? undefined
+                  : eq(s.syncChange.projectId, scope.projectId),
+                gt(s.syncChange.cursor, BigInt(cursor)),
+                lte(s.syncChange.cursor, head),
+                scope.workItemId
+                  ? or(
+                      isNull(s.syncChange.workItemId),
+                      eq(s.syncChange.workItemId, scope.workItemId),
+                    )
+                  : isNull(s.syncChange.workItemId),
+              ),
+            )
+            .orderBy(asc(s.syncChange.cursor))
+            .limit(pageSize + 1);
+          const hasMore = rows.length > pageSize;
+          const page = rows.slice(0, pageSize);
           return {
             protocol: PROTOCOL,
-            changes: (await snapshot(tx, scope)).map((entity) => ({
-              operation: "upsert" as const,
-              cursor: head.toString(),
-              entity,
-            })),
-            nextCursor: head.toString(),
-            hasMore: false,
+            changes: page.map((r) => r.change),
+            nextCursor: hasMore
+              ? page.at(-1)!.cursor.toString()
+              : head.toString(),
+            hasMore,
             directory: roster,
           };
-        const rows = await tx
-          .select()
-          .from(s.syncChange)
-          .where(
-            and(
-              eq(s.syncChange.organizationId, scope.organizationId),
-              !scope.projectId
-                ? undefined
-                : eq(s.syncChange.projectId, scope.projectId),
-              gt(s.syncChange.cursor, BigInt(cursor)),
-              scope.workItemId
-                ? or(
-                    isNull(s.syncChange.workItemId),
-                    eq(s.syncChange.workItemId, scope.workItemId),
-                  )
-                : isNull(s.syncChange.workItemId),
-            ),
-          )
-          .orderBy(asc(s.syncChange.cursor))
-          .limit(pageSize + 1);
-        const hasMore = rows.length > pageSize;
-        const page = rows.slice(0, pageSize);
-        return {
-          protocol: PROTOCOL,
-          changes: page.map((r) => r.change),
-          nextCursor: hasMore
-            ? page.at(-1)!.cursor.toString()
-            : head.toString(),
-          hasMore,
-          directory: roster,
-        };
-      });
+        },
+        { isolationLevel: "repeatable read", accessMode: "read only" },
+      );
     },
     async mutate(userId: string, mutation: Mutation) {
       const { organizationId, command: c } = mutation;
@@ -1354,12 +1516,12 @@ export function createSyncService(
       } = { before: [], after: [] };
       const result = await db.transaction(async (tx) => {
         await lock(tx, organizationId);
-        const membership = await authorize(tx, userId, organizationId);
         const fingerprint = createHash("sha256")
           .update(JSON.stringify(c))
           .digest("hex");
-        const previous = (
-          await tx
+        const [membership, receipts, roster] = await Promise.all([
+          authorize(tx, userId, organizationId),
+          tx
             .select()
             .from(s.syncMutation)
             .where(
@@ -1367,8 +1529,10 @@ export function createSyncService(
                 eq(s.syncMutation.organizationId, organizationId),
                 eq(s.syncMutation.id, mutation.id),
               ),
-            )
-        )[0];
+            ),
+          directory(tx, userId, organizationId),
+        ]);
+        const previous = receipts[0];
         if (previous) {
           replayed = true;
           if (
@@ -1386,7 +1550,6 @@ export function createSyncService(
           };
         }
         const admin = isAdmin(membership);
-        const roster = await directory(tx, userId, organizationId);
         if (isTypeCommand(c)) {
           await applyTypeCommand(
             tx,
@@ -3275,19 +3438,27 @@ export function createSyncService(
           }
         }
         if (workItemId && activities.length) {
-          await tx.insert(s.activity).values(
-            activities.map((a, index) => ({
-              id: crypto.randomUUID(),
-              organizationId,
-              projectId,
-              workItemId: workItemId,
-              actorId: userId,
-              action: a.action,
-              detail: a.detail ?? null,
-              createdAt: new Date(now.getTime() + index),
-            })),
-          );
-          after = await snapshot(tx, scope);
+          // Activity is the only thing this insert changes in the item scope,
+          // so append it instead of projecting the scope again.
+          const inserted = await tx
+            .insert(s.activity)
+            .values(
+              activities.map((a, index) => ({
+                id: crypto.randomUUID(),
+                organizationId,
+                projectId,
+                workItemId: workItemId,
+                actorId: userId,
+                action: a.action,
+                detail: a.detail ?? null,
+                createdAt: new Date(now.getTime() + index),
+              })),
+            )
+            .returning();
+          after = [
+            ...after,
+            ...inserted.map((row) => serialize("activity", row)),
+          ];
         }
         // Replies log no activity but still notify participants and mentions.
         if (
@@ -3343,9 +3514,10 @@ export function createSyncService(
           }
         }
         let cursor = await clock(tx, organizationId);
+        const extraChanges: (typeof s.syncChange.$inferInsert)[] = [];
         for (const { workItemId: parentId, entity } of parentReadiness) {
           cursor++;
-          await tx.insert(s.syncChange).values({
+          extraChanges.push({
             organizationId,
             cursor,
             projectId,
@@ -3357,7 +3529,7 @@ export function createSyncService(
           ...touchedRuns,
         ])) {
           cursor++;
-          await tx.insert(s.syncChange).values({
+          extraChanges.push({
             organizationId,
             cursor,
             projectId,
@@ -3369,6 +3541,7 @@ export function createSyncService(
             },
           });
         }
+        await insertChanges(tx, extraChanges);
         snapshots = { before, after, directory: roster };
         cursor = await emitChanges(tx, organizationId, before, after, cursor, {
           projectId,
@@ -3444,6 +3617,7 @@ export async function emitChanges(
   fallback?: { projectId: string; workItemId?: string },
 ) {
   let cursor = start;
+  const rows: (typeof s.syncChange.$inferInsert)[] = [];
   const old = new Map(before.map((e) => [entityKey(e), e]));
   const seen = new Set<string>();
   const route = (entity: Entity) => {
@@ -3464,7 +3638,7 @@ export async function emitChanges(
     if (previous && JSON.stringify(previous) === JSON.stringify(entity))
       continue;
     cursor++;
-    await tx.insert(s.syncChange).values({
+    rows.push({
       organizationId,
       cursor,
       ...route(entity),
@@ -3480,14 +3654,25 @@ export async function emitChanges(
       type: entity.type,
       id: entity.id,
     };
-    await tx.insert(s.syncChange).values({
+    rows.push({
       organizationId,
       cursor,
       ...route(entity),
       change,
     });
   }
+  await insertChanges(tx, rows);
   return cursor;
+}
+
+// Change rows are written in multi-row statements, bounded to stay far below
+// PostgreSQL's parameter limit.
+async function insertChanges(
+  tx: Tx,
+  rows: (typeof s.syncChange.$inferInsert)[],
+) {
+  for (let index = 0; index < rows.length; index += 500)
+    await tx.insert(s.syncChange).values(rows.slice(index, index + 500));
 }
 
 // Scheduled job (Trigger.dev, cron route or the Bun worker): starts and

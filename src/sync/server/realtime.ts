@@ -26,8 +26,9 @@ type Listener = (event: z.infer<typeof notificationSchema>) => void;
 type PresenceListener = (event: PresenceEvent) => void;
 // Keyed by shape version so a hot-reloaded module never reuses an older hub.
 const globalHub = globalThis as unknown as {
-  syncHubV3?: {
+  syncHubV4?: {
     subscribe: (listener: Listener) => Promise<() => void>;
+    subscribeReconnects: (listener: () => void) => () => void;
     subscribePresence: (listener: PresenceListener) => Promise<() => void>;
     subscribeNotifications: (
       listener: NotificationListener,
@@ -38,6 +39,8 @@ function createHub() {
   const listeners = new Set<Listener>();
   const presenceListeners = new Set<PresenceListener>();
   const notificationListeners = new Set<NotificationListener>();
+  const reconnectListeners = new Set<() => void>();
+  let listening = false;
   // LISTEN is session-scoped and cannot use a transaction pooler.
   const directUrl = process.env.DATABASE_URL_UNPOOLED?.trim();
   const client = postgres(
@@ -50,14 +53,23 @@ function createHub() {
   let ready: Promise<unknown> | undefined;
   const connect = () =>
     (ready ??= Promise.all([
-      client.listen("lictory_sync", (payload) => {
-        try {
-          const event = notificationSchema.parse(JSON.parse(payload));
-          for (const callback of listeners) callback(event);
-        } catch {
-          /* Invalid notifications contain no application data. */
-        }
-      }),
+      client.listen(
+        "lictory_sync",
+        (payload) => {
+          try {
+            const event = notificationSchema.parse(JSON.parse(payload));
+            for (const callback of listeners) callback(event);
+          } catch {
+            /* Invalid notifications contain no application data. */
+          }
+        },
+        () => {
+          // postgres.js calls this on every (re)connect. Notifications sent while
+          // disconnected are lost, so subscribers resynchronize after a reconnect.
+          if (listening) for (const callback of reconnectListeners) callback();
+          listening = true;
+        },
+      ),
       client.listen("lictory_presence", (payload) => {
         try {
           const event = presenceSchema.parse(JSON.parse(payload));
@@ -86,6 +98,12 @@ function createHub() {
         listeners.delete(listener);
       };
     },
+    subscribeReconnects(listener: () => void) {
+      reconnectListeners.add(listener);
+      return () => {
+        reconnectListeners.delete(listener);
+      };
+    },
     async subscribePresence(listener: PresenceListener) {
       await connect();
       presenceListeners.add(listener);
@@ -102,4 +120,4 @@ function createHub() {
     },
   };
 }
-export const realtime = (globalHub.syncHubV3 ??= createHub());
+export const realtime = (globalHub.syncHubV4 ??= createHub());

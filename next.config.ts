@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   // PostHog's SDK posts to paths with a trailing slash (`/relay/e/`). The default
   // redirect would cost every analytics request a round trip through the relay.
   skipTrailingSlashRedirect: true,
+  // Workspace pages are thin wrappers around the client store; reusing their
+  // payload for a short time makes revisits instant instead of a server
+  // round trip per click.
+  experimental: {
+    staleTimes: { dynamic: 30 },
+  },
   // Content-addressed, pre-sized artwork is served directly, without image transforms.
   async headers() {
     return [

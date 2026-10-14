@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "~/db";
 import { auth } from "~/lib/auth";
-import { directory } from "~/sync/server/service";
+import { authorize } from "~/sync/server/service";
 
 const bodySchema = z.object({
   organizationId: z.string().min(1),
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return new Response(null, { status: 400 });
   try {
-    await directory(db, session.user.id, parsed.data.organizationId);
+    await authorize(db, session.user.id, parsed.data.organizationId);
   } catch {
     return new Response(null, { status: 403 });
   }

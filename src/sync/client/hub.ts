@@ -14,6 +14,7 @@ type Connection = {
   timer?: ReturnType<typeof setInterval>;
   wake: () => void;
 };
+const RECOVERY_INTERVAL = 60_000;
 const connections = new Map<string, Connection>();
 
 export function subscribeInvalidations(
@@ -26,18 +27,21 @@ export function subscribeInvalidations(
     const wake = () => {
       for (const l of listeners) l();
     };
+    const recover = wake;
     connection = {
       listeners,
-      wake,
+      wake: recover,
       presence: new Map(),
       presenceListeners: new Set(),
       notificationListeners: new Set(),
     };
     connections.set(organizationId, connection);
     if (typeof window !== "undefined") {
-      window.addEventListener("online", wake);
-      window.addEventListener("focus", wake);
-      connection.timer = setInterval(wake, 15_000);
+      window.addEventListener("online", recover);
+      window.addEventListener("focus", recover);
+      // A backstop only: each new stream starts with an invalidation, so
+      // reconnects already resynchronize.
+      connection.timer = setInterval(recover, RECOVERY_INTERVAL);
       const source = new EventSource(
         `/api/sync/events?organizationId=${encodeURIComponent(organizationId)}`,
       );
@@ -68,8 +72,6 @@ export function subscribeInvalidations(
         }
         wake();
       };
-      source.onopen = wake;
-      source.onerror = wake;
       connection.source = source;
     }
   }

@@ -35,8 +35,17 @@ Configure `DATABASE_URL` for pooled application queries and
 integration supplies both. Without the unpooled variable, the listener and
 listener falls back to `DATABASE_URL`, which must then be direct. Migrations use
 the separate `DATABASE_MIGRATION_URL`, which is never configured in Vercel. SSE streams
-must stay below the host's function duration limit and reconnect; synchronization
-recovery is authoritative even when presence/realtime is temporarily unavailable.
+last four minutes, below their five-minute function limit, and reconnect;
+synchronization recovery is authoritative even when presence/realtime is
+temporarily unavailable.
+
+Application queries use protocol-level prepared statements: each statement is
+described once per connection, and queries issued together are pipelined in one
+round trip. A pooler in front of `DATABASE_URL` must support them (PgBouncer 1.22
+or later with `max_prepared_statements` above zero; Neon's pooler does). Keep the
+application database in the same region as the functions (`fra1` with Neon's
+`aws-eu-central-1`), and disable scale-to-zero on the production compute so
+requests never wait for a cold database.
 
 ## Microsoft Entra sign-in
 
