@@ -17,17 +17,31 @@ as the visible page:
 
 - **`/robots.txt`** allows all crawlers on the public website and names major
   search and AI crawlers explicitly so the policy for each is deliberate.
-  `/api/` and the analytics relay are disallowed. Workspace URLs are not
+  `/api/`, the analytics relay and the internal `/markdown/` route are
+  disallowed. Workspace URLs are not
   disallowed: link unfurlers that obey robots.txt (for example Twitterbot and
   LinkedIn) must still read their safe social previews, and those pages carry
   `noindex, nofollow` instead. See [social link previews](./social-previews.md).
+  It lists the guides RSS feed as a second sitemap, because Google and Bing
+  revisit feeds more often. There is no `Host` line: Google ignores it and
+  Yandex retired it.
 - **`/sitemap.xml`** lists only public, indexable pages. `lastmod` is reported
   only where the change date is known (the legal notices' version date), never
   the build time, because search engines ignore inaccurate dates. The landing
   entry includes its social card as an image-sitemap entry.
 - **`/llms.txt`** and **`/llms-full.txt`** follow the llms.txt convention: a
   short Markdown index and a complete product overview for AI assistants. The
-  landing page links to the index with `rel="alternate"`.
+  landing page links to the index with `rel="alternate"`. The index links to
+  the Markdown version of a page where one exists.
+- **Markdown pages**: the guides index, each guide and each comparison are also
+  served as Markdown at the page URL plus `.md` (`/guides/definition-of-ready.md`),
+  so AI assistants and agents can read them without navigation or scripts. The
+  HTML page advertises it with `rel="alternate" type="text/markdown"`, and the
+  Markdown response names the HTML page as canonical in a `Link` header so
+  search engines index the page, not the copy. The `.md` URLs are rewrites to
+  `/markdown/...`; that internal path is disallowed in robots.txt.
+- **`/guides/feed.xml`** is an RSS feed of the guides, linked from the landing
+  page and every guide. Dates come from the content, never the build.
 - **JSON-LD** on the landing page describes the `Organization` (with logo),
   `WebSite`, `WebPage` and its primary image, the product as a
   `WebApplication` and the `FAQPage`. Sign-up and the legal notices publish
@@ -54,8 +68,8 @@ specific questions (what is a Definition of Ready, how does Lictory compare with
 Jira) instead of one landing page competing for every query. Each page has its
 own generated social card, a visible breadcrumb matching its `BreadcrumbList`,
 and an `Article` or `FAQPage` node. `lastmod` is the date in the content module;
-change it only for material edits. The full guide text is also in
-`/llms-full.txt`.
+change it only for material edits. The full text of the guides and comparisons
+is also in `/llms-full.txt`.
 
 Guides lead with product-neutral advice and describe Lictory only where it
 applies. Comparisons state other products' built-in capabilities as we

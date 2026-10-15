@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 
 import {
+  guidesFeedPath,
   indexableRobots,
   marketingImage,
   publicPage,
   siteName,
 } from "~/lib/site";
+import { hasMarkdown, markdownPath } from "~/lib/markdown";
 
 /**
  * Metadata for an indexable public page other than the landing page, built from
@@ -24,6 +26,12 @@ export function publicPageMetadata(
   } = {},
 ): Metadata {
   const { title, description, lastModified } = publicPage(path);
+  const alternateTypes = {
+    ...(hasMarkdown(path) ? { "text/markdown": markdownPath(path) } : {}),
+    ...(path === "/guides" || path.startsWith("/guides/")
+      ? { "application/rss+xml": [{ url: guidesFeedPath, title: "Guides" }] }
+      : {}),
+  };
   // Titles that already name the product are not suffixed with it again.
   const socialTitle = title.includes(siteName)
     ? title
@@ -46,7 +54,10 @@ export function publicPageMetadata(
     title: { absolute: socialTitle },
     description,
     robots: indexableRobots,
-    alternates: { canonical: path },
+    alternates: {
+      canonical: path,
+      ...(Object.keys(alternateTypes).length ? { types: alternateTypes } : {}),
+    },
     openGraph: {
       title: socialTitle,
       description,
