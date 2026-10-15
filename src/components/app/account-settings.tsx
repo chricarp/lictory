@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   AtSign,
+  Check,
   Monitor,
   Moon,
   Palette,
@@ -36,7 +37,12 @@ import {
   SettingsList,
   SettingsSection,
 } from "~/components/workspace/settings-section";
-import type { Appearance } from "~/lib/appearance";
+import {
+  THEMES,
+  themeLabels,
+  type Appearance,
+  type Theme,
+} from "~/lib/appearance";
 import { authClient } from "~/lib/auth-client";
 import { oauthErrorMessage } from "~/lib/oauth-errors";
 import { cn, formValue } from "~/lib/utils";
@@ -643,31 +649,63 @@ const appearanceOptions: {
   { value: "dark", label: "Dark", icon: Moon },
 ];
 
+// Roving selection for a radiogroup: arrow keys pick and focus the
+// neighbouring option, wrapping at either end.
+function arrowStep(event: React.KeyboardEvent<HTMLElement>, current: number) {
+  const step =
+    event.key === "ArrowRight" || event.key === "ArrowDown"
+      ? 1
+      : event.key === "ArrowLeft" || event.key === "ArrowUp"
+        ? -1
+        : 0;
+  if (!step) return null;
+  event.preventDefault();
+  const buttons =
+    event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]");
+  const next = (current + step + buttons.length) % buttons.length;
+  buttons[next]?.focus();
+  return next;
+}
+
 function AppearanceSection() {
-  const { appearance, setAppearance } = useAppearance();
+  const { appearance, setAppearance, theme, setTheme } = useAppearance();
   const [error, setError] = useState<string | null>(null);
 
   // Applied immediately; saved in the background and reverted if it fails.
-  async function choose(next: Appearance) {
-    if (next === appearance) return;
-    const previous = appearance;
-    setAppearance(next);
+  async function save(
+    body: { appearance: Appearance } | { theme: Theme },
+    revert: () => void,
+  ) {
     setError(null);
     const response = await fetch("/api/appearance", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ appearance: next }),
+      body: JSON.stringify(body),
     }).catch(() => null);
     if (!response?.ok) {
-      setAppearance(previous);
-      const body = (await response?.json().catch(() => null)) as {
+      revert();
+      const result = (await response?.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
       setError(
-        body?.error?.message ??
+        result?.error?.message ??
           "Appearance was not saved. Check your connection and try again.",
       );
     }
+  }
+
+  function chooseMode(next: Appearance) {
+    if (next === appearance) return;
+    const previous = appearance;
+    setAppearance(next);
+    void save({ appearance: next }, () => setAppearance(previous));
+  }
+
+  function chooseTheme(next: Theme) {
+    if (next === theme) return;
+    const previous = theme;
+    setTheme(next);
+    void save({ theme: next }, () => setTheme(previous));
   }
 
   return (
@@ -675,61 +713,132 @@ function AppearanceSection() {
       id="appearance"
       icon={<Palette />}
       title="Appearance"
-      description="System follows your device and switches automatically when it does."
+      description="Every theme has a light and a dark variant. System follows your device and switches automatically when it does."
     >
-      <SettingsBody className="space-y-2">
-        <div
-          role="radiogroup"
-          aria-label="Appearance"
-          className="inline-flex rounded-lg bg-muted p-0.5"
-          onKeyDown={(event) => {
-            const step =
-              event.key === "ArrowRight" || event.key === "ArrowDown"
-                ? 1
-                : event.key === "ArrowLeft" || event.key === "ArrowUp"
-                  ? -1
-                  : 0;
-            if (!step) return;
-            event.preventDefault();
-            const count = appearanceOptions.length;
-            const index = appearanceOptions.findIndex(
-              (o) => o.value === appearance,
-            );
-            const next = appearanceOptions[(index + step + count) % count];
-            if (next) void choose(next.value);
-            const buttons =
-              event.currentTarget.querySelectorAll<HTMLButtonElement>(
-                "[role=radio]",
+      <SettingsBody className="space-y-5">
+        <div className="space-y-2">
+          <p id="appearance-mode-label" className="text-[13px] font-medium">
+            Mode
+          </p>
+          <div
+            role="radiogroup"
+            aria-labelledby="appearance-mode-label"
+            className="inline-flex rounded-lg bg-muted p-0.5"
+            onKeyDown={(event) => {
+              const index = arrowStep(
+                event,
+                appearanceOptions.findIndex((o) => o.value === appearance),
               );
-            buttons[(index + step + count) % count]?.focus();
-          }}
-        >
-          {appearanceOptions.map(({ value, label, icon: Icon }) => {
-            const selected = appearance === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => choose(value)}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-                  selected
-                    ? "bg-card font-medium text-foreground shadow-(--shadow-border)"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon aria-hidden className="size-3.5" strokeWidth={1.75} />
-                {label}
-              </button>
-            );
-          })}
+              const next = index === null ? null : appearanceOptions[index];
+              if (next) chooseMode(next.value);
+            }}
+          >
+            {appearanceOptions.map(({ value, label, icon: Icon }) => {
+              const selected = appearance === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => chooseMode(value)}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                    selected
+                      ? "bg-card font-medium text-foreground shadow-(--shadow-border)"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon aria-hidden className="size-3.5" strokeWidth={1.75} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p id="appearance-theme-label" className="text-[13px] font-medium">
+            Theme
+          </p>
+          <div
+            role="radiogroup"
+            aria-labelledby="appearance-theme-label"
+            className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+            onKeyDown={(event) => {
+              const index = arrowStep(event, THEMES.indexOf(theme));
+              const next = index === null ? null : THEMES[index];
+              if (next) chooseTheme(next);
+            }}
+          >
+            {THEMES.map((value) => {
+              const selected = theme === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={themeLabels[value]}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => chooseTheme(value)}
+                  className={cn(
+                    "group rounded-xl p-1 text-left transition-shadow duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                    selected
+                      ? "shadow-[0_0_0_2px_var(--primary)]"
+                      : "shadow-(--shadow-border) hover:shadow-(--shadow-border-hover)",
+                  )}
+                >
+                  <span className="flex overflow-hidden rounded-lg">
+                    <ThemePreview theme={value} />
+                    <ThemePreview theme={value} dark />
+                  </span>
+                  <span className="flex items-center justify-between gap-2 px-1.5 pt-2 pb-1 text-[13px]">
+                    <span className={cn(selected && "font-medium")}>
+                      {themeLabels[value]}
+                    </span>
+                    {selected && (
+                      <Check
+                        aria-hidden
+                        className="size-3.5 text-primary"
+                        strokeWidth={2}
+                      />
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <Status tone="error">{error}</Status>
       </SettingsBody>
     </SettingsSection>
+  );
+}
+
+// A miniature workspace drawn with the theme's own tokens: scoping the
+// element to the theme (and to dark) makes the real palette apply inside it.
+function ThemePreview({ theme, dark }: { theme: Theme; dark?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      data-theme={theme}
+      className={cn(
+        "flex h-16 flex-1 gap-1 bg-background p-1.5",
+        dark && "dark",
+      )}
+    >
+      <span className="w-2.5 rounded-[3px] bg-sidebar shadow-[0_0_0_1px_var(--sidebar-border)]" />
+      <span className="flex flex-1 flex-col gap-1 rounded-[4px] bg-card p-1.5 shadow-(--shadow-border)">
+        <span className="h-1 w-4/5 rounded-full bg-foreground/70" />
+        <span className="h-1 w-1/2 rounded-full bg-muted-foreground/50" />
+        <span className="mt-auto flex gap-1">
+          <span className="h-2 w-5 rounded-full bg-primary" />
+          <span className="h-2 w-3 rounded-full bg-muted" />
+        </span>
+      </span>
+    </span>
   );
 }
 

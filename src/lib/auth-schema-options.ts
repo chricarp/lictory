@@ -18,6 +18,14 @@ export const authSchemaOptions = {
         defaultValue: "system",
         input: false,
       },
+      // One of THEMES (see `~/lib/appearance`). Set only through the
+      // appearance endpoint, which validates the value.
+      theme: {
+        type: "string",
+        required: true,
+        defaultValue: "lictory",
+        input: false,
+      },
     },
   },
   plugins: [organization()],

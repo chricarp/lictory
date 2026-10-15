@@ -178,7 +178,7 @@ test("appearance preference applies immediately, persists, and follows the syste
   await signIn(page, reviewerEmail);
   await page.goto("/app/account");
   const html = page.locator("html");
-  const appearance = page.getByRole("radiogroup", { name: "Appearance" });
+  const appearance = page.getByRole("radiogroup", { name: "Mode" });
   await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
   await expect(html).not.toHaveClass(/\bdark\b/);
 
@@ -204,7 +204,7 @@ test("appearance preference applies immediately, persists, and follows the syste
   await expect(fresh.locator("html")).toHaveClass(/\bdark\b/);
   await expect(
     fresh
-      .getByRole("radiogroup", { name: "Appearance" })
+      .getByRole("radiogroup", { name: "Mode" })
       .getByRole("radio", { name: "Dark" }),
   ).toBeChecked();
   await other.close();
@@ -221,6 +221,56 @@ test("appearance preference applies immediately, persists, and follows the syste
   await page.keyboard.press("ArrowLeft");
   await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
   await reset;
+});
+
+test("theme applies immediately in both modes and persists on the account", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await signIn(page, reviewerEmail);
+  await page.goto("/app/account");
+  const html = page.locator("html");
+  const themes = page.getByRole("radiogroup", { name: "Theme" });
+  await expect(themes.getByRole("radio", { name: "Lictory" })).toBeChecked();
+  await expect(html).toHaveAttribute("data-theme", "lictory");
+  const background = () =>
+    page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const lictoryLight = await background();
+
+  const saved = page.waitForResponse("**/api/appearance");
+  await themes.getByRole("radio", { name: "Nord" }).click();
+  expect((await saved).ok()).toBe(true);
+  await expect(html).toHaveAttribute("data-theme", "nord");
+  await expect(themes.getByRole("radio", { name: "Nord" })).toBeChecked();
+  // Nord Snow Storm in light, Polar Night in dark.
+  await expect.poll(background).toBe("rgb(236, 239, 244)");
+  expect(lictoryLight).not.toBe("rgb(236, 239, 244)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect.poll(background).toBe("rgb(46, 52, 64)");
+
+  // Stored on the account: a fresh browser context without local state gets it.
+  const other = await page
+    .context()
+    .browser()!
+    .newContext({ storageState: consentStatePath });
+  const fresh = await other.newPage();
+  await signIn(fresh, reviewerEmail);
+  await fresh.goto("/app/account");
+  await expect(fresh.locator("html")).toHaveAttribute("data-theme", "nord");
+  await expect(
+    fresh
+      .getByRole("radiogroup", { name: "Theme" })
+      .getByRole("radio", { name: "Nord" }),
+  ).toBeChecked();
+  await other.close();
+
+  // Keyboard: arrow keys move the selection; reset for other tests.
+  await themes.getByRole("radio", { name: "Nord" }).focus();
+  const reset = page.waitForResponse("**/api/appearance");
+  await page.keyboard.press("ArrowRight");
+  await expect(themes.getByRole("radio", { name: "Lictory" })).toBeChecked();
+  expect((await reset).ok()).toBe(true);
+  await expect(html).toHaveAttribute("data-theme", "lictory");
 });
 
 test("prefetched navigation commits immediately and shows a loading state while the server responds", async ({
