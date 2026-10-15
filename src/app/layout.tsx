@@ -1,10 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import "~/app/globals.css";
 import { ConsentProvider } from "~/components/app/consent-provider";
 import { appearanceBootScript } from "~/lib/appearance";
-import { siteDescription, siteName, siteUrl } from "~/lib/site";
+import {
+  indexableRobots,
+  siteDescription,
+  siteName,
+  siteThemeColor,
+  siteUrl,
+} from "~/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,17 +35,15 @@ export const metadata: Metadata = {
   category: "technology",
   formatDetection: { email: false, address: false, telephone: false },
   // Lets search engines and AI answers show full snippets and large previews.
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-snippet": -1,
-      "max-image-preview": "large",
-      "max-video-preview": -1,
-    },
-  },
+  robots: indexableRobots,
+};
+
+// Browser chrome follows the system appearance, like the app's default theme.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfcfd" },
+    { media: "(prefers-color-scheme: dark)", color: siteThemeColor },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

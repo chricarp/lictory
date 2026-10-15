@@ -1,23 +1,19 @@
-import type { Metadata } from "next";
-
 import {
   AuthFooter,
   AuthHeading,
   AuthLink,
 } from "~/components/auth/auth-layout";
 import { SignUpForm } from "~/components/auth/sign-up-form";
+import { JsonLd } from "~/components/json-ld";
 import { AccountLegalNotice } from "~/components/auth/legal-notice";
 import { SocialButtons } from "~/components/auth/social-buttons";
 import { authProviders } from "~/lib/auth";
 import { safeAppPath } from "~/lib/paths";
+import { publicPageMetadata } from "~/lib/public-metadata";
+import { publicPageStructuredData } from "~/lib/structured-data";
 
-export const metadata: Metadata = {
-  title: "Create your account",
-  description:
-    "Start refining specifications with your team in Lictory for free.",
-  robots: { index: true, follow: true },
-  alternates: { canonical: "/sign-up" },
-};
+// The one indexable account page; the auth layout keeps the others out of search.
+export const metadata = publicPageMetadata("/sign-up");
 
 export default async function SignUpPage({
   searchParams,
@@ -45,6 +41,7 @@ export default async function SignUpPage({
           Sign in
         </AuthLink>
       </AuthFooter>
+      <JsonLd data={publicPageStructuredData("/sign-up")} />
     </>
   );
 }

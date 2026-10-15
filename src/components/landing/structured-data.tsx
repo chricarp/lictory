@@ -1,42 +1,41 @@
+import { JsonLd } from "~/components/json-ld";
 import { comparisonRows, faqs } from "~/components/landing/content";
 import {
   absoluteUrl,
+  marketingImage,
   siteDescription,
   siteName,
   siteSummary,
   siteTitle,
 } from "~/lib/site";
+import {
+  faqNode,
+  organizationNode,
+  schemaIds,
+  webPageId,
+  websiteNode,
+} from "~/lib/structured-data";
 
 const ids = {
-  organization: absoluteUrl("/#organization"),
-  website: absoluteUrl("/#website"),
-  application: absoluteUrl("/#software"),
-  webpage: absoluteUrl("/#webpage"),
-  faq: absoluteUrl("/#faq"),
+  ...schemaIds,
+  webpage: webPageId("/"),
+  image: absoluteUrl("/#primaryimage"),
 };
 
 /** schema.org description of the public landing page for search engines and AI. */
 export const landingStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
+    organizationNode,
+    websiteNode,
     {
-      "@type": "Organization",
-      "@id": ids.organization,
-      name: siteName,
-      url: absoluteUrl("/"),
-      logo: {
-        "@type": "ImageObject",
-        url: absoluteUrl("/brand/lictory-logo.png"),
-      },
-    },
-    {
-      "@type": "WebSite",
-      "@id": ids.website,
-      name: siteName,
-      url: absoluteUrl("/"),
-      description: siteDescription,
-      inLanguage: "en",
-      publisher: { "@id": ids.organization },
+      "@type": "ImageObject",
+      "@id": ids.image,
+      url: absoluteUrl(marketingImage.path),
+      contentUrl: absoluteUrl(marketingImage.path),
+      width: marketingImage.width,
+      height: marketingImage.height,
+      caption: marketingImage.alt,
     },
     {
       "@type": "WebPage",
@@ -47,10 +46,14 @@ export const landingStructuredData = {
       inLanguage: "en",
       isPartOf: { "@id": ids.website },
       about: { "@id": ids.application },
-      primaryImageOfPage: absoluteUrl("/og/marketing"),
+      mainEntity: { "@id": ids.application },
+      publisher: { "@id": ids.organization },
+      primaryImageOfPage: { "@id": ids.image },
+      image: { "@id": ids.image },
     },
     {
-      "@type": "SoftwareApplication",
+      // A SoftwareApplication that runs in the browser.
+      "@type": "WebApplication",
       "@id": ids.application,
       name: siteName,
       url: absoluteUrl("/"),
@@ -58,8 +61,10 @@ export const landingStructuredData = {
       applicationCategory: "BusinessApplication",
       applicationSubCategory: "Requirements management and project management",
       operatingSystem: "Web browser",
-      image: absoluteUrl("/og/marketing"),
+      browserRequirements: "Requires JavaScript and a modern web browser.",
+      image: { "@id": ids.image },
       publisher: { "@id": ids.organization },
+      isAccessibleForFree: true,
       offers: {
         "@type": "Offer",
         price: "0",
@@ -71,28 +76,10 @@ export const landingStructuredData = {
         .filter((row) => row.lictory === "yes")
         .map((row) => row.feature),
     },
-    {
-      "@type": "FAQPage",
-      "@id": ids.faq,
-      url: absoluteUrl("/#faq"),
-      isPartOf: { "@id": ids.webpage },
-      mainEntity: faqs.map(({ question, answer }) => ({
-        "@type": "Question",
-        name: question,
-        acceptedAnswer: { "@type": "Answer", text: answer },
-      })),
-    },
+    faqNode("/", faqs),
   ],
 };
 
 export function StructuredData() {
-  return (
-    <script
-      type="application/ld+json"
-      // Escapes "<" so the payload can never close the script element.
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify(landingStructuredData).replace(/</g, "\\u003c"),
-      }}
-    />
-  );
+  return <JsonLd data={landingStructuredData} />;
 }

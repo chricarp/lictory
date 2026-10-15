@@ -5,7 +5,7 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "What is Lictory?",
     answer:
-      "Lictory is a work-management platform for software teams that reviews requirements like code. Product, engineering and QA refine a rough proposal into an approved specification through revisions, anchored discussions, suggestions, revision-bound approvals and readiness checks, then deliver the work in Lictory or publish it to Jira or Linear.",
+      "Lictory is a work-management platform for software teams that reviews requirements like code. Product, engineering and QA refine a rough proposal into an approved specification through revisions, anchored discussions, suggestions, revision-bound approvals and readiness checks, then deliver the work in Lictory or publish it to Jira.",
   },
   {
     question: "Who is Lictory for?",
@@ -15,7 +15,7 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "Do we have to leave Jira or Linear?",
     answer:
-      "No. Set a team to external delivery and Lictory handles refinement, review and decomposition, then publishes approved work into your existing tracker. Teams can switch to native delivery whenever they like.",
+      "No. Set a project to external delivery and Lictory handles refinement, review and decomposition, then publishes approved work into Jira. Publishing to Linear is coming. Projects can switch to native delivery whenever they like.",
   },
   {
     question: "Is this just a document editor with comments?",
@@ -135,7 +135,7 @@ export const comparisonRows: ComparisonRow[] = [
     linear: "yes",
   },
   {
-    feature: "Publish approved work to Jira or Linear",
+    feature: "Publish approved work to Jira",
     lictory: "yes",
     jira: "n/a",
     linear: "n/a",
