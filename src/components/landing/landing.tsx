@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
 import type { CSSProperties, ReactNode } from "react";
 import {
   ArrowRight,
@@ -20,11 +19,16 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { Logo } from "~/components/logo";
 import { ComparisonTable } from "~/components/landing/comparison";
+import { comparisons } from "~/content/comparisons";
 import { faqs } from "~/components/landing/content";
 import { StructuredData } from "~/components/landing/structured-data";
 import { MobileCta } from "~/components/landing/mobile-cta";
+import {
+  CtaLink,
+  MarketingFooter,
+  MarketingHeader,
+} from "~/components/marketing/chrome";
 import { ReviewDemo } from "~/components/landing/review-demo";
 import {
   DeliveryVisual,
@@ -53,43 +57,6 @@ function Reveal({
   );
 }
 
-const linkBase =
-  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,color,box-shadow,transform] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.98]";
-
-function CtaLink({
-  href,
-  children,
-  variant = "primary",
-  size = "md",
-  className,
-}: {
-  href: string;
-  children: ReactNode;
-  variant?: "primary" | "secondary" | "ghost";
-  size?: "md" | "lg";
-  className?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        linkBase,
-        size === "md" && "h-8 px-3 text-[13px]",
-        size === "lg" && "h-11 px-5 text-sm",
-        variant === "primary" &&
-          "bg-foreground text-background shadow-[0_0_0_1px_oklch(1_0_0/0.1),0_8px_30px_-8px_oklch(0.75_0.12_285/0.55)] hover:bg-foreground/90",
-        variant === "secondary" &&
-          "bg-white/4 text-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.1)] hover:bg-white/8",
-        variant === "ghost" &&
-          "text-muted-foreground hover:bg-white/5 hover:text-foreground",
-        className,
-      )}
-    >
-      {children}
-    </Link>
-  );
-}
-
 /**
  * Where the primary calls to action lead. Signed-in visitors reach the landing
  * page at /home, so they are sent back to the app rather than to sign-up.
@@ -105,7 +72,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
   return (
     <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
       <div className="relative overflow-clip">
-        <Header home={home} signedIn={signedIn} />
+        <MarketingHeader home={home} signedIn={signedIn} />
         <main>
           <Hero cta={cta} />
           <Journey />
@@ -117,7 +84,7 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
           <Faq />
           <FinalCta cta={cta} signedIn={signedIn} />
         </main>
-        <Footer home={home} />
+        <MarketingFooter home={home} />
       </div>
       <MobileCta href={cta.href} label={cta.label} />
       <StructuredData />
@@ -126,63 +93,6 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
 }
 
 /* -------------------------------------------------------------------------- */
-
-function Header({ home, signedIn }: { home: string; signedIn: boolean }) {
-  return (
-    <header className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-3 sm:top-4">
-      <div
-        className={cn(
-          "pointer-events-auto relative isolate flex h-12 w-full max-w-3xl items-center gap-2 rounded-full py-1.5 pr-1.5 pl-4",
-          // Liquid glass: translucent tint, heavy blur + saturation, inner highlight rim.
-          "bg-[linear-gradient(180deg,oklch(1_0_0/0.09),oklch(1_0_0/0.03))] backdrop-blur-2xl backdrop-saturate-[1.8]",
-          "shadow-[inset_0_1px_0_oklch(1_0_0/0.18),inset_0_-1px_0_oklch(1_0_0/0.04),inset_0_0_0_1px_oklch(1_0_0/0.08),0_8px_32px_-8px_oklch(0_0_0/0.6),0_2px_6px_-2px_oklch(0_0_0/0.4)]",
-          "before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:-z-10 before:h-1/2 before:rounded-t-full before:bg-[radial-gradient(60%_100%_at_50%_0%,oklch(1_0_0/0.12),transparent)]",
-        )}
-      >
-        <Logo href={home} className="[&>span]:h-5" />
-        <nav
-          aria-label="Sections"
-          className="mx-auto hidden items-center text-[13px] md:flex"
-        >
-          {[
-            ["Product", "#features"],
-            ["Readiness", "#readiness"],
-            ["Delivery", "#delivery"],
-            ["FAQ", "#faq"],
-          ].map(([label, href]) => (
-            <a
-              key={href}
-              href={href}
-              className="rounded-full px-3 py-1.5 text-foreground/65 transition-[background-color,color] duration-150 hover:bg-white/[0.07] hover:text-foreground"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-1 md:ml-0">
-          {signedIn ? (
-            <CtaLink href="/app" className="h-9 px-4 shadow-none">
-              Open Lictory
-            </CtaLink>
-          ) : (
-            <>
-              <CtaLink
-                href="/sign-in"
-                variant="ghost"
-                className="h-9 px-3.5 hover:bg-white/[0.07]"
-              >
-                Log in
-              </CtaLink>
-              <CtaLink href="/sign-up" className="h-9 px-4 shadow-none">
-                Sign up
-              </CtaLink>
-            </>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-}
 
 function rise(delayMs: number) {
   return { animationDelay: `${delayMs}ms` };
@@ -251,22 +161,20 @@ function Hero({ cta }: { cta: Cta }) {
           style={rise(320)}
           className="landing-rise mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:mt-4"
         >
-          {[
-            "Free to start",
-            "Set up in minutes",
-            "Works with Jira & Linear",
-          ].map((item) => (
-            <li
-              key={item}
-              className={cn(
-                "flex items-center gap-1.5",
-                item === "Set up in minutes" && "max-sm:hidden",
-              )}
-            >
-              <Check aria-hidden className="size-3 text-emerald-400" />
-              {item}
-            </li>
-          ))}
+          {["Free to start", "Set up in minutes", "Works with Jira"].map(
+            (item) => (
+              <li
+                key={item}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  item === "Set up in minutes" && "max-sm:hidden",
+                )}
+              >
+                <Check aria-hidden className="size-3 text-emerald-400" />
+                {item}
+              </li>
+            ),
+          )}
         </ul>
         <div style={rise(420)} className="landing-rise mt-6 sm:mt-16">
           <HeroStage>
@@ -761,7 +669,7 @@ function Delivery({ cta }: { cta: Cta }) {
               One spec. Your way to ship.
             </h2>
             <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground sm:text-lg sm:leading-7">
-              Choose delivery per team. Keep the same refinement workflow.
+              Choose delivery per project. Keep the same refinement workflow.
             </p>
             <div className="mt-7 space-y-5">
               <div className="flex gap-3">
@@ -787,8 +695,8 @@ function Delivery({ cta }: { cta: Cta }) {
                     Keep your existing tracker
                   </h3>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Publish approved work to Jira or Linear, with a link to the
-                    revision it came from.
+                    Publish approved work to Jira, with a link to the revision
+                    it came from. Linear support is coming.
                   </p>
                 </div>
               </div>
@@ -835,6 +743,18 @@ function Comparison() {
           an agreement you can trace.
         </SectionHeading>
         <ComparisonTable />
+        <p className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+          Detailed comparisons:
+          {comparisons.map(({ slug, competitor }) => (
+            <Link
+              key={slug}
+              href={`/compare/${slug}`}
+              className="inline-flex items-center gap-1 text-foreground/85 underline decoration-white/20 underline-offset-4 hover:decoration-foreground"
+            >
+              Lictory vs {competitor}
+            </Link>
+          ))}
+        </p>
         <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-2">
             <Lock aria-hidden className="size-3.5" />
@@ -926,42 +846,5 @@ function FinalCta({ cta, signedIn }: { cta: Cta; signedIn: boolean }) {
         </div>
       </Reveal>
     </Section>
-  );
-}
-
-function Footer({ home }: { home: string }) {
-  return (
-    <footer
-      data-cta-anchor
-      className="border-t border-white/6 px-5 py-10 sm:px-8"
-    >
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center">
-        <Logo href={home} className="text-foreground [&>span]:h-6" />
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
-          <a href="#features" className="hover:text-foreground">
-            Features
-          </a>
-          <a href="#delivery" className="hover:text-foreground">
-            Delivery
-          </a>
-          <a href="#compare" className="hover:text-foreground">
-            Compare
-          </a>
-          <a href="#faq" className="hover:text-foreground">
-            FAQ
-          </a>
-          <Link href="/privacy" className="hover:text-foreground">
-            Privacy Notice
-          </Link>
-          <Link href="/terms-of-service" className="hover:text-foreground">
-            Terms of Service
-          </Link>
-          <PrivacyPreferencesButton className="hover:text-foreground">
-            Privacy preferences
-          </PrivacyPreferencesButton>
-        </nav>
-        <p className="sm:ml-auto">© {new Date().getFullYear()} Lictory</p>
-      </div>
-    </footer>
   );
 }

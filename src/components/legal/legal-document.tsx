@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { PrivacyPreferencesButton } from "~/components/app/consent-ui";
 import { Logo } from "~/components/logo";
 import { LegalOperator } from "~/components/legal/legal-operator";
+import { legalVersion } from "~/lib/site";
 
 export type LegalSection = { id: string; title: string; body: string };
 
@@ -37,7 +38,8 @@ export function LegalDocument({
             {title}
           </h1>
           <p className="mt-4 text-sm text-muted-foreground">
-            Version: 9 October 2026
+            Version:{" "}
+            <time dateTime={legalVersion.date}>{legalVersion.label}</time>
           </p>
           <p className="mt-6 text-base leading-7 text-muted-foreground">
             {introduction}

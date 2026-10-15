@@ -1,3 +1,4 @@
+import { guides } from "~/content/guides";
 import {
   comparisonCellText,
   comparisonProducts,
@@ -36,7 +37,7 @@ const concepts = `## How ${siteName} works
 2. **Review.** Threads attach to the exact text they discuss. Suggestions are real text changes that reviewers accept or reject; each accepted suggestion creates a new revision. Product, engineering, QA, security and operations review the same specification, each with the concerns they know best.
 3. **Readiness.** Readiness is evidence, not a status label: checks such as “acceptance criteria present”, “failure behavior addressed” and “no blocking threads” pass as answers arrive. Think of it as CI for requirements.
 4. **Approval.** Approvals belong to the revision that was reviewed. When approved content changes materially, the affected approvals go stale and need another review.
-5. **Delivery.** Each project chooses where delivery happens: natively in ${siteName} (configurable work item types, workflows, boards, backlog, sprints, cycles, estimates, burndown, velocity and relations) or by publishing approved work to Jira or Linear with a link back to the revision it came from. Publishing is an explicit, permission-checked action.
+5. **Delivery.** Each project chooses where delivery happens: natively in ${siteName} (configurable work item types, workflows, boards, backlog, sprints, cycles, estimates, burndown, velocity and relations) or by publishing approved work to Jira (Linear support is coming) with a link back to the revision it came from. Publishing is an explicit, permission-checked action.
 
 ## Key concepts
 
@@ -69,6 +70,17 @@ Built-in capabilities as we understand them; marketplace add-ons and integration
 ${[header, divider, ...rows].join("\n")}`;
 }
 
+function guideArticles() {
+  return `## Guides
+
+${guides
+  .map(
+    (guide) =>
+      `### ${guide.title}\n\nSource: ${absoluteUrl(`/guides/${guide.slug}`)}\n\n${guide.body.replace(/^## /gm, "#### ")}`,
+  )
+  .join("\n\n")}`;
+}
+
 function faq() {
   return `## Frequently asked questions
 
@@ -85,7 +97,7 @@ ${pageLinks()}
 
 ## Optional
 
-- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, and frequently asked questions.
+- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, frequently asked questions and the full text of the guides.
 `;
 }
 
@@ -98,6 +110,8 @@ ${concepts}
 ${comparison()}
 
 ${faq()}
+
+${guideArticles()}
 
 ## Pages
 
