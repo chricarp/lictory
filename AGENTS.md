@@ -1139,16 +1139,16 @@ Do not lie with a single success/failure boolean when reality is more complicate
 ## Required final CI verification
 
 At the end of every change, before pushing commits or opening or updating a pull
-request, run the complete verification sequence from
-[the CI workflow](.github/workflows/ci.yml) against the final working tree. This
-is mandatory for AI agents, including documentation-only changes. Targeted tests
-during implementation do not replace this final step.
+request, run the complete local verification sequence below against the final
+working tree. This is mandatory for AI agents, including documentation-only
+changes. Targeted tests during implementation do not replace this final step.
 
-Read the workflow each time; its jobs (static checks, domain tests and browser
-workflows, gathered by `Verify`) are the source of truth. CI runs them in
-parallel and splits the browser suite into shards; locally, execute every `run`
-command in this order with the same arguments and equivalent test environment,
-running the browser suite unsharded. The current sequence is:
+GitHub Actions CI ([the CI workflow](.github/workflows/ci.yml)) is deliberately
+minimal to save Actions minutes: it only runs `bun run typecheck` and
+`bun run db:check`. Audit, lint, format, knip, domain tests and browser
+workflows run only here, locally, so this sequence is the real quality gate.
+Execute every command in this order with the same arguments, running the
+browser suite unsharded:
 
 ```sh
 bun install --frozen-lockfile
@@ -1161,15 +1161,8 @@ bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 ```
 
-Reusable release verification also runs
-`bun scripts/inject-release-version.ts "$RELEASE_VERSION"` before this sequence
-when its `release_version` input is present. This happens only in the disposable
-candidate checkout so browser checks verify the exact nightly/stable version;
-normal local verification runs the eight commands above without changing the
-developer's package version.
-
-Provide the workflow's PostgreSQL and Mailpit services locally (see
-`compose.yaml`) and use its test authentication and SMTP settings. For the
+Provide PostgreSQL and Mailpit locally (see `compose.yaml`) and use the test
+authentication and SMTP settings from `docs/operations/development.md`. For the
 migration step, create a new disposable database and point `DATABASE_URL` and
 `DATABASE_URL_UNPOOLED` at it. Set `SCHEMA_TEST_DATABASE_URL` to the test
 PostgreSQL admin database so the schema and browser suites can create their own
@@ -1185,8 +1178,8 @@ unavailable, report the exact blocker and leave the push/PR step pending. Do not
 alter unrelated user edits just to make verification pass.
 
 Report the commands run and their results in the final response and PR
-description. If the CI workflow changes, update the command list above in the
-same change so the instructions remain aligned.
+description. If the local sequence or the CI workflow changes, update both this
+section and `docs/operations/development.md` in the same change.
 
 ## Behavior verification
 

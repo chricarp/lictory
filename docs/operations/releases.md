@@ -84,10 +84,10 @@ maintenance branches. It also runs automatically after stable publication so
 the remaining `main` work gets a candidate based on the new stable baseline.
 Ordinary PR previews do not create release tags or GitHub Releases.
 
-CI runs directly for pull requests and manual dispatches. Pushes to `main` and
-maintenance branches are verified through Nightly's reusable CI job, so a merge
-does not also start a duplicate standalone CI run. Nightly verification remains
-a required gate before preview deployment and publication.
+CI runs directly for pull requests and manual dispatches. To save Actions
+minutes, pushes to `main` and maintenance branches are not re-verified: the
+merged PR already passed CI, and Release to Production verifies the exact
+candidate again before activation.
 
 1. Pin the triggering SHA and calculate a candidate from the stable baseline.
 2. Form `X.Y.Z-nightly.YYYYMMDD.<run_number>` using the workflow's original UTC
@@ -95,15 +95,12 @@ a required gate before preview deployment and publication.
    attempt number.
    The `nightly-intent` journal preserves the original candidate across whole-run
    retries, even if another stable release appears while it is being repaired.
-3. Run the complete reusable CI workflow against that SHA with the candidate
-   version embedded: frozen install, audit, types/lint/format, migration checks,
-   disposable migrations, all tests, and a production build plus browser suite.
-4. Create a **Preview deployment in the existing `lictory` Vercel project**
+3. Create a **Preview deployment in the existing `lictory` Vercel project**
    using `vercel deploy --target=preview` and the project's Preview settings.
    Nightlies never run database migrations or promote a deployment.
-5. Reserve the immutable tag/manifest, publish a GitHub prerelease (never latest),
+4. Reserve the immutable tag/manifest, publish a GitHub prerelease (never latest),
    and record deployment success. The complete workflow must succeed before
-   production selection treats the release as verified.
+   production selection treats the release as eligible.
 
 Each candidate has its own immutable Vercel URL in the Actions summary and
 GitHub deployment journal. There is no shared nightly domain or separate project.
@@ -138,7 +135,8 @@ deployment journal. Rerunning all jobs keeps that intent, even after newer
 nightlies appear. The temporary plan artifact is an execution copy, not the only
 record of the decision.
 
-The selected SHA passes the complete CI workflow again with the stable version.
+The selected SHA passes the minimal CI workflow (types and migration checks)
+again with the stable version.
 Only the deploy job accesses the protected `production` environment and its
 existing required approvals. Its release controller comes from the dispatch's
 protected `main` commit; the application and migration code are checked out in a

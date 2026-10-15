@@ -219,10 +219,13 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
   assert.equal(production.concurrency?.queue, "max");
   assert.equal(production.concurrency?.["cancel-in-progress"], false);
   assert.equal(nightly.concurrency?.queue, "max");
+  assert.equal(production.jobs.verify!.uses, "./.github/workflows/ci.yml");
+  assert.equal(
+    production.jobs.verify!.with?.ref,
+    "${{ needs.plan.outputs.sha }}",
+  );
+  assert.deepEqual(production.jobs.deploy!.needs, ["plan", "verify"]);
   for (const flow of [production, nightly]) {
-    assert.equal(flow.jobs.verify!.uses, "./.github/workflows/ci.yml");
-    assert.equal(flow.jobs.verify!.with?.ref, "${{ needs.plan.outputs.sha }}");
-    assert.deepEqual(flow.jobs.deploy!.needs, ["plan", "verify"]);
     const source = flow.jobs.deploy!.steps!.find(
       (step) => step.with?.path === "source",
     );
@@ -250,21 +253,22 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
   assert.ok(!Object.hasOwn(nightly.on, "pull_request"));
 });
 
-void test("pushes verify once through Nightly while PR and manual CI remain available", () => {
+void test("pushes deploy nightlies without re-verifying; PR and manual CI remain available", () => {
   const ci = workflow("ci");
   const nightly = workflow("nightly");
+  const production = workflow("deploy-production");
   assert.deepEqual(Object.keys(ci.on).sort(), [
     "pull_request",
     "workflow_call",
     "workflow_dispatch",
   ]);
   assert.deepEqual(nightly.on.push, { branches: ["main", "release/*"] });
-  assert.equal(nightly.jobs.verify!.uses, "./.github/workflows/ci.yml");
+  assert.equal(nightly.jobs.verify, undefined);
+  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan"]);
   assert.equal(
-    nightly.jobs.verify!.with?.release_version,
+    production.jobs.verify!.with?.release_version,
     "${{ needs.plan.outputs.version }}",
   );
-  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan", "verify"]);
 });
 
 void test("PR title enforcement never checks out or runs untrusted PR code", () => {
@@ -280,28 +284,18 @@ void test("PR title enforcement never checks out or runs untrusted PR code", () 
   assert.equal(title.permissions["pull-requests"], "read");
 });
 
-void test("the complete CI verification sequence and package-sourced version display are preserved", async () => {
+void test("the minimal CI verification sequence and package-sourced version display are preserved", async () => {
   const jobs = workflow("ci").jobs;
-  const runs = (name: string) =>
-    jobs[name]!.steps!.flatMap((step) => (step.run ? [step.run] : []));
-  for (const name of ["static", "unit", "e2e"]) {
-    assert.match(runs(name)[0]!, /inject-release-version/);
-    assert.equal(runs(name)[1], "bun install --frozen-lockfile");
-  }
-  assert.deepEqual(runs("static").slice(2), [
-    "bun audit --audit-level=high",
-    "bun run check",
+  assert.deepEqual(Object.keys(jobs), ["verify"]);
+  const runs = jobs.verify!.steps!.flatMap((step) =>
+    step.run ? [step.run] : [],
+  );
+  assert.match(runs[0]!, /inject-release-version/);
+  assert.deepEqual(runs.slice(1), [
+    "bun install --frozen-lockfile",
+    "bun run typecheck",
     "bun run db:check",
   ]);
-  assert.deepEqual(runs("unit").slice(2), [
-    "bun run db:migrate",
-    "bun test src",
-  ]);
-  assert.deepEqual(runs("e2e").slice(2), [
-    "bunx playwright install --with-deps --only-shell chromium",
-    'bun run test:e2e --shard="$SHARD"',
-  ]);
-  assert.deepEqual(jobs.verify!.needs, ["static", "unit", "e2e"]);
   const config = await readFile(
     new URL("../../next.config.ts", import.meta.url),
     "utf8",

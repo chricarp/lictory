@@ -55,9 +55,10 @@ land in `/tmp/lictory-playwright-results`.
 
 ## Full verification before a pull request
 
-The jobs in [the CI workflow](../../.github/workflows/ci.yml) are the source of
-truth; `AGENTS.md` lists the current sequence. CI runs static checks, domain
-tests and sharded browser workflows in parallel; locally, run them in order
+GitHub Actions CI is deliberately minimal to save minutes: it runs only
+`bun run typecheck` and `bun run db:check`. Everything else (audit, lint,
+format, knip, domain tests and browser workflows) runs only locally, so run the
+complete sequence below before opening or updating a pull request, in order and
 against a disposable database, never your development database:
 
 ```sh

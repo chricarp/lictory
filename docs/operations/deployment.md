@@ -116,23 +116,14 @@ Migrations never run from the application, Vercel builds or pull requests.
 
 ## Background jobs
 
-Create the separate GitHub environment `production-jobs`. Set its `APP_ORIGIN`
-variable to the canonical origin and its `CRON_SECRET` secret to the same value
-configured in Vercel Production. This environment must permit unattended
-scheduled runs; keep migration approvals on `production` separately.
-
-**Scheduled production jobs** calls the authenticated endpoint hourly, advancing
-cycles, resuming interrupted delivery exports and sending queued notifications.
-Missing configuration leaves it disabled. Runs are serialized, have bounded
-timeouts and retry transient HTTP failures. The endpoint is idempotent. GitHub
-schedules can be delayed, so hourly dispatch is not a delivery-time guarantee.
-This also means notification email can wait for the next run. Watch failed runs
-and Vercel job logs; increasing cadence consumes more Actions minutes.
-
-Do not disable Vercel deployment protection to make the job work. If the
-production URL is protected, configure a narrowly scoped automation mechanism
-before enabling it. Monitor scheduler execution; an unconfigured successful
-workflow means the job was skipped, not that production work ran.
+Vercel Cron (configured in `vercel.json`) calls the authenticated endpoint
+hourly on the production deployment, advancing cycles, resuming interrupted
+delivery exports and sending queued notifications. Vercel sends
+`Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set in
+the Production environment; without it the endpoint stays disabled. Hourly
+schedules require a Vercel Pro plan. The endpoint is idempotent, so overlapping
+or retried runs are safe. Notification email can wait for the next run. Watch
+the cron logs in the Vercel dashboard, where a run can also be triggered by hand.
 
 ## Costs and release checks
 
