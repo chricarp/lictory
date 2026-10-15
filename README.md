@@ -96,7 +96,7 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 ## Versions and releases
 
 Conventional Commit PR titles determine semantic versions automatically. Merges
-produce verified Nightly prereleases with Preview deployments in the existing
+produce Nightly prereleases with Preview deployments in the existing
 Vercel project. Run **Release to Production** in GitHub Actions to publish a Stable release from the exact
 nightly you tested, even when `main` has moved ahead. The account menu shows the
 deployed version. See [the release runbook](docs/operations/releases.md) for

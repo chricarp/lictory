@@ -54,16 +54,11 @@ jobs:
           retention-days: 30
           overwrite: true
 
-  verify:
-    needs: plan
-    uses: ./.github/workflows/ci.yml
-    with:
-      ref: ${{ needs.plan.outputs.sha }}
-      release_version: ${{ needs.plan.outputs.version }}
-
+  # No re-verification here: the merged PR already passed CI, and the
+  # production release verifies the exact candidate before activation.
   deploy:
     name: Deploy and publish nightly preview
-    needs: [plan, verify]
+    needs: [plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: Production
