@@ -9,6 +9,9 @@ export const siteUrl = new URL(
   process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 ).origin;
 
+/** RSS feed of the guides, so feed readers and crawlers notice new ones. */
+export const guidesFeedPath = "/guides/feed.xml";
+
 export function absoluteUrl(path: string) {
   return new URL(path, siteUrl).toString();
 }

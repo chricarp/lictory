@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { siteDescription, siteTitle } from "~/lib/site";
+import { guidesFeedPath, siteDescription, siteTitle } from "~/lib/site";
 import { socialMetadata } from "~/lib/social-preview";
 
 // Served at "/" for anonymous visitors and at "/home" for everyone; "/" stays
@@ -25,6 +25,9 @@ export const landingMetadata: Metadata = {
   alternates: {
     canonical: "/",
     // Plain-text overview for AI assistants (https://llmstxt.org).
-    types: { "text/plain": [{ url: "/llms.txt", title: "Lictory for LLMs" }] },
+    types: {
+      "text/plain": [{ url: "/llms.txt", title: "Lictory for LLMs" }],
+      "application/rss+xml": [{ url: guidesFeedPath, title: "Guides" }],
+    },
   },
 };

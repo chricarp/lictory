@@ -1,3 +1,4 @@
+import { comparisons } from "~/content/comparisons";
 import { guides } from "~/content/guides";
 import {
   comparisonCellText,
@@ -6,7 +7,15 @@ import {
   faqs,
 } from "~/components/landing/content";
 import {
+  comparisonMarkdown,
+  demoteHeadings,
+  guideMarkdown,
+  hasMarkdown,
+  markdownPath,
+} from "~/lib/markdown";
+import {
   absoluteUrl,
+  guidesFeedPath,
   publicPages,
   siteName,
   siteSummary,
@@ -16,11 +25,13 @@ import {
 // Markdown overviews for AI assistants, following https://llmstxt.org. Built from
 // the same copy as the landing page and only from public facts about the product.
 
+// Pages with a Markdown version link to it, as the llms.txt convention suggests;
+// each Markdown document names its canonical HTML URL.
 function pageLinks() {
   return publicPages
     .map(
       ({ path, title, description }) =>
-        `- [${title}](${absoluteUrl(path)}): ${description}`,
+        `- [${title}](${absoluteUrl(hasMarkdown(path) ? markdownPath(path) : path)}): ${description}`,
     )
     .join("\n");
 }
@@ -73,12 +84,13 @@ ${[header, divider, ...rows].join("\n")}`;
 function guideArticles() {
   return `## Guides
 
-${guides
-  .map(
-    (guide) =>
-      `### ${guide.title}\n\nSource: ${absoluteUrl(`/guides/${guide.slug}`)}\n\n${guide.body.replace(/^## /gm, "#### ")}`,
-  )
-  .join("\n\n")}`;
+${guides.map((guide) => demoteHeadings(guideMarkdown(guide), 2)).join("\n\n")}`;
+}
+
+function comparisonArticles() {
+  return `## Detailed comparisons
+
+${comparisons.map((item) => demoteHeadings(comparisonMarkdown(item), 2)).join("\n\n")}`;
 }
 
 function faq() {
@@ -97,7 +109,8 @@ ${pageLinks()}
 
 ## Optional
 
-- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, frequently asked questions and the full text of the guides.
+- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, frequently asked questions and the full text of the comparisons and guides.
+- [Guides feed](${absoluteUrl(guidesFeedPath)}): RSS feed of new and updated guides.
 `;
 }
 
@@ -110,6 +123,8 @@ ${concepts}
 ${comparison()}
 
 ${faq()}
+
+${comparisonArticles()}
 
 ${guideArticles()}
 

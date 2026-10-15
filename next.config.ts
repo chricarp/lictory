@@ -28,6 +28,21 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Markdown versions of public pages for AI assistants live at `<page>.md`.
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: "/guides.md", destination: "/markdown/guides" },
+        { source: "/guides/:slug.md", destination: "/markdown/guides/:slug" },
+        {
+          source: "/compare/:product.md",
+          destination: "/markdown/compare/:product",
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   // Native document converter for Lictory Intelligence Context: loaded from
   // node_modules at runtime instead of being bundled.
   serverExternalPackages: ["@firecrawl/anydoc"],

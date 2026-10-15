@@ -9,9 +9,17 @@ test("search engines and AI assistants can discover the public website", async (
   for (const agent of ["*", "Googlebot", "Bingbot", "GPTBot", "ClaudeBot"])
     expect(rules).toContain(`User-Agent: ${agent}`);
   expect(rules).toContain("Disallow: /api/");
+  expect(rules).not.toContain("Host:");
   // Workspace links stay fetchable so unfurlers can read their noindex previews.
   expect(rules).not.toMatch(/Disallow: \/app/);
   expect(rules).toMatch(/Sitemap: https?:\/\/[^/]+\/sitemap\.xml/);
+  expect(rules).toMatch(/Sitemap: https?:\/\/[^/]+\/guides\/feed\.xml/);
+
+  const feed = await request.get("/guides/feed.xml");
+  expect(feed.headers()["content-type"]).toContain("application/rss+xml");
+  expect(await feed.text()).toMatch(
+    /<link>https?:\/\/[^/]+\/guides\/definition-of-ready<\/link>/,
+  );
 
   const sitemap = await (await request.get("/sitemap.xml")).text();
   for (const path of ["/privacy", "/terms-of-service", "/sign-up"])
@@ -31,9 +39,43 @@ test("search engines and AI assistants can discover the public website", async (
   const overview = await index.text();
   expect(overview).toMatch(/^# Lictory\n\n> /);
   expect(overview).toContain("/llms-full.txt");
+  expect(overview).toContain("/guides/definition-of-ready.md)");
   const full = await (await request.get("/llms-full.txt")).text();
   expect(full).toContain("| Approvals bound to a specific revision | Yes |");
   expect(full).toContain("### Do we have to leave Jira or Linear?");
+  expect(full).toContain("### Lictory vs Jira");
+});
+
+test("guides and comparisons have Markdown versions for AI assistants", async ({
+  page,
+  request,
+}) => {
+  const guide = await request.get("/guides/definition-of-ready.md");
+  expect(guide.status()).toBe(200);
+  expect(guide.headers()["content-type"]).toContain("text/markdown");
+  // Search engines index the HTML page, not the Markdown copy.
+  expect(guide.headers().link).toMatch(
+    /^<https?:\/\/[^/]+\/guides\/definition-of-ready>; rel="canonical"$/,
+  );
+  expect(await guide.text()).toMatch(
+    /^# Definition of Ready: a checklist your team can prove\n/,
+  );
+
+  const comparison = await (await request.get("/compare/jira.md")).text();
+  expect(comparison).toContain(
+    "| Approvals bound to a specific revision | Yes |",
+  );
+  expect(comparison).toContain("## Frequently asked questions");
+  expect((await request.get("/guides.md")).status()).toBe(200);
+  expect((await request.get("/compare/unknown.md")).status()).toBe(404);
+
+  await page.goto("/guides/definition-of-ready");
+  await expect(
+    page.locator('link[rel="alternate"][type="text/markdown"]'),
+  ).toHaveAttribute("href", /\/guides\/definition-of-ready\.md$/);
+  await expect(
+    page.locator('link[rel="alternate"][type="application/rss+xml"]'),
+  ).toHaveAttribute("href", /\/guides\/feed\.xml$/);
 });
 
 test("the landing page describes itself with structured data", async ({
