@@ -14,6 +14,7 @@ export const user = pgTable("user", {
     .notNull(),
   handle: text("handle").unique(),
   appearance: text("appearance").default("system").notNull(),
+  theme: text("theme").default("lictory").notNull(),
 });
 
 export const session = pgTable(

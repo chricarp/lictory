@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { AppearanceProvider } from "~/components/app/appearance-provider";
 import { PostHogIdentity } from "~/components/app/posthog-identity";
-import { parseAppearance } from "~/lib/appearance";
+import { parseAppearance, parseTheme } from "~/lib/appearance";
 import { requestSession } from "~/lib/session";
 import { safeAppPath } from "~/lib/paths";
 
@@ -29,7 +29,10 @@ export default async function ProtectedLayout({
     redirect(`/welcome?next=${encodeURIComponent(next)}`);
   }
   return (
-    <AppearanceProvider initial={parseAppearance(session.user.appearance)}>
+    <AppearanceProvider
+      initial={parseAppearance(session.user.appearance)}
+      initialTheme={parseTheme(session.user.theme)}
+    >
       <PostHogIdentity userId={session.user.id} />
       <div className="min-h-dvh bg-background">{children}</div>
     </AppearanceProvider>
