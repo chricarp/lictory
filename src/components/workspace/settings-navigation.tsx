@@ -6,20 +6,12 @@ import type { SettingsNavItem } from "./settings-section";
 
 // Subscribe to route changes here so the shared settings header does not need
 // to render again just to update the selected navigation link.
-export function SettingsNavigation({
-  nav,
-  active,
-}: {
-  nav: SettingsNavItem[];
-  active?: string;
-}) {
+export function SettingsNavigation({ nav }: { nav: SettingsNavItem[] }) {
   const pathname = usePathname();
   const selected =
-    active ??
     nav.find(
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-    )?.id ??
-    nav[0]?.id;
+    )?.id ?? nav[0]?.id;
   const groups: { group?: string; items: SettingsNavItem[] }[] = [];
   for (const item of nav) {
     const last = groups.at(-1);

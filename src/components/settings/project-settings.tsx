@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { useWorkspace } from "~/components/workspace/provider";
 import { useProject } from "~/components/workspace/project-gate";
 import {
@@ -37,16 +38,11 @@ const sections = [
 ] as const;
 type SectionId = (typeof sections)[number]["id"];
 
-export function ProjectSettings({ section }: { section: string }) {
+// The header and section navigation live in the settings layout so they stay
+// mounted while people move between sections; only the section re-renders.
+export function ProjectSettingsLayout({ children }: { children: ReactNode }) {
   const project = useProject();
-  const { organization, directory, canManage, capabilitiesIn } = useWorkspace();
-  const active: SectionId = sections.some((s) => s.id === section)
-    ? (section as SectionId)
-    : "general";
-  const canEdit = canManage(project.id);
-  const canEditLabels =
-    canEdit ||
-    (!project.archivedAt && capabilitiesIn(project.id).changeProperties);
+  const { organization, directory } = useWorkspace();
   const members = directory.projectMembers.filter(
     (m) => m.projectId === project.id,
   ).length;
@@ -56,8 +52,6 @@ export function ProjectSettings({ section }: { section: string }) {
     group: s.group,
     href: paths.projectSettings(organization.slug, project.key, s.id),
   }));
-  const readOnly =
-    active === "labels" ? !canEditLabels : active !== "context" && !canEdit;
   return (
     <SettingsLayout
       icon={
@@ -68,8 +62,26 @@ export function ProjectSettings({ section }: { section: string }) {
       title={project.name}
       subtitle={`Project settings · ${plural(members, "member")}`}
       nav={nav}
-      active={active}
     >
+      {children}
+    </SettingsLayout>
+  );
+}
+
+export function ProjectSettingsSection({ section }: { section: string }) {
+  const project = useProject();
+  const { canManage, capabilitiesIn } = useWorkspace();
+  const active: SectionId = sections.some((s) => s.id === section)
+    ? (section as SectionId)
+    : "general";
+  const canEdit = canManage(project.id);
+  const canEditLabels =
+    canEdit ||
+    (!project.archivedAt && capabilitiesIn(project.id).changeProperties);
+  const readOnly =
+    active === "labels" ? !canEditLabels : active !== "context" && !canEdit;
+  return (
+    <>
       {readOnly && (
         <ReadOnlyNotice>
           {active === "labels"
@@ -109,6 +121,6 @@ export function ProjectSettings({ section }: { section: string }) {
           pinned={{ scope: "project", projectId: project.id }}
         />
       )}
-    </SettingsLayout>
+    </>
   );
 }

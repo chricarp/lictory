@@ -247,6 +247,50 @@ test("organization settings keep their header and sidebar while sections load an
   await expect(header).toBeVisible();
 });
 
+test("project settings keep their header and sidebar while switching sections", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.224" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, 0);
+
+  await page.goto(paths.projectSettings(slug, "JIRA"));
+  const header = page.getByRole("heading", { name: "Jira", exact: true });
+  const nav = page.getByRole("navigation", { name: "Settings sections" });
+  await expect(header).toBeVisible();
+  await expect(
+    nav.getByRole("link", { name: "General", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  const headerNode = await header.elementHandle();
+  const navNode = await nav.elementHandle();
+
+  for (const [section, label] of [
+    ["members", "Members"],
+    ["teams", "Teams"],
+    ["readiness", "Readiness"],
+    ["labels", "Labels & milestones"],
+    ["general", "General"],
+  ] as const) {
+    await nav.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`${paths.projectSettings(slug, "JIRA", section)}$`),
+    );
+    await expect(
+      nav.getByRole("link", { name: label, exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
+    expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
+  }
+  await page.goBack();
+  await expect(
+    nav.getByRole("link", { name: "Labels & milestones", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
+  expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
+});
+
 test("project administrators configure teams, disciplines and delivery; capabilities follow disciplines live", async ({
   page: lead,
   browser,

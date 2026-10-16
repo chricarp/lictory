@@ -156,14 +156,12 @@ export function SettingsLayout({
   title,
   subtitle,
   nav,
-  active,
   children,
 }: {
   icon: ReactNode;
   title: string;
   subtitle?: ReactNode;
   nav: SettingsNavItem[];
-  active?: string;
   children: ReactNode;
 }) {
   return (
@@ -183,7 +181,7 @@ export function SettingsLayout({
           </div>
         </header>
         <div className="mt-8 gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
-          <SettingsNavigation nav={nav} active={active} />
+          <SettingsNavigation nav={nav} />
           <div className="min-w-0 space-y-6">{children}</div>
         </div>
       </div>
