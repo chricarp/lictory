@@ -13,6 +13,7 @@ import { Avatar, SectionLabel } from "~/components/ui/primitives";
 import { RefinementIcon, StatusIcon } from "~/components/items/status";
 import { useDelivery } from "~/components/workspace/provider";
 import { useItem } from "~/components/items/item-context";
+import { cn } from "~/lib/utils";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 const num = (v: unknown) => (typeof v === "number" ? v : undefined);
@@ -44,6 +45,26 @@ export function Activity() {
         </button>
       )}
     </div>
+  );
+}
+
+// An inline-flex box takes its baseline from its first item, and an icon's
+// baseline is its bottom edge. Let the label set the baseline so the chip
+// sits on the same line as the surrounding sentence.
+function IconLabel({
+  icon,
+  className,
+  children,
+}: {
+  icon: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={cn("inline-flex items-baseline gap-1", className)}>
+      {icon && <span className="flex self-center">{icon}</span>}
+      <span>{children}</span>
+    </span>
   );
 }
 
@@ -88,10 +109,9 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
             <span className="text-muted-foreground">from {str(d.from)} </span>
           )}
           to{" "}
-          <span className="inline-flex items-center gap-1">
-            {category && <StatusIcon category={category} />}
+          <IconLabel icon={category && <StatusIcon category={category} />}>
             <b>{to}</b>
-          </span>
+          </IconLabel>
           {d.reason === "status_archived" && (
             <span className="text-muted-foreground">
               {" "}
@@ -116,18 +136,19 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
           {auto ? "refinement became" : "changed refinement"}{" "}
           {from && refinementMeta[from] && (
             <>
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <RefinementIcon state={from} />
+              <IconLabel
+                icon={<RefinementIcon state={from} />}
+                className="text-muted-foreground"
+              >
                 {refinementMeta[from].label}
-              </span>{" "}
+              </IconLabel>{" "}
               →{" "}
             </>
           )}
           {to && refinementMeta[to] && (
-            <span className="inline-flex items-center gap-1">
-              <RefinementIcon state={to} />
+            <IconLabel icon={<RefinementIcon state={to} />}>
               {refinementMeta[to].label}
-            </span>
+            </IconLabel>
           )}
           {auto && (
             <span className="text-muted-foreground"> automatically</span>
