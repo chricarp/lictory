@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Check, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { Check, Sparkles, Truck } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import type { Project } from "~/lib/work-items";
@@ -57,7 +57,6 @@ export function ProjectDelivery({
       {project.deliveryMode === "external" && (
         <ProjectHandoffTarget project={project} canEdit={canEdit} />
       )}
-      <Readiness project={project} canEdit={canEdit} />
       <ReviewActions project={project} canEdit={canEdit} />
     </>
   );
@@ -196,62 +195,6 @@ function DeliveryModeSection({
             )}
           </div>
         )}
-        <InlineError>{error}</InlineError>
-      </SettingsBody>
-    </SettingsSection>
-  );
-}
-
-function Readiness({
-  project,
-  canEdit,
-}: {
-  project: Project;
-  canEdit: boolean;
-}) {
-  const { run, error } = useCommand();
-  const external = project.deliveryMode === "external";
-  return (
-    <SettingsSection
-      id="readiness"
-      icon={<ShieldCheck />}
-      title="Readiness"
-      description={
-        external
-          ? "Work is handed off to Jira only once its readiness checks pass, so this policy applies when delivering in Lictory."
-          : "Whether a specification must be ready before work on it moves into a started status."
-      }
-    >
-      <SettingsBody>
-        <Choice
-          label="Readiness policy"
-          value={project.readinessPolicy}
-          disabled={!canEdit || external}
-          onChange={(readinessPolicy) =>
-            void run({
-              type: "updateProject",
-              projectId: project.id,
-              readinessPolicy,
-            })
-          }
-          options={[
-            {
-              value: "off",
-              label: "Allow",
-              description: "Readiness is informative only.",
-            },
-            {
-              value: "warn",
-              label: "Warn",
-              description: "Allowed, and recorded in activity.",
-            },
-            {
-              value: "block",
-              label: "Block",
-              description: "Only ready specifications can start.",
-            },
-          ]}
-        />
         <InlineError>{error}</InlineError>
       </SettingsBody>
     </SettingsSection>

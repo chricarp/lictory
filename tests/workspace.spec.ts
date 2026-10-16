@@ -1428,7 +1428,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
 
   // Block: the project now requires a ready specification to start work.
   await page.getByRole("link", { name: "Project settings" }).click();
-  await page.getByRole("link", { name: "Delivery", exact: true }).click();
+  await page.getByRole("link", { name: "Readiness", exact: true }).click();
   await page.getByRole("radio", { name: /^Block/ }).click();
   await expect(page.getByRole("radio", { name: /^Block/ })).toHaveAttribute(
     "aria-checked",

@@ -33,6 +33,7 @@ import {
   type EntityOf,
   type Mutation,
   type ReadinessCheck,
+  type ReadinessRevision,
   type Scope,
   type Change,
   type Iteration,
@@ -43,8 +44,21 @@ import {
   type WorkItemType,
 } from "../shared/protocol";
 import { rankBetween } from "../shared/rank";
-import { hasAcceptanceCriteria } from "../shared/specification";
-import { applyProjectCommand, applyTypeCommand, seedProject } from "./projects";
+import {
+  checksFor,
+  evaluateReadiness,
+  type ReadinessCheckDefinition,
+  type ReadinessImpact,
+  type ReadinessRules,
+  type ReadinessSignOff,
+  sameReadinessChecks,
+} from "../shared/readiness";
+import {
+  applyProjectCommand,
+  applyTypeCommand,
+  normalizeReadinessRules,
+  seedProject,
+} from "./projects";
 import { auditConfiguration } from "./audit";
 import {
   applyBranchCommand,
@@ -199,6 +213,7 @@ export async function directory(
       statuses: [],
       iterations: [],
       delivery: { connections: [], targets: [] },
+      readiness: [],
       ai: { enabled: false, available: aiConfigured() },
     };
   requireValue(
@@ -217,6 +232,7 @@ export async function directory(
     configurationRows,
     delivery,
     ai,
+    readinessRows,
   ] = await Promise.all([
     db
       .select()
@@ -254,6 +270,11 @@ export async function directory(
     deliveryDirectoryRows(db, organizationId),
     deliveryConfiguration(db, organizationId),
     aiPolicy(db, organizationId),
+    db
+      .selectDistinctOn([s.readinessRevision.projectId])
+      .from(s.readinessRevision)
+      .where(eq(s.readinessRevision.organizationId, organizationId))
+      .orderBy(s.readinessRevision.projectId, desc(s.readinessRevision.number)),
   ]);
   const projects = projectRows.map((row) =>
     serialize("project", row),
@@ -296,6 +317,7 @@ export async function directory(
     archivedAt: d.archivedAt?.toISOString() ?? null,
   }));
   const configuration = deliveryDirectory(configurationRows, memberIds);
+  const latestReadiness = new Map(readinessRows.map((r) => [r.projectId, r]));
   return {
     organizations,
     projects,
@@ -304,8 +326,37 @@ export async function directory(
     disciplines,
     ...configuration,
     delivery,
+    readiness: projects.map((p) =>
+      readinessRevisionSummary(p.id, latestReadiness.get(p.id)),
+    ),
     ai,
   };
+}
+
+// The wire shape of a readiness checks revision; no row means the defaults.
+export function readinessRevisionSummary(
+  projectId: string,
+  row: typeof s.readinessRevision.$inferSelect | undefined,
+): ReadinessRevision {
+  return row
+    ? {
+        id: row.id,
+        projectId,
+        number: row.number,
+        rules: row.rules,
+        summary: row.summary,
+        authorId: row.authorId,
+        createdAt: row.createdAt.toISOString(),
+      }
+    : {
+        id: null,
+        projectId,
+        number: 0,
+        rules: {},
+        summary: null,
+        authorId: null,
+        createdAt: null,
+      };
 }
 
 // Connections and targets, never credentials.
@@ -671,6 +722,11 @@ type ThreadRow = typeof s.thread.$inferSelect;
 type SuggestionRow = typeof s.suggestion.$inferSelect;
 type SuggestionReviewerRow = typeof s.suggestionReviewer.$inferSelect;
 type SuggestionDecisionRow = typeof s.suggestionDecision.$inferSelect;
+type ReadinessRevisionRow = typeof s.readinessRevision.$inferSelect;
+type SignOffRow = Omit<ReadinessSignOff, "createdAt"> & {
+  workItemId: string;
+  createdAt: Date;
+};
 
 // Everything a list, inbox or readiness evaluation needs about a set of items.
 // Lists and readiness need only each item's current revision; the full history
@@ -682,25 +738,48 @@ async function loadItemContext(
   historyFor?: string,
 ) {
   const ids = items.map((i) => i.id);
-  const [typeRows, categoryRows] = await Promise.all([
-    tx
-      .select()
-      .from(s.workItemType)
-      .where(eq(s.workItemType.organizationId, organizationId)),
-    tx
-      .select({
-        id: s.workflowStatus.id,
-        category: s.workflowStatus.category,
-      })
-      .from(s.workflowStatus)
-      .where(eq(s.workflowStatus.organizationId, organizationId)),
-  ]);
+  const [typeRows, categoryRows, readinessRows, disciplineRows] =
+    await Promise.all([
+      tx
+        .select()
+        .from(s.workItemType)
+        .where(eq(s.workItemType.organizationId, organizationId)),
+      tx
+        .select({
+          id: s.workflowStatus.id,
+          category: s.workflowStatus.category,
+        })
+        .from(s.workflowStatus)
+        .where(eq(s.workflowStatus.organizationId, organizationId)),
+      // Readiness revisions are few per project: latest ones and those
+      // pinned items keep are both needed.
+      tx
+        .select()
+        .from(s.readinessRevision)
+        .where(eq(s.readinessRevision.organizationId, organizationId)),
+      tx
+        .select({ id: s.discipline.id, name: s.discipline.name })
+        .from(s.discipline)
+        .where(eq(s.discipline.organizationId, organizationId)),
+    ]);
   const types = new Map(typeRows.map((t) => [t.id, t]));
   const categories = new Map(categoryRows.map((x) => [x.id, x.category]));
+  const readinessRevisions = new Map(readinessRows.map((r) => [r.id, r]));
+  const latestReadiness = new Map<string, ReadinessRevisionRow>();
+  for (const r of readinessRows)
+    if ((latestReadiness.get(r.projectId)?.number ?? 0) < r.number)
+      latestReadiness.set(r.projectId, r);
+  const disciplineNames = new Map(disciplineRows.map((d) => [d.id, d.name]));
+  const configuration = {
+    types,
+    categories,
+    readinessRevisions,
+    latestReadiness,
+    disciplineNames,
+  };
   if (ids.length === 0)
     return indexItemContext({
-      types,
-      categories,
+      ...configuration,
       revisions: new Map<string, RevisionRow[]>(),
       threads: [] as ThreadRow[],
       suggestions: [] as SuggestionRow[],
@@ -710,6 +789,7 @@ async function loadItemContext(
       assignments: [] as AssignmentRow[],
       approvals: [] as ApprovalRow[],
       labels: [] as (typeof s.workItemLabel.$inferSelect)[],
+      signOffs: [] as SignOffRow[],
     });
   const where = (t: { organizationId: AnyPgColumn; workItemId: AnyPgColumn }) =>
     and(eq(t.organizationId, organizationId), inArray(t.workItemId, ids));
@@ -735,6 +815,7 @@ async function loadItemContext(
     assignments,
     approvals,
     labels,
+    signOffs,
   ] = await Promise.all([
     tx
       .selectDistinctOn([s.specificationRevision.workItemId], revisionColumns)
@@ -778,13 +859,36 @@ async function loadItemContext(
       ),
     tx.select().from(s.approval).where(where(s.approval)),
     tx.select().from(s.workItemLabel).where(where(s.workItemLabel)),
+    tx
+      .select({
+        workItemId: s.readinessSignOff.workItemId,
+        checkId: s.readinessSignOff.checkId,
+        userId: s.readinessSignOff.userId,
+        revisionId: s.readinessSignOff.revisionId,
+        revisionNumber: s.specificationRevision.number,
+        createdAt: s.readinessSignOff.createdAt,
+      })
+      .from(s.readinessSignOff)
+      .innerJoin(
+        s.specificationRevision,
+        and(
+          eq(
+            s.specificationRevision.organizationId,
+            s.readinessSignOff.organizationId,
+          ),
+          eq(s.specificationRevision.id, s.readinessSignOff.revisionId),
+        ),
+      )
+      .where(
+        and(where(s.readinessSignOff), isNull(s.readinessSignOff.withdrawnAt)),
+      )
+      .orderBy(asc(s.readinessSignOff.createdAt)),
   ]);
   const revisions = new Map<string, RevisionRow[]>();
   for (const r of currentRevisions) revisions.set(r.workItemId, [r]);
   if (history.length) revisions.set(historyFor!, history);
   return indexItemContext({
-    types,
-    categories,
+    ...configuration,
     revisions,
     threads,
     suggestions,
@@ -794,6 +898,7 @@ async function loadItemContext(
     assignments,
     approvals,
     labels,
+    signOffs,
   });
 }
 function groupBy<T>(rows: T[], key: (row: T) => string) {
@@ -817,10 +922,26 @@ function indexItemContext<
     assignments: AssignmentRow[];
     approvals: ApprovalRow[];
     labels: (typeof s.workItemLabel.$inferSelect)[];
+    signOffs: SignOffRow[];
   },
 >(ctx: T) {
+  // Latest active sign-off of each manual check, per item.
+  const signOffsByItem = new Map<string, Map<string, ReadinessSignOff>>();
+  for (const row of ctx.signOffs) {
+    const checks =
+      signOffsByItem.get(row.workItemId) ?? new Map<string, ReadinessSignOff>();
+    checks.set(row.checkId, {
+      checkId: row.checkId,
+      userId: row.userId,
+      revisionId: row.revisionId,
+      revisionNumber: row.revisionNumber,
+      createdAt: row.createdAt.toISOString(),
+    });
+    signOffsByItem.set(row.workItemId, checks);
+  }
   return {
     ...ctx,
+    signOffsByItem,
     threadsByItem: groupBy(ctx.threads, (t) => t.workItemId),
     suggestionsByItem: groupBy(ctx.suggestions, (x) => x.workItemId),
     reviewersBySuggestion: groupBy(
@@ -956,117 +1077,98 @@ function summarize(
   }) as EntityOf<"workItem">;
 }
 
-// Readiness is evidence. Each check explains itself so the UI never has to
-// reduce readiness to a percentage without a reason.
+// The checks an item is evaluated under: the revision it is pinned to (it was
+// ready or done when newer checks were published), else the project's latest,
+// else Lictory's defaults.
+function readinessPolicy(item: ItemRow, ctx: ItemContext) {
+  const pinned = item.readinessRevisionId
+    ? ctx.readinessRevisions.get(item.readinessRevisionId)
+    : undefined;
+  const revision = pinned ?? ctx.latestReadiness.get(item.projectId);
+  return {
+    revisionId: revision?.id ?? null,
+    number: revision?.number ?? 0,
+    pinned: Boolean(pinned),
+    checks: checksFor(revision?.rules ?? {}, item.typeId),
+  };
+}
+
 function readiness(
   item: ItemRow,
   all: ItemRow[],
   ctx: ItemContext,
+  definitions?: ReadinessCheckDefinition[],
 ): ReadinessCheck[] {
   // Readiness is evidence about a specification; plain work has none.
   if (!isSpecBacked(item, ctx)) return [];
-  const level = ctx.types.get(item.typeId)?.level ?? 1;
   const current = ctx.revisions.get(item.id)?.[0];
-  const content = current?.content ?? "";
   const threads = (ctx.threadsByItem.get(item.id) ?? []).filter(
     (t) => !t.suggestionId && !t.pullRequestId,
   );
   const reviews = (ctx.reviewsByItem.get(item.id) ?? []).filter(
     (r) => r.status !== "cancelled",
   );
+  const approvedOnCurrent = (r: ReviewRow) =>
+    r.revisionId === current?.id &&
+    r.status === "completed" &&
+    (ctx.approvalsByReview.get(r.id) ?? []).some(
+      (a) => a.status === "granted" && a.revisionId === current?.id,
+    );
   const responsibilities = [
     ...new Set(reviews.filter((r) => r.required).map((r) => r.responsibility)),
   ];
-  const currentRequired = reviews.filter(
-    (r) => r.required && r.revisionId === current?.id,
-  );
-  const approvedResponsibilities = responsibilities.filter((responsibility) => {
-    const candidates = currentRequired.filter(
-      (r) => r.responsibility === responsibility,
+  const missing = responsibilities.filter((responsibility) => {
+    const candidates = reviews.filter(
+      (r) =>
+        r.required &&
+        r.revisionId === current?.id &&
+        r.responsibility === responsibility,
     );
-    return (
-      candidates.length > 0 &&
-      candidates.every(
-        (r) =>
-          r.status === "completed" &&
-          (ctx.approvalsByReview.get(r.id) ?? []).some(
-            (a) => a.status === "granted" && a.revisionId === current?.id,
-          ),
-      )
-    );
+    return candidates.length === 0 || !candidates.every(approvedOnCurrent);
   });
-  const missing = responsibilities.filter(
-    (r) => !approvedResponsibilities.includes(r),
-  );
-  const blocking = threads.filter((t) => t.status === "open" && t.blocking);
   // Only spec-backed children carry readiness; plain tasks never block it.
   const children = activeChildren(item, all, ctx).filter((c) =>
     isSpecBacked(c, ctx),
   );
-  const childrenNotReady = children.filter(
-    (c) => c.refinementState !== "ready",
-  );
-  const checks: ReadinessCheck[] = [
-    {
-      key: "specification",
-      label: "Specification written",
-      passed: content.trim().length > 0,
-      detail: content.trim() ? undefined : "The description is empty.",
-    },
-  ];
-  if (level <= 1)
-    checks.push({
-      key: "acceptance_criteria",
-      label: "Acceptance criteria defined",
-      passed: hasAcceptanceCriteria(content),
-      detail: hasAcceptanceCriteria(content)
-        ? undefined
-        : "Add at least one criterion under “Acceptance criteria”.",
-    });
-  checks.push(
-    {
-      key: "no_blocking_threads",
-      label: "No open blocking discussions",
-      passed: blocking.length === 0,
-      detail: blocking.length
-        ? `${blocking.length} blocking ${blocking.length === 1 ? "discussion" : "discussions"} open.`
-        : undefined,
-    },
-    {
-      key: "reviews_requested",
-      label: "Required reviews requested",
-      passed: responsibilities.length > 0,
-      detail: responsibilities.length
-        ? undefined
-        : "Request at least one required review.",
-    },
-    {
-      key: "reviews_approved",
-      label: "Current revision approved by every required review",
-      passed: responsibilities.length > 0 && missing.length === 0,
-      detail:
-        responsibilities.length === 0
-          ? "No required review exists yet."
-          : missing.length
-            ? `Waiting on ${missing.join(", ")} for revision ${current?.number ?? ""}.`
-            : undefined,
-    },
-  );
-  if (children.length > 0)
-    checks.push({
-      key: "children_ready",
-      label: "Every child specification is ready",
-      passed: childrenNotReady.length === 0,
-      detail: childrenNotReady.length
-        ? `${childrenNotReady.length} of ${children.length} child specifications are not ready.`
-        : undefined,
-    });
-  // Keep the projection JSON-stable: bootstrap and delta must compare equal.
-  return checks.map((c) =>
-    c.detail === undefined
-      ? { key: c.key, label: c.label, passed: c.passed }
-      : c,
-  );
+  return evaluateReadiness(definitions ?? readinessPolicy(item, ctx).checks, {
+    content: current?.content ?? "",
+    revisionId: current?.id ?? null,
+    revisionNumber: current?.number ?? null,
+    blockingThreads: threads.filter((t) => t.status === "open" && t.blocking)
+      .length,
+    requiredResponsibilities: responsibilities,
+    missingResponsibilities: missing,
+    approvedResponsibilities: [
+      ...new Set(
+        reviews.filter(approvedOnCurrent).map((r) => r.responsibility),
+      ),
+    ],
+    disciplineNames: ctx.disciplineNames,
+    childSpecifications: children.length,
+    childSpecificationsNotReady: children.filter(
+      (c) => c.refinementState !== "ready",
+    ).length,
+    signOffs:
+      ctx.signOffsByItem.get(item.id) ?? new Map<string, ReadinessSignOff>(),
+  });
+}
+
+function readinessEntity(
+  item: ItemRow,
+  all: ItemRow[],
+  ctx: ItemContext,
+): EntityOf<"readiness"> {
+  const policy = readinessPolicy(item, ctx);
+  return {
+    type: "readiness",
+    id: item.id,
+    organizationId: item.organizationId,
+    workItemId: item.id,
+    checks: readiness(item, all, ctx),
+    policyRevisionId: policy.revisionId,
+    policyRevisionNumber: policy.number,
+    pinned: policy.pinned,
+  };
 }
 
 export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
@@ -1332,13 +1434,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
       .filter((x) => x.workItemId === workItemId)
       .map(serializeSuggestion),
   );
-  entities.push({
-    type: "readiness",
-    id: workItemId,
-    organizationId,
-    workItemId,
-    checks: readiness(item, items, ctx),
-  });
+  entities.push(readinessEntity(item, items, ctx));
   entities.push(...runs);
   return entities;
 }
@@ -1413,6 +1509,127 @@ export async function externalLinks(
 }
 
 const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
+
+// Readiness projections of a project's spec-backed items.
+async function projectReadiness(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+) {
+  const rows = await tx
+    .select()
+    .from(s.workItem)
+    .where(
+      and(
+        eq(s.workItem.organizationId, organizationId),
+        eq(s.workItem.projectId, projectId),
+      ),
+    );
+  const ctx = await loadItemContext(tx, organizationId, rows);
+  return new Map(
+    rows
+      .filter((row) => isSpecBacked(row, ctx))
+      .map((row) => [row.id, readinessEntity(row, rows, ctx)]),
+  );
+}
+
+// After new readiness checks are published, items that follow them move with
+// their evidence: those that now pass become ready, those that no longer pass
+// leave ready. A child's readiness feeds its parent's, so this repeats until
+// nothing moves. Returns the item-scope changes to emit.
+async function followReadinessChecks(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+  userId: string,
+  before: Map<string, EntityOf<"readiness">>,
+) {
+  const rows = await tx
+    .select()
+    .from(s.workItem)
+    .where(
+      and(
+        eq(s.workItem.organizationId, organizationId),
+        eq(s.workItem.projectId, projectId),
+      ),
+    );
+  const ctx = await loadItemContext(tx, organizationId, rows);
+  const moved = new Map<
+    string,
+    { from: RefinementState; to: RefinementState }
+  >();
+  for (let pass = 0; pass < 8; pass++) {
+    let changed = false;
+    for (const row of rows) {
+      const state = row.refinementState;
+      if (row.archivedAt || !state || !isSpecBacked(row, ctx)) continue;
+      const checks = readiness(row, rows, ctx);
+      const ready = checks.length > 0 && checks.every((check) => check.passed);
+      const next: RefinementState | undefined =
+        ready && preReadyStates.includes(state)
+          ? "ready"
+          : !ready && state === "ready"
+            ? "in_review"
+            : undefined;
+      if (!next) continue;
+      moved.set(row.id, { from: moved.get(row.id)?.from ?? state, to: next });
+      // Rows are shared with the context, so parents see the new state.
+      row.refinementState = next;
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  const now = new Date();
+  const revision = ctx.latestReadiness.get(projectId)?.number ?? 0;
+  const activities: (typeof s.activity.$inferInsert)[] = [];
+  for (const [workItemId, { from, to }] of moved) {
+    if (from === to) continue;
+    await tx
+      .update(s.workItem)
+      .set({
+        refinementState: to,
+        ...(to === "ready" ? { mainProtected: true } : {}),
+      })
+      .where(
+        and(
+          eq(s.workItem.organizationId, organizationId),
+          eq(s.workItem.id, workItemId),
+        ),
+      );
+    activities.push({
+      id: crypto.randomUUID(),
+      organizationId,
+      projectId,
+      workItemId,
+      actorId: userId,
+      action: "refinement_changed",
+      detail: {
+        from,
+        to,
+        automatic: true,
+        reason: "readiness_checks_published",
+        readinessRevision: revision,
+      },
+      createdAt: now,
+    });
+  }
+  const inserted = activities.length
+    ? await tx.insert(s.activity).values(activities).returning()
+    : [];
+  const changes: { workItemId: string; entity: Entity }[] = [];
+  for (const row of rows) {
+    if (!isSpecBacked(row, ctx)) continue;
+    const entity = readinessEntity(row, rows, ctx);
+    if (JSON.stringify(entity) !== JSON.stringify(before.get(row.id)))
+      changes.push({ workItemId: row.id, entity });
+  }
+  for (const row of inserted)
+    changes.push({
+      workItemId: row.workItemId,
+      entity: serialize("activity", row),
+    });
+  return changes;
+}
 
 export function createSyncService(
   db: Database,
@@ -1586,6 +1803,10 @@ export function createSyncService(
             roster.projects.find((p) => p.id === c.projectId),
             "This project is unavailable.",
           );
+          const readinessBefore =
+            c.type === "publishReadinessChecks"
+              ? await projectReadiness(tx, organizationId, c.projectId)
+              : undefined;
           const before = await snapshot(tx, scope);
           await applyProjectCommand(
             tx,
@@ -1602,15 +1823,41 @@ export function createSyncService(
             },
             c,
           );
+          // Readiness and activity live in each item's own scope.
+          const itemChanges = readinessBefore
+            ? await followReadinessChecks(
+                tx,
+                organizationId,
+                c.projectId,
+                userId,
+                readinessBefore,
+              )
+            : [];
           const after = await snapshot(tx, scope);
           snapshots = { before, after, directory: roster };
-          const cursor = await emitChanges(
+          let cursor = await emitChanges(
             tx,
             organizationId,
             before,
             after,
             await clock(tx, organizationId),
           );
+          const rows: (typeof s.syncChange.$inferInsert)[] = [];
+          for (const { workItemId, entity } of itemChanges) {
+            cursor++;
+            rows.push({
+              organizationId,
+              cursor,
+              projectId: c.projectId,
+              workItemId,
+              change: {
+                operation: "upsert",
+                cursor: cursor.toString(),
+                entity,
+              },
+            });
+          }
+          await insertChanges(tx, rows);
           return commit(
             tx,
             organizationId,
@@ -3353,6 +3600,86 @@ export function createSyncService(
             );
             break;
           }
+          case "signOffReadinessCheck": {
+            const evaluated = before.find(
+              (e): e is EntityOf<"readiness"> =>
+                e.type === "readiness" && e.workItemId === workItemId,
+            );
+            const check = evaluated?.checks.find((k) => k.key === c.checkId);
+            if (!check?.signOff)
+              throw new DomainError(
+                "validation",
+                "This item has no such sign-off. Its readiness checks may have changed; reload it and try again.",
+              );
+            const eligible = check.signOff.disciplineIds;
+            require(roster.disciplines.some(
+              (d) =>
+                d.projectId === projectId &&
+                !d.archivedAt &&
+                d.userIds.includes(userId) &&
+                (eligible.length === 0 || eligible.includes(d.id)),
+            ), eligible.length
+              ? `Only members of ${eligible
+                  .map(
+                    (id) =>
+                      roster.disciplines.find((d) => d.id === id)?.name ??
+                      "a former discipline",
+                  )
+                  .join(" or ")} can sign off “${check.label}”.`
+              : `Only people holding a discipline in this project can sign off “${check.label}”.`);
+            const [existing] = await tx
+              .select()
+              .from(s.readinessSignOff)
+              .where(
+                and(
+                  eq(s.readinessSignOff.organizationId, organizationId),
+                  eq(s.readinessSignOff.workItemId, workItemId!),
+                  eq(s.readinessSignOff.revisionId, latest!.id),
+                  eq(s.readinessSignOff.checkId, c.checkId),
+                  isNull(s.readinessSignOff.withdrawnAt),
+                ),
+              );
+            const detail = {
+              checkId: c.checkId,
+              label: check.label,
+              revision: latest!.number,
+            };
+            if (c.signedOff) {
+              if (existing)
+                throw new DomainError(
+                  "conflict",
+                  `“${check.label}” is already signed off for revision ${latest!.number}.`,
+                );
+              await tx.insert(s.readinessSignOff).values({
+                organizationId,
+                workItemId: workItemId!,
+                revisionId: latest!.id,
+                checkId: c.checkId,
+                userId,
+              });
+              log("readiness_signed_off", detail);
+            } else {
+              if (!existing)
+                throw new DomainError(
+                  "conflict",
+                  `“${check.label}” has no sign-off to withdraw for revision ${latest!.number}.`,
+                );
+              await tx
+                .update(s.readinessSignOff)
+                .set({ withdrawnAt: now, withdrawnById: userId })
+                .where(
+                  and(
+                    eq(s.readinessSignOff.organizationId, organizationId),
+                    eq(s.readinessSignOff.id, existing.id),
+                  ),
+                );
+              log("readiness_sign_off_withdrawn", {
+                ...detail,
+                signedOffBy: existing.userId,
+              });
+            }
+            break;
+          }
         }
         if (item && (branchCommands.has(c.type) || aiCommands.has(c.type)))
           await scheduleActionRuns(tx, {
@@ -3413,10 +3740,46 @@ export function createSyncService(
         }
         // Readiness drives `ready` automatically in both directions while the
         // item is still owned by refinement. Later statuses are never touched.
-        const readinessState = after.find((e) => e.type === "readiness");
+        let readinessState = after.find((e) => e.type === "readiness");
         const itemState = after.find(
           (e) => e.type === "workItem" && e.id === workItemId,
         );
+        // An item keeps the readiness checks it met only while it stays
+        // ready or done; otherwise it follows the project's latest checks.
+        if (
+          readinessState?.type === "readiness" &&
+          readinessState.pinned &&
+          itemState?.type === "workItem" &&
+          !itemState.archivedAt
+        ) {
+          const category = projectStatuses().find(
+            (x) => x.id === itemState.statusId,
+          )?.category;
+          const passing =
+            readinessState.checks.length > 0 &&
+            readinessState.checks.every((check) => check.passed);
+          if (!passing && !(category && closedCategories.includes(category))) {
+            await tx
+              .update(s.workItem)
+              .set({ readinessRevisionId: null })
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.id, workItemId!),
+                ),
+              );
+            after = await snapshot(tx, scope);
+            const followed = after.find((e) => e.type === "readiness");
+            log("readiness_checks_followed", {
+              from: readinessState.policyRevisionNumber,
+              to:
+                followed?.type === "readiness"
+                  ? followed.policyRevisionNumber
+                  : null,
+            });
+            readinessState = followed;
+          }
+        }
         if (
           readinessState?.type === "readiness" &&
           itemState?.type === "workItem" &&
@@ -3503,13 +3866,7 @@ export function createSyncService(
             if (parent)
               parentReadiness.push({
                 workItemId: parentId,
-                entity: {
-                  type: "readiness",
-                  id: parentId,
-                  organizationId,
-                  workItemId: parentId,
-                  checks: readiness(parent, rows, ctx),
-                },
+                entity: readinessEntity(parent, rows, ctx),
               });
           }
         }
@@ -3590,6 +3947,7 @@ const specCommands = new Set<string>([
   "requestReview",
   "cancelReview",
   "decideReview",
+  "signOffReadinessCheck",
 ]);
 
 // Entities listed in every project-level scope (workItemId = null).
@@ -3709,6 +4067,144 @@ export async function advanceSchedules(db: Database, now = new Date()) {
       await publish(tx, organizationId, cursor);
     });
   return { projects: projects.length, changedOrganizations };
+}
+
+// Every published revision of a project's readiness checks, newest first,
+// ending with Lictory's defaults when nothing was recorded yet.
+export async function readinessHistory(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  projectId: string,
+) {
+  return db.transaction(async (tx) => {
+    await authorize(tx, userId, organizationId);
+    requireValue(
+      (
+        await tx
+          .select({ id: s.project.id })
+          .from(s.project)
+          .where(
+            and(
+              eq(s.project.organizationId, organizationId),
+              eq(s.project.id, projectId),
+            ),
+          )
+      )[0],
+      "This project is unavailable.",
+    );
+    const rows = await tx
+      .select()
+      .from(s.readinessRevision)
+      .where(
+        and(
+          eq(s.readinessRevision.organizationId, organizationId),
+          eq(s.readinessRevision.projectId, projectId),
+        ),
+      )
+      .orderBy(desc(s.readinessRevision.number));
+    return {
+      revisions: rows.length
+        ? rows.map((row) => readinessRevisionSummary(projectId, row))
+        : [readinessRevisionSummary(projectId, undefined)],
+    };
+  });
+}
+
+// What publishing `input` would do to the project's items, without writing.
+// Items that are ready or done keep their version; the others are evaluated
+// under the draft and compared with the checks they follow today.
+export async function readinessPreview(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  projectId: string,
+  input: ReadinessRules,
+): Promise<ReadinessImpact> {
+  return db.transaction(
+    async (tx) => {
+      const roster = await directory(tx, userId, organizationId);
+      const project = requireValue(
+        roster.projects.find((p) => p.id === projectId),
+        "This project is unavailable.",
+      );
+      const draft = normalizeReadinessRules(roster, projectId, input);
+      const rows = await tx
+        .select()
+        .from(s.workItem)
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.projectId, projectId),
+          ),
+        );
+      const ctx = await loadItemContext(tx, organizationId, rows);
+      const current = ctx.latestReadiness.get(projectId)?.rules ?? {};
+      const impact: ReadinessImpact = {
+        kept: 0,
+        becomeReady: [],
+        needMoreWork: [],
+        reasons: [],
+        unaffected: 0,
+      };
+      const reasons = new Map<string, number>();
+      for (const row of rows) {
+        if (row.archivedAt || !row.refinementState || !isSpecBacked(row, ctx))
+          continue;
+        const category = ctx.categories.get(row.statusId);
+        if (
+          row.refinementState === "ready" ||
+          row.readinessRevisionId ||
+          (category && closedCategories.includes(category))
+        ) {
+          impact.kept++;
+          continue;
+        }
+        const today = checksFor(current, row.typeId);
+        const next = checksFor(draft, row.typeId);
+        const changed = new Set(
+          next
+            .filter(
+              (c) =>
+                !today.some(
+                  (old) => old.id === c.id && sameReadinessChecks([old], [c]),
+                ),
+            )
+            .map((c) => c.id),
+        );
+        const failingToday = new Set(
+          readiness(row, rows, ctx, today)
+            .filter((c) => !c.passed)
+            .map((c) => c.key),
+        );
+        const after = readiness(row, rows, ctx, next);
+        const summary = {
+          id: row.id,
+          key: `${project.key}-${row.number}`,
+          title: row.title,
+        };
+        if (after.length > 0 && after.every((c) => c.passed)) {
+          impact.becomeReady.push(summary);
+          continue;
+        }
+        const newlyFailing = after.filter(
+          (c) => !c.passed && (changed.has(c.key) || !failingToday.has(c.key)),
+        );
+        if (!newlyFailing.length) {
+          impact.unaffected++;
+          continue;
+        }
+        impact.needMoreWork.push(summary);
+        for (const c of newlyFailing)
+          reasons.set(c.label, (reasons.get(c.label) ?? 0) + 1);
+      }
+      impact.reasons = [...reasons]
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count);
+      return impact;
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
 }
 
 export async function iterationReport(

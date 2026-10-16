@@ -151,12 +151,52 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
             </IconLabel>
           )}
           {auto && (
-            <span className="text-muted-foreground"> automatically</span>
+            <span className="text-muted-foreground">
+              {" "}
+              automatically
+              {d.reason === "readiness_checks_published" &&
+                ` when Definition of Ready version ${num(d.readinessRevision)} was published`}
+            </span>
           )}
         </>
       );
       break;
     }
+    case "readiness_signed_off":
+      body = (
+        <>
+          signed off <b>{str(d.label)}</b> for revision {num(d.revision)}
+        </>
+      );
+      break;
+    case "readiness_sign_off_withdrawn":
+      body = (
+        <>
+          withdrew{" "}
+          {str(d.signedOffBy) && str(d.signedOffBy) !== entry.actorId ? (
+            <>
+              <b>{memberName(str(d.signedOffBy))}</b>’s
+            </>
+          ) : (
+            "the"
+          )}{" "}
+          sign-off of <b>{str(d.label)}</b>
+        </>
+      );
+      break;
+    case "readiness_checks_followed":
+      body = (
+        <>
+          moved to Definition of Ready{" "}
+          <b>{num(d.to) ? `version ${num(d.to)}` : "defaults"}</b>
+          <span className="text-muted-foreground">
+            {" "}
+            after it was no longer ready (it was ready under version{" "}
+            {num(d.from)})
+          </span>
+        </>
+      );
+      break;
     case "type_changed":
       body = (
         <>

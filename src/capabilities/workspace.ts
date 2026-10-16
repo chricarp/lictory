@@ -8,6 +8,8 @@ import {
   createSyncService,
   directory,
   iterationReport,
+  readinessHistory,
+  readinessPreview,
   searchEpics,
   searchMembers,
 } from "../sync/server/service";
@@ -21,6 +23,8 @@ import {
   iterationReportQuerySchema,
   memberSearchSchema,
   mutationSchema,
+  readinessHistoryQuerySchema,
+  readinessPreviewQuerySchema,
   refinementStates,
   scopeSchema,
   type Command,
@@ -107,6 +111,13 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     description:
       "Project administrators: rename or describe the project and change its delivery settings: delivery mode (native = delivered in Lictory, external = handed off to Jira), readiness policy, estimate scale, iteration mode and cadence, and the Lictory Intelligence review action policy. External projects never plan iterations or estimate in Lictory.",
   },
+  publishReadinessChecks: {
+    title: "Publish Definition of Ready",
+    description:
+      "Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from getWorkspace (null while the project uses the defaults). Use previewReadinessChecks first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.",
+    decision: true,
+  },
+
   archiveProject: {
     title: "Archive project",
     description:
@@ -310,6 +321,12 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     title: "Decide review",
     description:
       "Approve, request changes or revoke your decision on a review assigned to you or your discipline. Approval applies to `baseRevisionId`.",
+    decision: true,
+  },
+  signOffReadinessCheck: {
+    title: "Sign off readiness check",
+    description:
+      "Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in getWorkItem readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off.",
     decision: true,
   },
   setAiPolicy: {
@@ -629,6 +646,41 @@ const getIterationReport = defineCapability({
     ),
 });
 
+const getReadinessHistory = defineCapability({
+  name: "getReadinessHistory",
+  title: "Get Definition of Ready history",
+  description:
+    "Every version of a project's Definition of Ready (readiness checks per work item type), newest first. Version 0 stands for Lictory's defaults; types missing from `rules` use the defaults. Items that were ready or done when a version was published keep the checks they met; getWorkItem shows which version an item is evaluated under.",
+  kind: "query",
+  surfaces: everywhere,
+  input: readinessHistoryQuerySchema,
+  run: (ctx, q) =>
+    readinessHistory(
+      ctx.db,
+      ctx.principal.userId,
+      q.organizationId,
+      q.projectId,
+    ),
+});
+
+const previewReadinessChecks = defineCapability({
+  name: "previewReadinessChecks",
+  title: "Preview a Definition of Ready",
+  description:
+    "What publishing these readiness rules would do to the project's items, without changing anything: how many ready or done items keep their version, which items would become ready, and which would need more work and why.",
+  kind: "query",
+  surfaces: everywhere,
+  input: readinessPreviewQuerySchema,
+  run: (ctx, q) =>
+    readinessPreview(
+      ctx.db,
+      ctx.principal.userId,
+      q.organizationId,
+      q.projectId,
+      q.rules,
+    ),
+});
+
 type WorkItem = EntityOf<"workItem">;
 async function bootstrap(
   ctx: CapabilityContext,
@@ -910,6 +962,8 @@ export const workspaceCapabilities: AnyCapability[] = [
   searchMembersCapability,
   searchEpicsCapability,
   getIterationReport,
+  getReadinessHistory,
+  previewReadinessChecks,
   syncRead,
   syncDirectory,
   applyMutation,

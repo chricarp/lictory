@@ -41,6 +41,7 @@ void test("IndexedDB persists checkpoint with entities, queue survives reload, a
       statuses: [],
       iterations: [],
       delivery: { connections: [], targets: [] },
+      readiness: [],
       ai: { enabled: false, available: false },
     },
   });
@@ -89,6 +90,7 @@ void test("access revocation purges every scope and pending command for only the
       statuses: [],
       iterations: [],
       delivery: { connections: [], targets: [] },
+      readiness: [],
       ai: { enabled: false, available: false },
     },
   };

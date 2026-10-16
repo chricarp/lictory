@@ -49,6 +49,7 @@ const emptyDirectory: Directory = {
   statuses: [],
   iterations: [],
   delivery: { connections: [], targets: [] },
+  readiness: [],
   ai: { enabled: false, available: false },
 };
 export class SyncEngine {

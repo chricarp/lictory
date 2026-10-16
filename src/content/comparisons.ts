@@ -53,7 +53,7 @@ In Lictory, a requirement is reviewed the way developers review code: every chan
 - **Anchored discussions.** Jira comments belong to the whole issue. Lictory threads attach to a text range, a section or a suggestion, and can be marked blocking.
 - **Suggestions.** Lictory reviewers propose concrete wording; accepting it creates a new revision with clear attribution.
 - **Approvals that go stale.** In Lictory, Engineering approving revision 12 does not silently cover revision 14. Material changes mark the affected approvals for another review.
-- **Readiness as evidence.** Instead of a “Ready” status, Lictory evaluates checks: specification written, acceptance criteria defined, no open blocking discussions, required reviews requested, the current revision approved by every required review, and every child specification ready.
+- **Readiness as evidence.** Instead of a “Ready” status, Lictory evaluates checks: by default specification written, no open blocking discussions, required reviews requested, the current revision approved by every required review, and every child specification ready. Each project can add its own, such as a required “Acceptance criteria” section, a QA approval or a manual sign-off.
 - **Decisions.** Important conclusions from long threads are promoted into durable decision records instead of being buried in comments.`,
       },
       {
@@ -137,7 +137,7 @@ In Linear, the requirement is an issue or project description plus comments. In 
         body: `- **Review as a workflow.** Lictory reviews are requested from disciplines such as Product, Engineering, QA or Security, and each approves a specific revision.
 - **Stale approvals.** When approved content changes materially, the affected approvals go stale, so nobody ships against an approval that no longer matches the text.
 - **Blocking discussions.** A thread can block readiness until it is resolved; resolving never deletes history.
-- **Readiness checks.** Specification written, acceptance criteria defined, no open blocking discussions, required reviews requested and approved on the current revision, and every child specification ready.
+- **Readiness checks.** Configurable per project and versioned: by default specification written, no open blocking discussions, required reviews requested and approved on the current revision, and every child specification ready; projects add required sections, discipline approvals or manual sign-offs.
 - **Decisions.** Durable records of conclusions, such as “retries reuse the original transaction ID”, that outlive the thread they came from.
 - **Optional AI that proposes, never decides.** Lictory Intelligence finds gaps, contradictions and missing edge cases and proposes changes; people accept or reject them. Everything keeps working with it disabled.`,
       },
