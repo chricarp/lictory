@@ -154,7 +154,7 @@ export function BoardSkeleton() {
   );
 }
 
-// Organization settings keep their header and navigation in a shared layout.
+// Organization and project settings keep their header and navigation in a shared layout.
 // Only the content column is replaced while a section loads.
 export function SettingsSectionSkeleton() {
   return (
@@ -172,7 +172,7 @@ export function SettingsSectionSkeleton() {
   );
 }
 
-// Centered document pages: project settings, backlog, iteration reports.
+// Centered document pages: backlog, iteration reports.
 export function DocumentSkeleton({
   headerBar = false,
 }: {
