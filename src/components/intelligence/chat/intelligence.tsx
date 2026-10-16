@@ -32,7 +32,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { useWorkspace } from "~/components/workspace/provider";
 import type { ChatMessage } from "~/intelligence/chat/shared";
-import { ASK_QUESTIONS } from "~/intelligence/chat/shared";
+import { ASK_QUESTIONS, RECOMMEND_ACTION } from "~/intelligence/chat/shared";
 import { paths } from "~/lib/paths";
 import { cn } from "~/lib/utils";
 import { ChatList, chatLabel } from "./chat-list";
@@ -473,7 +473,8 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
     .at(-1)
     ?.parts.some(
       (p) =>
-        p.type === `tool-${ASK_QUESTIONS}` &&
+        (p.type === `tool-${ASK_QUESTIONS}` ||
+          p.type === `tool-${RECOMMEND_ACTION}`) &&
         "state" in p &&
         p.state === "input-available",
     );
@@ -499,6 +500,13 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
                   output,
                 })
               }
+              onDecide={(toolCallId, output) =>
+                void addToolOutput({
+                  tool: RECOMMEND_ACTION as never,
+                  toolCallId,
+                  output,
+                })
+              }
               onApprove={(approvalId, approved) =>
                 void addToolApprovalResponse({ id: approvalId, approved })
               }
@@ -520,6 +528,7 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
                 streaming
                 isLast
                 onAnswer={() => undefined}
+                onDecide={() => undefined}
                 onApprove={() => undefined}
               />
             </motion.div>
@@ -582,7 +591,7 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
               disabled={pendingQuestion}
               placeholder={
                 pendingQuestion
-                  ? "Answer the questions above to continue"
+                  ? "Answer above to continue"
                   : "Reply to Lictory…"
               }
               onSend={(text) => void sendMessage({ text })}

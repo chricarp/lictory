@@ -20,6 +20,7 @@ import {
 import { useWorkspace } from "~/components/workspace/provider";
 import {
   ASK_QUESTIONS,
+  RECOMMEND_ACTION,
   type ChatMessage,
   type ChatSummary,
 } from "~/intelligence/chat/shared";
@@ -61,8 +62,9 @@ async function readError(response: Response) {
   return body?.error?.message ?? `Request failed (${response.status}).`;
 }
 
-// Continue automatically only when the person answered a clarification or
-// decided on approvals, never just because a step ended with tool results.
+// Continue automatically only when the person answered a clarification,
+// decided on a recommendation or on approvals, never just because a step
+// ended with tool results.
 function shouldContinue(options: { messages: UIMessage[] }) {
   if (lastAssistantMessageIsCompleteWithApprovalResponses(options)) return true;
   if (!lastAssistantMessageIsCompleteWithToolCalls(options)) return false;
@@ -71,7 +73,11 @@ function shouldContinue(options: { messages: UIMessage[] }) {
   const start = last.parts.findLastIndex((p) => p.type === "step-start");
   return last.parts
     .slice(start + 1)
-    .some((p) => p.type === `tool-${ASK_QUESTIONS}`);
+    .some(
+      (p) =>
+        p.type === `tool-${ASK_QUESTIONS}` ||
+        p.type === `tool-${RECOMMEND_ACTION}`,
+    );
 }
 
 export function ChatsProvider({ children }: { children: ReactNode }) {

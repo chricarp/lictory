@@ -410,3 +410,54 @@ void test("MCP server lists typed tools and reports failures as tool results", a
   )) as { result: { tools: { annotations: { readOnlyHint: boolean } }[] } };
   assert.ok(readOnly.result.tools.every((t) => t.annotations.readOnlyHint));
 });
+
+void test("insights are computed from the person's own workspace and stay inside it", async () => {
+  const f = await fixture();
+  for (const title of ["Safe retries", "Refund webhooks"])
+    await invoke(f.mcp, "createWorkItem", {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      typeId: f.storyTypeId,
+      parentId: null,
+      title,
+    });
+  const agent = context({ userId: f.ownerId, surface: "agent" });
+  const insights = (await invoke(agent, "getInsights", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    topic: "refinement",
+  })) as {
+    headline: string;
+    scope: { projectName: string };
+    cards: { id: string; segments?: { key: string; value: number }[] }[];
+  };
+  assert.equal(insights.scope.projectName, "Payments");
+  const states = insights.cards.find((c) => c.id === "refinement-state")!;
+  assert.equal(
+    states.segments!.reduce((n, s) => n + s.value, 0),
+    2,
+    "both open Stories carry a specification",
+  );
+  assert.match(insights.headline, /of 2 open specifications/);
+  // Read-only tokens may ask; other organizations may not.
+  await invoke(
+    { ...f.mcp, principal: { ...f.mcp.principal, access: "read" } },
+    "getInsights",
+    { organizationId: f.organizationId, topic: "people" },
+  );
+  await rejected(
+    invoke(context({ userId: f.outsiderId, surface: "agent" }), "getInsights", {
+      organizationId: f.organizationId,
+      topic: "delivery",
+    }),
+    "forbidden",
+  );
+  await rejected(
+    invoke(agent, "getInsights", {
+      organizationId: f.organizationId,
+      topic: "people",
+      teamId: crypto.randomUUID(),
+    }),
+    "unavailable",
+  );
+});

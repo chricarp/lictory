@@ -66,6 +66,48 @@ export const askQuestionsOutput = z.union([
 ]);
 export type AskQuestionsOutput = z.infer<typeof askQuestionsOutput>;
 
+// Proposes an action the person did not explicitly ask for. Like
+// askQuestions it has no server execution: the chat shows a recommendation
+// card and returns the person's decision, so the model never acts on its own
+// initiative.
+export const RECOMMEND_ACTION = "recommendAction";
+
+export const recommendActionInput = z.object({
+  question: z
+    .string()
+    .describe(
+      "The decision as a short question, e.g. `Split PAY-142 into two stories?`.",
+    ),
+  action: z
+    .string()
+    .describe(
+      "Exactly what you will do if accepted, naming the items, e.g. `Create PAY-143 “Timeout handling” under PAY-142 and move the timeout criteria there.`",
+    ),
+  reason: z
+    .string()
+    .describe("Why, grounded in what you found. One or two sentences."),
+  confidence: z
+    .enum(["low", "medium", "high"])
+    .describe("How sure you are this is the right move given the evidence."),
+  alternatives: z
+    .array(
+      z.object({
+        label: z.string().describe("A short alternative, one line."),
+        confidence: z.enum(["low", "medium", "high"]),
+      }),
+    )
+    .max(3)
+    .describe("Other reasonable options. Empty if there are none."),
+});
+export type RecommendActionInput = z.infer<typeof recommendActionInput>;
+
+export const recommendActionOutput = z.object({
+  decision: z.enum(["accepted", "alternative", "declined"]),
+  // The chosen alternative's label when decision is `alternative`.
+  choice: z.string().nullable(),
+});
+export type RecommendActionOutput = z.infer<typeof recommendActionOutput>;
+
 export type ChatDataParts = {
   // Transient: the generated conversation title.
   title: { title: string };
