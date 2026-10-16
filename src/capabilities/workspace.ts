@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "../db/schema";
 import { committedEvents } from "../lib/analytics/events";
+import { computeInsights, insightTopics } from "../intelligence/insights";
 import {
   createSyncService,
   directory,
@@ -838,11 +839,74 @@ const getWorkItem = defineCapability({
   },
 });
 
+const getInsights = defineCapability({
+  name: "getInsights",
+  title: "Get insights",
+  description:
+    "Figures computed from the workspace, for questions about how work is going. topic `refinement`: specification refinement states, review progress, readiness checks and specifications that need attention. topic `delivery`: work by status, the active iteration's burndown and velocity, blocked or stalled work. topic `people`: workload per person and pending review requests. Narrow with projectId and teamId. The chat shows the result as cards; comment on it instead of repeating the numbers.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({
+    organizationId,
+    topic: z.enum(insightTopics),
+    projectId: id.optional(),
+    teamId: id.optional(),
+  }),
+  async run(ctx, q) {
+    const roster = await directory(
+      ctx.db,
+      ctx.principal.userId,
+      q.organizationId,
+    );
+    const team = q.teamId
+      ? roster.teams.find((t) => t.id === q.teamId)
+      : undefined;
+    if (q.teamId && !team)
+      throw new CapabilityError("unavailable", "The team is unavailable.");
+    const projectId = q.projectId ?? team?.projectId;
+    if (team && team.projectId !== projectId)
+      throw new CapabilityError(
+        "validation",
+        "The team belongs to another project.",
+      );
+    const { entities, directory: scoped } = await bootstrap(ctx, {
+      organizationId: q.organizationId,
+      projectId,
+    });
+    const active =
+      projectId && q.topic !== "refinement"
+        ? scoped.iterations.find(
+            (i) => i.projectId === projectId && i.state === "active",
+          )
+        : undefined;
+    return computeInsights({
+      topic: q.topic,
+      entities,
+      directory: scoped,
+      projectId,
+      teamId: q.teamId,
+      now: new Date(),
+      iteration: active
+        ? {
+            iteration: active,
+            report: await iterationReport(
+              ctx.db,
+              ctx.principal.userId,
+              q.organizationId,
+              active.id,
+            ),
+          }
+        : null,
+    });
+  },
+});
+
 export const workspaceCapabilities: AnyCapability[] = [
   listOrganizations,
   getWorkspace,
   listWorkItems,
   getWorkItem,
+  getInsights,
   searchMembersCapability,
   searchEpicsCapability,
   getIterationReport,

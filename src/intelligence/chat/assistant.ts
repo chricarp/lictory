@@ -7,7 +7,13 @@ import { DEFAULT_AI_MODEL } from "~/ai/analyzer";
 import { agentTools } from "~/capabilities/agent";
 import type { CapabilityContext } from "~/capabilities/core";
 import { capabilitiesOf, type Directory } from "~/sync/shared/protocol";
-import { ASK_QUESTIONS, askQuestionsInput } from "./shared";
+import {
+  ASK_QUESTIONS,
+  RECOMMEND_ACTION,
+  askQuestionsInput,
+  recommendActionInput,
+  recommendActionOutput,
+} from "./shared";
 
 // The Lictory Intelligence assistant: one conversation turn acting as the
 // signed-in person through the capability layer (the same operations as the
@@ -29,6 +35,14 @@ export function assistantTools(ctx: CapabilityContext): ToolSet {
       description:
         "Ask the person to clarify missing pieces before acting (which project or team, which item, scope, options). Prefer options built from real workspace data (ids as values). Ask everything you need at once; do not ask what you can look up.",
       inputSchema: askQuestionsInput,
+    }),
+    // No `execute`: the browser shows a recommendation card and returns the
+    // person's decision.
+    [RECOMMEND_ACTION]: tool({
+      description:
+        "Propose a change the person did not explicitly ask for (creating, splitting, moving, assigning, re-prioritizing or rewriting something) and wait for their decision. Call it once per proposal, after you have the evidence, and act only if they accept or pick an alternative.",
+      inputSchema: recommendActionInput,
+      outputSchema: recommendActionOutput,
     }),
   };
 }
@@ -88,6 +102,8 @@ How to work:
 - If a required piece is missing or ambiguous (for example several projects could fit), call ${ASK_QUESTIONS} instead of guessing. Use single or multiple choice with real options when possible and text for open details. Never ask for something you can look up.
 - Specifications are Markdown revisions. To change an existing specification prefer createSuggestion (reviewed by people) over updateSpecification; both need the current revision id as baseRevisionId.
 - Humans decide: do not approve, merge, resolve discussions or publish to delivery tools unless explicitly asked. Some actions require the person to approve the tool call in the chat; that is expected.
+- Only make the changes the person asked for. When you see a change that would help but was not requested (for example splitting a story, adding a missing acceptance criterion, re-assigning stalled work), call ${RECOMMEND_ACTION} with the evidence and wait; act only on "accepted" or the chosen alternative, and drop it on "declined".
+- For questions about how work is going (refinement or readiness of specifications, reviews, delivery progress, iterations, workload or review load of people), call getInsights with the matching topic and scope instead of counting items yourself. The person sees its figures as cards: summarize what matters in a few sentences and point out what needs action; do not repeat every number.
 - When a tool fails, explain the actionable reason and fix the input if you can.
 - Prioritize missing information, contradictions and ambiguity over stylistic rewriting. Do not present guesses as established product behavior.
 - Be concise. Use Markdown. Link work items as [PAY-142](/app/${org.slug}/items/PAY-142).`;

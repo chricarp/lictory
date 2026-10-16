@@ -1,7 +1,14 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Check, CircleHelp, X } from "lucide-react";
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Button } from "~/components/ui/button";
 import type {
   AskQuestionsInput,
@@ -13,6 +20,12 @@ import { cn } from "~/lib/utils";
 type Answer = { values: string[]; text: string; skipped: boolean };
 const empty: Answer = { values: [], text: "", skipped: false };
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+// The step counter rolls like an odometer in the direction of travel.
+const roll = {
+  enter: (direction: number) => ({ y: `${direction * 100}%` }),
+  center: { y: "0%" },
+  exit: (direction: number) => ({ y: `${direction * -100}%` }),
+};
 
 function answered(q: Question, a: Answer) {
   return a.values.length > 0 || a.text.trim().length > 0;
@@ -34,6 +47,8 @@ export function Questionnaire({
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   const [error, setError] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const advance = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(advance.current), []);
   const baseId = useId();
   const q = questions[step]!;
   const a = answers[q.id] ?? empty;
@@ -53,7 +68,15 @@ export function Questionnaire({
           ? a.values.filter((v) => v !== value)
           : [...a.values, value],
       });
-    else set({ values: [value], text: "" });
+    else {
+      set({ values: [value], text: "" });
+      // A single choice answers the question: move on after a beat, so the
+      // selection registers. The last question still waits for Submit.
+      if (!last) {
+        clearTimeout(advance.current);
+        advance.current = setTimeout(() => go(step + 1), 320);
+      }
+    }
   };
 
   const finish = (all: Record<string, Answer>) =>
@@ -73,6 +96,7 @@ export function Questionnaire({
     });
 
   const go = (to: number) => {
+    clearTimeout(advance.current);
     setDirection(to > step ? 1 : -1);
     setStep(to);
     setError(null);
@@ -143,8 +167,28 @@ export function Questionnaire({
           {input.title}
         </p>
         {questions.length > 1 && (
-          <span className="text-[11px] text-muted-foreground tabular-nums">
-            Question {step + 1} of {questions.length}
+          <span
+            className="inline-flex items-center text-[11px] text-muted-foreground tabular-nums"
+            aria-label={`Question ${step + 1} of ${questions.length}`}
+          >
+            <span className="relative inline-grid h-[1.2em] overflow-hidden">
+              <AnimatePresence initial={false} custom={direction}>
+                <motion.span
+                  key={step}
+                  custom={direction}
+                  variants={roll}
+                  initial={reduce ? false : "enter"}
+                  animate="center"
+                  exit={reduce ? undefined : "exit"}
+                  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                  className="col-start-1 row-start-1 leading-[1.2em]"
+                  aria-hidden
+                >
+                  {step + 1}
+                </motion.span>
+              </AnimatePresence>
+            </span>
+            <span aria-hidden>&nbsp;/ {questions.length}</span>
           </span>
         )}
         <button

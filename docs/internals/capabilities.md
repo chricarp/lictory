@@ -51,6 +51,23 @@ person's approval before running them or any destructive command
 (`needsApproval`). Nothing about agents or Lictory Intelligence changes the domain rule that approvals belong
 to a person and a revision.
 
+The embedded agent has two more chat-only tools with no server execution; the
+browser answers them. `askQuestions` collects missing details, and
+`recommendAction` proposes a change the person did not ask for and returns
+their decision (accepted, an alternative, or declined). The prompt tells the
+model to act only on acceptance. That is guidance, not enforcement: the
+guarantee for decisions and destructive commands remains `needsApproval`.
+
+## Insights
+
+`getInsights` answers "how is work going" questions (refinement, delivery,
+people) with figures computed from the person's synchronized workspace
+(`src/intelligence/insights.ts`). They are not produced by a model. The chat
+renders the result as insight cards and the model only comments on it, so
+every number a person sees can be traced to data they can open. Trends appear
+only with real history: a burndown needs at least two days, velocity needs
+completed iterations, and unestimated work burns down in items.
+
 ## Workspace commands
 
 Every workspace command in the sync protocol (`commandSchema`) is generated into
