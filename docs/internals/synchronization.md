@@ -150,26 +150,31 @@ old changes without adding an expired-checkpoint/reset protocol first.
 
 ## Scopes and recovery
 
-Protocol version 12 (project-owned configuration: project settings, members, disciplines, workflows, iterations and hand-off targets; optional teams; version 11 added delegated configuration; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
+Protocol version 13 (a versioned, per-type Definition of Ready with manual sign-offs; version 12 added project-owned configuration: project settings, members, disciplines, workflows, iterations and hand-off targets; optional teams; version 11 added delegated configuration; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
 organization ID plus optional project and work item IDs. A work item scope requires
 a project. Organization bootstrap contains projects and **every work item summary**
 in the organization (the browser's list store); project bootstrap narrows that to
 one project; work item bootstrap adds its revisions, discussions, suggestions (with their
 reviewers and decisions), reviews, assignments, approvals, readiness and activity. It does not send unrelated
 item histories. A child's mutation additionally emits its parent's readiness
-projection, because `children_ready` lives in the parent's scope. Relations are
+projection, because `children_ready` lives in the parent's scope. Publishing the
+Definition of Ready emits the readiness projection and activity of every item it
+changed into each item's scope. Relations are
 project-level entities routed with their source item's project; removing one
 writes a tombstone (`delete` change) in the same transaction.
 
 Delivery configuration (project members and disciplines; teams with their
-members; each project's statuses and enabled types; the type registry; planned,
+members; each project's statuses, enabled types and current Definition of Ready;
+the type registry; planned,
 active and the most recent completed iterations) is part of the **directory**
 and is refreshed on every read. Its commands therefore write no configuration
 entities, but a command that also moves items or changes the project
 (archiving a status with a replacement, completing an iteration with
-carry-over, automatic cycles, project settings) diffs the project snapshot and
-emits the affected entities like any other change. Iteration reports are read on demand
-(`?iteration=1`) and replay recorded events on the server.
+carry-over, automatic cycles, project settings, publishing the Definition of Ready)
+diffs the project snapshot and
+emits the affected entities like any other change. Iteration reports and the
+history of the Definition of Ready are read on demand (`?iteration=1`,
+`?readiness=1`; its impact preview is `POST /api/readiness`); reports replay recorded events on the server.
 
 Delivery exports (`/api/delivery`, see [delivery.md](delivery.md)) are
 online-only and never enter the durable client mutation queue: they call
@@ -367,10 +372,12 @@ review/revision and an assigned reviewer. A material revision
 ends granted approvals as stale with an actor, timestamp, and reason, and
 **re-requests every active review on the new revision with the same assignments**;
 the old review rows remain historical. An old completed review cannot satisfy
-readiness. Checks: specification written; acceptance criteria present (stories and
-tasks; parsed from the `## Acceptance criteria` section); no open blocking threads;
-at least one required review requested; every required responsibility approved on
-the current revision; and, for Epics with stories, every story ready. Readiness is
+readiness. Which checks readiness requires is project configuration, versioned
+like specifications (see [Definition of Ready](delivery.md#definition-of-ready)).
+Lictory's defaults are: specification written; no open blocking threads; at
+least one required review requested; every required responsibility approved on
+the current revision; and, for items with spec-backed children, every child
+ready. Readiness is
 computed server-side; the status is only a workflow summary. Threads may quote the
 text they discuss; the quote is interpreted against the thread's revision and the
 UI reports when it no longer appears. Resolving/reopening threads never

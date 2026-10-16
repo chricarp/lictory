@@ -11,9 +11,15 @@ import {
   advanceSchedules,
   directory,
   iterationReport,
+  readinessHistory,
+  readinessPreview,
   searchEpics,
   searchMembers,
 } from "./service";
+import {
+  defaultReadinessChecks,
+  type ReadinessCheckDefinition,
+} from "../shared/readiness";
 import {
   PROTOCOL,
   pageSchema,
@@ -1863,7 +1869,7 @@ void test("readiness gates starting spec-backed work according to team policy", 
       workItemId: f.proposalId,
       statusId: f.statuses["In Progress"],
     }),
-    /PAY-1 is not ready to start: .*acceptance criteria/,
+    /PAY-1 is not ready to start: at least one required review is requested/,
   );
   // Plain tasks are never gated.
   const task = await create(f, f.types.Task);
@@ -3239,4 +3245,384 @@ void test("delivery mode decides who owns delivery: external projects never plan
     workItemId: f.proposalId,
     estimate: 3,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Configurable readiness checks.
+// ---------------------------------------------------------------------------
+async function readinessOf(
+  f: Awaited<ReturnType<typeof fixture>>,
+  workItemId: string,
+) {
+  const page = pageSchema.parse(
+    await service.read(f.userId, {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      workItemId,
+    }),
+  );
+  const found = page.changes.find(
+    (c) =>
+      c.operation === "upsert" &&
+      c.entity.type === "readiness" &&
+      c.entity.workItemId === workItemId,
+  );
+  assert.ok(found?.operation === "upsert" && found.entity.type === "readiness");
+  return found.entity;
+}
+async function makeReady(f: Awaited<ReturnType<typeof fixture>>) {
+  const current = await f.current();
+  const base = { workItemId: f.proposalId, baseRevisionId: current.id };
+  const reviewId = crypto.randomUUID();
+  await f.command({
+    type: "requestReview",
+    ...base,
+    reviewId,
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  await f.command(
+    { type: "decideReview", ...base, reviewId, decision: "approve" },
+    f.reviewerId,
+  );
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "ready");
+}
+const acceptanceSection: ReadinessCheckDefinition = {
+  id: "acceptance",
+  kind: "section",
+  heading: "Acceptance criteria",
+};
+
+void test("readiness checks are revisioned; ready and done items keep the checks they met", async () => {
+  const f = await fixture();
+  await makeReady(f);
+  const draft = await create(f, f.types.Story, { description: "Refunds." });
+  const done = await create(f, f.types.Story, {
+    description: "Shipped.",
+    statusId: f.statuses.Done,
+  });
+  const latest = async () =>
+    (await directory(db, f.userId, f.organizationId)).readiness.find(
+      (r) => r.projectId === f.projectId,
+    )!;
+  assert.deepEqual(await latest(), {
+    id: null,
+    projectId: f.projectId,
+    number: 0,
+    rules: {},
+    summary: null,
+    authorId: null,
+    createdAt: null,
+  });
+  const publish = (
+    checks: ReadinessCheckDefinition[],
+    baseRevisionId: string | null,
+    actor = f.userId,
+  ) =>
+    f.command(
+      {
+        type: "publishReadinessChecks",
+        projectId: f.projectId,
+        baseRevisionId,
+        rules: { [f.types.Story]: checks },
+        summary: "Require acceptance criteria",
+      },
+      actor,
+    );
+  const checks = [...defaultReadinessChecks, acceptanceSection];
+  await assert.rejects(publish(checks, null, f.reviewerId), /administrators/);
+  await assert.rejects(
+    publish(checks, crypto.randomUUID()),
+    /changed to version 0/,
+  );
+  await assert.rejects(
+    publish(
+      [
+        ...checks,
+        {
+          id: "qa",
+          kind: "discipline_approval",
+          disciplineIds: [crypto.randomUUID()],
+        },
+      ],
+      null,
+    ),
+    /not part of this project/,
+  );
+  await assert.rejects(
+    publish(defaultReadinessChecks, null),
+    /already the current Definition of Ready/,
+  );
+  // Before publishing, the impact is computed without writing anything.
+  const epic = await create(f, f.types.Epic, { description: "Refunds epic." });
+  const impact = await readinessPreview(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    { [f.types.Story]: checks },
+  );
+  assert.equal(impact.kept, 2);
+  assert.deepEqual(impact.becomeReady, []);
+  assert.deepEqual(
+    impact.needMoreWork.map((i) => i.id),
+    [draft],
+  );
+  assert.deepEqual(impact.reasons, [
+    { label: "It has a non-empty “Acceptance criteria” section", count: 1 },
+  ]);
+  assert.equal(impact.unaffected, 1);
+  assert.equal((await latest()).number, 0);
+  await publish(checks, null);
+
+  // The defaults are recorded as revision 1, the publication is revision 2.
+  const published = await latest();
+  assert.equal(published.number, 2);
+  assert.equal(published.authorId, f.userId);
+  const history = await readinessHistory(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+  );
+  assert.deepEqual(
+    history.revisions.map((r) => [r.number, r.authorId, r.summary]),
+    [
+      [2, f.userId, "Require acceptance criteria"],
+      [1, null, "Lictory defaults"],
+    ],
+  );
+
+  // Ready and done items keep revision 1; everything else follows revision 2.
+  const ready = await readinessOf(f, f.proposalId);
+  assert.equal(ready.pinned, true);
+  assert.equal(ready.policyRevisionNumber, 1);
+  assert.ok(ready.checks.every((c) => c.key !== "acceptance" && c.passed));
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "ready");
+  assert.equal((await readinessOf(f, done)).pinned, true);
+  const following = await readinessOf(f, draft);
+  assert.equal(following.pinned, false);
+  assert.equal(following.policyRevisionNumber, 2);
+  assert.deepEqual(
+    following.checks.find((c) => c.key === "acceptance"),
+    {
+      key: "acceptance",
+      label: "It has a non-empty “Acceptance criteria” section",
+      passed: false,
+      detail: "Add a “Acceptance criteria” section.",
+    },
+  );
+  // Rules belong to a type: the Epic still follows the defaults.
+  assert.ok(
+    (await readinessOf(f, epic)).checks.every((c) => c.key !== "acceptance"),
+  );
+  // Publishing changed no item content or approval.
+  assert.ok(
+    (await f.entities()).some(
+      (e) => e.type === "approval" && e.status === "granted",
+    ),
+  );
+
+  // Once the pinned item stops being ready, it moves to the latest checks.
+  const current = await f.current();
+  await f.command({
+    type: "createThread",
+    workItemId: f.proposalId,
+    baseRevisionId: current.id,
+    threadId: crypto.randomUUID(),
+    messageId: crypto.randomUUID(),
+    body: "What happens on timeout?",
+    section: "Intent",
+    blocking: true,
+  });
+  const moved = await readinessOf(f, f.proposalId);
+  assert.equal(moved.pinned, false);
+  assert.equal(moved.policyRevisionNumber, 2);
+  assert.ok(moved.checks.some((c) => c.key === "acceptance" && !c.passed));
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "in_review");
+  assert.ok(
+    (await f.entities()).some(
+      (e) =>
+        e.type === "activity" &&
+        e.action === "readiness_checks_followed" &&
+        e.detail?.from === 1 &&
+        e.detail?.to === 2,
+    ),
+  );
+  // A done item stays on the checks it was completed under.
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: done,
+    priority: "high",
+  });
+  assert.equal((await readinessOf(f, done)).policyRevisionNumber, 1);
+});
+
+void test("publishing checks moves following items with their evidence; manual sign-offs belong to a revision", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  const base = { workItemId: f.proposalId, baseRevisionId: first.id };
+  await f.command({
+    type: "requestReview",
+    ...base,
+    reviewId: crypto.randomUUID(),
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "in_review");
+  const initial = await f.read();
+  // Dropping the review checks: the item now meets every check.
+  const withoutReviews = {
+    [f.types.Story]: defaultReadinessChecks.filter(
+      (c) => !c.kind.startsWith("reviews"),
+    ),
+  };
+  assert.deepEqual(
+    (
+      await readinessPreview(
+        db,
+        f.userId,
+        f.organizationId,
+        f.projectId,
+        withoutReviews,
+      )
+    ).becomeReady.map((i) => i.key),
+    ["PAY-1"],
+  );
+  await f.command({
+    type: "publishReadinessChecks",
+    projectId: f.projectId,
+    baseRevisionId: null,
+    rules: withoutReviews,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "ready");
+  // An open item view receives its readiness and the recorded reason.
+  const delta = await f.read(initial.nextCursor);
+  const changed = delta.changes.flatMap((c) =>
+    c.operation === "upsert" ? [c.entity] : [],
+  );
+  assert.ok(
+    changed.some(
+      (e) =>
+        e.type === "readiness" &&
+        e.workItemId === f.proposalId &&
+        e.policyRevisionNumber === 2 &&
+        e.checks.every((c) => c.passed),
+    ),
+  );
+  assert.ok(
+    changed.some(
+      (e) =>
+        e.type === "activity" &&
+        e.action === "refinement_changed" &&
+        e.detail?.reason === "readiness_checks_published" &&
+        e.detail?.to === "ready",
+    ),
+  );
+
+  // A manual sign-off reserved to Product.
+  const revision2 = (
+    await directory(db, f.userId, f.organizationId)
+  ).readiness.find((r) => r.projectId === f.projectId)!;
+  await f.command({
+    type: "publishReadinessChecks",
+    projectId: f.projectId,
+    baseRevisionId: revision2.id,
+    rules: {
+      [f.types.Story]: [
+        ...revision2.rules[f.types.Story]!,
+        {
+          id: "designs",
+          kind: "manual",
+          label: "Designs attached",
+          description: "Link the final designs.",
+          disciplineIds: [f.roles.Product],
+        },
+      ],
+    },
+  });
+  const story = await create(f, f.types.Story, { description: "Refunds v1" });
+  const scope = { ...f.scope, workItemId: story };
+  const revisionOf = async () =>
+    pageSchema
+      .parse(await service.read(f.userId, scope))
+      .changes.flatMap((c) =>
+        c.operation === "upsert" && c.entity.type === "revision"
+          ? [c.entity]
+          : [],
+      )
+      .sort((a, b) => b.number - a.number)[0]!;
+  const v1 = await revisionOf();
+  await f.command({
+    type: "updateSpecification",
+    workItemId: story,
+    baseRevisionId: v1.id,
+    title: "Item",
+    content: "Refunds v2",
+  });
+  const v2 = await revisionOf();
+  const signOff = (signedOff: boolean, actor = f.userId, revision = v2) =>
+    f.command(
+      {
+        type: "signOffReadinessCheck",
+        workItemId: story,
+        baseRevisionId: revision.id,
+        checkId: "designs",
+        signedOff,
+      },
+      actor,
+    );
+  assert.equal(
+    (await readinessOf(f, story)).checks.find((c) => c.key === "designs")
+      ?.passed,
+    false,
+  );
+  await assert.rejects(signOff(true, f.reviewerId), /Only members of Product/);
+  await assert.rejects(
+    f.command({
+      type: "signOffReadinessCheck",
+      workItemId: story,
+      baseRevisionId: v2.id,
+      checkId: "specification",
+      signedOff: true,
+    }),
+    /no such sign-off/,
+  );
+  await signOff(true);
+  await assert.rejects(signOff(true), /already signed off/);
+  let designs = (await readinessOf(f, story)).checks.find(
+    (c) => c.key === "designs",
+  )!;
+  assert.equal(designs.passed, true);
+  assert.equal(designs.signOff?.signedOffBy, f.userId);
+  assert.equal((await itemOf(f, story)).refinementState, "ready");
+  // Withdrawing is the inverse and keeps history.
+  await signOff(false);
+  assert.equal((await itemOf(f, story)).refinementState, "in_review");
+  await signOff(true);
+  assert.equal((await itemOf(f, story)).refinementState, "ready");
+  // A new revision needs a new sign-off.
+  await f.command({
+    type: "revertSpecification",
+    workItemId: story,
+    baseRevisionId: v2.id,
+    revisionId: v1.id,
+  });
+  designs = (await readinessOf(f, story)).checks.find(
+    (c) => c.key === "designs",
+  )!;
+  assert.equal(designs.passed, false);
+  assert.equal(
+    designs.detail,
+    "Signed off on revision 2. Sign off again for revision 3.",
+  );
+  assert.equal((await itemOf(f, story)).refinementState, "in_review");
+  const rows = await db
+    .select()
+    .from(s.readinessSignOff)
+    .where(eq(s.readinessSignOff.workItemId, story));
+  assert.equal(rows.length, 2);
+  assert.equal(rows.filter((r) => r.withdrawnAt).length, 1);
 });

@@ -169,6 +169,17 @@ void test("review workflow notifies the people it asks something of, never the a
     .from(s.notificationEmail)
     .where(eq(s.notificationEmail.notificationId, request.id));
   assert.equal(queued[0]?.status, "pending");
+  // A second required review keeps the item short of ready, so main stays
+  // directly editable for the revision below.
+  await f.command({
+    type: "requestReview",
+    workItemId: f.itemId,
+    baseRevisionId: first.id,
+    reviewId: crypto.randomUUID(),
+    disciplineId: f.roles.QA,
+    userId: null,
+    required: true,
+  });
 
   await f.command(
     {

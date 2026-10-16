@@ -10,6 +10,7 @@ export type AnalyticsEvent = { event: string; properties: AnalyticsProperties };
 export const commandEvents = {
   createProject: "project_created",
   updateProject: "project_updated",
+  publishReadinessChecks: "readiness_checks_published",
   archiveProject: "project_archive_changed",
   setProjectMember: "project_member_changed",
   createDiscipline: "discipline_created",
@@ -51,6 +52,7 @@ export const commandEvents = {
   requestReview: "review_requested",
   cancelReview: "review_cancelled",
   decideReview: "review_decided",
+  signOffReadinessCheck: "readiness_check_signed_off",
   createTeam: "team_created",
   updateTeam: "team_updated",
   setTeamMembership: "team_membership_changed",

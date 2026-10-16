@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { OnboardingSetup } from "../sync/shared/protocol";
+import type { ReadinessRules } from "../sync/shared/readiness";
 import type { AiFinding } from "../sync/shared/ai";
 import type { IntelligenceContextUse } from "../intelligence/shared";
 import { organization, user } from "./auth-schema";
@@ -526,6 +527,38 @@ export const iteration = pgTable(
   ],
 );
 
+// A project's Definition of Ready, versioned like specifications: every
+// publication is an immutable version. Projects without one use Lictory's
+// defaults; publishing first records those as version 1.
+export const readinessRevision = pgTable(
+  "readiness_revision",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    projectId: text("project_id").notNull(),
+    number: integer("number").notNull(),
+    // Checks per work item type id; types without an entry use the defaults.
+    rules: jsonb("rules").$type<ReadinessRules>().notNull(),
+    summary: text("summary"),
+    // Null for the recorded Lictory defaults.
+    authorId: optionalActor("author_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("readiness_revision_org_id_unique").on(t.organizationId, t.id),
+    unique("readiness_revision_project_number_unique").on(
+      t.organizationId,
+      t.projectId,
+      t.number,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.projectId],
+      foreignColumns: [project.organizationId, project.id],
+    }).onDelete("restrict"),
+    check("readiness_revision_positive_number", sql`${t.number} > 0`),
+  ],
+);
+
 // Work items belong to exactly one project (key, number, workflow, iteration)
 // and optionally one of its teams. Refinement and delivery state are
 // orthogonal.
@@ -558,6 +591,9 @@ export const workItem = pgTable(
     rank: text("rank").notNull(),
     // Revision of the parent specification this item was decomposed from.
     sourceRevisionId: text("source_revision_id"),
+    // Readiness checks revision the item stays evaluated under because it was
+    // ready or done when newer checks were published. Null follows the latest.
+    readinessRevisionId: text("readiness_revision_id"),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -617,6 +653,11 @@ export const workItem = pgTable(
       name: "work_item_milestone_fk",
       columns: [t.organizationId, t.milestoneId],
       foreignColumns: [milestone.organizationId, milestone.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "work_item_readiness_revision_fk",
+      columns: [t.organizationId, t.readinessRevisionId],
+      foreignColumns: [readinessRevision.organizationId, readinessRevision.id],
     }).onDelete("restrict"),
     check(
       "work_item_not_own_parent",
@@ -1317,6 +1358,42 @@ export const approval = pgTable(
     check(
       "approval_end_consistent",
       sql`(${t.status} = 'granted' AND ${t.endedAt} IS NULL AND ${t.endedById} IS NULL AND ${t.endReason} IS NULL) OR (${t.status} <> 'granted' AND ${t.endedAt} IS NOT NULL AND ${t.endReason} IS NOT NULL)`,
+    ),
+  ],
+);
+
+// A person confirming a manual readiness check for one specification
+// revision. Withdrawing keeps the row; a new revision needs a new sign-off.
+export const readinessSignOff = pgTable(
+  "readiness_sign_off",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    workItemId: text("work_item_id").notNull(),
+    revisionId: text("revision_id").notNull(),
+    // Id of the manual check in the project's readiness checks.
+    checkId: text("check_id").notNull(),
+    userId: actor("user_id"),
+    createdAt: createdAt(),
+    withdrawnAt: timestamp("withdrawn_at"),
+    withdrawnById: optionalActor("withdrawn_by_id"),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.workItemId, t.revisionId],
+      foreignColumns: [
+        specificationRevision.organizationId,
+        specificationRevision.workItemId,
+        specificationRevision.id,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("readiness_sign_off_active_unique")
+      .on(t.workItemId, t.revisionId, t.checkId)
+      .where(sql`${t.withdrawnAt} IS NULL`),
+    index("readiness_sign_off_item_idx").on(t.organizationId, t.workItemId),
+    check(
+      "readiness_sign_off_withdrawal_consistent",
+      sql`(${t.withdrawnAt} IS NULL) = (${t.withdrawnById} IS NULL)`,
     ),
   ],
 );

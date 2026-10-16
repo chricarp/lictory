@@ -443,6 +443,7 @@ const hydratingView: View = {
     statuses: [],
     iterations: [],
     delivery: { connections: [], targets: [] },
+    readiness: [],
     ai: { enabled: false, available: false },
   },
   pending: [],

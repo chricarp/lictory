@@ -6,14 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { MessageSquarePlus, Pencil, PenLine, Plus } from "lucide-react";
-import { cn } from "~/lib/utils";
+import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
 import { relativeTime } from "~/lib/work-items";
-import {
-  appendAcceptanceCriterion,
-  parseAcceptanceCriteria,
-  splitSpecification,
-} from "~/sync/shared/specification";
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd, SectionLabel } from "~/components/ui/primitives";
@@ -87,8 +81,7 @@ function Reader({
   onQuote: (quote: string, section: string) => void;
   onEdit: () => void;
 }) {
-  const { current, threads, readOnly, canEdit, mutate, base, reviewable } =
-    useItem();
+  const { current, threads, readOnly, canEdit, reviewable } = useItem();
   const rootRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{
     x: number;
@@ -97,8 +90,6 @@ function Reader({
     section: string;
   }>();
   const content = current?.content ?? "";
-  const { body } = splitSpecification(content);
-  const { criteria } = parseAcceptanceCriteria(content);
   const isEmpty = !content.trim();
   const onMouseUp = useCallback(() => {
     // Defer so the browser has finalized the selection.
@@ -185,7 +176,7 @@ function Reader({
           onMouseUp={onMouseUp}
           className="relative"
         >
-          <Markdown source={body} />
+          <Markdown source={content} />
           {selection && !readOnly && reviewable && (
             <div
               role="toolbar"
@@ -209,21 +200,6 @@ function Reader({
           )}
         </div>
       )}
-      <AcceptanceCriteria
-        criteria={criteria}
-        readOnly={!canEdit}
-        onAdd={(text) =>
-          current
-            ? mutate({
-                type: "updateSpecification",
-                ...base,
-                title: current.title,
-                content: appendAcceptanceCriterion(current.content, text),
-                summary: "Added acceptance criterion",
-              })
-            : Promise.resolve("")
-        }
-      />
     </div>
   );
 }
@@ -268,107 +244,6 @@ function findRange(root: HTMLElement, text: string): Range | undefined {
   range.setStart(from.node, from.offset);
   range.setEnd(to.node, Math.min(to.node.data.length, to.offset + 1));
   return range;
-}
-
-function AcceptanceCriteria({
-  criteria,
-  readOnly,
-  onAdd,
-}: {
-  criteria: { text: string; checked: boolean }[];
-  readOnly: boolean;
-  onAdd: (text: string) => Promise<unknown>;
-}) {
-  const { type, reviewable } = useItem();
-  const [adding, setAdding] = useState(false);
-  const [value, setValue] = useState("");
-  const [saving, setSaving] = useState(false);
-  // Criteria are a readiness check for specifications below the top level.
-  if ((!reviewable || type.level >= 2) && criteria.length === 0) return null;
-  return (
-    <div className="mt-8">
-      <div className="mb-2 flex items-center gap-2">
-        <SectionLabel>Acceptance criteria</SectionLabel>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {criteria.length}
-        </span>
-      </div>
-      {criteria.length === 0 && !adding && (
-        <p className="mb-2 text-[13px] text-muted-foreground">
-          None yet. Criteria make the {type.name.toLowerCase()} testable and are
-          a readiness check.
-        </p>
-      )}
-      <ul className="space-y-1">
-        {criteria.map((c, i) => (
-          <li key={i} className="flex items-start gap-2 text-[15px] leading-7">
-            <span
-              aria-hidden
-              className={cn(
-                "mt-1.5 grid size-4 shrink-0 place-items-center rounded border text-[10px]",
-                c.checked
-                  ? "border-emerald-600 bg-emerald-600 text-white"
-                  : "border-muted-foreground/50",
-              )}
-            >
-              {c.checked && "✓"}
-            </span>
-            <span
-              className={cn(c.checked && "text-muted-foreground line-through")}
-            >
-              {c.text}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {!readOnly &&
-        (adding ? (
-          <form
-            className="mt-2 flex items-center gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!value.trim()) return;
-              setSaving(true);
-              try {
-                await onAdd(value.trim());
-                setValue("");
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <input
-              autoFocus
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Escape" && setAdding(false)}
-              placeholder="Given…, when…, then… (Enter to add)"
-              aria-label="New acceptance criterion"
-              className="h-8 flex-1 rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60"
-            />
-            <Button type="submit" size="sm" disabled={saving || !value.trim()}>
-              Add
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setAdding(false)}
-            >
-              Done
-            </Button>
-          </form>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Plus className="size-3.5" /> Add criterion
-          </button>
-        ))}
-    </div>
-  );
 }
 
 // Edits and suggestions share the editor. Saving creates a revision against the

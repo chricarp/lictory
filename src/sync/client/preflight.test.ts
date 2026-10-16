@@ -51,6 +51,7 @@ const directory: Directory = {
   disciplines: [],
   iterations: [],
   delivery: { connections: [], targets: [] },
+  readiness: [],
   projects: [
     {
       type: "project",
@@ -198,6 +199,9 @@ void test("preflight uses available readiness evidence and the project's policy"
       type: "readiness" as const,
       id: item.id,
       organizationId: "org",
+      policyRevisionId: null,
+      policyRevisionNumber: 0,
+      pinned: false,
       checks: [
         {
           key: "reviews",

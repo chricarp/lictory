@@ -8,7 +8,7 @@ in both modes; this document covers the delivery concepts built around it.
 
 A **project** owns identity (the key and item numbers, `PAY-142`) and how its
 work is delivered: workflow, enabled types, estimate scale, iterations, delivery
-mode, readiness policy, labels and milestones. A **team** is an optional group
+mode, readiness policy and Definition of Ready, labels and milestones. A **team** is an optional group
 of people inside one project (a vertical such as Board or Auth). Every item
 belongs to one project and at most one of its teams; moving it between teams
 keeps its key, status and iteration. Boards and backlogs are project views that
@@ -42,6 +42,53 @@ when a spec-backed item that is not `ready` moves into a `started` status:
 - `off`: readiness is informative only.
 - `warn` (default): the move succeeds and the activity records the failing checks.
 - `block`: the server rejects the move with the failing checks.
+
+## Definition of Ready
+
+Which evidence makes a specification ready is the project's choice, per work
+item type ("A Story is ready when…"). Project administrators edit it in project
+settings. Each type has its own list of checks; a type without one uses
+Lictory's defaults (all built-in checks), so a project that never edits it, or a
+type added later, needs no configuration. Kinds of checks:
+
+- Built-in evidence, each at most once per type: specification written, no
+  open blocking discussion, a required review requested, every required review
+  approved on the current revision, every spec-backed child ready (skipped
+  without children).
+- Required section: a heading (any level) whose section is not empty, such as
+  "Acceptance criteria" or "Failure behavior".
+- Discipline approval: each chosen reviewing discipline approved the current
+  revision.
+- Sign-off: a named confirmation by a member of the chosen disciplines (or
+  anyone holding a discipline in the project). A sign-off belongs to the
+  specification revision it was given on, so a new revision needs a new one;
+  withdrawing keeps the record.
+
+Labels are derived from what a check verifies, so a name never claims more
+than the check does; only sign-offs are named by people.
+
+The Definition of Ready is versioned: publishing writes the next immutable
+`readiness_revision` (shown as a version), recording the defaults as version 1
+the first time. The editor works on a draft and shows what changed per type;
+before publishing, a read-only preview evaluates the draft against the
+project's items (how many keep their version, which become ready, which would
+need more work and why). Publishing names the version it was edited from; a
+concurrent publication is rejected rather than overwritten. Evaluation follows
+these rules:
+
+- Items that are `ready`, or whose status is done or canceled, keep the version
+  they were evaluated under (`work_item.readiness_revision_id`), so finished
+  work never loses readiness because the rules changed.
+- Every other item follows the latest version and moves with its evidence in
+  the same transaction: it becomes `ready` when the new checks pass. Children
+  feed their parent's `children_ready`, so this repeats until nothing moves.
+- A kept item that stops being ready and is not done (a blocking discussion, a
+  new revision, a reopened status) moves to the latest version; the activity
+  records the move.
+
+Item activity records automatic refinement changes caused by a publication.
+These changes do not send notifications; a bulk configuration change would
+otherwise notify everyone involved in every affected item.
 
 ## Iterations
 

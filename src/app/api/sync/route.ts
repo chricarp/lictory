@@ -61,6 +61,10 @@ export async function GET(request: Request) {
       context.operation = "iteration";
       return Response.json(await run("getIterationReport", params), noStore);
     }
+    if (params.readiness === "1") {
+      context.operation = "readiness";
+      return Response.json(await run("getReadinessHistory", params), noStore);
+    }
     const page = pageSchema.parse(
       await run("syncRead", {
         scope: {

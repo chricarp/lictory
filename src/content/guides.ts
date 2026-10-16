@@ -70,14 +70,15 @@ That last point is the one most teams miss. An approval is a statement about spe
 
 ## How Lictory applies a Definition of Ready
 
-Lictory treats readiness like CI for requirements. Each specification shows checks that pass as answers arrive:
+Lictory treats readiness like CI for requirements. Each specification shows checks that pass as answers arrive. By default:
 
 - Specification written
-- Acceptance criteria defined
 - No open blocking discussions
 - Required reviews requested
 - Current revision approved by every required review
 - Every child specification is ready
+
+Each project adapts this to its own Definition of Ready for each type of work: require a non-empty section such as “Acceptance criteria” or “Failure behavior”, an approval from specific disciplines such as QA or Security, or a manual sign-off. Before publishing a change, Lictory shows which items it would make ready and which would need more work. The definition is versioned: work that was already ready or done keeps the checks it met, everything else follows the new ones.
 
 Approvals belong to the revision that was reviewed, so a material change marks the affected approvals for another review. Each project decides what readiness means for delivery: informative only, a warning when work starts, or a hard block on starting work that is not ready. When delivery happens in Jira, only ready work can be handed off.
 
@@ -224,7 +225,7 @@ An example of a criterion that only QA would think to ask for:
 
 ## Acceptance criteria and readiness
 
-Acceptance criteria are the most important input to a [Definition of Ready](/guides/definition-of-ready). In Lictory, story-level specifications show an “Acceptance criteria defined” readiness check that passes once the specification has at least one criterion under an “Acceptance criteria” heading. Reviewers can suggest new or sharper criteria inline, and accepting a suggestion creates a new revision so approvals always refer to the criteria that were actually reviewed.`,
+Acceptance criteria are the most important input to a [Definition of Ready](/guides/definition-of-ready). In Lictory, a project can require an “Acceptance criteria” section as a readiness check, which passes once that section of the specification has content. Reviewers can suggest new or sharper criteria inline, and accepting a suggestion creates a new revision so approvals always refer to the criteria that were actually reviewed.`,
   },
   {
     slug: "async-backlog-refinement",

@@ -14,6 +14,7 @@ import { ProjectMembers } from "./project-members";
 import { ProjectDisciplines } from "./project-disciplines";
 import { ProjectTeams } from "./project-teams";
 import { ProjectWorkflow } from "./project-workflow";
+import { ProjectReadiness } from "./project-readiness";
 import { ProjectPlanning } from "./project-planning";
 import { ProjectDelivery } from "./project-delivery";
 import { plural } from "./project-shared";
@@ -24,6 +25,7 @@ const sections = [
   { id: "disciplines", label: "Disciplines", group: "People" },
   { id: "teams", label: "Teams", group: "People" },
   { id: "workflow", label: "Workflow & types", group: "Work" },
+  { id: "readiness", label: "Readiness", group: "Work" },
   { id: "planning", label: "Planning", group: "Work" },
   { id: "delivery", label: "Delivery", group: "Work" },
   { id: "labels", label: "Labels & milestones", group: "Work" },
@@ -89,6 +91,9 @@ export function ProjectSettings({ section }: { section: string }) {
       )}
       {active === "workflow" && (
         <ProjectWorkflow project={project} canEdit={canEdit} />
+      )}
+      {active === "readiness" && (
+        <ProjectReadiness project={project} canEdit={canEdit} />
       )}
       {active === "planning" && (
         <ProjectPlanning project={project} canEdit={canEdit} />

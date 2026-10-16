@@ -91,6 +91,7 @@ void test("application rejections are transient; uncertain changes and authored 
         statuses: [],
         iterations: [],
         delivery: { connections: [], targets: [] },
+        readiness: [],
       },
     });
   };

@@ -1,4 +1,14 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  not,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "../../db/schema";
 import {
@@ -8,6 +18,13 @@ import {
   type ProjectConfigurationCommand,
   type TypeCommand,
 } from "../shared/protocol";
+import {
+  defaultReadinessChecks,
+  sameReadinessChecks,
+  sameReadinessRules,
+  type ReadinessCheckDefinition,
+  type ReadinessRules,
+} from "../shared/readiness";
 import { auditConfiguration } from "./audit";
 import {
   activity,
@@ -274,6 +291,10 @@ export async function applyProjectCommand(
         .update(s.project)
         .set({ archivedAt: c.archived ? now : null, updatedAt: now })
         .where(where(s.project, project.id));
+      return;
+    }
+    case "publishReadinessChecks": {
+      await publishReadinessChecks(tx, ctx, project.id, c);
       return;
     }
     case "setProjectMember": {
@@ -766,6 +787,137 @@ export async function applyProjectCommand(
       return;
     }
   }
+}
+
+// Publishing creates the next immutable version of the project's Definition
+// of Ready. Items that are ready or done keep the version they were evaluated
+// under; every other item follows the new one. The first publication records
+// Lictory's defaults as version 1 so kept items have a version to point at.
+export function normalizeReadinessRules(
+  roster: Directory,
+  projectId: string,
+  input: ReadinessRules,
+): ReadinessRules {
+  const disciplines = roster.disciplines.filter(
+    (d) => d.projectId === projectId,
+  );
+  const discipline = (id: string, reviewing: boolean) => {
+    const found = disciplines.find((d) => d.id === id);
+    if (!found) return fail("A chosen discipline is not part of this project.");
+    if (found.archivedAt)
+      fail(
+        `${found.name} is archived. Restore it or choose another discipline.`,
+      );
+    if (reviewing && !found.capabilities.review)
+      fail(
+        `${found.name} cannot be asked to review, so it could never approve. Allow it to review or choose another discipline.`,
+      );
+    return found.id;
+  };
+  const unique = (ids: string[]) => [...new Set(ids)];
+  const rules: ReadinessRules = {};
+  for (const [typeId, checks] of Object.entries(input)) {
+    const type = roster.types.find((t) => t.id === typeId);
+    if (!type)
+      fail("The Definition of Ready names a type that does not exist.");
+    const normalized = checks.map((check): ReadinessCheckDefinition => {
+      if (check.kind === "discipline_approval")
+        return {
+          ...check,
+          disciplineIds: unique(check.disciplineIds).map((d) =>
+            discipline(d, true),
+          ),
+        };
+      if (check.kind === "manual")
+        return {
+          ...check,
+          description: blank(check.description),
+          disciplineIds: unique(check.disciplineIds).map((d) =>
+            discipline(d, false),
+          ),
+        };
+      return check;
+    });
+    // A type that requires exactly the defaults keeps following them.
+    if (!sameReadinessChecks(normalized, defaultReadinessChecks))
+      rules[typeId] = normalized;
+  }
+  return rules;
+}
+
+async function publishReadinessChecks(
+  tx: Tx,
+  ctx: Context,
+  projectId: string,
+  c: Extract<ProjectConfigurationCommand, { type: "publishReadinessChecks" }>,
+) {
+  const { organizationId, roster, userId } = ctx;
+  const [latest] = await tx
+    .select()
+    .from(s.readinessRevision)
+    .where(
+      and(
+        eq(s.readinessRevision.organizationId, organizationId),
+        eq(s.readinessRevision.projectId, projectId),
+      ),
+    )
+    .orderBy(desc(s.readinessRevision.number))
+    .limit(1);
+  if ((latest?.id ?? null) !== c.baseRevisionId)
+    fail(
+      `The Definition of Ready changed to version ${latest?.number ?? 0} while you were editing. Review the latest version and publish again.`,
+      "conflict",
+    );
+  const rules = normalizeReadinessRules(roster, projectId, c.rules);
+  if (sameReadinessRules(rules, latest?.rules ?? {}))
+    fail("This is already the current Definition of Ready.");
+  const previous =
+    latest ??
+    (
+      await tx
+        .insert(s.readinessRevision)
+        .values({
+          organizationId,
+          projectId,
+          number: 1,
+          rules: {},
+          summary: "Lictory defaults",
+          authorId: null,
+        })
+        .returning()
+    )[0]!;
+  await tx.insert(s.readinessRevision).values({
+    organizationId,
+    projectId,
+    number: previous.number + 1,
+    rules,
+    summary: blank(c.summary),
+    authorId: userId,
+  });
+  const closedStatuses = roster.statuses
+    .filter((x) => x.projectId === projectId && closed.includes(x.category))
+    .map((x) => x.id);
+  const keeps = or(
+    eq(s.workItem.refinementState, "ready"),
+    closedStatuses.length
+      ? inArray(s.workItem.statusId, closedStatuses)
+      : undefined,
+  );
+  const inProject = and(
+    eq(s.workItem.organizationId, organizationId),
+    eq(s.workItem.projectId, projectId),
+    isNotNull(s.workItem.refinementState),
+  );
+  await tx
+    .update(s.workItem)
+    .set({ readinessRevisionId: previous.id })
+    .where(and(inProject, isNull(s.workItem.readinessRevisionId), keeps));
+  await tx
+    .update(s.workItem)
+    .set({ readinessRevisionId: null })
+    .where(
+      and(inProject, isNotNull(s.workItem.readinessRevisionId), not(keeps!)),
+    );
 }
 
 // The organization type registry belongs to organization administrators.

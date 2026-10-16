@@ -7,6 +7,7 @@ import {
   aiRunStatuses,
 } from "./ai";
 import { intelligenceContextUseSchema } from "~/intelligence/shared";
+import { readinessRulesSchema } from "./readiness";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -122,6 +123,14 @@ export const readinessCheckSchema = z.object({
   label: z.string(),
   passed: z.boolean(),
   detail: z.string().optional(),
+  // Manual sign-off checks: who may sign off and the current sign-off.
+  signOff: z
+    .object({
+      disciplineIds: z.array(id),
+      signedOffBy: id.nullable(),
+      signedOffAt: z.string().nullable(),
+    })
+    .optional(),
 });
 export const entitySchema = z.discriminatedUnion("type", [
   z.object({
@@ -383,6 +392,12 @@ export const entitySchema = z.discriminatedUnion("type", [
     type: z.literal("readiness"),
     workItemId: id,
     checks: z.array(readinessCheckSchema),
+    // Revision of the project's readiness checks the item is evaluated
+    // under (0 and null: Lictory's defaults). Pinned items were ready or done
+    // when newer checks were published and keep the checks they met.
+    policyRevisionId: id.nullable().default(null),
+    policyRevisionNumber: z.number().int().default(0),
+    pinned: z.boolean().default(false),
   }),
   // Where a work item was exported. Travels with the item's project so
   // lists and boards can show the external key without loading the item.
@@ -800,6 +815,31 @@ export const deliveryTargetSchema = z.object({
   typeMapping: z.record(z.string(), z.string()),
 });
 export type DeliveryTargetSummary = z.infer<typeof deliveryTargetSchema>;
+// One immutable version of a project's Definition of Ready. Number 0 with a
+// null id stands for Lictory's defaults, used until administrators publish.
+export const readinessRevisionSchema = z.object({
+  id: id.nullable(),
+  projectId: id,
+  number: z.number().int(),
+  rules: readinessRulesSchema,
+  summary: z.string().nullable(),
+  // Null for Lictory's defaults.
+  authorId: id.nullable(),
+  createdAt: z.string().nullable(),
+});
+export type ReadinessRevision = z.infer<typeof readinessRevisionSchema>;
+export const readinessHistoryQuerySchema = z.object({
+  organizationId: id,
+  projectId: id,
+});
+export const readinessHistorySchema = z.object({
+  revisions: z.array(readinessRevisionSchema),
+});
+export const readinessPreviewQuerySchema = z.object({
+  organizationId: id,
+  projectId: id,
+  rules: readinessRulesSchema,
+});
 export const directorySchema = z.object({
   organizations: z.array(
     z.object({
@@ -828,6 +868,8 @@ export const directorySchema = z.object({
     connections: z.array(deliveryConnectionSchema),
     targets: z.array(deliveryTargetSchema),
   }),
+  // The readiness checks each project currently requires (latest revision).
+  readiness: z.array(readinessRevisionSchema).default([]),
   // enabled: the organization allows sending its content to the AI provider.
   // available: this deployment has a configured provider.
   ai: z
@@ -835,7 +877,7 @@ export const directorySchema = z.object({
     .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 12 as const;
+export const PROTOCOL = 13 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -905,6 +947,16 @@ export const commandSchema = z.discriminatedUnion("type", [
     name: text.max(120).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     ...projectSettingsSchema.partial().shape,
+  }),
+  // Publishes the next version of the project's Definition of Ready: checks
+  // per work item type (types left out use Lictory's defaults).
+  // `baseRevisionId` is the version the editor started from (null: defaults).
+  z.object({
+    type: z.literal("publishReadinessChecks"),
+    projectId: id,
+    baseRevisionId: id.nullable(),
+    rules: readinessRulesSchema,
+    summary: z.string().trim().max(500).optional(),
   }),
   z.object({
     type: z.literal("archiveProject"),
@@ -1229,6 +1281,13 @@ export const commandSchema = z.discriminatedUnion("type", [
     reviewId: id,
     decision: z.enum(["approve", "changes_requested", "revoke"]),
   }),
+  // Confirms (or withdraws) a manual readiness check for the current revision.
+  z.object({
+    type: z.literal("signOffReadinessCheck"),
+    ...revisionCommand,
+    checkId: id,
+    signedOff: z.boolean(),
+  }),
   // Lictory Intelligence. Organization administrators decide whether content
   // may be sent to the AI provider; runs are recorded and never change content
   // by themselves.
@@ -1375,6 +1434,7 @@ export type ProjectConfigurationCommand = Extract<
   {
     type:
       | "updateProject"
+      | "publishReadinessChecks"
       | "archiveProject"
       | "setProjectMember"
       | "createDiscipline"
@@ -1395,6 +1455,7 @@ export type ProjectConfigurationCommand = Extract<
 >;
 const projectConfigurationCommandTypes = new Set<string>([
   "updateProject",
+  "publishReadinessChecks",
   "archiveProject",
   "setProjectMember",
   "createDiscipline",
