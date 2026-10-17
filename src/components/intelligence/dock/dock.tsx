@@ -1,11 +1,6 @@
 "use client";
 import type { Chat } from "@ai-sdk/react";
-import {
-  AnimatePresence,
-  LayoutGroup,
-  motion,
-  useReducedMotion,
-} from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -59,7 +54,8 @@ type SendExtra = {
   selection?: DockSelection | null;
 };
 
-const spring = { type: "spring", duration: 0.45, bounce: 0.12 } as const;
+// Strong ease-out: immediate response, soft landing.
+const ease = [0.23, 1, 0.32, 1] as const;
 const noSubscribe = () => () => undefined;
 const isMac = () =>
   typeof navigator !== "undefined" &&
@@ -324,60 +320,85 @@ export function IntelligenceDock() {
     selection && selection.itemId === openItem?.id ? selection : null;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3 sm:pb-4">
-      <LayoutGroup>
-        <AnimatePresence mode="popLayout" initial={false}>
-          {open ? (
-            <Panel
-              key="panel"
-              reduce={!!reduce}
-              chat={chat}
-              item={openItem}
-              pageLabel={page.label}
-              suggestions={
-                attached
-                  ? selectionSuggestions
-                  : openItem
-                    ? itemSuggestions(openItem)
-                    : pageSuggestions(page.kind, project)
-              }
-              attached={attached}
-              onDetach={() => setAttached(null)}
-              assessing={assessing}
-              onAssess={() => void assess()}
-              onDismissAssessment={() => setAssessing(null)}
-              composer={composer}
-              onSend={send}
-              onNewChat={newChat}
-              onContinue={(id) => void continueOnPage(id)}
-              onClose={() => setOpen(false)}
-            />
-          ) : (
-            <Bar
-              key="bar"
-              reduce={!!reduce}
-              item={openItem}
-              selection={liveSelection}
-              hasChat={!!chat}
-              shortcut={shortcut}
-              onOpen={openDock}
-              onAsk={(prompt) => send(prompt, { selection: liveSelection })}
-              onAssess={() => void assess()}
-              onShowReview={() => {
-                setAssessing({ pending: false, error: null });
-                setOpen(true);
-              }}
-            />
-          )}
-        </AnimatePresence>
-      </LayoutGroup>
+    // Bar and panel share one grid cell anchored to the bottom center: the
+    // panel grows out of the bar's place instead of morphing from it.
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 grid items-end justify-items-center px-3 pb-3 sm:pb-4">
+      <Bar
+        reduce={!!reduce}
+        hidden={open}
+        item={openItem}
+        selection={liveSelection}
+        hasChat={!!chat}
+        shortcut={shortcut}
+        onOpen={openDock}
+        onAsk={(prompt) => send(prompt, { selection: liveSelection })}
+        onAssess={() => void assess()}
+        onShowReview={() => {
+          setAssessing({ pending: false, error: null });
+          setOpen(true);
+        }}
+      />
+      <AnimatePresence initial={false}>
+        {open && (
+          <Panel
+            key="panel"
+            reduce={!!reduce}
+            chat={chat}
+            item={openItem}
+            pageLabel={page.label}
+            suggestions={
+              attached
+                ? selectionSuggestions
+                : openItem
+                  ? itemSuggestions(openItem)
+                  : pageSuggestions(page.kind, project)
+            }
+            attached={attached}
+            onDetach={() => setAttached(null)}
+            assessing={assessing}
+            onAssess={() => void assess()}
+            onDismissAssessment={() => setAssessing(null)}
+            composer={composer}
+            onSend={send}
+            onNewChat={newChat}
+            onContinue={(id) => void continueOnPage(id)}
+            onClose={() => setOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// Collapsed: one line that changes with what the person is doing.
+// Width of an element's content, kept current, so a container can animate
+// to it without scaling (and distorting) what is inside.
+function useContentWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number>();
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(el.offsetWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+// Content swaps inside the bar: a quick blur-in, no movement.
+const swap = {
+  initial: { opacity: 0, filter: "blur(4px)" },
+  animate: { opacity: 1, filter: "blur(0px)" },
+  transition: { duration: 0.2, ease },
+} as const;
+
+// Collapsed: one line that changes with what the person is doing. It stays
+// mounted while the panel is open, so closing never replays its entrance.
 function Bar({
   reduce,
+  hidden,
   item,
   selection,
   hasChat,
@@ -388,6 +409,7 @@ function Bar({
   onShowReview,
 }: {
   reduce: boolean;
+  hidden: boolean;
   item: DockItem | null;
   selection: DockSelection | null;
   hasChat: boolean;
@@ -406,51 +428,61 @@ function Bar({
         : "Ask Lictory Intelligence";
   // Buttons keep the page's text selection when pressed.
   const keep = (e: React.MouseEvent) => e.preventDefault();
+  const [content, width] = useContentWidth();
+  const motionProps = reduce ? { initial: false as const } : swap;
   return (
     <motion.div
-      layoutId="intelligence-dock"
-      initial={reduce ? false : { opacity: 0, y: 12, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0 }}
-      transition={spring}
-      style={{ borderRadius: 999 }}
-      className="pointer-events-auto flex max-w-full items-center gap-1 border bg-popover/95 p-1 shadow-[0_1px_2px_oklch(0_0_0/0.06),0_12px_32px_-12px_oklch(0_0_0/0.25)] backdrop-blur supports-[backdrop-filter]:bg-popover/80"
+      initial={false}
+      animate={{
+        opacity: hidden ? 0 : 1,
+        transform:
+          hidden && !reduce
+            ? "translateY(4px) scale(0.96)"
+            : "translateY(0px) scale(1)",
+        width: width ?? "auto",
+      }}
+      transition={{
+        opacity: {
+          duration: hidden ? 0.12 : 0.2,
+          ease,
+          delay: hidden ? 0 : 0.06,
+        },
+        transform: {
+          duration: hidden ? 0.12 : 0.2,
+          ease,
+          delay: hidden ? 0 : 0.06,
+        },
+        width: { duration: 0.28, ease },
+      }}
+      inert={hidden}
+      aria-hidden={hidden || undefined}
+      style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
+      className={cn(
+        "max-w-full overflow-hidden rounded-full border bg-popover/95 shadow-[0_1px_2px_oklch(0_0_0/0.06),0_12px_32px_-12px_oklch(0_0_0/0.25)] backdrop-blur supports-[backdrop-filter]:bg-popover/80",
+        !hidden && "pointer-events-auto",
+      )}
       data-intelligence-dock="bar"
     >
-      <button
-        type="button"
-        onMouseDown={keep}
-        onClick={onOpen}
-        aria-label={`${label} (${shortcut})`}
-        className="group flex h-8 min-w-0 items-center gap-2 rounded-full pr-2 pl-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
-      >
-        <IntelligenceMark className="size-4 shrink-0 text-primary" />
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={label}
-            layout="position"
-            initial={reduce ? false : { opacity: 0, y: 6, filter: "blur(3px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: -6, filter: "blur(3px)" }}
-            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-            className="truncate"
-          >
+      <div ref={content} className="flex w-max items-center gap-1 p-1">
+        <button
+          type="button"
+          onMouseDown={keep}
+          onClick={onOpen}
+          aria-label={`${label} (${shortcut})`}
+          className="group flex h-8 min-w-0 items-center gap-2 rounded-full pr-2 pl-2.5 text-[13px] text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.97]"
+        >
+          <IntelligenceMark className="size-4 shrink-0 text-primary" />
+          <motion.span key={label} {...motionProps} className="truncate">
             {label}
           </motion.span>
-        </AnimatePresence>
-        <span className="hidden sm:inline-flex">
-          <Kbd>{shortcut}</Kbd>
-        </span>
-      </button>
-      <AnimatePresence mode="popLayout" initial={false}>
+          <span className="hidden sm:inline-flex">
+            <Kbd>{shortcut}</Kbd>
+          </span>
+        </button>
         {selection ? (
           <motion.div
             key="selection"
-            layout
-            initial={reduce ? false : { opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={spring}
+            {...motionProps}
             className="flex items-center gap-1"
           >
             {selectionSuggestions.slice(0, 2).map((s) => (
@@ -464,14 +496,7 @@ function Bar({
             ))}
           </motion.div>
         ) : item?.review ? (
-          <motion.div
-            key="review"
-            layout
-            initial={reduce ? false : { opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={spring}
-          >
+          <motion.div key={`review-${item.id}`} {...motionProps}>
             <ReviewChip
               item={item}
               review={item.review}
@@ -480,7 +505,7 @@ function Bar({
             />
           </motion.div>
         ) : null}
-      </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
@@ -631,18 +656,29 @@ function Panel({
     ) : null;
   return (
     <motion.div
-      layoutId="intelligence-dock"
-      initial={reduce ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={spring}
-      style={{ borderRadius: 18 }}
+      initial={
+        reduce
+          ? { opacity: 0 }
+          : { opacity: 0, transform: "translateY(12px) scale(0.97)" }
+      }
+      animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
+      exit={
+        reduce
+          ? { opacity: 0, transition: { duration: 0.12 } }
+          : {
+              opacity: 0,
+              transform: "translateY(8px) scale(0.98)",
+              transition: { duration: 0.14, ease },
+            }
+      }
+      transition={{ duration: 0.22, ease, opacity: { duration: 0.12, ease } }}
+      style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
       onKeyDown={onKeyDown}
       role="dialog"
       aria-label="Lictory Intelligence"
       data-intelligence-dock="panel"
       className={cn(
-        "pointer-events-auto flex max-h-[min(680px,calc(100dvh-5rem))] w-[min(600px,100%)] flex-col overflow-hidden border bg-popover shadow-[0_1px_2px_oklch(0_0_0/0.06),0_24px_64px_-16px_oklch(0_0_0/0.35)]",
+        "pointer-events-auto flex max-h-[min(680px,calc(100dvh-5rem))] w-[min(600px,100%)] flex-col overflow-hidden rounded-[18px] border bg-popover shadow-[0_1px_2px_oklch(0_0_0/0.06),0_24px_64px_-16px_oklch(0_0_0/0.35)]",
         // A conversation keeps one height while it streams.
         chat && "h-[min(680px,calc(100dvh-5rem))]",
       )}
@@ -694,12 +730,12 @@ function Panel({
                   <motion.button
                     key={s.label}
                     type="button"
-                    initial={reduce ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={reduce ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{
-                      duration: 0.3,
-                      ease: [0.23, 1, 0.32, 1],
-                      delay: 0.08 + i * 0.04,
+                      duration: 0.2,
+                      ease,
+                      delay: 0.06 + i * 0.03,
                     }}
                     onClick={() => onSend(s.prompt)}
                     className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-card px-3 text-[12.5px] transition-[background-color,border-color,transform] duration-150 hover:border-foreground/15 hover:bg-muted active:scale-[0.97]"
