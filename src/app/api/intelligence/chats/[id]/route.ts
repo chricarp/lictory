@@ -41,6 +41,8 @@ const patch = z
   .object({
     title: z.string().trim().min(1).max(120).optional(),
     pinned: z.boolean().optional(),
+    // Continuing a dock conversation on the page adds it to the history.
+    listed: z.literal(true).optional(),
   })
   .strict();
 

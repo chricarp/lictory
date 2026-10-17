@@ -8,6 +8,10 @@ import {
 } from "react";
 import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
 import { relativeTime } from "~/lib/work-items";
+import { CONTEXT_QUOTE_LIMIT } from "~/intelligence/chat/shared";
+import { IntelligenceMark } from "~/components/logo";
+import { useDock } from "~/components/intelligence/dock/store";
+import { useWorkspace } from "~/components/workspace/provider";
 import { Button } from "~/components/ui/button";
 import { MarkdownEditor } from "~/components/ui/markdown-editor";
 import { Kbd, SectionLabel } from "~/components/ui/primitives";
@@ -81,7 +85,11 @@ function Reader({
   onQuote: (quote: string, section: string) => void;
   onEdit: () => void;
 }) {
-  const { current, threads, readOnly, canEdit, reviewable } = useItem();
+  const { item, current, threads, readOnly, canEdit, reviewable } = useItem();
+  const dock = useDock();
+  const { directory } = useWorkspace();
+  const canAsk = !!dock && directory.ai.available && directory.ai.enabled;
+  const canComment = !readOnly && reviewable;
   const rootRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{
     x: number;
@@ -91,6 +99,20 @@ function Reader({
   }>();
   const content = current?.content ?? "";
   const isEmpty = !content.trim();
+  // The dock follows the selection so it can offer to explain it.
+  useEffect(() => {
+    if (!dock) return;
+    dock.setSelection(
+      selection
+        ? {
+            itemId: item.id,
+            quote: selection.quote,
+            section: selection.section,
+          }
+        : null,
+    );
+  }, [dock, item.id, selection]);
+  useEffect(() => () => dock?.setSelection(null), [dock]);
   const onMouseUp = useCallback(() => {
     // Defer so the browser has finalized the selection.
     requestAnimationFrame(() => {
@@ -101,7 +123,11 @@ function Reader({
       const range = sel.getRangeAt(0);
       if (!root.contains(range.commonAncestorContainer))
         return setSelection(undefined);
-      const quote = sel.toString().replace(/\s+/g, " ").trim().slice(0, 2000);
+      const quote = sel
+        .toString()
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, CONTEXT_QUOTE_LIMIT);
       if (quote.length < 2) return setSelection(undefined);
       const rect = range.getBoundingClientRect();
       const rootRect = root.getBoundingClientRect();
@@ -177,25 +203,39 @@ function Reader({
           className="relative"
         >
           <Markdown source={content} />
-          {selection && !readOnly && reviewable && (
+          {selection && (canComment || canAsk) && (
             <div
               role="toolbar"
               aria-label="Selection actions"
               style={{ left: selection.x, top: selection.y - 40 }}
               className="absolute z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
             >
-              <Button
-                size="sm"
-                variant="ghost"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onQuote(selection.quote, selection.section);
-                  setSelection(undefined);
-                  window.getSelection()?.removeAllRanges();
-                }}
-              >
-                <MessageSquarePlus className="size-3.5" /> Comment on selection
-              </Button>
+              {canComment && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onQuote(selection.quote, selection.section);
+                    setSelection(undefined);
+                    window.getSelection()?.removeAllRanges();
+                  }}
+                >
+                  <MessageSquarePlus className="size-3.5" /> Comment on
+                  selection
+                </Button>
+              )}
+              {canAsk && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => dock.open()}
+                >
+                  <IntelligenceMark className="size-3.5 text-primary" /> Ask
+                  Lictory
+                </Button>
+              )}
             </div>
           )}
         </div>

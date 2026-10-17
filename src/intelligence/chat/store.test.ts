@@ -104,3 +104,24 @@ void test("saving a turn replaces the transcript in order; delete removes it", a
   assert.equal(await deleteChat(db, owner, chatId), true);
   assert.equal(await getChat(db, owner, chatId), null);
 });
+
+void test("a dock conversation stays out of the history until it is continued on the page", async () => {
+  const owner = {
+    organizationId: await organization(),
+    userId: await user("A"),
+  };
+  const chatId = crypto.randomUUID();
+  await openChat(db, owner, chatId, { listed: false });
+  await saveMessages(db, owner, chatId, [text("u1", "user", "Explain this")]);
+  assert.deepEqual(await listChats(db, owner), []);
+  // Opening the chat again never changes how it was created.
+  await openChat(db, owner, chatId);
+  assert.deepEqual(await listChats(db, owner), []);
+  assert.equal((await getChat(db, owner, chatId))?.messages.length, 1);
+
+  await updateChat(db, owner, chatId, { listed: true });
+  assert.deepEqual(
+    (await listChats(db, owner)).map((c) => c.id),
+    [chatId],
+  );
+});

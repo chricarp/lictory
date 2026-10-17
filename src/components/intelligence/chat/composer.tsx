@@ -175,6 +175,21 @@ export const Composer = forwardRef<
       caret.current = null;
     }
   }, [value]);
+  // Re-measure when the width changes (an opening panel, a resized window):
+  // the same text wraps differently.
+  useEffect(() => {
+    const el = area.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      el.style.height = "0px";
+      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const canSend = value.trim().length > 0 && !disabled && !busy && !dictating;
   const send = () => {

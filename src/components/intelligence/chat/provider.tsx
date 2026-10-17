@@ -1,11 +1,5 @@
 "use client";
-import { Chat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  lastAssistantMessageIsCompleteWithToolCalls,
-  type UIMessage,
-} from "ai";
+import type { Chat } from "@ai-sdk/react";
 import { useParams, useRouter } from "next/navigation";
 import {
   createContext,
@@ -18,13 +12,9 @@ import {
   type ReactNode,
 } from "react";
 import { useWorkspace } from "~/components/workspace/provider";
-import {
-  ASK_QUESTIONS,
-  RECOMMEND_ACTION,
-  type ChatMessage,
-  type ChatSummary,
-} from "~/intelligence/chat/shared";
+import type { ChatMessage, ChatSummary } from "~/intelligence/chat/shared";
 import { paths } from "~/lib/paths";
+import { createChat } from "./chat-instance";
 
 // Client state for Lictory Intelligence: the person's conversation list and
 // one live `Chat` per open conversation. Chats live here, above the routes, so
@@ -35,7 +25,7 @@ type ChatsContextValue = {
   loaded: boolean;
   listError: string | null;
   activeId: string | undefined;
-  // The conversation for an id, created on demand (null until history loads).
+  // The live conversation for an id (null until its history loads).
   chatFor: (id: string) => Chat<ChatMessage> | null;
   loadError: (id: string) => string | null;
   start: (text: string) => void;
@@ -60,24 +50,6 @@ async function readError(response: Response) {
     error?: { message?: string };
   } | null;
   return body?.error?.message ?? `Request failed (${response.status}).`;
-}
-
-// Continue automatically only when the person answered a clarification,
-// decided on a recommendation or on approvals, never just because a step
-// ended with tool results.
-function shouldContinue(options: { messages: UIMessage[] }) {
-  if (lastAssistantMessageIsCompleteWithApprovalResponses(options)) return true;
-  if (!lastAssistantMessageIsCompleteWithToolCalls(options)) return false;
-  const last = options.messages.at(-1);
-  if (!last) return false;
-  const start = last.parts.findLastIndex((p) => p.type === "step-start");
-  return last.parts
-    .slice(start + 1)
-    .some(
-      (p) =>
-        p.type === `tool-${ASK_QUESTIONS}` ||
-        p.type === `tool-${RECOMMEND_ACTION}`,
-    );
 }
 
 export function ChatsProvider({ children }: { children: ReactNode }) {
@@ -134,19 +106,13 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
 
   const create = useCallback(
     (id: string, messages: ChatMessage[] = []) => {
-      const chat = new Chat<ChatMessage>({
+      const chat = createChat({
         id,
+        organizationId: orgId,
+        surface: "page",
         messages,
-        transport: new DefaultChatTransport({
-          api: "/api/intelligence/chat",
-          prepareSendMessagesRequest: ({ id, messages }) => ({
-            body: { id, organizationId: orgId, message: messages.at(-1) },
-          }),
-        }),
-        sendAutomaticallyWhen: shouldContinue,
-        onData: (part) => {
-          if (part.type !== "data-title") return;
-          touch(id, { title: part.data.title });
+        onTitle: (title) => {
+          touch(id, { title });
           setFreshTitles((s) => new Set(s).add(id));
         },
         onFinish: () => {
@@ -159,40 +125,42 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
     [orgId, touch],
   );
 
-  const chatFor = useCallback(
-    (id: string) => {
-      const existing = instances.current.get(id);
-      if (existing) return existing;
-      if (!loading.current.has(id)) {
-        loading.current.add(id);
-        void (async () => {
-          try {
-            const response = await fetch(
-              `/api/intelligence/chats/${encodeURIComponent(id)}?${query}`,
-              { cache: "no-store" },
-            );
-            if (!response.ok) throw new Error(await readError(response));
-            const body = (await response.json()) as {
-              messages: ChatMessage[];
-            };
-            create(id, body.messages);
-            errors.current.delete(id);
-          } catch (error) {
-            errors.current.set(
-              id,
-              error instanceof Error
-                ? error.message
-                : "This conversation did not load.",
-            );
-          } finally {
-            loading.current.delete(id);
-            setVersion((v) => v + 1);
-          }
-        })();
+  // Loads a conversation's history once; `chatFor` reads it afterwards. Runs
+  // from an effect, never during render, so a navigation React discards
+  // cannot update state.
+  useEffect(() => {
+    const id = activeId;
+    if (!id || instances.current.has(id) || loading.current.has(id)) return;
+    loading.current.add(id);
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/intelligence/chats/${encodeURIComponent(id)}?${query}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) throw new Error(await readError(response));
+        const body = (await response.json()) as {
+          messages: ChatMessage[];
+        };
+        create(id, body.messages);
+        errors.current.delete(id);
+      } catch (error) {
+        errors.current.set(
+          id,
+          error instanceof Error
+            ? error.message
+            : "This conversation did not load.",
+        );
+      } finally {
+        loading.current.delete(id);
+        setVersion((v) => v + 1);
       }
-      return null;
-    },
-    [create, query],
+    })();
+  }, [activeId, create, query]);
+
+  const chatFor = useCallback(
+    (id: string) => instances.current.get(id) ?? null,
+    [],
   );
 
   const start = useCallback(

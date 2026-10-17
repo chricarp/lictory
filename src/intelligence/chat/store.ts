@@ -40,7 +40,7 @@ export async function listChats(
   const chats = await db
     .select()
     .from(s.intelligenceChat)
-    .where(owned(owner))
+    .where(and(owned(owner), eq(s.intelligenceChat.listed, true)))
     .orderBy(desc(s.intelligenceChat.updatedAt))
     .limit(limit);
   if (!chats.length) return [];
@@ -102,10 +102,16 @@ export async function getChat(db: Database, owner: Owner, chatId: string) {
 
 // Creates the chat on first use. Ids come from the browser, so an id that
 // already belongs to someone else (or another organization) is refused.
-export async function openChat(db: Database, owner: Owner, chatId: string) {
+// Conversations started from the dock are created unlisted.
+export async function openChat(
+  db: Database,
+  owner: Owner,
+  chatId: string,
+  options: { listed?: boolean } = {},
+) {
   await db
     .insert(s.intelligenceChat)
-    .values({ id: chatId, ...owner })
+    .values({ id: chatId, ...owner, listed: options.listed ?? true })
     .onConflictDoNothing();
   const chat = await findChat(db, owner, chatId);
   if (!chat) throw new CapabilityError("forbidden", "This chat is not yours.");
@@ -152,7 +158,7 @@ export async function updateChat(
   db: Database,
   owner: Owner,
   chatId: string,
-  patch: { title?: string; pinned?: boolean },
+  patch: { title?: string; pinned?: boolean; listed?: boolean },
 ) {
   const [chat] = await db
     .update(s.intelligenceChat)
