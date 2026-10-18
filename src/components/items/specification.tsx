@@ -9,7 +9,7 @@ import {
 import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
 import { relativeTime } from "~/lib/work-items";
 import { CONTEXT_QUOTE_LIMIT } from "~/intelligence/chat/shared";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { useDock } from "~/components/intelligence/dock/store";
 import { useWorkspace } from "~/components/workspace/provider";
 import { Button } from "~/components/ui/button";

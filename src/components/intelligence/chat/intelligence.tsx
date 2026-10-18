@@ -16,7 +16,7 @@ import {
   SquarePen,
   Zap,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import Link from "next/link";
 import {
   useCallback,
@@ -250,6 +250,15 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
   const ai = useAiState();
   const reduce = useReducedMotion();
   const composer = useRef<ComposerHandle>(null);
+  // The face looks down at the composer while the person writes.
+  const [typing, setTyping] = useState(false);
+  const pause = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const onInput = () => {
+    setTyping(true);
+    clearTimeout(pause.current);
+    pause.current = setTimeout(() => setTyping(false), 1200);
+  };
+  useEffect(() => () => clearTimeout(pause.current), []);
   const me = directory.members.find((m) => m.id === userId);
   const project = projects[0];
   const team = [...delivery.teams.values()].find(
@@ -304,7 +313,11 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             className="mb-6 flex flex-col items-center text-center"
           >
             <span className="mb-4 grid size-11 place-items-center rounded-2xl border bg-card shadow-sm">
-              <IntelligenceMark className="size-5 text-primary" />
+              <IntelligenceMark
+                mood={!ai.ok ? "sleeping" : typing ? "listening" : "idle"}
+                gaze={typing ? { x: 0, y: 1 } : "pointer"}
+                className="size-6 text-primary"
+              />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
               {greeting(me?.name ?? "")}
@@ -318,6 +331,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             <motion.div
               layoutId="intelligence-composer"
               transition={{ type: "spring", duration: 0.5, bounce: 0.1 }}
+              onInputCapture={onInput}
             >
               <Composer
                 ref={composer}

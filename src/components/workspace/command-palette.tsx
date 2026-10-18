@@ -20,7 +20,7 @@ import {
   Settings2,
   UserRound,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { cn } from "~/lib/utils";
 import { track } from "~/lib/analytics/client";
 import { paths } from "~/lib/paths";

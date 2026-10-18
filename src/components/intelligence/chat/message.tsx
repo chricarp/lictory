@@ -22,7 +22,11 @@ import {
   Sparkle,
 } from "lucide-react";
 import Link from "next/link";
-import { IntelligenceMark } from "~/components/logo";
+import {
+  IntelligenceMark,
+  useAfterglow,
+  type IntelligenceMood,
+} from "~/components/intelligence/mark";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Markdown } from "~/components/items/markdown";
 import { Button } from "~/components/ui/button";
@@ -51,6 +55,7 @@ import {
   type Subject,
 } from "./activity";
 import { InsightCards } from "./insights";
+import { answerMood } from "./mood";
 import { AnsweredQuestions, Questionnaire } from "./questionnaire";
 import { DecidedRecommendation, RecommendationCard } from "./recommendation";
 import { useLookup } from "./use-lookup";
@@ -111,6 +116,7 @@ export function MessageView({
   message,
   streaming,
   isLast,
+  failed,
   onAnswer,
   onDecide,
   onApprove,
@@ -119,6 +125,7 @@ export function MessageView({
   message: ChatMessage;
   streaming: boolean;
   isLast: boolean;
+  failed?: boolean;
   onAnswer: (toolCallId: string, output: AskQuestionsOutput) => void;
   onDecide: (toolCallId: string, output: RecommendActionOutput) => void;
   onApprove: (approvalId: string, approved: boolean) => void;
@@ -319,7 +326,11 @@ export function MessageView({
 
   return (
     <div className="group/message flex gap-3">
-      <AssistantMark active={live} />
+      <AssistantMark
+        mood={answerMood(message, live)}
+        active={live}
+        failed={failed}
+      />
       <div className="min-w-0 flex-1 space-y-3 pt-0.5">
         {fold && (
           <WorkedFor
@@ -462,19 +473,22 @@ function WorkedFor({
   );
 }
 
-export function AssistantMark({ active }: { active?: boolean }) {
+// Lictory Intelligence beside its answer, showing what it is doing.
+export function AssistantMark({
+  mood,
+  active,
+  failed,
+}: {
+  mood?: IntelligenceMood;
+  active?: boolean;
+  failed?: boolean;
+}) {
+  const done = useAfterglow(!!active);
   return (
-    <div className="relative mt-0.5 grid size-7 shrink-0 place-items-center">
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,var(--primary),oklch(0.7_0.2_320),oklch(0.75_0.15_200),var(--primary))] opacity-90",
-          active && "animate-[spin_2.4s_linear_infinite]",
-        )}
-      />
-      <span className="absolute inset-[1.5px] rounded-full bg-background" />
-      <IntelligenceMark className="relative size-3.5 text-primary" />
-    </div>
+    <IntelligenceMark
+      mood={mood ?? (failed ? "concerned" : done ? "happy" : undefined)}
+      className="size-7 text-primary"
+    />
   );
 }
 

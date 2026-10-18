@@ -24,7 +24,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { Button } from "~/components/ui/button";
 import { Badge, Kbd } from "~/components/ui/primitives";
 import { counts, ScoreRing, severityMeta } from "~/components/review/ai-review";
@@ -37,7 +37,12 @@ import { aiScoreBand } from "~/sync/shared/ai";
 import type { EntityOf } from "~/sync/shared/protocol";
 import { createChat } from "../chat/chat-instance";
 import { Composer, type ComposerHandle } from "../chat/composer";
-import { ThreadMessages, useThread, type Thread } from "../chat/thread";
+import {
+  ThreadMessages,
+  useThread,
+  useThreadMood,
+  type Thread,
+} from "../chat/thread";
 import { pageOf, pageSuggestions, type Suggestion } from "./page";
 import {
   useDock,
@@ -328,7 +333,7 @@ export function IntelligenceDock() {
         hidden={open}
         item={openItem}
         selection={liveSelection}
-        hasChat={!!chat}
+        chat={chat}
         shortcut={shortcut}
         onOpen={openDock}
         onAsk={(prompt) => send(prompt, { selection: liveSelection })}
@@ -401,7 +406,7 @@ function Bar({
   hidden,
   item,
   selection,
-  hasChat,
+  chat,
   shortcut,
   onOpen,
   onAsk,
@@ -412,7 +417,7 @@ function Bar({
   hidden: boolean;
   item: DockItem | null;
   selection: DockSelection | null;
-  hasChat: boolean;
+  chat: Chat<ChatMessage> | null;
   shortcut: string;
   onOpen: () => void;
   onAsk: (prompt: string) => void;
@@ -421,7 +426,7 @@ function Bar({
 }) {
   const label = selection
     ? "Ask about the selection"
-    : hasChat
+    : chat
       ? "Continue the conversation"
       : item
         ? `Ask about ${item.key}`
@@ -471,7 +476,7 @@ function Bar({
           aria-label={`${label} (${shortcut})`}
           className="group flex h-8 min-w-0 items-center gap-2 rounded-full pr-2 pl-2.5 text-[13px] text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.97]"
         >
-          <IntelligenceMark className="size-4 shrink-0 text-primary" />
+          <DockMark chat={chat} review={item?.review} />
           <motion.span key={label} {...motionProps} className="truncate">
             {label}
           </motion.span>
@@ -684,7 +689,7 @@ function Panel({
       )}
     >
       <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
-        <IntelligenceMark className="size-4 shrink-0 text-primary" />
+        <DockMark chat={chat} review={item?.review} />
         <span className="mr-auto truncate text-[13px] font-medium">
           Lictory Intelligence
         </span>
@@ -759,6 +764,41 @@ function Panel({
         </>
       )}
     </motion.div>
+  );
+}
+
+// The dock's face follows the conversation, and works along while the item's
+// review runs.
+function DockMark({
+  chat,
+  review,
+}: {
+  chat: Chat<ChatMessage> | null;
+  review?: DockReview | null;
+}) {
+  const reviewing = !!review && reviewState(review).active;
+  if (chat) return <ChatMark chat={chat} reviewing={reviewing} />;
+  return (
+    <IntelligenceMark
+      mood={reviewing ? "working" : "idle"}
+      className="size-4 shrink-0 text-primary"
+    />
+  );
+}
+
+function ChatMark({
+  chat,
+  reviewing,
+}: {
+  chat: Chat<ChatMessage>;
+  reviewing: boolean;
+}) {
+  const mood = useThreadMood(useThread(chat));
+  return (
+    <IntelligenceMark
+      mood={reviewing && mood === "idle" ? "working" : mood}
+      className="size-4 shrink-0 text-primary"
+    />
   );
 }
 

@@ -15,7 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";

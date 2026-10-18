@@ -2,6 +2,10 @@
 import { useChat, type Chat } from "@ai-sdk/react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
+import {
+  useAfterglow,
+  type IntelligenceMood,
+} from "~/components/intelligence/mark";
 import { Button } from "~/components/ui/button";
 import {
   ASK_QUESTIONS,
@@ -9,6 +13,7 @@ import {
   type ChatMessage,
 } from "~/intelligence/chat/shared";
 import { MessageView } from "./message";
+import { answerMood } from "./mood";
 
 // One live conversation as the page and the dock both show it.
 export function useThread(chat: Chat<ChatMessage>) {
@@ -29,6 +34,19 @@ export function useThread(chat: Chat<ChatMessage>) {
 }
 export type Thread = ReturnType<typeof useThread>;
 
+// Lictory Intelligence's expression for a conversation as a whole: what its
+// latest answer is doing, then how the last one ended.
+export function useThreadMood(thread: Thread): IntelligenceMood {
+  const done = useAfterglow(thread.busy);
+  const last = thread.messages.at(-1);
+  const answering =
+    last?.role === "assistant" ? answerMood(last, thread.busy) : undefined;
+  if (answering) return answering;
+  if (thread.busy) return "working";
+  if (thread.error) return "concerned";
+  return done ? "happy" : "idle";
+}
+
 export function ThreadMessages({ thread }: { thread: Thread }) {
   const {
     messages,
@@ -48,6 +66,7 @@ export function ThreadMessages({ thread }: { thread: Thread }) {
           message={message}
           streaming={busy}
           isLast={i === messages.length - 1}
+          failed={!!error && i === messages.length - 1}
           onAnswer={(toolCallId, output) =>
             void addToolOutput({
               tool: ASK_QUESTIONS as never,

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark, useAfterglow } from "~/components/intelligence/mark";
 import { cn } from "~/lib/utils";
 import { useWorkspace } from "~/components/workspace/provider";
 import {
@@ -25,10 +25,15 @@ function AiPolicySection() {
   const { isAdmin, directory, mutate } = useWorkspace();
   const { enabled, available } = directory.ai;
   const [error, setError] = useState("");
+  const woke = useAfterglow(!enabled);
   return (
     <SettingsSection
       id="ai"
-      icon={<IntelligenceMark />}
+      icon={
+        <IntelligenceMark
+          mood={!enabled ? "sleeping" : woke ? "happy" : undefined}
+        />
+      }
       title="Lictory Intelligence"
       description="Chat, reviews of work items, and the Lictory Intelligence review action on pull requests. It proposes findings and changes; people decide what becomes part of a specification."
       action={
