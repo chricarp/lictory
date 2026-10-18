@@ -1,5 +1,4 @@
 "use client";
-import { useChat } from "@ai-sdk/react";
 import type { Chat } from "@ai-sdk/react";
 import {
   AnimatePresence,
@@ -8,18 +7,16 @@ import {
   useReducedMotion,
 } from "motion/react";
 import {
-  AlertTriangle,
   ArrowDown,
   FileText,
   ListChecks,
   MessageSquareDashed,
   PanelLeft,
-  RotateCcw,
   Search,
   SquarePen,
   Zap,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import Link from "next/link";
 import {
   useCallback,
@@ -32,13 +29,12 @@ import {
 import { Button } from "~/components/ui/button";
 import { useWorkspace } from "~/components/workspace/provider";
 import type { ChatMessage } from "~/intelligence/chat/shared";
-import { ASK_QUESTIONS, RECOMMEND_ACTION } from "~/intelligence/chat/shared";
 import { paths } from "~/lib/paths";
 import { cn } from "~/lib/utils";
 import { ChatList, chatLabel } from "./chat-list";
 import { Composer, type ComposerHandle } from "./composer";
-import { MessageView } from "./message";
 import { ChatsProvider, useChats } from "./provider";
+import { ThreadMessages, useThread } from "./thread";
 
 const ease = [0.23, 1, 0.32, 1] as const;
 
@@ -254,6 +250,15 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
   const ai = useAiState();
   const reduce = useReducedMotion();
   const composer = useRef<ComposerHandle>(null);
+  // The face looks down at the composer while the person writes.
+  const [typing, setTyping] = useState(false);
+  const pause = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const onInput = () => {
+    setTyping(true);
+    clearTimeout(pause.current);
+    pause.current = setTimeout(() => setTyping(false), 1200);
+  };
+  useEffect(() => () => clearTimeout(pause.current), []);
   const me = directory.members.find((m) => m.id === userId);
   const project = projects[0];
   const team = [...delivery.teams.values()].find(
@@ -308,7 +313,11 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             className="mb-6 flex flex-col items-center text-center"
           >
             <span className="mb-4 grid size-11 place-items-center rounded-2xl border bg-card shadow-sm">
-              <IntelligenceMark className="size-5 text-primary" />
+              <IntelligenceMark
+                mood={!ai.ok ? "sleeping" : typing ? "listening" : "idle"}
+                gaze={typing ? { x: 0, y: 1 } : "pointer"}
+                className="size-6 text-primary"
+              />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
               {greeting(me?.name ?? "")}
@@ -322,6 +331,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             <motion.div
               layoutId="intelligence-composer"
               transition={{ type: "spring", duration: 0.5, bounce: 0.1 }}
+              onInputCapture={onInput}
             >
               <Composer
                 ref={composer}
@@ -437,18 +447,8 @@ function Conversation({ id, toolbar }: { id: string; toolbar: ReactNode }) {
 function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
   const { organization } = useWorkspace();
   const ai = useAiState();
-  const {
-    messages,
-    status,
-    error,
-    sendMessage,
-    stop,
-    regenerate,
-    addToolOutput,
-    addToolApprovalResponse,
-    clearError,
-  } = useChat<ChatMessage>({ chat, experimental_throttle: 40 });
-  const busy = status === "submitted" || status === "streaming";
+  const thread = useThread(chat);
+  const { messages, status, sendMessage, stop, busy, pendingQuestion } = thread;
   const scroller = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
 
@@ -469,16 +469,6 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
       behavior: "smooth",
     });
 
-  const pendingQuestion = messages
-    .at(-1)
-    ?.parts.some(
-      (p) =>
-        (p.type === `tool-${ASK_QUESTIONS}` ||
-          p.type === `tool-${RECOMMEND_ACTION}`) &&
-        "state" in p &&
-        p.state === "input-available",
-    );
-
   return (
     <>
       <div
@@ -487,79 +477,7 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
         className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto"
       >
         <div className="mx-auto w-full max-w-3xl space-y-7 px-4 pt-8 pb-10">
-          {messages.map((message, i) => (
-            <MessageView
-              key={message.id}
-              message={message}
-              streaming={busy}
-              isLast={i === messages.length - 1}
-              onAnswer={(toolCallId, output) =>
-                void addToolOutput({
-                  tool: ASK_QUESTIONS as never,
-                  toolCallId,
-                  output,
-                })
-              }
-              onDecide={(toolCallId, output) =>
-                void addToolOutput({
-                  tool: RECOMMEND_ACTION as never,
-                  toolCallId,
-                  output,
-                })
-              }
-              onApprove={(approvalId, approved) =>
-                void addToolApprovalResponse({ id: approvalId, approved })
-              }
-              onRegenerate={
-                i === messages.length - 1 && !busy
-                  ? () => void regenerate()
-                  : undefined
-              }
-            />
-          ))}
-          {status === "submitted" && messages.at(-1)?.role === "user" && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.15 }}
-            >
-              <MessageView
-                message={{ id: "pending", role: "assistant", parts: [] }}
-                streaming
-                isLast
-                onAnswer={() => undefined}
-                onDecide={() => undefined}
-                onApprove={() => undefined}
-              />
-            </motion.div>
-          )}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-[13px]"
-                role="alert"
-              >
-                <AlertTriangle
-                  className="mt-0.5 size-4 shrink-0 text-destructive"
-                  aria-hidden
-                />
-                <p className="min-w-0 flex-1">{readableError(error)}</p>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    clearError();
-                    void regenerate();
-                  }}
-                >
-                  <RotateCcw className="size-3.5" /> Retry
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <ThreadMessages thread={thread} />
         </div>
       </div>
       <div className="relative shrink-0 px-4 pb-4">
@@ -610,16 +528,4 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
       </div>
     </>
   );
-}
-
-function readableError(error: Error) {
-  try {
-    const parsed = JSON.parse(error.message) as {
-      error?: { message?: string };
-    };
-    if (parsed.error?.message) return parsed.error.message;
-  } catch {
-    // Not JSON: already a message.
-  }
-  return error.message || "The assistant stopped unexpectedly. Try again.";
 }

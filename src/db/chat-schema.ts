@@ -33,6 +33,9 @@ export const intelligenceChat = pgTable(
     // Null until the assistant has named the conversation.
     title: text("title"),
     pinned: boolean("pinned").default(false).notNull(),
+    // Quick conversations from the assistant dock stay out of the history
+    // list until the person continues them on the Intelligence page.
+    listed: boolean("listed").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

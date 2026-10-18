@@ -61,7 +61,8 @@ import {
 } from "~/components/review/branch-workspace";
 import { ReviewPanel } from "~/components/review/review-panel";
 import { Readiness } from "~/components/review/readiness";
-import { AiReviewPanel, AiReviewView } from "~/components/review/ai-review";
+import { AiReviewView } from "~/components/review/ai-review";
+import { DockItemSource } from "~/components/intelligence/dock/item-source";
 import { Activity } from "~/components/review/activity";
 import { RevisionPanel, CompareRevisions } from "~/components/review/revisions";
 import { diffStats } from "./diff";
@@ -307,6 +308,10 @@ export function ItemDetail({
   ) =>
     void ctx.mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
   const failing = ctx.readiness?.checks.filter((c) => !c.passed) ?? [];
+  const openAiReview = useCallback(
+    (id: string) => setMode({ kind: "ai", id }),
+    [setMode],
+  );
   // Readiness policy of the project, surfaced next to started statuses.
   const startHint =
     type.hasSpecification &&
@@ -462,7 +467,6 @@ export function ItemDetail({
         <>
           <ReviewPanel />
           <Readiness />
-          <AiReviewPanel onOpen={(id) => setMode({ kind: "ai", id })} />
           <RevisionPanel
             onCompare={(from, to) => setMode({ kind: "compare", from, to })}
           />
@@ -477,6 +481,12 @@ export function ItemDetail({
   );
   return (
     <ItemContext.Provider value={ctx}>
+      {!pendingCreate && (
+        <DockItemSource
+          viewing={mode.kind === "ai" ? mode.id : null}
+          onOpen={openAiReview}
+        />
+      )}
       <div className="flex h-full flex-col">
         <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px]">
           <WorkItemListToggle />
@@ -784,7 +794,8 @@ export function ItemDetail({
                   userId={workspace.userId}
                 />
               )}
-              <section className="mt-10 mb-10">
+              {/* Room for the Intelligence dock at the bottom. */}
+              <section className="mt-10 mb-24">
                 <Activity />
               </section>
             </div>

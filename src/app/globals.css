@@ -840,3 +840,235 @@
     animation: none;
   }
 }
+
+/* Lictory Intelligence's face (components/intelligence/mark.tsx). Each layer
+   owns one transform so moods, gaze and blinking compose: body (whole-body
+   motion), look (gaze), face (mood glances), eyes (blink), eye (pose). Poses
+   are transitions and loops are small, so changing moods never jumps far.
+   Under reduced motion the global rule above leaves each mood at rest. */
+.intelligence-mark {
+  overflow: visible;
+}
+.intelligence-mark
+  :is(
+    .im-body,
+    .im-face,
+    .im-eyes,
+    .im-eye,
+    .im-happy,
+    .im-oops,
+    .im-closed,
+    .im-prop,
+    .im-prop-motion
+  ) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.intelligence-mark .im-body {
+  transform-origin: 50% 100%;
+  transition: transform 360ms cubic-bezier(0.2, 0, 0, 1);
+}
+.intelligence-mark .im-look {
+  transform: translate(
+    calc(var(--im-gx, 0) * 1.6px),
+    calc(var(--im-gy, 0) * 1.4px)
+  );
+  transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+.intelligence-mark :is(.im-face, .im-eye, .im-eyes) {
+  transition:
+    transform 240ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 140ms ease-out;
+}
+.intelligence-mark :is(.im-happy, .im-oops, .im-closed) {
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 140ms ease-out;
+}
+/* Props pop in with their mood and fade out with it. */
+.intelligence-mark .im-prop {
+  opacity: 0;
+  transform: scale(0.3);
+  transition:
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 160ms ease-out;
+}
+.intelligence-mark:is(
+    [data-mood="idle"],
+    [data-mood="working"],
+    [data-mood="asking"],
+    [data-mood="listening"]
+  )
+  .im-eyes {
+  animation: im-blink 5s var(--im-delay, 0s) infinite;
+}
+@media (hover: hover) {
+  :is(a, button, [role="button"], summary):hover
+    .intelligence-mark:is(:not([data-mood]), [data-mood="idle"])
+    .im-face {
+    transform: translateY(-0.8px);
+  }
+  :is(a, button, [role="button"], summary):hover
+    .intelligence-mark:is(:not([data-mood]), [data-mood="idle"])
+    .im-eye {
+    transform: scaleY(1.12);
+  }
+}
+/* Working: eyes read along under a twinkling spark. */
+.intelligence-mark[data-mood="working"] .im-spark {
+  opacity: 1;
+  transform: none;
+}
+.intelligence-mark[data-mood="working"] .im-spark .im-prop-motion {
+  animation: im-twinkle 1.8s ease-in-out infinite;
+}
+.intelligence-mark[data-mood="working"] .im-face {
+  animation: im-read 1.1s ease-in-out infinite alternate;
+}
+.intelligence-mark[data-mood="working"] .im-body {
+  animation: im-bob 1.1s ease-in-out infinite;
+}
+/* Asking: head tilted toward a question mark, eyes wide, waiting. */
+.intelligence-mark[data-mood="asking"] .im-question {
+  opacity: 1;
+  transform: none;
+}
+.intelligence-mark[data-mood="asking"] .im-question .im-prop-motion {
+  animation: im-wonder 2.4s ease-in-out infinite;
+}
+.intelligence-mark[data-mood="asking"] .im-body {
+  transform: rotate(-7deg);
+}
+.intelligence-mark[data-mood="asking"] .im-face {
+  transform: translate(0.7px, -0.9px);
+}
+.intelligence-mark[data-mood="asking"] .im-eye {
+  transform: scale(1.12);
+}
+.intelligence-mark[data-mood="listening"] .im-eye {
+  transform: scale(1.15);
+}
+.intelligence-mark[data-mood="listening"] .im-body {
+  animation: im-breathe 1.6s ease-in-out infinite;
+}
+.intelligence-mark:is(
+    [data-mood="happy"],
+    [data-mood="concerned"],
+    [data-mood="sleeping"]
+  )
+  .im-eyes {
+  opacity: 0;
+  transform: scaleY(0.2);
+}
+.intelligence-mark[data-mood="happy"] .im-happy,
+.intelligence-mark[data-mood="concerned"] .im-oops,
+.intelligence-mark[data-mood="sleeping"] .im-closed {
+  opacity: 1;
+  transform: none;
+}
+.intelligence-mark[data-mood="happy"] .im-body {
+  animation: im-hop 560ms cubic-bezier(0.2, 0, 0, 1);
+}
+.intelligence-mark[data-mood="concerned"] .im-body {
+  animation: im-shake 460ms ease-out;
+}
+.intelligence-mark[data-mood="sleeping"] .im-body {
+  animation: im-doze 4s ease-in-out infinite;
+}
+@keyframes im-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes im-twinkle {
+  0%,
+  100% {
+    transform: scale(0.8) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.1) rotate(45deg);
+  }
+}
+@keyframes im-read {
+  from {
+    transform: translate(-1.2px, 0.4px);
+  }
+  to {
+    transform: translate(1.2px, 0.4px);
+  }
+}
+@keyframes im-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.6px);
+  }
+}
+@keyframes im-wonder {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-0.9px) rotate(8deg);
+  }
+}
+@keyframes im-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+@keyframes im-doze {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02, 0.97);
+  }
+}
+@keyframes im-hop {
+  0% {
+    transform: none;
+  }
+  35% {
+    transform: translateY(-2px) scale(0.96, 1.05);
+  }
+  65% {
+    transform: scale(1.05, 0.94);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes im-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translateX(-0.9px);
+  }
+  40% {
+    transform: translateX(0.9px);
+  }
+  60% {
+    transform: translateX(-0.6px);
+  }
+  80% {
+    transform: translateX(0.4px);
+  }
+}

@@ -58,6 +58,31 @@ so deterministically, without another model call. Lictory Intelligence opens
 one branch and pull request per affected item and invites the requester as a
 collaborator. It reviews like any other pull request.
 
+People start an item review from the Intelligence dock ("Assess PAY-142") while
+the item is open. The dock follows the run and shows its score and top
+findings; the full findings and corrective pull requests open in the item.
+
+## The Intelligence dock
+
+Every workspace page except the Intelligence page has a small dock at the
+bottom (⌘J / Ctrl+J). It opens into a conversation with the same assistant,
+tools and approvals as the Intelligence page, without the history list.
+
+- **Page context.** Each message the person sends from the dock carries what
+  they were looking at: the page, the project, the open work item, the text
+  they selected in its specification and the review they were reading. It is
+  a `data-context` part of their message: validated by the server, stored with
+  the transcript and shown above the message. It only names things; the
+  assistant still reads them through tools with the person's permissions, so
+  context cannot widen access.
+- **Adapts to the page.** The bar offers what fits: explaining a selection,
+  assessing the open item (or its score once assessed), or questions for the
+  board, backlog, inbox and other pages.
+- **Unlisted conversations.** Dock conversations are saved like any chat but
+  stay out of the history (`intelligence_chat.listed = false`) until the person
+  opens them on the Intelligence page, which lists them.
+- The dock is absent when Lictory Intelligence is off or unavailable.
+
 ## Lictory Actions
 
 Lictory Actions are the automated checks of a pull request, shown in its
@@ -120,6 +145,10 @@ The following content is sent: specifications of the analysed items (truncated
 when long), their first open discussion messages, statuses, estimates and
 relations, the changed lines of the pull request, and the applicable Lictory
 Intelligence Context.
+
+Conversations send the person's messages, including the page context of dock
+messages (with any text they selected), and the tool results the assistant
+reads with their permissions.
 
 Requests use `store: false`.
 

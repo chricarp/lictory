@@ -108,9 +108,70 @@ export const recommendActionOutput = z.object({
 });
 export type RecommendActionOutput = z.infer<typeof recommendActionOutput>;
 
+// What the person was looking at when they asked from the dock: the page,
+// and when relevant the work item, the text they selected in it, and the
+// Lictory Intelligence review they were reading. It travels as a data part of
+// their message, so it is stored with the transcript and shown next to it. It
+// only names things; the assistant reads them through its tools, with the
+// person's permissions.
+export const CONTEXT_QUOTE_LIMIT = 2000;
+export const chatContextSchema = z.object({
+  page: z.object({
+    label: z.string().min(1).max(120),
+    path: z.string().startsWith("/").max(500),
+  }),
+  project: z
+    .object({
+      id: z.string().min(1).max(100),
+      key: z.string().min(1).max(20),
+      name: z.string().max(200),
+    })
+    .nullable(),
+  item: z
+    .object({
+      id: z.string().min(1).max(100),
+      key: z.string().min(1).max(40),
+      title: z.string().max(500),
+    })
+    .nullable(),
+  selection: z
+    .object({
+      quote: z.string().min(1).max(CONTEXT_QUOTE_LIMIT),
+      section: z.string().max(300),
+    })
+    .nullable(),
+  reviewRunId: z.string().min(1).max(100).nullable(),
+});
+export type ChatContext = z.infer<typeof chatContextSchema>;
+
+// The context as the model reads it, next to the person's words.
+export function contextPrompt(context: ChatContext) {
+  const lines = [
+    `[Page context: the person asked this from "${context.page.label}" (${context.page.path}).`,
+  ];
+  if (context.project)
+    lines.push(
+      `Project: ${context.project.key} "${context.project.name}" (projectId ${context.project.id}).`,
+    );
+  if (context.item)
+    lines.push(
+      `Open work item: ${context.item.key} "${context.item.title}" (workItemId ${context.item.id}). "This", "it" and "here" refer to it unless they say otherwise; read it with getWorkItem before answering.`,
+    );
+  if (context.reviewRunId)
+    lines.push(
+      `They are looking at the Lictory Intelligence review run ${context.reviewRunId} of that item (in getWorkItem aiRuns).`,
+    );
+  if (context.selection)
+    lines.push(
+      `They selected this text${context.selection.section ? ` in the section "${context.selection.section}"` : ""} of its specification:\n"""\n${context.selection.quote}\n"""`,
+    );
+  return `${lines.join("\n")}]`;
+}
+
 export type ChatDataParts = {
   // Transient: the generated conversation title.
   title: { title: string };
+  context: ChatContext;
 };
 
 export type ChatMetadata = {

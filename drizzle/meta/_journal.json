@@ -113,6 +113,13 @@
       "when": 1792187932185,
       "tag": "0015_configurable_readiness_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792273875218,
+      "tag": "0016_intelligence_chat_listed",
+      "breakpoints": true
     }
   ]
 }

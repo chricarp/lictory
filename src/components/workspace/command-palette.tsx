@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   BookOpenCheck,
@@ -20,7 +20,7 @@ import {
   Settings2,
   UserRound,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { cn } from "~/lib/utils";
 import { track } from "~/lib/analytics/client";
 import { paths } from "~/lib/paths";
@@ -38,6 +38,7 @@ import { StatusIcon } from "~/components/items/status";
 import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
 import { useWorkspace } from "./provider";
 import { useShell } from "./shell";
+import { useDock } from "~/components/intelligence/dock/store";
 
 type Item = {
   id: string;
@@ -67,8 +68,16 @@ export function CommandPalette({
     mutate,
     capabilitiesIn,
     delivery,
+    directory,
   } = useWorkspace();
   const { openCreate, currentItem, project: shellProject } = useShell();
+  // The dock is absent on the Intelligence page itself.
+  const pathname = usePathname();
+  const dockStore = useDock();
+  const dock = pathname.startsWith(paths.intelligence(organization.slug))
+    ? null
+    : dockStore;
+  const aiOn = directory.ai.available && directory.ai.enabled;
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +176,19 @@ export function CommandPalette({
         label: "Ask Lictory Intelligence",
         group: "Navigate",
         icon: <IntelligenceMark className="size-4" />,
+        keywords: "ai assistant chat",
+        run: () => {
+          if (!aiOn || !dock) return go(paths.intelligence(org));
+          onClose();
+          dock.open();
+        },
+      },
+      {
+        id: "intelligence-history",
+        label: "Lictory Intelligence conversations",
+        group: "Navigate",
+        icon: <IntelligenceMark className="size-4" />,
+        keywords: "ai assistant chat history",
         run: () => go(paths.intelligence(org)),
       },
       {
@@ -282,6 +304,8 @@ export function CommandPalette({
     org,
     go,
     delivery,
+    aiOn,
+    dock,
   ]);
   const q = query.trim().toLowerCase();
   const parsed = parseIdentifier(query);
@@ -317,8 +341,41 @@ export function CommandPalette({
     const matchedCommands = commands.filter(
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
-    return [...matchedItems, ...(q ? matchedCommands : commands.slice(0, 8))];
-  }, [items, q, parsed, commands, projectOf, go, org, delivery]);
+    // Anything typed can also be a question for Lictory Intelligence.
+    const ask: Item[] =
+      q && !parsed && aiOn && dock
+        ? [
+            {
+              id: "ask-intelligence",
+              label: `Ask Lictory Intelligence: “${query.trim()}”`,
+              group: "Lictory Intelligence",
+              icon: <IntelligenceMark className="size-4" />,
+              run: () => {
+                onClose();
+                dock.open({ prompt: query.trim(), send: true });
+              },
+            },
+          ]
+        : [];
+    return [
+      ...matchedItems,
+      ...(q ? matchedCommands : commands.slice(0, 8)),
+      ...ask,
+    ];
+  }, [
+    items,
+    q,
+    query,
+    parsed,
+    commands,
+    projectOf,
+    go,
+    org,
+    delivery,
+    aiOn,
+    dock,
+    onClose,
+  ]);
   const [lastQuery, setLastQuery] = useState(q);
   if (lastQuery !== q) {
     setLastQuery(q);

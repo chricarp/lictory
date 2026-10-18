@@ -14,7 +14,7 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
 import {
@@ -85,7 +85,7 @@ function useCommand() {
 
 // Why Lictory Intelligence cannot be used right now, in words the user can act
 // on.
-function useAiBlocker() {
+export function useAiBlocker() {
   const { directory, isAdmin } = useWorkspace();
   if (!directory.ai.available)
     return "Lictory Intelligence is not configured on this server.";
@@ -163,7 +163,7 @@ export function ScoreRing({
   );
 }
 
-const severityMeta: Record<
+export const severityMeta: Record<
   AiSeverity,
   { label: string; tone: "danger" | "warning" | "info" | "neutral" }
 > = {
@@ -178,149 +178,10 @@ const kindMeta = {
   question: { label: "Question", icon: CircleHelp },
 } as const;
 const severityOrder: AiSeverity[] = ["blocker", "major", "minor", "info"];
-const counts = (findings: AiFinding[]) =>
+export const counts = (findings: AiFinding[]) =>
   severityOrder
     .map((s) => [s, findings.filter((f) => f.severity === s).length] as const)
     .filter(([, n]) => n > 0);
-
-function RunProgress({ run, subject }: { run: Run; subject: string }) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3 text-[13px]"
-    >
-      <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
-      <div className="min-w-0">
-        <p className="font-medium">
-          {run.status === "queued" ? "Queued" : "Reviewing"} {subject}…
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Requested {relativeTime(run.createdAt)}. You can leave this page;
-          results appear here when ready.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Sidebar entry point: request, follow progress, see the score.
-export function AiReviewPanel({ onOpen }: { onOpen: (runId: string) => void }) {
-  const { item, project, mutateConfirmed, capabilities, readOnly, memberName } =
-    useItem();
-  const runs = useAiRuns("item_review");
-  const blocker = useAiBlocker();
-  const { run, pending, error } = useCommand();
-  const [latest] = runs;
-  const lastCompleted = runs.find((r) => r.status === "completed");
-  const active = latest && ["queued", "running"].includes(latest.status);
-  const allowed =
-    capabilities.requestReviews || capabilities.editSpecifications;
-  const request = () =>
-    void run(mutateConfirmed, {
-      type: "requestAiReview",
-      workItemId: item.id,
-      runId: crypto.randomUUID(),
-    });
-  const key = identifier(project, item.number);
-  return (
-    <section aria-labelledby="ai-review-title">
-      <div className="mb-2 flex items-center gap-2">
-        <IntelligenceMark className="size-3.5 text-primary" />
-        <SectionLabel>
-          <span id="ai-review-title">Lictory Intelligence review</span>
-        </SectionLabel>
-      </div>
-      {active ? (
-        <RunProgress
-          run={latest}
-          subject={`${key} with its parent and child items`}
-        />
-      ) : latest?.status === "failed" ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-[13px]">
-          <p className="flex items-center gap-1.5 font-medium text-destructive">
-            <XCircle className="size-4" /> Review failed
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{latest.error}</p>
-        </div>
-      ) : null}
-      {!active && lastCompleted && (
-        <button
-          onClick={() => onOpen(lastCompleted.id)}
-          className={cn(
-            "mt-2 flex w-full items-center gap-3 rounded-lg border bg-card p-2.5 text-left transition-colors duration-100 hover:bg-muted/60",
-            lastCompleted.staleAt && "opacity-80",
-          )}
-        >
-          <ScoreRing score={lastCompleted.score ?? 0} />
-          <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-medium">
-              {lastCompleted.findings.length
-                ? `${lastCompleted.findings.length} ${lastCompleted.findings.length === 1 ? "finding" : "findings"}`
-                : "No findings"}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {lastCompleted.staleAt
-                ? `Outdated: ${lastCompleted.staleReason ?? "content changed"}`
-                : `${memberName(lastCompleted.requestedById)} · ${relativeTime(lastCompleted.completedAt ?? lastCompleted.createdAt)}`}
-            </p>
-            {counts(lastCompleted.findings).length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {counts(lastCompleted.findings).map(([s, n]) => (
-                  <Badge key={s} tone={severityMeta[s].tone}>
-                    {n} {severityMeta[s].label.toLowerCase()}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        </button>
-      )}
-      {!active && (
-        <div className="mt-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="w-full"
-            disabled={pending || readOnly || !allowed || Boolean(blocker)}
-            title={
-              blocker ??
-              (!allowed
-                ? "Your disciplines in this project cannot request reviews."
-                : "Analyse this item with its parent and child items for missing information.")
-            }
-            onClick={request}
-          >
-            {pending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : lastCompleted ? (
-              <RotateCcw className="size-3.5" />
-            ) : (
-              <IntelligenceMark className="size-3.5" />
-            )}
-            {lastCompleted || latest?.status === "failed"
-              ? "Run Lictory Intelligence review again"
-              : "Request Lictory Intelligence review"}
-          </Button>
-          {blocker && !runs.length && (
-            <p className="mt-1.5 text-xs text-muted-foreground">{blocker}</p>
-          )}
-          {!blocker && !runs.length && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              Finds missing information, ambiguity and gaps across this item and
-              its child items, like a refinement session would.
-            </p>
-          )}
-        </div>
-      )}
-      {error && (
-        <p role="alert" className="mt-1.5 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </section>
-  );
-}
 
 // The full review: the score explained by its findings, grouped by item, with
 // a deliberate path from fixable findings to corrective pull requests.

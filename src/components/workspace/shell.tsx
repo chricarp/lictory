@@ -48,7 +48,7 @@ import {
   KanbanSquare,
   ListOrdered,
 } from "lucide-react";
-import { IntelligenceMark } from "~/components/logo";
+import { IntelligenceMark } from "~/components/intelligence/mark";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { paths } from "~/lib/paths";
@@ -70,6 +70,7 @@ import { useWorkspace } from "./provider";
 import { useUnreadNotifications } from "~/components/notifications/client";
 import type { QuickCreateOptions } from "./quick-create";
 import { SyncStatus } from "./sync-status";
+import { DockProvider } from "~/components/intelligence/dock/store";
 import { OrganizationMark } from "./organization-logo";
 import { TypeIcon, epicGlyph, storyGlyph } from "~/components/items/icons";
 
@@ -79,8 +80,12 @@ const loadCommandPalette = () =>
   import("./command-palette").then((m) => m.CommandPalette);
 const loadQuickCreate = () =>
   import("./quick-create").then((m) => m.QuickCreate);
+const loadIntelligenceDock = () =>
+  import("~/components/intelligence/dock/dock").then((m) => m.IntelligenceDock);
 const CommandPalette = dynamic(loadCommandPalette, { ssr: false });
 const QuickCreate = dynamic(loadQuickCreate, { ssr: false });
+// Always present, but never needed for the first paint.
+const IntelligenceDock = dynamic(loadIntelligenceDock, { ssr: false });
 
 type Organization = Directory["organizations"][number];
 
@@ -152,6 +157,7 @@ export function Shell({
   );
   const sidebarId = useId();
   const sidebarRef = useRef<HTMLElement>(null);
+  const [dockReady, setDockReady] = useState(false);
   const restoreSidebarFocus = useRef(false);
   // Warm the on-demand overlays once the workspace is idle, so the first
   // shortcut opens them without a visible load.
@@ -159,6 +165,7 @@ export function Shell({
     const preload = () => {
       void loadCommandPalette();
       void loadQuickCreate();
+      setDockReady(true);
     };
     if (typeof requestIdleCallback === "function") {
       const id = requestIdleCallback(preload, { timeout: 3000 });
@@ -332,76 +339,79 @@ export function Shell({
   );
   return (
     <ShellContext.Provider value={shell}>
-      <title>{title}</title>
-      <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
-        <aside
-          id={sidebarId}
-          ref={sidebarRef}
-          className={cn(
-            "hidden shrink-0 flex-col border-r bg-sidebar lg:flex",
-            sidebarCollapsed ? "w-12" : "w-[232px]",
+      <DockProvider>
+        <title>{title}</title>
+        <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
+          <aside
+            id={sidebarId}
+            ref={sidebarRef}
+            className={cn(
+              "hidden shrink-0 flex-col border-r bg-sidebar lg:flex",
+              sidebarCollapsed ? "w-12" : "w-[232px]",
+            )}
+          >
+            {sidebar(sidebarCollapsed)}
+          </aside>
+          {drawer && (
+            <div className="fixed inset-0 z-40 lg:hidden">
+              <button
+                aria-label="Close navigation"
+                className="absolute inset-0 bg-black/30"
+                onClick={() => setDrawer(false)}
+              />
+              <aside className="absolute inset-y-0 left-0 flex w-[260px] flex-col border-r bg-sidebar shadow-xl">
+                {sidebar()}
+              </aside>
+            </div>
           )}
-        >
-          {sidebar(sidebarCollapsed)}
-        </aside>
-        {drawer && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <button
-              aria-label="Close navigation"
-              className="absolute inset-0 bg-black/30"
-              onClick={() => setDrawer(false)}
-            />
-            <aside className="absolute inset-y-0 left-0 flex w-[260px] flex-col border-r bg-sidebar shadow-xl">
-              {sidebar()}
-            </aside>
-          </div>
-        )}
-        <div className="flex min-w-0 flex-1 flex-col bg-background lg:my-0">
-          <div className="flex h-11 items-center gap-2 border-b px-3 lg:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open navigation"
-              onClick={() => setDrawer(true)}
-            >
-              <Menu className="size-4" />
-            </Button>
-            <span className="text-sm font-medium">
-              {project?.name ?? organization.name}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
+          <div className="relative flex min-w-0 flex-1 flex-col bg-background lg:my-0">
+            <div className="flex h-11 items-center gap-2 border-b px-3 lg:hidden">
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Search"
-                onClick={() => openPalette()}
+                aria-label="Open navigation"
+                onClick={() => setDrawer(true)}
               >
-                <Search className="size-4" />
+                <Menu className="size-4" />
               </Button>
-              {project && canCreate && (
+              <span className="text-sm font-medium">
+                {project?.name ?? organization.name}
+              </span>
+              <div className="ml-auto flex items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Create"
-                  onClick={() => openCreate()}
+                  aria-label="Search"
+                  onClick={() => openPalette()}
                 >
-                  <Plus className="size-4" />
+                  <Search className="size-4" />
                 </Button>
-              )}
+                {project && canCreate && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Create"
+                    onClick={() => openCreate()}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
+            <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+            {dockReady && <IntelligenceDock />}
           </div>
-          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
         </div>
-      </div>
-      {palette.open && (
-        <CommandPalette
-          initialQuery={palette.query}
-          onClose={() => setPalette({ open: false, query: "" })}
-        />
-      )}
-      {create && (
-        <QuickCreate options={create} onClose={() => setCreate(null)} />
-      )}
+        {palette.open && (
+          <CommandPalette
+            initialQuery={palette.query}
+            onClose={() => setPalette({ open: false, query: "" })}
+          />
+        )}
+        {create && (
+          <QuickCreate options={create} onClose={() => setCreate(null)} />
+        )}
+      </DockProvider>
     </ShellContext.Provider>
   );
 }

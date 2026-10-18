@@ -19,7 +19,11 @@ import {
   systemPrompt,
 } from "~/intelligence/chat/assistant";
 import { chatOwner } from "~/intelligence/chat/http";
-import type { ChatMessage } from "~/intelligence/chat/shared";
+import {
+  chatContextSchema,
+  contextPrompt,
+  type ChatMessage,
+} from "~/intelligence/chat/shared";
 import {
   getChat,
   openChat,
@@ -30,9 +34,14 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+const titleSchema = z.object({ title: z.string() });
+
 const body = z.object({
   id: z.uuid(),
   organizationId: z.string().min(1),
+  // Where the conversation runs: the Intelligence page, or the dock present
+  // on every other page (unlisted until continued on the page).
+  surface: z.enum(["page", "dock"]).default("page"),
   // Only the newest message travels: a new user prompt, or the last assistant
   // message carrying tool approvals or clarification answers.
   message: z.object({
@@ -54,8 +63,10 @@ export async function POST(request: Request) {
     const { owner, roster } = await chatOwner(request, input.organizationId, {
       requireAi: true,
     });
-    await openChat(db, owner, input.id);
+    await openChat(db, owner, input.id, { listed: input.surface === "page" });
     const stored = (await getChat(db, owner, input.id))!;
+    if (input.surface === "page" && !stored.chat.listed)
+      await updateChat(db, owner, input.id, { listed: true });
 
     const incoming = input.message as ChatMessage;
     const history = [...stored.messages];
@@ -87,6 +98,7 @@ export async function POST(request: Request) {
     const messages = await validateUIMessages<ChatMessage>({
       messages: history,
       tools,
+      dataSchemas: { title: titleSchema, context: chatContextSchema },
     });
     await saveMessages(db, owner, input.id, messages);
 
@@ -121,7 +133,13 @@ export async function POST(request: Request) {
             user: { id: owner.userId, name: me?.name ?? "this person" },
             now: new Date(),
           }),
-          messages: await convertToModelMessages(messages, { tools }),
+          messages: await convertToModelMessages<ChatMessage>(messages, {
+            tools,
+            convertDataPart: (part) =>
+              part.type === "data-context"
+                ? { type: "text", text: contextPrompt(part.data) }
+                : undefined,
+          }),
           tools,
           stopWhen: isStepCount(24),
           experimental_transform: smoothStream({ chunking: "word" }),

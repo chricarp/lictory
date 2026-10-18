@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Copy,
   FileText,
+  LocateFixed,
   PenLine,
   RotateCcw,
   Search,
@@ -21,7 +22,11 @@ import {
   Sparkle,
 } from "lucide-react";
 import Link from "next/link";
-import { IntelligenceMark } from "~/components/logo";
+import {
+  IntelligenceMark,
+  useAfterglow,
+  type IntelligenceMood,
+} from "~/components/intelligence/mark";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Markdown } from "~/components/items/markdown";
 import { Button } from "~/components/ui/button";
@@ -30,6 +35,7 @@ import {
   RECOMMEND_ACTION,
   type AskQuestionsInput,
   type AskQuestionsOutput,
+  type ChatContext,
   type ChatMessage,
   type RecommendActionInput,
   type RecommendActionOutput,
@@ -49,6 +55,7 @@ import {
   type Subject,
 } from "./activity";
 import { InsightCards } from "./insights";
+import { answerMood } from "./mood";
 import { AnsweredQuestions, Questionnaire } from "./questionnaire";
 import { DecidedRecommendation, RecommendationCard } from "./recommendation";
 import { useLookup } from "./use-lookup";
@@ -109,6 +116,7 @@ export function MessageView({
   message,
   streaming,
   isLast,
+  failed,
   onAnswer,
   onDecide,
   onApprove,
@@ -117,6 +125,7 @@ export function MessageView({
   message: ChatMessage;
   streaming: boolean;
   isLast: boolean;
+  failed?: boolean;
   onAnswer: (toolCallId: string, output: AskQuestionsOutput) => void;
   onDecide: (toolCallId: string, output: RecommendActionOutput) => void;
   onApprove: (approvalId: string, approved: boolean) => void;
@@ -133,13 +142,15 @@ export function MessageView({
     const text = message.parts
       .flatMap((p) => (p.type === "text" ? [p.text] : []))
       .join("\n");
+    const context = message.parts.find((p) => p.type === "data-context")?.data;
     return (
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 10, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", duration: 0.4, bounce: 0.1 }}
-        className="flex justify-end"
+        className="flex flex-col items-end gap-1.5"
       >
+        {context && <SentContext context={context} />}
         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-[14px] leading-6 whitespace-pre-wrap">
           {text}
         </div>
@@ -315,7 +326,11 @@ export function MessageView({
 
   return (
     <div className="group/message flex gap-3">
-      <AssistantMark active={live} />
+      <AssistantMark
+        mood={answerMood(message, live)}
+        active={live}
+        failed={failed}
+      />
       <div className="min-w-0 flex-1 space-y-3 pt-0.5">
         {fold && (
           <WorkedFor
@@ -458,19 +473,22 @@ function WorkedFor({
   );
 }
 
-export function AssistantMark({ active }: { active?: boolean }) {
+// Lictory Intelligence beside its answer, showing what it is doing.
+export function AssistantMark({
+  mood,
+  active,
+  failed,
+}: {
+  mood?: IntelligenceMood;
+  active?: boolean;
+  failed?: boolean;
+}) {
+  const done = useAfterglow(!!active);
   return (
-    <div className="relative mt-0.5 grid size-7 shrink-0 place-items-center">
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,var(--primary),oklch(0.7_0.2_320),oklch(0.75_0.15_200),var(--primary))] opacity-90",
-          active && "animate-[spin_2.4s_linear_infinite]",
-        )}
-      />
-      <span className="absolute inset-[1.5px] rounded-full bg-background" />
-      <IntelligenceMark className="relative size-3.5 text-primary" />
-    </div>
+    <IntelligenceMark
+      mood={mood ?? (failed ? "concerned" : done ? "happy" : undefined)}
+      className="size-7 text-primary"
+    />
   );
 }
 
@@ -1135,5 +1153,30 @@ function CopyButton({ text }: { text: string }) {
         </motion.span>
       </AnimatePresence>
     </IconAction>
+  );
+}
+
+// What the person was looking at when they asked, so later readers know what
+// "this" meant.
+function SentContext({ context }: { context: ChatContext }) {
+  return (
+    <div className="flex max-w-[85%] min-w-0 flex-col items-end gap-1">
+      <Link
+        href={context.page.path}
+        className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border bg-card px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <LocateFixed className="size-3 shrink-0" aria-hidden />
+        <span className="truncate">
+          {context.item
+            ? `${context.item.key} · ${context.item.title}`
+            : context.page.label}
+        </span>
+      </Link>
+      {context.selection && (
+        <blockquote className="line-clamp-3 border-r-2 border-primary/40 pr-2.5 text-right text-[12px] leading-5 text-muted-foreground italic">
+          “{context.selection.quote}”
+        </blockquote>
+      )}
+    </div>
   );
 }

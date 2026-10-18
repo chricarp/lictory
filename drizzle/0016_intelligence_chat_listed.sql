@@ -1,0 +1,1 @@
+ALTER TABLE "intelligence_chat" ADD COLUMN "listed" boolean DEFAULT true NOT NULL;
