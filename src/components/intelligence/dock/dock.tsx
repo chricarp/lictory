@@ -463,7 +463,7 @@ function Bar({
       aria-hidden={hidden || undefined}
       style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
       className={cn(
-        "max-w-full overflow-hidden rounded-full border bg-popover/95 shadow-[0_1px_2px_oklch(0_0_0/0.06),0_12px_32px_-12px_oklch(0_0_0/0.25)] backdrop-blur supports-[backdrop-filter]:bg-popover/80",
+        "box-content max-w-full overflow-hidden rounded-full border bg-popover/95 shadow-[0_1px_2px_oklch(0_0_0/0.06),0_12px_32px_-12px_oklch(0_0_0/0.25)] backdrop-blur supports-[backdrop-filter]:bg-popover/80",
         !hidden && "pointer-events-auto",
       )}
       data-intelligence-dock="bar"
