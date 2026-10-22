@@ -1,10 +1,15 @@
 import { and, asc, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as s from "@lictory/core/db/schema";
-import type { StatusCategory, WorkflowStatus } from "@lictory/core/contracts/protocol";
+import type {
+  StatusCategory,
+  WorkflowStatus,
+} from "@lictory/core/contracts/protocol";
 import type { labelColors } from "@lictory/core/contracts/protocol";
 import { DomainError } from "@lictory/core/domain/errors";
 import { notifyIteration } from "@lictory/core/notifications/server";
+import { writeEntities } from "@lictory/core/domain/projections";
+import { serialize } from "@lictory/core/domain/service";
 
 type Database = PostgresJsDatabase<typeof s>;
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -93,16 +98,28 @@ export async function activity(
   now: Date,
 ) {
   if (!rows.length) return;
-  await tx.insert(s.activity).values(
-    rows.map((r) => ({
-      id: crypto.randomUUID(),
-      organizationId,
-      projectId: r.projectId,
-      workItemId: r.workItemId,
-      actorId,
-      action,
-      detail,
-      createdAt: now,
+  const inserted = await tx
+    .insert(s.activity)
+    .values(
+      rows.map((r) => ({
+        id: crypto.randomUUID(),
+        organizationId,
+        projectId: r.projectId,
+        workItemId: r.workItemId,
+        actorId,
+        action,
+        detail,
+        createdAt: now,
+      })),
+    )
+    .returning();
+  // Activity lives in each item's own projection scope.
+  await writeEntities(
+    tx,
+    organizationId,
+    inserted.map((row) => ({
+      entity: serialize("activity", row),
+      scope: { projectId: row.projectId, workItemId: row.workItemId },
     })),
   );
 }

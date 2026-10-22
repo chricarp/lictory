@@ -4,9 +4,13 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { refreshDirectories } from "@lictory/core/domain/projections";
 import * as s from "@lictory/core/db/schema";
 import { directory } from "@lictory/core/domain/service";
-import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
+import {
+  projectionDrift,
+  projectionService,
+} from "@lictory/core/domain/projection-reader.test-helper";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
@@ -366,6 +370,8 @@ void test("inbox is scoped to the user and to current membership", async () => {
         eq(s.member.userId, f.reviewerId),
       ),
     );
+  // What the Better Auth membership hook does after removing a member.
+  await refreshDirectories(db, [f.organizationId]);
   assert.equal((await f.inbox(f.reviewerId)).length, 0);
 });
 
@@ -421,6 +427,8 @@ void test("email outbox sends once, retries failures, and skips former members",
         eq(s.member.userId, f.bystanderId),
       ),
     );
+  // What the Better Auth membership hook does after removing a member.
+  await refreshDirectories(db, [f.organizationId]);
   assert.equal(
     (await dispatchNotificationEmails(db, { send, now })).skipped,
     1,
@@ -463,4 +471,13 @@ void test("iteration start and completion notify project members once", async ()
   assert.equal(reviewer[0]!.detail.projectName, "Payments");
   assert.deepEqual(await f.kinds(f.ownerId), [], "the actor is not notified");
   assert.deepEqual(await f.kinds(f.bystanderId), [], "non-members are not");
+});
+
+void test("projections equal a rebuild from the domain", async () => {
+  const drift: string[] = [];
+  for (const { id } of await db
+    .select({ id: s.organization.id })
+    .from(s.organization))
+    drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
 });

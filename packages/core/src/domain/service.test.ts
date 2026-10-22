@@ -15,7 +15,10 @@ import {
   searchEpics,
   searchMembers,
 } from "@lictory/core/domain/service";
-import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
+import {
+  projectionDrift,
+  projectionService,
+} from "@lictory/core/domain/projection-reader.test-helper";
 import {
   defaultReadinessChecks,
   type ReadinessCheckDefinition,
@@ -28,6 +31,10 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { reconcile, optimistic } from "@lictory/core/contracts/optimistic";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import {
+  rebuildProjections,
+  refreshDirectories,
+} from "@lictory/core/domain/projections";
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
   "postgresql://lictory:lictory@localhost:5432/postgres";
@@ -39,6 +46,9 @@ const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
 const service = projectionService(db);
 let created = false;
+// Organizations whose tests write domain rows directly, which projections
+// cannot follow; the projection invariant skips them.
+const bypassesDomain = new Set<string>();
 before(async () => {
   await admin`CREATE DATABASE ${admin(databaseName)}`;
   created = true;
@@ -411,6 +421,8 @@ void test("bootstrap, delta, and mutations reject foreign tenants and revoked me
         eq(s.member.userId, a.userId),
       ),
     );
+  // What the Better Auth membership hooks do after their own write.
+  await refreshDirectories(db, [a.organizationId]);
   await assert.rejects(a.read(before.nextCursor), /access has been removed/);
 });
 void test("concurrent writes all project and a failed projection write rolls back domain writes", async () => {
@@ -1001,6 +1013,7 @@ void test("member search pages and filters without returning the full roster", a
       createdAt: new Date(),
     })),
   );
+  await refreshDirectories(db, [f.organizationId]);
   const first = await searchMembers(db, f.userId, f.organizationId, "", 0, 20);
   assert.equal(first.members.length, 20);
   assert.equal(first.hasMore, true);
@@ -1074,6 +1087,8 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
       index === 0 ? "Zelda Query" : `Epic ${String(index).padStart(2, "0")}`,
     createdById: f.userId,
   }));
+  // Rows written around the domain have no projections.
+  bypassesDomain.add(f.organizationId);
   await db.insert(s.workItem).values(epics);
   await db.insert(s.workItem).values({
     id: crypto.randomUUID(),
@@ -3627,4 +3642,42 @@ void test("publishing checks moves following items with their evidence; manual s
     .where(eq(s.readinessSignOff.workItemId, story));
   assert.equal(rows.length, 2);
   assert.equal(rows.filter((r) => r.withdrawnAt).length, 1);
+});
+
+void test("projections written by every command above equal a rebuild from the domain", async () => {
+  const organizations = await db
+    .select({ id: s.organization.id })
+    .from(s.organization);
+  assert.ok(organizations.length > 10);
+  const drift: string[] = [];
+  for (const { id } of organizations)
+    if (!bypassesDomain.has(id)) drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
+  // Operator recovery restores lost or corrupted projections.
+  const f = await fixture();
+  const keys = await db
+    .select({ key: s.syncEntity.key })
+    .from(s.syncEntity)
+    .where(eq(s.syncEntity.organizationId, f.organizationId));
+  await db
+    .delete(s.syncEntity)
+    .where(eq(s.syncEntity.key, `workItem:${f.proposalId}`));
+  await db
+    .update(s.syncEntity)
+    .set({ data: { corrupted: true } })
+    .where(eq(s.syncEntity.key, `directory:${f.organizationId}`));
+  await db.insert(s.syncEntity).values({
+    key: `label:${crypto.randomUUID()}`,
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    type: "label",
+    data: {},
+  });
+  assert.equal((await projectionDrift(db, f.organizationId)).length, 3);
+  assert.deepEqual(await rebuildProjections(db, f.organizationId), {
+    upserted: 2,
+    deleted: 1,
+    unchanged: keys.length - 2,
+  });
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });

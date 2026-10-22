@@ -242,7 +242,7 @@ export async function organizationDirectory(
       .select()
       .from(s.project)
       .where(eq(s.project.organizationId, organizationId))
-      .orderBy(asc(s.project.createdAt)),
+      .orderBy(asc(s.project.createdAt), asc(s.project.id)),
     db
       .select({
         id: s.user.id,
@@ -256,12 +256,16 @@ export async function organizationDirectory(
       .from(s.member)
       .innerJoin(s.user, eq(s.member.userId, s.user.id))
       .where(eq(s.member.organizationId, organizationId))
-      .orderBy(asc(s.user.name), asc(s.user.email)),
+      .orderBy(asc(s.user.name), asc(s.user.email), asc(s.user.id)),
     db
       .select()
       .from(s.projectMember)
       .where(eq(s.projectMember.organizationId, organizationId))
-      .orderBy(asc(s.projectMember.createdAt)),
+      .orderBy(
+        asc(s.projectMember.createdAt),
+        asc(s.projectMember.projectId),
+        asc(s.projectMember.userId),
+      ),
     db
       .select()
       .from(s.disciplineMember)
@@ -270,7 +274,7 @@ export async function organizationDirectory(
       .select()
       .from(s.discipline)
       .where(eq(s.discipline.organizationId, organizationId))
-      .orderBy(asc(s.discipline.createdAt)),
+      .orderBy(asc(s.discipline.createdAt), asc(s.discipline.id)),
     deliveryDirectoryRows(db, organizationId),
     deliveryConfiguration(db, organizationId),
     aiPolicy(db, organizationId),
@@ -385,7 +389,10 @@ async function deliveryConfiguration(
           isNull(s.deliveryConnection.archivedAt),
         ),
       )
-      .orderBy(asc(s.deliveryConnection.createdAt)),
+      .orderBy(
+        asc(s.deliveryConnection.createdAt),
+        asc(s.deliveryConnection.id),
+      ),
     db
       .select({
         id: s.deliveryTarget.id,
@@ -397,7 +404,7 @@ async function deliveryConfiguration(
       })
       .from(s.deliveryTarget)
       .where(eq(s.deliveryTarget.organizationId, organizationId))
-      .orderBy(asc(s.deliveryTarget.createdAt)),
+      .orderBy(asc(s.deliveryTarget.createdAt), asc(s.deliveryTarget.id)),
   ]);
   const active = new Set(connections.map((c) => c.id));
   const targets = targetRows.filter((t) => active.has(t.connectionId));
@@ -422,7 +429,7 @@ async function deliveryDirectoryRows(
       .select()
       .from(s.team)
       .where(eq(s.team.organizationId, organizationId))
-      .orderBy(asc(s.team.createdAt), asc(s.team.name)),
+      .orderBy(asc(s.team.createdAt), asc(s.team.name), asc(s.team.id)),
     db
       .select()
       .from(s.teamMember)
@@ -442,12 +449,20 @@ async function deliveryDirectoryRows(
       .select()
       .from(s.workflowStatus)
       .where(eq(s.workflowStatus.organizationId, organizationId))
-      .orderBy(asc(s.workflowStatus.position), asc(s.workflowStatus.createdAt)),
+      .orderBy(
+        asc(s.workflowStatus.position),
+        asc(s.workflowStatus.createdAt),
+        asc(s.workflowStatus.id),
+      ),
     db
       .select()
       .from(s.workItemType)
       .where(eq(s.workItemType.organizationId, organizationId))
-      .orderBy(asc(s.workItemType.position), asc(s.workItemType.createdAt)),
+      .orderBy(
+        asc(s.workItemType.position),
+        asc(s.workItemType.createdAt),
+        asc(s.workItemType.id),
+      ),
     // Completed iterations are bounded to the most recent per project; reports
     // for older ones are fetched on demand.
     db
@@ -1719,10 +1734,13 @@ export async function applyMutation(
         roster.projects.find((p) => p.id === c.projectId),
         "This project is unavailable.",
       );
-      const readinessBefore =
-        c.type === "publishReadinessChecks"
-          ? await projectReadiness(tx, organizationId, c.projectId)
-          : undefined;
+      // Configuration (workflow categories, disciplines, readiness checks)
+      // feeds every item's readiness, which lives in each item's scope.
+      const readinessBefore = await projectReadiness(
+        tx,
+        organizationId,
+        c.projectId,
+      );
       const before = await snapshot(tx, scope);
       await applyProjectCommand(
         tx,
@@ -1736,15 +1754,22 @@ export async function applyMutation(
         c,
       );
       // Readiness and activity live in each item's own scope.
-      const itemChanges = readinessBefore
-        ? await followReadinessChecks(
-            tx,
-            organizationId,
-            c.projectId,
-            userId,
-            readinessBefore,
-          )
-        : [];
+      const itemChanges =
+        c.type === "publishReadinessChecks"
+          ? await followReadinessChecks(
+              tx,
+              organizationId,
+              c.projectId,
+              userId,
+              readinessBefore,
+            )
+          : [...(await projectReadiness(tx, organizationId, c.projectId))]
+              .filter(
+                ([id, entity]) =>
+                  JSON.stringify(entity) !==
+                  JSON.stringify(readinessBefore.get(id)),
+              )
+              .map(([workItemId, entity]) => ({ workItemId, entity }));
       const after = await snapshot(tx, scope);
       snapshots = { before, after, directory: roster };
       await writeProjections(tx, organizationId, before, after);

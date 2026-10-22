@@ -11,6 +11,10 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
+  canonicalJson,
+  expectedProjections,
+} from "@lictory/core/domain/projections";
+import {
   authorize,
   directory,
   executeMutation,
@@ -195,4 +199,32 @@ export function projectionService(
       };
     },
   };
+}
+
+// Keys whose stored projection differs from what the domain implies
+// (missing, stale or extra rows). Empty when the invariant holds.
+export async function projectionDrift(db: Database, organizationId: string) {
+  return db.transaction(async (tx) => {
+    const expected = await expectedProjections(tx, organizationId);
+    const stored = await tx
+      .select()
+      .from(s.syncEntity)
+      .where(eq(s.syncEntity.organizationId, organizationId));
+    const drift: string[] = [];
+    const seen = new Set<string>();
+    for (const row of stored) {
+      seen.add(row.key);
+      const want = expected.get(row.key);
+      if (!want) drift.push(`extra ${row.key}`);
+      else if (
+        want.projectId !== row.projectId ||
+        want.workItemId !== row.workItemId ||
+        canonicalJson(want.data) !== canonicalJson(row.data)
+      )
+        drift.push(`stale ${row.key}`);
+    }
+    for (const key of expected.keys())
+      if (!seen.has(key)) drift.push(`missing ${key}`);
+    return drift.sort();
+  });
 }

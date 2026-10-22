@@ -29,7 +29,7 @@ import {
 const BATCH = 500;
 
 // jsonb does not keep key order, so stored rows compare by canonical JSON.
-function canonical(value: unknown): string {
+export function canonicalJson(value: unknown): string {
   return JSON.stringify(value, (_, v: unknown) =>
     v && typeof v === "object" && !Array.isArray(v)
       ? Object.fromEntries(
@@ -224,8 +224,10 @@ export async function refreshDirectoryProjection(
   ]);
   // A deleted organization cascades its projections away.
   if (!rows.length) return false;
-  const current = new Map(stored.map((r) => [r.key, canonical(r.data)]));
-  const changed = rows.filter((r) => current.get(r.key) !== canonical(r.data));
+  const current = new Map(stored.map((r) => [r.key, canonicalJson(r.data)]));
+  const changed = rows.filter(
+    (r) => current.get(r.key) !== canonicalJson(r.data),
+  );
   await upsertRows(tx, organizationId, changed);
   return changed.length > 0;
 }
@@ -293,7 +295,7 @@ export async function rebuildProjections(db: Database, organizationId: string) {
       a.projectId === b.projectId &&
       a.workItemId === b.workItemId &&
       a.type === b.type &&
-      canonical(a.data) === canonical(b.data);
+      canonicalJson(a.data) === canonicalJson(b.data);
     const existing = new Map(stored.map((r) => [r.key, r]));
     const upserts = [...expected.values()].filter((row) => {
       const current = existing.get(row.key);

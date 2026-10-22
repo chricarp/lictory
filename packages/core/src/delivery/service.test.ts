@@ -9,10 +9,14 @@ import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { directory } from "@lictory/core/domain/service";
-import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
+import {
+  projectionDrift,
+  projectionService,
+} from "@lictory/core/domain/projection-reader.test-helper";
 import { createFakeProvider } from "@lictory/core/delivery/fake-provider";
 import { DeliveryError } from "@lictory/core/delivery/provider";
 import { createDeliveryService } from "@lictory/core/delivery/service";
+import { rebuildProjections } from "@lictory/core/domain/projections";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -121,11 +125,15 @@ async function fixture(
   const draft = await create(types.Story, "Timeout copy", epic);
   const subtask = await create(types.Subtask, "Add column", story);
   // Readiness is server-maintained evidence; tests set the outcome directly.
-  const setReady = (id: string, ready = true) =>
-    db
+  // Shortcuts around the domain repair the projections the way an operator
+  // would, so the projection invariant still holds for this organization.
+  const setReady = async (id: string, ready = true) => {
+    await db
       .update(s.workItem)
       .set({ refinementState: ready ? "ready" : "refinement" })
       .where(eq(s.workItem.id, id));
+    await rebuildProjections(db, organizationId);
+  };
   await setReady(epic);
   await setReady(story);
 
@@ -187,6 +195,7 @@ async function fixture(
       content,
       authorId: userId,
     });
+    await rebuildProjections(db, organizationId);
   };
   return {
     organizationId,
@@ -476,6 +485,7 @@ void test("a crash between the external create and recording it is recovered, no
       payloadHash: null,
     })
     .where(eq(s.workItemExternalLink.id, link.id));
+  await rebuildProjections(db, f.organizationId);
   await f.revise(f.epic, "Changed after the crash");
   const recovered = await f.service.publish(f.userId, {
     organizationId: f.organizationId,
@@ -507,6 +517,7 @@ void test("an unconfirmable recent create attempt waits instead of creating a du
     connectionId: f.connectionId,
     createAttemptedAt: new Date(),
   });
+  await rebuildProjections(db, f.organizationId);
   const waiting = await f.service.publish(f.userId, {
     organizationId: f.organizationId,
     itemIds: [f.epic],
@@ -641,6 +652,7 @@ void test("publication observers fire once at settlement, survive observer failu
     connectionId: f.connectionId,
     createAttemptedAt: new Date(),
   });
+  await rebuildProjections(db, f.organizationId);
   const waiting = await f.service.publish(f.userId, {
     organizationId: f.organizationId,
     itemIds: [f.epic],
@@ -852,4 +864,13 @@ void test("status sync reads Jira status and assignee back without writing eithe
     f.service.refreshProject(f.userId, f.organizationId, f.projectId),
     /delivers its work in Lictory/,
   );
+});
+
+void test("projections equal a rebuild from the domain", async () => {
+  const drift: string[] = [];
+  for (const { id } of await db
+    .select({ id: s.organization.id })
+    .from(s.organization))
+    drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
 });

@@ -6,7 +6,10 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { directory } from "@lictory/core/domain/service";
-import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
+import {
+  projectionDrift,
+  projectionService,
+} from "@lictory/core/domain/projection-reader.test-helper";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import {
   PROTOCOL,
@@ -580,3 +583,12 @@ void test("provider failures are recorded as actionable errors and never block h
 function branchHead(branches: EntityOf<"specBranch">[], id: string) {
   return branches.find((b) => b.id === id)!.headId;
 }
+
+void test("projections equal a rebuild from the domain", async () => {
+  const drift: string[] = [];
+  for (const { id } of await db
+    .select({ id: s.organization.id })
+    .from(s.organization))
+    drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
+});
