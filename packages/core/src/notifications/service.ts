@@ -13,7 +13,10 @@ import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { DomainError } from "@lictory/core/domain/errors";
 import type { Database } from "@lictory/core/domain/service";
-import { isNotificationKind, notificationKindList } from "@lictory/core/notifications/catalog";
+import {
+  isNotificationKind,
+  notificationKindList,
+} from "@lictory/core/notifications/catalog";
 
 const kind = z
   .string()

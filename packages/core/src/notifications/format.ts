@@ -1,4 +1,8 @@
-import { notificationKinds, type NotificationKind } from "@lictory/core/notifications/catalog";
+import { paths } from "@lictory/core/lib/paths";
+import {
+  notificationKinds,
+  type NotificationKind,
+} from "@lictory/core/notifications/catalog";
 
 // One sentence per notification, shared by the inbox and email. Pure: the
 // caller supplies names so both server and client can render.
@@ -191,8 +195,10 @@ export function notificationHref(
   const d = n.detail;
   const key = str(d.itemKey);
   if (key)
-    return `/app/${orgSlug}/items/${key}${str(d.pullRequestId) ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}` : ""}`;
-  if (n.teamId && str(d.iterationId))
-    return `/app/${orgSlug}/teams/${n.teamId}/iterations/${str(d.iterationId)}`;
-  return `/app/${orgSlug}/inbox`;
+    return `${paths.itemByKey(orgSlug, key)}${str(d.pullRequestId) ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}` : ""}`;
+  const projectKey = str(d.projectKey);
+  const iterationId = str(d.iterationId);
+  if (projectKey && iterationId)
+    return paths.iteration(orgSlug, projectKey, iterationId);
+  return paths.inbox(orgSlug);
 }

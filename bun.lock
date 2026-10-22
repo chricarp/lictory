@@ -79,7 +79,9 @@
       "name": "@lictory/worker",
       "version": "0.0.0",
       "devDependencies": {
+        "drizzle-orm": "^0.45.3",
         "esbuild": "0.28.2",
+        "postgres": "^3.4.9",
       },
     },
     "packages/core": {

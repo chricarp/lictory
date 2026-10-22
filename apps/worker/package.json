@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "drizzle-orm": "^0.45.3",
+    "postgres": "^3.4.9"
   }
 }

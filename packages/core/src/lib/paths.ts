@@ -11,6 +11,8 @@ export const paths = {
   intelligence: (org: string) => `/${org}/intelligence`,
   intelligenceChat: (org: string, chat: string) =>
     `/${org}/intelligence/${chat}`,
+  // Resolves any work item identifier (PAY-142) to its project route.
+  itemByKey: (org: string, key: string) => `/${org}/items/${key}`,
   inbox: (org: string) => `/${org}/inbox`,
   notificationSettings: (org: string) => `/${org}/inbox/settings`,
   // Organization settings: general, members, projects, types, integrations,

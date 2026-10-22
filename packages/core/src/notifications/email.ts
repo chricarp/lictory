@@ -1,3 +1,4 @@
+import { paths } from "@lictory/core/lib/paths";
 import { and, eq, sql } from "drizzle-orm";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { createElement } from "react";
@@ -127,7 +128,7 @@ export async function dispatchNotificationEmails(
       ...view,
       teamId: n.notification.teamId,
     })}`;
-    const preferencesUrl = `${baseUrl}/app/${n.orgSlug}/inbox/settings`;
+    const preferencesUrl = `${baseUrl}${paths.notificationSettings(n.orgSlug)}`;
     try {
       await send({
         to: n.email,

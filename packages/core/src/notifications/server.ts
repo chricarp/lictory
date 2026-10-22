@@ -622,7 +622,7 @@ export async function notifyIteration(
     );
   if (!it) return;
   const [project] = await tx
-    .select({ name: s.project.name })
+    .select({ name: s.project.name, key: s.project.key })
     .from(s.project)
     .where(
       and(
@@ -652,6 +652,7 @@ export async function notifyIteration(
         iterationId: it.id,
         iterationName: it.name ?? `Iteration ${it.number}`,
         projectName: project?.name ?? null,
+        projectKey: project?.key ?? null,
         ...(input.kind === "iteration_completed" && summary
           ? { carriedOver: summary.carriedOver ?? null }
           : {}),

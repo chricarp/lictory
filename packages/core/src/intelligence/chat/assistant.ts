@@ -1,11 +1,13 @@
-
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output, tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { DEFAULT_AI_MODEL } from "@lictory/core/ai/analyzer";
 import { agentTools } from "@lictory/core/capabilities/agent";
 import type { CapabilityContext } from "@lictory/core/capabilities/core";
-import { capabilitiesOf, type Directory } from "@lictory/core/contracts/protocol";
+import {
+  capabilitiesOf,
+  type Directory,
+} from "@lictory/core/contracts/protocol";
 import {
   ASK_QUESTIONS,
   RECOMMEND_ACTION,
@@ -106,7 +108,7 @@ How to work:
 - When a message carries page context (the page, work item, selected text or review they were looking at), answer about that first and resolve "this", "it" and "here" against it. Read the item before answering; never answer from the selected text alone when the specification around it matters. Keep answers about a selection short and specific.
 - When a tool fails, explain the actionable reason and fix the input if you can.
 - Prioritize missing information, contradictions and ambiguity over stylistic rewriting. Do not present guesses as established product behavior.
-- Be concise. Use Markdown. Link work items as [PAY-142](/app/${org.slug}/items/PAY-142).`;
+- Be concise. Use Markdown. Link work items as [PAY-142](/${org.slug}/items/PAY-142).`;
 }
 
 // A short title for the conversation from its first request. Failures are not
