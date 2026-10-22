@@ -34,10 +34,9 @@ supported package manager.
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres mailpit
 bun install
-bun run db:migrate
-bun run dev
+docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit
+bun run dev            # SPA, API, worker and website
 ```
 
 - Platform: http://localhost:3000 (API on 3002, zero-cache on 4848)

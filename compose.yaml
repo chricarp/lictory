@@ -1,23 +1,36 @@
 name: lictory
 
-# Local development services. The applications run on the host (`bun run dev`);
-# see docs/operations/development.md. Production uses deploy/compose.production.yaml.
+# Everything the applications need in development:
+#
+#   docker compose up -d     # PostgreSQL, migrations, zero-cache, Mailpit
+#   bun run dev              # the SPA, API, worker and website on the host
+#
+# Run `bun install` first: the migrations container uses this checkout's
+# node_modules. Production uses deploy/compose.production.yaml; see
+# docs/operations/development.md.
 services:
+  # Zero needs PostgreSQL 15+ with logical decoding, enough WAL senders and
+  # replication slots, and a superuser connection so it can install the event
+  # triggers that replicate schema changes incrementally (without them, every
+  # migration resets all synced state).
   postgres:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: lictory
       POSTGRES_USER: lictory
       POSTGRES_PASSWORD: lictory
-    # Zero replicates through logical decoding.
     command:
-      [
-        "postgres",
-        "-c",
-        "wal_level=logical",
-        "-c",
-        "max_slot_wal_keep_size=2GB",
-      ]
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      # Bounds the WAL a stopped zero-cache can hold back. Past it the slot is
+      # invalidated and zero-cache resyncs on its next start.
+      - -c
+      - max_slot_wal_keep_size=2GB
     ports:
       - "5432:5432"
     volumes:
@@ -29,6 +42,92 @@ services:
       retries: 15
     restart: unless-stopped
 
+  # zero-cache keeps its client view records and change log in a database of
+  # its own (as in production), separate from the application's data. Created
+  # here rather than by an init script so existing volumes get it too.
+  postgres-setup:
+    image: postgres:17-alpine
+    environment:
+      PGHOST: postgres
+      PGUSER: lictory
+      PGPASSWORD: lictory
+      PGDATABASE: lictory
+    command:
+      - sh
+      - -c
+      - >-
+        echo "SELECT 'CREATE DATABASE lictory_zero' WHERE NOT EXISTS
+        (SELECT FROM pg_database WHERE datname = 'lictory_zero') \gexec"
+        | psql -v ON_ERROR_STOP=1 -q
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Applies committed migrations (including the `lictory_zero` publication
+  # zero-cache replicates) before zero-cache starts. Re-run after generating a
+  # migration with `docker compose run --rm migrate` or `bun run db:migrate`.
+  migrate:
+    image: oven/bun:1.4.2-alpine
+    working_dir: /app
+    command: ["bun", "scripts/migrate.ts"]
+    environment:
+      # Set explicitly so values in .env (which point at localhost) are ignored.
+      DATABASE_URL: postgresql://lictory:lictory@postgres:5432/lictory
+      DATABASE_URL_UNPOOLED: postgresql://lictory:lictory@postgres:5432/lictory
+      DATABASE_MIGRATION_TARGET: local
+      DATABASE_MIGRATION_URL: ""
+    volumes:
+      - .:/app:ro
+    depends_on:
+      postgres-setup:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Calls the API running on the host (`bun run dev`, port 3002) for synced
+  # queries and mutations, forwarding the browser's session cookie.
+  zero-cache:
+    image: rocicorp/zero:1.11.2
+    environment:
+      # Direct connection (never through a pooler): it holds the replication slot.
+      ZERO_UPSTREAM_DB: postgresql://lictory:lictory@postgres:5432/lictory
+      ZERO_CVR_DB: postgresql://lictory:lictory@postgres:5432/lictory_zero
+      ZERO_CHANGE_DB: postgresql://lictory:lictory@postgres:5432/lictory_zero
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_APP_PUBLICATIONS: lictory_zero
+      ZERO_QUERY_URL: http://host.docker.internal:3002/api/zero/query
+      ZERO_MUTATE_URL: http://host.docker.internal:3002/api/zero/mutate
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
+      ZERO_NUM_SYNC_WORKERS: "1"
+      ZERO_ADMIN_PASSWORD: development
+      ZERO_ENABLE_TELEMETRY: "false"
+      ZERO_LOG_LEVEL: warn
+      ZERO_LOG_FORMAT: text
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "4848:4848"
+    volumes:
+      - zero_replica:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://localhost:4848/keepalive').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))
+      interval: 5s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+    stop_grace_period: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   mailpit:
     image: axllent/mailpit:v1.27
     environment:
@@ -37,39 +136,6 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
-    restart: unless-stopped
-
-  # Optional: `docker compose --profile zero up -d zero-cache` after
-  # `bun run db:migrate` (the lictory_zero publication must exist). Calls the
-  # API running on the host at :3002.
-  zero-cache:
-    image: rocicorp/zero:1.11.2
-    profiles: [zero]
-    environment:
-      ZERO_UPSTREAM_DB: postgresql://lictory:lictory@postgres:5432/lictory
-      ZERO_REPLICA_FILE: /data/replica.db
-      ZERO_APP_PUBLICATIONS: lictory_zero
-      ZERO_QUERY_URL: http://host.docker.internal:3002/api/zero/query
-      ZERO_MUTATE_URL: http://host.docker.internal:3002/api/zero/mutate
-      ZERO_QUERY_API_KEY: ${ZERO_API_KEY:-}
-      ZERO_MUTATE_API_KEY: ${ZERO_API_KEY:-}
-      ZERO_QUERY_FORWARD_COOKIES: "true"
-      ZERO_MUTATE_FORWARD_COOKIES: "true"
-      ZERO_ENABLE_CRUD_MUTATIONS: "false"
-      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
-      ZERO_NUM_SYNC_WORKERS: "1"
-      ZERO_ENABLE_TELEMETRY: "false"
-      ZERO_LOG_FORMAT: text
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "4848:4848"
-    volumes:
-      - zero_replica:/data
-    stop_grace_period: 30s
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
 
 volumes:

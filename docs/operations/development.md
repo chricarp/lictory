@@ -3,30 +3,48 @@
 ## First checkout
 
 Requirements: [Bun](https://bun.sh) at the version in `package.json`
-(`packageManager`), Docker for PostgreSQL and Mailpit, and Git. Bun is the only
-supported package manager.
+(`packageManager`), Docker, and Git. Bun is the only supported package manager.
 
 ```sh
 cp .env.example .env
-docker compose up -d postgres mailpit
 bun install
-bun run db:migrate
-bun run dev
+docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit
+bun run dev            # SPA, API, worker and website on the host
 ```
 
-- App: http://localhost:3000
+- App: http://localhost:3000 (API 3002, zero-cache 4848)
+- Website: http://localhost:3100
 - Mailpit (verification and reset emails): http://localhost:8025
 
 Every optional integration (OAuth, Resend, R2, OpenAI, PostHog, Jira) stays
 disabled until its variables are set in `.env`. Core refinement works without any
 of them.
 
-The Compose PostgreSQL runs with `wal_level=logical` for Zero (recreate an
-older container once with `docker compose up -d --force-recreate postgres`).
-`bun run dev` starts the SPA (3000), API (3002), worker, website (3100) and a
-zero-cache (4848) from `node_modules`. To run zero-cache in Docker instead,
-start `docker compose --profile zero up -d zero-cache` after
-`bun run db:migrate`; `bun run dev` then uses it rather than starting its own.
+`compose.yaml` holds every service the applications depend on, started in
+order:
+
+1. `postgres`: PostgreSQL 17 provisioned for Zero: `wal_level=logical`, WAL
+   senders and replication slots, `max_slot_wal_keep_size` bounding the WAL a
+   stopped zero-cache can retain, and a superuser connection so zero-cache can
+   install the event triggers that replicate schema changes incrementally.
+2. `postgres-setup`: creates `lictory_zero`, the database where zero-cache keeps
+   its client view records and change log (as in production). Zero's per-app
+   tables for client mutation ids live in the application database, because the
+   API updates them in the same transaction as domain writes.
+3. `migrate`: applies committed migrations with `scripts/migrate.ts` (Bun image,
+   this checkout mounted read-only, so run `bun install` first). It creates the
+   `lictory_zero` publication zero-cache replicates.
+4. `zero-cache`: starts only after migrations succeed; it calls the API on the
+   host (port 3002) with the browser's forwarded session cookie.
+5. `mailpit`: captures every email.
+
+`bun run dev` refuses to start until zero-cache answers on port 4848. After
+generating a migration, apply it with `bun run db:migrate` (or
+`docker compose run --rm migrate`); zero-cache picks schema changes up through
+its event triggers. An older PostgreSQL container created before logical
+replication was enabled is replaced automatically by `docker compose up -d`
+(the data volume is kept). To start over with an empty database, run
+`docker compose down -v`, which also deletes zero-cache's replica.
 Production images and the single-server stack are described in
 [deployment](deployment.md).
 
@@ -34,7 +52,7 @@ Production images and the single-server stack are described in
 
 | Command               | Purpose                                            |
 | --------------------- | -------------------------------------------------- |
-| `bun run dev`         | Development server                                 |
+| `bun run dev`         | Applications (after `docker compose up -d`)        |
 | `bun run check`       | Types, lint, formatting, unused code and PR assets |
 | `bun run format`      | Apply Prettier                                     |
 | `bun test src/<area>` | Focused domain tests while you work                |
