@@ -51,13 +51,18 @@ than grow it.
 
 ## Tests
 
-Domain tests are colocated as `src/**/*.test.ts` and run with `bun test`. Tests
+Domain tests are colocated as `*/src/**/*.test.ts` in every workspace and run with `bun test src`. Tests
 that need PostgreSQL create their own database from `SCHEMA_TEST_DATABASE_URL`
 (the admin `postgres` database), so they never touch your development data.
 
-Browser tests in `tests/` run against a production build on port 3001 with an
-isolated, migrated database created by `scripts/test-e2e.ts`. Failure screenshots
-land in `/tmp/lictory-playwright-results`.
+Browser tests in `tests/platform` and `tests/marketing` run against production
+builds: `scripts/test-e2e.ts` migrates an isolated database, starts the API,
+worker, zero-cache, the website (port 3101) and `scripts/edge-proxy.ts` (the
+platform origin, port 3001, routed like production), then drops the database
+and its replication slot. PostgreSQL must run with `wal_level=logical`
+(`compose.yaml` does). `E2E_PORT_OFFSET` lets several checkouts run side by
+side; `E2E_SKIP_BUILD=1` reuses builds when only tests changed. Failure
+screenshots land in `/tmp/lictory-playwright-results`.
 
 ## Full verification before a pull request
 

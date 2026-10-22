@@ -1161,12 +1161,15 @@ bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 ```
 
-Provide PostgreSQL and Mailpit locally (see `compose.yaml`) and use the test
+Provide PostgreSQL (with `wal_level=logical`, as in `compose.yaml`: the browser
+suite runs zero-cache against its database) and Mailpit locally and use the test
 authentication and SMTP settings from `docs/operations/development.md`. For the
 migration step, create a new disposable database and point `DATABASE_URL` and
 `DATABASE_URL_UNPOOLED` at it. Set `SCHEMA_TEST_DATABASE_URL` to the test
 PostgreSQL admin database so the schema and browser suites can create their own
-isolated databases. Never run this verification's migrations against the
+isolated databases; `test:e2e` builds every application, starts the API, worker,
+zero-cache, website and a local edge proxy, and drops its database and
+replication slot afterwards. Never run this verification's migrations against the
 developer's application database or a production database. Clean up the
 disposable database afterward, including on failure. Production migrations and
 scheduled jobs are separate workflows and are not local verification commands.
