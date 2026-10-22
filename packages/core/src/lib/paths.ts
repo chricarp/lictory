@@ -6,23 +6,23 @@ const withSearchParams = (path: string, searchParams?: SearchParams) => {
 };
 
 export const paths = {
-  org: (org: string) => `/app/${org}`,
-  newOrganization: "/app/new-organization",
-  intelligence: (org: string) => `/app/${org}/intelligence`,
+  org: (org: string) => `/${org}`,
+  newOrganization: "/new-organization",
+  intelligence: (org: string) => `/${org}/intelligence`,
   intelligenceChat: (org: string, chat: string) =>
-    `/app/${org}/intelligence/${chat}`,
-  inbox: (org: string) => `/app/${org}/inbox`,
-  notificationSettings: (org: string) => `/app/${org}/inbox/settings`,
+    `/${org}/intelligence/${chat}`,
+  inbox: (org: string) => `/${org}/inbox`,
+  notificationSettings: (org: string) => `/${org}/inbox/settings`,
   // Organization settings: general, members, projects, types, integrations,
   // intelligence.
   settings: (org: string, section?: string) =>
-    `/app/${org}/settings${section ? `/${section}` : ""}`,
+    `/${org}/settings${section ? `/${section}` : ""}`,
   account: (returnTo?: string) =>
     returnTo
-      ? `/app/account?returnTo=${encodeURIComponent(returnTo)}`
-      : "/app/account",
+      ? `/account?returnTo=${encodeURIComponent(returnTo)}`
+      : "/account",
   project: (org: string, project: string) =>
-    `/app/${org}/${project.toLowerCase()}`,
+    `/${org}/${project.toLowerCase()}`,
   list: (
     org: string,
     project: string,
@@ -30,7 +30,7 @@ export const paths = {
     searchParams?: SearchParams,
   ) =>
     withSearchParams(
-      `/app/${org}/${project.toLowerCase()}/${kind}`,
+      `/${org}/${project.toLowerCase()}/${kind}`,
       searchParams,
     ),
   item: (
@@ -41,37 +41,82 @@ export const paths = {
     searchParams?: SearchParams,
   ) =>
     withSearchParams(
-      `/app/${org}/${project.toLowerCase()}/${kind}/${id}`,
+      `/${org}/${project.toLowerCase()}/${kind}/${id}`,
       searchParams,
     ),
   reviews: (org: string, project: string) =>
-    `/app/${org}/${project.toLowerCase()}/reviews`,
+    `/${org}/${project.toLowerCase()}/reviews`,
   view: (org: string, project: string, view: string) =>
-    `/app/${org}/${project.toLowerCase()}/views/${view}`,
+    `/${org}/${project.toLowerCase()}/views/${view}`,
   // Delivery surfaces belong to the project; `team` narrows them to one of
   // its teams.
   board: (org: string, project: string, team?: string | null) =>
-    `/app/${org}/${project.toLowerCase()}/board${team ? `?team=${encodeURIComponent(team)}` : ""}`,
+    `/${org}/${project.toLowerCase()}/board${team ? `?team=${encodeURIComponent(team)}` : ""}`,
   backlog: (org: string, project: string, team?: string | null) =>
-    `/app/${org}/${project.toLowerCase()}/backlog${team ? `?team=${encodeURIComponent(team)}` : ""}`,
+    `/${org}/${project.toLowerCase()}/backlog${team ? `?team=${encodeURIComponent(team)}` : ""}`,
   iteration: (org: string, project: string, iteration: string) =>
-    `/app/${org}/${project.toLowerCase()}/iterations/${iteration}`,
+    `/${org}/${project.toLowerCase()}/iterations/${iteration}`,
   // A team's own page: its backlog of unplanned work and its intake.
   team: (org: string, project: string, team: string) =>
-    `/app/${org}/${project.toLowerCase()}/teams/${encodeURIComponent(team)}`,
+    `/${org}/${project.toLowerCase()}/teams/${encodeURIComponent(team)}`,
   // Projects delivered in an external tool: what is ready, handed off, and
   // what Jira reports back.
   handoff: (org: string, project: string) =>
-    `/app/${org}/${project.toLowerCase()}/handoff`,
+    `/${org}/${project.toLowerCase()}/handoff`,
   // Project settings: general, members, disciplines, teams, workflow,
   // planning, delivery, labels, context.
   projectSettings: (org: string, project: string, section?: string) =>
-    `/app/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
+    `/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
 };
 
-// Only in-app destinations are allowed as post-step redirects.
-export function safeAppPath(value: string | null | undefined) {
-  return value && /^\/app(?:[/?#]|$)/.test(value) && !value.startsWith("//")
-    ? value
-    : "/app";
+// Top-level segments that are not workspace pages.
+const authPages = new Set([
+  "sign-in",
+  "sign-up",
+  "forgot-password",
+  "reset-password",
+  "verify-email",
+  "welcome",
+  "auth-error",
+]);
+const nonPages = new Set([
+  "api",
+  "zero",
+  "relay",
+  "assets",
+  "brand",
+  "illustrations",
+  "og",
+]);
+const origin = "https://lictory.invalid";
+
+// Only relative destinations inside this app are allowed as post-step
+// redirects (sign-in, handle, invitation). Anything else lands on "/".
+// Links from before the move to the app host (/app/...) keep working.
+export function safeCallbackPath(value: string | null | undefined) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    /[\\\u0000-\u001f]/.test(value)
+  )
+    return "/";
+  let url: URL;
+  try {
+    url = new URL(value, origin);
+  } catch {
+    return "/";
+  }
+  if (url.origin !== origin) return "/";
+  const pathname = url.pathname.replace(/^\/app(?=\/|$)/, "") || "/";
+  const first = pathname.split("/")[1] ?? "";
+  if (authPages.has(first) || nonPages.has(first)) return "/";
+  return `${pathname}${url.search}${url.hash}`;
+}
+
+// Every app page except the account flows names a workspace (organization,
+// project, item) or the signed-in person.
+export function isWorkspacePath(pathname: string) {
+  const first = pathname.split("/")[1] ?? "";
+  return first !== "" && !authPages.has(first) && !nonPages.has(first);
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isWorkspacePath } from "@lictory/core/lib/paths";
 import { describe, test } from "node:test";
 import {
   commandSchema,
@@ -12,6 +13,7 @@ import {
   sanitizeAnalyticsUrl,
   sanitizeAnalyticsProperties,
   minimizeAnonymousAnalyticsProperties,
+  setWorkspacePathMatcher,
 } from "@lictory/core/lib/analytics/events";
 import { publicationProperties } from "@lictory/core/lib/analytics/publication";
 import { analyticsEventId } from "@lictory/core/lib/analytics/identity";
@@ -234,4 +236,24 @@ void test("events without Analytics consent drop identifiers and workspace paths
     $pathname: "/app",
     $referrer: "https://app.example/sign-in",
   });
+});
+
+void test("the app host reduces every workspace path without Analytics consent", () => {
+  setWorkspacePathMatcher(isWorkspacePath);
+  try {
+    const properties: Record<string, unknown> = {
+      $current_url: "https://app.example/acme/pay/stories/PAY-142",
+      $pathname: "/acme/pay/stories/PAY-142",
+      $referrer: "https://app.example/sign-in?callbackUrl=%2Facme",
+    };
+    minimizeAnonymousAnalyticsProperties(properties);
+    assert.equal(properties.$current_url, "https://app.example/app");
+    assert.equal(properties.$pathname, "/app");
+    assert.equal(
+      properties.$referrer,
+      "https://app.example/sign-in?callbackUrl=%2Facme",
+    );
+  } finally {
+    setWorkspacePathMatcher((pathname) => /^\/app(\/|$)/.test(pathname));
+  }
 });
