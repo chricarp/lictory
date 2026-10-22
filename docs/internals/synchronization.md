@@ -54,8 +54,9 @@ rewrites history.
 
 ## Server authority and authorization
 
-`src/sync/server/service.ts` is the domain mutation boundary; every surface
-reaches it through the shared capability layer (see
+`applyMutation` in `packages/core/src/domain/service.ts` is the domain
+mutation boundary; browsers reach it through Zero's mutate endpoint and every
+other surface through the shared capability layer (see
 [capabilities.md](capabilities.md)). Route handlers obtain
 the user from Better Auth, validate Zod protocol input, and require same-origin
 cookie-authenticated writes. Every command checks current Better Auth organization
@@ -117,90 +118,95 @@ cannot discover revocation until they reconnect. Caches are partitioned by user,
 organization and scope; a different signed-in user never reads the previous user's
 partition. Browser storage is not a substitute for server authorization.
 
-## Cursor and atomicity
+## Projections and atomicity
 
-`sync_clock` holds a PostgreSQL bigint counter per organization. The wire format is
-a decimal **string**, preserving values above JavaScript's safe-integer limit.
-All domain writes take the same organization advisory transaction lock, before
-checking access or reading the clock. This deliberately serializes a small
-organization's mutations.
+Browsers read **projections**, never domain tables. `sync_entity` holds one row
+per synchronized entity (`key` = `{type}:{id}`) with its organization, project,
+optional work item and the versioned protocol projection as `data`. Zero
+replicates `sync_entity` and the `member` columns used for authorization
+(publication `lictory_zero`) to zero-cache; synced queries return only rows of
+organizations the user is a member of, so deleting a membership removes them
+from open subscriptions. Secrets, credentials and raw domain rows never reach a
+projection.
 
-Reads take no lock. Every writer advances the clock and inserts its change rows in
-one transaction while holding the lock, and PostgreSQL makes a transaction visible
-before releasing its locks, so commits become visible in cursor order. A read runs
-in one `READ ONLY`, `REPEATABLE READ` transaction: its snapshot contains a gap-free
-prefix of the change log whose last cursor is the clock it reads. Never add a
-writer of `sync_change` that does not hold the organization lock and publish the
-clock in the same transaction.
+Every domain writer maintains the projections **in the same transaction** as
+its domain writes, after taking the organization advisory lock
+(`pg_advisory_xact_lock(hashtextextended(organizationId, 0))`):
 
-Do not replace this with a bare sequence/serial and `MAX(id)`: sequences allocate
-before commit, so a later transaction can commit first and a client can permanently
-skip an earlier allocated change. Our clock advancement, domain writes, change log,
-activity records, and idempotency receipt commit together or roll back together.
-A forced log-write failure is covered by the integration suite.
+- `applyMutation(tx, actor, mutation, effects)` (`packages/core/src/domain/service.ts`)
+  is the command boundary. It runs inside the caller's transaction: its own in
+  `executeMutation` (capabilities, MCP, the embedded agent), Zero's in the
+  mutate endpoint, where Zero's client bookkeeping commits with it. It locks,
+  checks Better Auth membership, checks the idempotency receipt, applies the
+  command, diffs before/after snapshots of the touched scope into projection
+  upserts and deletes, writes rows of other scopes explicitly (a parent's
+  readiness, runs owned by other items, readiness moved by configuration,
+  activity of moved items), refreshes the directory and records the receipt.
+- `advanceSchedules`, the Lictory Intelligence runner, delivery exports and
+  status sync, branding, profile photos, handles, `seedOrganization` and the
+  Better Auth hooks write projections the same way.
 
-`sync_change` stores explicit versioned protocol projections of changed entities,
-not arbitrary database rows or full workspace snapshots. Each change has an
-organization, project, optional proposal context, cursor, and upsert/delete envelope.
-A proposal archive is a reversible upsert with `archivedAt`, preserving history.
-The reconciliation protocol supports deletion tombstones; this slice exposes no
-hard-delete domain command. Future deletion commands must append tombstones in the
-same transaction. Log retention/compaction is deliberately not enabled: never drop
-old changes without adding an expired-checkpoint/reset protocol first.
+A failed projection write rolls back the domain change (covered by tests that
+force `sync_entity` failures). Host side effects (analytics) run only after
+commit. Never write domain rows that a projection depends on without writing
+the projection in the same transaction.
 
-## Scopes and recovery
+The directory (`directory:{organizationId}`) carries the organization's
+members (name, email, photo, handle, application role), projects, project
+members, disciplines, teams, types, statuses, iterations, delivery connections
+and targets (never credentials), the AI policy and each project's current
+readiness checks. `organizationProfile:{organizationId}` carries name, slug and
+logos. `refreshDirectoryProjection` rewrites them only when they differ; it
+runs at the end of every mutation and after every Better Auth organization,
+member, invitation and user change (Better Auth commits its own writes, so its
+hooks refresh right after, each under the organization lock).
 
-Protocol version 13 (a versioned, per-type Definition of Ready with manual sign-offs; version 12 added project-owned configuration: project settings, members, disciplines, workflows, iterations and hand-off targets; optional teams; version 11 added delegated configuration; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
-organization ID plus optional project and work item IDs. A work item scope requires
-a project. Organization bootstrap contains projects and **every work item summary**
-in the organization (the browser's list store); project bootstrap narrows that to
-one project; work item bootstrap adds its revisions, discussions, suggestions (with their
-reviewers and decisions), reviews, assignments, approvals, readiness and activity. It does not send unrelated
-item histories. A child's mutation additionally emits its parent's readiness
-projection, because `children_ready` lives in the parent's scope. Publishing the
-Definition of Ready emits the readiness projection and activity of every item it
-changed into each item's scope. Relations are
-project-level entities routed with their source item's project; removing one
-writes a tombstone (`delete` change) in the same transaction.
+Idempotency: `sync_mutation` keeps a receipt (id, actor, SHA-256 fingerprint of
+the command) for every applied mutation, whichever surface sent it. A replay
+returns `replayed: true` and writes nothing; reusing an id for a different
+command is a conflict. Zero additionally deduplicates its own client mutation
+ids.
 
-Delivery configuration (project members and disciplines; teams with their
-members; each project's statuses, enabled types and current Definition of Ready;
-the type registry; planned,
-active and the most recent completed iterations) is part of the **directory**
-and is refreshed on every read. Its commands therefore write no configuration
-entities, but a command that also moves items or changes the project
-(archiving a status with a replacement, completing an iteration with
-carry-over, automatic cycles, project settings, publishing the Definition of Ready)
-diffs the project snapshot and
-emits the affected entities like any other change. Iteration reports and the
-history of the Definition of Ready are read on demand (`?iteration=1`,
-`?readiness=1`; its impact preview is `POST /api/readiness`); reports replay recorded events on the server.
+`rebuildProjections(db, organizationId)` recomputes every row from the domain
+(organization scope, each work item's history, directory, profile) and
+reconciles `sync_entity` under the lock. It is the operator recovery tool
+(`bun scripts/rebuild-projections.ts [organizationId ...]`) and the invariant
+the test suites check after their workflows: stored projections equal a
+rebuild.
 
-Delivery exports (`/api/delivery`, see [delivery.md](delivery.md)) are
-online-only and never enter the durable client mutation queue: they call
-external systems, and tokens must not reach browser storage. Like
-`advanceSchedules`, they take the organization lock for each local write,
-emit `externalLink` (and `activity`) changes and advance the clock without a
-mutation receipt; external calls run between those short transactions, never
-inside them.
+## Projection scopes
 
-Automatic cycles are advanced by `advanceSchedules`, an idempotent server job
-invoked by a scheduler (see [delivery.md](delivery.md)). It takes each
-organization's lock, writes change-log rows and advances the clock exactly like a
-command, but writes no mutation receipt. Historical content is currently loaded for one proposal as a
-whole; pagination of very long revision/message histories is future work.
+Organization-level rows (`work_item_id` NULL) are what lists, boards and the
+Inbox read: projects, every work item summary (with derived review, thread,
+suggestion, readiness and child counts), labels, milestones, relations,
+external links, the directory and the profile. A work item's history
+(revisions, branches, commits, pull requests and their reviews, reviews,
+assignments, threads, messages, suggestions, approvals, readiness, Lictory
+Intelligence runs, activity) belongs to that item and is loaded when it is
+opened. Rows are routed by `projectionRow` (`packages/core/src/contracts/projection.ts`),
+shared by server writers and client predictions so an optimistic row and the
+authoritative row that replaces it share key and scope.
 
-A request without a checkpoint bootstraps from the read snapshot. Delta requests return
-ordered changes, `nextCursor`, and `hasMore`; clients drain every page. Empty deltas
-can advance to the organization head even when changes belonged to another scope.
-Checkpoints belong to **one scope**, never to a user or organization globally. A
-mutation receipt is not a delta checkpoint and must never advance the local cursor.
+Iteration reports, the Definition of Ready history and impact preview, member
+and Epic search are read on demand through capabilities; they are not
+projected.
 
-The service currently compares before/after protocol projections within the touched
-workspace to emit changes. This keeps every dependent readiness/approval change
-visible. It is intentionally simple; replace it with explicit touched-entity
-collection when measured document/history size warrants it, retaining the same
-transaction and tests. Organization locks are the initial throughput boundary.
+Delivery exports (see [delivery.md](delivery.md)) never go through the client
+mutation path: they call external systems and tokens must not reach browsers.
+Requesting an export reserves links and records a running publication in one
+locked transaction; the worker performs the external calls outside the lock and
+records each item's result with its projections. Automatic cycles are advanced
+by `advanceSchedules` in the worker.
+
+## Background work
+
+Work that must not run inside a request (Lictory Intelligence runs, notification
+email, delivery exports) is queued durably by rows written in the domain
+transaction (`ai_run` queued, `notification_email` pending,
+`delivery_publication` running) plus `pg_notify('lictory_work', 'ai' | 'email'
+| 'delivery')` in the same transaction, delivered on commit. The worker listens
+and also polls, so a lost signal only delays work. The API never runs
+background loops. The jobs are library functions in `packages/core/src/jobs`.
 
 ## Browser store and mutation lifecycle
 
@@ -260,22 +266,14 @@ no service worker for a completely offline cold application launch.
 
 ## Realtime
 
-PostgreSQL `NOTIFY` fires after commit and a process-wide `LISTEN` connection fans
-out generic organization invalidations over SSE. It carries no document content.
-Directory changes (configuration, profiles) notify without advancing the cursor,
-so every invalidation triggers a delta read.
-The same SSE stream forwards **presence** events (`lictory_presence`): a viewing
-tab posts `/api/presence` heartbeats (membership-checked) and the client expires
-entries after 45 seconds. Presence is never stored and never affects correctness.
-SSE fits Next route handlers without replacing the server with a WebSocket runtime.
-Streams end after four minutes so reconnection revalidates authentication and
-membership. Every new stream begins with an invalidation, and a reconnect of the
-server's `LISTEN` connection sends one to its streams, so changes missed while
-disconnected are read. Keep-alive heartbeats are SSE comments that wake no engine;
-focus/online handlers and a 60-second recovery interval catch anything else, such
-as sleeps. Every invalidation triggers the normal delta path. Correctness never
-depends on continuous SSE or PostgreSQL LISTEN connectivity. Deploy behind a proxy
-that permits streaming and configure connection/time limits accordingly.
+Data reaches browsers through Zero. `/api/events?organizationId=` is a small
+server-sent event stream for ephemeral signals only: presence
+(`lictory_presence`, posted by viewing tabs to `/api/presence`, never stored)
+and "your inbox changed" (`lictory_notification`, carrying only recipient ids).
+PostgreSQL `NOTIFY` delivers both after commit and a process-wide `LISTEN`
+connection fans them out. Streams are membership-checked, send keep-alive
+comments and end after four minutes so reconnection revalidates the session.
+Correctness never depends on the stream.
 
 ## Revisions, reviews and conflicts
 
@@ -413,7 +411,7 @@ these deferred capabilities exist.
 
 Guided onboarding carries explicit project configuration and accepted/deferred
 setup decisions on the first `createProject` command. Its project, seeded
-workflow and disciplines, optional automatic cycles, historical `organization_onboarding` decision record, change log
+workflow and disciplines, optional automatic cycles, historical `organization_onboarding` decision record, projections
 and receipt share the existing authorized organization transaction. The setup
 snapshot is not current configuration and is never used as a client checkpoint.
 See [onboarding.md](onboarding.md) for the decision and recovery semantics.

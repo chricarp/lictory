@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { seedOrganization } from "@lictory/core/domain/organization";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory, executeMutation } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 
 const password = "Branch-test-password-123!";
@@ -76,14 +76,17 @@ test.beforeAll(async () => {
       },
     ]);
     await seedOrganization(db, organizationId);
-    const service = createSyncService(db);
     const command = (command: Command) =>
-      service.mutate(authorId, {
-        protocol: PROTOCOL,
-        id: crypto.randomUUID(),
-        organizationId,
-        command,
-      });
+      executeMutation(
+        db,
+        { userId: authorId },
+        {
+          protocol: PROTOCOL,
+          id: crypto.randomUUID(),
+          organizationId,
+          command,
+        },
+      );
     await command({
       type: "createProject",
       projectId,

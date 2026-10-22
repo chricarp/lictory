@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { seedOrganization } from "@lictory/core/domain/organization";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory, executeMutation } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { consentStatePath } from "./consent-setup";
@@ -60,14 +60,17 @@ test.beforeAll(async () => {
       })),
     );
     await seedOrganization(db, organizationId);
-    const sync = createSyncService(db);
     const run = (command: Command) =>
-      sync.mutate(ids[0]!, {
-        protocol: PROTOCOL,
-        id: crypto.randomUUID(),
-        organizationId,
-        command,
-      });
+      executeMutation(
+        db,
+        { userId: ids[0]! },
+        {
+          protocol: PROTOCOL,
+          id: crypto.randomUUID(),
+          organizationId,
+          command,
+        },
+      );
     projectId = crypto.randomUUID();
     await run({ type: "createProject", projectId, name: "Jira", key: "JIRA" });
     // The lead administers the project; the engineer is only a member.

@@ -113,8 +113,8 @@ into a started status (`off`, `warn`, `block`). Nothing is exported.
 - **Status sync back**: the scheduled job (and an on-demand refresh) reads
   each linked issue's status, status category and assignee from Jira. It is
   read-only: it never writes Jira and never changes Lictory-owned fields or the
-  item's Lictory status. Routine checks that find nothing new do not touch the
-  change log.
+  item's Lictory status. Routine checks that find nothing new do not rewrite
+  projections.
 
 ## Audit
 

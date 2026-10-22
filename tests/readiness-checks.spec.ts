@@ -6,7 +6,7 @@ import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { paths } from "@lictory/core/lib/paths";
 import { seedOrganization } from "@lictory/core/domain/organization";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory, executeMutation } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 
 const password = "Readiness-test-password-123!";
@@ -63,14 +63,17 @@ test.beforeAll(async () => {
       },
     ]);
     await seedOrganization(db, organizationId);
-    const service = createSyncService(db);
     const command = (c: Command, actor = adminId) =>
-      service.mutate(actor, {
-        protocol: PROTOCOL,
-        id: crypto.randomUUID(),
-        organizationId,
-        command: c,
-      });
+      executeMutation(
+        db,
+        { userId: actor },
+        {
+          protocol: PROTOCOL,
+          id: crypto.randomUUID(),
+          organizationId,
+          command: c,
+        },
+      );
     await command({
       type: "createProject",
       projectId,
