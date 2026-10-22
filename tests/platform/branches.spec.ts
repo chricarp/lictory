@@ -220,12 +220,13 @@ test("readiness is checked before queueing, with one toast per attempt and none 
     .context()
     .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.183" });
   await signIn(page, authorEmail);
+  // Routes apply to connections opened afterwards: observe from page load.
+  const zero = await controlZeroConnection(page);
   await page.goto(itemUrl);
   const properties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
-  const zero = await controlZeroConnection(page);
   const statusRequests = () =>
     zero
       .commands()
@@ -336,17 +337,18 @@ test("a handled server rejection is forgotten and never replays its toast after 
     .context()
     .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.185" });
   await signIn(page, authorEmail);
+  // Mutations travel over Zero's connection. Pointing the "urgent" change at
+  // an item that does not exist makes the server reject it definitively,
+  // exactly like a domain rejection of the real item. Routes apply to
+  // connections opened afterwards, so the proxy is installed before loading.
+  let rejectedId: string | undefined;
+  let attempts = 0;
+  const zero = await controlZeroConnection(page);
   await page.goto(itemUrl);
   const properties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
-  // Mutations travel over Zero's connection. Pointing the "urgent" change at
-  // an item that does not exist makes the server reject it definitively,
-  // exactly like a domain rejection of the real item.
-  let rejectedId: string | undefined;
-  let attempts = 0;
-  const zero = await controlZeroConnection(page);
   zero.rewrite((mutation) => {
     if (
       mutation.command.type === "updateWorkItem" &&
@@ -415,7 +417,10 @@ test("workspace sync explains automatic recovery and resumes when the connection
   const properties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
-  await expect(properties).toBeVisible();
+  // Property controls are offered once the item's own rows have loaded.
+  await expect(
+    properties.getByRole("button", { name: /^Priority:/ }),
+  ).toBeVisible();
   await waitUntilSaved(page);
   await zero.interrupt();
   await properties.getByRole("button", { name: /^Priority:/ }).click();

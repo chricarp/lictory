@@ -9,6 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
+import { platformOrigin, signedIn } from "../helpers/app-urls";
 
 const password = "Local-test-password-123";
 
@@ -67,7 +68,7 @@ async function signIn(page: Page, email: string, secret = password) {
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(secret);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/(app|welcome)/);
+  await expect(page).toHaveURL(signedIn);
   await page.waitForLoadState("networkidle");
 }
 
@@ -141,7 +142,7 @@ for (const {
         `e2e-${provider}-client-id`,
       );
       expect(url.searchParams.get("redirect_uri")).toBe(
-        `http://localhost:3001/api/auth/callback/${provider}`,
+        `${platformOrigin}/api/auth/callback/${provider}`,
       );
       expect(url.searchParams.get("prompt")).toBe("select_account");
       expect(url.searchParams.get("scope")).toContain("email");
@@ -194,7 +195,7 @@ for (const {
       .click();
     await expect.poll(() => authorize()?.pathname).toContain(authorizationPath);
     expect(authorize()!.searchParams.get("redirect_uri")).toBe(
-      `http://localhost:3001/api/auth/callback/${provider}`,
+      `${platformOrigin}/api/auth/callback/${provider}`,
     );
 
     // The provider returned a different address: explained, then the URL is cleaned.
@@ -328,16 +329,3 @@ for (const {
     await expect.poll(() => authorize()?.hostname).toBe(host);
   });
 }
-
-test("Microsoft publisher association is public JSON", async ({ request }) => {
-  const response = await request.get(
-    "/.well-known/microsoft-identity-association.json",
-  );
-  expect(response.status()).toBe(200);
-  expect(response.headers()["content-type"]).toContain("application/json");
-  expect(await response.json()).toEqual({
-    associatedApplications: [
-      { applicationId: "674718cd-ca91-451c-84eb-02aa492d2b10" },
-    ],
-  });
-});

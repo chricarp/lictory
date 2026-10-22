@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { platformOrigin } from "../helpers/app-urls";
 
 async function emailLink(
   request: APIRequestContext,
@@ -28,7 +29,7 @@ async function emailLink(
   )?.[1];
   expect(link).toBeDefined();
   // Mail delivery must retain the application's origin, not the SMTP host.
-  expect(new URL(link!).origin).toBe("http://localhost:3001");
+  expect(new URL(link!).origin).toBe(platformOrigin);
   return link!;
 }
 

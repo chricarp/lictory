@@ -6,11 +6,15 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "../helpers/onboarding-helpers";
-import { reloadWhenSaved, waitUntilSaved } from "../helpers/sync-helpers";
+import {
+  reloadWhenSaved,
+  waitUntilSaved,
+  waitUntilStoredLocally,
+} from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
 import { paths } from "@lictory/core/lib/paths";
 import packageJson from "../../package.json" with { type: "json" };
-import { appHome } from "../helpers/app-urls";
+import { appHome, platformOrigin, signedIn } from "../helpers/app-urls";
 const version = packageJson.version;
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
@@ -126,7 +130,7 @@ async function signIn(page: Page, loginEmail = email) {
   await page.getByLabel("Email", { exact: true }).fill(loginEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/(app|welcome)/);
+  await expect(page).toHaveURL(signedIn);
   // Dev-mode compilation can delay hydration; interact only once scripts settled.
   await page.waitForLoadState("networkidle");
 }
@@ -304,8 +308,8 @@ test("navigation commits immediately inside the persistent shell and shows a loa
     // Release intercepted requests even when an assertion fails.
     release();
   }
-  await page.unroute("**/assets/board-*.js");
   await expect(loading).toBeHidden();
+  await page.unroute("**/assets/board-*.js");
   await expect(
     page.getByRole("heading", { name: "Loading project", exact: true }),
   ).toBeVisible();
@@ -610,11 +614,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     releaseAccount();
   }
   await expect(page).toHaveURL(
-    `http://localhost:3001${paths.account(workspacePath)}`,
+    `${platformOrigin}${paths.account(workspacePath)}`,
   );
   await page.unroute("**/assets/account-*.js");
   await page.getByRole("link", { name: "Back", exact: true }).click();
-  await expect(page).toHaveURL(`http://localhost:3001${workspacePath}`);
+  await expect(page).toHaveURL(`${platformOrigin}${workspacePath}`);
 
   // 1. Create an Epic through quick create (keyboard: c).
   await page.keyboard.press("c");
@@ -1237,6 +1241,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .getByRole("article", { name: "discussion" })
     .getByText("Pending comment survives reload");
   await expect(pendingDiscussion).toBeVisible();
+  // Zero keeps unsent changes on this device once it has written them to
+  // IndexedDB (within about a second, when the tab is idle).
+  await waitUntilStoredLocally(page, "Pending comment survives reload");
   await page.reload();
   await expect(pendingDiscussion).toBeVisible();
   await page

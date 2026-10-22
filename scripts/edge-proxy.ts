@@ -7,7 +7,7 @@
 // Env: EDGE_PORT (3001), PLATFORM_DIST_DIR (apps/platform/dist),
 //      API_ORIGIN (http://localhost:3002), ZERO_ORIGIN (http://localhost:4848)
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { createProxyServer } from "http-proxy-3";
 
@@ -29,7 +29,24 @@ const types: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-const proxy = createProxyServer({ xfwd: true });
+// Like the production proxy, the API sees exactly one client address in
+// X-Forwarded-For (Better Auth rate limits per address and ignores chains it
+// cannot attribute). Locally the caller may name itself: browser tests give
+// each scenario its own address so they do not share rate-limit buckets.
+const proxy = createProxyServer({ xfwd: false });
+function forwardedFor(req: IncomingMessage) {
+  const claimed = req.headers["x-forwarded-for"];
+  const first = (Array.isArray(claimed) ? claimed[0] : claimed)
+    ?.split(",")[0]
+    ?.trim();
+  const peer = (req.socket.remoteAddress ?? "127.0.0.1").replace(
+    /^::ffff:/,
+    "",
+  );
+  req.headers["x-forwarded-for"] = (first === "" ? undefined : first) ?? peer;
+  req.headers["x-forwarded-proto"] = "http";
+  req.headers["x-forwarded-host"] = req.headers.host ?? `localhost:${port}`;
+}
 proxy.on("error", (_error, _req, res) => {
   if ("writeHead" in res && !res.headersSent) res.writeHead(502);
   res.end();
@@ -47,6 +64,7 @@ function staticFile(pathname: string) {
 }
 
 const server = createServer((req, res) => {
+  forwardedFor(req);
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
   if (pathname.startsWith("/zero/"))
     return proxy.web(req, res, { target: zero });
@@ -61,7 +79,8 @@ const server = createServer((req, res) => {
   if (file) {
     res.writeHead(200, {
       "content-type": types[extname(file)] ?? "application/octet-stream",
-      "cache-control": pathname.startsWith("/assets/")
+      // Build output and illustrations carry content hashes in their names.
+      "cache-control": /^\/(assets|illustrations)\//.test(pathname)
         ? "public, max-age=31536000, immutable"
         : /^\/(brand|illustrations)\//.test(pathname)
           ? "public, max-age=86400"
@@ -76,6 +95,7 @@ const server = createServer((req, res) => {
 // Like the production proxy, only pages from this origin may open the sync
 // socket (cross-site WebSocket hijacking).
 server.on("upgrade", (req, socket, head) => {
+  forwardedFor(req);
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
   const origin = `http://${req.headers.host}`;
   if (pathname.startsWith("/zero/") && req.headers.origin === origin)

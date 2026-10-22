@@ -23,7 +23,13 @@ import {
   type ConnectionName,
 } from "@lictory/platform/data/connection";
 import { useSessionUser } from "@lictory/platform/lib/session";
-import { Link, useParams, useRouter } from "@lictory/platform/lib/navigation";
+import {
+  Link,
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import {
   WorkspaceProvider,
   useOrganizationRows,
@@ -59,15 +65,34 @@ export function OrganizationLayout() {
   const { organizations, complete } = useMemberships();
   const blocked = useConnectionBlocked();
   const organization = organizations.find((o) => o.slug === org);
-  // Organization IDs this route has shown: if one vanishes from my
-  // memberships, access was removed (or the organization deleted).
-  const [shown, setShown] = useState<readonly string[]>([]);
-  if (organization && !shown.includes(organization.id))
-    setShown([...shown, organization.id]);
+  // Organizations this route has shown, with the handle they had: if one
+  // vanishes from my memberships, access was removed (or the organization
+  // deleted).
+  const [shown, setShown] = useState<Readonly<Record<string, string>>>({});
+  if (organization && shown[organization.id] !== organization.slug)
+    setShown({ ...shown, [organization.id]: organization.slug });
+  // The organization shown under this handle now has another one: it was
+  // renamed, so follow it, keeping the rest of the address. (An address ahead
+  // of the synchronized handle, right after renaming here, simply waits.)
+  const renamed = organization
+    ? undefined
+    : organizations.find((o) => shown[o.id] === org && o.slug !== org);
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  useEffect(() => {
+    if (!renamed) return;
+    // The address bar may already be ahead of this render's parameters.
+    const [, current = "", ...rest] = pathname.split("/");
+    if (current !== org) return;
+    router.replace(
+      [``, renamed.slug, ...rest].join("/") + (search ? `?${search}` : ""),
+    );
+  }, [renamed, org, pathname, search, router]);
   const lost =
     complete &&
     !organization &&
-    shown.some((id) => !organizations.some((o) => o.id === id));
+    !renamed &&
+    Object.keys(shown).some((id) => !organizations.some((o) => o.id === id));
   const notified = useRef(false);
   useEffect(() => {
     if (!lost || notified.current) return;
@@ -88,7 +113,7 @@ export function OrganizationLayout() {
   }, [org]);
   if (!organization) {
     if (blocked && !complete) return <ConnectionUnavailable status={blocked} />;
-    if (!complete || !graceOver || lost)
+    if (!complete || !graceOver || lost || renamed)
       return (
         <>
           <PageTitle />
