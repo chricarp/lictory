@@ -93,7 +93,7 @@ review their own suggestion.
 Every project is seeded with Product (all capabilities), Engineering (requests,
 reviews and changes properties) and QA (request + review) by `createProject`,
 and its creator becomes a project administrator in Product
-(`src/sync/server/projects.ts`). Disciplines archive rather than delete: an
+(`packages/core/src/domain/projects.ts`). Disciplines archive rather than delete: an
 archived discipline grants nothing and cannot be requested, keeps its name on
 historical assignments, releases its name for reuse, and can be restored.
 Project configuration commands (`updateProject`, `setProjectMember`,
@@ -229,59 +229,61 @@ and exits; anything still running is recovered by its lease.
 
 ## Browser store and mutation lifecycle
 
-The `WorkspaceProvider` owns one organization-scope engine for the session and a
-small LRU of work item engines (opened items stay warm; each has its own IndexedDB
-cache). An item engine nobody displays is suspended: it keeps its data but stops
-following realtime signals, and synchronizes again when it is shown. One realtime
-hub per organization shares the SSE connection, focus/online handlers and the
-recovery interval across engines. An engine publishes a new view only when
-something visible changed, so a check that found nothing new re-renders nothing
-and does not rewrite its IndexedDB cache. The mutation queue is per
-user/organization and shared by all engines, so an optimistic change made from an
-item engine is visible in lists after the next BroadcastChannel signal.
-React reads normalized `{type}:{id}` entities through `useSyncExternalStore`.
-Components issue typed domain commands; persistence, queue behavior, and optimistic
-logic are below the UI boundary. IndexedDB is behind a `Persistence` interface.
-Data and its checkpoint are written in one IndexedDB transaction. Queue entries
-are separate records, so two tabs do not overwrite each other's pending work.
-Searchable member and Epic selectors use separate, membership-checked read queries
-with server-side filtering and 20-row pagination. These lookup reads do not produce
-changes, receipts, or checkpoints; selecting a value still goes through the normal
-domain mutation boundary.
+The SPA (`apps/platform`) reads and writes through Rocicorp Zero. One Zero
+client exists per signed-in user (`userID`, storage key `lictory`), so local
+IndexedDB data is partitioned by user: switching accounts creates a new client
+and never reads another person's data, and signing out closes the client and
+deletes that user's local databases, unsent text and branch drafts. The client
+context only names the user; the query and mutate endpoints rebuild it from the
+verified Better Auth session forwarded by zero-cache, so browser input is never
+authorization evidence.
 
-A command receives a client UUID, is durably queued, then gets an optimistic overlay.
-Item/project creation, property updates, archive, threads, replies, thread state,
-review requests and cancellations have centralized optimistic reducers (a created
-item predicts its number; the server's number replaces it). Revision changes,
-branch commits, every suggestion command and review decisions await server validation.
-The confirmed entity map stays separate from overlays: deltas update confirmed state,
-then pending overlays replay. The frontend checks a known blocking readiness policy
-before queuing a status transition. The server remains authoritative when local
-state is stale. On a definitive rejection the overlay is removed. Property updates
-are forgettable: their rejected queue entry is deleted, including legacy entries
-on hydration. Commands containing authored text retain their payload for recovery;
-callers can explicitly choose whether a command is forgettable. Accepted commands synchronize
-before their queue entry is removed. A crash at any intermediate point safely
-replays the same mutation ID.
+`WorkspaceProvider` subscribes to the server-defined queries in
+`packages/zero/src/queries.ts`: `memberships` (my organizations and their
+profiles), `organization` (organization-level projections and the directory)
+and `workItem` (one item's history, loaded when it is opened; recently opened
+items stay subscribed). React reads normalized `{type}:{id}` entities as
+before; components issue typed domain commands through `mutate`, which calls
+the single Zero mutator `workspace.apply` with the existing protocol mutation.
 
-The queue processes in enqueue order. A definitive rejection on the first attempt
-emits a live rejection event and rolls back its optimistic changes. Toasts subscribe
-to these events, never to persisted queue snapshots, so reloading does not replay
-old feedback. It does not appear in the synchronization dialog, mark synchronization as failed,
-or block later commands, which
-the server validates independently. Transport failures may have committed, so
-later commands wait until their outcome is reconciled. That uncertainty survives
-manual retry, even when the attempt counter resets; such commands cannot be forgotten. Network
-and server failures back off exponentially, capped at 30 seconds and five attempts;
-users can retry manually. Web Locks coordinate sending across supported tabs;
-server idempotency remains required even with that lock. BroadcastChannel announces
-queue/commit activity. The receipt fingerprint binds an ID to its actor, organization
-and parsed command; using the ID for a different command is a conflict.
+The mutator's client run predicts changes with the shared optimistic reducers
+(`packages/core/src/contracts/optimistic.ts`): item and project creation,
+property updates, ranking, relations, archive, threads, replies, thread state,
+review requests and cancellations. Everything else predicts nothing and waits
+for the server: revisions, restores, branch commits, pull requests, every
+suggestion command, review decisions, merges, readiness sign-offs and
+configuration. A local prediction is never shown as a confirmed human decision.
+Zero rebases predictions onto authoritative rows as they replicate and removes
+the prediction of a rejected mutation. The frontend still checks a known
+blocking readiness policy before sending a status change; the server remains
+authoritative when local state is stale.
 
-Unsaved editor keystrokes are not an offline document draft system. Pressing Save
-persists the command. Already-loaded data and queued operations survive temporary
-network loss and reload when the Next.js document/assets remain reachable. There is
-no service worker for a completely offline cold application launch.
+Pending mutations are Zero's: they persist in IndexedDB, survive reloads,
+replay in order on reconnect, are shared by the tabs of a client group and are
+deduplicated by Zero's client mutation ids (and by the domain receipt for the
+protocol mutation id). Writes are queued while Zero is connecting; after ten
+minutes without the server (`disconnectTimeoutMs`) Zero refuses writes and the
+workspace becomes read-only until it reconnects, so nothing is silently
+dropped. Callers that need the outcome (`mutateConfirmed`) await the server
+result and receive `MutationRejected` with the domain error details. Other
+rejections show one "Change not applied" toast per mutation id; reloading never
+replays old feedback.
+
+Text people composed (titles, descriptions, specifications, comments,
+suggestions, commit and pull request messages) is copied to a per-user,
+per-organization recovery store in local storage before sending and removed
+when the server accepts the command. A rejected command keeps its text, which
+the synchronization popover offers to copy or discard; after a reload, entries
+whose effect is already synchronized are dropped. Uncommitted branch drafts
+remain personal and are stored under
+`lictory:branch-draft:{user}:{organization}:{item}:{branch}`. Unsaved editor
+keystrokes are not an offline document system, and there is no service worker
+for a completely offline cold start.
+
+Searchable member and Epic selectors, iteration reports and the Definition of
+Ready history are membership-checked capability reads with server-side
+filtering and pagination; selecting a value still goes through the normal
+mutation boundary.
 
 ## Realtime
 
@@ -402,27 +404,24 @@ deletes messages; durable activity records retain these actions.
 
 ## Verification and deferred work
 
-`bun run test:sync` tests real PostgreSQL transactions in disposable databases and
-IndexedDB behavior with fake-indexeddb. `bun run test:e2e` creates a separate database
-and Next server on port 3001, signs in through the real UI, and exercises onboarding, Epic and inline Story
-creation, inline properties, invitation acceptance, review request, "Needs my
-review", blocking discussion and reply, suggestion acceptance, approval, staleness
-after a revision with the reviewer's "changed since" diff, resolution → readiness →
-Ready, keyboard navigation and the command palette, queue reload after network loss,
-and archive/restore propagation across two browser contexts. It does not touch the development database. Install Chromium with
-`bunx playwright install chromium` before the first browser run.
+Domain tests (`bun test src`) run real PostgreSQL transactions in disposable
+databases, including Zero's own `handleMutateRequest` with the server
+mutators, forced projection failures and the projection rebuild invariant.
+`bun run test:e2e` builds every application, migrates a disposable database
+and starts the API, worker, zero-cache, the marketing server and a local
+stand-in for the production edge proxy, then runs the browser workflows of
+both origins. It does not touch the development database.
 
-The development-only sync inspector exposes cursor, connection/sync state, pending
-count, entity count, last sync time and the latest error. Server logs contain metadata
-only, never specification/comment content. Normal UI errors retain actionable text.
+Server logs contain metadata only, never specification or comment content.
+Normal UI errors retain actionable text.
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
-`/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
+`/{org}/items/KEY-n` resolves any identifier to its project route. The Inbox
 renders in pages of 50. SSO setup, billing, custom fields,
 comments on items without a specification, saved views, advanced policy
 configuration, SCIM, private projects,
 CRDT editing, multiplayer cursors, service-worker offline
-launch, log compaction, and server-side pagination of organization-wide summaries
+launch, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. No production UI pretends
 these deferred capabilities exist.
 
@@ -437,11 +436,13 @@ See [onboarding.md](onboarding.md) for the decision and recovery semantics.
 
 ## Synchronization recovery
 
-The workspace sync dialog reports connection, storage and unexpected server
-failures, while expected application rejections stay in contextual feedback.
-Transient failures retry automatically; after the retry limit, users can resume
-saving with one action. Recovery reuses mutation IDs and preserves queue order
-to reconcile writes whose outcome is unknown. Refreshing the workspace replaces
-organization and item caches with fresh server reads without dropping queued
-changes or editor drafts. Technical error messages are available on demand;
-commands and serialized payloads are not exposed in the dialog.
+The synchronization indicator reports Zero's connection state (connecting,
+offline, needs sign-in, error) and this tab's unconfirmed and rejected work;
+expected application rejections stay in contextual feedback. When the session
+expires or access changes, Zero stops and the workspace asks the person to
+sign in again, then reconnects. When a membership is removed, its rows leave
+every open subscription and the workspace returns to the organization list
+with "Organization access has been removed." A projection that is ever found
+inconsistent with the domain is repaired with `rebuildProjections`; a lost
+zero-cache replica is rebuilt from PostgreSQL (see
+[recovery](../operations/recovery.md)).

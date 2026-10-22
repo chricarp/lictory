@@ -40,7 +40,8 @@ iteration; items do not move between projects.
 
 ## Organization identity
 
-Organizations choose a unique, lowercase handle for their `/app/<handle>` URL.
+Organizations choose a unique, lowercase handle for their workspace URL (`app.lictory.com/<handle>`). Every top-level
+SPA path (sign-in, account, api, zero and so on) is reserved.
 The handle is separate from the immutable organization ID and from person
 handles. Organization administrators can change it in General settings;
 membership, projects, work item identifiers and history keep the same IDs.

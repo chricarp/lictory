@@ -59,6 +59,11 @@ export function WorkspaceDataProvider({
       context={{ userID: userId }}
       cacheURL={cacheURL}
       storageKey="lictory"
+      // Temporary network loss keeps edits queued (as before the move to
+      // Zero) for up to ten minutes; after that Zero refuses writes and the
+      // workspace turns read-only until it reconnects. Authored text from a
+      // refused write stays in the recovery store.
+      disconnectTimeoutMs={10 * 60_000}
       schema={schema}
       mutators={mutators}
       init={(zero) => {

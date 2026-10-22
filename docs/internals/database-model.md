@@ -8,9 +8,9 @@
 
 Better Auth owns users, accounts, sessions, verification records, organizations,
 members, and invitations. Its organization plugin is enabled on the server and
-client. `src/db/auth-schema.ts` is generated; domain tables live separately in
-`src/db/domain-schema.ts`. `src/db/schema.ts` exports both for Drizzle. Keep
-schema-affecting Better Auth options in `src/lib/auth-schema-options.ts`, shared
+client. `packages/core/src/db/auth-schema.ts` is generated; domain tables live separately in
+`packages/core/src/db/domain-schema.ts`. `packages/core/src/db/schema.ts` exports both for Drizzle. Keep
+schema-affecting Better Auth options in `packages/core/src/lib/auth-schema-options.ts`, shared
 by runtime authentication and the generator configuration.
 
 Auth IDs retain their text type and existing generation behavior. Domain IDs
@@ -156,7 +156,7 @@ bun run check
 ```
 
 The auth generator is version-pinned to the installed Better Auth version; update
-them together. It needs no database connection or Next.js runtime imports. The
+them together. It needs no database connection or application runtime imports. The
 initial auth indexes are regenerated with the current CLI's names; their columns
 and behavior are unchanged. Drizzle generates the migration SQL; do not hand-edit
 it. Format changed generated JSON with Prettier when needed for `format:check`.

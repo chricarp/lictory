@@ -1472,8 +1472,27 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Read [the synchronization architecture](docs/internals/synchronization.md),
 [the delivery model](docs/internals/delivery.md) and
 [the capability layer](docs/internals/capabilities.md) before adding domain
-writes or synchronized entities. All workspace commands must preserve the shared
-organization transaction lock, domain/change-log/receipt atomicity, scope-local
-checkpoints, Better Auth membership checks, and immutable revision semantics.
-Never advance a client checkpoint using a mutation receipt. Never prune the change
-log without an expired-checkpoint recovery protocol.
+writes or synchronized entities. Rocicorp Zero owns synchronization; Lictory
+owns authorization, business rules, transactions and external side effects.
+
+- Every domain write goes through `applyMutation` (inside Zero's mutate
+  transaction or `executeMutation`) or another writer that takes the shared
+  organization transaction lock, checks Better Auth membership in the
+  transaction, and maintains the `sync_entity` read projections in the same
+  transaction. Never write domain rows a projection depends on without writing
+  the projection; never call independently committing services from a Zero
+  mutator.
+- Browsers receive only the tables in the `lictory_zero` publication
+  (projections and membership columns). Never add credentials, sessions,
+  tokens, private configuration or raw domain tables to it. Synced queries are
+  server-defined and authorize through the membership relationship; the actor
+  always comes from the verified session.
+- Revisions are immutable; approvals belong to revisions; local predictions
+  never stand in for human decisions (reviews, merges, approvals wait for the
+  server).
+- External calls (Jira, AI, email) never run inside a database transaction.
+  Background work is queued by rows written in the domain transaction and
+  processed by the worker with leases; keep it idempotent.
+- Schema changes follow Zero's expand/contract order (database, then API, then
+  client; reversed for removals). See
+  [database migrations](docs/operations/migrations.md).

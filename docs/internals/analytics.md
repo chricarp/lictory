@@ -1,8 +1,10 @@
 # Product analytics
 
 PostHog tracks actions across refinement and both delivery modes. Set
-`NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and `NEXT_PUBLIC_POSTHOG_HOST` in the deployment
-**before building** (Next.js embeds public variables into browser bundles). Use the
+`VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` (platform build),
+`NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`/`NEXT_PUBLIC_POSTHOG_HOST` (website build) and
+`POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST` (API and worker) **before building**: the
+browser builds embed public variables into their bundles. Use the
 project's ingestion host; the example environment uses EU Cloud. Both browser and
 server tracking are disabled when either variable is absent. Analytics failures
 must never prevent signing in, reviewing, synchronizing or publishing.
@@ -16,7 +18,7 @@ with no consent backend, audit trail or jurisdiction detection. The banner asks
 every visitor. "Privacy preferences" in the landing footer, auth pages and the
 workspace account menu reopens the choice.
 
-`ConsentProvider` (`src/components/app/consent-provider.tsx`) is the only place
+`ConsentProvider` (`packages/ui/src/consent/consent-provider.tsx`, used by both origins) is the only place
 that loads the PostHog browser SDK, through the `@c15t/scripts/posthog` helper with
 `loadMode: "always"` and `cookieless_mode: "on_reject"`:
 
@@ -30,7 +32,7 @@ that loads the PostHog browser SDK, through the `@c15t/scripts/posthog` helper w
   PostHog's opt-out flag) and PostHog counts visitors with a server-side hash of
   IP and user agent that rotates daily. `track`/`identifyUser` never identify,
   group or link sessions in this mode, and events additionally lose entity IDs
-  (`*_id`) and workspace paths (`/app/...` becomes `/app`).
+  (`*_id`) and workspace paths (any workspace page becomes `/app`).
 
 Cookieless capture requires **Cookieless server hash mode** under _Project
 Settings → Web analytics_ in PostHog. Without it, PostHog discards the anonymous
@@ -69,11 +71,11 @@ when the server accepts the edit after reconnection. Failed actions produce
 
 Tracking is best effort, not an audit log: a process crash between commit and
 analytics delivery can lose an event. We deliberately avoid analytics writes or
-network calls inside domain transactions. PostHog delivery runs through Next.js
-`after`, using immediate SDK capture, so it neither delays the response nor relies
-on an unflushed in-memory batch surviving a serverless invocation.
+network calls inside domain transactions. Server events are captured
+fire-and-forget after commit by the long-lived API and worker processes, which
+flush them on shutdown, so tracking never delays a response.
 
-`src/lib/analytics/events.ts` is the exhaustive workspace event catalog. A new
+`packages/core/src/lib/analytics/events.ts` is the exhaustive workspace event catalog. A new
 command must select an event; its payload must pass the explicit property
 allowlist. Events use past-tense `snake_case` names and carry `analytics_version: 1`
 and `source: client | server`. Custom events use authenticated user IDs as PostHog
@@ -135,7 +137,7 @@ this protects verification/reset/invitation tokens, email query parameters and l
 searches. Document titles and search-engine keywords are removed. Autocapture and
 session recording, dead-click capture and heatmaps are disabled so requirement
 content and DOM text are not sent.
-The global render boundary sends a generic exception with the Next.js digest;
+The global render boundaries send a generic exception without page content;
 server failures send categories instead of raw SQL/exception messages.
 
 Keep analytics changes compatible with these boundaries. If product decisions
