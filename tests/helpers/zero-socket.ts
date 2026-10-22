@@ -1,4 +1,4 @@
-import type { Page, WebSocketRoute } from "@playwright/test";
+import type { BrowserContext, Page, WebSocketRoute } from "@playwright/test";
 
 type PushedMutation = {
   name: string;
@@ -12,8 +12,9 @@ export type WorkspaceMutation = {
 
 // Workspace changes travel over Zero's WebSocket (/zero/...). This proxies
 // it to observe pushed mutations, rewrite them before the server sees them,
-// or interrupt the connection like a network failure.
-export async function controlZeroConnection(page: Page) {
+// or interrupt the connection like a network failure. A browser context
+// controls the connections of all its tabs.
+export async function controlZeroConnection(page: Page | BrowserContext) {
   let blocked = false;
   let rewrite: ((mutation: WorkspaceMutation) => void) | undefined;
   let afterPush: ((socket: WebSocketRoute) => void) | undefined;

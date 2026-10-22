@@ -172,11 +172,24 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 740 });
+  // Unknown top-level addresses on the app host are workspace handles: anyone
+  // signed out is asked to sign in first (an address never reveals whether a
+  // workspace exists). The site's own missing page is covered in
+  // tests/marketing/not-found.spec.ts.
+  await page.goto("/missing-illustration-page");
+  await expect(page).toHaveURL(
+    /\/sign-in\?callbackUrl=%2Fmissing-illustration-page$/,
+  );
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  // Signing in returns to the requested address.
+  await expect(page).toHaveURL(/\/missing-illustration-page$/);
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
     await page.goto("/missing-illustration-page");
     await expect(
-      page.getByRole("heading", { name: "This page does not exist" }),
+      page.getByRole("heading", { name: "This workspace was not found" }),
     ).toBeVisible();
     const art = page.locator('img[src^="/illustrations/"]');
     await expect
@@ -189,8 +202,8 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(320);
-    await page.getByRole("button", { name: "Go home" }).click();
-    await expect(page).toHaveURL("/");
+    await page.getByRole("button", { name: "Go to your workspace" }).click();
+    await expect(page).toHaveURL(appHome);
     await page.goto("/auth-error");
     await expect(
       page.getByRole("heading", { name: "Sign-in interrupted" }),

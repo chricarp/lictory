@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import sharp from "sharp";
 import * as s from "@lictory/core/db/schema";
+import { platformOrigin, signedIn } from "../helpers/app-urls";
 import { consentStatePath } from "../consent-setup";
 import { createWorkspace } from "../helpers/onboarding-helpers";
 
@@ -52,7 +53,7 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/(app|welcome)/);
+  await expect(page).toHaveURL(signedIn);
 }
 async function loaded(page: Page, selector: string) {
   await expect
@@ -145,7 +146,7 @@ for (const social of [false, true]) {
     await expect(profile.locator("img")).toHaveAttribute("src", first!);
     const denied = await page.request.post("/api/auth/update-user", {
       data: { image: "https://example.test/unvalidated.png" },
-      headers: { Origin: "http://localhost:3001" },
+      headers: { Origin: platformOrigin },
     });
     expect(denied.status()).toBe(400);
     const crossOrigin = await page.request.delete("/api/profile/photo", {

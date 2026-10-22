@@ -21,3 +21,44 @@ export async function reloadWhenSaved(page: Page) {
   await waitUntilSaved(page);
   await page.reload();
 }
+
+// Zero writes unsent changes to IndexedDB once the tab is idle (about a
+// second after the change). Until then, leaving the page loses them; tests
+// that leave the page wait until the change is stored on the device.
+export async function waitUntilStoredLocally(page: Page, fragment: string) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (needle) => {
+          const read = (name: string) =>
+            new Promise<string>((resolve) => {
+              const open = indexedDB.open(name);
+              open.onerror = () => resolve("");
+              open.onsuccess = () => {
+                const db = open.result;
+                const stores = [...db.objectStoreNames];
+                if (!stores.length) {
+                  db.close();
+                  return resolve("");
+                }
+                const tx = db.transaction(stores, "readonly");
+                const parts: unknown[] = [];
+                for (const store of stores)
+                  tx.objectStore(store).getAll().onsuccess = (event) =>
+                    parts.push((event.target as IDBRequest).result);
+                tx.oncomplete = () => {
+                  db.close();
+                  resolve(JSON.stringify(parts));
+                };
+                tx.onerror = () => resolve("");
+              };
+            });
+          for (const database of await indexedDB.databases())
+            if (database.name?.startsWith("rep:"))
+              if ((await read(database.name)).includes(needle)) return true;
+          return false;
+        }, fragment),
+      { message: `"${fragment}" was not stored on this device.` },
+    )
+    .toBe(true);
+}

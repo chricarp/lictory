@@ -4,7 +4,9 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { platformOrigin } from "../helpers/app-urls";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { rebuildProjections } from "@lictory/core/domain/projections";
 import { paths } from "@lictory/core/lib/paths";
 import {
   configureFirstProject,
@@ -194,10 +196,10 @@ test("organizations choose and change URL handles with server validation and adm
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
   const memberContext = await browser.newContext({
-    baseURL: "http://localhost:3001",
+    baseURL: platformOrigin,
     storageState: consentStatePath,
     extraHTTPHeaders: {
-      Origin: "http://localhost:3001",
+      Origin: platformOrigin,
       "x-forwarded-for": "198.51.100.250",
     },
   });
@@ -230,19 +232,23 @@ test("organizations choose and change URL handles with server validation and adm
       createdAt: new Date(),
     });
     const login = await memberContext.request.post("/api/auth/sign-in/email", {
-      headers: { Origin: "http://localhost:3001" },
+      headers: { Origin: platformOrigin },
       data: { email: memberEmail, password },
     });
     expect(login.ok()).toBe(true);
     const memberPage = await memberContext.newPage();
     await memberPage.goto(paths.settings(handle, "general"));
+    // The member keeps the settings open while the handle changes.
+    await expect(
+      memberPage.getByRole("link", { name: "General", exact: true }),
+    ).toHaveAttribute("href", paths.settings(handle, "general"));
     await expect(
       memberPage.getByRole("button", { name: "Save handle" }),
     ).toHaveCount(0);
     const denied = await memberContext.request.post(
       "/api/auth/organization/update",
       {
-        headers: { Origin: "http://localhost:3001" },
+        headers: { Origin: platformOrigin },
         data: { organizationId: org!.id, data: { slug: nextHandle } },
       },
     );
@@ -257,7 +263,7 @@ test("organizations choose and change URL handles with server validation and adm
     // The rename also refreshes the synchronized organization profile, which
     // the direct database update above bypassed.
     const renamed = await page.request.post("/api/auth/organization/update", {
-      headers: { Origin: "http://localhost:3001" },
+      headers: { Origin: platformOrigin },
       data: { organizationId: org!.id, data: { name: "Handle Team renamed" } },
     });
     expect(renamed.ok()).toBe(true);
@@ -282,7 +288,7 @@ test("organizations choose and change URL handles with server validation and adm
       const rejected = await page.request.post(
         "/api/auth/organization/update",
         {
-          headers: { Origin: "http://localhost:3001" },
+          headers: { Origin: platformOrigin },
           data: { organizationId: org!.id, data: { slug: bad } },
         },
       );
@@ -290,14 +296,14 @@ test("organizations choose and change URL handles with server validation and adm
       const createRejected = await page.request.post(
         "/api/auth/organization/create",
         {
-          headers: { Origin: "http://localhost:3001" },
+          headers: { Origin: platformOrigin },
           data: { name: "Rejected", slug: bad },
         },
       );
       expect(createRejected.status()).toBe(400);
     }
     const other = await page.request.post("/api/auth/organization/create", {
-      headers: { Origin: "http://localhost:3001" },
+      headers: { Origin: platformOrigin },
       data: {
         name: "Other handle team",
         slug: `taken-${suffix}`,
@@ -306,14 +312,14 @@ test("organizations choose and change URL handles with server validation and adm
     });
     expect(other.ok()).toBe(true);
     const duplicate = await page.request.post("/api/auth/organization/create", {
-      headers: { Origin: "http://localhost:3001" },
+      headers: { Origin: platformOrigin },
       data: { name: "Duplicate", slug: `TAKEN-${suffix}` },
     });
     expect(duplicate.status()).toBe(400);
     const duplicateUpdate = await page.request.post(
       "/api/auth/organization/update",
       {
-        headers: { Origin: "http://localhost:3001" },
+        headers: { Origin: platformOrigin },
         data: { organizationId: org!.id, data: { slug: `TAKEN-${suffix}` } },
       },
     );
@@ -428,6 +434,9 @@ test("joining waits without creating an organization, discovers invitations, and
       createdById: adminId,
     })
     .returning();
+  // Written directly, so the synchronized read model is reconciled the way an
+  // operator would after a manual repair.
+  await rebuildProjections(db, orgId);
   await db.insert(s.invitation).values({
     id: crypto.randomUUID(),
     organizationId: orgId,

@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
-import { inApp } from "../helpers/app-urls";
+import { inApp, platformOrigin } from "../helpers/app-urls";
 
 async function invitationMail(request: APIRequestContext, email: string) {
   const mailpit = process.env.MAILPIT_URL ?? "http://localhost:8025";
@@ -79,7 +79,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(inApp);
     const anonymous = await request.post("/api/invitations", {
-      headers: { Origin: "http://localhost:3001" },
+      headers: { Origin: platformOrigin },
       data: { organizationId, recipient: existing.handle },
     });
     expect(anonymous.status()).toBe(401);
@@ -90,7 +90,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     expect(crossOrigin.status()).toBe(403);
     const invite = (recipient: string, org = organizationId) =>
       context.request.post("/api/invitations", {
-        headers: { Origin: "http://localhost:3001" },
+        headers: { Origin: platformOrigin },
         data: { organizationId: org, recipient },
       });
     expect((await invite(existing.handle, crypto.randomUUID())).ok()).toBe(
@@ -208,7 +208,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
           ),
       ).toHaveLength(1);
       const denied = await joining.request.post("/api/invitations", {
-        headers: { Origin: "http://localhost:3001" },
+        headers: { Origin: platformOrigin },
         data: { organizationId, recipient: existing.handle },
       });
       expect(denied.status()).toBe(403);
