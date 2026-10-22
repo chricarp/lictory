@@ -10,7 +10,11 @@ import {
   parseNightly,
   predictedStable,
 } from "@lictory/core/release/version";
-import { changelog, manifestSchema, sameManifest } from "@lictory/core/release/model";
+import {
+  changelog,
+  manifestSchema,
+  sameManifest,
+} from "@lictory/core/release/model";
 import { injectVersion } from "@lictory/core/release/build";
 import {
   GitHubFixture,

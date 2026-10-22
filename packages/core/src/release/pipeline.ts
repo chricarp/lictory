@@ -1,6 +1,8 @@
+import type { Images } from "@lictory/core/release/images";
 import type { Manifest } from "@lictory/core/release/model";
 
-export type Build = { id: string; url: string };
+/** One built image set: `id` identifies the digests, `url` the environment. */
+export type Build = { id: string; url: string; images: Images };
 export type ReleasePorts = {
   validate: () => Promise<void>;
   active: () => Promise<Build | undefined>;
@@ -11,15 +13,17 @@ export type ReleasePorts = {
     state: "in_progress" | "success" | "failure",
     build: Build,
   ) => Promise<void>;
-  migrate: () => Promise<void>;
+  /** Stable only: stores the images on the server and applies migrations. */
+  migrate: (build: Build) => Promise<void>;
   reserve: () => Promise<void>;
   promote: (build: Build) => Promise<void>;
   publish: () => Promise<void>;
 };
 
-// Stable activation follows validation, a configured build and migration.
-// Nightlies are previews and never migrate or promote production.
-// An already active matching deployment repairs publication without reactivation.
+// Stable activation follows validation, a configured image build and migration.
+// Nightlies only build and publish images; they never migrate or activate
+// production. An already active matching release repairs publication without
+// rebuilding, remigrating or reactivating.
 export async function executeRelease(
   manifest: Manifest,
   ports: ReleasePorts,
@@ -37,19 +41,19 @@ export async function executeRelease(
   const record = await ports.record(build);
   await ports.status(record, "in_progress", build);
   try {
-    if (manifest.channel === "stable") await ports.migrate();
+    if (manifest.channel === "stable") await ports.migrate(build);
     await ports.validate();
     // Reserve stable tags only after gates pass, so a failed migration does not
     // consume the version before a corrected candidate can be selected.
     await ports.reserve();
-    // Preview publication does not activate any production domain.
+    // Nightly publication does not activate anything.
     if (manifest.channel === "nightly") await ports.publish();
     if (manifest.channel === "stable") await ports.promote(build);
     await ports.status(record, "success", build);
     if (manifest.channel === "stable") await ports.publish();
     return build;
   } catch (error) {
-    // Success can be repaired from the active Vercel deployment on retry.
+    // Success can be repaired from the server's active release on retry.
     await ports.status(record, "failure", build).catch(() => undefined);
     throw new Error(
       `${manifest.tag} failed; retry the workflow. A migration is never automatically reversed.`,

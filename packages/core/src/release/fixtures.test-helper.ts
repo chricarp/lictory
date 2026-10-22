@@ -1,5 +1,10 @@
 import { GitHub, type Release } from "@lictory/core/release/github";
-import { fingerprint, type Change, type Manifest } from "@lictory/core/release/model";
+import { imageNames, type Images } from "@lictory/core/release/images";
+import {
+  fingerprint,
+  type Change,
+  type Manifest,
+} from "@lictory/core/release/model";
 import { nightlyVersion } from "@lictory/core/release/version";
 
 export const shaA = "a".repeat(40);
@@ -18,6 +23,15 @@ export const change = (
   directCommits: [],
   stableApi: false,
 });
+export const registry = "ghcr.io/example";
+export function images(seed = "a", namespace = registry): Images {
+  return Object.fromEntries(
+    imageNames.map((name, index) => [
+      name,
+      `${namespace}/lictory-${name}@sha256:${(seed + index).repeat(32).slice(0, 64)}`,
+    ]),
+  ) as Images;
+}
 export function nightly(
   sha = shaB,
   number = 142,
@@ -114,9 +128,9 @@ export class GitHubFixture {
           version: manifest.version,
           manifestHash: fingerprint(manifest),
           runId: manifest.run.id,
-          projectId: "night-project",
-          vercelId: `dpl_${id}`,
-          url: `https://candidate-${id}.vercel.app`,
+          registry,
+          images: images(String(id % 10)),
+          url: "https://app.staging.lictory.com",
         },
       },
     ]);

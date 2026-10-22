@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { imagesSchema } from "@lictory/core/release/images";
 import {
   changelog,
   fingerprint,
@@ -36,8 +37,9 @@ export const deploymentPayloadSchema = z.object({
   version: z.string(),
   manifestHash: z.string(),
   runId: z.number(),
-  projectId: z.string(),
-  vercelId: z.string(),
+  // Registry namespace the images were pushed to (IMAGE_REGISTRY).
+  registry: z.string(),
+  images: imagesSchema,
   url: z.string().url(),
 });
 export type DeploymentPayload = z.infer<typeof deploymentPayloadSchema>;
