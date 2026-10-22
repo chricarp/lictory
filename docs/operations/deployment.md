@@ -215,7 +215,9 @@ the first backup, and a restore drill ([recovery](recovery.md)).
    and a Zero WebSocket upgrade through the proxy; checks that every service
    runs exactly the release's image; then records the activation. If anything
    fails it restores the previous release's images. The proxy holds requests
-   for up to 30 s while the API container is replaced.
+   for up to 30 s while the API container is replaced, so API restarts drop
+   no requests; replacing the proxy itself refuses connections for about two
+   seconds (open WebSockets reconnect).
 
 This is Zero's expand order: database, then API, then client (the API serves
 the client's `index.html`, so they switch together). Contract changes (drop or
