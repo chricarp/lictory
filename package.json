@@ -5,6 +5,7 @@
   "type": "module",
   "packageManager": "bun@1.4.2",
   "scripts": {
+    "dev": "bun scripts/dev.ts",
     "release": "bun scripts/release.ts",
     "db:generate": "drizzle-kit generate",
     "db:generate:data": "drizzle-kit generate --custom",
@@ -57,7 +58,8 @@
   "overrides": {
     "@next/eslint-plugin-next": {
       "fast-glob": "npm:tinyglobby@0.2.17"
-    }
+    },
+    "tinypool": "2.2.0"
   },
   "ignoreScripts": [
     "sharp",

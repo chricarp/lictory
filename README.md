@@ -1,50 +1,36 @@
 # Lictory
 
-Collaborative requirements and engineering-readiness, built with Next.js 16,
-Better Auth, Drizzle ORM, and PostgreSQL.
+Collaborative requirements and engineering readiness: specifications are
+drafted, reviewed, revised and approved like code, then delivered natively or
+handed off to Jira. Product philosophy, the glossary and engineering
+conventions live in [`AGENTS.md`](./AGENTS.md); documentation is indexed in
+[`docs/README.md`](./docs/README.md). Read [CONTRIBUTING.md](./CONTRIBUTING.md)
+before opening a pull request.
 
-## Local development with Docker
+## Architecture
 
-The complete local stack includes the Next.js app, PostgreSQL, and Mailpit for
-capturing verification and password-reset emails.
+One repository, Bun workspaces:
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
+| Workspace         | What it is                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `apps/platform`   | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
+| `apps/api`        | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery      |
+| `apps/worker`     | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles        |
+| `apps/marketing`  | Next.js public website (`lictory.com`), server-rendered, no database                     |
+| `packages/core`   | Domain logic, contracts, database access (Drizzle) and adapters                          |
+| `packages/zero`   | Zero schema, server-defined queries and the mutator                                      |
+| `packages/ui`     | Shared React primitives, theme and consent UI                                            |
 
-- App: http://localhost:3000
-- Mailpit inbox: http://localhost:8025
-- PostgreSQL: `localhost:5432`
+PostgreSQL is the source of truth. Every domain write maintains read
+projections in the same transaction; Zero replicates only those projections
+(and membership) to browsers. See
+[synchronization](docs/internals/synchronization.md) and
+[deployment](docs/operations/deployment.md) (single-server Docker Compose).
 
-The app container waits for PostgreSQL, reconciles the locked dependencies,
-applies committed Drizzle migrations, and starts Next.js in development mode.
-Stop it with `docker compose down`. Add `-v` only when you intentionally want
-to delete the local database.
+## Getting started
 
-## Transactional email
-
-Authentication emails use typed React Email templates from `src/emails`.
-Delivery automatically selects a provider:
-
-- When `RESEND_API_KEY` is present, email is sent through Resend.
-- Without that key, email is rendered from the same template and delivered to
-  the configured SMTP server. The default Compose stack captures it in Mailpit.
-
-For Resend, configure:
-
-```bash
-RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=Lictory <no-reply@email.lictory.com>
-```
-
-The sender defaults to `Lictory <no-reply@email.lictory.com>`, using the verified
-Resend domain. Override `RESEND_FROM_EMAIL` only when a deployment needs a
-different verified sender. Resend requests include an idempotency key derived
-from the recipient, auth flow, and one-time action URL to avoid duplicate
-delivery when the same request retries.
-
-## Local development without the app container
+Requirements: Bun (version in `packageManager`), Docker and Git. Bun is the only
+supported package manager.
 
 ```bash
 cp .env.example .env
@@ -54,11 +40,27 @@ bun run db:migrate
 bun run dev
 ```
 
+- Platform: http://localhost:3000 (API on 3002, zero-cache on 4848)
+- Website: http://localhost:3100
+- Mailpit inbox: http://localhost:8025
+
+Every optional integration (OAuth, Resend, R2, OpenAI, PostHog, Jira) stays
+disabled until its variables are set in `.env`; core refinement works without
+them. See [the development runbook](docs/operations/development.md) for daily
+commands, tests and the full verification sequence.
+
+## Transactional email
+
+Authentication emails use typed React Email templates from
+`packages/core/src/emails`. With `RESEND_API_KEY` set, email goes through
+Resend (with idempotency keys); otherwise it is delivered to the configured
+SMTP server, which Mailpit captures locally.
+
 ## OAuth setup
 
 Each OAuth button appears once its provider has credentials in `.env`.
 Configure these redirect URIs in the provider consoles (and the production
-origin's equivalents):
+origin's equivalents on `https://app.lictory.com`):
 
 - Google: `http://localhost:3000/api/auth/callback/google`
 - Microsoft: `http://localhost:3000/api/auth/callback/microsoft`
@@ -67,20 +69,15 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
 `MICROSOFT_CLIENT_SECRET`. Microsoft defaults to the `common` tenant; override
 `MICROSOFT_TENANT_ID` when the app should be tenant-specific. See
 [sign-in methods and account linking](docs/internals/onboarding.md#sign-in-methods-and-account-linking)
-for how provider sign-ins attach to existing accounts.
-
-For changing local/preview URLs, configure the optional
-[OAuth proxy](docs/operations/oauth-proxy.md). Keep separate production and
-development clients by using a stable staging callback server with the
-development client; every participant must use the callback server's client.
+for how provider sign-ins attach to existing accounts, and the optional
+[OAuth proxy](docs/operations/oauth-proxy.md) for changing local URLs.
 
 ## Database workflow
 
-The schema entry point is `src/db/schema.ts`, which exports the generated Better
-Auth schema and the application domain schema. See [the database model](docs/internals/database-model.md)
-for revision semantics, tenant constraints, retention, and enforcement boundaries,
-and [database migrations](docs/operations/migrations.md) for the change workflow and how
-production applies migrations before activating a release.
+The schema entry point is `packages/core/src/db/schema.ts`. See
+[the database model](docs/internals/database-model.md) and
+[database migrations](docs/operations/migrations.md), including the Zero
+expand/contract deployment order.
 
 ```bash
 bun run auth:generate # regenerate auth tables after changing Better Auth schema options
@@ -95,77 +92,22 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 ## Versions and releases
 
-Conventional Commit PR titles determine semantic versions automatically. Merges
-produce Nightly prereleases with Preview deployments in the existing
-Vercel project. Run **Release to Production** in GitHub Actions to publish a Stable release from the exact
-nightly you tested, even when `main` has moved ahead. The account menu shows the
-deployed version. See [the release runbook](docs/operations/releases.md) for
-one-time configuration, release selection, recovery and hotfixes.
-
-## production notes
-
-See [deployment and operations](docs/operations/deployment.md) for environment separation,
-CI, automatic migrations, background jobs, recovery and free-plan limits.
-
-- Replace `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
-- Set `BETTER_AUTH_URL` to the canonical HTTPS origin.
-- Use a managed PostgreSQL database and a verified Resend sending domain.
-- Keep OAuth callback URLs aligned with the production origin.
-
-Collaborative requirements and engineering-readiness platform.
-
-The authenticated workspace supports proposals, Markdown revisions, contextual discussions,
-suggestions, review requests, revision-bound approvals and computed readiness through a
-persistent browser synchronization engine. See [the sync architecture](docs/internals/synchronization.md)
-for the protocol, authorization, recovery guarantees and current boundaries.
-
-Start at `/app`: create an organization and project, then create a proposal. Organization
-settings provide invitation links for teammates. Product philosophy, glossary, and
-engineering conventions live in [`AGENTS.md`](./AGENTS.md). Documentation is indexed in [`docs/README.md`](./docs/README.md); read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
-
-```bash
-bun run test:sync # disposable PostgreSQL + IndexedDB invariant tests
-bunx playwright install chromium
-bun run test:e2e # isolated database and two-browser workflow verification
-```
-
-## Stack
-
-- [Bun](https://bun.sh) as package manager and script runner
-- [Next.js](https://nextjs.org) (App Router, React Server Components)
-- React and TypeScript (strict)
-- Tailwind CSS
-- ESLint (flat config, type-aware) and Prettier
-
-## Prerequisites
-
-- Bun (see the `packageManager` field in `package.json` for the expected version)
-
-Bun is the only supported package manager. Do not use npm, pnpm, or yarn.
-
-## Getting started
-
-```bash
-bun install
-bun run dev
-```
-
-The app runs at http://localhost:3000.
+Conventional Commit PR titles determine semantic versions. Merges build nightly
+images for staging; **Release to Production** in GitHub Actions deploys a
+tested version to the production server after approval. See
+[the release runbook](docs/operations/releases.md).
 
 ## Scripts
 
-| Command                | Purpose                                    |
-| ---------------------- | ------------------------------------------ |
-| `bun run dev`          | Start the development server               |
-| `bun run build`        | production build                           |
-| `bun run start`        | Serve the production build                 |
-| `bun run typecheck`    | TypeScript check without emitting files    |
-| `bun run lint`         | Run ESLint                                 |
-| `bun run lint:fix`     | Run ESLint with automatic fixes            |
-| `bun run format`       | Format the repository with Prettier        |
-| `bun run format:check` | Verify formatting without writing          |
-| `bun run knip`         | Report unused files and dependencies       |
-| `bun run check`        | Types, lint, format, unused code (CI-safe) |
+| Command                | Purpose                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `bun run dev`          | Platform, API, worker, zero-cache and website        |
+| `bun run typecheck`    | TypeScript check of every workspace                  |
+| `bun run lint`         | ESLint (flat config, type-aware)                     |
+| `bun run format`       | Format the repository with Prettier                  |
+| `bun run check`        | Types, lint, format, unused code and PR assets       |
+| `bun test src`         | Domain and unit tests (disposable PostgreSQL)        |
+| `bun run test:e2e`     | Production builds and browser workflows (both sites) |
 
 `bun run check` never modifies files.
 
