@@ -78,6 +78,15 @@ BEGIN
     GRANT USAGE ON SCHEMA zero_0 TO lictory_owner;
     GRANT SELECT, UPDATE ON zero_0."publishedSchema" TO lictory_owner;
   END IF;
+  -- Zero's push processor records each client's last mutation id (and
+  -- mutation results) in the API's own transaction, atomically with the
+  -- domain writes. deploy.sh re-runs this script once zero-cache has created
+  -- these tables, before the API starts serving pushes.
+  IF to_regclass('zero_0.clients') IS NOT NULL THEN
+    GRANT USAGE ON SCHEMA zero_0 TO lictory_app;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON zero_0.clients, zero_0.mutations
+      TO lictory_app;
+  END IF;
 END $$;
 SQL
 

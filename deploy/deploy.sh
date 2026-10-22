@@ -198,6 +198,12 @@ roll() { # roll <dir>
     log "Rolling ${service}…"
     compose "$dir" up -d --no-deps --wait --wait-timeout "$([ "$service" = zero-cache ] && echo 900 || echo 180)" "$service" >&2 ||
       return 1
+    # zero-cache creates its shard tables on first start; the API's role
+    # needs them for Zero's mutation bookkeeping before serving pushes.
+    if [ "$service" = zero-cache ]; then
+      compose "$dir" exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh >&2 ||
+        return 1
+    fi
   done
 }
 
