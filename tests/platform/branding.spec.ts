@@ -3,7 +3,8 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
-import { createWorkspace } from "./onboarding-helpers";
+import { createWorkspace } from "../helpers/onboarding-helpers";
+import { inApp } from "../helpers/app-urls";
 
 const email = "branding@example.test";
 const password = "Local-test-password-123";
@@ -59,7 +60,7 @@ test("an administrator brands the organization switcher with its logos", async (
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(inApp);
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consentStatePath } from "./consent-setup";
-import { reloadWhenSaved } from "./sync-helpers";
+import { consentStatePath } from "../consent-setup";
+import { reloadWhenSaved, waitUntilSaved } from "../helpers/sync-helpers";
+import { controlZeroConnection } from "../helpers/zero-socket";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
@@ -9,6 +10,7 @@ import * as s from "@lictory/core/db/schema";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { createSyncService, directory } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
+import { inApp } from "../helpers/app-urls";
 
 const password = "Branch-test-password-123!";
 // A retry runs in a new worker that seeds again; each worker gets its own users.
@@ -113,7 +115,7 @@ test.beforeAll(async () => {
       title: "Retry policy",
       description: initial,
     });
-    itemUrl = `/app/${slug}/brn/stories/BRN-1`;
+    itemUrl = `/${slug}/brn/stories/BRN-1`;
   } finally {
     await client.end();
   }
@@ -124,7 +126,7 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(inApp);
 }
 async function commit(page: Page, content: string, message: string) {
   await page
@@ -220,16 +222,11 @@ test("readiness is checked before queueing, with one toast per attempt and none 
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
-  const statusRequests: unknown[] = [];
-  page.on("request", (request) => {
-    if (request.method() !== "POST" || !request.url().endsWith("/api/sync"))
-      return;
-    const body = request.postDataJSON() as {
-      command?: { type: string; statusId?: string };
-    };
-    if (body.command?.type === "updateWorkItem" && body.command.statusId)
-      statusRequests.push(body);
-  });
+  const zero = await controlZeroConnection(page);
+  const statusRequests = () =>
+    zero
+      .commands()
+      .filter((c) => c.type === "updateWorkItem" && c.statusId !== undefined);
   await properties
     .getByRole("button", { name: "Status: Backlog", exact: true })
     .click();
@@ -284,7 +281,7 @@ test("readiness is checked before queueing, with one toast per attempt and none 
     .getByRole("button", { name: "Close toast", exact: true })
     .click();
   await expect(notification).toBeHidden();
-  expect(statusRequests).toHaveLength(0);
+  expect(statusRequests()).toHaveLength(0);
 
   await expect(
     properties.getByRole("button", { name: "Status: Backlog", exact: true }),
@@ -322,7 +319,7 @@ test("readiness is checked before queueing, with one toast per attempt and none 
     .click();
   await expect(syncDialog).toContainText("Your workspace is up to date");
   await expect(notification).toHaveCount(0);
-  expect(statusRequests).toHaveLength(0);
+  expect(statusRequests()).toHaveLength(0);
   await expect(
     syncDialog.getByText(/BRN-1 is not ready to start:/),
   ).toBeHidden();
@@ -341,33 +338,21 @@ test("a handled server rejection is forgotten and never replays its toast after 
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
+  // Mutations travel over Zero's connection. Pointing the "urgent" change at
+  // an item that does not exist makes the server reject it definitively,
+  // exactly like a domain rejection of the real item.
   let rejectedId: string | undefined;
   let attempts = 0;
-  await page.route("**/api/sync", async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.continue();
-      return;
-    }
-    const body = route.request().postDataJSON() as {
-      id: string;
-      command: { type: string; priority?: string };
-    };
+  const zero = await controlZeroConnection(page);
+  zero.rewrite((mutation) => {
     if (
-      body.command.type === "updateWorkItem" &&
-      body.command.priority === "urgent"
+      mutation.command.type === "updateWorkItem" &&
+      mutation.command.priority === "urgent"
     ) {
       attempts++;
-      rejectedId = body.id;
-      await route.fulfill({
-        status: 422,
-        json: {
-          error: {
-            category: "validation",
-            message: "This change is blocked by the current policy.",
-          },
-        },
-      });
-    } else await route.continue();
+      rejectedId = mutation.id;
+      mutation.command.workItemId = crypto.randomUUID();
+    }
   });
   await properties
     .getByRole("button", { name: "Priority: High", exact: true })
@@ -377,50 +362,22 @@ test("a handled server rejection is forgotten and never replays its toast after 
     hasText: "Change not applied",
   });
   await expect(notification).toHaveCount(1);
-  await expect(notification).toContainText(
-    "This change is blocked by the current policy.",
-  );
   await expect(
     properties.getByRole("button", { name: "Priority: High", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Everything is saved", exact: true }),
   ).toBeVisible();
-  const queuedIds = await page.evaluate(async () => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("lictory-sync-v2", 1);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () =>
-        reject(
-          new Error("Could not read the local queue.", {
-            cause: request.error,
-          }),
-        );
-    });
-    try {
-      return await new Promise<string[]>((resolve, reject) => {
-        const request = db
-          .transaction("queue", "readonly")
-          .objectStore("queue")
-          .getAll();
-        request.onsuccess = () =>
-          resolve(
-            (request.result as { item: { mutation: { id: string } } }[]).map(
-              (record) => record.item.mutation.id,
-            ),
-          );
-        request.onerror = () =>
-          reject(
-            new Error("Could not read the local queue.", {
-              cause: request.error,
-            }),
-          );
-      });
-    } finally {
-      db.close();
-    }
-  });
-  expect(queuedIds).not.toContain(rejectedId);
+  // Nothing about the rejected change is kept: a property change carries no
+  // authored text to recover.
+  expect(rejectedId).toBeDefined();
+  expect(
+    await page.evaluate(() =>
+      Object.keys(localStorage).filter((key) =>
+        key.startsWith("lictory:recovery:"),
+      ),
+    ),
+  ).toEqual([]);
   await page.reload();
   await expect(
     properties.getByRole("button", { name: "Priority: High", exact: true }),
@@ -443,37 +400,27 @@ test("a handled server rejection is forgotten and never replays its toast after 
   ).toBeVisible();
 });
 
-test("workspace sync explains automatic recovery and safely resumes after retries stop", async ({
+test("workspace sync explains automatic recovery and resumes when the connection returns", async ({
   page,
 }) => {
   await page
     .context()
     .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.184" });
+  const zero = await controlZeroConnection(page);
   await signIn(page, authorEmail);
   await page.goto(itemUrl);
   const properties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
-  await page.clock.install();
-  const mutationIds: string[] = [];
-  await page.route("**/api/sync", async (route) => {
-    if (route.request().method() !== "POST") return route.continue();
-    const mutation = route.request().postDataJSON() as { id: string };
-    mutationIds.push(mutation.id);
-    await route.fulfill({
-      status: 503,
-      contentType: "application/json",
-      body: JSON.stringify({
-        error: {
-          category: "server",
-          message: `Test connection interrupted (${mutationIds.length})`,
-        },
-      }),
-    });
-  });
+  await waitUntilSaved(page);
+  await zero.interrupt();
   await properties.getByRole("button", { name: /^Priority:/ }).click();
   await page.getByRole("option", { name: "Low", exact: true }).click();
+  // Applied here at once, sent when the connection is back.
+  await expect(
+    properties.getByRole("button", { name: "Priority: Low", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Reconnecting…", exact: true })
     .click();
@@ -481,22 +428,17 @@ test("workspace sync explains automatic recovery and safely resumes after retrie
   await expect(dialog).toContainText("trying again automatically");
   await expect(dialog).toContainText("1 change is waiting to be saved");
   await dialog.getByText("Technical details", { exact: true }).click();
-  await expect(dialog).toContainText("Test connection interrupted (1)");
-  for (let attempt = 2; attempt <= 5; attempt++) {
-    await page.clock.fastForward(15_000);
-    await expect.poll(() => mutationIds.length).toBeGreaterThanOrEqual(attempt);
-  }
-  await expect(dialog).toContainText("Sync needs your help");
-  await expect(dialog).toContainText(
-    "Automatic retries couldn’t save all your changes",
-  );
-  expect(new Set(mutationIds).size).toBe(1);
-  await page.unroute("**/api/sync");
+  await expect(dialog).toContainText("The connection was interrupted");
+  zero.restore();
   await dialog.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(dialog).toContainText("Everything is saved");
   await expect(dialog.getByText("Technical details")).toBeHidden();
-  await dialog.getByRole("button", { name: "Refresh workspace" }).click();
-  await expect(dialog).toContainText("Everything is saved");
+  // Sent once, however often the connection was retried.
+  expect(
+    new Set(
+      zero.pushed.filter((m) => m.command.priority === "low").map((m) => m.id),
+    ).size,
+  ).toBe(1);
   await page.keyboard.press("Escape");
   await reloadWhenSaved(page);
   await expect(

@@ -8,6 +8,7 @@ import { paths } from "@lictory/core/lib/paths";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { createSyncService, directory } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
+import { inApp } from "../helpers/app-urls";
 
 const password = "Readiness-test-password-123!";
 // A retry runs in a new worker that seeds again; each worker gets its own users.
@@ -147,7 +148,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email", { exact: true }).fill(adminEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(inApp);
 }
 
 test("project administrators edit the Definition of Ready per type, review its impact and publish a version; ready work keeps the rules it met", async ({
@@ -207,7 +208,7 @@ test("project administrators edit the Definition of Ready per type, review its i
   ).toBeVisible();
 
   // PAY-1 was ready, so it keeps the rules it met.
-  await page.goto(`/app/${slug}/pay/stories/PAY-1`);
+  await page.goto(`/${slug}/pay/stories/PAY-1`);
   await expect(
     page.getByText(/Kept on Definition of Ready version 1/),
   ).toBeVisible();
@@ -218,7 +219,7 @@ test("project administrators edit the Definition of Ready per type, review its i
   ).toBeVisible();
 
   // PAY-2 follows the new rules: only the sign-off is missing.
-  await page.goto(`/app/${slug}/pay/stories/PAY-2`);
+  await page.goto(`/${slug}/pay/stories/PAY-2`);
   await expect(page.getByText("3 / 4 checks")).toBeVisible();
   await expect(
     page.getByText("It has a non-empty “Acceptance criteria” section"),

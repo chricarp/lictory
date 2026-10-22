@@ -128,7 +128,7 @@ for (const {
   }) => {
     const authorize = await interceptProvider(page, host);
     for (const path of ["/sign-in", "/sign-up"]) {
-      await page.goto(`${path}?callbackUrl=%2Fapp%2Finbox`);
+      await page.goto(`${path}?callbackUrl=%2Facme%2Finbox`);
       await page
         .getByRole("button", { name: `Continue with ${label}` })
         .click();
@@ -156,7 +156,7 @@ for (const {
       `/api/auth/callback/${provider}?error=access_denied&state=${url.searchParams.get("state")}`,
     );
     await expect(page).toHaveURL(
-      /sign-up\?callbackUrl=%2Fapp%2Finbox&error=access_denied/,
+      /sign-up\?callbackUrl=%2Facme%2Finbox&error=access_denied/,
     );
     await expect(
       page.getByRole("alert").filter({ hasText: "Sign-in was cancelled" }),
@@ -181,7 +181,7 @@ for (const {
     const email = `${provider}-link-${crypto.randomUUID()}@example.test`;
     const userId = await createPasswordUser(email, `gale_${provider}_link`);
     await signIn(page, email);
-    await page.goto("/app/account");
+    await page.goto("/account");
     const connections = page.locator("section#connections");
     const providerRow = connections
       .locator("div.flex.items-center.gap-3")
@@ -198,13 +198,13 @@ for (const {
     );
 
     // The provider returned a different address: explained, then the URL is cleaned.
-    await page.goto("/app/account?error=email_does_not_match");
+    await page.goto("/account?error=email_does_not_match");
     await expect(connections).toContainText("uses a different email address");
-    await expect(page).toHaveURL(/\/app\/account$/);
+    await expect(page).toHaveURL(/\/account$/);
 
     // The provider linked (the provider callback is outside the browser's reach).
     await addProviderAccount(userId, provider);
-    await page.goto(`/app/account?connected=${provider}`);
+    await page.goto(`/account?connected=${provider}`);
     await expect(connections).toContainText(`${label} connected.`);
     await expect(
       providerRow.getByText("Connected", { exact: true }),
@@ -244,7 +244,7 @@ for (const {
         ),
     );
 
-    await page.goto("/app/account");
+    await page.goto("/account");
     const connections = page.locator("section#connections");
     const providerRow = connections
       .locator("div.flex.items-center.gap-3")
@@ -274,7 +274,7 @@ for (const {
 
     // Setting the password signed every session out; both methods now work.
     await signIn(page, email, newPassword);
-    await page.goto("/app/account");
+    await page.goto("/account");
     await expect(
       page.locator("section#password").getByRole("button", {
         name: "Update password",

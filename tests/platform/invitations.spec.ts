@@ -1,10 +1,11 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { consentStatePath } from "./consent-setup";
+import { consentStatePath } from "../consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { inApp } from "../helpers/app-urls";
 
 async function invitationMail(request: APIRequestContext, email: string) {
   const mailpit = process.env.MAILPIT_URL ?? "http://localhost:8025";
@@ -76,7 +77,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     await page.getByLabel("Email", { exact: true }).fill(owner.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/app/);
+    await expect(page).toHaveURL(inApp);
     const anonymous = await request.post("/api/invitations", {
       headers: { Origin: "http://localhost:3001" },
       data: { organizationId, recipient: existing.handle },
@@ -140,7 +141,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     )![1]!;
     expect(new URL(signupUrl).pathname).toBe("/sign-up");
     expect(new URL(signupUrl).searchParams.get("callbackUrl")).toBe(
-      `/app/invitation?id=${newInvite.id}`,
+      `/invitation?id=${newInvite.id}`,
     );
     const joining = await browser.newContext({
       extraHTTPHeaders: { "x-forwarded-for": "203.0.113.82" },
@@ -190,9 +191,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
         teammate.getByRole("heading", { name: "Join Invitation Studio" }),
       ).toBeVisible();
       await teammate.getByRole("button", { name: "Accept invitation" }).click();
-      await expect(teammate).toHaveURL(
-        new RegExp(`/app/invitation-${suffix}$`),
-      );
+      await expect(teammate).toHaveURL(new RegExp(`/invitation-${suffix}$`));
       const [registered] = await db
         .select()
         .from(s.user)

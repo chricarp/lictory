@@ -3,8 +3,9 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
-import { createWorkspace } from "./onboarding-helpers";
+import { createWorkspace } from "../helpers/onboarding-helpers";
 import { illustrationAssets } from "@lictory/ui/illustration-assets";
+import { appHome } from "../helpers/app-urls";
 
 const email = "illustration-states@example.test";
 const password = "Local-test-password-123";
@@ -52,13 +53,15 @@ test("empty states load compact static artwork and remain actionable", async ({
   }
   const optimizedRequests: string[] = [];
   page.on("request", (r) => {
-    if (r.url().includes("/_next/image")) optimizedRequests.push(r.url());
+    // Artwork is served as built: never through an image transformation.
+    if (/\/(_next|_vercel|cdn-cgi)\/image/.test(r.url()))
+      optimizedRequests.push(r.url());
   });
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(appHome);
   await page.getByRole("button", { name: /^Create a workspace/ }).click();
   await createWorkspace(page, {
     organization: "Illustration States",

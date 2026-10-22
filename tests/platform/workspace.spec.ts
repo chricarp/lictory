@@ -1,20 +1,16 @@
-import {
-  test,
-  expect,
-  type APIResponse,
-  type Page,
-  type Request,
-} from "@playwright/test";
-import { consentStatePath } from "./consent-setup";
+import { test, expect, type Page } from "@playwright/test";
+import { consentStatePath } from "../consent-setup";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
-import { createWorkspace } from "./onboarding-helpers";
-import { reloadWhenSaved } from "./sync-helpers";
+import { createWorkspace } from "../helpers/onboarding-helpers";
+import { reloadWhenSaved, waitUntilSaved } from "../helpers/sync-helpers";
+import { controlZeroConnection } from "../helpers/zero-socket";
 import { paths } from "@lictory/core/lib/paths";
-import packageJson from "../package.json" with { type: "json" };
+import packageJson from "../../package.json" with { type: "json" };
+import { appHome } from "../helpers/app-urls";
 const version = packageJson.version;
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
@@ -72,23 +68,15 @@ test("an existing member can create and switch to another organization", async (
   await handle.fill("@Taylor_R");
   await expect(page.getByText("@taylor_r is available.")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(appHome);
   await page.goto("/welcome");
-  await expect(page).toHaveURL(/\/app$/);
-  // Signed-in visitors skip the marketing page.
-  const home = await page.request.get("/", { maxRedirects: 0 });
-  expect(home.status()).toBe(307);
-  expect(home.headers().location).toMatch(/\/app$/);
+  await expect(page).toHaveURL(appHome);
+  // The app host's root is the signed-in entry page, never the landing page.
   await page.goto("/");
-  await expect(page).toHaveURL(/\/app$/);
-  // The landing page stays reachable at /home and leads back to the app.
-  await page.goto("/home");
-  const header = page.getByRole("banner");
-  await expect(header.getByRole("link", { name: "Log in" })).toHaveCount(0);
-  await header.getByRole("link", { name: "Lictory home" }).click();
-  await expect(page).toHaveURL(/\/home$/);
-  await header.getByRole("link", { name: "Open Lictory" }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(appHome);
+  await expect(
+    page.getByRole("button", { name: "Create a workspace", exact: false }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
@@ -104,7 +92,7 @@ test("an existing member can create and switch to another organization", async (
 
   await page.getByRole("button", { name: "First Team" }).first().click();
   await page.getByRole("link", { name: "Create organization" }).click();
-  await expect(page).toHaveURL(/\/app\/new-organization$/);
+  await expect(page).toHaveURL(/\/new-organization$/);
   await createWorkspace(page, {
     organization: "Second Team",
     project: "Second project",
@@ -160,9 +148,9 @@ test("account settings load outside an organization with an older session", asyn
     .where(eq(s.session.userId, user!.id));
   await client.end();
 
-  await page.goto("/app/account");
+  await page.goto("/account");
 
-  await expect(page).toHaveURL(/\/app\/account$/);
+  await expect(page).toHaveURL(/\/account$/);
   await expect(
     page.getByRole("heading", { name: "Account settings" }),
   ).toBeVisible();
@@ -176,7 +164,7 @@ test("appearance preference applies immediately, persists, and follows the syste
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await signIn(page, reviewerEmail);
-  await page.goto("/app/account");
+  await page.goto("/account");
   const html = page.locator("html");
   const appearance = page.getByRole("radiogroup", { name: "Mode" });
   await expect(appearance.getByRole("radio", { name: "System" })).toBeChecked();
@@ -200,7 +188,7 @@ test("appearance preference applies immediately, persists, and follows the syste
     .newContext({ storageState: consentStatePath });
   const fresh = await other.newPage();
   await signIn(fresh, reviewerEmail);
-  await fresh.goto("/app/account");
+  await fresh.goto("/account");
   await expect(fresh.locator("html")).toHaveClass(/\bdark\b/);
   await expect(
     fresh
@@ -228,7 +216,7 @@ test("theme applies immediately in both modes and persists on the account", asyn
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await signIn(page, reviewerEmail);
-  await page.goto("/app/account");
+  await page.goto("/account");
   const html = page.locator("html");
   const themes = page.getByRole("radiogroup", { name: "Theme" });
   await expect(themes.getByRole("radio", { name: "Lictory" })).toBeChecked();
@@ -255,7 +243,7 @@ test("theme applies immediately in both modes and persists on the account", asyn
     .newContext({ storageState: consentStatePath });
   const fresh = await other.newPage();
   await signIn(fresh, reviewerEmail);
-  await fresh.goto("/app/account");
+  await fresh.goto("/account");
   await expect(fresh.locator("html")).toHaveAttribute("data-theme", "nord");
   await expect(
     fresh
@@ -273,7 +261,7 @@ test("theme applies immediately in both modes and persists on the account", asyn
   await expect(html).toHaveAttribute("data-theme", "lictory");
 });
 
-test("prefetched navigation commits immediately and shows a loading state while the server responds", async ({
+test("navigation commits immediately inside the persistent shell and shows a loading state while the page loads", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -285,79 +273,44 @@ test("prefetched navigation commits immediately and shows a loading state while 
     organization: "Loading states",
     project: "Loading project",
     key: "LDS",
-    finish: false,
   });
-  // Observe prefetch before the Board link mounts. The route-tree probe alone
-  // does not contain the loading UI needed to commit a pending navigation.
-  const isBoardPrefetch = (request: Request) => {
-    const headers = request.headers();
-    return (
-      new URL(request.url()).pathname.endsWith("/board") &&
-      headers["next-router-prefetch"] === "1" &&
-      !headers["next-router-segment-prefetch"]
-    );
-  };
-  // Buffer prefetch so completion is observable even if the browser would
-  // otherwise leave the RSC stream open after consuming its loading UI.
-  let prefetchDelivered!: (response: APIResponse) => void;
-  const boardPrefetch = new Promise<APIResponse>(
-    (resolve) => (prefetchDelivered = resolve),
-  );
-  await page.route("**/app/**", async (route) => {
-    if (isBoardPrefetch(route.request())) {
-      const response = await route.fetch();
-      await route.fulfill({ response });
-      prefetchDelivered(response);
-    } else {
-      await route.continue();
-    }
-  });
-  await page
-    .getByRole("button", { name: "Skip and finish", exact: true })
-    .click();
   await expect(page).toHaveURL(/\/lds\/epics$/);
   const rail = page.getByRole("navigation", { name: "Workspace" });
   const board = rail.getByRole("link", { name: "Board", exact: true });
   await expect(board).toBeVisible();
-  // Hover prioritizes prefetch; network idle does not prove it has completed.
-  await board.hover();
-  expect((await boardPrefetch).ok()).toBe(true);
-  await page.unroute("**/app/**");
+  const railNode = await rail.elementHandle();
+  // Hold the Board page's code (requested on hover intent and on click) to
+  // observe the pending navigation.
   let release!: () => void;
-  let navigationHeld = false;
-  const slowServer = new Promise<void>((resolve) => (release = resolve));
-  await page.route("**/app/**", async (route) => {
-    const request = route.request();
-    const headers = request.headers();
-    if (
-      new URL(request.url()).pathname.endsWith("/board") &&
-      headers.rsc === "1" &&
-      !headers["next-router-prefetch"]
-    ) {
-      navigationHeld = true;
-      await slowServer;
-    }
+  let codeHeld = false;
+  const slowCode = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/assets/board-*.js", async (route) => {
+    codeHeld = true;
+    await slowCode;
     await route.continue();
   });
-
   const loading = page.getByRole("main").getByRole("status", {
     name: /^Loading (page|board)$/,
   });
   try {
     await board.click();
     await expect(page).toHaveURL(/\/board$/, { timeout: 2_000 });
+    await expect.poll(() => codeHeld).toBe(true);
     await expect(loading).toBeVisible({ timeout: 2_000 });
     await expect(loading).toHaveAttribute("aria-busy", "true");
-    await expect.poll(() => navigationHeld).toBe(true);
+    // The shell stays mounted while the page loads.
+    expect(await railNode.evaluate((node) => node.isConnected)).toBe(true);
   } finally {
     // Release intercepted requests even when an assertion fails.
     release();
   }
+  await page.unroute("**/assets/board-*.js");
   await expect(loading).toBeHidden();
   await expect(
     page.getByRole("heading", { name: "Loading project", exact: true }),
   ).toBeVisible();
   await expect(board).toHaveAttribute("aria-current", "page");
+  expect(await railNode.evaluate((node) => node.isConnected)).toBe(true);
 });
 
 test("revisiting a work item paints its local history on the first frame", async ({
@@ -629,8 +582,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // Personal settings leave the organization shell without losing the return
   // destination.
-  // Hold the account response to exercise navigation while the menu's Link
-  // is still pending. Closing the popover eagerly unmounts that Link.
+  // Hold the account page's code to exercise navigation while the menu's
+  // Link is still pending. Closing the popover eagerly unmounts that Link.
   let releaseAccount!: () => void;
   const accountResponse = new Promise<void>((resolve) => {
     releaseAccount = resolve;
@@ -639,7 +592,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   const accountRequest = new Promise<void>((resolve) => {
     accountRequested = resolve;
   });
-  await page.route("**/app/account?**", async (route) => {
+  await page.route("**/assets/account-*.js", async (route) => {
     accountRequested();
     await accountResponse;
     await route.continue();
@@ -659,7 +612,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(page).toHaveURL(
     `http://localhost:3001${paths.account(workspacePath)}`,
   );
-  await page.unroute("**/app/account?**");
+  await page.unroute("**/assets/account-*.js");
   await page.getByRole("link", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(`http://localhost:3001${workspacePath}`);
 
@@ -874,11 +827,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await signIn(reviewer, reviewerEmail);
   await reviewer.goto(invitation);
   await reviewer.getByRole("button", { name: "Accept invitation" }).click();
-  await expect(reviewer).toHaveURL(/\/app\/northstar/);
+  await expect(reviewer).toHaveURL(/\/northstar/);
 
   // The administrator adds the engineer to the project in the Engineering
   // discipline. Until then the new member cannot even be asked to review.
-  const orgSlug = page.url().split("/app/")[1]!.split("/")[0]!;
+  const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   await page.goto(paths.projectSettings(orgSlug, "PAY", "members"));
   await page.getByRole("button", { name: "Add people" }).click();
   await page.getByRole("option", { name: /Riley Chen/ }).click();
@@ -889,7 +842,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(rileyDisciplines).toHaveAttribute("aria-pressed", "true");
 
   // 6. Request Engineering review from the story page.
-  const storyUrl = `/app/${orgSlug}/pay/stories/PAY-2`;
+  const storyUrl = `/${orgSlug}/pay/stories/PAY-2`;
   await page.goto(storyUrl);
   await page.getByRole("button", { name: "Request review" }).click();
   await expect(
@@ -1267,14 +1220,15 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(page).toHaveURL(/\/epics\/PAY-1$/);
   await expect(page.getByText("1/2 ready")).toBeVisible();
 
-  // 19. Offline queue survives reload; reconnect propagates.
+  // 19. A change made while the connection is down survives a reload and is
+  // sent once it is back.
+  const zero = await controlZeroConnection(page);
   await page.goto(storyUrl);
   await expect(
     page.getByRole("toolbar", { name: "Markdown formatting" }),
   ).toBeVisible();
-  await page.route("**/api/sync**", (route) =>
-    route.abort("internetdisconnected"),
-  );
+  await waitUntilSaved(page);
+  await zero.interrupt();
   await page
     .getByRole("textbox", { name: "Start a discussion" })
     .fill("Pending comment survives reload");
@@ -1294,7 +1248,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(syncDialog).toContainText("trying again automatically");
   await expect(syncDialog.getByText("Technical details")).toBeVisible();
   await expect(syncDialog.locator("pre")).toHaveCount(0);
-  await page.unroute("**/api/sync**");
+  zero.restore();
   await syncDialog
     .getByRole("button", { name: "Try again", exact: true })
     .click();
@@ -1546,13 +1500,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     .click();
   const syncDialog = page.getByRole("dialog", { name: "Workspace sync" });
   await expect(syncDialog.getByText("Technical details")).toBeHidden();
-  await syncDialog.getByRole("button", { name: "Refresh workspace" }).click();
-  await expect(
-    detailProperties.getByRole("button", { name: "Priority: High" }),
-  ).toBeVisible();
-  await expect(
-    detailProperties.getByRole("button", { name: "Status: Todo" }),
-  ).toBeVisible();
+  await expect(syncDialog).toContainText("Your workspace is up to date.");
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Board", exact: true }).click();
 
@@ -1601,8 +1549,7 @@ test("a shared private link preserves its destination after sign-in and denies n
   } finally {
     await client.end();
   }
-  const destination =
-    "/app/unavailable-private-team/pay/epics/PAY-42?tab=review";
+  const destination = "/unavailable-private-team/pay/epics/PAY-42?tab=review";
   await page.goto(destination);
   await expect(
     page.getByRole("heading", { name: "Sign in to Lictory" }),
@@ -1614,7 +1561,7 @@ test("a shared private link preserves its destination after sign-in and denies n
     page.getByRole("heading", { name: "Sign in to Lictory" }),
   ).toBeHidden();
   await expect(page).toHaveURL(
-    new RegExp("/app/unavailable-private-team/pay/epics/PAY-42\\?tab=review$"),
+    new RegExp("/unavailable-private-team/pay/epics/PAY-42\\?tab=review$"),
   );
   await expect(
     page.getByRole("heading", { name: "This workspace was not found" }),

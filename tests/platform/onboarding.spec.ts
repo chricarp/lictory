@@ -6,9 +6,13 @@ import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { paths } from "@lictory/core/lib/paths";
-import { configureFirstProject, createWorkspace } from "./onboarding-helpers";
-import { reloadWhenSaved } from "./sync-helpers";
-import { consentStatePath } from "./consent-setup";
+import {
+  configureFirstProject,
+  createWorkspace,
+} from "../helpers/onboarding-helpers";
+import { reloadWhenSaved } from "../helpers/sync-helpers";
+import { controlZeroConnection } from "../helpers/zero-socket";
+import { consentStatePath } from "../consent-setup";
 const password = "Onboarding-test-password-123";
 
 test.beforeEach(async ({ page, context }, testInfo) => {
@@ -68,6 +72,7 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("button", { name: "Continue", exact: true }),
     ).toBeDisabled();
+    const zero = await controlZeroConnection(page);
     await page.reload();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByLabel("Project", { exact: true })).toHaveValue(
@@ -96,23 +101,19 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("list", { name: "People to invite" }).getByText(invitee),
     ).toBeVisible();
-    // Lose the first committed response; retry must use the same mutation receipt.
+    // Lose the connection right after the setup was sent: Zero reconnects and
+    // the server answers the same mutation from its receipt, once.
     let interrupted = false;
-    await page.route("**/api/sync", async (route) => {
-      if (route.request().method() !== "POST" || interrupted)
-        return route.continue();
+    zero.afterPush((socket) => {
+      if (interrupted) return;
       interrupted = true;
-      await route.fetch();
-      await route.abort("failed");
+      void socket.close({ code: 1011, reason: "Test connection interrupted" });
     });
     await page
       .getByRole("button", { name: "Invite 1 and finish", exact: true })
       .click();
-    await expect(
-      page.getByRole("button", { name: "Confirm setup" }),
-    ).toBeEnabled();
-    await page.getByRole("button", { name: "Confirm setup" }).click();
     await expect(page).toHaveURL(/\/pay\/epics$/);
+    expect(interrupted).toBe(true);
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
     const db = drizzle(client);
     const org = (
@@ -120,7 +121,7 @@ for (const mode of ["native", "external"] as const)
         .select()
         .from(s.organization)
         .where(
-          eq(s.organization.slug, new URL(page.url()).pathname.split("/")[2]!),
+          eq(s.organization.slug, new URL(page.url()).pathname.split("/")[1]!),
         )
     )[0]!;
     const projects = await db
@@ -188,7 +189,7 @@ test("organizations choose and change URL handles with server validation and adm
     project: "Payments",
     key: "PAY",
   });
-  await expect(page).toHaveURL(new RegExp(`/app/${handle}/pay/epics$`));
+  await expect(page).toHaveURL(new RegExp(`/${handle}/pay/epics$`));
 
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
@@ -253,21 +254,27 @@ test("organizations choose and change URL handles with server validation and adm
       .update(s.organization)
       .set({ slug: legacy })
       .where(eq(s.organization.id, org!.id));
-    await page.goto(paths.settings(legacy, "general"));
-    await expect(
-      page.getByLabel("Organization handle", { exact: true }),
-    ).toHaveValue(legacy);
+    // The rename also refreshes the synchronized organization profile, which
+    // the direct database update above bypassed.
     const renamed = await page.request.post("/api/auth/organization/update", {
       headers: { Origin: "http://localhost:3001" },
       data: { organizationId: org!.id, data: { name: "Handle Team renamed" } },
     });
     expect(renamed.ok()).toBe(true);
     expect(((await renamed.json()) as { slug: string }).slug).toBe(legacy);
+    await page.goto(paths.settings(legacy, "general"));
+    await expect(
+      page.getByLabel("Organization handle", { exact: true }),
+    ).toHaveValue(legacy);
 
     for (const bad of [
       "account",
       "invitation",
       "new-organization",
+      "sign-in",
+      "welcome",
+      "api",
+      "zero",
       "bad/handle",
       "bad--handle",
       "ab",
@@ -334,7 +341,7 @@ test("organizations choose and change URL handles with server validation and adm
     );
     await page.getByRole("button", { name: "Save handle" }).click();
     await expect(page).toHaveURL(
-      new RegExp(`/app/${nextHandle}/settings/general$`),
+      new RegExp(`/${nextHandle}/settings/general$`),
     );
     await page.reload();
     await expect(
@@ -493,7 +500,7 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
     .getByRole("button", { name: "Skip and finish", exact: true })
     .click();
   await expect(page).toHaveURL(/\/pay\/epics$/);
-  const orgSlug = new URL(page.url()).pathname.split("/")[2]!;
+  const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
   const [organization] = await db

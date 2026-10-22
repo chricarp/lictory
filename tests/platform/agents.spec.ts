@@ -3,7 +3,8 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
-import { createWorkspace } from "./onboarding-helpers";
+import { createWorkspace } from "../helpers/onboarding-helpers";
+import { inApp } from "../helpers/app-urls";
 
 const email = "agents@example.test";
 const password = "Local-test-password-123";
@@ -66,7 +67,7 @@ test("a person connects an MCP agent that works with their permissions", async (
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(inApp);
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
@@ -78,7 +79,7 @@ test("a person connects an MCP agent that works with their permissions", async (
   const workspaceUrl = page.url();
 
   // Create a token in account settings; the secret is shown once.
-  await page.goto("/app/account#agents");
+  await page.goto("/account#agents");
   const section = page.locator("#agents");
   await section.getByRole("button", { name: "New token" }).click();
   await section.getByLabel("Name", { exact: true }).fill("Playwright agent");
@@ -134,7 +135,7 @@ test("a person connects an MCP agent that works with their permissions", async (
   await expect(page.getByText("Drafted by an agent")).toBeVisible();
 
   // Revoking disconnects the agent immediately.
-  await page.goto("/app/account#agents");
+  await page.goto("/account#agents");
   await page
     .locator("#agents")
     .getByRole("button", { name: "Revoke Playwright agent" })

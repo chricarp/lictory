@@ -5,8 +5,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import sharp from "sharp";
 import * as s from "@lictory/core/db/schema";
-import { consentStatePath } from "./consent-setup";
-import { createWorkspace } from "./onboarding-helpers";
+import { consentStatePath } from "../consent-setup";
+import { createWorkspace } from "../helpers/onboarding-helpers";
 
 const password = "Local-test-password-123";
 const providerImage = "https://photos.example.test/provider.png";
@@ -98,7 +98,7 @@ for (const social of [false, true]) {
       route.fulfill({ contentType: "image/png", body: png }),
     );
     await signIn(page, user.email);
-    await page.goto("/app/account");
+    await page.goto("/account");
     const profile = page.locator("section#profile");
     if (social) {
       await expect(profile.locator(`img[src="${providerImage}"]`)).toHaveCount(
@@ -228,26 +228,7 @@ test("a saved photo appears in the workspace and online collaborators refresh it
       workspaceUrl.replace(/\/pht\/epics$/, "/settings/members"),
     );
     // Keep a separate signed-in workspace view open while personal settings change.
-    // Hold scripts to exercise the server-rendered controls before hydration.
-    let releaseScripts!: () => void;
-    const scriptsReady = new Promise<void>((resolve) => {
-      releaseScripts = resolve;
-    });
-    await page.route("**/_next/**/*.js", async (route) => {
-      await scriptsReady;
-      await route.continue();
-    });
-    try {
-      await page.goto("/app/account", { waitUntil: "commit" });
-      await expect(
-        page.getByRole("button", { name: "Upload photo", exact: true }),
-      ).toBeDisabled();
-      await expect(page.getByLabel("Choose profile photo")).toBeDisabled();
-    } finally {
-      releaseScripts();
-    }
-    await page.waitForLoadState();
-    await page.unroute("**/_next/**/*.js");
+    await page.goto("/account");
     const png = await sharp({
       create: { width: 4, height: 4, channels: 3, background: "red" },
     })

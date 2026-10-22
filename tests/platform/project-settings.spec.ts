@@ -1,4 +1,4 @@
-import { test, expect, type APIResponse, type Page } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
@@ -8,8 +8,9 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { createSyncService, directory } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
-import { consentStatePath } from "./consent-setup";
-import { reloadWhenSaved } from "./sync-helpers";
+import { consentStatePath } from "../consent-setup";
+import { reloadWhenSaved } from "../helpers/sync-helpers";
+import { inApp } from "../helpers/app-urls";
 
 const password = "Local-test-password-123";
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -102,10 +103,10 @@ async function signIn(page: Page, index: number) {
   await page.getByLabel("Email", { exact: true }).fill(emails[index]!);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(inApp);
 }
 
-test("organization settings keep their header and sidebar while sections load and history changes", async ({
+test("organization settings keep their header and sidebar while switching sections and history changes", async ({
   page,
 }) => {
   await page
@@ -115,25 +116,6 @@ test("organization settings keep their header and sidebar while sections load an
   await signIn(page, 0);
 
   const membersPath = paths.settings(slug, "members");
-  let prefetchDelivered!: (response: APIResponse) => void;
-  const membersPrefetch = new Promise<APIResponse>(
-    (resolve) => (prefetchDelivered = resolve),
-  );
-  await page.route("**/app/**", async (route) => {
-    const request = route.request();
-    const headers = request.headers();
-    if (
-      new URL(request.url()).pathname === membersPath &&
-      headers["next-router-prefetch"] === "1" &&
-      !headers["next-router-segment-prefetch"]
-    ) {
-      const response = await route.fetch();
-      await route.fulfill({ response });
-      prefetchDelivered(response);
-    } else {
-      await route.continue();
-    }
-  });
   // The base settings URL still opens General and selects its navigation link.
   await page.goto(paths.settings(slug));
   const header = page.getByRole("heading", { name: "Organization settings" });
@@ -149,54 +131,27 @@ test("organization settings keep their header and sidebar while sections load an
   const headerBox = await header.boundingBox();
   const navBox = await nav.boundingBox();
 
-  await nav.getByRole("link", { name: "Members", exact: true }).hover();
-  expect((await membersPrefetch).ok()).toBe(true);
-  await page.unroute("**/app/**");
-
-  let release!: () => void;
-  let navigationHeld = false;
-  const slowServer = new Promise<void>((resolve) => (release = resolve));
-  await page.route("**/app/**", async (route) => {
-    const request = route.request();
-    const headers = request.headers();
-    if (
-      new URL(request.url()).pathname === membersPath &&
-      headers.rsc === "1" &&
-      !headers["next-router-prefetch"]
-    ) {
-      navigationHeld = true;
-      await slowServer;
-    }
-    await route.continue();
+  // Moving between sections is a client navigation inside the settings
+  // layout: the header and section navigation are the same nodes throughout.
+  await nav.getByRole("link", { name: "Members", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${membersPath}$`), {
+    timeout: 2_000,
   });
-
-  const loading = page.getByRole("status", {
-    name: "Loading settings section",
-  });
-  try {
-    await nav.getByRole("link", { name: "Members", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`${membersPath}$`), {
-      timeout: 2_000,
-    });
-    await expect(loading).toBeVisible({ timeout: 2_000 });
-    await expect.poll(() => navigationHeld).toBe(true);
-    await expect(header).toBeVisible();
-    await expect(nav).toBeVisible();
-    expect(await header.boundingBox()).toEqual(headerBox);
-    expect(await nav.boundingBox()).toEqual(navBox);
-    expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
-    expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
-    await expect(
-      nav.getByRole("link", { name: "Members", exact: true }),
-    ).toHaveAttribute("aria-current", "page");
-  } finally {
-    release();
-  }
   await expect(
     page.getByRole("heading", { name: "Members", exact: true }),
   ).toBeVisible();
-  await expect(loading).toHaveCount(0);
-  await page.unroute("**/app/**");
+  await expect(header).toBeVisible();
+  await expect(nav).toBeVisible();
+  expect(await header.boundingBox()).toEqual(headerBox);
+  expect(await nav.boundingBox()).toEqual(navBox);
+  expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
+  expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
+  await expect(
+    nav.getByRole("link", { name: "Members", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("status", { name: "Loading settings section" }),
+  ).toHaveCount(0);
 
   for (const [section, label, heading] of [
     ["projects", "Projects", "Projects"],
