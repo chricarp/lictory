@@ -14,12 +14,14 @@ import postgres from "postgres";
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
   "postgresql://lictory:lictory@localhost:5432/postgres";
+// E2E_PORT_OFFSET lets several checkouts run browser tests side by side.
+const offset = Number(process.env.E2E_PORT_OFFSET ?? 0);
 const ports = {
-  edge: 3001,
-  api: 3002,
-  marketing: 3101,
-  zero: 4858,
-  zeroChangeStreamer: 4859,
+  edge: 3001 + offset,
+  api: 3002 + offset,
+  marketing: 3101 + offset,
+  zero: 4858 + offset * 10,
+  zeroChangeStreamer: 4859 + offset * 10,
 };
 const platformUrl = `http://localhost:${ports.edge}`;
 const siteUrl = `http://localhost:${ports.marketing}`;
