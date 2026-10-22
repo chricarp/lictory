@@ -24,6 +24,14 @@ const database = or(env.DATABASE_URL_UNPOOLED, env.DATABASE_URL ?? "");
 if (!database) throw new Error("Set DATABASE_URL in .env.");
 mkdirSync(".zero", { recursive: true });
 
+// Reuse the Compose zero-cache (`docker compose --profile zero up -d
+// zero-cache`) when it is already running; otherwise run one from node_modules.
+const zeroRunning = await fetch("http://localhost:4848/keepalive")
+  .then((response) => response.ok)
+  .catch(() => false);
+if (zeroRunning)
+  console.log("[zero] using the zero-cache already running on port 4848");
+
 const services: [string, string, string[], NodeJS.ProcessEnv][] = [
   ["api", "bun", ["run", "--filter", "@lictory/api", "dev"], env],
   ["worker", "bun", ["run", "--filter", "@lictory/worker", "dev"], env],
@@ -56,6 +64,7 @@ const services: [string, string, string[], NodeJS.ProcessEnv][] = [
 
 const children: ChildProcess[] = [];
 for (const [name, command, args, serviceEnv] of services) {
+  if (name === "zero" && zeroRunning) continue;
   // Own process group, so stopping also stops what the scripts spawned.
   const child = spawn(command, args, {
     env: serviceEnv,

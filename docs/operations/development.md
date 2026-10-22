@@ -21,10 +21,12 @@ Every optional integration (OAuth, Resend, R2, OpenAI, PostHog, Jira) stays
 disabled until its variables are set in `.env`. Core refinement works without any
 of them.
 
-The Compose PostgreSQL runs with `wal_level=logical` for Zero. After
-`bun run db:migrate`, `docker compose --profile zero up -d zero-cache` starts a
-zero-cache (port 4848) against the development database that calls the API on
-the host (port 3002). Existing volumes keep their data when the setting changes.
+The Compose PostgreSQL runs with `wal_level=logical` for Zero (recreate an
+older container once with `docker compose up -d --force-recreate postgres`).
+`bun run dev` starts the SPA (3000), API (3002), worker, website (3100) and a
+zero-cache (4848) from `node_modules`. To run zero-cache in Docker instead,
+start `docker compose --profile zero up -d zero-cache` after
+`bun run db:migrate`; `bun run dev` then uses it rather than starting its own.
 Production images and the single-server stack are described in
 [deployment](deployment.md).
 
