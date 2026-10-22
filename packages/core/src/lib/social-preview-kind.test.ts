@@ -33,6 +33,7 @@ void test("the document head carries only the closed vocabulary", () => {
   );
   assert.match(head, /<title>Epic in Lictory<\/title>/);
   assert.match(head, /content="https:\/\/lictory.com\/og\/epic"/);
-  assert.match(head, /noindex/);
+  // noindex comes once, from the SPA document (checked in the browser suite).
+  assert.doesNotMatch(head, /robots/);
   assert.doesNotMatch(head, /<script|acme/);
 });

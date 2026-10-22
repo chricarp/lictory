@@ -199,8 +199,11 @@
 		}
 	}
 	handle @static {
-		@longLived path /brand/* /illustrations/*
+		# Illustrations carry content hashes in their names; brand files do not.
+		@hashed path /illustrations/*
+		@longLived path /brand/*
 		@shortLived not path /brand/* /illustrations/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
 		header @longLived Cache-Control "public, max-age=86400"
 		header @shortLived Cache-Control "public, max-age=3600"
 		root * /srv/platform/current

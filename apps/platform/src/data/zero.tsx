@@ -3,6 +3,7 @@ import type { Zero } from "@rocicorp/zero";
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -39,6 +40,8 @@ export function reconnectWorkspace() {
   void current?.connection.connect();
 }
 
+const UNSTORED_WINDOW_MS = 3000;
+
 type UserData = { pending: PendingTracker };
 const UserDataContext = createContext<UserData | null>(null);
 
@@ -50,6 +53,19 @@ export function WorkspaceDataProvider({
   children: ReactNode;
 }) {
   const [pending] = useState(() => new PendingTracker());
+  // Zero writes queued changes to this device about a second after the tab
+  // goes idle. Leaving within that window, before the server confirmed a
+  // change, could lose it, so the browser asks first. Older unconfirmed
+  // changes are already stored and replay on the next visit.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      const recent = Date.now() - UNSTORED_WINDOW_MS;
+      if (pending.snapshot().some((p) => p.enqueuedAt > recent))
+        event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pending]);
   const cacheURL = `${window.location.origin}/zero`;
   const data = useMemo(() => ({ pending }), [pending]);
   return (

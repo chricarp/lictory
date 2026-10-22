@@ -101,7 +101,9 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "dist",
       emptyOutDir: true,
-      sourcemap: "hidden",
+      // No source maps: the bundles are served publicly and no error
+      // reporting service consumes them.
+      sourcemap: false,
       target: "es2022",
     },
   };

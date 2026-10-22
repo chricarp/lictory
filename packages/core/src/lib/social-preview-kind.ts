@@ -72,8 +72,9 @@ const escape = (value: string) =>
     .replaceAll(">", "&gt;");
 
 // The `<head>` additions for a platform document: title, description, Open
-// Graph and Twitter cards pointing at the marketing site's preview images,
-// and noindex. Every value comes from the closed vocabulary above.
+// Graph and Twitter cards pointing at the marketing site's preview images.
+// The SPA document itself carries noindex. Every value comes from the closed
+// vocabulary above.
 export function socialPreviewHead(path: string, siteUrl: string) {
   const kind = previewKind(path);
   const title = `${previewLabels[kind]} in Lictory`;
@@ -85,7 +86,6 @@ export function socialPreviewHead(path: string, siteUrl: string) {
   return [
     `<title>${escape(title)}</title>`,
     meta("name", "description", description),
-    meta("name", "robots", "noindex, nofollow"),
     meta("property", "og:title", title),
     meta("property", "og:description", description),
     meta("property", "og:site_name", "Lictory"),
