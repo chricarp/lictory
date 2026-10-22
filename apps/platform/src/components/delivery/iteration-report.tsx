@@ -1,7 +1,6 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useParams } from "@lictory/platform/lib/navigation";
 import { BarChart3, ChevronLeft } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { iterationLabel, type IterationReport } from "@lictory/core/contracts/protocol";
@@ -15,7 +14,7 @@ export function IterationReportPage() {
   const project = useProject();
   const { iteration: iterationId } = useParams<{ iteration: string }>();
   const { delivery, organization, view } = useWorkspace();
-  const found = delivery.iterations.get(iterationId);
+  const found = iterationId ? delivery.iterations.get(iterationId) : undefined;
   const iteration = found?.projectId === project.id ? found : undefined;
   // Refetch when anything synchronizes, so an open report follows progress.
   const { report, error } = useIterationReport(

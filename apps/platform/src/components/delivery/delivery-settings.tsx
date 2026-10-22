@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useState } from "react";
 import { ArrowUpRight, Loader2, PlugZap, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
@@ -127,7 +126,7 @@ function ConnectionRow({
   usedBy: string[];
   onReplace: () => void;
 }) {
-  const { organization, engine } = useWorkspace();
+  const { organization } = useWorkspace();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -169,7 +168,6 @@ function ConnectionRow({
                         organizationId: organization.id,
                         connectionId: connection.id,
                       });
-                      await engine.sync();
                     } catch (e) {
                       setError(message(e));
                     } finally {
@@ -227,7 +225,7 @@ function ConnectForm({
   initialUrl?: string;
   onDone: () => void;
 }) {
-  const { organization, engine } = useWorkspace();
+  const { organization } = useWorkspace();
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState(initialUrl ?? "");
   const [email, setEmail] = useState("");
@@ -251,7 +249,6 @@ function ConnectForm({
               apiToken,
             });
             setApiToken("");
-            await engine.sync();
             onDone();
           } catch (err) {
             setError(message(err));
@@ -404,7 +401,7 @@ function TargetSummary({
   canEdit: boolean;
   onEdit: () => void;
 }) {
-  const { organization, delivery, engine } = useWorkspace();
+  const { organization, delivery } = useWorkspace();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const types = enabledTypes(delivery, project.id);
@@ -451,7 +448,6 @@ function TargetSummary({
                     organizationId: organization.id,
                     projectId: project.id,
                   });
-                  await engine.sync();
                 } catch (e) {
                   setError(message(e));
                 } finally {
@@ -518,7 +514,7 @@ function TargetEditor({
   target?: DeliveryTargetSummary;
   onDone: () => void;
 }) {
-  const { organization, directory, delivery, engine } = useWorkspace();
+  const { organization, directory, delivery } = useWorkspace();
   const connections = directory.delivery.connections;
   const [connectionId, setConnectionId] = useState(
     target?.connectionId ?? connections[0]?.id ?? "",
@@ -658,7 +654,6 @@ function TargetEditor({
               ),
             });
             if (saved) {
-              await engine.sync();
               onDone();
             }
           }}

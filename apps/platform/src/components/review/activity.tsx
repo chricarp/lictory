@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { relativeTime, priorityMeta, refinementMeta } from "@lictory/core/lib/work-items";

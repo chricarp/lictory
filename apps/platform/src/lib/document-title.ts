@@ -20,7 +20,7 @@ type TitleContext = {
 // pathname so the title stays correct while the shell stays mounted across
 // client navigations.
 export function workspaceTitle(pathname: string, ctx: TitleContext) {
-  const [, , ...rest] = pathname.split("/").filter(Boolean); // app, org, ...
+  const [, ...rest] = pathname.split("/").filter(Boolean); // org, ...
   const [first, second, third] = rest;
   const parts: string[] = [];
   const context = ctx.project?.name ?? ctx.organization.name;

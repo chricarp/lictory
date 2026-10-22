@@ -1,7 +1,6 @@
-"use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { X } from "lucide-react";
 import { EpicPicker } from "@lictory/platform/components/items/epic-picker";
 import { TypeIcon } from "@lictory/platform/components/items/icons";

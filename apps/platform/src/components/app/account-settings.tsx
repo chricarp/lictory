@@ -1,6 +1,4 @@
-"use client";
-
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import { useEffect, useState } from "react";
 import {
   AtSign,
@@ -44,6 +42,8 @@ import {
   type Theme,
 } from "@lictory/core/lib/appearance";
 import { authClient } from "@lictory/platform/lib/auth-client";
+import { accountChanged, forgetAccountLocally } from "@lictory/platform/lib/account";
+import { useSessionUser } from "@lictory/platform/lib/session";
 import { oauthErrorMessage } from "@lictory/core/lib/oauth-errors";
 import { cn, formValue } from "@lictory/core/lib/utils";
 
@@ -206,7 +206,6 @@ function Status({
 }
 
 function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
-  const router = useRouter();
   const [value, setValue] = useState(user.name);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -222,7 +221,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
         : "Profile updated.",
     );
     setPending(false);
-    if (!result.error) router.refresh();
+    if (!result.error) void accountChanged();
   }
 
   return (
@@ -512,8 +511,8 @@ function ConnectionsSection({
     return null;
   });
   const back = returnTo
-    ? `/app/account?returnTo=${encodeURIComponent(returnTo)}`
-    : "/app/account";
+    ? `/account?returnTo=${encodeURIComponent(returnTo)}`
+    : "/account";
 
   // Returning from the provider: show the outcome where it happened, then
   // drop the one-time parameters so a reload doesn't repeat it.
@@ -568,7 +567,7 @@ function ConnectionsSection({
       tone: "success",
       text: `${providerLabels[provider]} disconnected. You can connect it again at any time.`,
     });
-    router.refresh();
+    void accountChanged();
   }
 
   return (
@@ -897,7 +896,7 @@ function SessionsSection({
 }
 
 function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
-  const router = useRouter();
+  const userId = useSessionUser().id;
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -919,8 +918,8 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
       setPending(false);
       return;
     }
-    router.push("/");
-    router.refresh();
+    await forgetAccountLocally(userId);
+    window.location.assign("/sign-in");
   }
 
   return (

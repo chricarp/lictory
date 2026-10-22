@@ -1,5 +1,4 @@
-"use client";
-import { useSearchParams, useSelectedLayoutSegment } from "next/navigation";
+import { useParams, useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   createContext,
   useCallback,
@@ -55,7 +54,8 @@ export function SplitView({
   kind: "epics" | "stories";
   children: ReactNode;
 }) {
-  const segment = useSelectedLayoutSegment();
+  // The selected item is the child route's `$id`.
+  const segment = useParams<{ id: string }>().id;
   const searchParams = useSearchParams();
   const { items, organization, delivery } = useWorkspace();
   const [collapsed, toggle] = usePanelCollapsed(
@@ -64,10 +64,7 @@ export function SplitView({
   );
   const listId = useId();
   const project = useProject();
-  const selected =
-    segment && segment !== "__DEFAULT__"
-      ? decodeURIComponent(segment)
-      : undefined;
+  const selected = segment ? decodeURIComponent(segment) : undefined;
   const scoped = useMemo(
     () =>
       items.filter(

@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { ArrowRight, GitCompareArrows, History } from "lucide-react";
 import { relativeTime } from "@lictory/core/lib/work-items";

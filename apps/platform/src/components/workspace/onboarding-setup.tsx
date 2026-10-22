@@ -1,11 +1,10 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
 import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
@@ -29,6 +28,7 @@ import { suggestKey } from "@lictory/core/lib/work-items";
 import { handleProblem, normalizeHandle } from "@lictory/core/lib/handles";
 import { paths } from "@lictory/core/lib/paths";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { MutationRejected } from "@lictory/platform/data/mutations";
 import {
   CardOptions,
   OnboardingFrame,
@@ -86,7 +86,8 @@ function parseRecipient(raw: string): string | undefined {
 type InviteResult = { recipient: string; error?: string };
 
 export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
-  const { organization, userId, directory, engine } = useWorkspace();
+  const { organization, userId, directory, reconnect, applyConfirmed } =
+    useWorkspace();
   const router = useRouter();
   const storageKey = draftKey(userId, organization.id);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -237,7 +238,6 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       sessionStorage.removeItem(`${storageKey}:attempt`);
     } catch {}
     router.replace(paths.list(organization.slug, key, "epics"));
-    router.refresh();
   };
   const retryInvites = async () => {
     if (!invited) return;
@@ -291,27 +291,25 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
         }
       }
       setUncertain(true);
-      const response = await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(attempt.current),
-      });
-      const body: unknown = await response.json();
-      if (!response.ok) {
-        if (response.status >= 400 && response.status < 500) {
+      try {
+        // The same mutation ID makes a retry after an unclear outcome
+        // idempotent: the server answers from its receipt.
+        await applyConfirmed(attempt.current);
+      } catch (e) {
+        // A definitive domain answer: the next attempt is a new mutation.
+        if (
+          e instanceof MutationRejected &&
+          e.details.category !== "unavailable" &&
+          e.details.category !== "server"
+        ) {
           attempt.current = undefined;
           setUncertain(false);
           try {
             sessionStorage.removeItem(`${storageKey}:attempt`);
           } catch {}
         }
-        throw new Error(
-          z.object({ error: z.object({ message: z.string() }) }).safeParse(body)
-            .data?.error.message ?? "Setup could not be saved. Try again.",
-        );
+        throw e;
       }
-      // Read through synchronization; a mutation receipt never advances a checkpoint.
-      await engine.sync();
       const command = attempt.current.command;
       if (command.type !== "createProject") return;
       if (draft.invites.length) {
@@ -341,7 +339,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           An administrator is finishing setup for {organization.name}. You’ll
           land in the workspace as soon as it’s ready.
         </OnboardingHeading>
-        <Button size="lg" variant="secondary" onClick={() => router.refresh()}>
+        <Button size="lg" variant="secondary" onClick={reconnect}>
           Check again
         </Button>
       </OnboardingFrame>

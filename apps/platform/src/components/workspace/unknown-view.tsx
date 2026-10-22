@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { Search } from "lucide-react";
 
 import { Button } from "@lictory/ui/button";

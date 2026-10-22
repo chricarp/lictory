@@ -1,0 +1,105 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { appearanceBootScript } from "../../packages/core/src/lib/appearance";
+
+const root = fileURLToPath(new URL("../..", import.meta.url));
+const workspace = (path: string) => `${root}${path}`;
+
+// Small files only the app host serves (icons and the web app manifest).
+const staticFiles: Record<string, string> = {
+  "/icon.svg": "image/svg+xml",
+  "/apple-icon.png": "image/png",
+  "/manifest.webmanifest": "application/manifest+json",
+};
+function appStatic(): Plugin {
+  const file = (name: string) =>
+    fileURLToPath(new URL(`./static${name}`, import.meta.url));
+  return {
+    name: "lictory-app-static",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const type = req.url ? staticFiles[req.url.split("?")[0]!] : undefined;
+        if (!type) return next();
+        res.setHeader("Content-Type", type);
+        res.end(readFileSync(file(req.url!.split("?")[0]!)));
+      });
+    },
+    generateBundle() {
+      for (const name of Object.keys(staticFiles))
+        this.emitFile({
+          type: "asset",
+          fileName: name.slice(1),
+          source: readFileSync(file(name)),
+        });
+    },
+  };
+}
+
+// The saved light/dark preference applies before the first paint.
+function appearanceBoot(): Plugin {
+  return {
+    name: "lictory-appearance-boot",
+    transformIndexHtml(html) {
+      return html.replace("/*appearance-boot*/", appearanceBootScript);
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, root, "");
+  const apiOrigin = env.API_ORIGIN || "http://localhost:3002";
+  const zeroOrigin = env.ZERO_ORIGIN || "http://localhost:4848";
+  const version = (
+    JSON.parse(readFileSync(workspace("package.json"), "utf8")) as {
+      version: string;
+    }
+  ).version;
+  const posthogToken = env.VITE_POSTHOG_PROJECT_TOKEN ?? "";
+  const posthogHost = env.VITE_POSTHOG_HOST ?? "";
+  // One origin in development and previews: the API, zero-cache and the
+  // analytics relay sit behind the app's own server, as in production.
+  const proxy: Record<string, ProxyOptions> = {
+    "/api": { target: apiOrigin, changeOrigin: false, xfwd: true },
+    "/relay": { target: apiOrigin, changeOrigin: false, xfwd: true },
+    "/zero": { target: zeroOrigin, ws: true, changeOrigin: true },
+  };
+  const port = Number(env.PORT || 3120);
+  return {
+    root: fileURLToPath(new URL(".", import.meta.url)),
+    envDir: root,
+    publicDir: workspace("packages/ui/public"),
+    plugins: [react(), tailwindcss(), appearanceBoot(), appStatic()],
+    resolve: {
+      alias: [
+        {
+          find: /^@lictory\/(core|ui|zero)\/(.*)$/,
+          replacement: workspace("packages/$1/src/$2"),
+        },
+        {
+          find: /^@lictory\/platform\/(.*)$/,
+          replacement: workspace("apps/platform/src/$1"),
+        },
+      ],
+    },
+    define: {
+      "import.meta.env.VITE_APP_VERSION": JSON.stringify(version),
+      // Shared browser modules read the build's public settings under their
+      // original names.
+      "process.env.NEXT_PUBLIC_APP_VERSION": JSON.stringify(version),
+      "process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN":
+        JSON.stringify(posthogToken),
+      "process.env.NEXT_PUBLIC_POSTHOG_HOST": JSON.stringify(posthogHost),
+    },
+    server: { port, strictPort: true, proxy },
+    preview: { port, strictPort: true, proxy },
+    build: {
+      outDir: "dist",
+      emptyOutDir: true,
+      sourcemap: "hidden",
+      target: "es2022",
+    },
+  };
+});

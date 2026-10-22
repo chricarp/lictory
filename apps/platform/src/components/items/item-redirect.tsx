@@ -1,6 +1,5 @@
-"use client";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useEffect } from "react";
 import { FileSearch } from "lucide-react";
 import { Button } from "@lictory/ui/button";
@@ -43,7 +42,7 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
   useEffect(() => {
     if (target) router.replace(target);
   }, [target, router]);
-  if (target || view.status === "hydrating" || view.status === "syncing")
+  if (target || view.status === "hydrating")
     return (
       <div className="p-8 text-sm text-muted-foreground" role="status">
         Opening {raw}…

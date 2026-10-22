@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 
 import { FormField, FormMessage } from "@lictory/platform/components/auth/form-field";

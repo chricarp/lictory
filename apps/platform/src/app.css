@@ -1,0 +1,8 @@
+@import "@lictory/ui/styles.css";
+@import "./fonts.css";
+
+/* Class names used by the app, its shared UI and shared domain helpers. */
+@source "../index.html";
+@source "./";
+@source "../../../packages/ui/src";
+@source "../../../packages/core/src/lib";

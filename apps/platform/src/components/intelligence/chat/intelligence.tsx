@@ -1,4 +1,3 @@
-"use client";
 import type { Chat } from "@ai-sdk/react";
 import {
   AnimatePresence,
@@ -17,7 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,

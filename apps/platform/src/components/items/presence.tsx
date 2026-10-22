@@ -1,11 +1,10 @@
-"use client";
 import { useEffect, useState } from "react";
 import {
   announcePresence,
   presenceFor,
   subscribePresence,
   PRESENCE_TTL,
-} from "@lictory/platform/sync-legacy/hub";
+} from "@lictory/platform/data/signals";
 import { Avatar } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 

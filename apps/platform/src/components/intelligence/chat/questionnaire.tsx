@@ -1,4 +1,3 @@
-"use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Check, CircleHelp, X } from "lucide-react";
 import {

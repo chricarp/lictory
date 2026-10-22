@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { GripVertical, Plus } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";

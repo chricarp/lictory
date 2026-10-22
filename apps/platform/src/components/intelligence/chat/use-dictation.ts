@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Live dictation over WebRTC. The microphone streams straight to the speech-to-

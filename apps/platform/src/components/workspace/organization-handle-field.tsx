@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useId, useState } from "react";
 import { Input } from "@lictory/ui/input";
 import { authClient } from "@lictory/platform/lib/auth-client";

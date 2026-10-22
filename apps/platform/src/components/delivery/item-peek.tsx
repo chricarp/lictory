@@ -1,6 +1,5 @@
-"use client";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { usePathname, useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,

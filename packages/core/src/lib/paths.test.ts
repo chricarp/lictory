@@ -6,7 +6,10 @@ void test("workspace paths live at the root of the app host", () => {
   assert.equal(paths.org("acme"), "/acme");
   assert.equal(paths.inbox("acme"), "/acme/inbox");
   assert.equal(paths.account(), "/account");
-  assert.equal(paths.account("/acme/inbox"), "/account?returnTo=%2Facme%2Finbox");
+  assert.equal(
+    paths.account("/acme/inbox"),
+    "/account?returnTo=%2Facme%2Finbox",
+  );
   assert.equal(paths.newOrganization, "/new-organization");
   assert.equal(paths.list("acme", "PAY", "epics"), "/acme/pay/epics");
   assert.equal(
@@ -14,7 +17,10 @@ void test("workspace paths live at the root of the app host", () => {
     "/acme/pay/stories/PAY-12?pr=1",
   );
   assert.equal(paths.board("acme", "PAY", "core"), "/acme/pay/board?team=core");
-  assert.equal(paths.projectSettings("acme", "PAY", "teams"), "/acme/pay/settings/teams");
+  assert.equal(
+    paths.projectSettings("acme", "PAY", "teams"),
+    "/acme/pay/settings/teams",
+  );
 });
 
 void test("callbacks accept only relative paths inside the app", () => {

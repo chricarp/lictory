@@ -1,18 +1,18 @@
-"use client";
-import dynamic from "next/dynamic";
-import Link, { useLinkStatus } from "next/link";
+import { Link, useLinkStatus } from "@lictory/platform/lib/navigation";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { toast as toastManager } from "@lictory/ui/toast";
-import { resetAnalytics, track } from "@lictory/core/lib/analytics/client";
+import { track } from "@lictory/core/lib/analytics/client";
 import {
   useParams,
   usePathname,
   useRouter,
   useSearchParams,
-} from "next/navigation";
+} from "@lictory/platform/lib/navigation";
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -49,7 +49,7 @@ import {
   ListOrdered,
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
-import { authClient } from "@lictory/platform/lib/auth-client";
+import { signOut } from "@lictory/platform/lib/account";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { workspaceTitle } from "@lictory/platform/lib/document-title";
@@ -82,10 +82,14 @@ const loadQuickCreate = () =>
   import("@lictory/platform/components/workspace/quick-create").then((m) => m.QuickCreate);
 const loadIntelligenceDock = () =>
   import("@lictory/platform/components/intelligence/dock/dock").then((m) => m.IntelligenceDock);
-const CommandPalette = dynamic(loadCommandPalette, { ssr: false });
-const QuickCreate = dynamic(loadQuickCreate, { ssr: false });
+const CommandPalette = lazy(() =>
+  loadCommandPalette().then((m) => ({ default: m })),
+);
+const QuickCreate = lazy(() => loadQuickCreate().then((m) => ({ default: m })));
 // Always present, but never needed for the first paint.
-const IntelligenceDock = dynamic(loadIntelligenceDock, { ssr: false });
+const IntelligenceDock = lazy(() =>
+  loadIntelligenceDock().then((m) => ({ default: m })),
+);
 
 type Organization = Directory["organizations"][number];
 
@@ -328,12 +332,7 @@ export function Shell({
       onCollapse={toggleSidebar}
       sidebarId={sidebarId}
       onSignOut={async () => {
-        const result = await authClient.signOut();
-        if (result.error) return;
-        track("signed_out");
-        resetAnalytics();
-        router.push("/sign-in");
-        router.refresh();
+        await signOut();
       }}
     />
   );
@@ -398,19 +397,29 @@ export function Shell({
                 )}
               </div>
             </div>
-            <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
-            {dockReady && <IntelligenceDock />}
+            <main
+              id="main"
+              tabIndex={-1}
+              className="min-h-0 flex-1 overflow-hidden outline-none"
+            >{children}</main>
+            {dockReady && (
+              <Suspense fallback={null}>
+                <IntelligenceDock />
+              </Suspense>
+            )}
           </div>
         </div>
-        {palette.open && (
-          <CommandPalette
-            initialQuery={palette.query}
-            onClose={() => setPalette({ open: false, query: "" })}
-          />
-        )}
-        {create && (
-          <QuickCreate options={create} onClose={() => setCreate(null)} />
-        )}
+        <Suspense fallback={null}>
+          {palette.open && (
+            <CommandPalette
+              initialQuery={palette.query}
+              onClose={() => setPalette({ open: false, query: "" })}
+            />
+          )}
+          {create && (
+            <QuickCreate options={create} onClose={() => setCreate(null)} />
+          )}
+        </Suspense>
       </DockProvider>
     </ShellContext.Provider>
   );
@@ -981,7 +990,7 @@ function ProjectNav({
               href={backlog}
               active={
                 (pathname === backlog && !teamParam) ||
-                active(`/app/${org}/${key.toLowerCase()}/iterations`)
+                active(`/${org}/${key.toLowerCase()}/iterations`)
               }
               icon={<ListOrdered className="size-4" />}
             >

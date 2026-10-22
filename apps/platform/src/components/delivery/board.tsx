@@ -1,6 +1,5 @@
-"use client";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { usePathname, useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Plus,

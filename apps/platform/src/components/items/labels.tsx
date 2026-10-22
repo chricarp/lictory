@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { Flag, Plus, Tag } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";

@@ -1,4 +1,8 @@
-import type { Command, Entity, Directory } from "@lictory/core/contracts/protocol";
+import type {
+  Command,
+  Entity,
+  Directory,
+} from "@lictory/core/contracts/protocol";
 
 export type AnalyticsProperties = Record<
   string,
@@ -290,7 +294,9 @@ export function sanitizeAnalyticsProperties(
 // Which paths name an organization, project or item. Apps on the app host
 // (where organizations are the first path segment) configure their own rule.
 let workspacePath = (pathname: string) => /^\/app(\/|$)/.test(pathname);
-export function setWorkspacePathMatcher(matcher: (pathname: string) => boolean) {
+export function setWorkspacePathMatcher(
+  matcher: (pathname: string) => boolean,
+) {
   workspacePath = matcher;
 }
 // Reduced paths keep one stable label, whatever the app's URL layout.

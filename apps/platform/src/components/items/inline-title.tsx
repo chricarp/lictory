@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@lictory/core/lib/utils";
 import { useItem } from "@lictory/platform/components/items/item-context";

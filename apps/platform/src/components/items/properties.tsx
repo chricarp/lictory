@@ -1,4 +1,3 @@
-"use client";
 import { EpicPicker } from "@lictory/platform/components/items/epic-picker";
 import { PriorityIcon } from "@lictory/platform/components/items/icons";
 export { PriorityIcon } from "@lictory/platform/components/items/icons";

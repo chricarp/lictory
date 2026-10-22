@@ -1,4 +1,3 @@
-"use client";
 import {
   getToolName,
   isToolUIPart,
@@ -21,7 +20,7 @@ import {
   ShieldX,
   Sparkle,
 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import {
   IntelligenceMark,
   useAfterglow,

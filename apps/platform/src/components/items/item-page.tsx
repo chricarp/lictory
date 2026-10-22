@@ -1,8 +1,7 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
 import { useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { FileSearch } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { MissingState } from "@lictory/ui/status-page";
@@ -86,7 +85,7 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
     delivery,
   ]);
   if (!item) {
-    if (view.status === "hydrating" || view.status === "syncing")
+    if (view.status === "hydrating")
       return <LoadingState label={`Opening ${raw}`} />;
     if (isSyncBlocked(view.status))
       return <SyncIssue status={view.status} error={view.error} />;

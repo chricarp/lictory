@@ -1,6 +1,5 @@
-"use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { Archive, ArchiveRestore, FolderKanban } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";

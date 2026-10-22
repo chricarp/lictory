@@ -1,7 +1,5 @@
-"use client";
-
 import { useState } from "react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 
 import {
   AuthFooter,
@@ -17,7 +15,7 @@ export function VerificationStatus({
   email,
   verified,
   errorCode,
-  callbackURL = "/app",
+  callbackURL = "/",
 }: {
   email?: string;
   verified: boolean;

@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
 import { Button } from "@lictory/ui/button";

@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useSyncExternalStore } from "react";
 
 // Layout preferences stay in this browser, outside synchronized domain state.

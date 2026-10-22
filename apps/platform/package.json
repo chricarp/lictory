@@ -22,12 +22,12 @@
     "@rocicorp/zero": "1.11.2",
     "@tanstack/react-router": "1.170.45",
     "@fontsource-variable/geist": "5.3.0",
-    "@fontsource-variable/geist-mono": "5.3.0"
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "vite": "8.3.5",
     "@vitejs/plugin-react": "6.1.2",
-    "@tailwindcss/vite": "4.3.3",
-    "@tanstack/router-plugin": "1.168.47"
+    "@tailwindcss/vite": "4.3.3"
   }
 }

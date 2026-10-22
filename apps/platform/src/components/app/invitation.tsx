@@ -1,8 +1,8 @@
-"use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter } from "@lictory/platform/lib/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
 import { authClient } from "@lictory/platform/lib/auth-client";
+import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
 import {
   OnboardingFrame,
@@ -78,8 +78,7 @@ export function Invitation({ id }: { id?: string }) {
                 invitationId: id,
               });
               if (result.error) throw new Error(result.error.message);
-              router.push(`/app/${details.organizationSlug}`);
-              router.refresh();
+              router.push(paths.org(details.organizationSlug));
             } catch (e) {
               setError(
                 e instanceof Error
@@ -95,7 +94,7 @@ export function Invitation({ id }: { id?: string }) {
         </Button>
       )}
       <Link
-        href="/app?intent=join"
+        href="/?intent=join"
         className="mt-6 block text-sm text-muted-foreground hover:text-foreground"
       >
         Other options

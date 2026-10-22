@@ -1,4 +1,3 @@
-"use client";
 import { useSyncExternalStore } from "react";
 
 // The project a person is working in survives visits to organization-level

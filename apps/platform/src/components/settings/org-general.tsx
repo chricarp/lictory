@@ -1,6 +1,5 @@
-"use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { Building2, TriangleAlert } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { authClient } from "@lictory/platform/lib/auth-client";
@@ -40,7 +39,6 @@ export function OrganizationGeneral() {
                 data: { name },
               });
               if (result.error) throw new Error(result.error.message);
-              router.refresh();
             }}
           />
         ) : (
@@ -66,7 +64,7 @@ export function OrganizationGeneral() {
 }
 
 function ChangeOrganizationHandle() {
-  const { organization, engine } = useWorkspace();
+  const { organization } = useWorkspace();
   const router = useRouter();
   const [value, setValue] = useState(organization.slug);
   const status = useOrganizationHandle(value, organization.slug);
@@ -89,9 +87,7 @@ function ChangeOrganizationHandle() {
             throw new Error(organizationHandleError(result.error));
           // Cached directory links need the new URL before navigating. A reset
           // also discards stale directory data when there are no item changes.
-          await engine.reset();
           router.replace(paths.settings(result.data.slug, "general"));
-          router.refresh();
         } catch (err) {
           setError(
             err instanceof Error ? err.message : "Could not change the handle.",
@@ -165,7 +161,7 @@ const logoFields: {
 // Branding is optional; without a logomark the organization's initial is
 // used, and without a full logo the name is shown as text.
 function Branding() {
-  const { organization, isAdmin, engine } = useWorkspace();
+  const { organization, isAdmin } = useWorkspace();
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState<LogoKind | null>(null);
@@ -191,8 +187,6 @@ function Branding() {
         } | null;
         throw new Error(body?.error ?? "The logo was not saved.");
       }
-      await engine.sync();
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "The logo was not saved.");
     } finally {

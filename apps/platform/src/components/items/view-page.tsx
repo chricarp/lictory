@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useMemo } from "react";
 import { paths } from "@lictory/core/lib/paths";
 import {

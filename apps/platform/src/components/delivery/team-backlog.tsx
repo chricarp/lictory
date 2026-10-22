@@ -1,7 +1,6 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams } from "@lictory/platform/lib/navigation";
 import {
   ArrowDownToLine,
   CalendarClock,

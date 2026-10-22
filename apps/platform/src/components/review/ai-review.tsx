@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -275,7 +274,7 @@ export function AiReviewView({
       try {
         await (workItemId === ctx.item.id
           ? ctx.mutateConfirmed(command)
-          : workspace.engine.mutateConfirmed(command));
+          : workspace.mutateConfirmed(command));
         results.push({ workItemId, ok: true });
       } catch (e) {
         results.push({
@@ -306,7 +305,7 @@ export function AiReviewView({
     try {
       await (f.workItemId === ctx.item.id
         ? ctx.mutateConfirmed(command)
-        : workspace.engine.mutateConfirmed(command));
+        : workspace.mutateConfirmed(command));
       setAsked((a) => new Set(a).add(f.id));
     } catch {
       // The thread composer remains available on the item itself.

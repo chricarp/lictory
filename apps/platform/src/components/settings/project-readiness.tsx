@@ -1,11 +1,10 @@
-"use client";
+import { readinessHistory } from "@lictory/platform/data/lookups";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { ChevronDown, History, ListChecks, Plus, Undo2 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime, type Project } from "@lictory/core/lib/work-items";
 import {
-  readinessHistorySchema,
   type ReadinessRevision,
   type WorkItemType,
 } from "@lictory/core/contracts/protocol";
@@ -891,7 +890,7 @@ function Review({
   onBack: () => void;
   onPublished: () => void;
 }) {
-  const { organization, engine, disciplineName } = useWorkspace();
+  const { organization, mutateConfirmed, disciplineName } = useWorkspace();
   const [impact, setImpact] = useState<ReadinessImpact>();
   const [error, setError] = useState<string>();
   const [summary, setSummary] = useState("");
@@ -932,7 +931,7 @@ function Review({
     setPending(true);
     setError(undefined);
     try {
-      await engine.mutateConfirmed({
+      await mutateConfirmed({
         type: "publishReadinessChecks",
         projectId: project.id,
         baseRevisionId: base.id,
@@ -952,7 +951,7 @@ function Review({
         <span key={item.id}>
           {index > 0 && ", "}
           <Link
-            href={`/app/${organization.slug}/items/${item.key}`}
+            href={`/${organization.slug}/items/${item.key}`}
             className="font-mono underline-offset-2 hover:text-foreground hover:underline"
           >
             {item.key}
@@ -1106,16 +1105,7 @@ function VersionHistory({
   const [error, setError] = useState<string>();
   useEffect(() => {
     let cancelled = false;
-    const query = new URLSearchParams({
-      readiness: "1",
-      organizationId: organization.id,
-      projectId: project.id,
-    });
-    fetch(`/api/sync?${query}`, { cache: "no-store" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error("The history could not be loaded.");
-        return readinessHistorySchema.parse(await r.json()).revisions;
-      })
+    readinessHistory(organization.id, project.id)
       .then((list) => !cancelled && setRevisions(list))
       .catch(
         (e: unknown) =>

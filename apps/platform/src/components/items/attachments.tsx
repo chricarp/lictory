@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Paperclip, Trash2, Upload } from "lucide-react";
 import {

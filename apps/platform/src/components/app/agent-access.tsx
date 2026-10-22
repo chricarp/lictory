@@ -1,5 +1,3 @@
-"use client";
-
 import { Bot, Copy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { AccessTokenSummary } from "@lictory/core/capabilities/access-tokens";

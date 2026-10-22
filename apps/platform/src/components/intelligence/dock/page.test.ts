@@ -4,19 +4,19 @@ import { pageOf } from "@lictory/platform/components/intelligence/dock/page";
 
 void test("the dock recognizes where the person is from the route", () => {
   const cases: [string, string][] = [
-    ["/app/acme", "home"],
-    ["/app/acme/inbox", "inbox"],
-    ["/app/acme/intelligence/123", "intelligence"],
-    ["/app/acme/items/PAY-1", "item"],
-    ["/app/acme/pay", "project"],
-    ["/app/acme/pay/stories", "items"],
-    ["/app/acme/pay/stories/PAY-142", "item"],
-    ["/app/acme/pay/epics/PAY-7", "item"],
-    ["/app/acme/pay/board", "board"],
-    ["/app/acme/pay/iterations/abc", "iteration"],
-    ["/app/acme/pay/teams/abc", "team"],
-    ["/app/acme/pay/views/blocked", "view"],
-    ["/app/acme/pay/settings/workflow", "project-settings"],
+    ["/acme", "home"],
+    ["/acme/inbox", "inbox"],
+    ["/acme/intelligence/123", "intelligence"],
+    ["/acme/items/PAY-1", "item"],
+    ["/acme/pay", "project"],
+    ["/acme/pay/stories", "items"],
+    ["/acme/pay/stories/PAY-142", "item"],
+    ["/acme/pay/epics/PAY-7", "item"],
+    ["/acme/pay/board", "board"],
+    ["/acme/pay/iterations/abc", "iteration"],
+    ["/acme/pay/teams/abc", "team"],
+    ["/acme/pay/views/blocked", "view"],
+    ["/acme/pay/settings/workflow", "project-settings"],
   ];
   for (const [path, kind] of cases) assert.equal(pageOf(path).kind, kind, path);
 });
