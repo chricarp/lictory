@@ -9,7 +9,7 @@
     "@c15t/scripts": "2.2.0",
     "loading-dev": "^0.3.5",
     "lucide-react": "^1.47.0",
-    "radix-ui": "^1.6.7",
+    "radix-ui": "^1.8.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   }
