@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@lictory/core": "workspace:*",
     "@rocicorp/zero": "1.11.2",
     "zod": "^4.6.5"
   }

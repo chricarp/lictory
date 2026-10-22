@@ -49,8 +49,12 @@ FROM source AS server-build
 RUN bun run --filter @lictory/api build \
  && bun run --filter @lictory/worker build \
  && test -f apps/api/dist/index.js && test -f apps/worker/dist/index.js \
- && node deploy/docker/runtime-dependencies.mjs /out/package.json \
-      apps/api/dist apps/worker/dist
+ && mkdir -p /manifests \
+ && cp package.json bun.lock bunfig.toml /manifests/ \
+ && for manifest in apps/*/package.json packages/*/package.json; do \
+      mkdir -p "/manifests/$(dirname "$manifest")"; \
+      cp "$manifest" "/manifests/$manifest"; \
+    done
 
 FROM source AS migrate-build
 # One self-contained file: the locked, transactional runner and its safety
@@ -87,7 +91,8 @@ ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
 RUN bun run --filter @lictory/marketing build \
  && mkdir -p /out \
  && cp -r apps/marketing/.next/standalone/. /out/ \
- && cp -r apps/marketing/public /out/apps/marketing/public \
+ && mkdir -p /out/apps/marketing/public \
+ && cp -r apps/marketing/public/. /out/apps/marketing/public/ \
  && cp -r apps/marketing/.next/static /out/apps/marketing/.next/static \
  && if [ -d /out/node_modules/sharp ]; then \
       node -p "JSON.parse(require('fs').readFileSync('/out/node_modules/sharp/package.json','utf8')).version" > /out/.sharp-version; \
@@ -95,12 +100,22 @@ RUN bun run --filter @lictory/marketing build \
  && rm -rf /out/node_modules/sharp /out/node_modules/@img
 
 # ------------------------------------------- target-platform native packages
+FROM ${BUN_IMAGE} AS bun-target
+
+# Installs the workspace lockfile's exact versions for the target platform,
+# then keeps only the files the API and worker bundles load (traced like
+# Next.js standalone output) and checks that the native packages load.
 FROM ${NODE_IMAGE} AS server-dependencies
-WORKDIR /deps
-COPY --from=server-build /out/package.json ./package.json
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --omit=dev --ignore-scripts --no-audit --no-fund \
- && rm package-lock.json
+COPY --from=bun-target /usr/local/bin/bun /usr/local/bin/bun
+WORKDIR /src
+COPY --from=server-build /manifests/ ./
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --ignore-scripts
+COPY --from=server-build /src/apps/api/dist ./apps/api/dist
+COPY --from=server-build /src/apps/worker/dist ./apps/worker/dist
+COPY deploy/docker/trace-runtime.mjs ./deploy/docker/trace-runtime.mjs
+RUN node deploy/docker/trace-runtime.mjs /deps \
+      apps/api/dist/index.js apps/worker/dist/index.js
 
 FROM ${NODE_IMAGE} AS marketing-dependencies
 WORKDIR /deps

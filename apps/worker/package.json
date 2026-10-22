@@ -13,5 +13,8 @@
     "esbuild": "0.28.2",
     "drizzle-orm": "^0.45.3",
     "postgres": "^3.4.9"
+  },
+  "dependencies": {
+    "@lictory/core": "workspace:*"
   }
 }
