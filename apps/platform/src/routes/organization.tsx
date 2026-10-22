@@ -61,16 +61,17 @@ export function OrganizationLayout() {
   const organization = organizations.find((o) => o.slug === org);
   // Organization IDs this route has shown: if one vanishes from my
   // memberships, access was removed (or the organization deleted).
-  const shown = useRef(new Set<string>());
-  const [lostId, setLostId] = useState<string>();
-  if (organization) shown.current.add(organization.id);
+  const [shown, setShown] = useState<readonly string[]>([]);
+  if (organization && !shown.includes(organization.id))
+    setShown([...shown, organization.id]);
   const lost =
     complete &&
     !organization &&
-    [...shown.current].some((id) => !organizations.some((o) => o.id === id));
+    shown.some((id) => !organizations.some((o) => o.id === id));
+  const notified = useRef(false);
   useEffect(() => {
-    if (!lost || lostId) return;
-    setLostId("lost");
+    if (!lost || notified.current) return;
+    notified.current = true;
     toast.add({
       title: ACCESS_REMOVED,
       type: "error",
@@ -79,7 +80,7 @@ export function OrganizationLayout() {
       timeout: 10000,
     });
     router.replace("/");
-  }, [lost, lostId, router]);
+  }, [lost, router]);
   const [graceOver, setGraceOver] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setGraceOver(true), ARRIVAL_GRACE_MS);
@@ -142,7 +143,7 @@ function OrganizationWorkspace({
   userId: string;
 }) {
   const { rows, complete, error } = useOrganizationRows(organization.id);
-  const connection = useConnectionState().name as ConnectionName;
+  const connection: ConnectionName = useConnectionState().name;
   const isAdmin = applicationRoleOf(organization.role) === "admin";
   const hasProjects = hasProjectRows(rows);
   const ready = complete || rows.some((r) => r.type === "directory");

@@ -3,7 +3,11 @@ import { useRouter } from "@lictory/platform/lib/navigation";
 import { Building2, TriangleAlert } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { authClient } from "@lictory/platform/lib/auth-client";
-import { ACCEPT_LOGO, MAX_LOGO_SIZE, type LogoKind } from "@lictory/core/branding/logo";
+import {
+  ACCEPT_LOGO,
+  MAX_LOGO_SIZE,
+  type LogoKind,
+} from "@lictory/core/branding/logo";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import {
@@ -21,7 +25,6 @@ import {
 
 export function OrganizationGeneral() {
   const { organization, isAdmin } = useWorkspace();
-  const router = useRouter();
   return (
     <SettingsSection
       id="general"
@@ -162,7 +165,6 @@ const logoFields: {
 // used, and without a full logo the name is shown as text.
 function Branding() {
   const { organization, isAdmin } = useWorkspace();
-  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState<LogoKind | null>(null);
   const change = async (kind: LogoKind, file: File | null) => {

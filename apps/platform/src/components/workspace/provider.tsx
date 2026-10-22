@@ -66,10 +66,10 @@ import {
 } from "@lictory/platform/data/recovery";
 import {
   emptyDirectoryProjection,
-  reconcileRows,
+  useStableEntities,
+  useStableValue,
   type DirectoryProjection,
   type OrganizationProfile,
-  type RowCache,
   type SyncRow,
 } from "@lictory/platform/data/rows";
 import {
@@ -147,6 +147,7 @@ export function useDelivery() {
 // Recently opened items stay subscribed, so moving between Stories shows
 // history that is already local.
 const RECENT_ITEMS = 8;
+const emptyRows: readonly SyncRow[] = [];
 const ITEM_TTL = "5m";
 
 export function emptyDirectory(
@@ -200,7 +201,7 @@ export function WorkspaceProvider({
   }, [membership.id, membership.role, userId]);
 
   const connectionState = useConnectionState();
-  const connection = connectionState.name as ConnectionName;
+  const connection: ConnectionName = connectionState.name;
   const connectionReason =
     "reason" in connectionState && typeof connectionState.reason === "string"
       ? connectionState.reason
@@ -208,35 +209,20 @@ export function WorkspaceProvider({
   const [everConnected, setEverConnected] = useState(false);
   if (connection === "connected" && !everConnected) setEverConnected(true);
 
-  const cache = useRef<RowCache>(new Map());
-  const previous = useRef<Entities | undefined>(undefined);
-  const entities = useMemo(() => {
-    const next = reconcileRows(rows, cache.current, previous.current);
-    previous.current = next;
-    return next;
-  }, [rows]);
+  const entities = useStableEntities(rows);
   const directoryRow = rows.find((r) => r.type === "directory");
   const profileRow = rows.find(
     (r) => r.key === organizationProfileKey(membership.id),
   );
   const projection = directoryRow?.data as DirectoryProjection | undefined;
   const profile = profileRow?.data as OrganizationProfile | undefined;
-  const lastDirectory = useRef<Directory | undefined>(undefined);
-  const directory = useMemo(() => {
-    const next: Directory = {
-      ...emptyDirectoryProjection,
-      ...projection,
-      organizations,
-    };
-    // Unchanged content keeps its identity across row updates.
-    if (
-      lastDirectory.current &&
-      JSON.stringify(lastDirectory.current) === JSON.stringify(next)
-    )
-      return lastDirectory.current;
-    lastDirectory.current = next;
-    return next;
-  }, [projection, organizations]);
+  // Unchanged content keeps its identity across row updates.
+  const directory = useStableValue<Directory>(
+    useMemo(
+      () => ({ ...emptyDirectoryProjection, ...projection, organizations }),
+      [projection, organizations],
+    ),
+  );
   const cursor = useMemo(
     () => String(rows.reduce((max, r) => Math.max(max, r.updatedAt), 0)),
     [rows],
@@ -268,27 +254,30 @@ export function WorkspaceProvider({
     return () => window.removeEventListener("storage", onStorage);
   }, [recovery]);
 
-  const notified = useRef(new Set<string>());
-  const notifyRejection = useCallback((rejection: Rejection) => {
-    if (notified.current.has(rejection.mutationId)) return;
-    notified.current.add(rejection.mutationId);
-    const text = rejection.recoverable ? recoveryText(rejection.command) : "";
-    toast.add({
-      title: "Change not applied",
-      type: "error",
-      id: rejection.mutationId,
-      description: rejection.recoverable
-        ? `${rejection.message} Your text is kept on this device.`
-        : rejection.message,
-      timeout: 8000,
-      actionProps: text
-        ? {
-            children: "Copy text",
-            onClick: () => void navigator.clipboard?.writeText(text),
-          }
-        : undefined,
-    });
-  }, []);
+  const [notified] = useState(() => new Set<string>());
+  const notifyRejection = useCallback(
+    (rejection: Rejection) => {
+      if (notified.has(rejection.mutationId)) return;
+      notified.add(rejection.mutationId);
+      const text = rejection.recoverable ? recoveryText(rejection.command) : "";
+      toast.add({
+        title: "Change not applied",
+        type: "error",
+        id: rejection.mutationId,
+        description: rejection.recoverable
+          ? `${rejection.message} Your text is kept on this device.`
+          : rejection.message,
+        timeout: 8000,
+        actionProps: text
+          ? {
+              children: "Copy text",
+              onClick: () => void navigator.clipboard?.writeText(text),
+            }
+          : undefined,
+      });
+    },
+    [notified],
+  );
 
   const apply = useApplyMutation();
   const runner = useMemo(
@@ -532,17 +521,7 @@ export function useItemView(itemId: string, enabled = true) {
   useEffect(() => {
     if (enabled) touchItem(itemId);
   }, [enabled, itemId, touchItem]);
-  const cache = useRef<RowCache>(new Map());
-  const previous = useRef<Entities | undefined>(undefined);
-  const itemEntities = useMemo(() => {
-    const next = reconcileRows(
-      (rows ?? []) as readonly SyncRow[],
-      cache.current,
-      previous.current,
-    );
-    previous.current = next;
-    return next;
-  }, [rows]);
+  const itemEntities = useStableEntities(rows ?? emptyRows);
   const merged = useMemo<Entities>(
     () => ({ ...orgView.entities, ...itemEntities }),
     [orgView.entities, itemEntities],

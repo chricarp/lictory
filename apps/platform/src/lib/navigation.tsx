@@ -24,15 +24,11 @@ type AnyRouter = ReturnType<typeof useTanStackRouter>;
 // The router's typed options describe route templates; a built href is
 // equally valid at runtime (`href` takes precedence over `to`).
 function navigate(router: AnyRouter, options: HrefOptions) {
-  return router.navigate(
-    options as unknown as Parameters<AnyRouter["navigate"]>[0],
-  );
+  return router.navigate(options);
 }
 function preload(router: AnyRouter, href: string) {
   return router
-    .preloadRoute({ href } as unknown as Parameters<
-      AnyRouter["preloadRoute"]
-    >[0])
+    .preloadRoute({ href } as Parameters<AnyRouter["preloadRoute"]>[0])
     .catch(() => undefined);
 }
 

@@ -36,7 +36,7 @@ export async function deleteLocalWorkspaceData() {
 
 // Reconnect after the session was refreshed (needs-auth) or an error.
 export function reconnectWorkspace() {
-  current?.connection.connect();
+  void current?.connection.connect();
 }
 
 type UserData = { pending: PendingTracker };
@@ -62,7 +62,7 @@ export function WorkspaceDataProvider({
       schema={schema}
       mutators={mutators}
       init={(zero) => {
-        current = zero as unknown as Zero;
+        current = zero;
       }}
     >
       <UserDataContext.Provider value={data}>
@@ -85,9 +85,7 @@ export function useApplyMutation() {
   return useMemo(
     () =>
       (mutation: Mutation): MutationCall =>
-        zero.mutate(
-          mutators.workspace.apply(mutation),
-        ) as unknown as MutationCall,
+        zero.mutate(mutators.workspace.apply(mutation)),
     [zero],
   );
 }

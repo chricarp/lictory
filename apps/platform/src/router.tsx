@@ -58,6 +58,7 @@ const legacyAppRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app/$",
   beforeLoad: ({ location }) => {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
     throw redirect({ href: safeCallbackPath(here(location)), replace: true });
   },
 });
@@ -99,11 +100,14 @@ const welcomeRoute = createRoute({
       new URLSearchParams(location.searchStr).get("next"),
     );
     if (!session.user)
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
       throw redirect({
         href: `/sign-in?callbackUrl=${encodeURIComponent(next)}`,
         replace: true,
       });
-    if (session.user.handle) throw redirect({ href: next, replace: true });
+    if (session.user.handle)
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
+      throw redirect({ href: next, replace: true });
   },
   component: lazyRouteComponent(
     () => import("@lictory/platform/routes/auth"),
@@ -121,12 +125,14 @@ const appRoute = createRoute({
     if (!session.user) session = await loadSession(true);
     const target = here(location);
     if (!session.user)
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
       throw redirect({
         href: `/sign-in?callbackUrl=${encodeURIComponent(target)}`,
         replace: true,
       });
     // Every account, however it signed up, chooses a handle before entering.
     if (!session.user.handle)
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
       throw redirect({
         href: `/welcome?next=${encodeURIComponent(safeCallbackPath(target))}`,
         replace: true,
@@ -446,7 +452,11 @@ function parseSearch(search: string): Record<string, string> {
 function stringifySearch(search: Record<string, unknown>) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(search))
-    if (value !== undefined && value !== null) params.set(key, String(value));
+    if (value !== undefined && value !== null)
+      params.set(
+        key,
+        typeof value === "string" ? value : JSON.stringify(value),
+      );
   const query = params.toString();
   return query ? `?${query}` : "";
 }

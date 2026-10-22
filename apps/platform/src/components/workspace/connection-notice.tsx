@@ -61,7 +61,7 @@ export function ConnectionNotice() {
 // Before any workspace data is local: the connection state decides between
 // a loading skeleton and a recovery page.
 export function useConnectionBlocked(): "offline" | "failed" | undefined {
-  const name = useConnectionState().name as ConnectionName;
+  const name: ConnectionName = useConnectionState().name;
   const status = viewStatus(name, false);
   return status === "offline" || status === "failed" ? status : undefined;
 }
@@ -97,7 +97,7 @@ export function ConnectionUnavailable({
         }
       >
         {connectionProblem(
-          state.name as ConnectionName,
+          state.name,
           "reason" in state && typeof state.reason === "string"
             ? state.reason
             : undefined,

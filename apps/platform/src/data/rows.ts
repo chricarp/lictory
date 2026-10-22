@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { Entities } from "@lictory/core/contracts/optimistic";
 import type { Entity } from "@lictory/core/contracts/protocol";
 import type {
@@ -36,12 +37,12 @@ export function reconcileRows(
     seen.add(row.key);
     const hit = cache.get(row.key);
     let entity: Entity;
-    if (hit && hit.data === row.data) entity = hit.entity;
-    else if (
-      hit &&
-      hit.updatedAt === row.updatedAt &&
-      JSON.stringify(hit.data) === JSON.stringify(row.data)
-    ) {
+    const unchanged =
+      hit !== undefined &&
+      (hit.data === row.data ||
+        (hit.updatedAt === row.updatedAt &&
+          JSON.stringify(hit.data) === JSON.stringify(row.data)));
+    if (hit !== undefined && unchanged) {
       entity = hit.entity;
       cache.set(row.key, { ...hit, data: row.data });
     } else {
@@ -80,4 +81,37 @@ export const emptyDirectoryProjection: DirectoryProjection = {
 // Archived projects still prove that an organization was set up.
 export function hasProjectRows(rows: readonly SyncRow[]) {
   return rows.some((r) => r.type === "project");
+}
+
+// Entities from synchronized rows with stable identities (see reconcileRows).
+export function createRowMemo() {
+  const cache: RowCache = new Map();
+  let previous: Entities | undefined;
+  return (rows: readonly SyncRow[]) => {
+    previous = reconcileRows(rows, cache, previous);
+    return previous;
+  };
+}
+
+export function useStableEntities(rows: readonly SyncRow[]) {
+  const [memo] = useState(createRowMemo);
+  return useMemo(() => memo(rows), [memo, rows]);
+}
+
+// Keeps the previous value while its content is unchanged.
+export function createValueMemo<T>() {
+  let previous: T | undefined;
+  let serialized = "";
+  return (next: T): T => {
+    const json = JSON.stringify(next);
+    if (previous !== undefined && json === serialized) return previous;
+    previous = next;
+    serialized = json;
+    return next;
+  };
+}
+
+export function useStableValue<T>(next: T): T {
+  const [memo] = useState(createValueMemo<T>);
+  return memo(next);
 }

@@ -69,7 +69,7 @@ export async function loadInvitations(): Promise<Invite[]> {
 // Entry point: land in the first organization, or create or join one.
 export function AppIndex() {
   const user = useSessionUser();
-  const invitations = useLoaderData({ strict: false }) as Invite[] | undefined;
+  const invitations: Invite[] | undefined = useLoaderData({ strict: false });
   const { organizations, complete } = useMemberships();
   const blocked = useConnectionBlocked();
   const first = organizations[0];

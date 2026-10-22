@@ -70,7 +70,7 @@ export function OnboardingEntry({
     } finally {
       setBusy(false);
     }
-  }, [router]);
+  }, []);
   useEffect(() => {
     if (intent !== "join") return;
     const check = () => {
@@ -215,10 +215,7 @@ export function OnboardingEntry({
           </Button>
         )}
         {createOnly && (
-          <Link
-            href="/"
-            className="mt-7 block text-sm text-muted-foreground"
-          >
+          <Link href="/" className="mt-7 block text-sm text-muted-foreground">
             Back to workspace
           </Link>
         )}

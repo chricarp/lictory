@@ -3,7 +3,7 @@ import { ViewPage } from "@lictory/platform/components/items/view-page";
 import { useParams } from "@lictory/platform/lib/navigation";
 import { ItemPage } from "@lictory/platform/components/items/item-page";
 import { UnknownView } from "@lictory/platform/components/workspace/unknown-view";
-import { views, type ViewId } from "@lictory/core/lib/work-items";
+import { views } from "@lictory/core/lib/work-items";
 
 // Project-agnostic deep link: /{org}/items/PAY-142 resolves the project from
 // the identifier's key and forwards to the canonical route.
@@ -25,5 +25,5 @@ export function SavedViewRoute() {
   const { view } = useParams<{ view: string }>();
   const known = views.find((v) => v.id === view);
   if (!known) return <UnknownView />;
-  return <ViewPage view={known.id as ViewId} />;
+  return <ViewPage view={known.id} />;
 }
