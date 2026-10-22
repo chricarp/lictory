@@ -50,8 +50,11 @@ function appearanceBoot(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, "");
-  const apiOrigin = env.API_ORIGIN || "http://localhost:3002";
-  const zeroOrigin = env.ZERO_ORIGIN || "http://localhost:4848";
+  // Empty variables count as unset.
+  const setting = (name: string, fallback: string) =>
+    env[name]?.trim() ? env[name].trim() : fallback;
+  const apiOrigin = setting("API_ORIGIN", "http://localhost:3002");
+  const zeroOrigin = setting("ZERO_ORIGIN", "http://localhost:4848");
   const version = (
     JSON.parse(readFileSync(workspace("package.json"), "utf8")) as {
       version: string;
@@ -66,7 +69,7 @@ export default defineConfig(({ mode }) => {
     "/relay": { target: apiOrigin, changeOrigin: false, xfwd: true },
     "/zero": { target: zeroOrigin, ws: true, changeOrigin: true },
   };
-  const port = Number(env.PORT || 3120);
+  const port = Number(setting("PORT", "3120"));
   return {
     root: fileURLToPath(new URL(".", import.meta.url)),
     envDir: root,

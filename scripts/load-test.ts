@@ -14,7 +14,7 @@
 // Seeded users share the password in LOAD_PASSWORD. Never point this at a
 // production database: it creates accounts and organizations.
 import { execSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
@@ -41,7 +41,9 @@ const run = process.argv[2];
 function percentile(values: number[], p: number) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
-  return Math.round(sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]!);
+  return Math.round(
+    sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]!,
+  );
 }
 const summary = (values: number[]) => ({
   count: values.length,
@@ -82,7 +84,11 @@ async function seed() {
       name: `Person ${index}.${m}`,
     }));
     await db.insert(s.user).values(
-      people.map((p) => ({ ...p, emailVerified: true, handle: `l${p.id.replaceAll("-", "").slice(0, 20)}` })),
+      people.map((p) => ({
+        ...p,
+        emailVerified: true,
+        handle: `l${p.id.replaceAll("-", "").slice(0, 20)}`,
+      })),
     );
     await db.insert(s.account).values(
       people.map((p) => ({
@@ -109,12 +115,16 @@ async function seed() {
     const owner = people[0]!.id;
     const command = async (c: Command, actor = owner) => {
       mutations++;
-      await executeMutation(db, { userId: actor }, {
-        protocol: PROTOCOL,
-        id: crypto.randomUUID(),
-        organizationId,
-        command: c,
-      });
+      await executeMutation(
+        db,
+        { userId: actor },
+        {
+          protocol: PROTOCOL,
+          id: crypto.randomUUID(),
+          organizationId,
+          command: c,
+        },
+      );
     };
     const directory = async () =>
       (
@@ -135,7 +145,12 @@ async function seed() {
       const epicType = types.find((t) => t.name === "Epic")!;
       const storyType = types.find((t) => t.name === "Story")!;
       for (const person of people.slice(1))
-        await command({ type: "setProjectMember", projectId, userId: person.id, role: "member" }).catch(() => undefined);
+        await command({
+          type: "setProjectMember",
+          projectId,
+          userId: person.id,
+          role: "member",
+        }).catch(() => undefined);
       let epicId: string | null = null;
       for (let i = 0; i < items; i++) {
         const workItemId = crypto.randomUUID();
@@ -155,7 +170,12 @@ async function seed() {
           const [revision] = await db
             .select({ key: s.syncEntity.key })
             .from(s.syncEntity)
-            .where(and(eq(s.syncEntity.workItemId, workItemId), eq(s.syncEntity.type, "revision")));
+            .where(
+              and(
+                eq(s.syncEntity.workItemId, workItemId),
+                eq(s.syncEntity.type, "revision"),
+              ),
+            );
           if (!revision) continue;
           const threadId = crypto.randomUUID();
           await command({
@@ -187,9 +207,13 @@ async function seed() {
         await seedOrg(next);
     }),
   );
-  const [{ rows, bytes }] = await client<{ rows: number; bytes: string }[]>`
+  const [{ rows, bytes } = { rows: 0, bytes: "" }] = await client<
+    { rows: number; bytes: string }[]
+  >`
     select count(*)::int as rows, pg_size_pretty(pg_total_relation_size('sync_entity')) as bytes from sync_entity`;
-  const [{ size }] = await client<{ size: string }[]>`select pg_size_pretty(pg_database_size(current_database())) as size`;
+  const [{ size } = { size: "" }] = await client<
+    { size: string }[]
+  >`select pg_size_pretty(pg_database_size(current_database())) as size`;
   writeFileSync("/tmp/lictory-load-users.json", JSON.stringify(users));
   console.log(
     JSON.stringify({
@@ -208,27 +232,32 @@ async function seed() {
 
 async function load() {
   const platform = process.env.PLATFORM_URL ?? "http://localhost:3001";
-  const users = (await import("/tmp/lictory-load-users.json", { with: { type: "json" } })).default as {
-    email: string;
-    organizationId: string;
-  }[];
+  const users = JSON.parse(
+    readFileSync("/tmp/lictory-load-users.json", "utf8"),
+  ) as { email: string; organizationId: string }[];
   const clients = Math.min(env("LOAD_CLIENTS", 50), users.length);
   const duration = env("LOAD_DURATION_S", 180) * 1000;
   const interval = env("LOAD_MUTATION_INTERVAL_MS", 15_000);
   const opened = env("LOAD_ITEMS_OPENED", 3);
   // Spread clients across organizations.
   const byOrg = new Map<string, typeof users>();
-  for (const u of users) byOrg.set(u.organizationId, [...(byOrg.get(u.organizationId) ?? []), u]);
+  for (const u of users)
+    byOrg.set(u.organizationId, [...(byOrg.get(u.organizationId) ?? []), u]);
   const chosen: typeof users = [];
   for (let round = 0; chosen.length < clients; round++)
-    for (const list of byOrg.values()) if (list[round] && chosen.length < clients) chosen.push(list[round]);
+    for (const list of byOrg.values()) {
+      const user = list[round];
+      if (user && chosen.length < clients) chosen.push(user);
+    }
 
   // Each simulated browser sends its own session cookie on the WebSocket.
   const cookies = new Map<string, string>();
   (globalThis as { WebSocket: unknown }).WebSocket = class extends WebSocket {
     constructor(address: string, protocols?: string | string[]) {
       const userID = new URL(address).searchParams.get("userID") ?? "";
-      super(address, protocols, { headers: { cookie: cookies.get(userID) ?? "", origin: platform } });
+      super(address, protocols, {
+        headers: { cookie: cookies.get(userID) ?? "", origin: platform },
+      });
     }
   };
 
@@ -249,7 +278,10 @@ async function load() {
       body: JSON.stringify({ email, password }),
     });
     if (!response.ok) throw new Error(`sign-in ${response.status}`);
-    const cookie = response.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const cookie = response.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
     const { user } = (await response.json()) as { user: { id: string } };
     return { cookie, userID: user.id };
   }
@@ -268,27 +300,35 @@ async function load() {
       context: { userID: session.userID },
       cacheURL: `${platform}/zero`,
       schema,
-      queries,
       mutators,
       kvStore: "mem",
       logLevel: "error",
     });
     zeros.push(z);
     const start = performance.now();
-    const view = z.materialize(queries.organization({ organizationId: user.organizationId }));
+    const view = z.materialize(
+      queries.organization({ organizationId: user.organizationId }),
+    );
     await new Promise<void>((resolve) =>
       view.addListener((_data, resultType) => {
         if (resultType === "complete") resolve();
       }),
     );
     hydration.push(performance.now() - start);
-    const rows = view.data as { key: string; type: string; data: Record<string, unknown> }[];
+    const rows = view.data as {
+      key: string;
+      type: string;
+      data: Record<string, unknown>;
+    }[];
     const items = rows.filter((r) => r.type === "workItem");
     if (observer)
       view.addListener((data) => {
         const sent = watchers.get(user.organizationId);
         if (!sent) return;
-        for (const row of data as { key: string; data: { title?: string } }[]) {
+        for (const row of data as unknown as {
+          key: string;
+          data: { title?: string };
+        }[]) {
           const at = sent.get(`${row.key}:${row.data.title}`);
           if (at !== undefined) {
             propagation.push(performance.now() - at);
@@ -300,7 +340,10 @@ async function load() {
       const item = items[Math.floor(Math.random() * items.length)]!;
       const t = performance.now();
       const itemView = z.materialize(
-        queries.workItem({ organizationId: user.organizationId, workItemId: String(item.data.id) }),
+        queries.workItem({
+          organizationId: user.organizationId,
+          workItemId: String(item.data.id),
+        }),
       );
       await new Promise<void>((resolve) =>
         itemView.addListener((_d, resultType) => {
@@ -316,7 +359,8 @@ async function load() {
       const item = items[Math.floor(Math.random() * items.length)]!;
       const title = `Story ${Math.random().toString(36).slice(2, 8)}: retry failed payments`;
       const key = `workItem:${String(item.data.id)}`;
-      const sent = watchers.get(user.organizationId) ?? new Map<string, number>();
+      const sent =
+        watchers.get(user.organizationId) ?? new Map<string, number>();
       watchers.set(user.organizationId, sent);
       const at = performance.now();
       sent.set(`${key}:${title}`, at);
@@ -327,7 +371,13 @@ async function load() {
           protocol: PROTOCOL,
           id: crypto.randomUUID(),
           organizationId: user.organizationId,
-          command: { type: "updateWorkItem", workItemId: String(item.data.id), priority: (["low", "medium", "high"] as const)[Math.floor(Math.random() * 3)] },
+          command: {
+            type: "updateWorkItem",
+            workItemId: String(item.data.id),
+            priority: (["low", "medium", "high"] as const)[
+              Math.floor(Math.random() * 3)
+            ],
+          },
         }),
       );
       const result = await write.server;
@@ -342,7 +392,10 @@ async function load() {
     const command = process.env.LOAD_SAMPLE_COMMAND;
     if (!command) return;
     try {
-      samples.push({ at: new Date().toISOString(), ...JSON.parse(execSync(command, { encoding: "utf8" })) });
+      samples.push({
+        at: new Date().toISOString(),
+        ...JSON.parse(execSync(command, { encoding: "utf8" })),
+      });
     } catch (error) {
       samples.push({ at: new Date().toISOString(), error: String(error) });
     }
@@ -354,7 +407,9 @@ async function load() {
     const observer = !observers.has(user.organizationId);
     if (observer) observers.add(user.organizationId);
     // Ramp up over 30 s rather than a thundering herd.
-    return new Promise((r) => setTimeout(r, (i / chosen.length) * 30_000)).then(() => simulate(user, observer));
+    return new Promise((r) => setTimeout(r, (i / chosen.length) * 30_000)).then(
+      () => simulate(user, observer),
+    );
   });
   await new Promise((r) => setTimeout(r, duration));
   stop = true;
@@ -373,7 +428,10 @@ async function load() {
     mutationServerAckMs: summary(serverAck),
     samples,
   };
-  writeFileSync(process.env.LOAD_REPORT ?? "/tmp/lictory-load-report.json", JSON.stringify(report, null, 2));
+  writeFileSync(
+    process.env.LOAD_REPORT ?? "/tmp/lictory-load-report.json",
+    JSON.stringify(report, null, 2),
+  );
   console.log(JSON.stringify({ ...report, samples: samples.length }));
   void propagation;
   process.exit(0);

@@ -7,8 +7,6 @@
         "scripts/*.ts",
         "tests/**/*.ts",
         "better-auth.config.ts",
-        "drizzle.config.ts",
-        "playwright.config.ts",
       ],
       "project": ["*.{ts,mjs}", "scripts/**/*.ts", "tests/**/*.ts"],
     },
@@ -17,7 +15,6 @@
       "project": ["src/**/*.{ts,tsx}"],
     },
     "packages/ui": {
-      "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}"],
     },
     "packages/zero": {
@@ -29,16 +26,27 @@
       "project": ["src/**/*.{ts,tsx}"],
     },
     "apps/platform": {
-      "entry": ["src/main.tsx", "src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}"],
-      "ignore": ["src/routeTree.gen.ts"],
+      // Legacy suggestion views kept for existing history; remove each when its
+      // follow-up lands. Do not add new entries without a reason.
+      "ignore": [
+        "src/components/review/suggestion-details.tsx",
+        "src/components/review/suggestion-view.tsx",
+        "src/components/review/suggestions.tsx",
+      ],
+      // Self-hosted fonts are imported from CSS.
+      "ignoreDependencies": [
+        "@fontsource-variable/geist",
+        "@fontsource-variable/geist-mono",
+      ],
     },
     "apps/api": {
-      "entry": ["src/index.ts", "src/**/*.test.ts", "build.mjs"],
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
     "apps/worker": {
-      "entry": ["src/index.ts", "src/**/*.test.ts", "build.mjs"],
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
   },

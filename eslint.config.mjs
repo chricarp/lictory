@@ -111,7 +111,8 @@ export default defineConfig([
               group: [
                 "@lictory/core/db/*",
                 "@lictory/core/domain/*",
-                "@lictory/core/storage/*",
+                "@lictory/core/storage/index",
+                "@lictory/core/storage/s3",
                 "@lictory/core/delivery/*",
                 "@lictory/core/ai/*",
                 "@lictory/core/lib/auth",

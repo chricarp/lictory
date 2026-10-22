@@ -209,7 +209,7 @@ function Branding() {
               )}
             >
               {src ? (
-                // eslint-disable-next-line @next/next/no-img-element -- private, authenticated image
+                 
                 <img
                   src={src}
                   alt={`${organization.name} ${field.label.toLowerCase()}`}

@@ -16,7 +16,7 @@ export function OrganizationMark({
   const mark = organization.logos?.mark;
   if (mark)
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- private, authenticated image
+       
       <img
         src={mark}
         alt=""

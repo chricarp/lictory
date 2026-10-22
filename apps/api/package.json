@@ -10,11 +10,16 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "hono": "4.13.13",
     "@hono/node-server": "2.1.5",
-    "@rocicorp/zero": "1.11.2"
+    "@rocicorp/zero": "1.11.2",
+    "ai": "^7.0.128",
+    "better-auth": "^1.7.7",
+    "drizzle-orm": "^0.45.3",
+    "hono": "4.13.13",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "postgres": "^3.4.9"
   }
 }

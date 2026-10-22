@@ -496,7 +496,7 @@ function Sidebar({
                 // The full logo already contains the name; keep it for
                 // assistive technology.
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- private, authenticated image */}
+                  { }
                   <img
                     src={organization.logos.full}
                     alt=""

@@ -139,7 +139,7 @@ const components: Components = {
   td: ({ children }) => <td className="border-b px-3 py-2">{children}</td>,
   img: ({ src, alt }) => (
     // Markdown images have content-defined dimensions.
-    // eslint-disable-next-line @next/next/no-img-element
+     
     <img
       src={src}
       alt={alt ?? ""}
