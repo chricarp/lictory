@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Nightly encrypted backup (systemd: lictory-backup@<env>.timer). backup.sh
+# reports its own failures; this only covers a container that cannot start.
+set -uo pipefail
+
+environment="${1:?Usage: lictory-backup <production|staging> [scheduled|manual]}"
+root="${LICTORY_ROOT:-/srv/lictory}"
+bin="$(cd "$(dirname "$0")" && pwd)"
+LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" run --rm --no-deps -T ops backup.sh "${2:-scheduled}"
+status=$?
+if [ "$status" -ge 125 ]; then
+  url=$(grep -E '^ALERT_WEBHOOK_URL=' "$root/$environment/.env" | tail -n 1 | cut -d= -f2-)
+  message="[lictory $environment] backup container could not start (exit $status)"
+  echo "$message" >&2
+  [ -n "$url" ] && curl -fsS -m 10 -H 'Content-Type: application/json' \
+    --data-raw "{\"text\":\"$message\",\"content\":\"$message\"}" "$url" >/dev/null
+fi
+exit "$status"

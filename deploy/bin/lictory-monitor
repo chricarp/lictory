@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Host side of the five-minute monitor (systemd: lictory-monitor@<env>.timer).
+# Adds what only the host can see (disk usage, container states) and runs
+# monitor.sh in the ops container, which alerts and pings. If the container
+# cannot run at all (Docker or PostgreSQL down), alerts directly from here.
+set -uo pipefail
+
+environment="${1:?Usage: lictory-monitor <production|staging>}"
+root="${LICTORY_ROOT:-/srv/lictory}"
+home="$root/$environment"
+bin="$(cd "$(dirname "$0")" && pwd)"
+setting() { grep -E "^$1=" "$home/.env" | tail -n 1 | cut -d= -f2- | sed -e "s/^['\"]//" -e "s/['\"]\$//"; }
+report=""
+
+threshold="${DISK_ALERT_PERCENT:-80}"
+for path in / "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)"; do
+  [ -d "$path" ] || continue
+  used=$(df -P "$path" | awk 'NR == 2 { gsub("%", "", $5); print $5 }')
+  [ "${used:-0}" -gt "$threshold" ] && report="${report}disk $path is ${used}% full (alert above ${threshold}%)
+"
+done
+
+for service in postgres zero-cache api worker marketing proxy; do
+  id=$(LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" ps -q "$service" 2>/dev/null)
+  state=$(docker inspect --format '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' "$id" 2>/dev/null || echo missing)
+  case "$state" in running | running/healthy) ;; *) report="${report}container $service is $state
+" ;; esac
+done
+
+LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" run --rm --no-deps -T \
+  -e HOST_REPORT="$report" ops monitor.sh
+status=$?
+if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then
+  url=$(setting ALERT_WEBHOOK_URL)
+  message="[lictory $environment] monitor could not run (exit $status). Host report: ${report:-none}"
+  echo "$message" >&2
+  if [ -n "$url" ]; then
+    printf '%s' "$message" | python3 -c 'import json,sys; m=sys.stdin.read(); print(json.dumps({"text":m,"content":m}))' |
+      curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "$url" >/dev/null || true
+  fi
+  ping=$(setting MONITOR_PING_URL)
+  [ -n "$ping" ] && curl -fsS -m 10 --data-raw "$message" "$ping/fail" >/dev/null || true
+fi
+exit "$status"

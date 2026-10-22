@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# docker compose for one Lictory environment on this server.
+#   lictory-compose <production|staging> <compose arguments...>
+#
+# Uses the active release (<home>/current -> releases/<version>): its compose
+# file and image digests (release.env), plus the environment's .env.
+# LICTORY_RELEASE_DIR selects another release (deploy.sh while rolling).
+set -euo pipefail
+
+environment="${1:?Usage: lictory-compose <production|staging> <compose arguments...>}"
+shift
+case "$environment" in production | staging) ;; *)
+  echo "Unknown environment: $environment" >&2
+  exit 64
+  ;;
+esac
+home="${LICTORY_ROOT:-/srv/lictory}/$environment"
+release="${LICTORY_RELEASE_DIR:-$home/current}"
+[ -f "$home/.env" ] || { echo "Missing $home/.env" >&2; exit 1; }
+[ -f "$release/release.env" ] || {
+  echo "No release at $release; deploy one with lictory-deploy." >&2
+  exit 1
+}
+
+exec docker compose \
+  --project-name "lictory-$environment" \
+  --project-directory "$home" \
+  --file "$release/compose.production.yaml" \
+  --env-file "$home/.env" \
+  --env-file "$release/release.env" \
+  "$@"
