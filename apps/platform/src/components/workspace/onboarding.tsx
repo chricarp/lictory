@@ -1,6 +1,5 @@
-"use client";
 import { useId, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { ArrowRight } from "lucide-react";
 import { OnboardingFrame, OnboardingHeading } from "@lictory/platform/components/workspace/onboarding-frame";
 import { seedSetupDraft } from "@lictory/platform/components/workspace/onboarding-draft";
@@ -142,7 +141,6 @@ export function CreateOrganization({ userId }: { userId?: string }) {
               key: projectKey,
             });
           router.push(paths.org(result.data.slug));
-          router.refresh();
         } catch (err) {
           setError(
             err instanceof Error
@@ -219,7 +217,7 @@ export function CreateProject({
   destination?: (key: string) => string;
 }) {
   const router = useRouter();
-  const { mutate, engine, organization } = useWorkspace();
+  const { mutateConfirmed, organization } = useWorkspace();
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [description, setDescription] = useState("");
@@ -239,18 +237,13 @@ export function CreateProject({
         setPending(true);
         setError(undefined);
         try {
-          const id = await mutate({
+          await mutateConfirmed({
             type: "createProject",
             projectId: crypto.randomUUID(),
             name: submittedName,
             key: submittedKey,
             ...(description.trim() && { description: description.trim() }),
           });
-          await engine.sync();
-          const failed = engine
-            .getSnapshot()
-            .pending.find((q) => q.mutation.id === id && q.error);
-          if (failed) throw new Error(failed.error);
           onDone?.();
           router.push(
             destination?.(submittedKey) ??

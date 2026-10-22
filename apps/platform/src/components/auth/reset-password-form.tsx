@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useState } from "react";
 
 import { FormMessage } from "@lictory/platform/components/auth/form-field";

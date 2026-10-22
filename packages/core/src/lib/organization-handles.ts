@@ -2,16 +2,38 @@
 // person handles. Existing generated slugs remain valid until changed.
 export const ORGANIZATION_HANDLE_MAX = 30;
 
-// Static /app routes must never be shadowed by an organization.
+// Organizations are the first path segment of the app (app.lictory.com/acme),
+// so no organization may shadow a top-level app page, API or static asset path.
 const reserved = new Set([
+  // App pages.
   "account",
-  "admin",
+  "auth-error",
+  "forgot-password",
+  "invitation",
+  "new-organization",
+  "reset-password",
+  "sign-in",
+  "sign-up",
+  "verify-email",
+  "welcome",
+  // Server and static paths.
   "api",
   "app",
+  "assets",
+  "brand",
+  "favicon.ico",
+  "healthz",
+  "icon.svg",
+  "illustrations",
+  "manifest.webmanifest",
+  "readyz",
+  "relay",
+  "robots.txt",
+  "zero",
+  // Names that would read as Lictory itself.
+  "admin",
   "help",
-  "invitation",
   "lictory",
-  "new-organization",
   "root",
   "settings",
   "support",

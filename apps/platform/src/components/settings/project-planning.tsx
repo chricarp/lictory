@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { CalendarRange } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";

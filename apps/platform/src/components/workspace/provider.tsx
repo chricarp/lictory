@@ -1,4 +1,3 @@
-"use client";
 import {
   createContext,
   useCallback,
@@ -10,8 +9,9 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { useConnectionState, useQuery, useZero } from "@rocicorp/zero/react";
 import { AvatarImages } from "@lictory/ui/avatar";
-import { toast, Toaster } from "@lictory/ui/toast";
+import { toast } from "@lictory/ui/toast";
 import {
   analyticsConfigured,
   clearAnalyticsOrganization,
@@ -20,15 +20,19 @@ import {
   track,
 } from "@lictory/core/lib/analytics/client";
 import { statusChangeBlocker } from "@lictory/core/contracts/preflight";
-import { SyncEngine, type Rejection, type View } from "@lictory/platform/sync-legacy/engine";
+import type { Entities } from "@lictory/core/contracts/optimistic";
+import { organizationProfileKey } from "@lictory/core/contracts/projection";
 import {
+  PROTOCOL,
   applicationRoleOf,
   canManageProject,
   capabilitiesOf,
+  mutationSchema,
   type Capabilities,
   type Command,
   type Directory,
   type Entity,
+  type Mutation,
   noCapabilities,
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
@@ -43,13 +47,55 @@ import {
   type Project,
   type Relation,
 } from "@lictory/core/lib/work-items";
+import { queries } from "@lictory/zero/queries";
+import {
+  canWrite,
+  viewStatus,
+  type ConnectionName,
+  type ViewStatus,
+} from "@lictory/platform/data/connection";
+import {
+  createMutationRunner,
+  type PendingMutation,
+  type Rejection,
+} from "@lictory/platform/data/mutations";
+import {
+  RecoveryStore,
+  recoveryKey,
+  recoveryText,
+} from "@lictory/platform/data/recovery";
+import {
+  emptyDirectoryProjection,
+  useStableEntities,
+  useStableValue,
+  type DirectoryProjection,
+  type OrganizationProfile,
+  type SyncRow,
+} from "@lictory/platform/data/rows";
+import {
+  reconnectWorkspace,
+  useApplyMutation,
+  usePendingTracker,
+} from "@lictory/platform/data/zero";
 
-type Organization = Directory["organizations"][number];
+export type Organization = Directory["organizations"][number];
+
+export type View = {
+  entities: Entities;
+  directory: Directory;
+  // Changes sent to the server whose answer has not arrived.
+  pending: PendingMutation[];
+  status: ViewStatus;
+  error?: string;
+  // Changes whenever synchronized organization data changes.
+  cursor: string;
+};
+
+type MutateTarget = Entities | undefined;
 
 type WorkspaceContextValue = {
   userId: string;
   organization: Organization;
-  engine: SyncEngine;
   view: View;
   directory: Directory;
   projects: Project[];
@@ -67,20 +113,30 @@ type WorkspaceContextValue = {
   canManage: (projectId: string | null | undefined) => boolean;
   // Application role: administrators manage the organization and every project.
   isAdmin: boolean;
+  // Applies a command (optimistically when it is safe) and reports a
+  // rejection with a notice. `entities` adds an open item's history for
+  // local checks.
   mutate: (
     command: Command,
-    target?: SyncEngine,
+    entities?: MutateTarget,
   ) => Promise<string | undefined>;
+  // Resolves once the server accepted the command; throws MutationRejected.
+  mutateConfirmed: (command: Command) => Promise<string>;
+  // Sends an exact mutation (a stable ID for an idempotent retry).
+  applyConfirmed: (mutation: Mutation) => Promise<string>;
   memberName: (id: string | null | undefined) => string;
   disciplineName: (id: string | null | undefined) => string;
-  acquireItem: (itemId: string, projectId: string) => SyncEngine;
-  peekItem: (itemId: string) => SyncEngine | undefined;
-  releaseItem: (itemId: string) => void;
-  refreshWorkspace: () => Promise<void>;
+  connection: ConnectionName;
+  connectionReason?: string;
+  everConnected: boolean;
+  reconnect: () => void;
+  recovery: RecoveryStore;
+  // Keeps an opened item's history synchronized for quick revisits.
+  touchItem: (itemId: string) => void;
 };
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 // Delivery configuration changes far less often than entities; a separate
-// context keeps memoized rows from re-rendering on every sync.
+// context keeps memoized rows from re-rendering on every change.
 const DeliveryContext = createContext<Delivery | null>(null);
 export function useDelivery() {
   const value = useContext(DeliveryContext);
@@ -88,83 +144,181 @@ export function useDelivery() {
   return value;
 }
 
-// Keeps recently opened item engines in memory so moving between Stories only
-// selects data that already exists locally. Engines nobody displays are
-// suspended: they stop following realtime signals and catch up when shown
-// again. Each engine has its own IndexedDB cache, so a revisit after eviction
-// is still instant from disk.
-const ITEM_ENGINE_LIMIT = 8;
+// Recently opened items stay subscribed, so moving between Stories shows
+// history that is already local.
+const RECENT_ITEMS = 8;
+const emptyRows: readonly SyncRow[] = [];
+const ITEM_TTL = "5m";
+
+export function emptyDirectory(
+  organizations: Directory["organizations"] = [],
+): Directory {
+  return { organizations, ...emptyDirectoryProjection };
+}
+
+// The organization's synchronized rows, shared by the organization layout
+// (to decide between setup and the workspace) and the provider.
+export function useOrganizationRows(organizationId: string) {
+  const [rows, result] = useQuery(queries.organization({ organizationId }));
+  return {
+    rows: rows as readonly SyncRow[],
+    complete: result.type === "complete",
+    error: result.type === "error" ? result.error.message : undefined,
+  };
+}
 
 export function WorkspaceProvider({
   userId,
-  organization,
-  initialDirectory,
+  organization: membership,
+  organizations,
+  rows,
+  complete,
+  queryError,
   children,
 }: {
   userId: string;
   organization: Organization;
-  initialDirectory: Directory;
+  organizations: Directory["organizations"];
+  rows: readonly SyncRow[];
+  complete: boolean;
+  queryError?: string;
   children: ReactNode;
 }) {
+  const zero = useZero();
   const lastOrganization = useRef<string | null>(null);
   useEffect(() => {
     if (!analyticsConfigured) return;
     identifyUser(userId);
-    setAnalyticsOrganization(organization.id);
-    if (lastOrganization.current !== organization.id) {
+    setAnalyticsOrganization(membership.id);
+    if (lastOrganization.current !== membership.id) {
       track("workspace_opened", {
-        organization_id: organization.id,
-        application_role: organization.role,
+        organization_id: membership.id,
+        application_role: membership.role,
       });
-      lastOrganization.current = organization.id;
+      lastOrganization.current = membership.id;
     }
     return () => clearAnalyticsOrganization();
-  }, [organization.id, organization.role, userId]);
-  const [engine] = useState(
-    () => new SyncEngine(userId, { organizationId: organization.id }),
+  }, [membership.id, membership.role, userId]);
+
+  const connectionState = useConnectionState();
+  const connection: ConnectionName = connectionState.name;
+  const connectionReason =
+    "reason" in connectionState && typeof connectionState.reason === "string"
+      ? connectionState.reason
+      : undefined;
+  const [everConnected, setEverConnected] = useState(false);
+  if (connection === "connected" && !everConnected) setEverConnected(true);
+
+  const entities = useStableEntities(rows);
+  const directoryRow = rows.find((r) => r.type === "directory");
+  const profileRow = rows.find(
+    (r) => r.key === organizationProfileKey(membership.id),
   );
-  const view = useSyncExternalStore(
-    engine.subscribe,
-    engine.getSnapshot,
-    engine.getSnapshot,
+  const projection = directoryRow?.data as DirectoryProjection | undefined;
+  const profile = profileRow?.data as OrganizationProfile | undefined;
+  // Unchanged content keeps its identity across row updates.
+  const directory = useStableValue<Directory>(
+    useMemo(
+      () => ({ ...emptyDirectoryProjection, ...projection, organizations }),
+      [projection, organizations],
+    ),
+  );
+  const cursor = useMemo(
+    () => String(rows.reduce((max, r) => Math.max(max, r.updatedAt), 0)),
+    [rows],
+  );
+
+  const pendingTracker = usePendingTracker();
+  const pending = useSyncExternalStore(
+    pendingTracker.subscribe,
+    pendingTracker.snapshot,
+    pendingTracker.snapshot,
+  );
+  const organizationPending = useMemo(
+    () => pending.filter((p) => p.mutation.organizationId === membership.id),
+    [pending, membership.id],
+  );
+
+  const [recovery] = useState(
+    () =>
+      new RecoveryStore(
+        typeof localStorage === "undefined" ? undefined : localStorage,
+        recoveryKey(userId, membership.id),
+      ),
   );
   useEffect(() => {
-    void engine.start();
-    return () => engine.stop();
-  }, [engine]);
-  const notifiedRejections = useRef(new Set<string>());
-  const notifyRejection = useCallback((rejection: Rejection) => {
-    if (notifiedRejections.current.has(rejection.mutationId)) return;
-    notifiedRejections.current.add(rejection.mutationId);
-    toast.add({
-      title: "Change not applied",
-      type: "error",
-      id: rejection.mutationId,
-      description: rejection.message,
-      timeout: 8000,
-    });
-  }, []);
-  useEffect(
-    () => engine.subscribeRejections(notifyRejection),
-    [engine, notifyRejection],
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === recovery.key) recovery.reload();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [recovery]);
+
+  const [notified] = useState(() => new Set<string>());
+  const notifyRejection = useCallback(
+    (rejection: Rejection) => {
+      if (notified.has(rejection.mutationId)) return;
+      notified.add(rejection.mutationId);
+      const text = rejection.recoverable ? recoveryText(rejection.command) : "";
+      toast.add({
+        title: "Change not applied",
+        type: "error",
+        id: rejection.mutationId,
+        description: rejection.recoverable
+          ? `${rejection.message} Your text is kept on this device.`
+          : rejection.message,
+        timeout: 8000,
+        actionProps: text
+          ? {
+              children: "Copy text",
+              onClick: () => void navigator.clipboard?.writeText(text),
+            }
+          : undefined,
+      });
+    },
+    [notified],
   );
+
+  const apply = useApplyMutation();
+  const runner = useMemo(
+    () =>
+      createMutationRunner({
+        apply,
+        pending: pendingTracker,
+        recovery,
+        onRejected: notifyRejection,
+      }),
+    [apply, pendingTracker, recovery, notifyRejection],
+  );
+
+  const entitiesRef = useRef(entities);
+  const directoryRef = useRef(directory);
+  useEffect(() => {
+    entitiesRef.current = entities;
+    directoryRef.current = directory;
+  }, [entities, directory]);
+
+  const build = useCallback(
+    (command: Command) =>
+      mutationSchema.parse({
+        protocol: PROTOCOL,
+        id: crypto.randomUUID(),
+        organizationId: membership.id,
+        command,
+      }),
+    [membership.id],
+  );
+
   const mutate = useCallback(
-    async (command: Command, target = engine) => {
-      const organizationView = engine.getSnapshot();
-      const targetView = target.getSnapshot();
-      const directory = organizationView.directory.organizations.length
-        ? organizationView.directory
-        : targetView.directory.organizations.length
-          ? targetView.directory
-          : initialDirectory;
+    async (command: Command, target?: MutateTarget) => {
       const blocker =
         command.type === "updateWorkItem" && command.statusId
           ? statusChangeBlocker(
               command,
-              targetView.entities[`workItem:${command.workItemId}`]
-                ? targetView.entities
-                : organizationView.entities,
-              directory,
+              target?.[`workItem:${command.workItemId}`]
+                ? target
+                : entitiesRef.current,
+              directoryRef.current,
             )
           : undefined;
       if (blocker) {
@@ -176,94 +330,59 @@ export function WorkspaceProvider({
         });
         return;
       }
-      return target.mutate(command);
+      return runner.run(build(command));
     },
-    [engine, initialDirectory],
+    [runner, build],
   );
-  const itemEngines = useRef(
-    new Map<
-      string,
-      {
-        engine: SyncEngine;
-        refs: number;
-        used: number;
-        unsubscribe: () => void;
+  const mutateConfirmed = useCallback(
+    (command: Command) => runner.confirm(build(command)),
+    [runner, build],
+  );
+  const applyConfirmed = useCallback(
+    (mutation: Mutation) => runner.confirm(mutation),
+    [runner],
+  );
+
+  // Recently opened items, kept synchronized until evicted.
+  const recent = useRef(new Map<string, () => void>());
+  const touchItem = useCallback(
+    (itemId: string) => {
+      const items = recent.current;
+      const existing = items.get(itemId);
+      if (existing) {
+        items.delete(itemId);
+        items.set(itemId, existing);
+      } else {
+        const { cleanup } = zero.preload(
+          queries.workItem({
+            organizationId: membership.id,
+            workItemId: itemId,
+          }),
+          { ttl: ITEM_TTL },
+        );
+        items.set(itemId, cleanup);
       }
-    >(),
+      while (items.size > RECENT_ITEMS) {
+        const [oldest, cleanup] = items.entries().next().value!;
+        cleanup();
+        items.delete(oldest);
+      }
+    },
+    [zero, membership.id],
   );
   useEffect(() => {
-    const cache = itemEngines.current;
+    const items = recent.current;
     return () => {
-      for (const entry of cache.values()) {
-        entry.unsubscribe();
-        entry.engine.stop();
-      }
-      cache.clear();
+      for (const cleanup of items.values()) cleanup();
+      items.clear();
     };
   }, []);
-  const acquireItem = useCallback(
-    (itemId: string, projectId: string) => {
-      const cache = itemEngines.current;
-      let entry = cache.get(itemId);
-      if (!entry) {
-        const itemEngine = new SyncEngine(userId, {
-          organizationId: organization.id,
-          projectId,
-          workItemId: itemId,
-        });
-        entry = {
-          engine: itemEngine,
-          unsubscribe: itemEngine.subscribeRejections(notifyRejection),
-          refs: 0,
-          used: Date.now(),
-        };
-        cache.set(itemId, entry);
-        void entry.engine.start();
-      }
-      entry.refs++;
-      entry.used = Date.now();
-      entry.engine.resume();
-      // Evicting after acquisition, not on release, guarantees the item being
-      // opened is never the one dropped.
-      const idle = [...cache.entries()]
-        .filter(([, e]) => e.refs === 0)
-        .sort((a, b) => a[1].used - b[1].used);
-      while (cache.size > ITEM_ENGINE_LIMIT && idle.length) {
-        const [id, victim] = idle.shift()!;
-        victim.unsubscribe();
-        victim.engine.stop();
-        cache.delete(id);
-      }
-      return entry.engine;
-    },
-    [organization.id, userId, notifyRejection],
-  );
-  // Render-time read of a cached engine, so a revisited item paints from its
-  // local history on the first frame instead of after an effect.
-  const peekItem = useCallback(
-    (itemId: string) => itemEngines.current.get(itemId)?.engine,
-    [],
-  );
-  const refreshWorkspace = useCallback(async () => {
-    await engine.reset();
-    for (const entry of itemEngines.current.values())
-      await entry.engine.reset();
-  }, [engine]);
-  const releaseItem = useCallback((itemId: string) => {
-    const cache = itemEngines.current;
-    const entry = cache.get(itemId);
-    if (!entry) return;
-    entry.refs = Math.max(0, entry.refs - 1);
-    if (entry.refs === 0) entry.engine.suspend();
-  }, []);
-  const directory = view.directory.organizations.length
-    ? view.directory
-    : initialDirectory;
+
   const delivery = useMemo(() => deliveryIndex(directory), [directory]);
   // Directory-derived helpers keep their identity while only entities change,
-  // so memoized rows receiving them do not re-render on every sync.
+  // so memoized rows receiving them do not re-render on every change.
   const roles = useMemo(() => {
-    const admin = applicationRoleOf(organization.role) === "admin";
+    const admin = applicationRoleOf(membership.role) === "admin";
     const memberNames = new Map(directory.members.map((m) => [m.id, m.name]));
     const disciplineNames = new Map(
       directory.disciplines.map((d) => [d.id, d.name]),
@@ -288,51 +407,63 @@ export function WorkspaceProvider({
       disciplineName: (id: string | null | undefined) =>
         (id ? disciplineNames.get(id) : undefined) ?? "Discipline",
     };
-  }, [directory, userId, organization.role]);
+  }, [directory, userId, membership.role]);
   const lists = useMemo(() => {
-    const entities = Object.values(view.entities);
-    const projects = byType(entities, "project")
+    const all = Object.values(entities);
+    const projects = byType(all, "project")
       .filter((p) => !p.archivedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
     return {
       projects: projects.length ? projects : directory.projects,
-      items: byType(entities, "workItem"),
-      labels: byType(entities, "label").sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
-      milestones: byType(entities, "milestone").sort(
+      items: byType(all, "workItem"),
+      labels: byType(all, "label").sort((a, b) => a.name.localeCompare(b.name)),
+      milestones: byType(all, "milestone").sort(
         (a, b) =>
           (a.targetDate ?? "9").localeCompare(b.targetDate ?? "9") ||
           a.name.localeCompare(b.name),
       ),
-      relations: byType(entities, "relation"),
+      relations: byType(all, "relation"),
     };
-  }, [view.entities, directory.projects]);
+  }, [entities, directory.projects]);
+  const status = viewStatus(connection, complete);
+  const view = useMemo<View>(
+    () => ({
+      entities,
+      directory,
+      pending: organizationPending,
+      status,
+      error: queryError,
+      cursor,
+    }),
+    [entities, directory, organizationPending, status, queryError, cursor],
+  );
   const value = useMemo<WorkspaceContextValue>(() => {
-    // Name and branding follow the live directory, so a change made elsewhere
-    // appears without a reload. Access still comes from the server render.
-    const live = directory.organizations.find((o) => o.id === organization.id);
+    // Name and branding follow the synchronized profile, so a change made
+    // elsewhere appears without a reload.
     return {
       userId,
-      organization: live
+      organization: profile
         ? {
-            ...organization,
-            name: live.name,
-            slug: live.slug,
-            logos: live.logos,
+            ...membership,
+            name: profile.name,
+            slug: profile.slug,
+            logos: profile.logos,
           }
-        : organization,
-      engine,
+        : membership,
       view,
       directory,
       ...lists,
       delivery,
       ...roles,
       mutate,
-      acquireItem,
-      peekItem,
-      releaseItem,
-      refreshWorkspace,
+      mutateConfirmed,
+      applyConfirmed,
+      connection,
+      connectionReason,
+      everConnected,
+      reconnect: reconnectWorkspace,
+      recovery,
+      touchItem,
     };
   }, [
     view,
@@ -341,19 +472,21 @@ export function WorkspaceProvider({
     roles,
     delivery,
     userId,
-    organization,
-    engine,
-    acquireItem,
-    peekItem,
-    releaseItem,
-    refreshWorkspace,
+    membership,
+    profile,
     mutate,
+    mutateConfirmed,
+    applyConfirmed,
+    connection,
+    connectionReason,
+    everConnected,
+    recovery,
+    touchItem,
   ]);
   return (
     <WorkspaceContext.Provider value={value}>
       <DeliveryContext.Provider value={delivery}>
         <AvatarImages members={directory.members}>{children}</AvatarImages>
-        <Toaster />
       </DeliveryContext.Provider>
     </WorkspaceContext.Provider>
   );
@@ -365,87 +498,47 @@ export function useWorkspace() {
   return value;
 }
 
-// Full history for one item. Entities from the item engine are authoritative for
-// the item; the organization engine still provides the summary for lists.
-export function useItemEngine(
-  itemId: string,
-  projectId: string,
-  enabled = true,
-) {
-  const {
-    acquireItem,
-    peekItem,
-    releaseItem,
-    mutate: mutateWorkspace,
-  } = useWorkspace();
-  const [acquired, setAcquired] = useState<{
-    itemId: string;
-    engine: SyncEngine;
-  }>();
-  useEffect(() => {
-    if (!enabled) return;
-    const e = acquireItem(itemId, projectId);
-    // Synchronizes with an external engine cache; the engine only exists
-    // after acquisition, so it cannot be derived during render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAcquired({ itemId, engine: e });
-    return () => {
-      setAcquired(undefined);
-      releaseItem(itemId);
-    };
-  }, [itemId, projectId, enabled, acquireItem, releaseItem]);
-  // A revisit finds its engine already cached: render from it immediately and
-  // let the acquisition above resume it in the background, rather than paint
-  // one frame of fallback data and then swap everything.
-  const engine = !enabled
-    ? undefined
-    : acquired?.itemId === itemId
-      ? acquired.engine
-      : peekItem(itemId);
-  const subscribe = useCallback(
-    (listener: () => void) =>
-      engine
-        ? engine.subscribe(listener)
-        : () => {
-            /* no engine yet */
-          },
-    [engine],
-  );
-  const snapshot = useCallback(
-    () => (engine ? engine.getSnapshot() : hydratingView),
-    [engine],
-  );
-  const view = useSyncExternalStore(subscribe, snapshot, snapshot);
-  const mutate = useCallback(
-    (command: Command) => {
-      if (!engine) return Promise.reject(new Error("Opening item…"));
-      return mutateWorkspace(command, engine);
-    },
-    [engine, mutateWorkspace],
-  );
-  const entities = useMemo<Entity[]>(
-    () => Object.values(view.entities),
-    [view.entities],
-  );
-  return { view, entities, mutate, engine };
+// Whether writes can reach the server right now.
+export function useCanWrite() {
+  return canWrite(useWorkspace().connection);
 }
-const hydratingView: View = {
-  entities: {},
-  directory: {
-    organizations: [],
-    projects: [],
-    members: [],
-    projectMembers: [],
-    disciplines: [],
-    teams: [],
-    types: [],
-    projectTypes: [],
-    statuses: [],
-    iterations: [],
-    delivery: { connections: [], targets: [] },
-    readiness: [],
-    ai: { enabled: false, available: false },
-  },
-  pending: [],
-  status: "hydrating",
-};
+
+// Full history for one item, on top of the organization's lists. The item's
+// rows load when it is opened; until then the organization data keeps the page
+// populated.
+export function useItemView(itemId: string, enabled = true) {
+  const workspace = useWorkspace();
+  const {
+    organization,
+    view: orgView,
+    mutate: mutateWorkspace,
+    touchItem,
+  } = workspace;
+  const [rows, result] = useQuery(
+    queries.workItem({ organizationId: organization.id, workItemId: itemId }),
+    { enabled, ttl: ITEM_TTL },
+  );
+  useEffect(() => {
+    if (enabled) touchItem(itemId);
+  }, [enabled, itemId, touchItem]);
+  const itemEntities = useStableEntities(rows ?? emptyRows);
+  const merged = useMemo<Entities>(
+    () => ({ ...orgView.entities, ...itemEntities }),
+    [orgView.entities, itemEntities],
+  );
+  const loaded = enabled && result.type === "complete";
+  const view = useMemo<View>(
+    () => ({
+      ...orgView,
+      entities: merged,
+      status: loaded ? orgView.status : enabled ? "hydrating" : orgView.status,
+    }),
+    [orgView, merged, loaded, enabled],
+  );
+  const entities = useMemo<Entity[]>(() => Object.values(merged), [merged]);
+  const mutate = useCallback(
+    (command: Command) => mutateWorkspace(command, merged),
+    [mutateWorkspace, merged],
+  );
+  return { view, entities, mutate, loaded };
+}

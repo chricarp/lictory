@@ -63,14 +63,54 @@ export const paths = {
     `/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
 };
 
-// Only in-app destinations are allowed as post-step redirects: same-origin
-// paths outside the API, Zero and analytics relay prefixes.
-export function safeAppPath(value: string | null | undefined) {
-  return value &&
-    value.startsWith("/") &&
-    !value.startsWith("//") &&
-    !value.startsWith("/\\") &&
-    !/^\/(?:api|zero|relay)(?:[/?#]|$)/.test(value)
-    ? value
-    : "/";
+// Top-level segments that are not workspace pages.
+const authPages = new Set([
+  "sign-in",
+  "sign-up",
+  "forgot-password",
+  "reset-password",
+  "verify-email",
+  "welcome",
+  "auth-error",
+]);
+const nonPages = new Set([
+  "api",
+  "zero",
+  "relay",
+  "assets",
+  "brand",
+  "illustrations",
+  "og",
+]);
+const origin = "https://lictory.invalid";
+
+// Only relative destinations inside this app are allowed as post-step
+// redirects (sign-in, handle, invitation). Anything else lands on "/".
+// Links from before the move to the app host (/app/...) keep working.
+export function safeCallbackPath(value: string | null | undefined) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    /[\\\u0000-\u001f]/.test(value)
+  )
+    return "/";
+  let url: URL;
+  try {
+    url = new URL(value, origin);
+  } catch {
+    return "/";
+  }
+  if (url.origin !== origin) return "/";
+  const pathname = url.pathname.replace(/^\/app(?=\/|$)/, "") || "/";
+  const first = pathname.split("/")[1] ?? "";
+  if (authPages.has(first) || nonPages.has(first)) return "/";
+  return `${pathname}${url.search}${url.hash}`;
+}
+
+// Every app page except the account flows names a workspace (organization,
+// project, item) or the signed-in person.
+export function isWorkspacePath(pathname: string) {
+  const first = pathname.split("/")[1] ?? "";
+  return first !== "" && !authPages.has(first) && !nonPages.has(first);
 }

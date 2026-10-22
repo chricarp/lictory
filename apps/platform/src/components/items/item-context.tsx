@@ -1,6 +1,5 @@
-"use client";
 import { createContext, useContext, useMemo } from "react";
-import type { View } from "@lictory/platform/sync-legacy/engine";
+import type { View } from "@lictory/platform/components/workspace/provider";
 import type {
   WorkItemType,
   Capabilities,

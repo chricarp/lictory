@@ -1,5 +1,3 @@
-"use client";
-
 import { useId, useState, type InputHTMLAttributes } from "react";
 import { Check, Eye, EyeOff } from "lucide-react";
 

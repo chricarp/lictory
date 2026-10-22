@@ -1,7 +1,6 @@
-"use client";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +9,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { authClient } from "@lictory/platform/lib/auth-client";
+import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
 import { StateIllustration } from "@lictory/ui/state-illustration";
 import { CreateOrganization } from "@lictory/platform/components/workspace/onboarding";
@@ -61,7 +61,6 @@ export function OnboardingEntry({
         ),
       );
       setError(undefined);
-      router.refresh();
     } catch (e) {
       setError(
         e instanceof Error
@@ -71,7 +70,7 @@ export function OnboardingEntry({
     } finally {
       setBusy(false);
     }
-  }, [router]);
+  }, []);
   useEffect(() => {
     if (intent !== "join") return;
     const check = () => {
@@ -85,7 +84,7 @@ export function OnboardingEntry({
     };
   }, [intent, refresh]);
   const pending = invites.filter((i) => i.status === "pending");
-  const choose = (value: string) => router.replace(`/app?intent=${value}`);
+  const choose = (value: string) => router.replace(`/?intent=${value}`);
   return (
     <OnboardingFrame>
       <Steps step={intent ?? "discover"} direction={intent ? 1 : -1}>
@@ -158,9 +157,8 @@ export function OnboardingEntry({
                             query: { organizationId: invite.organizationId },
                           });
                         router.push(
-                          joined.data ? `/app/${joined.data.slug}` : "/app",
+                          joined.data ? paths.org(joined.data.slug) : "/",
                         );
-                        router.refresh();
                       } catch (e) {
                         setError(
                           e instanceof Error
@@ -210,17 +208,14 @@ export function OnboardingEntry({
           <Button
             variant="ghost"
             className="mt-6 -ml-3"
-            onClick={() => router.replace("/app")}
+            onClick={() => router.replace("/")}
           >
             <ArrowLeft className="size-4" />
             Back
           </Button>
         )}
         {createOnly && (
-          <Link
-            href="/app"
-            className="mt-7 block text-sm text-muted-foreground"
-          >
+          <Link href="/" className="mt-7 block text-sm text-muted-foreground">
             Back to workspace
           </Link>
         )}

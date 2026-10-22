@@ -1,13 +1,12 @@
-"use client";
-
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { useState } from "react";
 
 import { FormField, FormMessage } from "@lictory/platform/components/auth/form-field";
 import { PasswordInput } from "@lictory/platform/components/auth/password-field";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";
+import { refreshSession } from "@lictory/platform/lib/session";
 import { formValue } from "@lictory/core/lib/utils";
 import { identifyUser, track } from "@lictory/core/lib/analytics/client";
 
@@ -51,8 +50,8 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
 
     if (result.data?.user.id) identifyUser(result.data.user.id);
 
+    await refreshSession().catch(() => undefined);
     router.push(callbackURL);
-    router.refresh();
   }
 
   return (

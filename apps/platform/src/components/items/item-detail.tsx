@@ -1,6 +1,9 @@
-"use client";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
@@ -23,16 +26,22 @@ import {
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
-import type { Command, WorkItem } from "@lictory/core/contracts/protocol";
+import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
 import { Popover } from "@lictory/ui/popover";
 import { Badge, SectionLabel } from "@lictory/ui/primitives";
-import { useItemEngine, useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  useItemView,
+  useWorkspace,
+} from "@lictory/platform/components/workspace/provider";
 import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Presence } from "@lictory/platform/components/items/presence";
 import { WatchButton } from "@lictory/platform/components/notifications/watch-button";
-import { IssueStatus, RefinementStatus } from "@lictory/platform/components/items/status";
+import {
+  IssueStatus,
+  RefinementStatus,
+} from "@lictory/platform/components/items/status";
 import {
   EstimatePicker,
   IterationPicker,
@@ -40,14 +49,21 @@ import {
   TeamPicker,
   TypePicker,
 } from "@lictory/platform/components/items/delivery-properties";
-import { AssigneePicker, IssuePriority, ParentPicker } from "@lictory/platform/components/items/properties";
+import {
+  AssigneePicker,
+  IssuePriority,
+  ParentPicker,
+} from "@lictory/platform/components/items/properties";
 import {
   LabelChip,
   LabelPicker,
   MilestoneBadge,
   MilestonePicker,
 } from "@lictory/platform/components/items/labels";
-import { ItemContext, useItemContextValue } from "@lictory/platform/components/items/item-context";
+import {
+  ItemContext,
+  useItemContextValue,
+} from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
 import { Attachments } from "@lictory/platform/components/items/attachments";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
@@ -64,7 +80,10 @@ import { Readiness } from "@lictory/platform/components/review/readiness";
 import { AiReviewView } from "@lictory/platform/components/review/ai-review";
 import { DockItemSource } from "@lictory/platform/components/intelligence/dock/item-source";
 import { Activity } from "@lictory/platform/components/review/activity";
-import { RevisionPanel, CompareRevisions } from "@lictory/platform/components/review/revisions";
+import {
+  RevisionPanel,
+  CompareRevisions,
+} from "@lictory/platform/components/review/revisions";
 import { diffStats } from "@lictory/ui/diff";
 import {
   ExportDialog,
@@ -113,44 +132,29 @@ export function ItemDetail({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const itemEngine = useItemEngine(item.id, item.projectId, !pendingCreate);
-  // The organization store holds the optimistic item while creation is queued,
-  // and keeps the page populated while a newly opened item engine loads, so
-  // the page never drops to an empty frame between the two.
-  const local = !!itemEngine.view.entities[`workItem:${item.id}`];
-  const organizationEntities = workspace.view.entities;
-  const pendingEntities = useMemo(
-    () => (local ? [] : Object.values(organizationEntities)),
-    [local, organizationEntities],
-  );
-  const entities = local ? itemEngine.entities : pendingEntities;
+  const itemView = useItemView(item.id, !pendingCreate);
   const type = typeOf(workspace.delivery, item);
   const native = project.deliveryMode === "native";
-  const { capabilitiesIn, engine: workspaceEngine } = workspace;
+  const { capabilitiesIn } = workspace;
   // Stable inputs keep the item context (and every consumer) from being
   // rebuilt on renders that changed nothing about this item.
   const capabilities = useMemo(
     () => capabilitiesIn(item.projectId),
     [capabilitiesIn, item.projectId],
   );
-  const mutateConfirmed = useCallback(
-    (command: Command) =>
-      (itemEngine.engine ?? workspaceEngine).mutateConfirmed(command),
-    [itemEngine.engine, workspaceEngine],
-  );
   const ctx = useItemContextValue({
     item,
     type,
     project,
-    entities,
-    view: local ? itemEngine.view : workspace.view,
+    entities: itemView.entities,
+    view: itemView.view,
     userId: workspace.userId,
     disciplineIds: workspace.disciplineIds,
     memberName: workspace.memberName,
     disciplineName: workspace.disciplineName,
     capabilities,
-    mutate: itemEngine.engine ? itemEngine.mutate : workspace.mutate,
-    mutateConfirmed,
+    mutate: itemView.mutate,
+    mutateConfirmed: workspace.mutateConfirmed,
   });
   // Branch and pull request workspaces are linkable and survive navigation.
   const [mode, setModeState] = useState<DetailMode>(() => {

@@ -1,4 +1,8 @@
-import type { Command, Entity, Directory } from "@lictory/core/contracts/protocol";
+import type {
+  Command,
+  Entity,
+  Directory,
+} from "@lictory/core/contracts/protocol";
 
 export type AnalyticsProperties = Record<
   string,
@@ -287,7 +291,16 @@ export function sanitizeAnalyticsProperties(
   }
 }
 
-const workspacePath = /^\/app(\/|$)/;
+// Which paths name an organization, project or item. Apps on the app host
+// (where organizations are the first path segment) configure their own rule.
+let workspacePath = (pathname: string) => /^\/app(\/|$)/.test(pathname);
+export function setWorkspacePathMatcher(
+  matcher: (pathname: string) => boolean,
+) {
+  workspacePath = matcher;
+}
+// Reduced paths keep one stable label, whatever the app's URL layout.
+const workspacePlaceholder = "/app";
 
 // PostHog protocol fields that look like entity identifiers but are required for
 // ingestion. In cookieless mode `distinct_id` is PostHog's sentinel, replaced by
@@ -314,13 +327,13 @@ export function minimizeAnonymousAnalyticsProperties(
     const value = properties[key];
     if (typeof value !== "string") continue;
     if (key === "$pathname") {
-      if (workspacePath.test(value)) properties[key] = "/app";
+      if (workspacePath(value)) properties[key] = workspacePlaceholder;
       continue;
     }
     try {
       const url = new URL(value);
-      if (workspacePath.test(url.pathname))
-        properties[key] = `${url.origin}/app`;
+      if (workspacePath(url.pathname))
+        properties[key] = `${url.origin}${workspacePlaceholder}`;
     } catch {
       // Already reduced by sanitizeAnalyticsProperties.
     }

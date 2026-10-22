@@ -1,6 +1,5 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
 import { Button } from "@lictory/ui/button";

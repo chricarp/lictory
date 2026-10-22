@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { cn } from "@lictory/core/lib/utils";
 
 // Masks preserve the supplied artwork while inheriting the theme's text color.
@@ -26,7 +24,7 @@ export function Logo({
   href?: string;
 }) {
   return (
-    <Link
+    <a
       href={href}
       aria-label="Lictory home"
       className={cn(
@@ -44,6 +42,6 @@ export function Logo({
           maskRepeat: "no-repeat",
         }}
       />
-    </Link>
+    </a>
   );
 }

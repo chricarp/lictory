@@ -1,4 +1,3 @@
-"use client";
 import type { ReactNode } from "react";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";

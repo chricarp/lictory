@@ -1,6 +1,5 @@
-"use client";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { usePathname } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import type { SettingsNavItem } from "@lictory/platform/components/workspace/settings-section";
 

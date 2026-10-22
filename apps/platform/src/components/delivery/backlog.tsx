@@ -1,6 +1,5 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, CirclePlay, Flag, Plus, Repeat } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
@@ -15,10 +14,10 @@ import {
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
+import { iterationReport } from "@lictory/platform/data/lookups";
 import {
   iterationLabel,
-  iterationReportSchema,
-  type Iteration,
+    type Iteration,
   type IterationReport,
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
@@ -54,17 +53,7 @@ export function useIterationReport(
   useEffect(() => {
     if (!iterationId) return;
     let cancelled = false;
-    const query = new URLSearchParams({
-      iteration: "1",
-      organizationId,
-      iterationId,
-    });
-    fetch(`/api/sync?${query}`, { cache: "no-store" })
-      .then(async (r) => {
-        const body: unknown = await r.json();
-        if (!r.ok) throw new Error("The report could not be loaded.");
-        return iterationReportSchema.parse(body);
-      })
+    iterationReport(organizationId, iterationId)
       .then((r) => !cancelled && setReport(r))
       .catch(
         (e: unknown) =>

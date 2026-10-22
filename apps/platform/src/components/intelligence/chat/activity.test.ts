@@ -22,7 +22,7 @@ const lookup: Lookup = {
           id: "item-1",
           key: "PAY-142",
           title: "Checkout retries",
-          href: "/app/acme/pay/stories/PAY-142",
+          href: "/acme/pay/stories/PAY-142",
         }
       : undefined,
   name: (kind, id) => names[`${kind}:${id}`],
@@ -40,7 +40,7 @@ void test("tool calls read as actions on named items, not capability names", () 
   assert.equal(step.running, "Reading work item");
   assert.equal(step.done, "Read work item");
   assert.equal(subjectText(step.subject!), "PAY-142 Checkout retries");
-  assert.equal(step.outcome.items[0]?.href, "/app/acme/pay/stories/PAY-142");
+  assert.equal(step.outcome.items[0]?.href, "/acme/pay/stories/PAY-142");
 });
 
 void test("inputs name people, statuses and items instead of ids", () => {

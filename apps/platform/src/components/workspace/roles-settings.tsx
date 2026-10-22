@@ -1,6 +1,5 @@
-"use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { Mail, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { paths } from "@lictory/core/lib/paths";
@@ -49,7 +48,7 @@ export const capabilityMeta: Record<
 // Organization members: the application role (Admin / Member) and a summary
 // of the projects each person works in. Only administrators change roles.
 export function People() {
-  const { organization, directory, isAdmin, userId, engine } = useWorkspace();
+  const { organization, directory, isAdmin, userId } = useWorkspace();
   const [error, setError] = useState<string>();
   const [invitesVersion, setInvitesVersion] = useState(0);
   const admins = directory.members.filter((m) => m.role === "admin").length;
@@ -68,7 +67,6 @@ export function People() {
     });
     if (result.error) return setError(result.error.message);
     // Membership is a Better Auth write: refresh the directory explicitly.
-    await engine.sync();
   };
   return (
     <>

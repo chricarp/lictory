@@ -1,5 +1,3 @@
-"use client";
-
 import {
   useCallback,
   useEffect,
@@ -13,7 +11,7 @@ import { Picker, Popover, type PickerOption } from "@lictory/ui/popover";
 import { useDebouncedCallback } from "@lictory/ui/use-debounced-callback";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
-import { searchEpics } from "@lictory/platform/sync-legacy/engine";
+import { searchEpics } from "@lictory/platform/data/lookups";
 import type { EpicSummary } from "@lictory/core/contracts/protocol";
 
 const PAGE_SIZE = 20;

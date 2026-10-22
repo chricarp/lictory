@@ -1,8 +1,7 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
 import { createContext, useContext, type ReactNode } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useParams } from "@lictory/platform/lib/navigation";
 import { FolderSearch } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { MissingState } from "@lictory/ui/status-page";
@@ -22,7 +21,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   const key = params.project?.toUpperCase();
   const project = projects.find((p) => p.key === key);
   if (!project) {
-    if (view.status === "hydrating" || view.status === "syncing")
+    if (view.status === "hydrating")
       return <LoadingState label="Opening workspace" />;
     if (isSyncBlocked(view.status))
       return <SyncIssue status={view.status} error={view.error} />;

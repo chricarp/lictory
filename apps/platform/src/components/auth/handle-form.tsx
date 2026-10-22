@@ -1,6 +1,6 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
+import { refreshSession } from "@lictory/platform/lib/session";
+import { accountChanged } from "@lictory/platform/lib/account";
 import { useEffect, useState } from "react";
 
 import { FormMessage } from "@lictory/platform/components/auth/form-field";
@@ -89,13 +89,13 @@ export function HandleForm({
       return;
     }
     if (next) {
+      await refreshSession().catch(() => undefined);
       router.replace(next);
-      router.refresh();
       return;
     }
     setPending(false);
     onSaved?.(body.handle);
-    router.refresh();
+    void accountChanged();
   }
 
   const status = !handle

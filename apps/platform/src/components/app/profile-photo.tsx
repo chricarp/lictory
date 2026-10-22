@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { accountChanged } from "@lictory/platform/lib/account";
 import { Camera } from "lucide-react";
 import { Avatar } from "@lictory/ui/primitives";
 import { Button } from "@lictory/ui/button";
@@ -20,7 +18,6 @@ export function ProfilePhoto({
   name: string;
   image: string | null;
 }) {
-  const router = useRouter();
   // Do not accept a selection before React has attached the change handler.
   const ready = useSyncExternalStore(subscribe, clientReady, serverReady);
   const input = useRef<HTMLInputElement>(null);
@@ -66,7 +63,7 @@ export function ProfilePhoto({
           : "Profile photo updated.",
       );
       await authClient.getSession({ query: { disableCookieCache: true } });
-      router.refresh();
+      await accountChanged();
     } catch (e) {
       setError(
         e instanceof Error

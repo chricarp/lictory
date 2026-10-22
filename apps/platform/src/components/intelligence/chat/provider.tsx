@@ -1,6 +1,5 @@
-"use client";
 import type { Chat } from "@ai-sdk/react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "@lictory/platform/lib/navigation";
 import {
   createContext,
   useCallback,

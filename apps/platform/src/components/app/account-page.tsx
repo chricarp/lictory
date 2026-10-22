@@ -1,21 +1,49 @@
-import { headers } from "next/headers";
-import Link from "next/link";
-import { and, eq, gt } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@rocicorp/zero/react";
+import { ArrowLeft, CircleAlert } from "lucide-react";
+import { z } from "zod";
 
+import { Link } from "@lictory/platform/lib/navigation";
 import { AccountSettings } from "@lictory/platform/components/app/account-settings";
-import { db } from "@lictory/core/db";
-import {
-  account as accountTable,
-  session as sessionTable,
-} from "@lictory/core/db/auth-schema";
-import { auth, authProviders } from "@lictory/core/lib/auth";
-import { paths } from "@lictory/core/lib/paths";
+import { paths, safeCallbackPath } from "@lictory/core/lib/paths";
+import { queries } from "@lictory/zero/queries";
+import type { OrganizationProfile } from "@lictory/core/contracts/projection";
 import { Avatar } from "@lictory/ui/primitives";
-import { directory } from "@lictory/core/domain/service";
+import { Button } from "@lictory/ui/button";
+import { SettingsSectionSkeleton } from "@lictory/ui/skeleton";
+import { MissingState } from "@lictory/ui/status-page";
+import { onAccountChanged } from "@lictory/platform/lib/account";
+
+const accountSchema = z.object({
+  user: z.object({
+    name: z.string(),
+    image: z.string().nullable(),
+    email: z.string(),
+    emailVerified: z.boolean(),
+    handle: z.string().nullable().optional(),
+  }),
+  providers: z.object({ google: z.boolean(), microsoft: z.boolean() }),
+  accounts: z.array(z.object({ id: z.string(), providerId: z.string() })),
+  sessionCount: z.number().int(),
+});
+type Account = z.infer<typeof accountSchema>;
+
+async function loadAccount(): Promise<Account> {
+  const response = await fetch("/api/account", {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok)
+    throw new Error(
+      (body as { error?: { message?: string } } | null)?.error?.message ??
+        "Your account settings could not be loaded.",
+    );
+  return accountSchema.parse(body);
+}
 
 // Personal settings for the signed-in user, independent of any organization.
-export async function AccountPage({
+export function AccountPage({
   returnTo,
   connected,
   connectionError,
@@ -24,42 +52,53 @@ export async function AccountPage({
   connected?: string;
   connectionError?: string;
 }) {
-  const requestHeaders = await headers();
-  const session = await auth.api.getSession({ headers: requestHeaders });
-
-  if (!session) return null;
-
-  // Better Auth intentionally requires a fresh session for its list-sessions
-  // endpoint. Loading settings is not itself a sensitive operation, so read
-  // the display-only summary directly while keeping freshness checks on the
-  // mutations that revoke sessions or change account security.
-  const [accounts, sessions, initialDirectory] = await Promise.all([
-    db
-      .select({ id: accountTable.id, providerId: accountTable.providerId })
-      .from(accountTable)
-      .where(eq(accountTable.userId, session.user.id)),
-    db
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(
-        and(
-          eq(sessionTable.userId, session.user.id),
-          gt(sessionTable.expiresAt, new Date()),
+  const [account, setAccount] = useState<Account>();
+  const [error, setError] = useState<string>();
+  const reload = useCallback(() => {
+    loadAccount()
+      .then((value) => {
+        setAccount(value);
+        setError(undefined);
+      })
+      .catch((e: unknown) =>
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Your account settings could not be loaded.",
         ),
-      ),
-    directory(db, session.user.id),
-  ]);
-  const defaultOrganization = initialDirectory.organizations[0];
+      );
+  }, []);
+  useEffect(reload, [reload]);
+  useEffect(() => onAccountChanged(reload), [reload]);
+  const [memberships] = useQuery(queries.memberships());
+  const defaultOrganization = memberships
+    .map((m) => m.organization[0]?.data as OrganizationProfile | undefined)
+    .find((o) => !!o);
+  const safe = returnTo ? safeCallbackPath(returnTo) : undefined;
   const safeReturnTo =
-    returnTo?.startsWith("/app/") &&
-    !returnTo.startsWith("//") &&
-    !returnTo.startsWith("/app/account")
-      ? returnTo
-      : undefined;
+    safe && safe !== "/" && !safe.startsWith("/account") ? safe : undefined;
   const backHref =
     safeReturnTo ??
-    (defaultOrganization ? paths.org(defaultOrganization.slug) : "/app");
+    (defaultOrganization ? paths.org(defaultOrganization.slug) : "/");
 
+  if (error && !account)
+    return (
+      <MissingState
+        illustration="recovery"
+        icon={CircleAlert}
+        tone="danger"
+        title="Account settings are unavailable"
+        action={<Button onClick={reload}>Try again</Button>}
+      >
+        {error}
+      </MissingState>
+    );
+  if (!account)
+    return (
+      <div className="mx-auto max-w-4xl px-6 py-8">
+        <SettingsSectionSkeleton />
+      </div>
+    );
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Link
@@ -72,8 +111,8 @@ export async function AccountPage({
 
       <header className="flex items-center gap-3.5">
         <Avatar
-          name={session.user.name}
-          image={session.user.image}
+          name={account.user.name}
+          image={account.user.image}
           className="size-10 text-sm"
         />
         <div className="min-w-0">
@@ -81,7 +120,7 @@ export async function AccountPage({
             Account settings
           </h1>
           <p className="truncate text-[13px] text-muted-foreground">
-            {session.user.name} · @{session.user.handle} · applies to you
+            {account.user.name} · @{account.user.handle} · applies to you
             everywhere, not to one organization
           </p>
         </div>
@@ -89,18 +128,18 @@ export async function AccountPage({
 
       <AccountSettings
         user={{
-          name: session.user.name,
-          image: session.user.image ?? null,
-          email: session.user.email,
-          emailVerified: session.user.emailVerified,
-          handle: session.user.handle ?? "",
+          name: account.user.name,
+          image: account.user.image,
+          email: account.user.email,
+          emailVerified: account.user.emailVerified,
+          handle: account.user.handle ?? "",
         }}
-        providers={authProviders}
-        accounts={accounts}
+        providers={account.providers}
+        accounts={account.accounts}
         returnTo={safeReturnTo}
         connected={connected}
         connectionError={connectionError}
-        sessionCount={sessions.length}
+        sessionCount={account.sessionCount}
       />
     </div>
   );

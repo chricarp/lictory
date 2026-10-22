@@ -1,6 +1,5 @@
-"use client";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@lictory/ui/button";
 import {

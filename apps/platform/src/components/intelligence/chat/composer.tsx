@@ -1,4 +1,3 @@
-"use client";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUp, Loader2, Mic, Square, ShieldCheck } from "lucide-react";
 import {

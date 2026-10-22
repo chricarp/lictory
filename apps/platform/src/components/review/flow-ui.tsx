@@ -1,4 +1,3 @@
-"use client";
 // Small, shared building blocks for the branch → commit → pull request →
 // check → merge flow, so every surface speaks the same visual language.
 import type { ReactNode } from "react";

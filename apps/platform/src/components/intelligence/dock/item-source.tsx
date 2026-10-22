@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useMemo } from "react";
 import { identifier } from "@lictory/core/lib/work-items";
 import { useItem } from "@lictory/platform/components/items/item-context";

@@ -1,4 +1,3 @@
-"use client";
 import {
   useCallback,
   useEffect,
@@ -10,7 +9,7 @@ import {
 import { UserRound } from "lucide-react";
 import { matchesPerson } from "@lictory/core/lib/handles";
 import { cn } from "@lictory/core/lib/utils";
-import { searchMembers } from "@lictory/platform/sync-legacy/engine";
+import { searchMembers } from "@lictory/platform/data/lookups";
 import type { DirectoryMember } from "@lictory/core/contracts/protocol";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Avatar } from "@lictory/ui/primitives";

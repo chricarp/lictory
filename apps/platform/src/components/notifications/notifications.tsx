@@ -1,7 +1,6 @@
-"use client";
 import { LoadingState, Spinner } from "@lictory/ui/spinner";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "@lictory/platform/lib/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,

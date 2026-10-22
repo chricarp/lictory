@@ -1,6 +1,5 @@
-"use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import {
   MessageSquare,
   MoreHorizontal,

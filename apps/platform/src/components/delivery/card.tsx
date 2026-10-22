@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { memo } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";

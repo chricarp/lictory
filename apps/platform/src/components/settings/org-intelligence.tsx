@@ -1,4 +1,3 @@
-"use client";
 import { useState } from "react";
 import { IntelligenceMark, useAfterglow } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";

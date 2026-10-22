@@ -1,4 +1,3 @@
-"use client";
 import type { Chat } from "@ai-sdk/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
@@ -14,7 +13,7 @@ import {
   SquarePen,
   X,
 } from "lucide-react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,

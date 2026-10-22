@@ -28,6 +28,19 @@ void test("organization handles reject unsafe URLs and static app routes", () =>
     "account",
     "invitation",
     "new-organization",
+    "sign-in",
+    "sign-up",
+    "forgot-password",
+    "reset-password",
+    "verify-email",
+    "welcome",
+    "auth-error",
+    "api",
+    "zero",
+    "relay",
+    "assets",
+    "brand",
+    "illustrations",
   ])
     assert.notEqual(organizationHandleProblem(handle), null, handle);
 });

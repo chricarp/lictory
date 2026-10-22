@@ -1,4 +1,3 @@
-"use client";
 import { useChat, type Chat } from "@ai-sdk/react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, RotateCcw } from "lucide-react";

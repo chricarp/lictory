@@ -41,8 +41,8 @@ const labels: Record<PageKind, string> = {
 };
 
 export function pageOf(pathname: string): { kind: PageKind; label: string } {
-  // /app/{org}/{first}/{second}/{third}
-  const [, , first, second, third] = pathname.split("/").filter(Boolean);
+  // /{org}/{first}/{second}/{third}
+  const [, first, second, third] = pathname.split("/").filter(Boolean);
   const kind = ((): PageKind => {
     switch (first) {
       case undefined:

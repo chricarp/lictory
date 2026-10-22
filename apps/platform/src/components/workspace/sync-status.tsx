@@ -1,17 +1,24 @@
-"use client";
-import { applicationRejected } from "@lictory/platform/sync-legacy/persistence";
 import { CloudAlert, CloudCheck, CloudOff, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { cn } from "@lictory/core/lib/utils";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  connectionProblem,
+  presentation as presentationOf,
+  type Presentation,
+} from "@lictory/platform/data/connection";
+import type { RecoveryEntry } from "@lictory/platform/data/recovery";
+import {
+  RecoveryList,
+  useRecoveryEntries,
+} from "@lictory/platform/components/workspace/recovery";
+import { reauthenticate } from "@lictory/platform/components/workspace/connection-notice";
 
 // Routine sync cycles stay quiet; connection problems are shown immediately.
 const SHOW_AFTER_MS = 400;
 const MIN_VISIBLE_MS = 800;
-type Presentation =
-  "idle" | "busy" | "offline" | "recovering" | "attention" | "access";
 
 function useDebouncedBusy(busy: boolean) {
   const [shown, setShown] = useState(false);
@@ -38,28 +45,21 @@ const titles: Record<Presentation, string> = {
 };
 
 export function SyncStatus() {
-  const { view, engine, refreshWorkspace } = useWorkspace();
-  // A definitive application rejection is not a synchronization problem.
-  const pending = view.pending.filter((q) => !applicationRejected(q));
-  const failures = pending.filter((q) => q.error);
+  const { view, connection, connectionReason, everConnected, reconnect } =
+    useWorkspace();
+  const recoverable = useRecoveryEntries();
+  const rejected = recoverable.filter((e) => e.state === "rejected");
+  const pending = view.pending;
   const busyShown = useDebouncedBusy(
-    view.status === "hydrating" ||
-      view.status === "syncing" ||
-      pending.length > 0,
+    view.status === "hydrating" || pending.length > 0,
   );
-  const [action, setAction] = useState<"retry" | "refresh" | null>(null);
-  const [actionError, setActionError] = useState<string>();
-  const presentation: Presentation = view.accessUnavailable
-    ? "access"
-    : view.status === "offline"
-      ? "offline"
-      : failures.some((q) => q.blocked) || actionError
-        ? "attention"
-        : failures.length || view.status === "failed"
-          ? "recovering"
-          : busyShown || action
-            ? "busy"
-            : "idle";
+  const presentation: Presentation = presentationOf({
+    connection,
+    everConnected,
+    reason: connectionReason,
+    busy: busyShown,
+    rejected: rejected.length,
+  });
   const label = titles[presentation];
   const recovering = presentation === "recovering" || presentation === "busy";
   const Icon =
@@ -70,27 +70,10 @@ export function SyncStatus() {
         : recovering
           ? RefreshCw
           : CloudCheck;
-  const recover = async (kind: "retry" | "refresh") => {
-    setAction(kind);
-    setActionError(undefined);
-    try {
-      if (kind === "retry") await engine.retryPending();
-      else await refreshWorkspace();
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Recovery could not be completed.",
-      );
-    } finally {
-      setAction(null);
-    }
-  };
+  const problem = connectionProblem(connection, connectionReason);
   const errors = [
     ...new Set(
-      [actionError, view.error, ...failures.map((q) => q.error)].filter(
-        (error): error is string => !!error,
-      ),
+      [problem, view.error].filter((error): error is string => !!error),
     ),
   ];
 
@@ -103,6 +86,8 @@ export function SyncStatus() {
           {...props}
           aria-label={label}
           title={label}
+          data-sync-status={presentation}
+          data-pending={pending.length}
           className={cn(
             "grid size-7 shrink-0 place-items-center rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
             presentation === "idle" && "text-muted-foreground/70",
@@ -126,8 +111,8 @@ export function SyncStatus() {
         presentation={presentation}
         count={pending.length}
         errors={errors}
-        action={action}
-        recover={recover}
+        reconnect={reconnect}
+        recoverable={recoverable}
       />
     </Popover>
   );
@@ -137,14 +122,14 @@ function SyncPanel({
   presentation,
   count,
   errors,
-  action,
-  recover,
+  reconnect,
+  recoverable,
 }: {
   presentation: Presentation;
   count: number;
   errors: string[];
-  action: "retry" | "refresh" | null;
-  recover: (kind: "retry" | "refresh") => Promise<void>;
+  reconnect: () => void;
+  recoverable: RecoveryEntry[];
 }) {
   const popover = usePopover();
   const waiting =
@@ -154,16 +139,17 @@ function SyncPanel({
   const descriptions: Record<Presentation, string> = {
     idle: "Your workspace is up to date. Changes are shared automatically.",
     busy: count
-      ? "Your changes are saved on this device while we send them to the workspace."
+      ? "We’re sending your changes to the workspace."
       : "We’re checking for the latest workspace updates.",
-    offline: "Reconnect to the internet. We’ll resume syncing automatically.",
+    offline:
+      "Reconnect to the internet. Changes can’t be saved until the connection is back; we’ll reconnect automatically.",
     recovering:
-      "The connection was interrupted. We’re trying again automatically; you can keep working.",
-    attention: count
-      ? "Automatic retries couldn’t save all your changes. Try again to resume syncing."
+      "The connection was interrupted. We’re trying again automatically; changes you make now are sent when it’s back.",
+    attention: recoverable.length
+      ? "Some changes were not applied. Their text is kept on this device."
       : "We couldn’t update this workspace. Try again to check the connection.",
     access:
-      "We can’t access this workspace. Reload the page to check your sign-in and access.",
+      "Your session expired or your access changed. Sign in again to keep saving changes.",
   };
   return (
     <div className="flex flex-col gap-4 overflow-y-auto p-4 text-[13px]">
@@ -184,42 +170,25 @@ function SyncPanel({
           {descriptions[presentation]}
         </p>
         {count > 0 && presentation !== "busy" && (
-          <p className="text-muted-foreground">
-            {waiting} They’re kept on this device.
-          </p>
+          <p className="text-muted-foreground">{waiting}</p>
         )}
       </div>
       {presentation === "access" ? (
-        <Button size="sm" onClick={() => window.location.reload()}>
-          Reload page
+        <Button size="sm" onClick={() => void reauthenticate()}>
+          Sign in again
         </Button>
       ) : (
-        <div className="flex flex-col gap-3 border-t pt-3">
-          {(presentation === "recovering" || presentation === "attention") && (
-            <Button
-              size="sm"
-              disabled={action !== null}
-              onClick={() => void recover("retry")}
-            >
-              {action === "retry" ? "Trying again…" : "Try again"}
+        (presentation === "offline" ||
+          presentation === "recovering" ||
+          (presentation === "attention" && !recoverable.length)) && (
+          <div className="flex flex-col gap-3 border-t pt-3">
+            <Button size="sm" onClick={reconnect}>
+              Try again
             </Button>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={action !== null || presentation === "offline"}
-              onClick={() => void recover("refresh")}
-            >
-              {action === "refresh" ? "Refreshing…" : "Refresh workspace"}
-            </Button>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Something looks out of date? Fetch the latest updates. Changes
-              waiting to be saved are kept.
-            </p>
           </div>
-        </div>
+        )
       )}
+      <RecoveryList entries={recoverable} />
       {errors.length > 0 && (
         <details className="border-t pt-3 text-xs text-muted-foreground">
           <summary className="cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">

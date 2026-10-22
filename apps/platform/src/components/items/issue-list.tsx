@@ -1,8 +1,7 @@
-"use client";
 import { LoadingState } from "@lictory/ui/spinner";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { paths } from "@lictory/core/lib/paths";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,

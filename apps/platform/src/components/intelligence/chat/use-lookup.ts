@@ -1,4 +1,3 @@
-"use client";
 import { useMemo } from "react";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { paths } from "@lictory/core/lib/paths";

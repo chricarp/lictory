@@ -1,4 +1,3 @@
-"use client";
 import {
   useCallback,
   useEffect,
@@ -8,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
   BookOpenCheck,

@@ -1,7 +1,5 @@
-"use client";
-
 import { useId, type ReactNode } from "react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { Logo } from "@lictory/ui/logo";
@@ -28,7 +26,7 @@ export function OnboardingFrame({
         <header className="flex items-center justify-between px-6 py-5 sm:px-8">
           <Logo className="[&>span]:h-6" />
           <Link
-            href="/app/account"
+            href="/account"
             className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             Account

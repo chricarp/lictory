@@ -1,4 +1,3 @@
-"use client";
 import { useCallback, useEffect, useState } from "react";
 import type {
   NotificationAction,
@@ -6,7 +5,7 @@ import type {
   NotificationQuery,
 } from "@lictory/core/notifications/service";
 import type { PreferenceRule } from "@lictory/core/notifications/catalog";
-import { subscribeNotificationSignals } from "@lictory/platform/sync-legacy/hub";
+import { subscribeNotificationSignals } from "@lictory/platform/data/signals";
 
 type Request =
   | { action: "list"; query: NotificationQuery }

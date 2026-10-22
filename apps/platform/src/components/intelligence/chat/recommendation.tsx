@@ -1,4 +1,3 @@
-"use client";
 import { motion, useReducedMotion } from "motion/react";
 import { Check, Lightbulb, X } from "lucide-react";
 import { useState } from "react";

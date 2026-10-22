@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { BookOpen } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { scopeLabel, type IntelligenceContextUse } from "@lictory/core/intelligence/shared";

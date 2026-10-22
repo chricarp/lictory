@@ -1,7 +1,6 @@
-"use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useState, type PointerEvent } from "react";
 import type {
   InsightCard,

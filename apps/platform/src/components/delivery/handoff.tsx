@@ -1,5 +1,4 @@
-"use client";
-import Link from "next/link";
+import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,

@@ -1,4 +1,3 @@
-"use client";
 import { useState, type ReactNode } from "react";
 import { cn } from "@lictory/core/lib/utils";
 import type { Command } from "@lictory/core/contracts/protocol";
