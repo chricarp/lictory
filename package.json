@@ -62,9 +62,6 @@
     "esbuild",
     "protobufjs"
   ],
-  "patchedDependencies": {
-    "@next/eslint-plugin-next@16.3.8": "patches/@next%2Feslint-plugin-next@16.3.8.patch"
-  },
   "workspaces": [
     "apps/*",
     "packages/*"

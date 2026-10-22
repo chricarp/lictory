@@ -48,14 +48,16 @@ function staticFile(pathname: string) {
 
 const server = createServer((req, res) => {
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
-  if (pathname.startsWith("/zero/")) return proxy.web(req, res, { target: zero });
+  if (pathname.startsWith("/zero/"))
+    return proxy.web(req, res, { target: zero });
   if (pathname.startsWith("/api/zero/")) {
     res.writeHead(404).end();
     return;
   }
   if (pathname.startsWith("/api/") || pathname.startsWith("/relay/"))
     return proxy.web(req, res, { target: api });
-  const file = req.method === "GET" || req.method === "HEAD" ? staticFile(pathname) : null;
+  const file =
+    req.method === "GET" || req.method === "HEAD" ? staticFile(pathname) : null;
   if (file) {
     res.writeHead(200, {
       "content-type": types[extname(file)] ?? "application/octet-stream",
@@ -71,11 +73,14 @@ const server = createServer((req, res) => {
 });
 server.on("upgrade", (req, socket, head) => {
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
-  if (pathname.startsWith("/zero/")) proxy.ws(req, socket, head, { target: zero });
+  if (pathname.startsWith("/zero/"))
+    proxy.ws(req, socket, head, { target: zero });
   else socket.destroy();
 });
 server.listen(port, () =>
-  console.log(`edge proxy on http://localhost:${port} (api ${api}, zero ${zero})`),
+  console.log(
+    `edge proxy on http://localhost:${port} (api ${api}, zero ${zero})`,
+  ),
 );
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.on(signal, () => server.close(() => process.exit(0)));

@@ -14,7 +14,11 @@ import {
   type Manifest,
 } from "@lictory/core/release/model";
 import { injectVersion } from "@lictory/core/release/build";
-import { assertRun, planNightly, planProduction } from "@lictory/core/release/plan";
+import {
+  assertRun,
+  planNightly,
+  planProduction,
+} from "@lictory/core/release/plan";
 import { executeRelease } from "@lictory/core/release/pipeline";
 import { git } from "@lictory/core/release/repository";
 import { matchesDeployment, Vercel } from "@lictory/core/release/vercel";

@@ -33,12 +33,15 @@ export default defineConfig([
   ...scoped(nextVitals, react),
   ...scoped(nextTs, react),
   {
-    settings: { next: { rootDir: "apps/marketing" } },
+    settings: { next: { rootDir: "apps/marketing/" } },
   },
   {
     files: ["apps/platform/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
     rules: Object.fromEntries(
-      Object.keys(nextPlugin.rules).map((rule) => [`@next/next/${rule}`, "off"]),
+      Object.keys(nextPlugin.rules).map((rule) => [
+        `@next/next/${rule}`,
+        "off",
+      ]),
     ),
   },
   {
@@ -88,7 +91,8 @@ export default defineConfig([
                 "next",
                 "next/*",
               ],
-              message: "Shared packages must not depend on applications or Next.js.",
+              message:
+                "Shared packages must not depend on applications or Next.js.",
             },
           ],
         },

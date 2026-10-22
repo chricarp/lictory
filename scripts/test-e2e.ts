@@ -40,7 +40,8 @@ const appEnv = {
   DATABASE_URL_UNPOOLED: url,
   PLATFORM_URL: platformUrl,
   SITE_URL: siteUrl,
-  BETTER_AUTH_SECRET: "e2e-local-only-secret-with-at-least-thirty-two-characters",
+  BETTER_AUTH_SECRET:
+    "e2e-local-only-secret-with-at-least-thirty-two-characters",
   // Never inherit a developer's live OAuth proxy or its shared secret.
   OAUTH_PROXY_URL: "",
   OAUTH_PROXY_SECRET: "",
@@ -63,13 +64,23 @@ function run(command: string, args: string[], env = appEnv) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: "inherit", env });
     child.on("exit", (code) =>
-      code === 0 ? resolve() : reject(new Error(`${command} ${args.join(" ")} exited ${code}`)),
+      code === 0
+        ? resolve()
+        : reject(new Error(`${command} ${args.join(" ")} exited ${code}`)),
     );
   });
 }
 
-function start(label: string, command: string, args: string[], env: NodeJS.ProcessEnv) {
-  const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], env });
+function start(
+  label: string,
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+) {
+  const child = spawn(command, args, {
+    stdio: ["ignore", "pipe", "pipe"],
+    env,
+  });
   const prefix = (chunk: Buffer) =>
     chunk
       .toString()
@@ -78,7 +89,10 @@ function start(label: string, command: string, args: string[], env: NodeJS.Proce
       .map((line) => `[${label}] ${line}`)
       .join("\n");
   // Logs are kept quiet unless E2E_VERBOSE is set; errors always surface.
-  child.stdout?.on("data", (c: Buffer) => process.env.E2E_VERBOSE && console.log(prefix(c)));
+  child.stdout?.on(
+    "data",
+    (c: Buffer) => process.env.E2E_VERBOSE && console.log(prefix(c)),
+  );
   child.stderr?.on("data", (c: Buffer) => console.error(prefix(c)));
   child.on("exit", (code, signal) => {
     if (!stopping) console.error(`[${label}] exited (${code ?? signal})`);
@@ -96,7 +110,8 @@ async function waitFor(label: string, check: string, timeoutMs = 180_000) {
     } catch {
       // Not listening yet.
     }
-    if (Date.now() > deadline) throw new Error(`${label} did not become ready at ${check}`);
+    if (Date.now() > deadline)
+      throw new Error(`${label} did not become ready at ${check}`);
     await new Promise((r) => setTimeout(r, 500));
   }
 }
@@ -135,10 +150,18 @@ try {
       NEXT_PUBLIC_PLATFORM_URL: platformUrl,
       NEXT_TELEMETRY_DISABLED: "1",
     };
-    await run("bun", ["run", "--filter", "@lictory/platform", "build"], buildEnv);
+    await run(
+      "bun",
+      ["run", "--filter", "@lictory/platform", "build"],
+      buildEnv,
+    );
     await run("bun", ["run", "--filter", "@lictory/api", "build"], buildEnv);
     await run("bun", ["run", "--filter", "@lictory/worker", "build"], buildEnv);
-    await run("bun", ["run", "--filter", "@lictory/marketing", "build"], buildEnv);
+    await run(
+      "bun",
+      ["run", "--filter", "@lictory/marketing", "build"],
+      buildEnv,
+    );
   }
 
   start("api", "node", ["apps/api/dist/index.js"], {
@@ -172,26 +195,35 @@ try {
     ZERO_ORIGIN: `http://localhost:${ports.zero}`,
     PLATFORM_DIST_DIR: "apps/platform/dist",
   });
-  start("marketing", "node", ["apps/marketing/.next/standalone/apps/marketing/server.js"], {
-    ...appEnv,
-    PORT: String(ports.marketing),
-    HOSTNAME: "127.0.0.1",
-  });
+  start(
+    "marketing",
+    "node",
+    ["apps/marketing/.next/standalone/apps/marketing/server.js"],
+    {
+      ...appEnv,
+      PORT: String(ports.marketing),
+      HOSTNAME: "127.0.0.1",
+    },
+  );
 
   await waitFor("api", `http://localhost:${ports.api}/readyz`);
   await waitFor("zero-cache", `http://localhost:${ports.zero}/keepalive`);
   await waitFor("edge", `${platformUrl}/sign-in`);
   await waitFor("marketing", `${siteUrl}/`);
 
-  const child = spawn("bunx", ["playwright", "test", ...process.argv.slice(2)], {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: url,
-      E2E_PLATFORM_URL: platformUrl,
-      E2E_MARKETING_URL: siteUrl,
+  const child = spawn(
+    "bunx",
+    ["playwright", "test", ...process.argv.slice(2)],
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: url,
+        E2E_PLATFORM_URL: platformUrl,
+        E2E_MARKETING_URL: siteUrl,
+      },
     },
-  });
+  );
   process.exitCode = await new Promise<number>((resolve) =>
     child.on("exit", (code) => resolve(code ?? 1)),
   );
