@@ -1,0 +1,30 @@
+import type { Metadata } from "next";
+
+import {
+  AuthFooter,
+  AuthHeading,
+  AuthLink,
+} from "@lictory/platform/components/auth/auth-layout";
+import { ResetPasswordForm } from "@lictory/platform/components/auth/reset-password-form";
+
+export const metadata: Metadata = { title: "Choose a new password" };
+
+export default async function ResetPasswordPage({
+  searchParams,
+}: PageProps<"/reset-password">) {
+  const params = await searchParams;
+  const token = typeof params.token === "string" ? params.token : undefined;
+
+  return (
+    <>
+      <AuthHeading
+        title="Choose a new password"
+        description="Use at least 10 characters. A unique passphrase works best."
+      />
+      <ResetPasswordForm token={token} />
+      <AuthFooter>
+        <AuthLink href="/sign-in">Back to sign in</AuthLink>
+      </AuthFooter>
+    </>
+  );
+}

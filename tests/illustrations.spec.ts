@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as s from "../src/db/schema";
+import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "./onboarding-helpers";
-import { illustrationAssets } from "../src/components/ui/illustration-assets";
+import { illustrationAssets } from "@lictory/ui/illustration-assets";
 
 const email = "illustration-states@example.test";
 const password = "Local-test-password-123";

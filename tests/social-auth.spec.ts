@@ -8,7 +8,7 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as s from "../src/db/schema";
+import * as s from "@lictory/core/db/schema";
 
 const password = "Local-test-password-123";
 

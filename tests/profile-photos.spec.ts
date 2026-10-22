@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import sharp from "sharp";
-import * as s from "../src/db/schema";
+import * as s from "@lictory/core/db/schema";
 import { consentStatePath } from "./consent-setup";
 import { createWorkspace } from "./onboarding-helpers";
 

@@ -3,11 +3,11 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
 import postgres from "postgres";
-import * as s from "../src/db/schema";
-import { seedOrganization } from "../src/sync/server/organization";
-import { createSyncService, directory } from "../src/sync/server/service";
-import { PROTOCOL, type Command } from "../src/sync/shared/protocol";
-import { paths } from "../src/lib/paths";
+import * as s from "@lictory/core/db/schema";
+import { seedOrganization } from "@lictory/core/domain/organization";
+import { createSyncService, directory } from "@lictory/core/domain/service";
+import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
+import { paths } from "@lictory/core/lib/paths";
 import { consentStatePath } from "./consent-setup";
 import { reloadWhenSaved } from "./sync-helpers";
 

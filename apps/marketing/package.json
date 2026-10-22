@@ -1,0 +1,19 @@
+{
+  "name": "@lictory/marketing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3100",
+    "build": "next build",
+    "start": "next start --port 3100",
+    "typecheck": "next typegen && tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "lucide-react": "^1.47.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "motion": "^14.0.0"
+  }
+}

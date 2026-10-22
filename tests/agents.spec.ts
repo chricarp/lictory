@@ -2,7 +2,7 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as s from "../src/db/schema";
+import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "./onboarding-helpers";
 
 const email = "agents@example.test";

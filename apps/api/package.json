@@ -1,0 +1,17 @@
+{
+  "name": "@lictory/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "hono": "4.13.13",
+    "@hono/node-server": "2.1.5",
+    "@rocicorp/zero": "1.11.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

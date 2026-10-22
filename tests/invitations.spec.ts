@@ -4,7 +4,7 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { and, eq } from "drizzle-orm";
-import * as s from "../src/db/schema";
+import * as s from "@lictory/core/db/schema";
 
 async function invitationMail(request: APIRequestContext, email: string) {
   const mailpit = process.env.MAILPIT_URL ?? "http://localhost:8025";

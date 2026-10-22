@@ -16,7 +16,7 @@ import {
   planMigrations,
   resolveMigrationConnection,
   type RepositoryMigration,
-} from "../src/db/migration-safety";
+} from "@lictory/core/db/migration-safety";
 
 const migrationsFolder = "drizzle";
 // Arbitrary fixed key shared by every runner of this application's migrations.

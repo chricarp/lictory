@@ -3,11 +3,11 @@ import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
 import postgres from "postgres";
-import * as s from "../src/db/schema";
-import { paths } from "../src/lib/paths";
-import { seedOrganization } from "../src/sync/server/organization";
-import { createSyncService, directory } from "../src/sync/server/service";
-import { PROTOCOL, type Command } from "../src/sync/shared/protocol";
+import * as s from "@lictory/core/db/schema";
+import { paths } from "@lictory/core/lib/paths";
+import { seedOrganization } from "@lictory/core/domain/organization";
+import { createSyncService, directory } from "@lictory/core/domain/service";
+import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 
 const password = "Readiness-test-password-123!";
 // A retry runs in a new worker that seeds again; each worker gets its own users.

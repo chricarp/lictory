@@ -2,11 +2,11 @@
 // few minutes against DATABASE_URL, and resumes interrupted delivery exports. The job is idempotent.
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as s from "../src/db/schema";
-import { createDeliveryService } from "../src/delivery/service";
-import { advanceSchedules } from "../src/sync/server/service";
-import { dispatchNotificationEmails } from "../src/notifications/email";
-import { processAiRuns } from "../src/ai/runner";
+import * as s from "@lictory/core/db/schema";
+import { createDeliveryService } from "@lictory/core/delivery/service";
+import { advanceSchedules } from "@lictory/core/domain/service";
+import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
+import { processAiRuns } from "@lictory/core/ai/runner";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required");

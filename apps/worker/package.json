@@ -1,0 +1,12 @@
+{
+  "name": "@lictory/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

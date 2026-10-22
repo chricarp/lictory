@@ -5,19 +5,19 @@ import {
   GitHub,
   deploymentPayloadSchema,
   runSchema,
-} from "../src/release/github";
+} from "@lictory/core/release/github";
 import {
   baselineSchema,
   fingerprint,
   manifestSchema,
   sameManifest,
   type Manifest,
-} from "../src/release/model";
-import { injectVersion } from "../src/release/build";
-import { assertRun, planNightly, planProduction } from "../src/release/plan";
-import { executeRelease } from "../src/release/pipeline";
-import { git } from "../src/release/repository";
-import { matchesDeployment, Vercel } from "../src/release/vercel";
+} from "@lictory/core/release/model";
+import { injectVersion } from "@lictory/core/release/build";
+import { assertRun, planNightly, planProduction } from "@lictory/core/release/plan";
+import { executeRelease } from "@lictory/core/release/pipeline";
+import { git } from "@lictory/core/release/repository";
+import { matchesDeployment, Vercel } from "@lictory/core/release/vercel";
 
 function required(name: string): string {
   const value = process.env[name];
