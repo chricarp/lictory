@@ -1,7 +1,13 @@
 import { defineConfig } from "@playwright/test";
 import { consentStatePath } from "./tests/consent-setup";
+
+// Browser workflows run against production builds started by
+// scripts/test-e2e.ts: the platform behind a local stand-in for the production
+// edge proxy (SPA assets, API, Zero) and the marketing site on its own origin.
+const platformURL = process.env.E2E_PLATFORM_URL ?? "http://localhost:3001";
+const marketingURL = process.env.E2E_MARKETING_URL ?? "http://localhost:3101";
+
 export default defineConfig({
-  testDir: "./tests",
   globalSetup: "./tests/consent-setup.ts",
   workers: 1,
   // One CI retry absorbs runner timing noise; a pass on retry is still
@@ -15,19 +21,22 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   outputDir: "/tmp/lictory-playwright-results",
   use: {
-    baseURL: "http://localhost:3001",
     headless: true,
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
     screenshot: "only-on-failure",
     storageState: consentStatePath,
   },
-  webServer: {
-    command: "bun run build && bun run start --port 3001",
-    url: "http://localhost:3001/sign-in",
-    reuseExistingServer: false,
-    timeout: 180_000,
-    // Keep browser tests from sending events to a PostHog project configured in .env.
-    env: { NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "" },
-  },
+  projects: [
+    {
+      name: "platform",
+      testDir: "./tests/platform",
+      use: { baseURL: platformURL },
+    },
+    {
+      name: "marketing",
+      testDir: "./tests/marketing",
+      use: { baseURL: marketingURL },
+    },
+  ],
 });
