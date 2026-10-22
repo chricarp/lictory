@@ -11,6 +11,7 @@ const react = [
 ];
 // React, hooks, accessibility and import rules apply to all React code; the
 // Next.js-specific rules are switched off outside the marketing application.
+/** @param {import("eslint").Linter.Config[]} configs @param {string[]} files */
 const scoped = (configs, files) =>
   configs.map((config) =>
     config.ignores && Object.keys(config).length === 1
