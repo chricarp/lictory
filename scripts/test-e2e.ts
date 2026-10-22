@@ -4,7 +4,7 @@
 // and drops the database and its replication slots, also on failure.
 // Usage: bun run test:e2e [playwright args]   (E2E_SKIP_BUILD=1 reuses builds)
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -30,6 +30,7 @@ databaseUrl.pathname = `/${name}`;
 const url = databaseUrl.toString();
 const replicaDir = mkdtempSync(join(tmpdir(), "lictory-e2e-zero-"));
 const children: { name: string; child: ChildProcess }[] = [];
+const workerAvailable = existsSync("apps/worker/build.mjs");
 
 // Application settings shared by the API and the worker. Integrations stay
 // disabled; placeholder OAuth clients let tests reach provider redirects.
@@ -77,9 +78,12 @@ function start(
   args: string[],
   env: NodeJS.ProcessEnv,
 ) {
+  // Each service runs in its own process group so that stopping it also stops
+  // the processes it spawned (package-manager wrappers do not forward signals).
   const child = spawn(command, args, {
     stdio: ["ignore", "pipe", "pipe"],
     env,
+    detached: true,
   });
   const prefix = (chunk: Buffer) =>
     chunk
@@ -117,6 +121,28 @@ async function waitFor(label: string, check: string, timeoutMs = 180_000) {
 }
 
 let stopping = false;
+
+// A stale server on one of these ports would silently answer instead of the
+// build under test.
+async function assertPortsFree() {
+  const { createConnection } = await import("node:net");
+  for (const port of Object.values(ports))
+    for (const host of ["127.0.0.1", "::1"]) {
+      const busy = await new Promise<boolean>((resolve) => {
+        const socket = createConnection({ port, host });
+        socket.once("connect", () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.once("error", () => resolve(false));
+      });
+      if (busy)
+        throw new Error(
+          `Port ${port} (${host}) is already in use; stop the process using it.`,
+        );
+    }
+}
+await assertPortsFree();
 async function stopAll() {
   stopping = true;
   await Promise.all(
@@ -124,12 +150,19 @@ async function stopAll() {
       ({ child }) =>
         new Promise<void>((resolve) => {
           if (child.exitCode !== null || child.signalCode) return resolve();
-          const timer = setTimeout(() => child.kill("SIGKILL"), 15_000);
+          const signal = (name: NodeJS.Signals) => {
+            try {
+              process.kill(-child.pid!, name);
+            } catch {
+              // Already gone.
+            }
+          };
+          const timer = setTimeout(() => signal("SIGKILL"), 15_000);
           child.on("exit", () => {
             clearTimeout(timer);
             resolve();
           });
-          child.kill("SIGTERM");
+          signal("SIGTERM");
         }),
     ),
   );
@@ -156,7 +189,12 @@ try {
       buildEnv,
     );
     await run("bun", ["run", "--filter", "@lictory/api", "build"], buildEnv);
-    await run("bun", ["run", "--filter", "@lictory/worker", "build"], buildEnv);
+    if (workerAvailable)
+      await run(
+        "bun",
+        ["run", "--filter", "@lictory/worker", "build"],
+        buildEnv,
+      );
     await run(
       "bun",
       ["run", "--filter", "@lictory/marketing", "build"],
@@ -169,7 +207,8 @@ try {
     PORT: String(ports.api),
     PLATFORM_DIST_DIR: "apps/platform/dist",
   });
-  start("worker", "node", ["apps/worker/dist/index.js"], appEnv);
+  if (workerAvailable)
+    start("worker", "node", ["apps/worker/dist/index.js"], appEnv);
   start("zero", "node_modules/.bin/zero-cache", [], {
     ...process.env,
     ZERO_UPSTREAM_DB: url,
@@ -195,6 +234,12 @@ try {
     ZERO_ORIGIN: `http://localhost:${ports.zero}`,
     PLATFORM_DIST_DIR: "apps/platform/dist",
   });
+  // Assemble the standalone server exactly as the production image does.
+  const standalone = "apps/marketing/.next/standalone/apps/marketing";
+  cpSync("apps/marketing/.next/static", `${standalone}/.next/static`, {
+    recursive: true,
+  });
+  cpSync("apps/marketing/public", `${standalone}/public`, { recursive: true });
   start(
     "marketing",
     "node",

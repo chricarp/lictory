@@ -18,8 +18,13 @@ export default async function consentSetup(config: FullConfig) {
         baseURL,
       ).toString(),
     );
-    await page.getByRole("button", { name: "Reject All" }).click();
-    await page.waitForFunction(() => document.cookie.includes("c15t="));
+    // Cookies are shared across ports on localhost: an origin may already
+    // have the choice recorded by the previous one.
+    const reject = page.getByRole("button", { name: "Reject All" });
+    if (!(await page.evaluate(() => document.cookie.includes("c15t=")))) {
+      await reject.click();
+      await page.waitForFunction(() => document.cookie.includes("c15t="));
+    }
     await page.close();
   }
   await context.storageState({ path: consentStatePath });
