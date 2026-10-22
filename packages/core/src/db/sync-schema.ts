@@ -1,6 +1,4 @@
-import { sql } from "drizzle-orm";
 import {
-  bigint,
   index,
   jsonb,
   pgTable,
@@ -9,32 +7,8 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 import { organization } from "@lictory/core/db/auth-schema";
-import type { Change } from "@lictory/core/contracts/protocol";
-export const syncClock = pgTable("sync_clock", {
-  organizationId: text("organization_id")
-    .primaryKey()
-    .references(() => organization.id),
-  cursor: bigint("cursor", { mode: "bigint" })
-    .notNull()
-    .default(sql`0`),
-});
-export const syncChange = pgTable(
-  "sync_change",
-  {
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id),
-    cursor: bigint("cursor", { mode: "bigint" }).notNull(),
-    projectId: text("project_id").notNull(),
-    workItemId: text("work_item_id"),
-    change: jsonb("change").$type<Change>().notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.organizationId, t.cursor] }),
-    index("sync_scope_cursor_idx").on(t.organizationId, t.projectId, t.cursor),
-  ],
-);
+// Idempotency receipts: a mutation id is bound to its actor and command for
+// every writer (Zero pushes, capabilities, MCP, the embedded agent).
 export const syncMutation = pgTable(
   "sync_mutation",
   {
@@ -44,7 +18,6 @@ export const syncMutation = pgTable(
     id: text("id").notNull(),
     userId: text("user_id").notNull(),
     fingerprint: text("fingerprint").notNull(),
-    cursor: bigint("cursor", { mode: "bigint" }).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.id] })],

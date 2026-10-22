@@ -134,6 +134,13 @@
       "when": 1792667925365,
       "tag": "0018_zero_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792671402583,
+      "tag": "0019_drop_change_log",
+      "breakpoints": true
     }
   ]
 }

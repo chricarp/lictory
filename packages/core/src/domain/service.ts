@@ -4119,7 +4119,6 @@ async function receipt(
     fingerprint,
     // Unused since projections replaced the change log; dropped by a later
     // migration.
-    cursor: 0n,
   });
   return { protocol: PROTOCOL, mutationId, replayed: false };
 }
