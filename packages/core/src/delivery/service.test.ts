@@ -8,7 +8,8 @@ import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { seedOrganization } from "@lictory/core/domain/organization";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory } from "@lictory/core/domain/service";
+import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
 import { createFakeProvider } from "@lictory/core/delivery/fake-provider";
 import { DeliveryError } from "@lictory/core/delivery/provider";
 import { createDeliveryService } from "@lictory/core/delivery/service";
@@ -22,7 +23,7 @@ const url = new URL(adminUrl);
 url.pathname = `/${databaseName}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
-const sync = createSyncService(db);
+const sync = projectionService(db);
 let created = false;
 process.env.DELIVERY_CREDENTIALS_KEY = "delivery-test-key";
 
@@ -130,12 +131,22 @@ async function fixture(
 
   const fake = createFakeProvider();
   let clock = Date.now();
-  const service = createDeliveryService(db, {
+  const delivery = createDeliveryService(db, {
     providers: { jira_cloud: fake.provider },
     appUrl: "https://lictory.test",
     now: () => new Date(clock),
     onPublicationCompleted,
   });
+  // `publish` only reserves the export; the worker processes it. Tests run
+  // that step inline, the way the worker does after the commit signal.
+  const service = {
+    ...delivery,
+    async publish(...args: Parameters<typeof delivery.publish>) {
+      const requested = await delivery.publish(...args);
+      assert.equal(requested.status, "running");
+      return delivery.process(requested.id);
+    },
+  };
   const { connectionId } = await service.connect(userId, {
     organizationId,
     name: "Acme Jira",
@@ -261,15 +272,13 @@ void test("exporting an epic creates ready items parents-first and skips the res
   assert.ok(
     entities.some((e) => e.type === "activity" && e.action === "exported"),
   );
-  const changes = await db
+  const projected = await db
     .select()
-    .from(s.syncChange)
-    .where(eq(s.syncChange.organizationId, f.organizationId));
+    .from(s.syncEntity)
+    .where(eq(s.syncEntity.organizationId, f.organizationId));
   assert.ok(
-    changes.some(
-      (c) =>
-        c.change.operation === "upsert" &&
-        c.change.entity.type === "externalLink",
+    projected.some(
+      (row) => row.type === "externalLink" && row.workItemId === null,
     ),
   );
 });
@@ -815,14 +824,17 @@ void test("status sync reads Jira status and assignee back without writing eithe
     statuses.find((x) => x.id === item!.statusId)?.category,
     "started",
   );
-  // A routine check that finds nothing new does not churn the change log.
+  // A routine check that finds nothing new does not churn the projections.
   const changes = async () =>
     (
       await db
-        .select()
-        .from(s.syncChange)
-        .where(eq(s.syncChange.organizationId, f.organizationId))
-    ).length;
+        .select({ key: s.syncEntity.key, updatedAt: s.syncEntity.updatedAt })
+        .from(s.syncEntity)
+        .where(eq(s.syncEntity.organizationId, f.organizationId))
+    )
+      .map((r) => `${r.key}@${r.updatedAt.toISOString()}`)
+      .sort()
+      .join();
   const logged = await changes();
   await f.service.refreshPending();
   assert.equal(await changes(), logged);

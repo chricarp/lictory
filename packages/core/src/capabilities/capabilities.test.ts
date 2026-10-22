@@ -140,13 +140,12 @@ void test("every workspace command is exposed as a capability on every surface",
         `${name} is missing on ${surface}`,
       );
   }
-  // Credentials and raw sync stay with the signed-in browser.
+  // Credentials and the raw directory stay with the signed-in browser.
   for (const name of [
     "createAccessToken",
     "revokeAccessToken",
     "connectDelivery",
-    "applyMutation",
-    "syncRead",
+    "syncDirectory",
   ])
     assert.ok(!listCapabilities("mcp").some((c) => c.name === name));
 });

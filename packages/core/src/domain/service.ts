@@ -4,11 +4,9 @@ import {
   asc,
   desc,
   eq,
-  gt,
   ilike,
   inArray,
   isNull,
-  lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -21,7 +19,6 @@ import {
   canManageProject,
   canReviewSuggestions,
   capabilitiesOf,
-  entityKey,
   entitySchema,
   isProjectConfigurationCommand,
   isTypeCommand,
@@ -35,7 +32,6 @@ import {
   type ReadinessCheck,
   type ReadinessRevision,
   type Scope,
-  type Change,
   type Iteration,
   type IterationReport,
   type RefinementState,
@@ -60,6 +56,12 @@ import {
   seedProject,
 } from "@lictory/core/domain/projects";
 import { auditConfiguration } from "@lictory/core/domain/audit";
+import {
+  refreshDirectoryProjection,
+  writeEntities,
+  writeProjections,
+} from "@lictory/core/domain/projections";
+import type { DirectoryProjection } from "@lictory/core/contracts/projection";
 import {
   applyBranchCommand,
   branchCommands,
@@ -143,16 +145,6 @@ export async function lock(tx: Tx, organizationId: string) {
     sql`select pg_advisory_xact_lock(hashtextextended(${organizationId}, 0))`,
   );
 }
-export async function clock(tx: Tx, organizationId: string) {
-  return (
-    (
-      await tx
-        .select()
-        .from(s.syncClock)
-        .where(eq(s.syncClock.organizationId, organizationId))
-    )[0]?.cursor ?? 0n
-  );
-}
 export async function directory(
   db: Database | Tx,
   userId: string,
@@ -221,6 +213,18 @@ export async function directory(
     "Organization access has been removed.",
     "forbidden",
   );
+  return {
+    organizations,
+    ...(await organizationDirectory(db, organizationId)),
+  };
+}
+
+// The organization's shared directory: everything but the per-user
+// organization list. Synchronized as the `directory` projection.
+export async function organizationDirectory(
+  db: Database | Tx,
+  organizationId: string,
+): Promise<DirectoryProjection> {
   // Independent reads are issued together; inside a transaction postgres.js
   // pipelines them on one connection, so the directory costs one round trip.
   const [
@@ -319,7 +323,6 @@ export async function directory(
   const configuration = deliveryDirectory(configurationRows, memberIds);
   const latestReadiness = new Map(readinessRows.map((r) => [r.projectId, r]));
   return {
-    organizations,
     projects,
     members,
     projectMembers,
@@ -1631,2298 +1634,2189 @@ async function followReadinessChecks(
   return changes;
 }
 
-export function createSyncService(
-  db: Database,
-  options: {
-    onMutationCommitted?: (
-      userId: string,
-      mutation: Mutation,
-      snapshots: { before: Entity[]; after: Entity[]; directory?: Directory },
-    ) => void;
-  } = {},
-) {
-  return {
-    async read(userId: string, scope: Scope, cursor?: string, limit = 100) {
-      const pageSize = Math.min(500, Math.max(1, Math.floor(limit)));
-      // Reads take no organization lock. Writers commit the clock together
-      // with their change rows while holding the lock, so commits become
-      // visible in cursor order; one REPEATABLE READ snapshot therefore sees
-      // a gap-free prefix of the change log that matches the clock it reads.
-      return db.transaction(
-        async (tx) => {
-          const [, head, roster, scopedItem] = await Promise.all([
-            authorize(tx, userId, scope.organizationId),
-            clock(tx, scope.organizationId),
-            directory(tx, userId, scope.organizationId),
-            scope.workItemId && scope.projectId
-              ? tx
-                  .select({ id: s.workItem.id })
-                  .from(s.workItem)
-                  .where(
-                    and(
-                      eq(s.workItem.organizationId, scope.organizationId),
-                      eq(s.workItem.projectId, scope.projectId),
-                      eq(s.workItem.id, scope.workItemId),
-                    ),
-                  )
-              : Promise.resolve([]),
-          ]);
-          if (cursor !== undefined && BigInt(cursor) > head)
-            throw new DomainError(
-              "conflict",
-              "Checkpoint is ahead of the server. Reset this workspace cache.",
-            );
-          if (scope.projectId !== undefined)
-            requireValue(roster.projects.find((p) => p.id === scope.projectId));
-          if (scope.workItemId && scope.projectId) requireValue(scopedItem[0]);
-          if (cursor === undefined)
-            return {
-              protocol: PROTOCOL,
-              changes: (await snapshot(tx, scope)).map((entity) => ({
-                operation: "upsert" as const,
-                cursor: head.toString(),
-                entity,
-              })),
-              nextCursor: head.toString(),
-              hasMore: false,
-              directory: roster,
-            };
-          const rows = await tx
-            .select()
-            .from(s.syncChange)
-            .where(
-              and(
-                eq(s.syncChange.organizationId, scope.organizationId),
-                !scope.projectId
-                  ? undefined
-                  : eq(s.syncChange.projectId, scope.projectId),
-                gt(s.syncChange.cursor, BigInt(cursor)),
-                lte(s.syncChange.cursor, head),
-                scope.workItemId
-                  ? or(
-                      isNull(s.syncChange.workItemId),
-                      eq(s.syncChange.workItemId, scope.workItemId),
-                    )
-                  : isNull(s.syncChange.workItemId),
-              ),
-            )
-            .orderBy(asc(s.syncChange.cursor))
-            .limit(pageSize + 1);
-          const hasMore = rows.length > pageSize;
-          const page = rows.slice(0, pageSize);
-          return {
-            protocol: PROTOCOL,
-            changes: page.map((r) => r.change),
-            nextCursor: hasMore
-              ? page.at(-1)!.cursor.toString()
-              : head.toString(),
-            hasMore,
-            directory: roster,
-          };
-        },
-        { isolationLevel: "repeatable read", accessMode: "read only" },
+export type Actor = { userId: string };
+export type MutationResult = {
+  protocol: typeof PROTOCOL;
+  mutationId: string;
+  // The mutation id had already been applied; nothing was written.
+  replayed: boolean;
+};
+// What a mutation did, reported to the host while its transaction is still
+// open. Hosts act on it (analytics) only after the transaction commits.
+export type MutationOutcome = {
+  userId: string;
+  mutation: Mutation;
+  replayed: boolean;
+  before: Entity[];
+  after: Entity[];
+  directory?: Directory;
+};
+export type MutationEffects = { applied?(outcome: MutationOutcome): void };
+
+// The domain mutation boundary. Runs inside the caller's transaction (its own
+// in `executeMutation`, Zero's in the mutate endpoint): takes the organization
+// lock first, checks membership and the idempotency receipt, applies the
+// command and writes the read projections, so domain rows, projections and
+// receipt commit or roll back together.
+export async function applyMutation(
+  tx: Tx,
+  actor: Actor,
+  mutation: Mutation,
+  effects: MutationEffects = {},
+): Promise<MutationResult> {
+  const { userId } = actor;
+  const { organizationId, command: c } = mutation;
+  let replayed = false;
+  let snapshots: {
+    before: Entity[];
+    after: Entity[];
+    directory?: Directory;
+  } = { before: [], after: [] };
+  const result = await (async (): Promise<MutationResult> => {
+    await lock(tx, organizationId);
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify(c))
+      .digest("hex");
+    const [membership, receipts, roster] = await Promise.all([
+      authorize(tx, userId, organizationId),
+      tx
+        .select()
+        .from(s.syncMutation)
+        .where(
+          and(
+            eq(s.syncMutation.organizationId, organizationId),
+            eq(s.syncMutation.id, mutation.id),
+          ),
+        ),
+      directory(tx, userId, organizationId),
+    ]);
+    const previous = receipts[0];
+    if (previous) {
+      replayed = true;
+      if (previous.userId !== userId || previous.fingerprint !== fingerprint)
+        throw new DomainError(
+          "conflict",
+          "Mutation ID was already used for a different command.",
+        );
+      return { protocol: PROTOCOL, mutationId: mutation.id, replayed: true };
+    }
+    const admin = isAdmin(membership);
+    if (isTypeCommand(c)) {
+      await applyTypeCommand(tx, { organizationId, userId, admin, roster }, c);
+      return receipt(tx, organizationId, mutation.id, userId, fingerprint);
+    }
+    if (c.type === "setAiPolicy") {
+      require(admin, "An organization administrator must decide whether Lictory Intelligence may be used.");
+      await setAiPolicy(tx, organizationId, userId, c.enabled);
+      return receipt(tx, organizationId, mutation.id, userId, fingerprint);
+    }
+    if (isProjectConfigurationCommand(c)) {
+      // Configuration lives in the directory; commands that also move
+      // items (status replacement, iteration carry-over, automatic
+      // cycles) or change the project emit those entities.
+      const scope = { organizationId, projectId: c.projectId };
+      requireValue(
+        roster.projects.find((p) => p.id === c.projectId),
+        "This project is unavailable.",
       );
-    },
-    async mutate(userId: string, mutation: Mutation) {
-      const { organizationId, command: c } = mutation;
-      let replayed = false;
-      let snapshots: {
-        before: Entity[];
-        after: Entity[];
-        directory?: Directory;
-      } = { before: [], after: [] };
-      const result = await db.transaction(async (tx) => {
-        await lock(tx, organizationId);
-        const fingerprint = createHash("sha256")
-          .update(JSON.stringify(c))
-          .digest("hex");
-        const [membership, receipts, roster] = await Promise.all([
-          authorize(tx, userId, organizationId),
-          tx
-            .select()
-            .from(s.syncMutation)
-            .where(
-              and(
-                eq(s.syncMutation.organizationId, organizationId),
-                eq(s.syncMutation.id, mutation.id),
-              ),
-            ),
-          directory(tx, userId, organizationId),
-        ]);
-        const previous = receipts[0];
-        if (previous) {
-          replayed = true;
-          if (
-            previous.userId !== userId ||
-            previous.fingerprint !== fingerprint
-          )
-            throw new DomainError(
-              "conflict",
-              "Mutation ID was already used for a different command.",
-            );
-          return {
-            protocol: PROTOCOL,
-            mutationId: mutation.id,
-            cursor: previous.cursor.toString(),
-          };
-        }
-        const admin = isAdmin(membership);
-        if (isTypeCommand(c)) {
-          await applyTypeCommand(
-            tx,
-            { organizationId, userId, admin, roster },
-            c,
-          );
-          return commit(
-            tx,
-            organizationId,
-            mutation.id,
-            userId,
-            fingerprint,
-            await clock(tx, organizationId),
-          );
-        }
-        if (c.type === "setAiPolicy") {
-          require(admin, "An organization administrator must decide whether Lictory Intelligence may be used.");
-          await setAiPolicy(tx, organizationId, userId, c.enabled);
-          return commit(
-            tx,
-            organizationId,
-            mutation.id,
-            userId,
-            fingerprint,
-            await clock(tx, organizationId),
-          );
-        }
-        if (isProjectConfigurationCommand(c)) {
-          // Configuration lives in the directory; commands that also move
-          // items (status replacement, iteration carry-over, automatic
-          // cycles) or change the project emit those entities.
-          const scope = { organizationId, projectId: c.projectId };
-          requireValue(
-            roster.projects.find((p) => p.id === c.projectId),
-            "This project is unavailable.",
-          );
-          const readinessBefore =
-            c.type === "publishReadinessChecks"
-              ? await projectReadiness(tx, organizationId, c.projectId)
-              : undefined;
-          const before = await snapshot(tx, scope);
-          await applyProjectCommand(
-            tx,
-            {
-              organizationId,
-              userId,
-              admin,
-              capabilities: capabilitiesOf(
-                roster.disciplines,
-                userId,
-                c.projectId,
-              ),
-              roster,
-            },
-            c,
-          );
-          // Readiness and activity live in each item's own scope.
-          const itemChanges = readinessBefore
-            ? await followReadinessChecks(
-                tx,
-                organizationId,
-                c.projectId,
-                userId,
-                readinessBefore,
-              )
-            : [];
-          const after = await snapshot(tx, scope);
-          snapshots = { before, after, directory: roster };
-          let cursor = await emitChanges(
-            tx,
-            organizationId,
-            before,
-            after,
-            await clock(tx, organizationId),
-          );
-          const rows: (typeof s.syncChange.$inferInsert)[] = [];
-          for (const { workItemId, entity } of itemChanges) {
-            cursor++;
-            rows.push({
-              organizationId,
-              cursor,
-              projectId: c.projectId,
-              workItemId,
-              change: {
-                operation: "upsert",
-                cursor: cursor.toString(),
-                entity,
-              },
-            });
-          }
-          await insertChanges(tx, rows);
-          return commit(
-            tx,
-            organizationId,
-            mutation.id,
-            userId,
-            fingerprint,
-            cursor,
-          );
-        }
-        let projectId: string;
-        let projectRow: typeof s.project.$inferSelect | undefined;
-        let workItemId: string | undefined;
-        let item: ItemRow | undefined;
-        if ("projectId" in c) projectId = c.projectId;
-        else {
-          workItemId = c.workItemId;
-          item = requireValue(
-            (
-              await tx
-                .select()
-                .from(s.workItem)
-                .where(
-                  and(
-                    eq(s.workItem.organizationId, organizationId),
-                    eq(s.workItem.id, workItemId),
-                  ),
-                )
-            )[0],
-          );
-          if (item.archivedAt && c.type !== "archiveWorkItem")
-            throw new DomainError(
-              "conflict",
-              "Restore this item before changing it.",
-            );
-          projectId = item.projectId;
-          const itemType = roster.types.find((t) => t.id === item!.typeId);
-          if (
-            (specCommands.has(c.type) ||
-              branchCommands.has(c.type) ||
-              aiCommands.has(c.type)) &&
-            !itemType?.hasSpecification
-          )
-            throw new DomainError(
-              "validation",
-              `${itemType?.name ?? "This type"} items have no specification to review. Change the type to one with a specification first.`,
-            );
-        }
-        if (c.type !== "createProject")
-          projectRow = requireValue(
-            (
-              await tx
-                .select()
-                .from(s.project)
-                .where(
-                  and(
-                    eq(s.project.organizationId, organizationId),
-                    eq(s.project.id, projectId),
-                    isNull(s.project.archivedAt),
-                  ),
-                )
-            )[0],
-          );
-        if (c.type === "createWorkItem") workItemId = c.workItemId;
-        // Work item capabilities come from the disciplines held in this
-        // project; organization administration grants none of them.
-        const capabilities =
-          c.type === "createProject"
-            ? noCapabilities
-            : capabilitiesOf(roster.disciplines, userId, projectId);
-        const projectManager =
-          c.type !== "createProject" &&
-          canManageProject(roster, userId, admin, projectId);
-        const project = () =>
-          requireValue(
-            roster.projects.find((p) => p.id === projectId),
-            "This project is unavailable.",
-          );
-        const projectStatuses = () =>
-          roster.statuses.filter((x) => x.projectId === projectId);
-        const scope = { organizationId, projectId, workItemId };
-        const before =
-          c.type === "createProject"
-            ? []
-            : await snapshot(tx, {
-                ...scope,
-                workItemId:
-                  c.type === "createWorkItem" ? undefined : workItemId,
-              });
-        const latest = before
-          .filter((e) => e.type === "revision")
-          .sort((a, b) => b.number - a.number)[0];
-        if (
-          "baseRevisionId" in c &&
-          !(c.type === "createThread" && c.pullRequestId) &&
-          c.baseRevisionId !== latest?.id
-        )
-          throw new DomainError(
-            "conflict",
-            "The specification changed. Compare your draft with the latest revision before resubmitting.",
-            latest?.id,
-          );
-        const now = new Date();
-        const context = {
+      const readinessBefore =
+        c.type === "publishReadinessChecks"
+          ? await projectReadiness(tx, organizationId, c.projectId)
+          : undefined;
+      const before = await snapshot(tx, scope);
+      await applyProjectCommand(
+        tx,
+        {
           organizationId,
-          workItemId: workItemId!,
-          revisionId: latest?.id ?? "",
-        };
-        const activities: {
-          action: string;
-          detail?: Record<string, unknown>;
-        }[] = [];
-        const log = (action: string, detail?: Record<string, unknown>) =>
-          activities.push({ action, detail });
-        // Lictory Intelligence runs owned by other items (an Epic review
-        // covering this Story) whose projection this command changed.
-        const touchedRuns = new Set<string>();
-        const revision = async (
-          title: string,
-          content: string,
-          summary: string | undefined,
-          previous = latest,
-          mergeParents?: string[],
-        ) => {
-          if (previous?.title === title && previous.content === content)
-            return previous.id;
-          const revisionId = crypto.randomUUID();
-          const number = (previous?.number ?? 0) + 1;
-          await tx.insert(s.specificationRevision).values({
-            id: revisionId,
-            organizationId,
-            workItemId: workItemId!,
-            number,
-            title,
-            content,
-            changeSummary: summary?.trim() ? summary.trim() : null,
-            authorId: userId,
-          });
-          await recordMain(
-            tx,
-            {
-              id: revisionId,
-              organizationId,
-              workItemId: workItemId!,
-              number,
-              title,
-              content,
-              changeSummary: summary,
-              authorId: userId,
-            },
-            mergeParents,
-          );
-          await tx
-            .update(s.workItem)
-            .set({ title })
-            .where(
-              and(
-                eq(s.workItem.organizationId, organizationId),
-                eq(s.workItem.id, workItemId!),
-              ),
-            );
-          for (const run of await invalidateItemReviews(
+          userId,
+          admin,
+          capabilities: capabilitiesOf(roster.disciplines, userId, c.projectId),
+          roster,
+        },
+        c,
+      );
+      // Readiness and activity live in each item's own scope.
+      const itemChanges = readinessBefore
+        ? await followReadinessChecks(
             tx,
             organizationId,
-            workItemId!,
-            `${projectRow?.key ?? "Item"}-${item?.number ?? ""} changed to revision ${number}`,
-          ))
-            if (run.workItemId !== workItemId) touchedRuns.add(run.id);
-          if (previous) {
-            await tx
-              .update(s.approval)
-              .set({
-                status: "stale",
-                endedAt: now,
-                endedById: userId,
-                endReason: `Specification revised (revision ${number})`,
-              })
-              .where(
-                and(
-                  eq(s.approval.organizationId, organizationId),
-                  eq(s.approval.workItemId, workItemId!),
-                  eq(s.approval.status, "granted"),
-                ),
-              );
-            // Responsibilities persist across revisions: every active review on
-            // the previous revision is re-requested on the new one with the same
-            // assignments. Old review rows stay as history of what was decided.
-            const carried = before.filter(
-              (e): e is EntityOf<"review"> =>
-                e.type === "review" &&
-                e.revisionId === previous.id &&
-                e.status !== "cancelled",
-            );
-            for (const old of carried) {
-              const reviewId = crypto.randomUUID();
-              await tx.insert(s.review).values({
-                id: reviewId,
-                organizationId,
-                workItemId: workItemId!,
-                revisionId,
-                responsibility: old.responsibility,
-                required: old.required,
-                requestedById: userId,
-              });
-              const targets = before.filter(
-                (e): e is EntityOf<"assignment"> =>
-                  e.type === "assignment" &&
-                  e.reviewId === old.id &&
-                  !e.withdrawnAt,
-              );
-              if (targets.length)
-                await tx.insert(s.reviewAssignment).values(
-                  targets.map((t) => ({
-                    organizationId,
-                    reviewId,
-                    assignedById: userId,
-                    userId: t.userId,
-                    disciplineId: t.disciplineId,
-                  })),
-                );
-            }
-            log("revised", {
-              number,
-              summary: summary?.trim() ? summary.trim() : null,
-            });
-          }
-          return revisionId;
-        };
-        const typeOf = (typeId: string) =>
-          requireValue(
-            roster.types.find((t) => t.id === typeId),
-            "The work item type is unavailable.",
-          );
-        // Hierarchy follows type levels: a parent sits strictly above its
-        // children (Epic > Story/Task/Bug > Subtask).
-        const validateParent = async (
-          parentId: string | null,
-          typeId: string,
-        ) => {
-          if (!parentId) return;
-          const child = typeOf(typeId);
-          const parent = requireValue(
-            (
-              await tx
-                .select()
-                .from(s.workItem)
-                .where(
-                  and(
-                    eq(s.workItem.organizationId, organizationId),
-                    eq(s.workItem.projectId, projectId),
-                    eq(s.workItem.id, parentId),
-                    isNull(s.workItem.archivedAt),
-                  ),
-                )
-            )[0],
-            "The parent item is unavailable in this project.",
-          );
-          if (parent.id === workItemId)
-            throw new DomainError(
-              "validation",
-              "An item cannot be its own parent.",
-            );
-          const parentType = typeOf(parent.typeId);
-          if (parentType.level <= child.level)
-            throw new DomainError(
-              "validation",
-              `A ${child.name} cannot be placed under a ${parentType.name}.`,
-            );
-          return parent;
-        };
-        const teamOf = (teamId: string) =>
-          requireValue(
-            roster.teams.find(
-              (t) =>
-                t.id === teamId && !t.archivedAt && t.projectId === projectId,
-            ),
-            "The team is unavailable in this project.",
-          );
-        const iterationEvent = async (
-          iterationId: string | null,
-          kind: (typeof s.iterationEvent.$inferInsert)["kind"],
-          points: number | null,
-          at = now,
-        ) => {
-          if (!iterationId) return;
-          // Completed iterations are history: later edits never change them.
-          const known = roster.iterations.find((i) => i.id === iterationId);
-          if (!known || known.state === "completed") return;
-          await tx.insert(s.iterationEvent).values({
-            organizationId,
-            iterationId,
-            workItemId: workItemId!,
-            kind,
-            points: points ?? 0,
-            actorId: userId,
-            createdAt: at,
-          });
-        };
-        const openIteration = (iterationId: string) => {
-          const found = requireValue(
-            roster.iterations.find(
-              (i) => i.id === iterationId && i.projectId === projectId,
-            ),
-            "The iteration is unavailable in this project.",
-          );
-          if (found.state === "completed")
-            throw new DomainError(
-              "validation",
-              "That iteration is completed. Choose an active or planned one.",
-            );
-          return found;
-        };
-        const setRefinement = async (
-          state: RefinementState,
-          from: RefinementState | null,
-          automatic = false,
-        ) => {
-          if (state === from || from === null) return;
+            c.projectId,
+            userId,
+            readinessBefore,
+          )
+        : [];
+      const after = await snapshot(tx, scope);
+      snapshots = { before, after, directory: roster };
+      await writeProjections(tx, organizationId, before, after);
+      await writeEntities(
+        tx,
+        organizationId,
+        itemChanges.map(({ workItemId, entity }) => ({
+          entity,
+          scope: { projectId: c.projectId, workItemId },
+        })),
+      );
+      return receipt(tx, organizationId, mutation.id, userId, fingerprint);
+    }
+    let projectId: string;
+    let projectRow: typeof s.project.$inferSelect | undefined;
+    let workItemId: string | undefined;
+    let item: ItemRow | undefined;
+    if ("projectId" in c) projectId = c.projectId;
+    else {
+      workItemId = c.workItemId;
+      item = requireValue(
+        (
           await tx
-            .update(s.workItem)
-            .set({
-              refinementState: state,
-              ...(state === "ready" ? { mainProtected: true } : {}),
-            })
-            .where(
-              and(
-                eq(s.workItem.organizationId, organizationId),
-                eq(s.workItem.id, workItemId!),
-              ),
-            );
-          log("refinement_changed", { from, to: state, automatic });
-        };
-        if (branchCommands.has(c.type)) {
-          await applyBranchCommand(tx, c, {
-            organizationId,
-            projectId,
-            workItemId: workItemId!,
-            userId,
-            capabilities,
-            roster,
-            latest: latest!,
-            revision: (title, content, summary, parents) =>
-              revision(title, content, summary, latest, parents),
-            log,
-            actionCheck: (pullRequestId, sourceHeadId) =>
-              roster.ai.enabled &&
-              roster.ai.available &&
-              project().aiActionPolicy === "required"
-                ? actionCheckProblem(
-                    tx,
-                    organizationId,
-                    pullRequestId,
-                    sourceHeadId,
-                  )
-                : Promise.resolve(undefined),
-          });
-        }
-        if (aiCommands.has(c.type))
-          await applyAiCommand(tx, c, {
-            organizationId,
-            projectId,
-            workItemId: workItemId!,
-            userId,
-            capabilities,
-            roster,
-            latest: latest!,
-            itemKey: `${projectRow!.key}-${item!.number}`,
-            log,
-            touched: touchedRuns,
-          });
-        switch (c.type) {
-          case "createProject": {
-            require(admin, "An organization administrator must create projects.");
-            // Keys become URL segments beside fixed workspace routes.
-            if (reservedKeys.has(c.key))
-              throw new DomainError(
-                "validation",
-                `${c.key} is reserved by Lictory. Choose another key.`,
-              );
-            const taken = (
-              await tx
-                .select({ id: s.project.id })
-                .from(s.project)
-                .where(
-                  and(
-                    eq(s.project.organizationId, organizationId),
-                    eq(s.project.key, c.key),
-                  ),
-                )
-            )[0];
-            if (taken)
-              throw new DomainError(
-                "validation",
-                `The key ${c.key} is already used by another project.`,
-              );
-            if (c.setup) {
-              const previousSetup = await tx
-                .select({ id: s.organizationOnboarding.organizationId })
-                .from(s.organizationOnboarding)
-                .where(
-                  eq(s.organizationOnboarding.organizationId, organizationId),
-                )
-                .limit(1);
-              require(!roster.projects.length &&
-                !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.");
-              if (c.setup.aiEnabled !== undefined)
-                await setAiPolicy(
-                  tx,
-                  organizationId,
-                  userId,
-                  c.setup.aiEnabled,
-                );
-            }
-            await tx.insert(s.project).values({
-              id: projectId,
-              organizationId,
-              name: c.name,
-              slug: c.key.toLowerCase(),
-              key: c.key,
-              description: c.description?.trim() ? c.description.trim() : null,
-              createdById: userId,
-              ...(c.setup
-                ? {
-                    deliveryMode: c.setup.deliveryMode,
-                    readinessPolicy: c.setup.readinessPolicy,
-                    estimateScale: c.setup.estimateScale,
-                    iterationMode: c.setup.iterationMode,
-                    iterationWeeks: c.setup.iterationWeeks,
-                    iterationStartDay: c.setup.iterationStartDay,
-                  }
-                : {}),
-            });
-            await seedProject(tx, organizationId, projectId, userId);
-            if (c.setup) {
-              await tx.insert(s.organizationOnboarding).values({
-                organizationId,
-                projectId,
-                decidedById: userId,
-                decisions: c.setup,
-              });
-              if (c.setup.iterationMode === "automatic")
-                await advanceProjectSchedule(
-                  tx,
-                  organizationId,
-                  projectId,
-                  now,
-                  userId,
-                );
-            }
-            break;
-          }
-          case "createWorkItem": {
-            const type = typeOf(c.typeId);
-            // Spec-backed work starts a specification; plain work only
-            // needs the right to shape the project's delivery.
-            if (type.hasSpecification || !capabilities.changeProperties)
-              requireCapability(capabilities, "editSpecifications");
-            if (type.archivedAt)
-              throw new DomainError(
-                "validation",
-                `${type.name} is archived. Restore it or choose another type.`,
-              );
-            if (
-              !roster.projectTypes.some(
-                (x) => x.projectId === projectId && x.typeId === type.id,
-              )
-            )
-              throw new DomainError(
-                "validation",
-                `${projectRow!.name} does not use ${type.name} items. Enable the type in project settings.`,
-              );
-            const teamId = c.teamId ? teamOf(c.teamId).id : null;
-            const parent = await validateParent(c.parentId, c.typeId);
-            const statuses = projectStatuses().filter((x) => !x.archivedAt);
-            const status = c.statusId
-              ? requireValue(
-                  statuses.find((x) => x.id === c.statusId),
-                  "The status is unavailable in this project.",
-                )
-              : (statuses.find((x) => x.category === "backlog") ??
-                statuses.find((x) => x.category === "unstarted") ??
-                statuses[0]);
-            if (!status)
-              throw new DomainError(
-                "validation",
-                `${projectRow!.name} has no workflow statuses.`,
-              );
-            if (c.iterationId) {
-              if (projectRow!.deliveryMode === "external")
-                throw new DomainError(
-                  "validation",
-                  `${projectRow!.name} hands delivery to an external tool; plan iterations there.`,
-                );
-              openIteration(c.iterationId);
-            }
-            if (c.assigneeId)
-              requireValue(
-                roster.members.find((m) => m.id === c.assigneeId),
-                "Assignee is outside this organization.",
-              );
-            const [{ next }] = (await tx
-              .select({
-                next: sql<number>`coalesce(max(${s.workItem.number}), 0) + 1`,
-              })
-              .from(s.workItem)
-              .where(
-                and(
-                  eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.projectId, projectId),
-                ),
-              )) as [{ next: number }];
-            const [{ last }] = (await tx
-              .select({ last: sql<string | null>`max(${s.workItem.rank})` })
-              .from(s.workItem)
-              .where(
-                and(
-                  eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.projectId, projectId),
-                ),
-              )) as [{ last: string | null }];
-            // Decomposition keeps traceability: a child of a specification
-            // records which parent revision it was derived from.
-            const parentRevision =
-              parent && typeOf(parent.typeId).hasSpecification
-                ? (
-                    await tx
-                      .select({ id: s.specificationRevision.id })
-                      .from(s.specificationRevision)
-                      .where(
-                        and(
-                          eq(
-                            s.specificationRevision.organizationId,
-                            organizationId,
-                          ),
-                          eq(s.specificationRevision.workItemId, parent.id),
-                        ),
-                      )
-                      .orderBy(desc(s.specificationRevision.number))
-                      .limit(1)
-                  )[0]?.id
-                : undefined;
-            await tx.insert(s.workItem).values({
-              id: workItemId!,
-              organizationId,
-              projectId,
-              teamId,
-              typeId: type.id,
-              parentId: c.parentId,
-              number: Number(next),
-              title: c.title,
-              statusId: status.id,
-              refinementState: type.hasSpecification ? "draft" : null,
-              iterationId: c.iterationId ?? null,
-              assigneeId: c.assigneeId ?? null,
-              rank: rankBetween(last, null),
-              sourceRevisionId: parentRevision ?? null,
-              createdById: userId,
-            });
-            await revision(c.title, c.description ?? "", "Created", undefined);
-            await iterationEvent(c.iterationId ?? null, "added", null);
-            log("created", {
-              type: type.name,
-              number: Number(next),
-              ...(parentRevision ? { sourceRevisionId: parentRevision } : {}),
-            });
-            break;
-          }
-          case "updateWorkItem": {
-            requireCapability(capabilities, "changeProperties");
-            const patch: Partial<ItemRow> = {};
-            const failingChecks = () => {
-              const checks = before.find(
-                (e) => e.type === "readiness" && e.id === workItemId,
-              );
-              return checks?.type === "readiness"
-                ? checks.checks.filter((k) => !k.passed)
-                : [];
-            };
-            let statusId = item!.statusId;
-            let iterationId = item!.iterationId;
-            let typeId = item!.typeId;
-            if (c.typeId !== undefined && c.typeId !== item!.typeId) {
-              const to = typeOf(c.typeId);
-              const from = typeOf(item!.typeId);
-              if (to.archivedAt)
-                throw new DomainError("validation", `${to.name} is archived.`);
-              if (
-                !roster.projectTypes.some(
-                  (x) => x.projectId === projectId && x.typeId === to.id,
-                )
-              )
-                throw new DomainError(
-                  "validation",
-                  `${projectRow!.name} does not use ${to.name} items.`,
-                );
-              await validateParent(item!.parentId, to.id);
-              const children = before.filter(
-                (e): e is EntityOf<"workItem"> =>
-                  e.type === "workItem" &&
-                  e.parentId === workItemId &&
-                  !e.archivedAt,
-              );
-              if (children.some((ch) => typeOf(ch.typeId).level >= to.level))
-                throw new DomainError(
-                  "validation",
-                  `This item has children that cannot sit under a ${to.name}.`,
-                );
-              typeId = to.id;
-              patch.typeId = to.id;
-              // Revisions are never deleted; they reappear if the type
-              // regains a specification.
-              if (to.hasSpecification && !from.hasSpecification)
-                patch.refinementState = "draft";
-              if (!to.hasSpecification) patch.refinementState = null;
-              log("type_changed", { from: from.name, to: to.name });
-            }
-            // Team is an optional grouping inside the project: changing it
-            // keeps the key, status and iteration.
-            if (c.teamId !== undefined && c.teamId !== item!.teamId) {
-              const to = c.teamId ? teamOf(c.teamId) : null;
-              patch.teamId = to?.id ?? null;
-              log("team_changed", {
-                from: item!.teamId,
-                to: to?.id ?? null,
-                fromName:
-                  roster.teams.find((t) => t.id === item!.teamId)?.name ?? null,
-                toName: to?.name ?? null,
-              });
-            }
-            const statuses = projectStatuses();
-            if (c.statusId !== undefined && c.statusId !== statusId) {
-              const to = requireValue(
-                statuses.find((x) => x.id === c.statusId && !x.archivedAt),
-                "The status is unavailable in this project.",
-              );
-              const from = statuses.find((x) => x.id === statusId);
-              // Readiness gates starting spec-backed work, per project
-              // policy. `warn` lets the move through but records the override.
-              let override: string[] | undefined;
-              if (
-                to.category === "started" &&
-                from?.category !== "started" &&
-                typeOf(typeId).hasSpecification &&
-                item!.refinementState !== "ready" &&
-                projectRow!.readinessPolicy !== "off"
-              ) {
-                const failing = failingChecks().map((k) => k.label);
-                if (projectRow!.readinessPolicy === "block")
-                  throw new DomainError(
-                    "validation",
-                    `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.map((f) => f.toLowerCase()).join("; ")}` : ""}.`,
-                  );
-                override = failing;
-              }
-              const wasClosed = closedCategories.includes(
-                from?.category ?? "backlog",
-              );
-              const nowClosed = closedCategories.includes(to.category);
-              if (wasClosed !== nowClosed)
-                await iterationEvent(
-                  iterationId,
-                  nowClosed ? "completed" : "reopened",
-                  item!.estimate,
-                );
-              patch.statusId = to.id;
-              statusId = to.id;
-              log("status_changed", {
-                from: from?.name ?? null,
-                to: to.name,
-                category: to.category,
-                ...(override ? { startedBeforeReady: override } : {}),
-              });
-            }
-            if (
-              c.refinementState !== undefined &&
-              c.refinementState !== item!.refinementState
-            ) {
-              if (item!.refinementState === null)
-                throw new DomainError(
-                  "validation",
-                  "This item has no specification to refine.",
-                );
-              patch.refinementState = c.refinementState;
-              log("refinement_changed", {
-                from: item!.refinementState,
-                to: c.refinementState,
-                automatic: false,
-              });
-            }
-            if (c.iterationId !== undefined && c.iterationId !== iterationId) {
-              if (c.iterationId) {
-                if (projectRow!.deliveryMode === "external")
-                  throw new DomainError(
-                    "validation",
-                    `${projectRow!.name} hands delivery to an external tool; plan iterations there.`,
-                  );
-                openIteration(c.iterationId);
-              }
-              await iterationEvent(iterationId, "removed", item!.estimate);
-              await iterationEvent(c.iterationId, "added", item!.estimate);
-              // Already-finished work counts as completed scope, not remaining.
-              const category = statuses.find(
-                (x) => x.id === statusId,
-              )?.category;
-              if (category && closedCategories.includes(category))
-                await iterationEvent(
-                  c.iterationId,
-                  "completed",
-                  item!.estimate,
-                );
-              patch.iterationId = c.iterationId;
-              log("iteration_changed", {
-                from: iterationId,
-                to: c.iterationId,
-              });
-              iterationId = c.iterationId;
-            }
-            if (c.estimate !== undefined && c.estimate !== item!.estimate) {
-              if (projectRow!.estimateScale === "none")
-                throw new DomainError(
-                  "validation",
-                  `${projectRow!.name} does not estimate work in Lictory.`,
-                );
-              if (iterationId && c.iterationId === undefined)
-                await iterationEvent(
-                  iterationId,
-                  "estimate_changed",
-                  (c.estimate ?? 0) - (item!.estimate ?? 0),
-                );
-              patch.estimate = c.estimate;
-              log("estimate_changed", { from: item!.estimate, to: c.estimate });
-            }
-            if (c.priority !== undefined && c.priority !== item!.priority) {
-              patch.priority = c.priority;
-              log("priority_changed", { from: item!.priority, to: c.priority });
-            }
-            if (
-              c.assigneeId !== undefined &&
-              c.assigneeId !== item!.assigneeId
-            ) {
-              if (c.assigneeId) {
-                requireValue(
-                  roster.members.find((m) => m.id === c.assigneeId),
-                  "Assignee is outside this organization.",
-                );
-              }
-              patch.assigneeId = c.assigneeId;
-              log("assignee_changed", {
-                from: item!.assigneeId,
-                to: c.assigneeId,
-              });
-            }
-            if (c.parentId !== undefined && c.parentId !== item!.parentId) {
-              await validateParent(c.parentId, typeId);
-              patch.parentId = c.parentId;
-              log("parent_changed", { from: item!.parentId, to: c.parentId });
-            }
-            if (
-              c.milestoneId !== undefined &&
-              c.milestoneId !== item!.milestoneId
-            ) {
-              if (c.milestoneId)
-                requireValue(
-                  before.find(
-                    (e) =>
-                      e.type === "milestone" &&
-                      e.id === c.milestoneId &&
-                      e.projectId === projectId &&
-                      !e.archivedAt,
-                  ),
-                  "The milestone is unavailable in this project.",
-                );
-              patch.milestoneId = c.milestoneId;
-              log("milestone_changed", {
-                from: item!.milestoneId,
-                to: c.milestoneId,
-              });
-            }
-            if (c.labelIds !== undefined) {
-              const wanted = [...new Set(c.labelIds)];
-              for (const labelId of wanted)
-                requireValue(
-                  before.find(
-                    (e) =>
-                      e.type === "label" &&
-                      e.id === labelId &&
-                      e.projectId === projectId &&
-                      !e.archivedAt,
-                  ),
-                  "A label is unavailable in this project.",
-                );
-              const current = before.find(
-                (e) => e.type === "workItem" && e.id === workItemId,
-              );
-              const existing =
-                current?.type === "workItem" ? current.labelIds : [];
-              const added = wanted.filter((l) => !existing.includes(l));
-              const removed = existing.filter((l) => !wanted.includes(l));
-              if (removed.length)
-                await tx
-                  .delete(s.workItemLabel)
-                  .where(
-                    and(
-                      eq(s.workItemLabel.workItemId, workItemId!),
-                      inArray(s.workItemLabel.labelId, removed),
-                    ),
-                  );
-              if (added.length)
-                await tx.insert(s.workItemLabel).values(
-                  added.map((labelId) => ({
-                    organizationId,
-                    workItemId: workItemId!,
-                    labelId,
-                  })),
-                );
-              if (added.length || removed.length)
-                log("labels_changed", { added, removed });
-            }
-            if (Object.keys(patch).length)
-              await tx
-                .update(s.workItem)
-                .set(patch)
-                .where(
-                  and(
-                    eq(s.workItem.organizationId, organizationId),
-                    eq(s.workItem.id, workItemId!),
-                  ),
-                );
-            break;
-          }
-          case "reorderWorkItem": {
-            requireCapability(capabilities, "changeProperties");
-            // Siblings share the parent; positions are sparse so a move only
-            // rewrites one row unless neighbours collide, then all siblings.
-            const siblings = before
-              .filter(
-                (e): e is EntityOf<"workItem"> =>
-                  e.type === "workItem" &&
-                  e.projectId === projectId &&
-                  e.parentId === item!.parentId &&
-                  !e.archivedAt &&
-                  e.id !== workItemId,
-              )
-              .sort((a, b) => a.position - b.position || a.number - b.number);
-            const index = c.beforeId
-              ? siblings.findIndex((x) => x.id === c.beforeId)
-              : siblings.length;
-            if (c.beforeId && index === -1)
-              throw new DomainError(
-                "validation",
-                "The target item is not a sibling.",
-              );
-            const prev = siblings[index - 1]?.position ?? 0;
-            const next = siblings[index]?.position;
-            let position: number;
-            if (next === undefined) position = prev + 1000;
-            else if (next - prev > 1) position = Math.floor((prev + next) / 2);
-            else {
-              const reordered = [
-                ...siblings.slice(0, index),
-                item!,
-                ...siblings.slice(index),
-              ];
-              for (const [i, sibling] of reordered.entries())
-                await tx
-                  .update(s.workItem)
-                  .set({ position: (i + 1) * 1000 })
-                  .where(
-                    and(
-                      eq(s.workItem.organizationId, organizationId),
-                      eq(s.workItem.id, sibling.id),
-                    ),
-                  );
-              position = (index + 1) * 1000;
-            }
-            await tx
-              .update(s.workItem)
-              .set({ position })
-              .where(
-                and(
-                  eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.id, workItemId!),
-                ),
-              );
-            break;
-          }
-          case "rankWorkItem": {
-            requireCapability(capabilities, "changeProperties");
-            const neighbour = (id: string | null) =>
-              id === null
-                ? null
-                : requireValue(
-                    before.find(
-                      (e): e is EntityOf<"workItem"> =>
-                        e.type === "workItem" && e.id === id,
-                    ),
-                    "The neighbouring item is unavailable.",
-                  ).rank;
-            let low = neighbour(c.afterId);
-            let high = neighbour(c.beforeId);
-            // Stale neighbours (another client moved them) must not produce
-            // an invalid range; fall back to placing after `afterId`.
-            if (low !== null && high !== null && low >= high) high = null;
-            if (low === null && high === null)
-              low =
-                before
-                  .filter(
-                    (e): e is EntityOf<"workItem"> =>
-                      e.type === "workItem" && e.id !== workItemId,
-                  )
-                  .map((e) => e.rank)
-                  .sort()
-                  .at(-1) ?? null;
-            await tx
-              .update(s.workItem)
-              .set({ rank: rankBetween(low, high) })
-              .where(
-                and(
-                  eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.id, workItemId!),
-                ),
-              );
-            break;
-          }
-          case "addRelation": {
-            requireCapability(capabilities, "changeProperties");
-            if (c.toId === workItemId)
-              throw new DomainError(
-                "validation",
-                "An item cannot relate to itself.",
-              );
-            // Relations may cross projects and teams, never organizations.
-            const target = requireValue(
-              (
-                await tx
-                  .select({ id: s.workItem.id })
-                  .from(s.workItem)
-                  .where(
-                    and(
-                      eq(s.workItem.organizationId, organizationId),
-                      eq(s.workItem.id, c.toId),
-                    ),
-                  )
-              )[0],
-              "The related item is unavailable.",
-            );
-            const existing = await tx
-              .select({ id: s.workItemRelation.id })
-              .from(s.workItemRelation)
-              .where(
-                and(
-                  eq(s.workItemRelation.organizationId, organizationId),
-                  eq(s.workItemRelation.kind, c.kind),
-                  or(
-                    and(
-                      eq(s.workItemRelation.fromId, workItemId!),
-                      eq(s.workItemRelation.toId, target.id),
-                    ),
-                    c.kind === "blocks"
-                      ? undefined
-                      : and(
-                          eq(s.workItemRelation.fromId, target.id),
-                          eq(s.workItemRelation.toId, workItemId!),
-                        ),
-                  ),
-                ),
-              );
-            if (existing.length) break;
-            if (c.kind === "blocks") {
-              const reverse = await tx
-                .select({ id: s.workItemRelation.id })
-                .from(s.workItemRelation)
-                .where(
-                  and(
-                    eq(s.workItemRelation.organizationId, organizationId),
-                    eq(s.workItemRelation.kind, "blocks"),
-                    eq(s.workItemRelation.fromId, target.id),
-                    eq(s.workItemRelation.toId, workItemId!),
-                  ),
-                );
-              if (reverse.length)
-                throw new DomainError(
-                  "validation",
-                  "These items already block each other the other way round.",
-                );
-            }
-            await tx.insert(s.workItemRelation).values({
-              id: c.relationId,
-              organizationId,
-              fromId: workItemId!,
-              toId: target.id,
-              kind: c.kind,
-              createdById: userId,
-            });
-            log("relation_added", { kind: c.kind, toId: target.id });
-            break;
-          }
-          case "removeRelation": {
-            requireCapability(capabilities, "changeProperties");
-            const relation = requireValue(
-              (
-                await tx
-                  .select()
-                  .from(s.workItemRelation)
-                  .where(
-                    and(
-                      eq(s.workItemRelation.organizationId, organizationId),
-                      eq(s.workItemRelation.id, c.relationId),
-                      or(
-                        eq(s.workItemRelation.fromId, workItemId!),
-                        eq(s.workItemRelation.toId, workItemId!),
-                      ),
-                    ),
-                  )
-              )[0],
-              "The relation is unavailable.",
-            );
-            await tx
-              .delete(s.workItemRelation)
-              .where(
-                and(
-                  eq(s.workItemRelation.organizationId, organizationId),
-                  eq(s.workItemRelation.id, relation.id),
-                ),
-              );
-            log("relation_removed", {
-              kind: relation.kind,
-              fromId: relation.fromId,
-              toId: relation.toId,
-            });
-            break;
-          }
-          case "createLabel":
-          case "updateLabel": {
-            if (!projectManager)
-              requireCapability(capabilities, "changeProperties");
-            await auditConfiguration(tx, organizationId, userId, c);
-            if (c.type === "createLabel") {
-              const taken = before.some(
-                (e) =>
-                  e.type === "label" &&
-                  e.projectId === projectId &&
-                  e.name.toLowerCase() === c.name.toLowerCase() &&
-                  !e.archivedAt,
-              );
-              if (taken)
-                throw new DomainError(
-                  "validation",
-                  `A label named “${c.name}” already exists.`,
-                );
-              await tx.insert(s.label).values({
-                id: c.labelId,
-                organizationId,
-                projectId,
-                name: c.name,
-                color: c.color,
-              });
-            } else {
-              requireValue(
-                before.find(
-                  (e) =>
-                    e.type === "label" &&
-                    e.id === c.labelId &&
-                    e.projectId === projectId,
-                ),
-              );
-              await tx
-                .update(s.label)
-                .set({
-                  ...(c.name !== undefined ? { name: c.name } : {}),
-                  ...(c.color !== undefined ? { color: c.color } : {}),
-                  ...(c.archived !== undefined
-                    ? { archivedAt: c.archived ? now : null }
-                    : {}),
-                })
-                .where(
-                  and(
-                    eq(s.label.organizationId, organizationId),
-                    eq(s.label.id, c.labelId),
-                  ),
-                );
-            }
-            break;
-          }
-          case "createMilestone":
-          case "updateMilestone": {
-            if (!projectManager)
-              requireCapability(capabilities, "changeProperties");
-            await auditConfiguration(tx, organizationId, userId, c);
-            if (c.type === "createMilestone") {
-              const taken = before.some(
-                (e) =>
-                  e.type === "milestone" &&
-                  e.projectId === projectId &&
-                  e.name.toLowerCase() === c.name.toLowerCase() &&
-                  !e.archivedAt,
-              );
-              if (taken)
-                throw new DomainError(
-                  "validation",
-                  `A milestone named “${c.name}” already exists.`,
-                );
-              await tx.insert(s.milestone).values({
-                id: c.milestoneId,
-                organizationId,
-                projectId,
-                name: c.name,
-                targetDate: c.targetDate ? new Date(c.targetDate) : null,
-              });
-            } else {
-              requireValue(
-                before.find(
-                  (e) =>
-                    e.type === "milestone" &&
-                    e.id === c.milestoneId &&
-                    e.projectId === projectId,
-                ),
-              );
-              await tx
-                .update(s.milestone)
-                .set({
-                  ...(c.name !== undefined ? { name: c.name } : {}),
-                  ...(c.targetDate !== undefined
-                    ? {
-                        targetDate: c.targetDate
-                          ? new Date(c.targetDate)
-                          : null,
-                      }
-                    : {}),
-                  ...(c.status !== undefined ? { status: c.status } : {}),
-                  ...(c.archived !== undefined
-                    ? { archivedAt: c.archived ? now : null }
-                    : {}),
-                })
-                .where(
-                  and(
-                    eq(s.milestone.organizationId, organizationId),
-                    eq(s.milestone.id, c.milestoneId),
-                  ),
-                );
-            }
-            break;
-          }
-          case "archiveWorkItem":
-            requireCapability(capabilities, "changeProperties");
-            await tx
-              .update(s.workItem)
-              .set({ archivedAt: c.archived ? now : null })
-              .where(
-                and(
-                  eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.id, workItemId!),
-                ),
-              );
-            log(c.archived ? "archived" : "restored");
-            break;
-          case "updateSpecification":
-            requireCapability(capabilities, "editSpecifications");
-            if (item!.mainProtected)
-              throw new DomainError(
-                "conflict",
-                "This specification is ready. Use a branch and pull request to change main.",
-              );
-            await revision(c.title, c.content, c.summary);
-            break;
-          case "createThread": {
-            if (!typeOf(item!.typeId).hasSpecification && c.blocking)
-              throw new DomainError(
-                "validation",
-                "Plain work item comments cannot block readiness.",
-              );
-            let suggestionId: string | null = null;
-            if (c.suggestionId) {
-              const target = requireValue(
-                before.find(
-                  (e) => e.type === "suggestion" && e.id === c.suggestionId,
-                ),
-                "This suggestion is unavailable.",
-              );
-              if (
-                target.type !== "suggestion" ||
-                (target.status !== "open" && target.status !== "draft")
-              )
-                throw new DomainError(
-                  "conflict",
-                  "This suggestion is no longer open for discussion.",
-                );
-              suggestionId = target.id;
-            }
-            if (c.pullRequestId) {
-              const pr = before.find(
-                (e) => e.type === "pullRequest" && e.id === c.pullRequestId,
-              );
-              require(pr?.type === "pullRequest" &&
-                pr.status !==
-                  "merged", "This pull request is unavailable for discussion.");
-              require(!c.suggestionId, "Choose one discussion context.");
-              require(before.some(
-                (e) => e.type === "specCommit" && e.id === c.commitId,
-              ), "Choose the commit this discussion concerns.");
-            }
-            await tx.insert(s.thread).values({
-              id: c.threadId,
-              ...context,
-              suggestionId,
-              pullRequestId: c.pullRequestId ?? null,
-              commitId: c.commitId ?? null,
-              authorId: userId,
-              blocking: c.blocking,
-              anchor: {
-                version: 1,
-                kind: "document",
-                section: c.section,
-                ...(c.quote ? { quote: c.quote } : {}),
-              },
-            });
-            await tx.insert(s.threadMessage).values({
-              id: c.messageId,
-              organizationId,
-              threadId: c.threadId,
-              authorId: userId,
-              body: c.body,
-            });
-            log("thread_opened", {
-              threadId: c.threadId,
-              blocking: c.blocking,
-              ...(suggestionId ? { suggestionId } : {}),
-              ...(c.pullRequestId
-                ? { pullRequestId: c.pullRequestId, commitId: c.commitId }
-                : {}),
-            });
-            break;
-          }
-          case "replyToThread":
-          case "setThreadState": {
-            const thread = requireValue(
-              before.find((e) => e.type === "thread" && e.id === c.threadId),
-            );
-            if (thread.type !== "thread") break;
-            if (c.type === "replyToThread")
-              await tx.insert(s.threadMessage).values({
-                id: c.messageId,
-                organizationId,
-                threadId: c.threadId,
-                authorId: userId,
-                body: c.body,
-              });
-            else {
-              if (
-                !typeOf(item!.typeId).hasSpecification &&
-                c.blocking &&
-                !thread.blocking
-              )
-                throw new DomainError(
-                  "validation",
-                  "Plain work item comments cannot block readiness.",
-                );
-              await tx
-                .update(s.thread)
-                .set({
-                  status: c.resolved ? "resolved" : "open",
-                  blocking: c.blocking,
-                  resolvedById: c.resolved ? userId : null,
-                  resolvedAt: c.resolved ? now : null,
-                })
-                .where(
-                  and(
-                    eq(s.thread.organizationId, organizationId),
-                    eq(s.thread.id, c.threadId),
-                  ),
-                );
-              const wasResolved = thread.status === "resolved";
-              if (wasResolved !== c.resolved)
-                log(c.resolved ? "thread_resolved" : "thread_reopened", {
-                  threadId: c.threadId,
-                });
-              if (thread.blocking !== c.blocking)
-                log("thread_blocking_changed", {
-                  threadId: c.threadId,
-                  blocking: c.blocking,
-                });
-            }
-            break;
-          }
-          case "createSuggestion":
-            if (c.replacement === latest?.content)
-              throw new DomainError(
-                "validation",
-                "This suggestion makes no content change.",
-              );
-            await tx.insert(s.suggestion).values({
-              id: c.suggestionId,
-              ...context,
-              authorId: userId,
-              replacement: c.replacement,
-              title: c.title,
-              rationale: c.rationale,
-              status: c.open ? "open" : "draft",
-              openedAt: c.open ? now : null,
-            });
-            log("suggestion_created", {
-              suggestionId: c.suggestionId,
-              draft: !c.open,
-            });
-            break;
-          case "updateSuggestion":
-          case "setSuggestionState":
-          case "setSuggestionReviewer":
-          case "decideSuggestion":
-          case "mergeSuggestion": {
-            const suggestion = requireValue(
-              before.find(
-                (e) => e.type === "suggestion" && e.id === c.suggestionId,
-              ),
-              "This suggestion is unavailable.",
-            );
-            if (suggestion.type !== "suggestion") break;
-            const isAuthor = suggestion.authorId === userId;
-            const reviewers = before.filter(
-              (e): e is EntityOf<"suggestionReviewer"> =>
-                e.type === "suggestionReviewer" &&
-                e.suggestionId === suggestion.id &&
-                !e.withdrawnAt,
-            );
-            const decisions = before.filter(
-              (e): e is EntityOf<"suggestionDecision"> =>
-                e.type === "suggestionDecision" &&
-                e.suggestionId === suggestion.id &&
-                !e.supersededAt,
-            );
-            const isReviewer = reviewers.some((r) => r.userId === userId);
-            const settled =
-              suggestion.status === "merged" || suggestion.status === "closed";
-            const patch = (values: Partial<SuggestionRow>) =>
-              tx
-                .update(s.suggestion)
-                .set(values)
-                .where(
-                  and(
-                    eq(s.suggestion.organizationId, organizationId),
-                    eq(s.suggestion.id, suggestion.id),
-                  ),
-                );
-            // Ends the reviewers' current decisions; a new version or a new
-            // decision by the same reviewer replaces rather than rewrites.
-            const supersede = async (reason: string, reviewerId?: string) => {
-              await tx
-                .update(s.suggestionDecision)
-                .set({ supersededAt: now, supersededReason: reason })
-                .where(
-                  and(
-                    eq(s.suggestionDecision.organizationId, organizationId),
-                    eq(s.suggestionDecision.suggestionId, suggestion.id),
-                    isNull(s.suggestionDecision.supersededAt),
-                    reviewerId
-                      ? eq(s.suggestionDecision.reviewerId, reviewerId)
-                      : undefined,
-                  ),
-                );
-            };
-            switch (c.type) {
-              case "updateSuggestion": {
-                require(isAuthor, "Only the author can update a suggestion.");
-                if (settled)
-                  throw new DomainError(
-                    "conflict",
-                    `This suggestion was ${suggestion.status}; open a new one.`,
-                  );
-                if (c.replacement === latest?.content)
-                  throw new DomainError(
-                    "validation",
-                    "This suggestion makes no content change.",
-                  );
-                const rebased = suggestion.revisionId !== latest!.id;
-                const changed = c.replacement !== suggestion.replacement;
-                const detailsChanged =
-                  c.title !== suggestion.title ||
-                  c.rationale !== suggestion.rationale;
-                const version = changed
-                  ? suggestion.version + 1
-                  : suggestion.version;
-                await patch({
-                  replacement: c.replacement,
-                  title: c.title,
-                  rationale: c.rationale,
-                  revisionId: latest!.id,
-                  version,
-                });
-                if (changed && decisions.length)
-                  await supersede(`Suggestion updated (version ${version})`);
-                if (changed || rebased || detailsChanged)
-                  log("suggestion_updated", {
-                    suggestionId: suggestion.id,
-                    version,
-                    rebased,
-                    revision: latest!.number,
-                  });
-                break;
-              }
-              case "setSuggestionState": {
-                if (c.status === suggestion.status) break;
-                if (suggestion.status === "merged")
-                  throw new DomainError(
-                    "conflict",
-                    "A merged suggestion cannot change state.",
-                  );
-                if (c.status === "closed")
-                  require(isAuthor ||
-                    capabilities.editSpecifications, "Only the author or someone who can edit specifications can close a suggestion.");
-                else
-                  require(isAuthor, "Only the author can open or draft a suggestion.");
-                await patch({
-                  status: c.status,
-                  ...(c.status === "open" && !suggestion.openedAt
-                    ? { openedAt: now }
-                    : {}),
-                  resolvedAt: c.status === "closed" ? now : null,
-                  resolvedById: c.status === "closed" ? userId : null,
-                });
-                log(
-                  c.status === "closed"
-                    ? "suggestion_closed"
-                    : suggestion.status === "closed"
-                      ? "suggestion_reopened"
-                      : c.status === "open"
-                        ? "suggestion_opened"
-                        : "suggestion_drafted",
-                  {
-                    suggestionId: suggestion.id,
-                    authorId: suggestion.authorId,
-                  },
-                );
-                break;
-              }
-              case "setSuggestionReviewer": {
-                require(isAuthor, "Only the author can choose reviewers for a suggestion.");
-                if (settled)
-                  throw new DomainError(
-                    "conflict",
-                    `This suggestion was ${suggestion.status}.`,
-                  );
-                requireValue(
-                  roster.members.find((m) => m.id === c.userId),
-                  "That person is not a member of this organization.",
-                );
-                const existing = reviewers.find((r) => r.userId === c.userId);
-                if (c.assigned) {
-                  require(canReviewSuggestions(
-                    roster.disciplines,
-                    c.userId,
-                    projectId,
-                  ), "Suggestion reviewers need a discipline in this project that can both edit specifications and be asked to review.", "validation");
-                  require(c.userId !==
-                    userId, "You cannot review your own suggestion.", "validation");
-                  if (existing) break;
-                  await tx.insert(s.suggestionReviewer).values({
-                    organizationId,
-                    workItemId: workItemId!,
-                    suggestionId: suggestion.id,
-                    userId: c.userId,
-                    assignedById: userId,
-                  });
-                  log("suggestion_reviewer_assigned", {
-                    suggestionId: suggestion.id,
-                    userId: c.userId,
-                  });
-                } else {
-                  if (!existing) break;
-                  await tx
-                    .update(s.suggestionReviewer)
-                    .set({ withdrawnAt: now })
-                    .where(
-                      and(
-                        eq(s.suggestionReviewer.organizationId, organizationId),
-                        eq(s.suggestionReviewer.id, existing.id),
-                      ),
-                    );
-                  log("suggestion_reviewer_unassigned", {
-                    suggestionId: suggestion.id,
-                    userId: c.userId,
-                  });
-                }
-                break;
-              }
-              case "decideSuggestion": {
-                require(isReviewer, "Only an assigned reviewer can decide this suggestion.");
-                if (suggestion.status !== "open")
-                  throw new DomainError(
-                    "conflict",
-                    "This suggestion is not open for review.",
-                  );
-                if (c.version !== suggestion.version)
-                  throw new DomainError(
-                    "conflict",
-                    `The suggestion changed (version ${suggestion.version}). Review the latest version.`,
-                  );
-                const mine = decisions.find((d) => d.reviewerId === userId);
-                if (c.decision === "revoke") {
-                  if (!mine) break;
-                  await supersede("Reviewer revoked their decision", userId);
-                  log("suggestion_decision_revoked", {
-                    suggestionId: suggestion.id,
-                    version: suggestion.version,
-                  });
-                  break;
-                }
-                const decision =
-                  c.decision === "approve" ? "approved" : "changes_requested";
-                if (mine?.decision === decision && mine.version === c.version)
-                  break;
-                if (mine) await supersede("Reviewer decision changed", userId);
-                await tx.insert(s.suggestionDecision).values({
-                  organizationId,
-                  workItemId: workItemId!,
-                  suggestionId: suggestion.id,
-                  reviewerId: userId,
-                  version: c.version,
-                  decision,
-                });
-                log(
-                  decision === "approved"
-                    ? "suggestion_approved"
-                    : "suggestion_changes_requested",
-                  {
-                    suggestionId: suggestion.id,
-                    version: c.version,
-                    authorId: suggestion.authorId,
-                  },
-                );
-                break;
-              }
-              case "mergeSuggestion": {
-                require(isReviewer, "Only an assigned reviewer can merge this suggestion.");
-                // Merging writes the mainline: the reviewer must still hold
-                // the editing capability they were chosen for.
-                requireCapability(capabilities, "editSpecifications");
-                if (suggestion.status !== "open")
-                  throw new DomainError(
-                    "conflict",
-                    "Only an open suggestion can be merged.",
-                  );
-                if (suggestion.revisionId !== latest?.id)
-                  throw new DomainError(
-                    "conflict",
-                    `The specification moved to revision ${latest?.number}. The author must update the suggestion before it can be merged.`,
-                    latest?.id,
-                  );
-                const approved = decisions.filter(
-                  (d) =>
-                    d.decision === "approved" &&
-                    d.version === suggestion.version &&
-                    reviewers.some((r) => r.userId === d.reviewerId),
-                );
-                require(approved.length >
-                  0, `Version ${suggestion.version} needs at least one reviewer approval before merging.`, "validation");
-                const blocking = before.filter(
-                  (e) =>
-                    e.type === "thread" &&
-                    e.suggestionId === suggestion.id &&
-                    e.status === "open" &&
-                    e.blocking,
-                );
-                require(blocking.length ===
-                  0, `${blocking.length} blocking ${blocking.length === 1 ? "discussion" : "discussions"} on this suggestion must be resolved before merging.`, "validation");
-                if (suggestion.replacement === latest.content)
-                  throw new DomainError(
-                    "validation",
-                    "This suggestion makes no content change.",
-                  );
-                const mergedRevisionId = await revision(
-                  latest.title,
-                  suggestion.replacement,
-                  suggestion.title ??
-                    suggestion.rationale ??
-                    "Merged suggestion",
-                );
-                await patch({
-                  status: "merged",
-                  resolvedAt: now,
-                  resolvedById: userId,
-                  acceptedRevisionId: mergedRevisionId,
-                });
-                log("suggestion_merged", {
-                  suggestionId: suggestion.id,
-                  authorId: suggestion.authorId,
-                  version: suggestion.version,
-                  approvedBy: approved.map((d) => d.reviewerId).sort(),
-                });
-                break;
-              }
-            }
-            break;
-          }
-          case "requestReview": {
-            requireCapability(capabilities, "requestReviews");
-            const discipline = requireValue(
-              roster.disciplines.find(
-                (d) =>
-                  d.id === c.disciplineId &&
-                  d.projectId === projectId &&
-                  !d.archivedAt,
-              ),
-              "The reviewing discipline is unavailable in this project.",
-            );
-            require(discipline.capabilities
-              .review, `${discipline.name} cannot be asked to review. A project administrator can change the discipline's capabilities.`, "validation");
-            if (c.userId)
-              require(discipline.userIds.includes(
-                c.userId,
-              ), `The chosen reviewer is not a member of ${discipline.name}.`, "validation");
-            await tx.insert(s.review).values({
-              id: c.reviewId,
-              ...context,
-              responsibility: discipline.name,
-              required: c.required,
-              requestedById: userId,
-            });
-            await tx.insert(s.reviewAssignment).values({
-              organizationId,
-              reviewId: c.reviewId,
-              assignedById: userId,
-              userId: c.userId,
-              disciplineId: c.userId ? null : c.disciplineId,
-            });
-            log("review_requested", {
-              reviewId: c.reviewId,
-              responsibility: discipline.name,
-              targetType: c.userId ? "user" : "discipline",
-              targetId: c.userId ?? c.disciplineId,
-              required: c.required,
-            });
-            if (
-              item!.refinementState === "draft" ||
-              item!.refinementState === "refinement"
-            )
-              await setRefinement("in_review", item!.refinementState, true);
-            break;
-          }
-          case "cancelReview": {
-            requireCapability(capabilities, "requestReviews");
-            const review = requireValue(
-              before.find((e) => e.type === "review" && e.id === c.reviewId),
-            );
-            if (review.type !== "review" || review.status === "cancelled")
-              throw new DomainError("conflict", "This review is not active.");
-            await tx
-              .update(s.review)
-              .set({ status: "cancelled" })
-              .where(
-                and(
-                  eq(s.review.organizationId, organizationId),
-                  eq(s.review.id, c.reviewId),
-                ),
-              );
-            log("review_cancelled", {
-              reviewId: c.reviewId,
-              responsibility: review.responsibility,
-            });
-            break;
-          }
-          case "decideReview": {
-            const review = requireValue(
-              before.find((e) => e.type === "review" && e.id === c.reviewId),
-            );
-            if (review.type !== "review" || review.revisionId !== latest?.id)
-              throw new DomainError(
-                "conflict",
-                "Request a review of the current revision.",
-                latest?.id,
-              );
-            if (review.status === "cancelled")
-              throw new DomainError("conflict", "This review was cancelled.");
-            const canReviewSpecification = before.some(
-              (e) =>
-                e.type === "assignment" &&
-                e.reviewId === c.reviewId &&
-                !e.withdrawnAt &&
-                (e.userId === userId ||
-                  roster.disciplines.some(
-                    (d) =>
-                      d.id === e.disciplineId &&
-                      !d.archivedAt &&
-                      d.userIds.includes(userId),
-                  )),
-            );
-            if (!canReviewSpecification)
-              throw new DomainError(
-                "forbidden",
-                "Only an assigned reviewer can decide this review.",
-              );
-            await tx
-              .update(s.approval)
-              .set({
-                status: "revoked",
-                endedAt: now,
-                endedById: userId,
-                endReason: "Reviewer decision changed",
-              })
-              .where(
-                and(
-                  eq(s.approval.organizationId, organizationId),
-                  eq(s.approval.reviewId, c.reviewId),
-                  eq(s.approval.reviewerId, userId),
-                  eq(s.approval.status, "granted"),
-                ),
-              );
-            if (c.decision === "approve")
-              await tx.insert(s.approval).values({
-                ...context,
-                reviewId: c.reviewId,
-                reviewerId: userId,
-              });
-            await tx
-              .update(s.review)
-              .set({
-                status:
-                  c.decision === "approve"
-                    ? "completed"
-                    : c.decision === "revoke"
-                      ? "requested"
-                      : "changes_requested",
-                completedAt: c.decision === "approve" ? now : null,
-              })
-              .where(
-                and(
-                  eq(s.review.organizationId, organizationId),
-                  eq(s.review.id, c.reviewId),
-                ),
-              );
-            log(
-              c.decision === "approve"
-                ? "approved"
-                : c.decision === "revoke"
-                  ? "approval_revoked"
-                  : "changes_requested",
-              {
-                reviewId: c.reviewId,
-                responsibility: review.responsibility,
-                revision: latest.number,
-              },
-            );
-            break;
-          }
-          case "signOffReadinessCheck": {
-            const evaluated = before.find(
-              (e): e is EntityOf<"readiness"> =>
-                e.type === "readiness" && e.workItemId === workItemId,
-            );
-            const check = evaluated?.checks.find((k) => k.key === c.checkId);
-            if (!check?.signOff)
-              throw new DomainError(
-                "validation",
-                "This item has no such sign-off. Its readiness checks may have changed; reload it and try again.",
-              );
-            const eligible = check.signOff.disciplineIds;
-            require(roster.disciplines.some(
-              (d) =>
-                d.projectId === projectId &&
-                !d.archivedAt &&
-                d.userIds.includes(userId) &&
-                (eligible.length === 0 || eligible.includes(d.id)),
-            ), eligible.length
-              ? `Only members of ${eligible
-                  .map(
-                    (id) =>
-                      roster.disciplines.find((d) => d.id === id)?.name ??
-                      "a former discipline",
-                  )
-                  .join(" or ")} can sign off “${check.label}”.`
-              : `Only people holding a discipline in this project can sign off “${check.label}”.`);
-            const [existing] = await tx
-              .select()
-              .from(s.readinessSignOff)
-              .where(
-                and(
-                  eq(s.readinessSignOff.organizationId, organizationId),
-                  eq(s.readinessSignOff.workItemId, workItemId!),
-                  eq(s.readinessSignOff.revisionId, latest!.id),
-                  eq(s.readinessSignOff.checkId, c.checkId),
-                  isNull(s.readinessSignOff.withdrawnAt),
-                ),
-              );
-            const detail = {
-              checkId: c.checkId,
-              label: check.label,
-              revision: latest!.number,
-            };
-            if (c.signedOff) {
-              if (existing)
-                throw new DomainError(
-                  "conflict",
-                  `“${check.label}” is already signed off for revision ${latest!.number}.`,
-                );
-              await tx.insert(s.readinessSignOff).values({
-                organizationId,
-                workItemId: workItemId!,
-                revisionId: latest!.id,
-                checkId: c.checkId,
-                userId,
-              });
-              log("readiness_signed_off", detail);
-            } else {
-              if (!existing)
-                throw new DomainError(
-                  "conflict",
-                  `“${check.label}” has no sign-off to withdraw for revision ${latest!.number}.`,
-                );
-              await tx
-                .update(s.readinessSignOff)
-                .set({ withdrawnAt: now, withdrawnById: userId })
-                .where(
-                  and(
-                    eq(s.readinessSignOff.organizationId, organizationId),
-                    eq(s.readinessSignOff.id, existing.id),
-                  ),
-                );
-              log("readiness_sign_off_withdrawn", {
-                ...detail,
-                signedOffBy: existing.userId,
-              });
-            }
-            break;
-          }
-        }
-        if (item && (branchCommands.has(c.type) || aiCommands.has(c.type)))
-          await scheduleActionRuns(tx, {
-            organizationId,
-            workItemId: item.id,
-            userId,
-            before,
-            policy: project().aiActionPolicy,
-            ai: roster.ai,
-          });
-        if (workItemId && c.type !== "createWorkItem")
-          await tx
-            .update(s.workItem)
-            .set({ updatedAt: now })
+            .select()
+            .from(s.workItem)
             .where(
               and(
                 eq(s.workItem.organizationId, organizationId),
                 eq(s.workItem.id, workItemId),
               ),
-            );
-        let after = await snapshot(tx, scope);
-        // Notify once when a previously approved PR result becomes stale.
-        const oldBranches = before.filter(
-            (e): e is EntityOf<"specBranch"> => e.type === "specBranch",
-          ),
-          newBranches = after.filter(
-            (e): e is EntityOf<"specBranch"> => e.type === "specBranch",
-          );
-        const oldCommits = before.filter(
-            (e): e is EntityOf<"specCommit"> => e.type === "specCommit",
-          ),
-          newCommits = after.filter(
-            (e): e is EntityOf<"specCommit"> => e.type === "specCommit",
-          );
-        for (const pr of after.filter(
-          (e): e is EntityOf<"pullRequest"> =>
-            e.type === "pullRequest" && e.status !== "merged",
-        )) {
-          const oldHash = pullRequestResultHash(pr, oldBranches, oldCommits),
-            newHash = pullRequestResultHash(pr, newBranches, newCommits);
-          if (oldHash && oldHash !== newHash) {
-            const reviewerIds = before
-              .filter(
-                (e): e is EntityOf<"prReview"> =>
-                  e.type === "prReview" &&
-                  e.pullRequestId === pr.id &&
-                  e.decision === "approved" &&
-                  e.resultHash === oldHash,
-              )
-              .flatMap((r) => (r.reviewerId ? [r.reviewerId] : []));
-            if (reviewerIds.length)
-              log("pull_request_approval_invalidated", {
-                pullRequestId: pr.id,
-                title: pr.title,
-                reviewerIds,
-              });
-          }
-        }
-        // Readiness drives `ready` automatically in both directions while the
-        // item is still owned by refinement. Later statuses are never touched.
-        let readinessState = after.find((e) => e.type === "readiness");
-        const itemState = after.find(
-          (e) => e.type === "workItem" && e.id === workItemId,
-        );
-        // An item keeps the readiness checks it met only while it stays
-        // ready or done; otherwise it follows the project's latest checks.
-        if (
-          readinessState?.type === "readiness" &&
-          readinessState.pinned &&
-          itemState?.type === "workItem" &&
-          !itemState.archivedAt
-        ) {
-          const category = projectStatuses().find(
-            (x) => x.id === itemState.statusId,
-          )?.category;
-          const passing =
-            readinessState.checks.length > 0 &&
-            readinessState.checks.every((check) => check.passed);
-          if (!passing && !(category && closedCategories.includes(category))) {
-            await tx
-              .update(s.workItem)
-              .set({ readinessRevisionId: null })
-              .where(
-                and(
-                  eq(s.workItem.organizationId, organizationId),
-                  eq(s.workItem.id, workItemId!),
-                ),
-              );
-            after = await snapshot(tx, scope);
-            const followed = after.find((e) => e.type === "readiness");
-            log("readiness_checks_followed", {
-              from: readinessState.policyRevisionNumber,
-              to:
-                followed?.type === "readiness"
-                  ? followed.policyRevisionNumber
-                  : null,
-            });
-            readinessState = followed;
-          }
-        }
-        if (
-          readinessState?.type === "readiness" &&
-          itemState?.type === "workItem" &&
-          !itemState.archivedAt
-        ) {
-          const state = itemState.refinementState;
-          const ready =
-            readinessState.checks.length > 0 &&
-            readinessState.checks.every((check) => check.passed);
-          const next: RefinementState | undefined =
-            state && ready && preReadyStates.includes(state)
-              ? "ready"
-              : !ready && state === "ready"
-                ? "in_review"
-                : undefined;
-          if (next) {
-            await setRefinement(next, state, true);
-            after = await snapshot(tx, scope);
-          }
-        }
-        if (workItemId && activities.length) {
-          // Activity is the only thing this insert changes in the item scope,
-          // so append it instead of projecting the scope again.
-          const inserted = await tx
-            .insert(s.activity)
-            .values(
-              activities.map((a, index) => ({
-                id: crypto.randomUUID(),
-                organizationId,
-                projectId,
-                workItemId: workItemId,
-                actorId: userId,
-                action: a.action,
-                detail: a.detail ?? null,
-                createdAt: new Date(now.getTime() + index),
-              })),
             )
-            .returning();
-          after = [
-            ...after,
-            ...inserted.map((row) => serialize("activity", row)),
-          ];
-        }
-        // Replies log no activity but still notify participants and mentions.
-        if (
-          workItemId &&
-          projectRow &&
-          (activities.length || c.type === "replyToThread")
-        )
-          await notifyItemActivity(tx, {
-            organizationId,
-            projectId,
-            projectKey: projectRow.key,
-            workItemId,
-            actorId: userId,
-            command: c,
-            activities,
-            after,
-            roster,
-          });
-        // A child's change can alter its Epic's readiness (stories_ready), which
-        // lives in the Epic's own scope. Emit that projection explicitly.
-        const parentIds = new Set(
-          [
-            item?.parentId,
-            c.type === "createWorkItem" ? c.parentId : undefined,
-            c.type === "updateWorkItem" ? c.parentId : undefined,
-          ].filter((v): v is string => typeof v === "string"),
+        )[0],
+      );
+      if (item.archivedAt && c.type !== "archiveWorkItem")
+        throw new DomainError(
+          "conflict",
+          "Restore this item before changing it.",
         );
-        const parentReadiness: { workItemId: string; entity: Entity }[] = [];
-        if (parentIds.size) {
-          const rows = await tx
+      projectId = item.projectId;
+      const itemType = roster.types.find((t) => t.id === item!.typeId);
+      if (
+        (specCommands.has(c.type) ||
+          branchCommands.has(c.type) ||
+          aiCommands.has(c.type)) &&
+        !itemType?.hasSpecification
+      )
+        throw new DomainError(
+          "validation",
+          `${itemType?.name ?? "This type"} items have no specification to review. Change the type to one with a specification first.`,
+        );
+    }
+    if (c.type !== "createProject")
+      projectRow = requireValue(
+        (
+          await tx
+            .select()
+            .from(s.project)
+            .where(
+              and(
+                eq(s.project.organizationId, organizationId),
+                eq(s.project.id, projectId),
+                isNull(s.project.archivedAt),
+              ),
+            )
+        )[0],
+      );
+    if (c.type === "createWorkItem") workItemId = c.workItemId;
+    // Work item capabilities come from the disciplines held in this
+    // project; organization administration grants none of them.
+    const capabilities =
+      c.type === "createProject"
+        ? noCapabilities
+        : capabilitiesOf(roster.disciplines, userId, projectId);
+    const projectManager =
+      c.type !== "createProject" &&
+      canManageProject(roster, userId, admin, projectId);
+    const project = () =>
+      requireValue(
+        roster.projects.find((p) => p.id === projectId),
+        "This project is unavailable.",
+      );
+    const projectStatuses = () =>
+      roster.statuses.filter((x) => x.projectId === projectId);
+    const scope = { organizationId, projectId, workItemId };
+    const before =
+      c.type === "createProject"
+        ? []
+        : await snapshot(tx, {
+            ...scope,
+            workItemId: c.type === "createWorkItem" ? undefined : workItemId,
+          });
+    const latest = before
+      .filter((e) => e.type === "revision")
+      .sort((a, b) => b.number - a.number)[0];
+    if (
+      "baseRevisionId" in c &&
+      !(c.type === "createThread" && c.pullRequestId) &&
+      c.baseRevisionId !== latest?.id
+    )
+      throw new DomainError(
+        "conflict",
+        "The specification changed. Compare your draft with the latest revision before resubmitting.",
+        latest?.id,
+      );
+    const now = new Date();
+    const context = {
+      organizationId,
+      workItemId: workItemId!,
+      revisionId: latest?.id ?? "",
+    };
+    const activities: {
+      action: string;
+      detail?: Record<string, unknown>;
+    }[] = [];
+    const log = (action: string, detail?: Record<string, unknown>) =>
+      activities.push({ action, detail });
+    // Lictory Intelligence runs owned by other items (an Epic review
+    // covering this Story) whose projection this command changed.
+    const touchedRuns = new Set<string>();
+    const revision = async (
+      title: string,
+      content: string,
+      summary: string | undefined,
+      previous = latest,
+      mergeParents?: string[],
+    ) => {
+      if (previous?.title === title && previous.content === content)
+        return previous.id;
+      const revisionId = crypto.randomUUID();
+      const number = (previous?.number ?? 0) + 1;
+      await tx.insert(s.specificationRevision).values({
+        id: revisionId,
+        organizationId,
+        workItemId: workItemId!,
+        number,
+        title,
+        content,
+        changeSummary: summary?.trim() ? summary.trim() : null,
+        authorId: userId,
+      });
+      await recordMain(
+        tx,
+        {
+          id: revisionId,
+          organizationId,
+          workItemId: workItemId!,
+          number,
+          title,
+          content,
+          changeSummary: summary,
+          authorId: userId,
+        },
+        mergeParents,
+      );
+      await tx
+        .update(s.workItem)
+        .set({ title })
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.id, workItemId!),
+          ),
+        );
+      for (const run of await invalidateItemReviews(
+        tx,
+        organizationId,
+        workItemId!,
+        `${projectRow?.key ?? "Item"}-${item?.number ?? ""} changed to revision ${number}`,
+      ))
+        if (run.workItemId !== workItemId) touchedRuns.add(run.id);
+      if (previous) {
+        await tx
+          .update(s.approval)
+          .set({
+            status: "stale",
+            endedAt: now,
+            endedById: userId,
+            endReason: `Specification revised (revision ${number})`,
+          })
+          .where(
+            and(
+              eq(s.approval.organizationId, organizationId),
+              eq(s.approval.workItemId, workItemId!),
+              eq(s.approval.status, "granted"),
+            ),
+          );
+        // Responsibilities persist across revisions: every active review on
+        // the previous revision is re-requested on the new one with the same
+        // assignments. Old review rows stay as history of what was decided.
+        const carried = before.filter(
+          (e): e is EntityOf<"review"> =>
+            e.type === "review" &&
+            e.revisionId === previous.id &&
+            e.status !== "cancelled",
+        );
+        for (const old of carried) {
+          const reviewId = crypto.randomUUID();
+          await tx.insert(s.review).values({
+            id: reviewId,
+            organizationId,
+            workItemId: workItemId!,
+            revisionId,
+            responsibility: old.responsibility,
+            required: old.required,
+            requestedById: userId,
+          });
+          const targets = before.filter(
+            (e): e is EntityOf<"assignment"> =>
+              e.type === "assignment" &&
+              e.reviewId === old.id &&
+              !e.withdrawnAt,
+          );
+          if (targets.length)
+            await tx.insert(s.reviewAssignment).values(
+              targets.map((t) => ({
+                organizationId,
+                reviewId,
+                assignedById: userId,
+                userId: t.userId,
+                disciplineId: t.disciplineId,
+              })),
+            );
+        }
+        log("revised", {
+          number,
+          summary: summary?.trim() ? summary.trim() : null,
+        });
+      }
+      return revisionId;
+    };
+    const typeOf = (typeId: string) =>
+      requireValue(
+        roster.types.find((t) => t.id === typeId),
+        "The work item type is unavailable.",
+      );
+    // Hierarchy follows type levels: a parent sits strictly above its
+    // children (Epic > Story/Task/Bug > Subtask).
+    const validateParent = async (parentId: string | null, typeId: string) => {
+      if (!parentId) return;
+      const child = typeOf(typeId);
+      const parent = requireValue(
+        (
+          await tx
             .select()
             .from(s.workItem)
             .where(
               and(
                 eq(s.workItem.organizationId, organizationId),
                 eq(s.workItem.projectId, projectId),
+                eq(s.workItem.id, parentId),
+                isNull(s.workItem.archivedAt),
+              ),
+            )
+        )[0],
+        "The parent item is unavailable in this project.",
+      );
+      if (parent.id === workItemId)
+        throw new DomainError(
+          "validation",
+          "An item cannot be its own parent.",
+        );
+      const parentType = typeOf(parent.typeId);
+      if (parentType.level <= child.level)
+        throw new DomainError(
+          "validation",
+          `A ${child.name} cannot be placed under a ${parentType.name}.`,
+        );
+      return parent;
+    };
+    const teamOf = (teamId: string) =>
+      requireValue(
+        roster.teams.find(
+          (t) => t.id === teamId && !t.archivedAt && t.projectId === projectId,
+        ),
+        "The team is unavailable in this project.",
+      );
+    const iterationEvent = async (
+      iterationId: string | null,
+      kind: (typeof s.iterationEvent.$inferInsert)["kind"],
+      points: number | null,
+      at = now,
+    ) => {
+      if (!iterationId) return;
+      // Completed iterations are history: later edits never change them.
+      const known = roster.iterations.find((i) => i.id === iterationId);
+      if (!known || known.state === "completed") return;
+      await tx.insert(s.iterationEvent).values({
+        organizationId,
+        iterationId,
+        workItemId: workItemId!,
+        kind,
+        points: points ?? 0,
+        actorId: userId,
+        createdAt: at,
+      });
+    };
+    const openIteration = (iterationId: string) => {
+      const found = requireValue(
+        roster.iterations.find(
+          (i) => i.id === iterationId && i.projectId === projectId,
+        ),
+        "The iteration is unavailable in this project.",
+      );
+      if (found.state === "completed")
+        throw new DomainError(
+          "validation",
+          "That iteration is completed. Choose an active or planned one.",
+        );
+      return found;
+    };
+    const setRefinement = async (
+      state: RefinementState,
+      from: RefinementState | null,
+      automatic = false,
+    ) => {
+      if (state === from || from === null) return;
+      await tx
+        .update(s.workItem)
+        .set({
+          refinementState: state,
+          ...(state === "ready" ? { mainProtected: true } : {}),
+        })
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.id, workItemId!),
+          ),
+        );
+      log("refinement_changed", { from, to: state, automatic });
+    };
+    if (branchCommands.has(c.type)) {
+      await applyBranchCommand(tx, c, {
+        organizationId,
+        projectId,
+        workItemId: workItemId!,
+        userId,
+        capabilities,
+        roster,
+        latest: latest!,
+        revision: (title, content, summary, parents) =>
+          revision(title, content, summary, latest, parents),
+        log,
+        actionCheck: (pullRequestId, sourceHeadId) =>
+          roster.ai.enabled &&
+          roster.ai.available &&
+          project().aiActionPolicy === "required"
+            ? actionCheckProblem(
+                tx,
+                organizationId,
+                pullRequestId,
+                sourceHeadId,
+              )
+            : Promise.resolve(undefined),
+      });
+    }
+    if (aiCommands.has(c.type))
+      await applyAiCommand(tx, c, {
+        organizationId,
+        projectId,
+        workItemId: workItemId!,
+        userId,
+        capabilities,
+        roster,
+        latest: latest!,
+        itemKey: `${projectRow!.key}-${item!.number}`,
+        log,
+        touched: touchedRuns,
+      });
+    switch (c.type) {
+      case "createProject": {
+        require(admin, "An organization administrator must create projects.");
+        // Keys become URL segments beside fixed workspace routes.
+        if (reservedKeys.has(c.key))
+          throw new DomainError(
+            "validation",
+            `${c.key} is reserved by Lictory. Choose another key.`,
+          );
+        const taken = (
+          await tx
+            .select({ id: s.project.id })
+            .from(s.project)
+            .where(
+              and(
+                eq(s.project.organizationId, organizationId),
+                eq(s.project.key, c.key),
+              ),
+            )
+        )[0];
+        if (taken)
+          throw new DomainError(
+            "validation",
+            `The key ${c.key} is already used by another project.`,
+          );
+        if (c.setup) {
+          const previousSetup = await tx
+            .select({ id: s.organizationOnboarding.organizationId })
+            .from(s.organizationOnboarding)
+            .where(eq(s.organizationOnboarding.organizationId, organizationId))
+            .limit(1);
+          require(!roster.projects.length &&
+            !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.");
+          if (c.setup.aiEnabled !== undefined)
+            await setAiPolicy(tx, organizationId, userId, c.setup.aiEnabled);
+        }
+        await tx.insert(s.project).values({
+          id: projectId,
+          organizationId,
+          name: c.name,
+          slug: c.key.toLowerCase(),
+          key: c.key,
+          description: c.description?.trim() ? c.description.trim() : null,
+          createdById: userId,
+          ...(c.setup
+            ? {
+                deliveryMode: c.setup.deliveryMode,
+                readinessPolicy: c.setup.readinessPolicy,
+                estimateScale: c.setup.estimateScale,
+                iterationMode: c.setup.iterationMode,
+                iterationWeeks: c.setup.iterationWeeks,
+                iterationStartDay: c.setup.iterationStartDay,
+              }
+            : {}),
+        });
+        await seedProject(tx, organizationId, projectId, userId);
+        if (c.setup) {
+          await tx.insert(s.organizationOnboarding).values({
+            organizationId,
+            projectId,
+            decidedById: userId,
+            decisions: c.setup,
+          });
+          if (c.setup.iterationMode === "automatic")
+            await advanceProjectSchedule(
+              tx,
+              organizationId,
+              projectId,
+              now,
+              userId,
+            );
+        }
+        break;
+      }
+      case "createWorkItem": {
+        const type = typeOf(c.typeId);
+        // Spec-backed work starts a specification; plain work only
+        // needs the right to shape the project's delivery.
+        if (type.hasSpecification || !capabilities.changeProperties)
+          requireCapability(capabilities, "editSpecifications");
+        if (type.archivedAt)
+          throw new DomainError(
+            "validation",
+            `${type.name} is archived. Restore it or choose another type.`,
+          );
+        if (
+          !roster.projectTypes.some(
+            (x) => x.projectId === projectId && x.typeId === type.id,
+          )
+        )
+          throw new DomainError(
+            "validation",
+            `${projectRow!.name} does not use ${type.name} items. Enable the type in project settings.`,
+          );
+        const teamId = c.teamId ? teamOf(c.teamId).id : null;
+        const parent = await validateParent(c.parentId, c.typeId);
+        const statuses = projectStatuses().filter((x) => !x.archivedAt);
+        const status = c.statusId
+          ? requireValue(
+              statuses.find((x) => x.id === c.statusId),
+              "The status is unavailable in this project.",
+            )
+          : (statuses.find((x) => x.category === "backlog") ??
+            statuses.find((x) => x.category === "unstarted") ??
+            statuses[0]);
+        if (!status)
+          throw new DomainError(
+            "validation",
+            `${projectRow!.name} has no workflow statuses.`,
+          );
+        if (c.iterationId) {
+          if (projectRow!.deliveryMode === "external")
+            throw new DomainError(
+              "validation",
+              `${projectRow!.name} hands delivery to an external tool; plan iterations there.`,
+            );
+          openIteration(c.iterationId);
+        }
+        if (c.assigneeId)
+          requireValue(
+            roster.members.find((m) => m.id === c.assigneeId),
+            "Assignee is outside this organization.",
+          );
+        const [{ next }] = (await tx
+          .select({
+            next: sql<number>`coalesce(max(${s.workItem.number}), 0) + 1`,
+          })
+          .from(s.workItem)
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.projectId, projectId),
+            ),
+          )) as [{ next: number }];
+        const [{ last }] = (await tx
+          .select({ last: sql<string | null>`max(${s.workItem.rank})` })
+          .from(s.workItem)
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.projectId, projectId),
+            ),
+          )) as [{ last: string | null }];
+        // Decomposition keeps traceability: a child of a specification
+        // records which parent revision it was derived from.
+        const parentRevision =
+          parent && typeOf(parent.typeId).hasSpecification
+            ? (
+                await tx
+                  .select({ id: s.specificationRevision.id })
+                  .from(s.specificationRevision)
+                  .where(
+                    and(
+                      eq(
+                        s.specificationRevision.organizationId,
+                        organizationId,
+                      ),
+                      eq(s.specificationRevision.workItemId, parent.id),
+                    ),
+                  )
+                  .orderBy(desc(s.specificationRevision.number))
+                  .limit(1)
+              )[0]?.id
+            : undefined;
+        await tx.insert(s.workItem).values({
+          id: workItemId!,
+          organizationId,
+          projectId,
+          teamId,
+          typeId: type.id,
+          parentId: c.parentId,
+          number: Number(next),
+          title: c.title,
+          statusId: status.id,
+          refinementState: type.hasSpecification ? "draft" : null,
+          iterationId: c.iterationId ?? null,
+          assigneeId: c.assigneeId ?? null,
+          rank: rankBetween(last, null),
+          sourceRevisionId: parentRevision ?? null,
+          createdById: userId,
+        });
+        await revision(c.title, c.description ?? "", "Created", undefined);
+        await iterationEvent(c.iterationId ?? null, "added", null);
+        log("created", {
+          type: type.name,
+          number: Number(next),
+          ...(parentRevision ? { sourceRevisionId: parentRevision } : {}),
+        });
+        break;
+      }
+      case "updateWorkItem": {
+        requireCapability(capabilities, "changeProperties");
+        const patch: Partial<ItemRow> = {};
+        const failingChecks = () => {
+          const checks = before.find(
+            (e) => e.type === "readiness" && e.id === workItemId,
+          );
+          return checks?.type === "readiness"
+            ? checks.checks.filter((k) => !k.passed)
+            : [];
+        };
+        let statusId = item!.statusId;
+        let iterationId = item!.iterationId;
+        let typeId = item!.typeId;
+        if (c.typeId !== undefined && c.typeId !== item!.typeId) {
+          const to = typeOf(c.typeId);
+          const from = typeOf(item!.typeId);
+          if (to.archivedAt)
+            throw new DomainError("validation", `${to.name} is archived.`);
+          if (
+            !roster.projectTypes.some(
+              (x) => x.projectId === projectId && x.typeId === to.id,
+            )
+          )
+            throw new DomainError(
+              "validation",
+              `${projectRow!.name} does not use ${to.name} items.`,
+            );
+          await validateParent(item!.parentId, to.id);
+          const children = before.filter(
+            (e): e is EntityOf<"workItem"> =>
+              e.type === "workItem" &&
+              e.parentId === workItemId &&
+              !e.archivedAt,
+          );
+          if (children.some((ch) => typeOf(ch.typeId).level >= to.level))
+            throw new DomainError(
+              "validation",
+              `This item has children that cannot sit under a ${to.name}.`,
+            );
+          typeId = to.id;
+          patch.typeId = to.id;
+          // Revisions are never deleted; they reappear if the type
+          // regains a specification.
+          if (to.hasSpecification && !from.hasSpecification)
+            patch.refinementState = "draft";
+          if (!to.hasSpecification) patch.refinementState = null;
+          log("type_changed", { from: from.name, to: to.name });
+        }
+        // Team is an optional grouping inside the project: changing it
+        // keeps the key, status and iteration.
+        if (c.teamId !== undefined && c.teamId !== item!.teamId) {
+          const to = c.teamId ? teamOf(c.teamId) : null;
+          patch.teamId = to?.id ?? null;
+          log("team_changed", {
+            from: item!.teamId,
+            to: to?.id ?? null,
+            fromName:
+              roster.teams.find((t) => t.id === item!.teamId)?.name ?? null,
+            toName: to?.name ?? null,
+          });
+        }
+        const statuses = projectStatuses();
+        if (c.statusId !== undefined && c.statusId !== statusId) {
+          const to = requireValue(
+            statuses.find((x) => x.id === c.statusId && !x.archivedAt),
+            "The status is unavailable in this project.",
+          );
+          const from = statuses.find((x) => x.id === statusId);
+          // Readiness gates starting spec-backed work, per project
+          // policy. `warn` lets the move through but records the override.
+          let override: string[] | undefined;
+          if (
+            to.category === "started" &&
+            from?.category !== "started" &&
+            typeOf(typeId).hasSpecification &&
+            item!.refinementState !== "ready" &&
+            projectRow!.readinessPolicy !== "off"
+          ) {
+            const failing = failingChecks().map((k) => k.label);
+            if (projectRow!.readinessPolicy === "block")
+              throw new DomainError(
+                "validation",
+                `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.map((f) => f.toLowerCase()).join("; ")}` : ""}.`,
+              );
+            override = failing;
+          }
+          const wasClosed = closedCategories.includes(
+            from?.category ?? "backlog",
+          );
+          const nowClosed = closedCategories.includes(to.category);
+          if (wasClosed !== nowClosed)
+            await iterationEvent(
+              iterationId,
+              nowClosed ? "completed" : "reopened",
+              item!.estimate,
+            );
+          patch.statusId = to.id;
+          statusId = to.id;
+          log("status_changed", {
+            from: from?.name ?? null,
+            to: to.name,
+            category: to.category,
+            ...(override ? { startedBeforeReady: override } : {}),
+          });
+        }
+        if (
+          c.refinementState !== undefined &&
+          c.refinementState !== item!.refinementState
+        ) {
+          if (item!.refinementState === null)
+            throw new DomainError(
+              "validation",
+              "This item has no specification to refine.",
+            );
+          patch.refinementState = c.refinementState;
+          log("refinement_changed", {
+            from: item!.refinementState,
+            to: c.refinementState,
+            automatic: false,
+          });
+        }
+        if (c.iterationId !== undefined && c.iterationId !== iterationId) {
+          if (c.iterationId) {
+            if (projectRow!.deliveryMode === "external")
+              throw new DomainError(
+                "validation",
+                `${projectRow!.name} hands delivery to an external tool; plan iterations there.`,
+              );
+            openIteration(c.iterationId);
+          }
+          await iterationEvent(iterationId, "removed", item!.estimate);
+          await iterationEvent(c.iterationId, "added", item!.estimate);
+          // Already-finished work counts as completed scope, not remaining.
+          const category = statuses.find((x) => x.id === statusId)?.category;
+          if (category && closedCategories.includes(category))
+            await iterationEvent(c.iterationId, "completed", item!.estimate);
+          patch.iterationId = c.iterationId;
+          log("iteration_changed", {
+            from: iterationId,
+            to: c.iterationId,
+          });
+          iterationId = c.iterationId;
+        }
+        if (c.estimate !== undefined && c.estimate !== item!.estimate) {
+          if (projectRow!.estimateScale === "none")
+            throw new DomainError(
+              "validation",
+              `${projectRow!.name} does not estimate work in Lictory.`,
+            );
+          if (iterationId && c.iterationId === undefined)
+            await iterationEvent(
+              iterationId,
+              "estimate_changed",
+              (c.estimate ?? 0) - (item!.estimate ?? 0),
+            );
+          patch.estimate = c.estimate;
+          log("estimate_changed", { from: item!.estimate, to: c.estimate });
+        }
+        if (c.priority !== undefined && c.priority !== item!.priority) {
+          patch.priority = c.priority;
+          log("priority_changed", { from: item!.priority, to: c.priority });
+        }
+        if (c.assigneeId !== undefined && c.assigneeId !== item!.assigneeId) {
+          if (c.assigneeId) {
+            requireValue(
+              roster.members.find((m) => m.id === c.assigneeId),
+              "Assignee is outside this organization.",
+            );
+          }
+          patch.assigneeId = c.assigneeId;
+          log("assignee_changed", {
+            from: item!.assigneeId,
+            to: c.assigneeId,
+          });
+        }
+        if (c.parentId !== undefined && c.parentId !== item!.parentId) {
+          await validateParent(c.parentId, typeId);
+          patch.parentId = c.parentId;
+          log("parent_changed", { from: item!.parentId, to: c.parentId });
+        }
+        if (
+          c.milestoneId !== undefined &&
+          c.milestoneId !== item!.milestoneId
+        ) {
+          if (c.milestoneId)
+            requireValue(
+              before.find(
+                (e) =>
+                  e.type === "milestone" &&
+                  e.id === c.milestoneId &&
+                  e.projectId === projectId &&
+                  !e.archivedAt,
+              ),
+              "The milestone is unavailable in this project.",
+            );
+          patch.milestoneId = c.milestoneId;
+          log("milestone_changed", {
+            from: item!.milestoneId,
+            to: c.milestoneId,
+          });
+        }
+        if (c.labelIds !== undefined) {
+          const wanted = [...new Set(c.labelIds)];
+          for (const labelId of wanted)
+            requireValue(
+              before.find(
+                (e) =>
+                  e.type === "label" &&
+                  e.id === labelId &&
+                  e.projectId === projectId &&
+                  !e.archivedAt,
+              ),
+              "A label is unavailable in this project.",
+            );
+          const current = before.find(
+            (e) => e.type === "workItem" && e.id === workItemId,
+          );
+          const existing = current?.type === "workItem" ? current.labelIds : [];
+          const added = wanted.filter((l) => !existing.includes(l));
+          const removed = existing.filter((l) => !wanted.includes(l));
+          if (removed.length)
+            await tx
+              .delete(s.workItemLabel)
+              .where(
+                and(
+                  eq(s.workItemLabel.workItemId, workItemId!),
+                  inArray(s.workItemLabel.labelId, removed),
+                ),
+              );
+          if (added.length)
+            await tx.insert(s.workItemLabel).values(
+              added.map((labelId) => ({
+                organizationId,
+                workItemId: workItemId!,
+                labelId,
+              })),
+            );
+          if (added.length || removed.length)
+            log("labels_changed", { added, removed });
+        }
+        if (Object.keys(patch).length)
+          await tx
+            .update(s.workItem)
+            .set(patch)
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.id, workItemId!),
               ),
             );
-          const ctx = await loadItemContext(tx, organizationId, rows);
-          for (const parentId of parentIds) {
-            const parent = rows.find((r) => r.id === parentId);
-            if (parent)
-              parentReadiness.push({
-                workItemId: parentId,
-                entity: readinessEntity(parent, rows, ctx),
+        break;
+      }
+      case "reorderWorkItem": {
+        requireCapability(capabilities, "changeProperties");
+        // Siblings share the parent; positions are sparse so a move only
+        // rewrites one row unless neighbours collide, then all siblings.
+        const siblings = before
+          .filter(
+            (e): e is EntityOf<"workItem"> =>
+              e.type === "workItem" &&
+              e.projectId === projectId &&
+              e.parentId === item!.parentId &&
+              !e.archivedAt &&
+              e.id !== workItemId,
+          )
+          .sort((a, b) => a.position - b.position || a.number - b.number);
+        const index = c.beforeId
+          ? siblings.findIndex((x) => x.id === c.beforeId)
+          : siblings.length;
+        if (c.beforeId && index === -1)
+          throw new DomainError(
+            "validation",
+            "The target item is not a sibling.",
+          );
+        const prev = siblings[index - 1]?.position ?? 0;
+        const next = siblings[index]?.position;
+        let position: number;
+        if (next === undefined) position = prev + 1000;
+        else if (next - prev > 1) position = Math.floor((prev + next) / 2);
+        else {
+          const reordered = [
+            ...siblings.slice(0, index),
+            item!,
+            ...siblings.slice(index),
+          ];
+          for (const [i, sibling] of reordered.entries())
+            await tx
+              .update(s.workItem)
+              .set({ position: (i + 1) * 1000 })
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.id, sibling.id),
+                ),
+              );
+          position = (index + 1) * 1000;
+        }
+        await tx
+          .update(s.workItem)
+          .set({ position })
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, workItemId!),
+            ),
+          );
+        break;
+      }
+      case "rankWorkItem": {
+        requireCapability(capabilities, "changeProperties");
+        const neighbour = (id: string | null) =>
+          id === null
+            ? null
+            : requireValue(
+                before.find(
+                  (e): e is EntityOf<"workItem"> =>
+                    e.type === "workItem" && e.id === id,
+                ),
+                "The neighbouring item is unavailable.",
+              ).rank;
+        let low = neighbour(c.afterId);
+        let high = neighbour(c.beforeId);
+        // Stale neighbours (another client moved them) must not produce
+        // an invalid range; fall back to placing after `afterId`.
+        if (low !== null && high !== null && low >= high) high = null;
+        if (low === null && high === null)
+          low =
+            before
+              .filter(
+                (e): e is EntityOf<"workItem"> =>
+                  e.type === "workItem" && e.id !== workItemId,
+              )
+              .map((e) => e.rank)
+              .sort()
+              .at(-1) ?? null;
+        await tx
+          .update(s.workItem)
+          .set({ rank: rankBetween(low, high) })
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, workItemId!),
+            ),
+          );
+        break;
+      }
+      case "addRelation": {
+        requireCapability(capabilities, "changeProperties");
+        if (c.toId === workItemId)
+          throw new DomainError(
+            "validation",
+            "An item cannot relate to itself.",
+          );
+        // Relations may cross projects and teams, never organizations.
+        const target = requireValue(
+          (
+            await tx
+              .select({ id: s.workItem.id })
+              .from(s.workItem)
+              .where(
+                and(
+                  eq(s.workItem.organizationId, organizationId),
+                  eq(s.workItem.id, c.toId),
+                ),
+              )
+          )[0],
+          "The related item is unavailable.",
+        );
+        const existing = await tx
+          .select({ id: s.workItemRelation.id })
+          .from(s.workItemRelation)
+          .where(
+            and(
+              eq(s.workItemRelation.organizationId, organizationId),
+              eq(s.workItemRelation.kind, c.kind),
+              or(
+                and(
+                  eq(s.workItemRelation.fromId, workItemId!),
+                  eq(s.workItemRelation.toId, target.id),
+                ),
+                c.kind === "blocks"
+                  ? undefined
+                  : and(
+                      eq(s.workItemRelation.fromId, target.id),
+                      eq(s.workItemRelation.toId, workItemId!),
+                    ),
+              ),
+            ),
+          );
+        if (existing.length) break;
+        if (c.kind === "blocks") {
+          const reverse = await tx
+            .select({ id: s.workItemRelation.id })
+            .from(s.workItemRelation)
+            .where(
+              and(
+                eq(s.workItemRelation.organizationId, organizationId),
+                eq(s.workItemRelation.kind, "blocks"),
+                eq(s.workItemRelation.fromId, target.id),
+                eq(s.workItemRelation.toId, workItemId!),
+              ),
+            );
+          if (reverse.length)
+            throw new DomainError(
+              "validation",
+              "These items already block each other the other way round.",
+            );
+        }
+        await tx.insert(s.workItemRelation).values({
+          id: c.relationId,
+          organizationId,
+          fromId: workItemId!,
+          toId: target.id,
+          kind: c.kind,
+          createdById: userId,
+        });
+        log("relation_added", { kind: c.kind, toId: target.id });
+        break;
+      }
+      case "removeRelation": {
+        requireCapability(capabilities, "changeProperties");
+        const relation = requireValue(
+          (
+            await tx
+              .select()
+              .from(s.workItemRelation)
+              .where(
+                and(
+                  eq(s.workItemRelation.organizationId, organizationId),
+                  eq(s.workItemRelation.id, c.relationId),
+                  or(
+                    eq(s.workItemRelation.fromId, workItemId!),
+                    eq(s.workItemRelation.toId, workItemId!),
+                  ),
+                ),
+              )
+          )[0],
+          "The relation is unavailable.",
+        );
+        await tx
+          .delete(s.workItemRelation)
+          .where(
+            and(
+              eq(s.workItemRelation.organizationId, organizationId),
+              eq(s.workItemRelation.id, relation.id),
+            ),
+          );
+        log("relation_removed", {
+          kind: relation.kind,
+          fromId: relation.fromId,
+          toId: relation.toId,
+        });
+        break;
+      }
+      case "createLabel":
+      case "updateLabel": {
+        if (!projectManager)
+          requireCapability(capabilities, "changeProperties");
+        await auditConfiguration(tx, organizationId, userId, c);
+        if (c.type === "createLabel") {
+          const taken = before.some(
+            (e) =>
+              e.type === "label" &&
+              e.projectId === projectId &&
+              e.name.toLowerCase() === c.name.toLowerCase() &&
+              !e.archivedAt,
+          );
+          if (taken)
+            throw new DomainError(
+              "validation",
+              `A label named “${c.name}” already exists.`,
+            );
+          await tx.insert(s.label).values({
+            id: c.labelId,
+            organizationId,
+            projectId,
+            name: c.name,
+            color: c.color,
+          });
+        } else {
+          requireValue(
+            before.find(
+              (e) =>
+                e.type === "label" &&
+                e.id === c.labelId &&
+                e.projectId === projectId,
+            ),
+          );
+          await tx
+            .update(s.label)
+            .set({
+              ...(c.name !== undefined ? { name: c.name } : {}),
+              ...(c.color !== undefined ? { color: c.color } : {}),
+              ...(c.archived !== undefined
+                ? { archivedAt: c.archived ? now : null }
+                : {}),
+            })
+            .where(
+              and(
+                eq(s.label.organizationId, organizationId),
+                eq(s.label.id, c.labelId),
+              ),
+            );
+        }
+        break;
+      }
+      case "createMilestone":
+      case "updateMilestone": {
+        if (!projectManager)
+          requireCapability(capabilities, "changeProperties");
+        await auditConfiguration(tx, organizationId, userId, c);
+        if (c.type === "createMilestone") {
+          const taken = before.some(
+            (e) =>
+              e.type === "milestone" &&
+              e.projectId === projectId &&
+              e.name.toLowerCase() === c.name.toLowerCase() &&
+              !e.archivedAt,
+          );
+          if (taken)
+            throw new DomainError(
+              "validation",
+              `A milestone named “${c.name}” already exists.`,
+            );
+          await tx.insert(s.milestone).values({
+            id: c.milestoneId,
+            organizationId,
+            projectId,
+            name: c.name,
+            targetDate: c.targetDate ? new Date(c.targetDate) : null,
+          });
+        } else {
+          requireValue(
+            before.find(
+              (e) =>
+                e.type === "milestone" &&
+                e.id === c.milestoneId &&
+                e.projectId === projectId,
+            ),
+          );
+          await tx
+            .update(s.milestone)
+            .set({
+              ...(c.name !== undefined ? { name: c.name } : {}),
+              ...(c.targetDate !== undefined
+                ? {
+                    targetDate: c.targetDate ? new Date(c.targetDate) : null,
+                  }
+                : {}),
+              ...(c.status !== undefined ? { status: c.status } : {}),
+              ...(c.archived !== undefined
+                ? { archivedAt: c.archived ? now : null }
+                : {}),
+            })
+            .where(
+              and(
+                eq(s.milestone.organizationId, organizationId),
+                eq(s.milestone.id, c.milestoneId),
+              ),
+            );
+        }
+        break;
+      }
+      case "archiveWorkItem":
+        requireCapability(capabilities, "changeProperties");
+        await tx
+          .update(s.workItem)
+          .set({ archivedAt: c.archived ? now : null })
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, workItemId!),
+            ),
+          );
+        log(c.archived ? "archived" : "restored");
+        break;
+      case "updateSpecification":
+        requireCapability(capabilities, "editSpecifications");
+        if (item!.mainProtected)
+          throw new DomainError(
+            "conflict",
+            "This specification is ready. Use a branch and pull request to change main.",
+          );
+        await revision(c.title, c.content, c.summary);
+        break;
+      case "createThread": {
+        if (!typeOf(item!.typeId).hasSpecification && c.blocking)
+          throw new DomainError(
+            "validation",
+            "Plain work item comments cannot block readiness.",
+          );
+        let suggestionId: string | null = null;
+        if (c.suggestionId) {
+          const target = requireValue(
+            before.find(
+              (e) => e.type === "suggestion" && e.id === c.suggestionId,
+            ),
+            "This suggestion is unavailable.",
+          );
+          if (
+            target.type !== "suggestion" ||
+            (target.status !== "open" && target.status !== "draft")
+          )
+            throw new DomainError(
+              "conflict",
+              "This suggestion is no longer open for discussion.",
+            );
+          suggestionId = target.id;
+        }
+        if (c.pullRequestId) {
+          const pr = before.find(
+            (e) => e.type === "pullRequest" && e.id === c.pullRequestId,
+          );
+          require(pr?.type === "pullRequest" &&
+            pr.status !==
+              "merged", "This pull request is unavailable for discussion.");
+          require(!c.suggestionId, "Choose one discussion context.");
+          require(before.some(
+            (e) => e.type === "specCommit" && e.id === c.commitId,
+          ), "Choose the commit this discussion concerns.");
+        }
+        await tx.insert(s.thread).values({
+          id: c.threadId,
+          ...context,
+          suggestionId,
+          pullRequestId: c.pullRequestId ?? null,
+          commitId: c.commitId ?? null,
+          authorId: userId,
+          blocking: c.blocking,
+          anchor: {
+            version: 1,
+            kind: "document",
+            section: c.section,
+            ...(c.quote ? { quote: c.quote } : {}),
+          },
+        });
+        await tx.insert(s.threadMessage).values({
+          id: c.messageId,
+          organizationId,
+          threadId: c.threadId,
+          authorId: userId,
+          body: c.body,
+        });
+        log("thread_opened", {
+          threadId: c.threadId,
+          blocking: c.blocking,
+          ...(suggestionId ? { suggestionId } : {}),
+          ...(c.pullRequestId
+            ? { pullRequestId: c.pullRequestId, commitId: c.commitId }
+            : {}),
+        });
+        break;
+      }
+      case "replyToThread":
+      case "setThreadState": {
+        const thread = requireValue(
+          before.find((e) => e.type === "thread" && e.id === c.threadId),
+        );
+        if (thread.type !== "thread") break;
+        if (c.type === "replyToThread")
+          await tx.insert(s.threadMessage).values({
+            id: c.messageId,
+            organizationId,
+            threadId: c.threadId,
+            authorId: userId,
+            body: c.body,
+          });
+        else {
+          if (
+            !typeOf(item!.typeId).hasSpecification &&
+            c.blocking &&
+            !thread.blocking
+          )
+            throw new DomainError(
+              "validation",
+              "Plain work item comments cannot block readiness.",
+            );
+          await tx
+            .update(s.thread)
+            .set({
+              status: c.resolved ? "resolved" : "open",
+              blocking: c.blocking,
+              resolvedById: c.resolved ? userId : null,
+              resolvedAt: c.resolved ? now : null,
+            })
+            .where(
+              and(
+                eq(s.thread.organizationId, organizationId),
+                eq(s.thread.id, c.threadId),
+              ),
+            );
+          const wasResolved = thread.status === "resolved";
+          if (wasResolved !== c.resolved)
+            log(c.resolved ? "thread_resolved" : "thread_reopened", {
+              threadId: c.threadId,
+            });
+          if (thread.blocking !== c.blocking)
+            log("thread_blocking_changed", {
+              threadId: c.threadId,
+              blocking: c.blocking,
+            });
+        }
+        break;
+      }
+      case "createSuggestion":
+        if (c.replacement === latest?.content)
+          throw new DomainError(
+            "validation",
+            "This suggestion makes no content change.",
+          );
+        await tx.insert(s.suggestion).values({
+          id: c.suggestionId,
+          ...context,
+          authorId: userId,
+          replacement: c.replacement,
+          title: c.title,
+          rationale: c.rationale,
+          status: c.open ? "open" : "draft",
+          openedAt: c.open ? now : null,
+        });
+        log("suggestion_created", {
+          suggestionId: c.suggestionId,
+          draft: !c.open,
+        });
+        break;
+      case "updateSuggestion":
+      case "setSuggestionState":
+      case "setSuggestionReviewer":
+      case "decideSuggestion":
+      case "mergeSuggestion": {
+        const suggestion = requireValue(
+          before.find(
+            (e) => e.type === "suggestion" && e.id === c.suggestionId,
+          ),
+          "This suggestion is unavailable.",
+        );
+        if (suggestion.type !== "suggestion") break;
+        const isAuthor = suggestion.authorId === userId;
+        const reviewers = before.filter(
+          (e): e is EntityOf<"suggestionReviewer"> =>
+            e.type === "suggestionReviewer" &&
+            e.suggestionId === suggestion.id &&
+            !e.withdrawnAt,
+        );
+        const decisions = before.filter(
+          (e): e is EntityOf<"suggestionDecision"> =>
+            e.type === "suggestionDecision" &&
+            e.suggestionId === suggestion.id &&
+            !e.supersededAt,
+        );
+        const isReviewer = reviewers.some((r) => r.userId === userId);
+        const settled =
+          suggestion.status === "merged" || suggestion.status === "closed";
+        const patch = (values: Partial<SuggestionRow>) =>
+          tx
+            .update(s.suggestion)
+            .set(values)
+            .where(
+              and(
+                eq(s.suggestion.organizationId, organizationId),
+                eq(s.suggestion.id, suggestion.id),
+              ),
+            );
+        // Ends the reviewers' current decisions; a new version or a new
+        // decision by the same reviewer replaces rather than rewrites.
+        const supersede = async (reason: string, reviewerId?: string) => {
+          await tx
+            .update(s.suggestionDecision)
+            .set({ supersededAt: now, supersededReason: reason })
+            .where(
+              and(
+                eq(s.suggestionDecision.organizationId, organizationId),
+                eq(s.suggestionDecision.suggestionId, suggestion.id),
+                isNull(s.suggestionDecision.supersededAt),
+                reviewerId
+                  ? eq(s.suggestionDecision.reviewerId, reviewerId)
+                  : undefined,
+              ),
+            );
+        };
+        switch (c.type) {
+          case "updateSuggestion": {
+            require(isAuthor, "Only the author can update a suggestion.");
+            if (settled)
+              throw new DomainError(
+                "conflict",
+                `This suggestion was ${suggestion.status}; open a new one.`,
+              );
+            if (c.replacement === latest?.content)
+              throw new DomainError(
+                "validation",
+                "This suggestion makes no content change.",
+              );
+            const rebased = suggestion.revisionId !== latest!.id;
+            const changed = c.replacement !== suggestion.replacement;
+            const detailsChanged =
+              c.title !== suggestion.title ||
+              c.rationale !== suggestion.rationale;
+            const version = changed
+              ? suggestion.version + 1
+              : suggestion.version;
+            await patch({
+              replacement: c.replacement,
+              title: c.title,
+              rationale: c.rationale,
+              revisionId: latest!.id,
+              version,
+            });
+            if (changed && decisions.length)
+              await supersede(`Suggestion updated (version ${version})`);
+            if (changed || rebased || detailsChanged)
+              log("suggestion_updated", {
+                suggestionId: suggestion.id,
+                version,
+                rebased,
+                revision: latest!.number,
               });
+            break;
+          }
+          case "setSuggestionState": {
+            if (c.status === suggestion.status) break;
+            if (suggestion.status === "merged")
+              throw new DomainError(
+                "conflict",
+                "A merged suggestion cannot change state.",
+              );
+            if (c.status === "closed")
+              require(isAuthor ||
+                capabilities.editSpecifications, "Only the author or someone who can edit specifications can close a suggestion.");
+            else
+              require(isAuthor, "Only the author can open or draft a suggestion.");
+            await patch({
+              status: c.status,
+              ...(c.status === "open" && !suggestion.openedAt
+                ? { openedAt: now }
+                : {}),
+              resolvedAt: c.status === "closed" ? now : null,
+              resolvedById: c.status === "closed" ? userId : null,
+            });
+            log(
+              c.status === "closed"
+                ? "suggestion_closed"
+                : suggestion.status === "closed"
+                  ? "suggestion_reopened"
+                  : c.status === "open"
+                    ? "suggestion_opened"
+                    : "suggestion_drafted",
+              {
+                suggestionId: suggestion.id,
+                authorId: suggestion.authorId,
+              },
+            );
+            break;
+          }
+          case "setSuggestionReviewer": {
+            require(isAuthor, "Only the author can choose reviewers for a suggestion.");
+            if (settled)
+              throw new DomainError(
+                "conflict",
+                `This suggestion was ${suggestion.status}.`,
+              );
+            requireValue(
+              roster.members.find((m) => m.id === c.userId),
+              "That person is not a member of this organization.",
+            );
+            const existing = reviewers.find((r) => r.userId === c.userId);
+            if (c.assigned) {
+              require(canReviewSuggestions(
+                roster.disciplines,
+                c.userId,
+                projectId,
+              ), "Suggestion reviewers need a discipline in this project that can both edit specifications and be asked to review.", "validation");
+              require(c.userId !==
+                userId, "You cannot review your own suggestion.", "validation");
+              if (existing) break;
+              await tx.insert(s.suggestionReviewer).values({
+                organizationId,
+                workItemId: workItemId!,
+                suggestionId: suggestion.id,
+                userId: c.userId,
+                assignedById: userId,
+              });
+              log("suggestion_reviewer_assigned", {
+                suggestionId: suggestion.id,
+                userId: c.userId,
+              });
+            } else {
+              if (!existing) break;
+              await tx
+                .update(s.suggestionReviewer)
+                .set({ withdrawnAt: now })
+                .where(
+                  and(
+                    eq(s.suggestionReviewer.organizationId, organizationId),
+                    eq(s.suggestionReviewer.id, existing.id),
+                  ),
+                );
+              log("suggestion_reviewer_unassigned", {
+                suggestionId: suggestion.id,
+                userId: c.userId,
+              });
+            }
+            break;
+          }
+          case "decideSuggestion": {
+            require(isReviewer, "Only an assigned reviewer can decide this suggestion.");
+            if (suggestion.status !== "open")
+              throw new DomainError(
+                "conflict",
+                "This suggestion is not open for review.",
+              );
+            if (c.version !== suggestion.version)
+              throw new DomainError(
+                "conflict",
+                `The suggestion changed (version ${suggestion.version}). Review the latest version.`,
+              );
+            const mine = decisions.find((d) => d.reviewerId === userId);
+            if (c.decision === "revoke") {
+              if (!mine) break;
+              await supersede("Reviewer revoked their decision", userId);
+              log("suggestion_decision_revoked", {
+                suggestionId: suggestion.id,
+                version: suggestion.version,
+              });
+              break;
+            }
+            const decision =
+              c.decision === "approve" ? "approved" : "changes_requested";
+            if (mine?.decision === decision && mine.version === c.version)
+              break;
+            if (mine) await supersede("Reviewer decision changed", userId);
+            await tx.insert(s.suggestionDecision).values({
+              organizationId,
+              workItemId: workItemId!,
+              suggestionId: suggestion.id,
+              reviewerId: userId,
+              version: c.version,
+              decision,
+            });
+            log(
+              decision === "approved"
+                ? "suggestion_approved"
+                : "suggestion_changes_requested",
+              {
+                suggestionId: suggestion.id,
+                version: c.version,
+                authorId: suggestion.authorId,
+              },
+            );
+            break;
+          }
+          case "mergeSuggestion": {
+            require(isReviewer, "Only an assigned reviewer can merge this suggestion.");
+            // Merging writes the mainline: the reviewer must still hold
+            // the editing capability they were chosen for.
+            requireCapability(capabilities, "editSpecifications");
+            if (suggestion.status !== "open")
+              throw new DomainError(
+                "conflict",
+                "Only an open suggestion can be merged.",
+              );
+            if (suggestion.revisionId !== latest?.id)
+              throw new DomainError(
+                "conflict",
+                `The specification moved to revision ${latest?.number}. The author must update the suggestion before it can be merged.`,
+                latest?.id,
+              );
+            const approved = decisions.filter(
+              (d) =>
+                d.decision === "approved" &&
+                d.version === suggestion.version &&
+                reviewers.some((r) => r.userId === d.reviewerId),
+            );
+            require(approved.length >
+              0, `Version ${suggestion.version} needs at least one reviewer approval before merging.`, "validation");
+            const blocking = before.filter(
+              (e) =>
+                e.type === "thread" &&
+                e.suggestionId === suggestion.id &&
+                e.status === "open" &&
+                e.blocking,
+            );
+            require(blocking.length ===
+              0, `${blocking.length} blocking ${blocking.length === 1 ? "discussion" : "discussions"} on this suggestion must be resolved before merging.`, "validation");
+            if (suggestion.replacement === latest.content)
+              throw new DomainError(
+                "validation",
+                "This suggestion makes no content change.",
+              );
+            const mergedRevisionId = await revision(
+              latest.title,
+              suggestion.replacement,
+              suggestion.title ?? suggestion.rationale ?? "Merged suggestion",
+            );
+            await patch({
+              status: "merged",
+              resolvedAt: now,
+              resolvedById: userId,
+              acceptedRevisionId: mergedRevisionId,
+            });
+            log("suggestion_merged", {
+              suggestionId: suggestion.id,
+              authorId: suggestion.authorId,
+              version: suggestion.version,
+              approvedBy: approved.map((d) => d.reviewerId).sort(),
+            });
+            break;
           }
         }
-        let cursor = await clock(tx, organizationId);
-        const extraChanges: (typeof s.syncChange.$inferInsert)[] = [];
-        for (const { workItemId: parentId, entity } of parentReadiness) {
-          cursor++;
-          extraChanges.push({
-            organizationId,
-            cursor,
-            projectId,
-            workItemId: parentId,
-            change: { operation: "upsert", cursor: cursor.toString(), entity },
-          });
-        }
-        for (const run of await runsById(tx, organizationId, [
-          ...touchedRuns,
-        ])) {
-          cursor++;
-          extraChanges.push({
-            organizationId,
-            cursor,
-            projectId,
-            workItemId: run.workItemId,
-            change: {
-              operation: "upsert",
-              cursor: cursor.toString(),
-              entity: aiRunEntity(run),
-            },
-          });
-        }
-        await insertChanges(tx, extraChanges);
-        snapshots = { before, after, directory: roster };
-        cursor = await emitChanges(tx, organizationId, before, after, cursor, {
-          projectId,
-          workItemId,
-        });
-        return commit(
-          tx,
-          organizationId,
-          mutation.id,
-          userId,
-          fingerprint,
-          cursor,
-        );
-      });
-      if (!replayed) {
-        try {
-          options.onMutationCommitted?.(userId, mutation, snapshots);
-        } catch {
-          // Observability cannot turn a committed mutation into an apparent failure.
-        }
+        break;
       }
-      return result;
+      case "requestReview": {
+        requireCapability(capabilities, "requestReviews");
+        const discipline = requireValue(
+          roster.disciplines.find(
+            (d) =>
+              d.id === c.disciplineId &&
+              d.projectId === projectId &&
+              !d.archivedAt,
+          ),
+          "The reviewing discipline is unavailable in this project.",
+        );
+        require(discipline.capabilities
+          .review, `${discipline.name} cannot be asked to review. A project administrator can change the discipline's capabilities.`, "validation");
+        if (c.userId)
+          require(discipline.userIds.includes(
+            c.userId,
+          ), `The chosen reviewer is not a member of ${discipline.name}.`, "validation");
+        await tx.insert(s.review).values({
+          id: c.reviewId,
+          ...context,
+          responsibility: discipline.name,
+          required: c.required,
+          requestedById: userId,
+        });
+        await tx.insert(s.reviewAssignment).values({
+          organizationId,
+          reviewId: c.reviewId,
+          assignedById: userId,
+          userId: c.userId,
+          disciplineId: c.userId ? null : c.disciplineId,
+        });
+        log("review_requested", {
+          reviewId: c.reviewId,
+          responsibility: discipline.name,
+          targetType: c.userId ? "user" : "discipline",
+          targetId: c.userId ?? c.disciplineId,
+          required: c.required,
+        });
+        if (
+          item!.refinementState === "draft" ||
+          item!.refinementState === "refinement"
+        )
+          await setRefinement("in_review", item!.refinementState, true);
+        break;
+      }
+      case "cancelReview": {
+        requireCapability(capabilities, "requestReviews");
+        const review = requireValue(
+          before.find((e) => e.type === "review" && e.id === c.reviewId),
+        );
+        if (review.type !== "review" || review.status === "cancelled")
+          throw new DomainError("conflict", "This review is not active.");
+        await tx
+          .update(s.review)
+          .set({ status: "cancelled" })
+          .where(
+            and(
+              eq(s.review.organizationId, organizationId),
+              eq(s.review.id, c.reviewId),
+            ),
+          );
+        log("review_cancelled", {
+          reviewId: c.reviewId,
+          responsibility: review.responsibility,
+        });
+        break;
+      }
+      case "decideReview": {
+        const review = requireValue(
+          before.find((e) => e.type === "review" && e.id === c.reviewId),
+        );
+        if (review.type !== "review" || review.revisionId !== latest?.id)
+          throw new DomainError(
+            "conflict",
+            "Request a review of the current revision.",
+            latest?.id,
+          );
+        if (review.status === "cancelled")
+          throw new DomainError("conflict", "This review was cancelled.");
+        const canReviewSpecification = before.some(
+          (e) =>
+            e.type === "assignment" &&
+            e.reviewId === c.reviewId &&
+            !e.withdrawnAt &&
+            (e.userId === userId ||
+              roster.disciplines.some(
+                (d) =>
+                  d.id === e.disciplineId &&
+                  !d.archivedAt &&
+                  d.userIds.includes(userId),
+              )),
+        );
+        if (!canReviewSpecification)
+          throw new DomainError(
+            "forbidden",
+            "Only an assigned reviewer can decide this review.",
+          );
+        await tx
+          .update(s.approval)
+          .set({
+            status: "revoked",
+            endedAt: now,
+            endedById: userId,
+            endReason: "Reviewer decision changed",
+          })
+          .where(
+            and(
+              eq(s.approval.organizationId, organizationId),
+              eq(s.approval.reviewId, c.reviewId),
+              eq(s.approval.reviewerId, userId),
+              eq(s.approval.status, "granted"),
+            ),
+          );
+        if (c.decision === "approve")
+          await tx.insert(s.approval).values({
+            ...context,
+            reviewId: c.reviewId,
+            reviewerId: userId,
+          });
+        await tx
+          .update(s.review)
+          .set({
+            status:
+              c.decision === "approve"
+                ? "completed"
+                : c.decision === "revoke"
+                  ? "requested"
+                  : "changes_requested",
+            completedAt: c.decision === "approve" ? now : null,
+          })
+          .where(
+            and(
+              eq(s.review.organizationId, organizationId),
+              eq(s.review.id, c.reviewId),
+            ),
+          );
+        log(
+          c.decision === "approve"
+            ? "approved"
+            : c.decision === "revoke"
+              ? "approval_revoked"
+              : "changes_requested",
+          {
+            reviewId: c.reviewId,
+            responsibility: review.responsibility,
+            revision: latest.number,
+          },
+        );
+        break;
+      }
+      case "signOffReadinessCheck": {
+        const evaluated = before.find(
+          (e): e is EntityOf<"readiness"> =>
+            e.type === "readiness" && e.workItemId === workItemId,
+        );
+        const check = evaluated?.checks.find((k) => k.key === c.checkId);
+        if (!check?.signOff)
+          throw new DomainError(
+            "validation",
+            "This item has no such sign-off. Its readiness checks may have changed; reload it and try again.",
+          );
+        const eligible = check.signOff.disciplineIds;
+        require(roster.disciplines.some(
+          (d) =>
+            d.projectId === projectId &&
+            !d.archivedAt &&
+            d.userIds.includes(userId) &&
+            (eligible.length === 0 || eligible.includes(d.id)),
+        ), eligible.length
+          ? `Only members of ${eligible
+              .map(
+                (id) =>
+                  roster.disciplines.find((d) => d.id === id)?.name ??
+                  "a former discipline",
+              )
+              .join(" or ")} can sign off “${check.label}”.`
+          : `Only people holding a discipline in this project can sign off “${check.label}”.`);
+        const [existing] = await tx
+          .select()
+          .from(s.readinessSignOff)
+          .where(
+            and(
+              eq(s.readinessSignOff.organizationId, organizationId),
+              eq(s.readinessSignOff.workItemId, workItemId!),
+              eq(s.readinessSignOff.revisionId, latest!.id),
+              eq(s.readinessSignOff.checkId, c.checkId),
+              isNull(s.readinessSignOff.withdrawnAt),
+            ),
+          );
+        const detail = {
+          checkId: c.checkId,
+          label: check.label,
+          revision: latest!.number,
+        };
+        if (c.signedOff) {
+          if (existing)
+            throw new DomainError(
+              "conflict",
+              `“${check.label}” is already signed off for revision ${latest!.number}.`,
+            );
+          await tx.insert(s.readinessSignOff).values({
+            organizationId,
+            workItemId: workItemId!,
+            revisionId: latest!.id,
+            checkId: c.checkId,
+            userId,
+          });
+          log("readiness_signed_off", detail);
+        } else {
+          if (!existing)
+            throw new DomainError(
+              "conflict",
+              `“${check.label}” has no sign-off to withdraw for revision ${latest!.number}.`,
+            );
+          await tx
+            .update(s.readinessSignOff)
+            .set({ withdrawnAt: now, withdrawnById: userId })
+            .where(
+              and(
+                eq(s.readinessSignOff.organizationId, organizationId),
+                eq(s.readinessSignOff.id, existing.id),
+              ),
+            );
+          log("readiness_sign_off_withdrawn", {
+            ...detail,
+            signedOffBy: existing.userId,
+          });
+        }
+        break;
+      }
+    }
+    if (item && (branchCommands.has(c.type) || aiCommands.has(c.type)))
+      await scheduleActionRuns(tx, {
+        organizationId,
+        workItemId: item.id,
+        userId,
+        before,
+        policy: project().aiActionPolicy,
+        ai: roster.ai,
+      });
+    if (workItemId && c.type !== "createWorkItem")
+      await tx
+        .update(s.workItem)
+        .set({ updatedAt: now })
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.id, workItemId),
+          ),
+        );
+    let after = await snapshot(tx, scope);
+    // Notify once when a previously approved PR result becomes stale.
+    const oldBranches = before.filter(
+        (e): e is EntityOf<"specBranch"> => e.type === "specBranch",
+      ),
+      newBranches = after.filter(
+        (e): e is EntityOf<"specBranch"> => e.type === "specBranch",
+      );
+    const oldCommits = before.filter(
+        (e): e is EntityOf<"specCommit"> => e.type === "specCommit",
+      ),
+      newCommits = after.filter(
+        (e): e is EntityOf<"specCommit"> => e.type === "specCommit",
+      );
+    for (const pr of after.filter(
+      (e): e is EntityOf<"pullRequest"> =>
+        e.type === "pullRequest" && e.status !== "merged",
+    )) {
+      const oldHash = pullRequestResultHash(pr, oldBranches, oldCommits),
+        newHash = pullRequestResultHash(pr, newBranches, newCommits);
+      if (oldHash && oldHash !== newHash) {
+        const reviewerIds = before
+          .filter(
+            (e): e is EntityOf<"prReview"> =>
+              e.type === "prReview" &&
+              e.pullRequestId === pr.id &&
+              e.decision === "approved" &&
+              e.resultHash === oldHash,
+          )
+          .flatMap((r) => (r.reviewerId ? [r.reviewerId] : []));
+        if (reviewerIds.length)
+          log("pull_request_approval_invalidated", {
+            pullRequestId: pr.id,
+            title: pr.title,
+            reviewerIds,
+          });
+      }
+    }
+    // Readiness drives `ready` automatically in both directions while the
+    // item is still owned by refinement. Later statuses are never touched.
+    let readinessState = after.find((e) => e.type === "readiness");
+    const itemState = after.find(
+      (e) => e.type === "workItem" && e.id === workItemId,
+    );
+    // An item keeps the readiness checks it met only while it stays
+    // ready or done; otherwise it follows the project's latest checks.
+    if (
+      readinessState?.type === "readiness" &&
+      readinessState.pinned &&
+      itemState?.type === "workItem" &&
+      !itemState.archivedAt
+    ) {
+      const category = projectStatuses().find(
+        (x) => x.id === itemState.statusId,
+      )?.category;
+      const passing =
+        readinessState.checks.length > 0 &&
+        readinessState.checks.every((check) => check.passed);
+      if (!passing && !(category && closedCategories.includes(category))) {
+        await tx
+          .update(s.workItem)
+          .set({ readinessRevisionId: null })
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, workItemId!),
+            ),
+          );
+        after = await snapshot(tx, scope);
+        const followed = after.find((e) => e.type === "readiness");
+        log("readiness_checks_followed", {
+          from: readinessState.policyRevisionNumber,
+          to:
+            followed?.type === "readiness"
+              ? followed.policyRevisionNumber
+              : null,
+        });
+        readinessState = followed;
+      }
+    }
+    if (
+      readinessState?.type === "readiness" &&
+      itemState?.type === "workItem" &&
+      !itemState.archivedAt
+    ) {
+      const state = itemState.refinementState;
+      const ready =
+        readinessState.checks.length > 0 &&
+        readinessState.checks.every((check) => check.passed);
+      const next: RefinementState | undefined =
+        state && ready && preReadyStates.includes(state)
+          ? "ready"
+          : !ready && state === "ready"
+            ? "in_review"
+            : undefined;
+      if (next) {
+        await setRefinement(next, state, true);
+        after = await snapshot(tx, scope);
+      }
+    }
+    if (workItemId && activities.length) {
+      // Activity is the only thing this insert changes in the item scope,
+      // so append it instead of projecting the scope again.
+      const inserted = await tx
+        .insert(s.activity)
+        .values(
+          activities.map((a, index) => ({
+            id: crypto.randomUUID(),
+            organizationId,
+            projectId,
+            workItemId: workItemId,
+            actorId: userId,
+            action: a.action,
+            detail: a.detail ?? null,
+            createdAt: new Date(now.getTime() + index),
+          })),
+        )
+        .returning();
+      after = [...after, ...inserted.map((row) => serialize("activity", row))];
+    }
+    // Replies log no activity but still notify participants and mentions.
+    if (
+      workItemId &&
+      projectRow &&
+      (activities.length || c.type === "replyToThread")
+    )
+      await notifyItemActivity(tx, {
+        organizationId,
+        projectId,
+        projectKey: projectRow.key,
+        workItemId,
+        actorId: userId,
+        command: c,
+        activities,
+        after,
+        roster,
+      });
+    // A child's change can alter its Epic's readiness (stories_ready), which
+    // lives in the Epic's own scope. Emit that projection explicitly.
+    const parentIds = new Set(
+      [
+        item?.parentId,
+        c.type === "createWorkItem" ? c.parentId : undefined,
+        c.type === "updateWorkItem" ? c.parentId : undefined,
+      ].filter((v): v is string => typeof v === "string"),
+    );
+    const parentReadiness: { workItemId: string; entity: Entity }[] = [];
+    if (parentIds.size) {
+      const rows = await tx
+        .select()
+        .from(s.workItem)
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.projectId, projectId),
+          ),
+        );
+      const ctx = await loadItemContext(tx, organizationId, rows);
+      for (const parentId of parentIds) {
+        const parent = rows.find((r) => r.id === parentId);
+        if (parent)
+          parentReadiness.push({
+            workItemId: parentId,
+            entity: readinessEntity(parent, rows, ctx),
+          });
+      }
+    }
+    // Rows of other items' scopes: parent readiness and Lictory Intelligence
+    // runs owned by other items that this command changed.
+    await writeEntities(tx, organizationId, [
+      ...parentReadiness.map(({ workItemId: parentId, entity }) => ({
+        entity,
+        scope: { projectId, workItemId: parentId },
+      })),
+      ...(await runsById(tx, organizationId, [...touchedRuns])).map((run) => ({
+        entity: aiRunEntity(run),
+        scope: { projectId, workItemId: run.workItemId },
+      })),
+    ]);
+    snapshots = { before, after, directory: roster };
+    await writeProjections(tx, organizationId, before, after, {
+      projectId,
+      workItemId,
+    });
+    return receipt(tx, organizationId, mutation.id, userId, fingerprint);
+  })();
+  // Directory inputs (projects, members, disciplines, workflow, iterations,
+  // types, AI policy, readiness revisions) change with many commands; the
+  // projection is rewritten only when it differs.
+  if (!replayed) await refreshDirectoryProjection(tx, organizationId);
+  effects.applied?.({ userId, mutation, replayed, ...snapshots });
+  return result;
+}
+
+// A scope's current entities and the reader's directory, computed from the
+// domain tables in one read-only snapshot. Agents (MCP, embedded) read
+// through this; browsers read the synchronized projections.
+export async function readWorkspace(
+  db: Database,
+  userId: string,
+  scope: Scope,
+) {
+  return db.transaction(
+    async (tx) => {
+      const [, roster, scopedItem] = await Promise.all([
+        authorize(tx, userId, scope.organizationId),
+        directory(tx, userId, scope.organizationId),
+        scope.workItemId && scope.projectId
+          ? tx
+              .select({ id: s.workItem.id })
+              .from(s.workItem)
+              .where(
+                and(
+                  eq(s.workItem.organizationId, scope.organizationId),
+                  eq(s.workItem.projectId, scope.projectId),
+                  eq(s.workItem.id, scope.workItemId),
+                ),
+              )
+          : Promise.resolve([]),
+      ]);
+      if (scope.projectId !== undefined)
+        requireValue(roster.projects.find((p) => p.id === scope.projectId));
+      if (scope.workItemId && scope.projectId) requireValue(scopedItem[0]);
+      return { entities: await snapshot(tx, scope), directory: roster };
     },
-  };
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
+}
+
+// One mutation in its own transaction, then host effects after commit. Used by
+// capabilities (web, MCP, embedded agent) and tests.
+export async function executeMutation(
+  db: Database,
+  actor: Actor,
+  mutation: Mutation,
+  options: { onCommitted?: (outcome: MutationOutcome) => void } = {},
+) {
+  let outcome: MutationOutcome | undefined;
+  const result = await db.transaction((tx) =>
+    applyMutation(tx, actor, mutation, {
+      applied: (o) => {
+        outcome = o;
+      },
+    }),
+  );
+  if (outcome && !outcome.replayed)
+    try {
+      options.onCommitted?.(outcome);
+    } catch {
+      // Observability cannot turn a committed mutation into an apparent failure.
+    }
+  return result;
 }
 
 const reservedKeys = new Set([
@@ -3950,92 +3844,9 @@ const specCommands = new Set<string>([
   "signOffReadinessCheck",
 ]);
 
-// Entities listed in every project-level scope (workItemId = null).
-const projectLevel = new Set<Entity["type"]>([
-  "project",
-  "label",
-  "milestone",
-  "workItem",
-  "relation",
-  "externalLink",
-]);
-function projectOf(entity: Entity) {
-  if (entity.type === "project") return entity.id;
-  if ("projectId" in entity) return entity.projectId;
-  return undefined;
-}
-// Diff two snapshots into change-log rows: changed entities become upserts and
-// vanished ones become tombstones, in the same transaction as the writes.
-export async function emitChanges(
-  tx: Tx,
-  organizationId: string,
-  before: Entity[],
-  after: Entity[],
-  start: bigint,
-  fallback?: { projectId: string; workItemId?: string },
-) {
-  let cursor = start;
-  const rows: (typeof s.syncChange.$inferInsert)[] = [];
-  const old = new Map(before.map((e) => [entityKey(e), e]));
-  const seen = new Set<string>();
-  const route = (entity: Entity) => {
-    const projectId = projectOf(entity) ?? fallback?.projectId;
-    if (!projectId)
-      throw new Error(`No sync scope for ${entity.type}:${entity.id}.`);
-    return {
-      projectId,
-      workItemId: projectLevel.has(entity.type)
-        ? null
-        : (fallback?.workItemId ?? null),
-    };
-  };
-  for (const entity of after) {
-    const key = entityKey(entity);
-    seen.add(key);
-    const previous = old.get(key);
-    if (previous && JSON.stringify(previous) === JSON.stringify(entity))
-      continue;
-    cursor++;
-    rows.push({
-      organizationId,
-      cursor,
-      ...route(entity),
-      change: { operation: "upsert", cursor: cursor.toString(), entity },
-    });
-  }
-  for (const [key, entity] of old) {
-    if (seen.has(key)) continue;
-    cursor++;
-    const change: Change = {
-      operation: "delete",
-      cursor: cursor.toString(),
-      type: entity.type,
-      id: entity.id,
-    };
-    rows.push({
-      organizationId,
-      cursor,
-      ...route(entity),
-      change,
-    });
-  }
-  await insertChanges(tx, rows);
-  return cursor;
-}
-
-// Change rows are written in multi-row statements, bounded to stay far below
-// PostgreSQL's parameter limit.
-async function insertChanges(
-  tx: Tx,
-  rows: (typeof s.syncChange.$inferInsert)[],
-) {
-  for (let index = 0; index < rows.length; index += 500)
-    await tx.insert(s.syncChange).values(rows.slice(index, index + 500));
-}
-
-// Scheduled job (Trigger.dev, cron route or the Bun worker): starts and
-// completes automatic cycles. Idempotent; each organization commits
-// separately under its lock with the same change-log guarantees as commands.
+// Scheduled job (the worker): starts and completes automatic cycles.
+// Idempotent; each organization commits separately under its lock and writes
+// its projections like a command, without a mutation receipt.
 export async function advanceSchedules(db: Database, now = new Date()) {
   const projects = await automaticProjects(db);
   const byOrganization = new Map<string, string[]>();
@@ -4057,14 +3868,9 @@ export async function advanceSchedules(db: Database, now = new Date()) {
       if (!changed) return;
       changedOrganizations++;
       const after = await snapshot(tx, { organizationId });
-      const cursor = await emitChanges(
-        tx,
-        organizationId,
-        before,
-        after,
-        await clock(tx, organizationId),
-      );
-      await publish(tx, organizationId, cursor);
+      await writeProjections(tx, organizationId, before, after);
+      // Iterations live in the directory.
+      await refreshDirectoryProjection(tx, organizationId);
     });
   return { projects: projects.length, changedOrganizations };
 }
@@ -4273,40 +4079,22 @@ export async function iterationReport(
   });
 }
 
-export async function publish(tx: Tx, organizationId: string, cursor: bigint) {
-  await tx
-    .insert(s.syncClock)
-    .values({ organizationId, cursor })
-    .onConflictDoUpdate({
-      target: s.syncClock.organizationId,
-      set: { cursor },
-    });
-  // PostgreSQL delivers NOTIFY only after COMMIT. It is an invalidation, never data.
-  await tx.execute(
-    sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: cursor.toString() })})`,
-  );
-}
-
-// Clock, receipt and invalidation commit together with the domain writes.
-async function commit(
+// The idempotency receipt commits together with the domain writes.
+async function receipt(
   tx: Tx,
   organizationId: string,
   mutationId: string,
   userId: string,
   fingerprint: string,
-  cursor: bigint,
-) {
+): Promise<MutationResult> {
   await tx.insert(s.syncMutation).values({
     organizationId,
     id: mutationId,
     userId,
     fingerprint,
-    cursor,
+    // Unused since projections replaced the change log; dropped by a later
+    // migration.
+    cursor: 0n,
   });
-  await publish(tx, organizationId, cursor);
-  return {
-    protocol: PROTOCOL,
-    mutationId,
-    cursor: cursor.toString(),
-  };
+  return { protocol: PROTOCOL, mutationId, replayed: false };
 }

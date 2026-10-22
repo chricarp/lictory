@@ -3,10 +3,15 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { committedEvents } from "@lictory/core/lib/analytics/events";
-import { computeInsights, insightTopics } from "@lictory/core/intelligence/insights";
 import {
-  createSyncService,
+  computeInsights,
+  insightTopics,
+} from "@lictory/core/intelligence/insights";
+import {
   directory,
+  executeMutation as executeDomainMutation,
+  readWorkspace,
+  type MutationOutcome,
   iterationReport,
   readinessHistory,
   readinessPreview,
@@ -17,7 +22,6 @@ import {
   PROTOCOL,
   applicationRoleOf,
   capabilitiesOf,
-  checkpointSchema,
   commandSchema,
   epicSearchSchema,
   iterationReportQuerySchema,
@@ -26,7 +30,6 @@ import {
   readinessHistoryQuerySchema,
   readinessPreviewQuerySchema,
   refinementStates,
-  scopeSchema,
   type Command,
   type Entity,
   type EntityOf,
@@ -41,52 +44,48 @@ import {
   webOnly,
   type AnyCapability,
   type CapabilityContext,
+  type Effects,
+  type Surface,
 } from "@lictory/core/capabilities/core";
 
-// Commands that can queue Lictory Intelligence runs.
-const aiTriggers = new Set<Command["type"]>([
-  "requestAiReview",
-  "rerunAiAction",
-  "createAiCorrectivePr",
-  "applyAiSuggestion",
-  "commitBranch",
-  "syncBranch",
-  "createPullRequest",
-  "setPullRequestDraft",
-]);
-
-// The single write path for workspace commands, whichever surface issued
-// them: the domain service authorizes, applies, logs changes and records the
-// idempotency receipt in one transaction; then shared side effects run.
+// The single write path for workspace commands from capabilities (web, MCP,
+// embedded agent): the domain service authorizes, applies, writes projections
+// and records the idempotency receipt in one transaction; analytics follow the
+// commit. Browsers write through Zero's mutate endpoint, which runs the same
+// `applyMutation` in Zero's transaction.
 export async function executeMutation(
   ctx: CapabilityContext,
   mutation: Mutation,
 ) {
-  const service = createSyncService(ctx.db, {
-    onMutationCommitted: (userId, committed, snapshots) => {
-      for (const event of committedEvents(
-        committed.command,
-        snapshots.before,
-        snapshots.after,
-        snapshots.directory,
-      ))
-        ctx.effects.track(
-          event.event,
-          {
-            ...event.properties,
-            organization_id: committed.organizationId,
-            mutation_id: committed.id,
-            ...(ctx.principal.surface === "web"
-              ? {}
-              : { surface: ctx.principal.surface }),
-          },
-          `${committed.organizationId}:${committed.id}:${String(event.properties.work_item_id ?? "")}`,
-        );
+  return executeDomainMutation(
+    ctx.db,
+    { userId: ctx.principal.userId },
+    mutation,
+    {
+      onCommitted: (outcome) =>
+        trackCommitted(ctx.effects, outcome, ctx.principal.surface),
     },
-  });
-  const result = await service.mutate(ctx.principal.userId, mutation);
-  if (aiTriggers.has(mutation.command.type)) ctx.effects.aiRunsQueued();
-  return result;
+  );
+}
+
+// Product analytics for a committed mutation. Shared with the Zero mutate
+// endpoint.
+export function trackCommitted(
+  effects: Effects,
+  { mutation, before, after, directory: roster }: MutationOutcome,
+  surface: Surface = "web",
+) {
+  for (const event of committedEvents(mutation.command, before, after, roster))
+    effects.track(
+      event.event,
+      {
+        ...event.properties,
+        organization_id: mutation.organizationId,
+        mutation_id: mutation.id,
+        ...(surface === "web" ? {} : { surface }),
+      },
+      `${mutation.organizationId}:${mutation.id}:${String(event.properties.work_item_id ?? "")}`,
+    );
 }
 
 type CommandType = Command["type"];
@@ -484,7 +483,7 @@ function commandCapability(option: (typeof commandSchema.options)[number]) {
         ids[key] = value;
       }
       const result = await executeMutation(ctx, mutationSchema.parse(mutation));
-      return { mutationId: result.mutationId, cursor: result.cursor, ...ids };
+      return { mutationId: result.mutationId, ...ids };
     },
   });
 }
@@ -492,33 +491,6 @@ function commandCapability(option: (typeof commandSchema.options)[number]) {
 export const commandCapabilities: AnyCapability[] = commandSchema.options.map(
   (option) => commandCapability(option) as AnyCapability,
 );
-
-// Browser clients submit fully formed mutations from their durable queue.
-const applyMutation = defineCapability({
-  name: "applyMutation",
-  title: "Apply workspace mutation",
-  description: "Apply a queued workspace mutation from a synchronized client.",
-  kind: "command",
-  surfaces: webOnly,
-  idempotent: true,
-  input: mutationSchema,
-  run: (ctx, mutation) => executeMutation(ctx, mutation),
-});
-
-const syncRead = defineCapability({
-  name: "syncRead",
-  title: "Synchronize workspace",
-  description:
-    "Read a scope's bootstrap snapshot or the changes after a checkpoint.",
-  kind: "query",
-  surfaces: webOnly,
-  input: z.object({
-    scope: scopeSchema,
-    cursor: checkpointSchema.optional(),
-  }),
-  run: (ctx, { scope, cursor }) =>
-    createSyncService(ctx.db).read(ctx.principal.userId, scope, cursor),
-});
 
 const syncDirectory = defineCapability({
   name: "syncDirectory",
@@ -686,16 +658,7 @@ async function bootstrap(
   ctx: CapabilityContext,
   scope: { organizationId: string; projectId?: string; workItemId?: string },
 ) {
-  const page = await createSyncService(ctx.db).read(
-    ctx.principal.userId,
-    scope,
-  );
-  return {
-    entities: page.changes.flatMap((c) =>
-      c.operation === "upsert" ? [c.entity] : [],
-    ),
-    directory: page.directory,
-  };
+  return readWorkspace(ctx.db, ctx.principal.userId, scope);
 }
 function keyOf(item: WorkItem, projects: { id: string; key: string }[]) {
   const project = projects.find((p) => p.id === item.projectId);
@@ -964,8 +927,6 @@ export const workspaceCapabilities: AnyCapability[] = [
   getIterationReport,
   getReadinessHistory,
   previewReadinessChecks,
-  syncRead,
   syncDirectory,
-  applyMutation,
   ...commandCapabilities,
 ] as AnyCapability[];

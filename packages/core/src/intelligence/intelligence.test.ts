@@ -5,14 +5,22 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory } from "@lictory/core/domain/service";
+import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
 import { seedOrganization } from "@lictory/core/domain/organization";
-import { PROTOCOL, pageSchema, type Command } from "@lictory/core/contracts/protocol";
+import {
+  PROTOCOL,
+  pageSchema,
+  type Command,
+} from "@lictory/core/contracts/protocol";
 import type { Analyzer, ItemReviewOutput } from "@lictory/core/ai/analyzer";
 import type { ItemReviewContext } from "@lictory/core/ai/context";
 import { processAiRuns } from "@lictory/core/ai/runner";
 import { composeIntelligenceContext } from "@lictory/core/intelligence/compose";
-import { ConversionError, convertDocument } from "@lictory/core/intelligence/convert";
+import {
+  ConversionError,
+  convertDocument,
+} from "@lictory/core/intelligence/convert";
 import {
   createIntelligenceContext,
   intelligenceContextHistory,
@@ -30,7 +38,7 @@ const url = new URL(adminUrl);
 url.pathname = `/${databaseName}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
-const service = createSyncService(db);
+const service = projectionService(db);
 const previousKey = process.env.OPENAI_API_KEY;
 let created = false;
 before(async () => {

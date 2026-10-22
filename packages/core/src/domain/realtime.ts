@@ -1,10 +1,8 @@
 import postgres from "postgres";
 import { z } from "zod";
-import { checkpointSchema } from "@lictory/core/contracts/protocol";
-const notificationSchema = z.object({
-  organizationId: z.string(),
-  cursor: checkpointSchema,
-});
+
+// Ephemeral signals for the /api/events stream: presence and "refetch your
+// inbox". Data synchronization goes through Zero, never through this hub.
 // Presence is ephemeral: who is looking at which item. It is never persisted and
 // carries no document content; every process learns about it through NOTIFY.
 export const presenceSchema = z.object({
@@ -21,21 +19,19 @@ const notificationSignalSchema = z.object({
 });
 export type NotificationSignal = z.infer<typeof notificationSignalSchema>;
 type NotificationListener = (event: NotificationSignal) => void;
-type Listener = (event: z.infer<typeof notificationSchema>) => void;
 type PresenceListener = (event: PresenceEvent) => void;
 // Keyed by shape version so a hot-reloaded module never reuses an older hub.
 const globalHub = globalThis as unknown as {
-  syncHubV4?: {
-    subscribe: (listener: Listener) => Promise<() => void>;
+  realtimeHubV5?: {
     subscribeReconnects: (listener: () => void) => () => void;
     subscribePresence: (listener: PresenceListener) => Promise<() => void>;
     subscribeNotifications: (
       listener: NotificationListener,
     ) => Promise<() => void>;
+    close: () => Promise<void>;
   };
 };
 function createHub() {
-  const listeners = new Set<Listener>();
   const presenceListeners = new Set<PresenceListener>();
   const notificationListeners = new Set<NotificationListener>();
   const reconnectListeners = new Set<() => void>();
@@ -53,30 +49,22 @@ function createHub() {
   const connect = () =>
     (ready ??= Promise.all([
       client.listen(
-        "lictory_sync",
+        "lictory_presence",
         (payload) => {
           try {
-            const event = notificationSchema.parse(JSON.parse(payload));
-            for (const callback of listeners) callback(event);
+            const event = presenceSchema.parse(JSON.parse(payload));
+            for (const callback of presenceListeners) callback(event);
           } catch {
-            /* Invalid notifications contain no application data. */
+            /* ignore malformed presence */
           }
         },
         () => {
-          // postgres.js calls this on every (re)connect. Notifications sent while
-          // disconnected are lost, so subscribers resynchronize after a reconnect.
+          // postgres.js calls this on every (re)connect. Signals sent while
+          // disconnected are lost, so subscribers refetch after a reconnect.
           if (listening) for (const callback of reconnectListeners) callback();
           listening = true;
         },
       ),
-      client.listen("lictory_presence", (payload) => {
-        try {
-          const event = presenceSchema.parse(JSON.parse(payload));
-          for (const callback of presenceListeners) callback(event);
-        } catch {
-          /* ignore malformed presence */
-        }
-      }),
       client.listen("lictory_notification", (payload) => {
         try {
           const event = notificationSignalSchema.parse(JSON.parse(payload));
@@ -90,13 +78,6 @@ function createHub() {
       throw error;
     }));
   return {
-    async subscribe(listener: Listener) {
-      await connect();
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
     subscribeReconnects(listener: () => void) {
       reconnectListeners.add(listener);
       return () => {
@@ -117,6 +98,10 @@ function createHub() {
         notificationListeners.delete(listener);
       };
     },
+    // Graceful shutdown: drop the LISTEN connection.
+    async close() {
+      await client.end({ timeout: 5 });
+    },
   };
 }
-export const realtime = (globalHub.syncHubV4 ??= createHub());
+export const realtime = (globalHub.realtimeHubV5 ??= createHub());

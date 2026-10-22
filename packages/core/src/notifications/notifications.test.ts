@@ -5,7 +5,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory } from "@lictory/core/domain/service";
+import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
@@ -21,7 +22,7 @@ const url = new URL(adminUrl);
 url.pathname = `/${databaseName}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
-const sync = createSyncService(db);
+const sync = projectionService(db);
 const notifications = createNotificationService(db);
 let created = false;
 before(async () => {

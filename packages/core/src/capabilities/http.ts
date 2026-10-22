@@ -1,6 +1,10 @@
-
 import { auth } from "@lictory/core/lib/auth";
-import { CapabilityError, httpStatus, type Principal } from "@lictory/core/capabilities/core";
+import { matchesPlatformOrigin } from "@lictory/core/lib/auth-base-url";
+import {
+  CapabilityError,
+  httpStatus,
+  type Principal,
+} from "@lictory/core/capabilities/core";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
 import { invoke } from "@lictory/core/capabilities/registry";
 import { serverContext } from "@lictory/core/capabilities/server";
@@ -8,12 +12,9 @@ import { serverContext } from "@lictory/core/capabilities/server";
 // Helpers for browser-facing routes: the signed-in session is the principal,
 // and cookie-authenticated writes must be same-origin.
 
+// Cookie-authenticated writes must come from the platform's exact origin.
 export function requireSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (
-    origin !== new URL(request.url).origin &&
-    origin !== process.env.BETTER_AUTH_URL
-  )
+  if (!matchesPlatformOrigin(request.headers.get("origin")))
     throw new CapabilityError("forbidden", "Invalid request origin.");
 }
 
