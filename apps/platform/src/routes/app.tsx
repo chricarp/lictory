@@ -13,6 +13,10 @@ import { useSessionState, useSessionUser } from "@lictory/platform/lib/session";
 import { WorkspaceDataProvider } from "@lictory/platform/data/zero";
 import { useMemberships } from "@lictory/platform/data/memberships";
 import { PageTitle } from "@lictory/platform/routes/title";
+import {
+  ConnectionUnavailable,
+  useConnectionBlocked,
+} from "@lictory/platform/components/workspace/connection-notice";
 
 // Everything behind sign-in. The route guard has already required a session
 // and a handle; this keeps the person's appearance and their own Zero client.
@@ -67,9 +71,15 @@ export function AppIndex() {
   const user = useSessionUser();
   const invitations = useLoaderData({ strict: false }) as Invite[] | undefined;
   const { organizations, complete } = useMemberships();
+  const blocked = useConnectionBlocked();
   const first = organizations[0];
   if (first) return <Redirect href={paths.org(first.slug)} />;
-  if (!complete) return <DocumentSkeleton headerBar />;
+  if (!complete)
+    return blocked ? (
+      <ConnectionUnavailable status={blocked} />
+    ) : (
+      <DocumentSkeleton headerBar />
+    );
   return (
     <>
       <PageTitle title="Welcome to Lictory" />

@@ -32,7 +32,11 @@ import {
 } from "@lictory/platform/components/workspace/provider";
 import { Shell } from "@lictory/platform/components/workspace/shell";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
-import { ConnectionNotice } from "@lictory/platform/components/workspace/connection-notice";
+import {
+  ConnectionNotice,
+  ConnectionUnavailable,
+  useConnectionBlocked,
+} from "@lictory/platform/components/workspace/connection-notice";
 import { RecoveryWatcher } from "@lictory/platform/components/workspace/recovery";
 import {
   SyncIssue,
@@ -40,6 +44,7 @@ import {
 } from "@lictory/platform/components/workspace/sync-issue";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { WorkspaceNotFound } from "@lictory/platform/routes/errors";
+import { PageTitle } from "@lictory/platform/routes/title";
 import { useConnectionState } from "@rocicorp/zero/react";
 
 // A just-created or just-joined organization reaches this browser a moment
@@ -52,6 +57,7 @@ export function OrganizationLayout() {
   const user = useSessionUser();
   const router = useRouter();
   const { organizations, complete } = useMemberships();
+  const blocked = useConnectionBlocked();
   const organization = organizations.find((o) => o.slug === org);
   // Organization IDs this route has shown: if one vanishes from my
   // memberships, access was removed (or the organization deleted).
@@ -80,7 +86,14 @@ export function OrganizationLayout() {
     return () => clearTimeout(timer);
   }, [org]);
   if (!organization) {
-    if (!complete || !graceOver || lost) return <DocumentSkeleton headerBar />;
+    if (blocked && !complete) return <ConnectionUnavailable status={blocked} />;
+    if (!complete || !graceOver || lost)
+      return (
+        <>
+          <PageTitle />
+          <DocumentSkeleton headerBar />
+        </>
+      );
     return <WorkspaceNotFound />;
   }
   return (

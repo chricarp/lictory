@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { KeyRound } from "lucide-react";
+import { CloudAlert, CloudOff, KeyRound } from "lucide-react";
+import { useConnectionState } from "@rocicorp/zero/react";
+import { MissingState } from "@lictory/ui/status-page";
+import {
+  connectionProblem,
+  viewStatus,
+  type ConnectionName,
+} from "@lictory/platform/data/connection";
 import { Button } from "@lictory/ui/button";
 import { refreshSession } from "@lictory/platform/lib/session";
 import { reconnectWorkspace } from "@lictory/platform/data/zero";
@@ -47,6 +54,55 @@ export function ConnectionNotice() {
       >
         {busy ? "Checking…" : "Sign in again"}
       </Button>
+    </div>
+  );
+}
+
+// Before any workspace data is local: the connection state decides between
+// a loading skeleton and a recovery page.
+export function useConnectionBlocked(): "offline" | "failed" | undefined {
+  const name = useConnectionState().name as ConnectionName;
+  const status = viewStatus(name, false);
+  return status === "offline" || status === "failed" ? status : undefined;
+}
+
+export function ConnectionUnavailable({
+  status,
+}: {
+  status: "offline" | "failed";
+}) {
+  const state = useConnectionState();
+  const needsAuth = state.name === "needs-auth";
+  const offline = status === "offline";
+  return (
+    <div className="flex min-h-dvh items-center justify-center">
+      <MissingState
+        illustration="recovery"
+        icon={offline ? CloudOff : CloudAlert}
+        tone={offline ? "warning" : "danger"}
+        title={
+          offline ? "You are offline" : "The workspace could not be opened"
+        }
+        action={
+          needsAuth ? (
+            <Button onClick={() => void reauthenticate()}>Sign in again</Button>
+          ) : (
+            <>
+              <Button onClick={reconnectWorkspace}>Try again</Button>
+              <Button variant="ghost" onClick={() => window.location.reload()}>
+                Reload page
+              </Button>
+            </>
+          )
+        }
+      >
+        {connectionProblem(
+          state.name as ConnectionName,
+          "reason" in state && typeof state.reason === "string"
+            ? state.reason
+            : undefined,
+        )}
+      </MissingState>
     </div>
   );
 }
