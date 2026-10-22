@@ -60,7 +60,8 @@ const appEnv = {
   MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",
   MICROSOFT_CLIENT_SECRET: "e2e-microsoft-client-secret",
   MICROSOFT_TENANT_ID: "common",
-  ZERO_API_KEY: "e2e-zero-api-key",
+  ZERO_QUERY_API_KEY: "e2e-zero-query-key",
+  ZERO_MUTATE_API_KEY: "e2e-zero-mutate-key",
 };
 
 function run(command: string, args: string[], env = appEnv) {
@@ -222,8 +223,8 @@ try {
     ZERO_MUTATE_URL: `http://localhost:${ports.api}/api/zero/mutate`,
     ZERO_QUERY_FORWARD_COOKIES: "true",
     ZERO_MUTATE_FORWARD_COOKIES: "true",
-    ZERO_QUERY_API_KEY: appEnv.ZERO_API_KEY,
-    ZERO_MUTATE_API_KEY: appEnv.ZERO_API_KEY,
+    ZERO_QUERY_API_KEY: appEnv.ZERO_QUERY_API_KEY,
+    ZERO_MUTATE_API_KEY: appEnv.ZERO_MUTATE_API_KEY,
     ZERO_ENABLE_CRUD_MUTATIONS: "false",
     ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "10",
     ZERO_ADMIN_PASSWORD: "e2e-zero-admin",

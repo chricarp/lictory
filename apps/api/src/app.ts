@@ -104,7 +104,15 @@ export function createApp(options: { draining?: () => boolean } = {}) {
   );
 
   // Zero's query and mutate endpoints, called by zero-cache only (the
-  // reverse proxy blocks them publicly).
+  // reverse proxy blocks them publicly). Production requires the shared API
+  // keys so a proxy misconfiguration cannot expose them.
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!process.env.ZERO_QUERY_API_KEY || !process.env.ZERO_MUTATE_API_KEY)
+  )
+    throw new Error(
+      "ZERO_QUERY_API_KEY and ZERO_MUTATE_API_KEY are required in production.",
+    );
   const zero = createZeroEndpoints(db, {
     onCommitted: (outcome, request) =>
       trackCommitted(
