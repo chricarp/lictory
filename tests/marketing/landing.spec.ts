@@ -1,4 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+
+/** The application has its own origin; the website only links to it. */
+async function expectApplicationLink(page: Page, link: Locator, path: string) {
+  const href = await link.getAttribute("href");
+  expect(href).not.toBeNull();
+  const target = new URL(href!);
+  expect(target.pathname).toBe(path);
+  expect(target.origin).not.toBe(new URL(page.url()).origin);
+}
 
 for (const width of [320, 390]) {
   test(`mobile landing makes signup visible and demonstrates refinement at ${width}px`, async ({
@@ -83,11 +92,8 @@ for (const width of [320, 390]) {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(width);
 
-    await signup.click();
-    await expect(page).toHaveURL(/\/sign-up$/);
-    await expect(
-      page.getByRole("heading", { name: "Create your account" }),
-    ).toBeVisible();
+    // Sign-up lives in the application, on its own origin.
+    await expectApplicationLink(page, signup, "/sign-up");
   });
 }
 
@@ -121,16 +127,71 @@ test("desktop landing shows the comparison table and autoplays the example", asy
   await expect(demo.getByText("Rev 12", { exact: true })).toBeVisible();
 });
 
-test("anonymous visitors also reach the landing page at /home", async ({
+test("/home permanently redirects to the landing page", async ({
   page,
+  request,
 }) => {
+  const response = await request.get("/home", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(new URL(response.headers().location!, response.url()).pathname).toBe(
+    "/",
+  );
+
   await page.goto("/home");
-  await expect(page).toHaveURL(/\/home$/);
+  expect(new URL(page.url()).pathname).toBe("/");
   // Search engines index the landing page once, at "/".
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     /^https?:\/\/[^/]+\/?$/,
   );
-  await page.getByRole("banner").getByRole("link", { name: "Sign up" }).click();
-  await expect(page).toHaveURL(/\/sign-up$/);
+});
+
+test("calls to action lead to the application without reading its session", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  const banner = page.getByRole("banner");
+  await expectApplicationLink(
+    page,
+    banner.getByRole("link", { name: "Sign up" }),
+    "/sign-up",
+  );
+  await expectApplicationLink(
+    page,
+    banner.getByRole("link", { name: "Log in" }),
+    "/sign-in",
+  );
+  // Every account link on the page, including the final call to action and
+  // the mobile bar, points at the application origin.
+  const hrefs = await page
+    .locator('a[href*="sign-up"], a[href*="sign-in"], a[href*="/app"]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")!));
+  expect(hrefs.length).toBeGreaterThanOrEqual(4);
+  for (const href of hrefs)
+    expect(new URL(href, page.url()).origin).not.toBe(
+      new URL(page.url()).origin,
+    );
+});
+
+test("links shared before the split reach the application", async ({
+  request,
+}) => {
+  for (const [path, target] of [
+    ["/app", "/"],
+    [
+      "/app/acme/pay/epics/PAY-1?tab=review",
+      "/acme/pay/epics/PAY-1?tab=review",
+    ],
+    ["/app/invitation?id=abc", "/invitation?id=abc"],
+    ["/sign-in?callbackUrl=%2Facme", "/sign-in?callbackUrl=%2Facme"],
+    ["/sign-up", "/sign-up"],
+    ["/reset-password?token=t", "/reset-password?token=t"],
+  ]) {
+    const response = await request.get(path!, { maxRedirects: 0 });
+    expect(response.status(), path).toBe(308);
+    const location = new URL(response.headers().location!);
+    expect(location.pathname + location.search, path).toBe(target);
+    expect(location.origin, path).not.toBe(new URL(response.url()).origin);
+  }
 });

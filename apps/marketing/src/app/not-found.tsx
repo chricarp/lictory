@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { Logo } from "@lictory/ui/logo";
 import { Button } from "@lictory/ui/button";
 import { StatusPage } from "@lictory/ui/status-page";
+import { platformHref } from "@lictory/marketing/lib/platform";
 
 export const metadata: Metadata = { title: "Page not found" };
 
@@ -20,7 +21,7 @@ export default function NotFound() {
           <Link href="/" className="contents">
             <Button size="lg">Go home</Button>
           </Link>
-          <Link href="/app" className="contents">
+          <Link href={platformHref("/")} className="contents">
             <Button size="lg" variant="secondary">
               Open workspace
             </Button>

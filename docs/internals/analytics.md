@@ -43,8 +43,9 @@ and reloads the page, which starts again in cookieless mode.
 
 ### First-party relay
 
-The browser never contacts PostHog directly. `api_host` is `/relay`, handled by
-`src/app/relay/[[...path]]/route.ts`, so blockers that match PostHog domains do
+The browser never contacts PostHog directly. `api_host` is `/relay`, handled on
+each origin (the website's `apps/marketing/src/app/relay/[[...path]]/route.ts`
+and the application's API), so blockers that match PostHog domains do
 not drop analytics. The relay derives the regional ingestion and asset hosts from
 `NEXT_PUBLIC_POSTHOG_HOST`, accepts only plain relative paths, forwards only
 content headers plus the visitor's IP (required for the cookieless hash), and

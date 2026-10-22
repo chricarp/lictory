@@ -1,5 +1,10 @@
 import { guides } from "@lictory/marketing/content/guides";
-import { guidesFeedPath, absoluteUrl, publicPage, siteName } from "@lictory/marketing/lib/site";
+import {
+  guidesFeedPath,
+  absoluteUrl,
+  publicPage,
+  siteName,
+} from "@lictory/marketing/lib/site";
 
 export const dynamic = "force-static";
 

@@ -39,6 +39,7 @@ import {
   ReviewVisual,
 } from "@lictory/marketing/components/landing/visuals";
 import { cn } from "@lictory/core/lib/utils";
+import { platformHref } from "@lictory/marketing/lib/platform";
 
 /** Content rises in as it scrolls into view, where scroll-driven CSS exists. */
 function Reveal({
@@ -57,22 +58,15 @@ function Reveal({
   );
 }
 
-/**
- * Where the primary calls to action lead. Signed-in visitors reach the landing
- * page at /home, so they are sent back to the app rather than to sign-up.
- */
+/** Where the primary calls to action lead: sign-up in the application. */
 type Cta = { href: string; label: string };
 
-export function Landing({ signedIn = false }: { signedIn?: boolean }) {
-  const cta: Cta = signedIn
-    ? { href: "/app", label: "Open Lictory" }
-    : { href: "/sign-up", label: "Start for free" };
-  // "/" sends signed-in visitors to the app, so the logo keeps them here.
-  const home = signedIn ? "/home" : "/";
+export function Landing() {
+  const cta: Cta = { href: platformHref("/sign-up"), label: "Start for free" };
   return (
     <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
       <div className="relative overflow-clip">
-        <MarketingHeader home={home} signedIn={signedIn} />
+        <MarketingHeader />
         <main>
           <Hero cta={cta} />
           <Journey />
@@ -82,9 +76,9 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
           <Delivery cta={cta} />
           <Comparison />
           <Faq />
-          <FinalCta cta={cta} signedIn={signedIn} />
+          <FinalCta cta={cta} />
         </main>
-        <MarketingFooter home={home} />
+        <MarketingFooter />
       </div>
       <MobileCta href={cta.href} label={cta.label} />
       <StructuredData />
@@ -805,7 +799,7 @@ function Faq() {
   );
 }
 
-function FinalCta({ cta, signedIn }: { cta: Cta; signedIn: boolean }) {
+function FinalCta({ cta }: { cta: Cta }) {
   return (
     <Section className="relative overflow-hidden text-center sm:py-36">
       <div
@@ -833,16 +827,14 @@ function FinalCta({ cta, signedIn }: { cta: Cta; signedIn: boolean }) {
             {cta.label}
             <ArrowRight className="size-4" />
           </CtaLink>
-          {!signedIn && (
-            <CtaLink
-              href="/sign-in"
-              size="lg"
-              variant="secondary"
-              className="w-full max-w-80 sm:w-auto"
-            >
-              Log in
-            </CtaLink>
-          )}
+          <CtaLink
+            href={platformHref("/sign-in")}
+            size="lg"
+            variant="secondary"
+            className="w-full max-w-80 sm:w-auto"
+          >
+            Log in
+          </CtaLink>
         </div>
       </Reveal>
     </Section>

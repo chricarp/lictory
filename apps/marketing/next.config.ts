@@ -1,19 +1,32 @@
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
-import { version } from "../../package.json";
+
+import { platformHref, platformUrl } from "./src/lib/platform";
+
+// The website imports sources from other workspaces (`@lictory/ui`,
+// `@lictory/core`), so bundling and file tracing start at the monorepo root.
+const monorepoRoot = fileURLToPath(new URL("../..", import.meta.url));
+
+const applicationPages = [
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/welcome",
+  "/auth-error",
+];
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
-  // Embed the checked-out version in the build, including client components.
-  env: { NEXT_PUBLIC_APP_VERSION: version },
+  // A self-contained server (`.next/standalone/apps/marketing/server.js`) for
+  // container images; public files and static chunks are copied next to it.
+  output: "standalone",
+  outputFileTracingRoot: monorepoRoot,
+  turbopack: { root: monorepoRoot },
   // PostHog's SDK posts to paths with a trailing slash (`/relay/e/`). The default
   // redirect would cost every analytics request a round trip through the relay.
   skipTrailingSlashRedirect: true,
-  // Workspace pages are thin wrappers around the client store; reusing their
-  // payload for a short time makes revisits instant instead of a server
-  // round trip per click.
-  experimental: {
-    staleTimes: { dynamic: 30 },
-  },
   // Content-addressed, pre-sized artwork is served directly, without image transforms.
   async headers() {
     return [
@@ -26,6 +39,26 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+    ];
+  },
+  // The landing page used to be reachable at /home by signed-in people. The
+  // website has no session any more, so the alias would only duplicate "/".
+  // Application pages moved to their own origin; links shared or emailed
+  // before the split keep working (the query string is preserved).
+  async redirects() {
+    return [
+      { source: "/home", destination: "/", permanent: true },
+      { source: "/app", destination: platformHref("/"), permanent: true },
+      {
+        source: "/app/:path*",
+        destination: `${platformUrl}/:path*`,
+        permanent: true,
+      },
+      ...applicationPages.map((source) => ({
+        source,
+        destination: `${platformUrl}${source}`,
+        permanent: true,
+      })),
     ];
   },
   // Markdown versions of public pages for AI assistants live at `<page>.md`.
@@ -43,9 +76,6 @@ const nextConfig: NextConfig = {
       fallback: [],
     };
   },
-  // Native document converter for Lictory Intelligence Context: loaded from
-  // node_modules at runtime instead of being bundled.
-  serverExternalPackages: ["@firecrawl/anydoc"],
 };
 
 export default nextConfig;

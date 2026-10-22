@@ -9,7 +9,10 @@ import {
 import { guides } from "@lictory/marketing/content/guides";
 import { publicPageMetadata } from "@lictory/marketing/lib/public-metadata";
 import { absoluteUrl, publicPage } from "@lictory/marketing/lib/site";
-import { publicPageStructuredData, webPageId } from "@lictory/marketing/lib/structured-data";
+import {
+  publicPageStructuredData,
+  webPageId,
+} from "@lictory/marketing/lib/structured-data";
 
 export const metadata = publicPageMetadata("/guides");
 

@@ -5,6 +5,7 @@ import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { Logo } from "@lictory/ui/logo";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { cn } from "@lictory/core/lib/utils";
+import { platformHref } from "@lictory/marketing/lib/platform";
 
 // Header, footer and calls to action shared by the landing page and the public
 // guides and comparisons, so every public page links to the others.
@@ -50,15 +51,7 @@ export function CtaLink({
  * `sections` prefixes the landing page's section anchors: empty on the landing
  * page itself, "/" elsewhere.
  */
-export function MarketingHeader({
-  home,
-  signedIn,
-  sections = "",
-}: {
-  home: string;
-  signedIn: boolean;
-  sections?: string;
-}) {
+export function MarketingHeader({ sections = "" }: { sections?: string }) {
   return (
     <header className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-3 sm:top-4">
       <div
@@ -70,7 +63,7 @@ export function MarketingHeader({
           "before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:-z-10 before:h-1/2 before:rounded-t-full before:bg-[radial-gradient(60%_100%_at_50%_0%,oklch(1_0_0/0.12),transparent)]",
         )}
       >
-        <Logo href={home} className="[&>span]:h-5" />
+        <Logo className="[&>span]:h-5" />
         <nav
           aria-label="Sections"
           className="mx-auto hidden items-center text-[13px] md:flex"
@@ -92,24 +85,19 @@ export function MarketingHeader({
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1 md:ml-0">
-          {signedIn ? (
-            <CtaLink href="/app" className="h-9 px-4 shadow-none">
-              Open Lictory
-            </CtaLink>
-          ) : (
-            <>
-              <CtaLink
-                href="/sign-in"
-                variant="ghost"
-                className="h-9 px-3.5 hover:bg-white/[0.07]"
-              >
-                Log in
-              </CtaLink>
-              <CtaLink href="/sign-up" className="h-9 px-4 shadow-none">
-                Sign up
-              </CtaLink>
-            </>
-          )}
+          <CtaLink
+            href={platformHref("/sign-in")}
+            variant="ghost"
+            className="h-9 px-3.5 hover:bg-white/[0.07]"
+          >
+            Log in
+          </CtaLink>
+          <CtaLink
+            href={platformHref("/sign-up")}
+            className="h-9 px-4 shadow-none"
+          >
+            Sign up
+          </CtaLink>
         </div>
       </div>
     </header>
@@ -118,20 +106,14 @@ export function MarketingHeader({
 
 const footerLinkClass = "hover:text-foreground";
 
-export function MarketingFooter({
-  home,
-  sections = "",
-}: {
-  home: string;
-  sections?: string;
-}) {
+export function MarketingFooter({ sections = "" }: { sections?: string }) {
   return (
     <footer
       data-cta-anchor
       className="border-t border-white/6 px-5 py-10 sm:px-8"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-6 text-[13px] text-muted-foreground sm:flex-row sm:items-start">
-        <Logo href={home} className="text-foreground [&>span]:h-6" />
+        <Logo className="text-foreground [&>span]:h-6" />
         <nav aria-label="Footer" className="flex flex-wrap gap-x-12 gap-y-6">
           <div className="flex flex-col gap-2">
             <Link href={`${sections}#features`} className={footerLinkClass}>

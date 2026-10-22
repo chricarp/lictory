@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { illustrationAssets } from "@lictory/ui/illustration-assets";
 import { useEffect } from "react";
 
 import { trackRenderFailure } from "@lictory/core/lib/analytics/client";
+import { platformHref } from "@lictory/marketing/lib/platform";
 
 export default function GlobalError({
   error,
@@ -47,7 +47,7 @@ export default function GlobalError({
             </p>
             <div className="recovery-actions">
               <button onClick={reset}>Try again</button>
-              <Link href="/app">Open workspace</Link>
+              <a href={platformHref("/")}>Open workspace</a>
             </div>
           </div>
         </main>

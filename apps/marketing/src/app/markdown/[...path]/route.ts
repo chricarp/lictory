@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 
-import { markdownDocument, markdownPages } from "@lictory/marketing/lib/markdown";
+import {
+  markdownDocument,
+  markdownPages,
+} from "@lictory/marketing/lib/markdown";
 import { absoluteUrl } from "@lictory/marketing/lib/site";
 
 // Served at `<page>.md` through rewrites in next.config.ts. The HTML page is

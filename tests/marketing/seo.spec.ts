@@ -8,9 +8,11 @@ test("search engines and AI assistants can discover the public website", async (
   const rules = await robots.text();
   for (const agent of ["*", "Googlebot", "Bingbot", "GPTBot", "ClaudeBot"])
     expect(rules).toContain(`User-Agent: ${agent}`);
-  expect(rules).toContain("Disallow: /api/");
+  expect(rules).toContain("Disallow: /relay/");
+  expect(rules).toContain("Disallow: /markdown/");
   expect(rules).not.toContain("Host:");
-  // Workspace links stay fetchable so unfurlers can read their noindex previews.
+  // Old workspace links stay fetchable: they redirect to the application, whose
+  // noindex previews unfurlers must still read.
   expect(rules).not.toMatch(/Disallow: \/app/);
   expect(rules).toMatch(/Sitemap: https?:\/\/[^/]+\/sitemap\.xml/);
   expect(rules).toMatch(/Sitemap: https?:\/\/[^/]+\/guides\/feed\.xml/);
@@ -22,9 +24,10 @@ test("search engines and AI assistants can discover the public website", async (
   );
 
   const sitemap = await (await request.get("/sitemap.xml")).text();
-  for (const path of ["/privacy", "/terms-of-service", "/sign-up"])
+  for (const path of ["/privacy", "/terms-of-service"])
     expect(sitemap).toContain(`${path}</loc>`);
-  expect(sitemap).not.toMatch(/\/(app|home|sign-in)<\/loc>/);
+  // Account pages live on the application origin, outside this sitemap.
+  expect(sitemap).not.toMatch(/\/(app|home|sign-in|sign-up)<\/loc>/);
   expect(sitemap).toContain("/og/marketing</image:loc>");
 
   const manifest = await request.get("/manifest.webmanifest");
@@ -218,23 +221,4 @@ test("guides and comparisons are linked, indexable and described", async ({
     "/compare/linear",
   ])
     expect(sitemap).toContain(`${path}</loc>`);
-});
-
-test("account flows stay out of search results except sign-up", async ({
-  page,
-}) => {
-  await page.goto("/forgot-password");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-    "content",
-    "noindex, follow",
-  );
-  await page.goto("/sign-up?callbackUrl=%2Fapp");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-    "content",
-    "index, follow",
-  );
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-    "href",
-    /\/sign-up$/,
-  );
 });

@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { Logo } from "@lictory/ui/logo";
 import { LegalOperator } from "@lictory/marketing/components/legal/legal-operator";
+import { platformHref } from "@lictory/marketing/lib/platform";
 import { legalVersion } from "@lictory/marketing/lib/site";
 
 export type LegalSection = { id: string; title: string; body: string };
@@ -22,7 +23,7 @@ export function LegalDocument({
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
           <Logo />
           <Link
-            href="/sign-in"
+            href={platformHref("/sign-in")}
             className="rounded text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             Sign in

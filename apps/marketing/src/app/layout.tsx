@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
-import "@lictory/ui/styles.css";
+import "./styles.css";
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
 import { appearanceBootScript } from "@lictory/core/lib/appearance";
 import {
@@ -58,7 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
       </head>
       <body className="min-h-full">
-        <ConsentProvider>{children}</ConsentProvider>
+        <ConsentProvider privacyHref="/privacy">{children}</ConsentProvider>
       </body>
     </html>
   );

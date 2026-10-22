@@ -18,10 +18,11 @@ and APIs still enforce authentication and membership; the rewrite grants no acce
 Workspace responses are not publicly cached. Only the category images can be
 publicly cached, and workspace metadata asks search engines not to index pages.
 
-`BETTER_AUTH_URL` supplies the public origin for absolute image URLs. Set it to the
-deployed application origin. No request Host header is used to construct image
-URLs. Images are generated locally with Next.js ImageResponse, without remote
-fonts, image services, or AI calls.
+The public website serves every card image at `/og/<kind>`, including the
+workspace categories, and `SITE_URL` supplies the origin for absolute image URLs.
+No request Host header is used to construct image URLs. Images are generated
+locally with Next.js ImageResponse at build time, without remote fonts, image
+services, or AI calls.
 
 Richer previews in an authenticated chat integration would need a separate,
 explicit disclosure policy and recipient authorization. Never add private fields

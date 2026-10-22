@@ -9,16 +9,17 @@ import {
   MarketingHeader,
 } from "@lictory/marketing/components/marketing/chrome";
 import { cn } from "@lictory/core/lib/utils";
+import { platformHref } from "@lictory/marketing/lib/platform";
 
 /** Dark marketing frame for public guides and comparisons. */
 export function MarketingPage({ children }: { children: ReactNode }) {
   return (
     <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
-      <MarketingHeader home="/" signedIn={false} sections="/" />
+      <MarketingHeader sections="/" />
       <main className="px-5 pt-28 pb-16 sm:px-8 sm:pt-36 sm:pb-24">
         <div className="mx-auto max-w-3xl">{children}</div>
       </main>
-      <MarketingFooter home="/" sections="/" />
+      <MarketingFooter sections="/" />
     </div>
   );
 }
@@ -165,7 +166,11 @@ export function TryLictory({
           {children}
         </p>
       </div>
-      <CtaLink href="/sign-up" size="lg" className="w-full sm:w-auto">
+      <CtaLink
+        href={platformHref("/sign-up")}
+        size="lg"
+        className="w-full sm:w-auto"
+      >
         Start for free
         <ArrowRight aria-hidden className="size-4" />
       </CtaLink>

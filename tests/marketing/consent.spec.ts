@@ -39,6 +39,18 @@ test("visitors choose analytics consent and can reopen their choice", async ({
   await expect(dialog).toBeHidden();
   expect(await storedConsents(page)).toMatchObject({ measurement: true });
 
-  await page.goto("/sign-in");
+  await page.goto("/privacy");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept All" })).toBeHidden();
+});
+
+test("the analytics relay stays closed while analytics is not configured", async ({
+  request,
+}) => {
+  // Browser tests build without a PostHog project, so nothing is forwarded.
+  for (const method of ["get", "post"] as const) {
+    const response = await request[method]("/relay/e/");
+    expect(response.status()).toBe(404);
+    expect(response.headers()["set-cookie"]).toBeUndefined();
+  }
 });
