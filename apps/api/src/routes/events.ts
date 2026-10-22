@@ -30,6 +30,9 @@ export function eventRoutes() {
       return new Response(null, { status: 403 });
     }
     const userId = session.user.id;
+    // Headers go out only once LISTEN is active: a client that acts right
+    // after the stream opens still receives the resulting signals.
+    await realtime.connect();
     const encoder = new TextEncoder();
     let dispose = () => undefined as void;
     const stream = new ReadableStream<Uint8Array>({

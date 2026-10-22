@@ -28,6 +28,7 @@ const globalHub = globalThis as unknown as {
     subscribeNotifications: (
       listener: NotificationListener,
     ) => Promise<() => void>;
+    connect: () => Promise<unknown>;
     close: () => Promise<void>;
   };
 };
@@ -46,34 +47,37 @@ function createHub() {
     },
   );
   let ready: Promise<unknown> | undefined;
-  const connect = () =>
-    (ready ??= Promise.all([
-      client.listen(
-        "lictory_presence",
-        (payload) => {
-          try {
-            const event = presenceSchema.parse(JSON.parse(payload));
-            for (const callback of presenceListeners) callback(event);
-          } catch {
-            /* ignore malformed presence */
-          }
-        },
-        () => {
-          // postgres.js calls this on every (re)connect. Signals sent while
-          // disconnected are lost, so subscribers refetch after a reconnect.
-          if (listening) for (const callback of reconnectListeners) callback();
-          listening = true;
-        },
-      ),
-      client.listen("lictory_notification", (payload) => {
+  // Channels are listened to one after another: concurrent `listen` calls
+  // racing the first connection can resolve before the LISTEN is active.
+  const listenAll = async () => {
+    await client.listen(
+      "lictory_presence",
+      (payload) => {
         try {
-          const event = notificationSignalSchema.parse(JSON.parse(payload));
-          for (const callback of notificationListeners) callback(event);
+          const event = presenceSchema.parse(JSON.parse(payload));
+          for (const callback of presenceListeners) callback(event);
         } catch {
-          /* ignore malformed signals */
+          /* ignore malformed presence */
         }
-      }),
-    ]).catch((error: unknown) => {
+      },
+      () => {
+        // postgres.js calls this on every (re)connect. Signals sent while
+        // disconnected are lost, so subscribers refetch after a reconnect.
+        if (listening) for (const callback of reconnectListeners) callback();
+        listening = true;
+      },
+    );
+    await client.listen("lictory_notification", (payload) => {
+      try {
+        const event = notificationSignalSchema.parse(JSON.parse(payload));
+        for (const callback of notificationListeners) callback(event);
+      } catch {
+        /* ignore malformed signals */
+      }
+    });
+  };
+  const connect = () =>
+    (ready ??= listenAll().catch((error: unknown) => {
       ready = undefined;
       throw error;
     }));
@@ -98,6 +102,8 @@ function createHub() {
         notificationListeners.delete(listener);
       };
     },
+    // Resolves once LISTEN is active, so signals sent afterwards arrive.
+    connect,
     // Graceful shutdown: drop the LISTEN connection.
     async close() {
       await client.end({ timeout: 5 });

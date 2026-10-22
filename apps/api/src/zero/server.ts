@@ -98,6 +98,11 @@ export function createZeroEndpoints(
   } = {},
 ) {
   const dbProvider = zeroDrizzle(schema, db);
+  // Domain rejections are expected outcomes, not server problems; Zero's
+  // per-mutation warnings would otherwise log each one with a stack.
+  const logLevel =
+    (process.env.ZERO_SERVER_LOG_LEVEL as
+      "debug" | "info" | "warn" | "error" | undefined) ?? "error";
   return {
     query(request: Request, userID: string) {
       return handleQueryRequest({
@@ -109,6 +114,7 @@ export function createZeroEndpoints(
         schema,
         request,
         userID,
+        logLevel,
       });
     },
     mutate(request: Request, userID: string) {
@@ -116,6 +122,7 @@ export function createZeroEndpoints(
         dbProvider,
         userID,
         request,
+        logLevel,
         handler: async (transact) => {
           let outcome: MutationOutcome | undefined;
           const ctx: ServerContext = {
