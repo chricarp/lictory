@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 import { cn } from "@lictory/core/lib/utils";
 import { illustrationAssets } from "@lictory/ui/illustration-assets";
 
@@ -14,14 +12,14 @@ export function StateIllustration({
   className?: string;
 }) {
   return (
-    <Image
+    <img
       src={illustrationAssets[kind]}
       alt=""
       aria-hidden="true"
       width={384}
       height={384}
-      unoptimized
       loading="lazy"
+      decoding="async"
       draggable={false}
       className={cn("mx-auto mb-4 size-40 shrink-0 object-contain", className)}
     />
