@@ -74,12 +74,15 @@ Notifications that resolve to email get a `notification_email` outbox row in the
 same transaction. Delivery is at-least-once to the provider with a stable
 idempotency key per notification:
 
-- the sync and delivery routes kick a dispatcher right after commit, so email is
-  normally immediate;
-- the scheduled job (`/api/jobs/iterations`, `scripts/iteration-worker.ts`)
-  drains anything left pending;
-- rows are claimed with `FOR UPDATE SKIP LOCKED` plus a lease, so overlapping
-  runners never send twice;
+- the outbox row commits with a `lictory_work` signal, so the worker sends
+  it within moments; the worker also polls every 30 seconds;
+- rows are claimed with `FOR UPDATE SKIP LOCKED` plus a two-minute lease, so
+  overlapping runners never pick the same row. A runner only sends while most
+  of its lease remains, writes outcomes only while it still holds the lease,
+  and returns rows it did not reach (on shutdown, or when the batch runs
+  long). A row whose runner died is sent again after the lease expires, with
+  the same idempotency key (Resend deduplicates it; SMTP cannot, so a crash
+  between sending and recording can still deliver twice);
 - failures retry with exponential backoff up to five attempts, then stay
   `failed` with the provider's error;
 - recipients who left the organization, or archived the notification, are

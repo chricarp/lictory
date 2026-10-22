@@ -16,7 +16,7 @@ import {
   planMigrations,
   resolveMigrationConnection,
   type RepositoryMigration,
-} from "../src/db/migration-safety";
+} from "@lictory/core/db/migration-safety";
 
 const migrationsFolder = "drizzle";
 // Arbitrary fixed key shared by every runner of this application's migrations.
@@ -70,7 +70,7 @@ async function acquireLock(sql: postgres.Sql) {
 async function main() {
   const connection = resolveMigrationConnection(process.env);
   console.log(
-    `Migration target: ${connection.target} (${connection.host}/${connection.database})`,
+    `Migration target: ${connection.target} via ${connection.transport} (${connection.host}/${connection.database})`,
   );
   // One connection: the session advisory lock, timeouts and the migration
   // transaction must share a session.

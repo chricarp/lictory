@@ -17,3 +17,8 @@ skills-lock.json
 .next-e2e
 test-results
 playwright-report
+
+# Workspace build output
+dist
+**/.next
+**/routeTree.gen.ts

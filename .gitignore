@@ -1,10 +1,15 @@
 # Dependencies
-/node_modules
+node_modules/
 
 # Next.js
-/.next/
-/out/
-/build
+.next/
+out/
+build/
+dist/
+.zero/
+*.db
+*.db-wal
+*.db-shm
 next-env.d.ts
 *.tsbuildinfo
 
@@ -29,6 +34,6 @@ Thumbs.db
 *.pem
 .idea
 
-/.next-e2e/
+.next-e2e/
 /test-results/
 /playwright-report/

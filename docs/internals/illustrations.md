@@ -76,7 +76,7 @@ high-resolution generated files outside the repository.
 Filenames include the first 12 hexadecimal characters of the file's SHA-256 hash.
 When replacing artwork, generate a new hash and update the asset mapping. These
 URLs receive a one-year immutable cache header; never overwrite different bytes
-at an existing URL. The shared component explicitly bypasses runtime Next.js
-image optimization, uses intrinsic dimensions to reserve space, and loads lazily.
+at an existing URL. The shared component serves the files as they are (no runtime image
+optimization), uses intrinsic dimensions to reserve space, and loads lazily.
 This avoids transformation work and variants while retaining CDN/browser caching.
 Static delivery still uses bandwidth; these assets do not imply free hosting.

@@ -40,7 +40,8 @@ iteration; items do not move between projects.
 
 ## Organization identity
 
-Organizations choose a unique, lowercase handle for their `/app/<handle>` URL.
+Organizations choose a unique, lowercase handle for their workspace URL (`app.lictory.com/<handle>`). Every top-level
+SPA path (sign-in, account, api, zero and so on) is reserved.
 The handle is separate from the immutable organization ID and from person
 handles. Organization administrators can change it in General settings;
 membership, projects, work item identifiers and history keep the same IDs.
@@ -110,11 +111,11 @@ into a started status (`off`, `warn`, `block`). Nothing is exported.
   attention (conflicts, failures, missing issues).
 - Export rules are unchanged (explicit, evidence-gated, idempotent, see
   [delivery](delivery.md)), and only external projects can export.
-- **Status sync back**: the scheduled job (and an on-demand refresh) reads
+- **Status sync back**: the worker's status sync (and an on-demand refresh) reads
   each linked issue's status, status category and assignee from Jira. It is
   read-only: it never writes Jira and never changes Lictory-owned fields or the
-  item's Lictory status. Routine checks that find nothing new do not touch the
-  change log.
+  item's Lictory status. Routine checks that find nothing new do not rewrite
+  projections.
 
 ## Audit
 

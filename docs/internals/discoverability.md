@@ -1,6 +1,7 @@
 # Search and AI discoverability
 
-The public website (landing page, sign-up and legal notices) is written for
+The public website (`apps/marketing`, served at `lictory.com`: landing page,
+guides, comparisons and legal notices) is written for
 three audiences at once: people, search engines and AI assistants such as
 ChatGPT, Claude, Gemini, Copilot and Perplexity. They must read one consistent
 story, so every machine-readable description is generated from the same source
@@ -17,11 +18,11 @@ as the visible page:
 
 - **`/robots.txt`** allows all crawlers on the public website and names major
   search and AI crawlers explicitly so the policy for each is deliberate.
-  `/api/`, the analytics relay and the internal `/markdown/` route are
-  disallowed. Workspace URLs are not
-  disallowed: link unfurlers that obey robots.txt (for example Twitterbot and
-  LinkedIn) must still read their safe social previews, and those pages carry
-  `noindex, nofollow` instead. See [social link previews](./social-previews.md).
+  The analytics relay and the internal `/markdown/` route are disallowed. Old
+  workspace URLs (`/app/...`) are not disallowed: they redirect to the
+  application, and link unfurlers that obey robots.txt (for example Twitterbot
+  and LinkedIn) must still read the application's safe social previews, which
+  carry `noindex, nofollow` instead. See [social link previews](./social-previews.md).
   It lists the guides RSS feed as a second sitemap, because Google and Bing
   revisit feeds more often. There is no `Host` line: Google ignores it and
   Yandex retired it.
@@ -44,7 +45,8 @@ as the visible page:
   page and every guide. Dates come from the content, never the build.
 - **JSON-LD** on the landing page describes the `Organization` (with logo),
   `WebSite`, `WebPage` and its primary image, the product as a
-  `WebApplication` and the `FAQPage`. Sign-up and the legal notices publish
+  `WebApplication` (its offer links to sign-up in the application) and the
+  `FAQPage`. Guides, comparisons and the legal notices publish
   their own `WebPage` and `BreadcrumbList` with the shared `Organization` and
   `WebSite`, because search engines do not resolve `@id` references across
   pages. Payloads escape `<` so content can never close the script element.
@@ -54,9 +56,9 @@ as the visible page:
   web app manifest and `theme-color` give browsers, installed apps and search
   results consistent branding.
 - **Robots meta**: public pages allow full snippets and large image previews.
-  Workspace and account pages are `noindex`; sign-up is the one account page
-  that stays indexable, with a canonical URL that drops query parameters. The
-  landing page is also served at `/home` and declares `/` as canonical.
+  Account and workspace pages live on the application origin
+  (`app.lictory.com`), which decides their robots policy; they are not in this
+  sitemap.
 - Content that is collapsed for people (comparison rows, FAQ answers) stays in
   the HTML and is only hidden visually, so crawlers read all of it.
 
@@ -81,8 +83,16 @@ Linear is described as coming.
 
 Only public, closed facts about the product belong in these files. Never expose
 organization, project, item or user data, and never load workspace data to build
-them. They are generated at build time from `BETTER_AUTH_URL`, which must be the
-canonical HTTPS origin; no request Host header is used.
+them. The website has no database, session or authentication: it never reads the
+application's cookies, so the same page is served to everyone and calls to action
+always link to the application (`NEXT_PUBLIC_PLATFORM_URL`), which decides what a
+signed-in person sees. Links shared before the split (`/app/...`, `/sign-in`,
+`/sign-up` and the other account pages) permanently redirect there, and `/home`,
+once the landing page for signed-in people, redirects to `/`.
+
+The files are generated at build time from `SITE_URL`, which must be the
+canonical HTTPS origin (production builds default to `https://lictory.com`); no
+request Host header is used. Rebuild after changing it.
 
 Allowing AI crawlers is a product decision: being cited by AI assistants is
 worth more to Lictory than keeping public marketing copy out of their training

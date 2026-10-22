@@ -54,8 +54,9 @@ rewrites history.
 
 ## Server authority and authorization
 
-`src/sync/server/service.ts` is the domain mutation boundary; every surface
-reaches it through the shared capability layer (see
+`applyMutation` in `packages/core/src/domain/service.ts` is the domain
+mutation boundary; browsers reach it through Zero's mutate endpoint and every
+other surface through the shared capability layer (see
 [capabilities.md](capabilities.md)). Route handlers obtain
 the user from Better Auth, validate Zod protocol input, and require same-origin
 cookie-authenticated writes. Every command checks current Better Auth organization
@@ -92,7 +93,7 @@ review their own suggestion.
 Every project is seeded with Product (all capabilities), Engineering (requests,
 reviews and changes properties) and QA (request + review) by `createProject`,
 and its creator becomes a project administrator in Product
-(`src/sync/server/projects.ts`). Disciplines archive rather than delete: an
+(`packages/core/src/domain/projects.ts`). Disciplines archive rather than delete: an
 archived discipline grants nothing and cannot be requested, keeps its name on
 historical assignments, releases its name for reuse, and can be restored.
 Project configuration commands (`updateProject`, `setProjectMember`,
@@ -117,165 +118,183 @@ cannot discover revocation until they reconnect. Caches are partitioned by user,
 organization and scope; a different signed-in user never reads the previous user's
 partition. Browser storage is not a substitute for server authorization.
 
-## Cursor and atomicity
+## Projections and atomicity
 
-`sync_clock` holds a PostgreSQL bigint counter per organization. The wire format is
-a decimal **string**, preserving values above JavaScript's safe-integer limit.
-All domain writes take the same organization advisory transaction lock, before
-checking access or reading the clock. This deliberately serializes a small
-organization's mutations.
+Browsers read **projections**, never domain tables. `sync_entity` holds one row
+per synchronized entity (`key` = `{type}:{id}`) with its organization, project,
+optional work item and the versioned protocol projection as `data`. Zero
+replicates `sync_entity` and the `member` columns used for authorization
+(publication `lictory_zero`) to zero-cache; synced queries return only rows of
+organizations the user is a member of, so deleting a membership removes them
+from open subscriptions. Secrets, credentials and raw domain rows never reach a
+projection.
 
-Reads take no lock. Every writer advances the clock and inserts its change rows in
-one transaction while holding the lock, and PostgreSQL makes a transaction visible
-before releasing its locks, so commits become visible in cursor order. A read runs
-in one `READ ONLY`, `REPEATABLE READ` transaction: its snapshot contains a gap-free
-prefix of the change log whose last cursor is the clock it reads. Never add a
-writer of `sync_change` that does not hold the organization lock and publish the
-clock in the same transaction.
+Every domain writer maintains the projections **in the same transaction** as
+its domain writes, after taking the organization advisory lock
+(`pg_advisory_xact_lock(hashtextextended(organizationId, 0))`):
 
-Do not replace this with a bare sequence/serial and `MAX(id)`: sequences allocate
-before commit, so a later transaction can commit first and a client can permanently
-skip an earlier allocated change. Our clock advancement, domain writes, change log,
-activity records, and idempotency receipt commit together or roll back together.
-A forced log-write failure is covered by the integration suite.
+- `applyMutation(tx, actor, mutation, effects)` (`packages/core/src/domain/service.ts`)
+  is the command boundary. It runs inside the caller's transaction: its own in
+  `executeMutation` (capabilities, MCP, the embedded agent), Zero's in the
+  mutate endpoint, where Zero's client bookkeeping commits with it. It locks,
+  checks Better Auth membership, checks the idempotency receipt, applies the
+  command, diffs before/after snapshots of the touched scope into projection
+  upserts and deletes, writes rows of other scopes explicitly (a parent's
+  readiness, runs owned by other items, readiness moved by configuration,
+  activity of moved items), refreshes the directory and records the receipt.
+- `advanceSchedules`, the Lictory Intelligence runner, delivery exports and
+  status sync, branding, profile photos, handles, `seedOrganization` and the
+  Better Auth hooks write projections the same way.
 
-`sync_change` stores explicit versioned protocol projections of changed entities,
-not arbitrary database rows or full workspace snapshots. Each change has an
-organization, project, optional proposal context, cursor, and upsert/delete envelope.
-A proposal archive is a reversible upsert with `archivedAt`, preserving history.
-The reconciliation protocol supports deletion tombstones; this slice exposes no
-hard-delete domain command. Future deletion commands must append tombstones in the
-same transaction. Log retention/compaction is deliberately not enabled: never drop
-old changes without adding an expired-checkpoint/reset protocol first.
+A failed projection write rolls back the domain change (covered by tests that
+force `sync_entity` failures). Host side effects (analytics) run only after
+commit. Never write domain rows that a projection depends on without writing
+the projection in the same transaction.
 
-## Scopes and recovery
+The directory (`directory:{organizationId}`) carries the organization's
+members (name, email, photo, handle, application role), projects, project
+members, disciplines, teams, types, statuses, iterations, delivery connections
+and targets (never credentials), the AI policy and each project's current
+readiness checks. `organizationProfile:{organizationId}` carries name, slug and
+logos. `refreshDirectoryProjection` rewrites them only when they differ; it
+runs at the end of every mutation and after every Better Auth organization,
+member, invitation and user change (Better Auth commits its own writes, so its
+hooks refresh right after, each under the organization lock).
 
-Protocol version 13 (a versioned, per-type Definition of Ready with manual sign-offs; version 12 added project-owned configuration: project settings, members, disciplines, workflows, iterations and hand-off targets; optional teams; version 11 added delegated configuration; version 10 added Lictory Intelligence; version 9 added branch collaboration and pull requests; version 8 added external links as project-level entities, delivery connections and targets in the directory, the export capability; version 7 added teams, the type registry, workflow statuses, iterations and relations; version 6 gave suggestions distinct titles and descriptions; version 5 added the pull-request lifecycle; version 4 replaced functional groups with roles; projects were previously called products) has organization, project, and work item scopes, expressed by
-organization ID plus optional project and work item IDs. A work item scope requires
-a project. Organization bootstrap contains projects and **every work item summary**
-in the organization (the browser's list store); project bootstrap narrows that to
-one project; work item bootstrap adds its revisions, discussions, suggestions (with their
-reviewers and decisions), reviews, assignments, approvals, readiness and activity. It does not send unrelated
-item histories. A child's mutation additionally emits its parent's readiness
-projection, because `children_ready` lives in the parent's scope. Publishing the
-Definition of Ready emits the readiness projection and activity of every item it
-changed into each item's scope. Relations are
-project-level entities routed with their source item's project; removing one
-writes a tombstone (`delete` change) in the same transaction.
+Idempotency: `sync_mutation` keeps a receipt (id, actor, SHA-256 fingerprint of
+the command) for every applied mutation, whichever surface sent it. A replay
+returns `replayed: true` and writes nothing; reusing an id for a different
+command is a conflict. Zero additionally deduplicates its own client mutation
+ids.
 
-Delivery configuration (project members and disciplines; teams with their
-members; each project's statuses, enabled types and current Definition of Ready;
-the type registry; planned,
-active and the most recent completed iterations) is part of the **directory**
-and is refreshed on every read. Its commands therefore write no configuration
-entities, but a command that also moves items or changes the project
-(archiving a status with a replacement, completing an iteration with
-carry-over, automatic cycles, project settings, publishing the Definition of Ready)
-diffs the project snapshot and
-emits the affected entities like any other change. Iteration reports and the
-history of the Definition of Ready are read on demand (`?iteration=1`,
-`?readiness=1`; its impact preview is `POST /api/readiness`); reports replay recorded events on the server.
+`rebuildProjections(db, organizationId)` recomputes every row from the domain
+(organization scope, each work item's history, directory, profile) and
+reconciles `sync_entity` under the lock. It is the operator recovery tool
+(`bun scripts/rebuild-projections.ts [organizationId ...]`) and the invariant
+the test suites check after their workflows: stored projections equal a
+rebuild.
 
-Delivery exports (`/api/delivery`, see [delivery.md](delivery.md)) are
-online-only and never enter the durable client mutation queue: they call
-external systems, and tokens must not reach browser storage. Like
-`advanceSchedules`, they take the organization lock for each local write,
-emit `externalLink` (and `activity`) changes and advance the clock without a
-mutation receipt; external calls run between those short transactions, never
-inside them.
+## Projection scopes
 
-Automatic cycles are advanced by `advanceSchedules`, an idempotent server job
-invoked by a scheduler (see [delivery.md](delivery.md)). It takes each
-organization's lock, writes change-log rows and advances the clock exactly like a
-command, but writes no mutation receipt. Historical content is currently loaded for one proposal as a
-whole; pagination of very long revision/message histories is future work.
+Organization-level rows (`work_item_id` NULL) are what lists, boards and the
+Inbox read: projects, every work item summary (with derived review, thread,
+suggestion, readiness and child counts), labels, milestones, relations,
+external links, the directory and the profile. A work item's history
+(revisions, branches, commits, pull requests and their reviews, reviews,
+assignments, threads, messages, suggestions, approvals, readiness, Lictory
+Intelligence runs, activity) belongs to that item and is loaded when it is
+opened. Rows are routed by `projectionRow` (`packages/core/src/contracts/projection.ts`),
+shared by server writers and client predictions so an optimistic row and the
+authoritative row that replaces it share key and scope.
 
-A request without a checkpoint bootstraps from the read snapshot. Delta requests return
-ordered changes, `nextCursor`, and `hasMore`; clients drain every page. Empty deltas
-can advance to the organization head even when changes belonged to another scope.
-Checkpoints belong to **one scope**, never to a user or organization globally. A
-mutation receipt is not a delta checkpoint and must never advance the local cursor.
+Iteration reports, the Definition of Ready history and impact preview, member
+and Epic search are read on demand through capabilities; they are not
+projected.
 
-The service currently compares before/after protocol projections within the touched
-workspace to emit changes. This keeps every dependent readiness/approval change
-visible. It is intentionally simple; replace it with explicit touched-entity
-collection when measured document/history size warrants it, retaining the same
-transaction and tests. Organization locks are the initial throughput boundary.
+Delivery exports (see [delivery.md](delivery.md)) never go through the client
+mutation path: they call external systems and tokens must not reach browsers.
+Requesting an export reserves links and records a running publication in one
+locked transaction; the worker performs the external calls outside the lock and
+records each item's result with its projections. Automatic cycles are advanced
+by `advanceSchedules` in the worker.
+
+## Background work
+
+Work that must not run inside a request (Lictory Intelligence runs, notification
+email, delivery exports) is queued durably by rows written in the domain
+transaction (`ai_run` queued, `notification_email` pending,
+`delivery_publication` running) plus `pg_notify('lictory_work', 'ai' | 'email'
+| 'delivery')` in the same transaction, delivered on commit. The worker listens
+and also polls, so a lost signal only delays work. The API never runs
+background loops. The jobs are library functions in `packages/core/src/jobs`.
+
+The worker (`apps/worker`) runs one loop per job: AI runs, notification
+email and delivery exports (woken by their signal, polled every 30 seconds),
+delivery status sync (every ten minutes) and automatic cycles (every five
+minutes). Each loop has at most one run in flight, re-runs at once while a
+job reports a full batch, coalesces bursts of signals into one extra run, and
+backs off after a failure without affecting the other loops. The LISTEN
+connection is its own session (`DATABASE_URL_UNPOOLED`); whenever it is
+re-established every job runs once, because signals sent meanwhile are lost.
+
+Nothing the worker holds is needed for recovery. Claimed work carries a lease
+in its row (AI run `started_at`, `delivery_publication.lease_until`,
+`notification_email.lease_until`) and outcomes are fenced on it, so several
+workers may run, and a worker may be killed at any point: the work is resumed
+by whichever worker finds the lease expired, and a stale worker's late result
+is discarded. On SIGTERM the worker stops scheduling, lets runs in flight
+finish (`WORKER_SHUTDOWN_TIMEOUT_MS`, 25 seconds), cancels model calls five
+seconds before that and hands interrupted work back, then flushes analytics
+and exits; anything still running is recovered by its lease.
 
 ## Browser store and mutation lifecycle
 
-The `WorkspaceProvider` owns one organization-scope engine for the session and a
-small LRU of work item engines (opened items stay warm; each has its own IndexedDB
-cache). An item engine nobody displays is suspended: it keeps its data but stops
-following realtime signals, and synchronizes again when it is shown. One realtime
-hub per organization shares the SSE connection, focus/online handlers and the
-recovery interval across engines. An engine publishes a new view only when
-something visible changed, so a check that found nothing new re-renders nothing
-and does not rewrite its IndexedDB cache. The mutation queue is per
-user/organization and shared by all engines, so an optimistic change made from an
-item engine is visible in lists after the next BroadcastChannel signal.
-React reads normalized `{type}:{id}` entities through `useSyncExternalStore`.
-Components issue typed domain commands; persistence, queue behavior, and optimistic
-logic are below the UI boundary. IndexedDB is behind a `Persistence` interface.
-Data and its checkpoint are written in one IndexedDB transaction. Queue entries
-are separate records, so two tabs do not overwrite each other's pending work.
-Searchable member and Epic selectors use separate, membership-checked read queries
-with server-side filtering and 20-row pagination. These lookup reads do not produce
-changes, receipts, or checkpoints; selecting a value still goes through the normal
-domain mutation boundary.
+The SPA (`apps/platform`) reads and writes through Rocicorp Zero. One Zero
+client exists per signed-in user (`userID`, storage key `lictory`), so local
+IndexedDB data is partitioned by user: switching accounts creates a new client
+and never reads another person's data, and signing out closes the client and
+deletes that user's local databases, unsent text and branch drafts. The client
+context only names the user; the query and mutate endpoints rebuild it from the
+verified Better Auth session forwarded by zero-cache, so browser input is never
+authorization evidence.
 
-A command receives a client UUID, is durably queued, then gets an optimistic overlay.
-Item/project creation, property updates, archive, threads, replies, thread state,
-review requests and cancellations have centralized optimistic reducers (a created
-item predicts its number; the server's number replaces it). Revision changes,
-branch commits, every suggestion command and review decisions await server validation.
-The confirmed entity map stays separate from overlays: deltas update confirmed state,
-then pending overlays replay. The frontend checks a known blocking readiness policy
-before queuing a status transition. The server remains authoritative when local
-state is stale. On a definitive rejection the overlay is removed. Property updates
-are forgettable: their rejected queue entry is deleted, including legacy entries
-on hydration. Commands containing authored text retain their payload for recovery;
-callers can explicitly choose whether a command is forgettable. Accepted commands synchronize
-before their queue entry is removed. A crash at any intermediate point safely
-replays the same mutation ID.
+`WorkspaceProvider` subscribes to the server-defined queries in
+`packages/zero/src/queries.ts`: `memberships` (my organizations and their
+profiles), `organization` (organization-level projections and the directory)
+and `workItem` (one item's history, loaded when it is opened; recently opened
+items stay subscribed). React reads normalized `{type}:{id}` entities as
+before; components issue typed domain commands through `mutate`, which calls
+the single Zero mutator `workspace.apply` with the existing protocol mutation.
 
-The queue processes in enqueue order. A definitive rejection on the first attempt
-emits a live rejection event and rolls back its optimistic changes. Toasts subscribe
-to these events, never to persisted queue snapshots, so reloading does not replay
-old feedback. It does not appear in the synchronization dialog, mark synchronization as failed,
-or block later commands, which
-the server validates independently. Transport failures may have committed, so
-later commands wait until their outcome is reconciled. That uncertainty survives
-manual retry, even when the attempt counter resets; such commands cannot be forgotten. Network
-and server failures back off exponentially, capped at 30 seconds and five attempts;
-users can retry manually. Web Locks coordinate sending across supported tabs;
-server idempotency remains required even with that lock. BroadcastChannel announces
-queue/commit activity. The receipt fingerprint binds an ID to its actor, organization
-and parsed command; using the ID for a different command is a conflict.
+The mutator's client run predicts changes with the shared optimistic reducers
+(`packages/core/src/contracts/optimistic.ts`): item and project creation,
+property updates, ranking, relations, archive, threads, replies, thread state,
+review requests and cancellations. Everything else predicts nothing and waits
+for the server: revisions, restores, branch commits, pull requests, every
+suggestion command, review decisions, merges, readiness sign-offs and
+configuration. A local prediction is never shown as a confirmed human decision.
+Zero rebases predictions onto authoritative rows as they replicate and removes
+the prediction of a rejected mutation. The frontend still checks a known
+blocking readiness policy before sending a status change; the server remains
+authoritative when local state is stale.
 
-Unsaved editor keystrokes are not an offline document draft system. Pressing Save
-persists the command. Already-loaded data and queued operations survive temporary
-network loss and reload when the Next.js document/assets remain reachable. There is
-no service worker for a completely offline cold application launch.
+Pending mutations are Zero's: they persist in IndexedDB, survive reloads,
+replay in order on reconnect, are shared by the tabs of a client group and are
+deduplicated by Zero's client mutation ids (and by the domain receipt for the
+protocol mutation id). Writes are queued while Zero is connecting; after ten
+minutes without the server (`disconnectTimeoutMs`) Zero refuses writes and the
+workspace becomes read-only until it reconnects, so nothing is silently
+dropped. Callers that need the outcome (`mutateConfirmed`) await the server
+result and receive `MutationRejected` with the domain error details. Other
+rejections show one "Change not applied" toast per mutation id; reloading never
+replays old feedback.
+
+Text people composed (titles, descriptions, specifications, comments,
+suggestions, commit and pull request messages) is copied to a per-user,
+per-organization recovery store in local storage before sending and removed
+when the server accepts the command. A rejected command keeps its text, which
+the synchronization popover offers to copy or discard; after a reload, entries
+whose effect is already synchronized are dropped. Uncommitted branch drafts
+remain personal and are stored under
+`lictory:branch-draft:{user}:{organization}:{item}:{branch}`. Unsaved editor
+keystrokes are not an offline document system, and there is no service worker
+for a completely offline cold start.
+
+Searchable member and Epic selectors, iteration reports and the Definition of
+Ready history are membership-checked capability reads with server-side
+filtering and pagination; selecting a value still goes through the normal
+mutation boundary.
 
 ## Realtime
 
-PostgreSQL `NOTIFY` fires after commit and a process-wide `LISTEN` connection fans
-out generic organization invalidations over SSE. It carries no document content.
-Directory changes (configuration, profiles) notify without advancing the cursor,
-so every invalidation triggers a delta read.
-The same SSE stream forwards **presence** events (`lictory_presence`): a viewing
-tab posts `/api/presence` heartbeats (membership-checked) and the client expires
-entries after 45 seconds. Presence is never stored and never affects correctness.
-SSE fits Next route handlers without replacing the server with a WebSocket runtime.
-Streams end after four minutes so reconnection revalidates authentication and
-membership. Every new stream begins with an invalidation, and a reconnect of the
-server's `LISTEN` connection sends one to its streams, so changes missed while
-disconnected are read. Keep-alive heartbeats are SSE comments that wake no engine;
-focus/online handlers and a 60-second recovery interval catch anything else, such
-as sleeps. Every invalidation triggers the normal delta path. Correctness never
-depends on continuous SSE or PostgreSQL LISTEN connectivity. Deploy behind a proxy
-that permits streaming and configure connection/time limits accordingly.
+Data reaches browsers through Zero. `/api/events?organizationId=` is a small
+server-sent event stream for ephemeral signals only: presence
+(`lictory_presence`, posted by viewing tabs to `/api/presence`, never stored)
+and "your inbox changed" (`lictory_notification`, carrying only recipient ids).
+PostgreSQL `NOTIFY` delivers both after commit and a process-wide `LISTEN`
+connection fans them out. Streams are membership-checked, send keep-alive
+comments and end after four minutes so reconnection revalidates the session.
+Correctness never depends on the stream.
 
 ## Revisions, reviews and conflicts
 
@@ -385,27 +404,24 @@ deletes messages; durable activity records retain these actions.
 
 ## Verification and deferred work
 
-`bun run test:sync` tests real PostgreSQL transactions in disposable databases and
-IndexedDB behavior with fake-indexeddb. `bun run test:e2e` creates a separate database
-and Next server on port 3001, signs in through the real UI, and exercises onboarding, Epic and inline Story
-creation, inline properties, invitation acceptance, review request, "Needs my
-review", blocking discussion and reply, suggestion acceptance, approval, staleness
-after a revision with the reviewer's "changed since" diff, resolution → readiness →
-Ready, keyboard navigation and the command palette, queue reload after network loss,
-and archive/restore propagation across two browser contexts. It does not touch the development database. Install Chromium with
-`bunx playwright install chromium` before the first browser run.
+Domain tests (`bun test src`) run real PostgreSQL transactions in disposable
+databases, including Zero's own `handleMutateRequest` with the server
+mutators, forced projection failures and the projection rebuild invariant.
+`bun run test:e2e` builds every application, migrates a disposable database
+and starts the API, worker, zero-cache, the marketing server and a local
+stand-in for the production edge proxy, then runs the browser workflows of
+both origins. It does not touch the development database.
 
-The development-only sync inspector exposes cursor, connection/sync state, pending
-count, entity count, last sync time and the latest error. Server logs contain metadata
-only, never specification/comment content. Normal UI errors retain actionable text.
+Server logs contain metadata only, never specification or comment content.
+Normal UI errors retain actionable text.
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
-`/app/[org]/items/KEY-n` resolves any identifier to its project route. The Inbox
+`/{org}/items/KEY-n` resolves any identifier to its project route. The Inbox
 renders in pages of 50. SSO setup, billing, custom fields,
 comments on items without a specification, saved views, advanced policy
 configuration, SCIM, private projects,
 CRDT editing, multiplayer cursors, service-worker offline
-launch, log compaction, and server-side pagination of organization-wide summaries
+launch, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. No production UI pretends
 these deferred capabilities exist.
 
@@ -413,18 +429,20 @@ these deferred capabilities exist.
 
 Guided onboarding carries explicit project configuration and accepted/deferred
 setup decisions on the first `createProject` command. Its project, seeded
-workflow and disciplines, optional automatic cycles, historical `organization_onboarding` decision record, change log
+workflow and disciplines, optional automatic cycles, historical `organization_onboarding` decision record, projections
 and receipt share the existing authorized organization transaction. The setup
 snapshot is not current configuration and is never used as a client checkpoint.
 See [onboarding.md](onboarding.md) for the decision and recovery semantics.
 
 ## Synchronization recovery
 
-The workspace sync dialog reports connection, storage and unexpected server
-failures, while expected application rejections stay in contextual feedback.
-Transient failures retry automatically; after the retry limit, users can resume
-saving with one action. Recovery reuses mutation IDs and preserves queue order
-to reconcile writes whose outcome is unknown. Refreshing the workspace replaces
-organization and item caches with fresh server reads without dropping queued
-changes or editor drafts. Technical error messages are available on demand;
-commands and serialized payloads are not exposed in the dialog.
+The synchronization indicator reports Zero's connection state (connecting,
+offline, needs sign-in, error) and this tab's unconfirmed and rejected work;
+expected application rejections stay in contextual feedback. When the session
+expires or access changes, Zero stops and the workspace asks the person to
+sign in again, then reconnects. When a membership is removed, its rows leave
+every open subscription and the workspace returns to the organization list
+with "Organization access has been removed." A projection that is ever found
+inconsistent with the domain is repaired with `rebuildProjections`; a lost
+zero-cache replica is rebuilt from PostgreSQL (see
+[recovery](../operations/recovery.md)).

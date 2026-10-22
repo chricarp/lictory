@@ -7,6 +7,14 @@ operator; EU configurations for Vercel, Neon, Cloudflare R2, Resend and PostHog;
 and an OpenAI Zero Data Retention arrangement. These are operator declarations,
 not guarantees inferred from SDK options or verified vendor contracts.
 
+**Before the self-hosted launch** the hosting sentence in
+`apps/marketing/src/lib/legal/privacy.ts` must be updated by the operator: the
+application and its PostgreSQL database move from Vercel and Neon to the chosen
+EU server provider (see [deployment](deployment.md)), and encrypted database
+backups are kept off-server for up to about six months (7 daily, 4 weekly, 6
+monthly; see [recovery](recovery.md)), which matters for erasure requests.
+This is an operator declaration and is deliberately not changed by engineering.
+
 Set `LICTORY_LEGAL_ADDRESS` and `LICTORY_LEGAL_EMAIL` to a correspondence address
 and monitored public contact before launch. Without either, both pages explicitly
 display a draft notice. `LICTORY_LEGAL_NAME` overrides the operator name and

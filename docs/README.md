@@ -35,7 +35,10 @@ adding domain writes or synchronized entities.
 
 ## Operations
 
-- [Deployment and operations](./operations/deployment.md)
+- [Deployment and operations](./operations/deployment.md): single-server
+  Docker Compose topology, images, environments, first launch and releases
+- [Backups and recovery](./operations/recovery.md): backups, restore drills,
+  database, Zero replica and worker recovery
 - [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and
   separate production/development clients
 - [Versions, release preparation and hotfixes](./operations/releases.md)

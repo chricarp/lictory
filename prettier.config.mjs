@@ -8,7 +8,7 @@ const config = {
   trailingComma: "all",
   tabWidth: 2,
   plugins: ["prettier-plugin-tailwindcss"],
-  tailwindStylesheet: "./src/app/globals.css",
+  tailwindStylesheet: "./packages/ui/src/styles.css",
 };
 
 export default config;

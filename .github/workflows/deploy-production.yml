@@ -36,7 +36,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       NIGHTLY_TAG: ${{ inputs.nightly_tag }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
       RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
     steps:
@@ -68,30 +68,32 @@ jobs:
       release_version: ${{ needs.plan.outputs.version }}
 
   deploy:
-    name: Stage, migrate, activate and publish stable
+    name: Build, migrate, activate and publish stable
     needs: [plan, verify]
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     environment: Production
     permissions:
       contents: write
       deployments: write
+      packages: write
       pull-requests: read
       actions: read
     env:
       GH_TOKEN: ${{ github.token }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      PRODUCTION_DATABASE_HOST: ${{ vars.PRODUCTION_DATABASE_HOST }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+      IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      PLATFORM_URL: ${{ vars.PLATFORM_URL }}
+      POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+      POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+      LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
+      LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
+      LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
+      LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
+      DEPLOY_SSH_TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
       RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
       RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
-      RELEASE_BOOTSTRAP_DEPLOYMENT_ID: ${{ vars.RELEASE_BOOTSTRAP_DEPLOYMENT_ID }}
-      DATABASE_MIGRATION_TARGET: production
-      DATABASE_MIGRATION_URL: ${{ secrets.DATABASE_MIGRATION_URL }}
-      DATABASE_MIGRATION_EXPECTED_HOST: ${{ vars.DATABASE_MIGRATION_EXPECTED_HOST }}
     steps:
       # Control code comes from protected main. Application code is never main HEAD.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -114,8 +116,20 @@ jobs:
           path: ${{ runner.temp }}/plan
       - run: bun install --frozen-lockfile
         working-directory: control
-      - run: bun install --frozen-lockfile
-        working-directory: source
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Trust the production server
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: bash control/deploy/ci/ssh-setup.sh
       - name: Release the selected source with the clean stable version
         working-directory: control
         run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source

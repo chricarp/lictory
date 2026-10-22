@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# SSH forced command for release automation. The deploy key in
+# ~deploy/.ssh/authorized_keys is restricted to this script:
+#
+#   command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… github-actions
+#
+# Allowed: "<env> prepare" (release file on stdin), "<env> migrate <version>",
+# "<env> activate <version>", "<env> backfill <version> <name>",
+# "<env> rollback", "<env> status". No shell, no other commands.
+set -euo pipefail
+
+read -r -a words <<<"${SSH_ORIGINAL_COMMAND:-}"
+environment="${words[0]:-}"
+action="${words[1]:-}"
+version="${words[2]:-}"
+name="${words[3]:-}"
+here="$(cd "$(dirname "$0")" && pwd)"
+
+case "$environment" in production | staging) ;; *)
+  echo "Refused: unknown environment." >&2
+  exit 64
+  ;;
+esac
+[ "${#words[@]}" -le 4 ] || { echo "Refused: too many arguments." >&2; exit 64; }
+if [ -n "$name" ] && { [ "$action" != backfill ] || ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; }; then
+  echo "Refused: invalid arguments." >&2
+  exit 64
+fi
+if [ -n "$version" ] && ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Refused: invalid version." >&2
+  exit 64
+fi
+
+case "$action" in
+  prepare) [ -z "$version" ] && exec "$here/deploy.sh" "$environment" prepare ;;
+  migrate | activate) [ -n "$version" ] && [ -z "$name" ] && exec "$here/deploy.sh" "$environment" "$action" "$version" ;;
+  backfill) [ -n "$version" ] && [ -n "$name" ] && exec "$here/deploy.sh" "$environment" backfill "$version" "$name" ;;
+  rollback) [ -z "$version" ] && exec "$here/deploy.sh" "$environment" rollback ;;
+  status) [ -z "$version" ] && exec "$here/deploy.sh" "$environment" status --json ;;
+esac
+echo "Refused: $action" >&2
+exit 64

@@ -7,7 +7,7 @@ credentials are confined to its configuration function; another S3 provider
 can replace them without changing file routes or editors.
 
 Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and
-`R2_BUCKET_NAME` in Vercel's server environment. Use a bucket-scoped R2 token
+`R2_BUCKET_NAME` in the API's server environment. Use a bucket-scoped R2 token
 with object read/write permission. If using a jurisdiction-specific R2 S3
 endpoint, set `R2_S3_ENDPOINT` to the account-level S3 host (without the
 bucket path). Keep the bucket private. A public/custom domain
@@ -20,7 +20,7 @@ previews use separate buckets and their own origins:
 ```json
 [
   {
-    "AllowedOrigins": ["https://lictory.com", "https://www.lictory.com"],
+    "AllowedOrigins": ["https://app.lictory.com"],
     "AllowedMethods": ["PUT"],
     "AllowedHeaders": ["Content-Type", "Content-Length", "If-None-Match"],
     "MaxAgeSeconds": 300

@@ -1,0 +1,223 @@
+# Public entry point for one Lictory environment (deploy/compose.production.yaml).
+#
+#   {$SITE_HOST}  website (apps/marketing)
+#   {$WWW_HOST}   308 to {$SITE_HOST}
+#   {$APP_HOST}   platform: SPA static files, API, document handler, Zero
+#
+# scripts/edge-proxy.ts is the local stand-in for the {$APP_HOST} routes; keep
+# both in step. See docs/operations/deployment.md.
+
+{
+	{$CADDY_GLOBAL_OPTIONS}
+	email {$ACME_EMAIL}
+	admin localhost:2019
+	grace_period 10s
+	log default {
+		output stdout
+		format json
+		# The container health check polls the admin endpoint every 10 s.
+		exclude admin.api
+	}
+	servers {
+		# HTTP/3 would need UDP 443 published as well; HTTP/1.1 and 2 suffice.
+		protocols h1 h2
+		timeouts {
+			read_header 15s
+			idle 5m
+		}
+	}
+}
+
+(access_log) {
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				# One-time tokens and OAuth codes travel in query strings.
+				request>uri query {
+					replace token REDACTED
+					replace code REDACTED
+					replace state REDACTED
+				}
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>headers>X-Api-Key delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+}
+
+(common_headers) {
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+		-X-Powered-By
+	}
+}
+
+(api_upstream) {
+	reverse_proxy api:3002 {
+		# Server-sent events (/api/events) and AI chat streams are never buffered.
+		flush_interval -1
+		# Hold requests briefly while the API container is being replaced.
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		transport http {
+			dial_timeout 3s
+			# No response timeout: SSE lives 240 s, AI streams can take minutes.
+		}
+	}
+}
+
+{$WWW_HOST} {
+	import access_log
+	redir https://{$SITE_HOST}{uri} 308
+}
+
+{$SITE_HOST} {
+	import access_log
+	import common_headers
+	header X-Frame-Options SAMEORIGIN
+
+	@relay path /relay/*
+	@otherBody not path /relay/*
+	request_body @relay {
+		max_size 10MB
+	}
+	request_body @otherBody {
+		max_size 1MB
+	}
+
+	encode zstd gzip
+	reverse_proxy marketing:3000 {
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		transport http {
+			dial_timeout 3s
+		}
+	}
+}
+
+{$APP_HOST} {
+	import access_log
+	import common_headers
+	header {
+		# The API may send a complete Content-Security-Policy for documents;
+		# otherwise framing is still refused.
+		?Content-Security-Policy "frame-ancestors 'none'"
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)"
+	}
+
+	handle /zero/* {
+		# Cross-site WebSocket hijacking: the sync socket carries the session
+		# cookie, so only pages served from this origin may open it.
+		@foreignSocket {
+			header_regexp Connection (?i)upgrade
+			not header Origin https://{$APP_HOST}
+		}
+		respond @foreignSocket 403
+
+		# Zero 1.11 accepts the /zero prefix on its WebSocket paths
+		# (/zero/sync/v<n>/connect); the path is not stripped. Its diagnostic
+		# endpoints (/statz, /keepalive) live at the root and stay internal.
+		reverse_proxy zero-cache:4848 {
+			flush_interval -1
+			transport http {
+				dial_timeout 3s
+			}
+		}
+	}
+
+	# zero-cache calls these on the internal network with its API key.
+	handle /api/zero/* {
+		respond 404
+	}
+
+	@apiOrRelay path /api/* /relay/*
+	handle @apiOrRelay {
+		@mcp path /api/mcp /api/mcp/*
+		@logo path_regexp logo ^/api/organizations/[^/]+/logo/
+		@photo path /api/profile/photo
+		@context path_regexp context ^/api/organizations/[^/]+/intelligence-context
+		@chat path /api/intelligence/chat
+		@relay path /relay/*
+		@otherBody {
+			not path /api/mcp /api/mcp/* /api/profile/photo /api/intelligence/chat /relay/*
+			not path_regexp ^/api/organizations/[^/]+/(logo/|intelligence-context)
+		}
+		# Limits sit slightly above the application limits (multipart overhead);
+		# the API enforces the exact sizes. Every request gets exactly one limit.
+		request_body @mcp {
+			max_size 9MB
+		}
+		request_body @logo {
+			max_size 1MB
+		}
+		request_body @photo {
+			max_size 5MB
+		}
+		request_body @context {
+			max_size 5MB
+		}
+		request_body @chat {
+			max_size 8MB
+		}
+		request_body @relay {
+			max_size 10MB
+		}
+		request_body @otherBody {
+			max_size 2MB
+		}
+
+		# Compression waits for a minimum length, which would hold back streams.
+		@compressible not path /api/events /api/events/* /api/intelligence/chat /api/mcp /api/mcp/* /relay/*
+		encode @compressible zstd gzip
+		import api_upstream
+	}
+
+	# Content-hashed build output; the previous release's assets stay available
+	# for tabs that still run it.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		root * /srv/platform
+		try_files /current{path} /previous{path}
+		encode zstd gzip
+		file_server
+	}
+
+	@static {
+		method GET HEAD
+		not path */
+		file {
+			root /srv/platform/current
+			try_files {path}
+		}
+	}
+	handle @static {
+		# Illustrations carry content hashes in their names; brand files do not.
+		@hashed path /illustrations/*
+		@longLived path /brand/*
+		@shortLived not path /brand/* /illustrations/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @longLived Cache-Control "public, max-age=86400"
+		header @shortLived Cache-Control "public, max-age=3600"
+		root * /srv/platform/current
+		encode zstd gzip
+		file_server
+	}
+
+	# Every other path is a client route: the API returns index.html with
+	# path-derived social-preview metadata and Cache-Control: no-store.
+	handle {
+		request_body {
+			max_size 2MB
+		}
+		encode zstd gzip
+		import api_upstream
+	}
+}

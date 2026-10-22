@@ -120,6 +120,27 @@
       "when": 1792273875218,
       "tag": "0016_intelligence_chat_listed",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792667919389,
+      "tag": "0017_zero_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792667925365,
+      "tag": "0018_zero_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792671402583,
+      "tag": "0019_drop_change_log",
+      "breakpoints": true
     }
   ]
 }

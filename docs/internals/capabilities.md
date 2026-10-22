@@ -31,8 +31,9 @@ on the web, MCP and agent surfaces.
 Surfaces only narrow what is available:
 
 - **Web only:** managing access tokens, entering delivery credentials
-  (`connectDelivery`) and the browser's raw synchronization protocol
-  (`syncRead`, `syncDirectory`, `applyMutation`). Agents must not mint
+  (`connectDelivery`) and the browser's directory read (`syncDirectory`).
+  Browser workspace commands go through Zero's mutate endpoint, which runs
+  the same `applyMutation` as `executeMutation`. Agents must not mint
   credentials or see secrets.
 - **Read tokens** may only invoke queries; MCP hides commands from them.
 - Account identity and security (sign-in, password, email, sessions, social
@@ -73,7 +74,7 @@ completed iterations, and unestimated work burns down in items.
 Every workspace command in the sync protocol (`commandSchema`) is generated into
 a capability; `commandDocs` must describe it, so a new command does not compile
 until it is documented and is then available everywhere. All commands go
-through `executeMutation`, the same transaction, change log, receipt, analytics
+through `executeMutation`, the same transaction, projections, receipt, analytics
 and notification path the browser's queued mutations use.
 
 Agents may omit identifiers of entities a command creates. They are derived from

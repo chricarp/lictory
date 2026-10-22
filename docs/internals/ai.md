@@ -26,12 +26,22 @@ history and in the protocol.
 ## Runs
 
 A run (`ai_run`) is one execution: an **item review** or a run of the
-**Lictory Intelligence review** action on a pull request head. A request is queued inside the organization
-transaction. The model runs outside it, after the response (`after()`). Results
-are written back in a short transaction under the organization lock, with
-change-log entries so every client sees queued → running → completed or failed.
-The scheduled job retries runs whose worker was lost (lease of 10 minutes, at
-most 3 attempts).
+**Lictory Intelligence review** action on a pull request head. A request is
+queued inside the organization transaction, which also signals the worker. The
+worker claims one run at a time (status `running`, `started_at` as the lease,
+`attempts` + 1, under the organization lock) and calls the model outside any
+transaction. Results are written back in a short transaction under the
+organization lock, with projections so every client sees queued → running →
+completed or failed.
+
+- The model call has a hard deadline of five minutes (the provider call itself
+  gives up after four, retries included), well inside the ten-minute lease, so
+  a live worker never has its run claimed by another.
+- A run still `running` after the lease lost its worker and is claimed again,
+  at most three attempts in total. Writing a result is fenced on the status
+  and attempt number: a stale attempt that finishes late changes nothing.
+- On shutdown the worker cancels the model call and puts the run back in the
+  queue for the next worker instead of failing it.
 
 Runs are history. They are completed, failed, superseded or marked stale, and
 never deleted or rewritten.

@@ -98,7 +98,7 @@ The shared organization transaction lock protects current Better Auth membership
 administrator authorization, the first-project guard, the project's delivery
 configuration and seeded workflow and disciplines, the organization Lictory
 Intelligence policy, automatic cycle creation when selected, and the `organization_onboarding` decision snapshot. These commit with
-the normal change log and idempotent receipt, or all roll back. Concurrent initial
+the normal projections and idempotent receipt, or all roll back. Concurrent initial
 setups cannot overwrite the winner's configuration. The decision snapshot records
 who completed setup and when; it is historical evidence, not current settings.
 Legacy setup commands without a Lictory Intelligence choice preserve the
