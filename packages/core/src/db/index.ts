@@ -1,4 +1,3 @@
-
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -61,3 +60,8 @@ function preparedStatements<T extends Sql>(sql: T): T {
 }
 
 export const db = drizzle(preparedStatements(sqlClient), { schema });
+
+// Graceful shutdown: waits briefly for running queries, then closes the pool.
+export async function closeDatabase(timeoutSeconds = 5) {
+  await sqlClient.end({ timeout: timeoutSeconds });
+}

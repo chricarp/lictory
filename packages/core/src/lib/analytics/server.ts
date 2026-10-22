@@ -1,15 +1,23 @@
-
-import { after } from "next/server";
 import { PostHog } from "posthog-node";
 import type { AnalyticsProperties } from "@lictory/core/lib/analytics/events";
 import { publicationProperties } from "@lictory/core/lib/analytics/publication";
 import { analyticsEventId } from "@lictory/core/lib/analytics/identity";
 
+// Server events use POSTHOG_PROJECT_TOKEN/POSTHOG_HOST (falling back to the
+// public names shared with the browser build).
+function configuration() {
+  const token =
+    process.env.POSTHOG_PROJECT_TOKEN ??
+    process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
+  const host = process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  return token && host ? { token, host } : undefined;
+}
+
 let client: PostHog | undefined;
 function getClient() {
-  const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-  if (!token || !host) return;
+  const config = configuration();
+  if (!config) return;
+  const { token, host } = config;
   client ??= new PostHog(token, {
     host,
     flushAt: 1,
@@ -27,11 +35,7 @@ export function trackServer(
   requestHeaders?: Headers,
   deduplicationKey?: string,
 ) {
-  if (
-    !process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN ||
-    !process.env.NEXT_PUBLIC_POSTHOG_HOST
-  )
-    return;
+  if (!configuration()) return;
   // Headers correlate sessions only. Authenticated identity always comes from Better Auth.
   const sessionId = requestHeaders?.get("X-POSTHOG-SESSION-ID");
   const validSessionId =
@@ -40,36 +44,48 @@ export function trackServer(
   const uuid = deduplicationKey
     ? analyticsEventId(userId, event, deduplicationKey)
     : undefined;
-  try {
-    after(async () => {
-      try {
-        const sdk = getClient();
-        if (!sdk) return;
-        await sdk.captureImmediate({
-          distinctId: userId,
-          event,
-          timestamp,
-          uuid,
-          groups:
-            typeof properties.organization_id === "string"
-              ? { organization: properties.organization_id }
-              : undefined,
-          properties: {
-            ...properties,
-            analytics_version: 1,
-            source: "server",
-            ...(validSessionId ? { $session_id: validSessionId } : {}),
-            ...(uuid ? { $insert_id: uuid } : {}),
-          },
-        });
-      } catch {
-        console.warn("PostHog event delivery failed.");
-      }
-    });
-  } catch {
-    // A missing request lifecycle or SDK failure must not fail an already committed action.
-    console.warn("PostHog event scheduling failed.");
-  }
+  // Fire and forget: delivery never delays or fails the action it describes.
+  // Pending deliveries are awaited on shutdown by `flushAnalytics`.
+  const delivery = (async () => {
+    try {
+      const sdk = getClient();
+      if (!sdk) return;
+      await sdk.captureImmediate({
+        distinctId: userId,
+        event,
+        timestamp,
+        uuid,
+        groups:
+          typeof properties.organization_id === "string"
+            ? { organization: properties.organization_id }
+            : undefined,
+        properties: {
+          ...properties,
+          analytics_version: 1,
+          source: "server",
+          ...(validSessionId ? { $session_id: validSessionId } : {}),
+          ...(uuid ? { $insert_id: uuid } : {}),
+        },
+      });
+    } catch {
+      console.warn("PostHog event delivery failed.");
+    }
+  })();
+  pending.add(delivery);
+  void delivery.finally(() => pending.delete(delivery));
+}
+
+const pending = new Set<Promise<void>>();
+
+// Waits for in-flight events (bounded) and shuts the client down. Hosts call
+// it on graceful shutdown.
+export async function flushAnalytics(timeoutMs = 5000) {
+  await Promise.race([
+    Promise.allSettled([...pending]),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs).unref()),
+  ]);
+  await client?.shutdown(timeoutMs).catch(() => undefined);
+  client = undefined;
 }
 
 export function trackServerFailure(

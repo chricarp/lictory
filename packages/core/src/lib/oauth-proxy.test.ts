@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { betterAuth } from "better-auth/minimal";
-import { authBaseUrl } from "@lictory/core/lib/auth-base-url";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { oauthProxyConfig } from "@lictory/core/lib/oauth-proxy";
 
 const proxyOrigin = "https://oauth.example.test";
-const previewOrigin = "https://lictory-preview.vercel.app";
+const previewOrigin = "https://lictory-preview.example.test";
 const proxyEnv = {
   OAUTH_PROXY_URL: proxyOrigin,
   OAUTH_PROXY_SECRET: "test-only-shared-oauth-proxy-secret-32",
@@ -25,9 +25,9 @@ function realm(
     session: [],
     verification: [],
   };
-  const config = { BETTER_AUTH_URL: origin, ...env };
+  const config = { PLATFORM_URL: origin, ...env };
   const auth = betterAuth({
-    baseURL: authBaseUrl(config),
+    baseURL: platformUrl(config),
     secret: `test-only-private-realm-secret-${new URL(origin).hostname}`,
     database: memoryAdapter(data),
     emailAndPassword: { enabled: true },
@@ -157,45 +157,6 @@ void test("the callback host keeps ordinary OAuth sign-ins direct", async () => 
       String(row.identifier).includes(authorization.searchParams.get("state")!),
     ),
   );
-});
-
-void test("Vercel previews return to their exact deployment and reject foreign origins", async () => {
-  const app = realm(previewOrigin, {
-    ...proxyEnv,
-    BETTER_AUTH_URL: "https://production.example.test",
-    VERCEL: "1",
-    VERCEL_ENV: "preview",
-    VERCEL_URL: new URL(previewOrigin).hostname,
-  });
-  const proxy = realm(proxyOrigin);
-  await mockGoogleCallback(proxy.auth);
-  const started = await app.request("/sign-in/social", {
-    provider: "google",
-    callbackURL: `${previewOrigin}/app`,
-  });
-  assert.equal(started.status, 200);
-  const authorization = await authorizationURL(started);
-  const exchanged = await proxy.auth.handler(
-    callbackRequest(authorization, { code: "test-code" }),
-  );
-  const completion = new URL(exchanged.headers.get("location")!);
-  assert.equal(completion.origin, previewOrigin);
-  const completed = await app.auth.handler(new Request(completion));
-  assert.equal(completed.headers.get("location"), `${previewOrigin}/app`);
-  assert.equal(app.data.session.length, 1);
-
-  const foreign = await app.auth.handler(
-    new Request(`${previewOrigin}/api/auth/sign-in/social`, {
-      method: "POST",
-      headers: {
-        origin: "https://another-project.vercel.app",
-        cookie: "consent=test",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ provider: "google", callbackURL: "/app" }),
-    }),
-  );
-  assert.equal(foreign.status, 403);
 });
 
 void test("a proxied sign-in creates the account and session only on the originating deployment", async () => {

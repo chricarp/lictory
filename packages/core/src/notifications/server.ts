@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { signalWork } from "@lictory/core/jobs/signal";
 import type { Tx } from "@lictory/core/domain/service";
 import type {
   Command,
@@ -13,7 +14,10 @@ import {
   type NotificationKind,
   type PreferenceRule,
 } from "@lictory/core/notifications/catalog";
-import { mentionedUserIds, stripMentions } from "@lictory/core/notifications/mentions";
+import {
+  mentionedUserIds,
+  stripMentions,
+} from "@lictory/core/notifications/mentions";
 
 export type NotificationDraft = {
   userId: string;
@@ -110,7 +114,7 @@ export async function deliverNotifications(
     .onConflictDoNothing()
     .returning({ id: s.notification.id, userId: s.notification.userId });
   const emails = inserted.filter((r) => emailIds.has(r.id));
-  if (emails.length)
+  if (emails.length) {
     await tx.insert(s.notificationEmail).values(
       emails.map((r) => ({
         notificationId: r.id,
@@ -118,6 +122,8 @@ export async function deliverNotifications(
         userId: r.userId,
       })),
     );
+    await signalWork(tx, "email");
+  }
   // Delivered on commit; carries only who should refetch, never content.
   const recipients = [...new Set(inserted.map((r) => r.userId))];
   for (let i = 0; i < recipients.length; i += 100) {

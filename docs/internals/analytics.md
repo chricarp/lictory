@@ -61,7 +61,7 @@ or a different legal basis is a separate product and legal decision.
 ## Event semantics
 
 Successful workspace events come from the authenticated server after the domain,
-change log and mutation receipt commit together. Receipt replays emit no event;
+projections and mutation receipt commit together. Receipt replays emit no event;
 PostHog also receives a deterministic event UUID and `$insert_id` for retryable operations. A
 browser queuing an offline edit is not a successful domain action. Its event occurs
 when the server accepts the edit after reconnection. Failed actions produce

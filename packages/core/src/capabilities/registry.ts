@@ -117,8 +117,6 @@ export async function invoke(
     const output = await capability.run(ctx, input);
     if (output && typeof output === "object" && "mutationId" in output)
       mutationId = String(output.mutationId);
-    // Commands may queue notification email; delivery is idempotent.
-    if (capability.kind === "command") ctx.effects.notificationsQueued();
     return output;
   } catch (error) {
     const normalized = toCapabilityError(error);

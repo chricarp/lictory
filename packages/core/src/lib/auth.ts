@@ -1,18 +1,16 @@
-
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
-import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 
 import { db } from "@lictory/core/db";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createInvitationEmail } from "@lictory/core/emails/invitation-email";
 import { sendEmail } from "@lictory/core/lib/mailer";
 import * as schema from "@lictory/core/db/auth-schema";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 
 import { authSchemaOptions } from "@lictory/core/lib/auth-schema-options";
-import { authBaseUrl } from "@lictory/core/lib/auth-base-url";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { oauthProxyConfig } from "@lictory/core/lib/oauth-proxy";
 import {
   normalizeOrganizationHandle,
@@ -25,6 +23,10 @@ import {
 } from "@lictory/core/lib/password-policy";
 import { deliverAuthEmail } from "@lictory/core/lib/email";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import {
+  organizationsOf,
+  refreshDirectories,
+} from "@lictory/core/domain/projections";
 import { trackServer } from "@lictory/core/lib/analytics/server";
 import { importProviderPhoto } from "@lictory/core/profile/server";
 import {
@@ -47,11 +49,22 @@ const microsoftEnabled = Boolean(
 );
 const oauthProxy = oauthProxyConfig(process.env);
 
+// Directories list each member's name, email, photo, handle and application
+// role, and organization profiles carry names and slugs. Better Auth commits
+// these writes itself (the adapter runs without transactions), so the
+// projections are refreshed right after, each under its organization lock.
+const refreshOrganizations = (organizationIds: Iterable<string>) =>
+  refreshDirectories(db, organizationIds);
+const refreshUserOrganizations = async (userId: string) =>
+  refreshOrganizations(await organizationsOf(db, userId));
+// Memberships of users being deleted, captured before the cascade removes them.
+const deletedMemberships = new Map<string, string[]>();
+
 export const auth = betterAuth({
   ...authSchemaOptions,
   appName: "Lictory",
-  baseURL: authBaseUrl(process.env),
-  trustedOrigins: oauthProxy.trustedOrigins,
+  baseURL: platformUrl(),
+  trustedOrigins: [platformUrl(), ...oauthProxy.trustedOrigins],
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -135,6 +148,21 @@ export const auth = betterAuth({
   },
   databaseHooks: {
     user: {
+      update: {
+        after: async (user) => {
+          await refreshUserOrganizations(user.id);
+        },
+      },
+      delete: {
+        before: async (user) => {
+          deletedMemberships.set(user.id, await organizationsOf(db, user.id));
+        },
+        after: async (user) => {
+          const organizationIds = deletedMemberships.get(user.id) ?? [];
+          deletedMemberships.delete(user.id);
+          await refreshOrganizations(organizationIds);
+        },
+      },
       create: {
         after: async (user, ctx) => {
           await importProviderPhoto(db, user);
@@ -195,6 +223,15 @@ export const auth = betterAuth({
       };
       const event = events[ctx.path];
       const userId = ctx.context.session?.user.id;
+      // Leaving has no organization hook.
+      const left = (ctx.body as { organizationId?: unknown } | undefined)
+        ?.organizationId;
+      if (
+        ctx.path === "/organization/leave" &&
+        typeof left === "string" &&
+        !(ctx.context.returned instanceof APIError)
+      )
+        await refreshOrganizations([left]);
       if (event && userId && !(ctx.context.returned instanceof APIError))
         trackServer(userId, event, {}, ctx.headers);
     }),
@@ -263,10 +300,10 @@ export const auth = betterAuth({
           .from(schema.user)
           .where(eq(schema.user.email, email))
           .limit(1);
-        const destination = `/app/invitation?id=${encodeURIComponent(id)}`;
+        const destination = `/invitation?id=${encodeURIComponent(id)}`;
         const actionUrl = new URL(
           existing ? "/sign-in" : "/sign-up",
-          process.env.BETTER_AUTH_URL,
+          platformUrl(),
         );
         actionUrl.searchParams.set("callbackUrl", destination);
         const rendered = createInvitationEmail({
@@ -298,9 +335,7 @@ export const auth = betterAuth({
         },
         afterUpdateOrganization: async ({ organization, user }) => {
           if (organization) {
-            await db.execute(
-              sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId: organization.id, cursor: "0" })})`,
-            );
+            await refreshOrganizations([organization.id]);
             trackServer(user.id, "organization_updated", {
               organization_id: organization.id,
             });
@@ -319,7 +354,17 @@ export const auth = betterAuth({
             invitation.id,
           );
         },
+        afterAddMember: async ({ organization }) => {
+          await refreshOrganizations([organization.id]);
+        },
+        afterRemoveMember: async ({ organization }) => {
+          await refreshOrganizations([organization.id]);
+        },
+        afterUpdateMemberRole: async ({ organization }) => {
+          await refreshOrganizations([organization.id]);
+        },
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
+          await refreshOrganizations([organization.id]);
           trackServer(
             user.id,
             "invitation_accepted",
@@ -330,7 +375,6 @@ export const auth = betterAuth({
         },
       },
     }),
-    nextCookies(),
   ],
 });
 

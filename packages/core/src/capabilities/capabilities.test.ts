@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { projectionDrift } from "@lictory/core/domain/projection-reader.test-helper";
 import * as s from "@lictory/core/db/schema";
 import { handleMcp } from "@lictory/core/mcp/server";
 import { seedOrganization } from "@lictory/core/domain/organization";
@@ -140,13 +141,12 @@ void test("every workspace command is exposed as a capability on every surface",
         `${name} is missing on ${surface}`,
       );
   }
-  // Credentials and raw sync stay with the signed-in browser.
+  // Credentials and the raw directory stay with the signed-in browser.
   for (const name of [
     "createAccessToken",
     "revokeAccessToken",
     "connectDelivery",
-    "applyMutation",
-    "syncRead",
+    "syncDirectory",
   ])
     assert.ok(!listCapabilities("mcp").some((c) => c.name === name));
 });
@@ -460,4 +460,13 @@ void test("insights are computed from the person's own workspace and stay inside
     }),
     "unavailable",
   );
+});
+
+void test("projections equal a rebuild from the domain", async () => {
+  const drift: string[] = [];
+  for (const { id } of await db
+    .select({ id: s.organization.id })
+    .from(s.organization))
+    drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
 });

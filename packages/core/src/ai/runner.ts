@@ -10,22 +10,29 @@ import {
 } from "@lictory/core/contracts/ai";
 import { aiPolicy, aiRunEntity } from "@lictory/core/domain/ai";
 import {
-  clock,
-  emitChanges,
   lock,
-  publish,
   snapshot,
   type Database,
   type Tx,
 } from "@lictory/core/domain/service";
+import {
+  writeEntities,
+  writeProjections,
+} from "@lictory/core/domain/projections";
 import {
   AnalyzerError,
   createAnalyzer,
   type Analyzer,
   type ItemReviewOutput,
 } from "@lictory/core/ai/analyzer";
-import { itemReviewContext, pullRequestContext } from "@lictory/core/ai/context";
-import { scopeLabel, type IntelligenceContextUse } from "@lictory/core/intelligence/shared";
+import {
+  itemReviewContext,
+  pullRequestContext,
+} from "@lictory/core/ai/context";
+import {
+  scopeLabel,
+  type IntelligenceContextUse,
+} from "@lictory/core/intelligence/shared";
 
 type Run = typeof s.aiRun.$inferSelect;
 const MAX_ATTEMPTS = 3;
@@ -72,29 +79,6 @@ export async function processAiRuns(
     }
   }
   return outcome;
-}
-
-let running: Promise<void> | null = null;
-let again = false;
-// In-process trigger after a request commits; the scheduled job is the backstop.
-export function kickAiRuns(db: Database) {
-  if (running) {
-    again = true;
-    return running;
-  }
-  running = (async () => {
-    do {
-      again = false;
-      await processAiRuns(db).catch((error: unknown) =>
-        console.error(
-          JSON.stringify({ event: "ai.process.error", error: String(error) }),
-        ),
-      );
-    } while (again);
-  })().finally(() => {
-    running = null;
-  });
-  return running;
 }
 
 async function projectOf(tx: Tx, run: Run) {
@@ -146,19 +130,15 @@ async function claim(db: Database, now: Date): Promise<Run | undefined> {
         )
         .where(eq(s.aiRun.id, row.id))
         .returning();
-      const cursor = (await clock(tx, row.organizationId)) + 1n;
-      await tx.insert(s.syncChange).values({
-        organizationId: row.organizationId,
-        cursor,
-        projectId: await projectOf(tx, row),
-        workItemId: row.workItemId,
-        change: {
-          operation: "upsert",
-          cursor: cursor.toString(),
+      await writeEntities(tx, row.organizationId, [
+        {
           entity: aiRunEntity(next!),
+          scope: {
+            projectId: await projectOf(tx, row),
+            workItemId: row.workItemId,
+          },
         },
-      });
-      await publish(tx, row.organizationId, cursor);
+      ]);
       return exhausted ? null : next;
     });
     if (claimed) return claimed;
@@ -166,8 +146,7 @@ async function claim(db: Database, now: Date): Promise<Run | undefined> {
   return undefined;
 }
 
-// Writes a run's outcome under the organization lock with the usual change-log
-// guarantees. Superseded or re-claimed runs never overwrite newer state.
+// Writes a run's outcome and its projections under the organization lock. Superseded or re-claimed runs never overwrite newer state.
 async function finish(
   db: Database,
   run: Run,
@@ -189,18 +168,7 @@ async function finish(
     const before = await snapshot(tx, scope);
     await write(tx, current);
     const after = await snapshot(tx, scope);
-    await publish(
-      tx,
-      run.organizationId,
-      await emitChanges(
-        tx,
-        run.organizationId,
-        before,
-        after,
-        await clock(tx, run.organizationId),
-        scope,
-      ),
-    );
+    await writeProjections(tx, run.organizationId, before, after, scope);
   });
 }
 

@@ -160,15 +160,17 @@ Export is explicit and evidence-gated, independent of the readiness policy:
   fields were edited in Jira since the last export, and items linked to an
   existing issue but never exported, are held as conflicts until the
   requester confirms overwriting that item.
-- Every export is a `delivery_publication` with a result per item. Parents go
-  first; a failed parent skips its subtree. Failed items are exported again
-  by themselves.
+- Every export is a `delivery_publication` with a result per item. Requesting
+  an export reserves the links and records the running publication, then
+  returns; the worker exports the items and clients follow progress through
+  `getDeliveryPublication` until it settles. Parents go first; a failed parent
+  skips its subtree. Failed items are exported again by themselves.
 - No duplicates: links are reserved before the first call, a create attempt
   is committed before it is made, and the `lictory.item` issue property lets a
   crashed create be found and adopted. A recent attempt that cannot be
   confirmed yet is left running and resumed by the scheduled job.
 - Network calls never run inside the organization lock; each item's outcome
-  commits with its change-log entries and an `exported` activity.
+  commits with its projections and an `exported` activity.
 - Organization administrators connect Jira sites (credentials). Each project's
   administrators choose its Jira project and type mapping. Exporting and
   linking require the "Hand off to delivery tools" capability of a discipline

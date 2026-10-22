@@ -1,6 +1,3 @@
-
-import { after } from "next/server";
-import { kickAiRuns } from "@lictory/core/ai/runner";
 import { db } from "@lictory/core/db";
 import { deliveryProviders } from "@lictory/core/delivery/registry";
 import {
@@ -8,12 +5,15 @@ import {
   trackServer,
   trackServerFailure,
 } from "@lictory/core/lib/analytics/server";
-import { kickNotificationEmails } from "@lictory/core/notifications/email";
 import { storage } from "@lictory/core/storage";
-import type { CapabilityContext, Effects, Principal } from "@lictory/core/capabilities/core";
+import type {
+  CapabilityContext,
+  Effects,
+  Principal,
+} from "@lictory/core/capabilities/core";
 
 // Wires capabilities to this deployment: the application database, object
-// storage, delivery adapters, analytics and background work.
+// storage, delivery adapters and analytics.
 export function serverEffects(
   principal: Principal,
   headers?: Headers,
@@ -23,9 +23,6 @@ export function serverEffects(
       trackServer(principal.userId, event, properties, headers, key),
     trackFailure: (operation, error) =>
       trackServerFailure(principal.userId, operation, error, headers),
-    notificationsQueued: () => kickNotificationEmails(db),
-    // Lictory Intelligence may take minutes; run it after the response is sent.
-    aiRunsQueued: () => after(() => kickAiRuns(db)),
     publicationCompleted: (publication) =>
       trackPublicationCompleted(publication, headers),
   };

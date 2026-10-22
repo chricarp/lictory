@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "node build.mjs",
+    "start": "node --enable-source-maps dist/index.js",
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {

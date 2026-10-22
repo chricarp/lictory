@@ -1,8 +1,11 @@
-
 import { and, eq, inArray, ne } from "drizzle-orm";
 
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as s from "@lictory/core/db/schema";
+import {
+  organizationsOf,
+  refreshDirectoryProjection,
+} from "@lictory/core/domain/projections";
 
 import {
   handleCandidates,
@@ -62,10 +65,15 @@ export async function claimHandle(
   const check = await checkHandle(db, userId, input);
   if (!check.available) return check;
   try {
-    await db
-      .update(s.user)
-      .set({ handle: check.handle })
-      .where(eq(s.user.id, userId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(s.user)
+        .set({ handle: check.handle })
+        .where(eq(s.user.id, userId));
+      // Directories list members' handles for mentions.
+      for (const organizationId of (await organizationsOf(tx, userId)).sort())
+        await refreshDirectoryProjection(tx, organizationId);
+    });
   } catch (error) {
     // Another person claimed it between the check and the write.
     if (isUniqueViolation(error))

@@ -1,5 +1,5 @@
 import { oAuthProxy } from "better-auth/plugins";
-import { authBaseUrl } from "@lictory/core/lib/auth-base-url";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
 
 export function oauthProxyConfig(
   env: Readonly<Record<string, string | undefined>>,
@@ -23,15 +23,14 @@ export function oauthProxyConfig(
   if (secret.length < 32)
     throw new Error("OAUTH_PROXY_SECRET must contain at least 32 characters.");
 
-  const baseURL = authBaseUrl(env);
   return {
     plugins: [
       oAuthProxy({
         productionURL: url.origin,
         secret,
-        // Keep canonical production/local origins even when Vercel supplies
-        // an immutable deployment URL. Preview hosts come from authBaseUrl.
-        currentURL: typeof baseURL === "string" ? baseURL : undefined,
+        // Development and other trusted origins return to their own platform
+        // origin after the proxy exchanged the provider code.
+        currentURL: platformUrl(env),
       }),
     ],
     trustedOrigins: (env.OAUTH_PROXY_TRUSTED_ORIGINS ?? "")

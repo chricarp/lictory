@@ -6,7 +6,6 @@ import { and, eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import {
-  createSyncService,
   DomainError,
   advanceSchedules,
   directory,
@@ -16,6 +15,10 @@ import {
   searchEpics,
   searchMembers,
 } from "@lictory/core/domain/service";
+import {
+  projectionDrift,
+  projectionService,
+} from "@lictory/core/domain/projection-reader.test-helper";
 import {
   defaultReadinessChecks,
   type ReadinessCheckDefinition,
@@ -28,6 +31,10 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { reconcile, optimistic } from "@lictory/core/contracts/optimistic";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import {
+  rebuildProjections,
+  refreshDirectories,
+} from "@lictory/core/domain/projections";
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
   "postgresql://lictory:lictory@localhost:5432/postgres";
@@ -37,8 +44,11 @@ const url = new URL(adminUrl);
 url.pathname = `/${databaseName}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
-const service = createSyncService(db);
+const service = projectionService(db);
 let created = false;
+// Organizations whose tests write domain rows directly, which projections
+// cannot follow; the projection invariant skips them.
+const bypassesDomain = new Set<string>();
 before(async () => {
   await admin`CREATE DATABASE ${admin(databaseName)}`;
   created = true;
@@ -194,7 +204,7 @@ async function fixture() {
     current,
   };
 }
-void test("domain workflow converges through paginated deltas, retains history, and deduplicates retries", async () => {
+void test("domain workflow converges in the projections, retains history, and deduplicates retries", async () => {
   const f = await fixture();
   const initial = await f.read();
   let state = reconcile({}, initial.changes);
@@ -223,7 +233,10 @@ void test("domain workflow converges through paginated deltas, retains history, 
     f.command(reply, f.userId, mutationId),
     f.command(reply, f.userId, mutationId),
   ]);
-  assert.deepEqual(receipts[0], receipts[1]);
+  // Concurrent duplicates serialize on the organization lock: one applies,
+  // the other replays the receipt.
+  assert.equal(receipts[0].mutationId, receipts[1].mutationId);
+  assert.deepEqual(receipts.map((r) => r.replayed).sort(), [false, true]);
   assert.equal(
     (
       await db
@@ -245,16 +258,13 @@ void test("domain workflow converges through paginated deltas, retains history, 
     blocking: true,
   });
   let cursor = initial.nextCursor;
-  const cursors: bigint[] = [];
   while (true) {
     const page = await f.read(cursor, 2);
     assert.ok(page.changes.length <= 2);
     state = reconcile(state, page.changes);
-    for (const c of page.changes) cursors.push(BigInt(c.cursor));
     cursor = page.nextCursor;
     if (!page.hasMore) break;
   }
-  assert.ok(cursors.every((c, i) => i === 0 || c > cursors[i - 1]!));
   const full = reconcile({}, (await f.read()).changes);
   for (const key of new Set([...Object.keys(state), ...Object.keys(full)]))
     assert.deepEqual(state[key], full[key], key);
@@ -411,9 +421,11 @@ void test("bootstrap, delta, and mutations reject foreign tenants and revoked me
         eq(s.member.userId, a.userId),
       ),
     );
+  // What the Better Auth membership hooks do after their own write.
+  await refreshDirectories(db, [a.organizationId]);
   await assert.rejects(a.read(before.nextCursor), /access has been removed/);
 });
-void test("concurrent writes preserve commit cursor order and log failure rolls back domain writes", async () => {
+void test("concurrent writes all project and a failed projection write rolls back domain writes", async () => {
   const f = await fixture();
   const before = await f.read();
   await Promise.all(
@@ -443,7 +455,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
   );
   const failedProposalId = crypto.randomUUID();
   await client`CREATE FUNCTION reject_test_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced sync failure'; END $$`;
-  await client`CREATE TRIGGER test_failure BEFORE INSERT ON sync_change FOR EACH ROW EXECUTE FUNCTION reject_test_change()`;
+  await client`CREATE TRIGGER test_failure BEFORE INSERT ON sync_entity FOR EACH ROW EXECUTE FUNCTION reject_test_change()`;
   try {
     await assert.rejects(
       f.command({
@@ -456,7 +468,7 @@ void test("concurrent writes preserve commit cursor order and log failure rolls 
       }),
     );
   } finally {
-    await client`DROP TRIGGER test_failure ON sync_change`;
+    await client`DROP TRIGGER test_failure ON sync_entity`;
   }
   assert.equal(
     (
@@ -1001,6 +1013,7 @@ void test("member search pages and filters without returning the full roster", a
       createdAt: new Date(),
     })),
   );
+  await refreshDirectories(db, [f.organizationId]);
   const first = await searchMembers(db, f.userId, f.organizationId, "", 0, 20);
   assert.equal(first.members.length, 20);
   assert.equal(first.hasMore, true);
@@ -1074,6 +1087,8 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
       index === 0 ? "Zelda Query" : `Epic ${String(index).padStart(2, "0")}`,
     createdById: f.userId,
   }));
+  // Rows written around the domain have no projections.
+  bypassesDomain.add(f.organizationId);
   await db.insert(s.workItem).values(epics);
   await db.insert(s.workItem).values({
     id: crypto.randomUUID(),
@@ -2235,7 +2250,7 @@ void test("ranks order the backlog with single-row moves", async () => {
 void test("committed observers run once after authorization and commit, tolerate failure and ignore receipt replays", async () => {
   const f = await fixture();
   const notifications: string[] = [];
-  const observed = createSyncService(db, {
+  const observed = projectionService(db, {
     onMutationCommitted: (_user, mutation, snapshots) => {
       notifications.push(mutation.id);
       assert.ok(snapshots.after.some((entity) => entity.type === "workItem"));
@@ -2254,7 +2269,9 @@ void test("committed observers run once after authorization and commit, tolerate
   };
   const first = await observed.mutate(f.userId, mutation);
   const retry = await observed.mutate(f.userId, mutation);
-  assert.deepEqual(first, retry);
+  assert.equal(first.mutationId, retry.mutationId);
+  assert.equal(first.replayed, false);
+  assert.equal(retry.replayed, true);
   assert.deepEqual(notifications, [mutation.id]);
   const item = (await f.entities()).find(
     (entity) => entity.type === "workItem" && entity.id === f.proposalId,
@@ -3625,4 +3642,42 @@ void test("publishing checks moves following items with their evidence; manual s
     .where(eq(s.readinessSignOff.workItemId, story));
   assert.equal(rows.length, 2);
   assert.equal(rows.filter((r) => r.withdrawnAt).length, 1);
+});
+
+void test("projections written by every command above equal a rebuild from the domain", async () => {
+  const organizations = await db
+    .select({ id: s.organization.id })
+    .from(s.organization);
+  assert.ok(organizations.length > 10);
+  const drift: string[] = [];
+  for (const { id } of organizations)
+    if (!bypassesDomain.has(id)) drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
+  // Operator recovery restores lost or corrupted projections.
+  const f = await fixture();
+  const keys = await db
+    .select({ key: s.syncEntity.key })
+    .from(s.syncEntity)
+    .where(eq(s.syncEntity.organizationId, f.organizationId));
+  await db
+    .delete(s.syncEntity)
+    .where(eq(s.syncEntity.key, `workItem:${f.proposalId}`));
+  await db
+    .update(s.syncEntity)
+    .set({ data: { corrupted: true } })
+    .where(eq(s.syncEntity.key, `directory:${f.organizationId}`));
+  await db.insert(s.syncEntity).values({
+    key: `label:${crypto.randomUUID()}`,
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    type: "label",
+    data: {},
+  });
+  assert.equal((await projectionDrift(db, f.organizationId)).length, 3);
+  assert.deepEqual(await rebuildProjections(db, f.organizationId), {
+    upserted: 2,
+    deleted: 1,
+    unchanged: keys.length - 2,
+  });
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });

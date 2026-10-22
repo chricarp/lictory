@@ -10,7 +10,8 @@ import {
   onboardingSetupSchema,
   type OnboardingSetup,
 } from "@lictory/core/contracts/protocol";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory } from "@lictory/core/domain/service";
+import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
 import { seedOrganization } from "@lictory/core/domain/organization";
 
 const adminUrl =
@@ -22,7 +23,7 @@ const url = new URL(adminUrl);
 url.pathname = `/${databaseName}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
-const service = createSyncService(db);
+const service = projectionService(db);
 let created = false;
 before(async () => {
   await admin`CREATE DATABASE ${admin(databaseName)}`;
@@ -94,7 +95,9 @@ void test("setup configures the first project from explicit choices and records 
   const mutation = f.mutation();
   const first = await service.mutate(f.userId, mutation);
   const retry = await service.mutate(f.userId, mutation);
-  assert.equal(first.cursor, retry.cursor);
+  assert.equal(first.replayed, false);
+  assert.equal(retry.replayed, true);
+  assert.equal(retry.mutationId, first.mutationId);
   const roster = await directory(db, f.userId, f.organizationId);
   assert.equal(roster.projects.length, 1);
   const project = roster.projects[0]!;
@@ -144,17 +147,17 @@ void test("initial setup requires an organization administrator", async () => {
     false,
   );
 });
-void test("a failed change-log write rolls back the project, setup decisions, disciplines and automatic cycles", async () => {
+void test("a failed projection write rolls back the project, setup decisions, disciplines and automatic cycles", async () => {
   const f = await fixture();
   await client`CREATE FUNCTION reject_onboarding_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced sync failure'; END $$`;
-  await client`CREATE TRIGGER onboarding_failure BEFORE INSERT ON sync_change FOR EACH ROW EXECUTE FUNCTION reject_onboarding_change()`;
+  await client`CREATE TRIGGER onboarding_failure BEFORE INSERT ON sync_entity FOR EACH ROW EXECUTE FUNCTION reject_onboarding_change()`;
   try {
     await assert.rejects(
       service.mutate(f.userId, f.mutation({ iterationMode: "automatic" })),
-      /sync_change/,
+      /sync_entity/,
     );
   } finally {
-    await client`DROP TRIGGER onboarding_failure ON sync_change`;
+    await client`DROP TRIGGER onboarding_failure ON sync_entity`;
   }
   const roster = await directory(db, f.userId, f.organizationId);
   assert.equal(roster.projects.length, 0);

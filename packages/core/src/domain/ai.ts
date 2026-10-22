@@ -1,6 +1,11 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { signalWork } from "@lictory/core/jobs/signal";
 import * as s from "@lictory/core/db/schema";
-import { AI_ACTOR_ID, applyAiEdit, type AiActionPolicy } from "@lictory/core/contracts/ai";
+import {
+  AI_ACTOR_ID,
+  applyAiEdit,
+  type AiActionPolicy,
+} from "@lictory/core/contracts/ai";
 import {
   entitySchema,
   noCapabilities,
@@ -161,6 +166,7 @@ async function enqueueAction(
     headCommitId: input.headCommitId,
     requestedById: input.requestedById,
   });
+  await signalWork(tx, "ai");
 }
 
 type Context = {
@@ -232,6 +238,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
         kind: "item_review",
         requestedById: userId,
       });
+      await signalWork(tx, "ai");
       log("ai_review_requested", { runId: c.runId });
       return;
     }

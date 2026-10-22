@@ -1,10 +1,14 @@
 import { and, eq, sql } from "drizzle-orm";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { createElement } from "react";
 import * as s from "@lictory/core/db/schema";
 import { NotificationEmail } from "@lictory/core/emails/notification-email";
 import { sendEmail, type OutgoingEmail } from "@lictory/core/lib/mailer";
 import type { Database } from "@lictory/core/domain/service";
-import { describeNotification, notificationHref } from "@lictory/core/notifications/format";
+import {
+  describeNotification,
+  notificationHref,
+} from "@lictory/core/notifications/format";
 
 const MAX_ATTEMPTS = 5;
 const LEASE_MS = 2 * 60_000;
@@ -24,11 +28,7 @@ export async function dispatchNotificationEmails(
 ) {
   const now = options.now ?? (() => new Date());
   const send = options.send ?? sendEmail;
-  const baseUrl = (
-    options.baseUrl ??
-    process.env.BETTER_AUTH_URL ??
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
+  const baseUrl = (options.baseUrl ?? platformUrl()).replace(/\/$/, "");
   const at = now();
   const claimed = await db
     .update(s.notificationEmail)
@@ -143,30 +143,4 @@ export async function dispatchNotificationEmails(
     }
   }
   return outcome;
-}
-
-// Immediate delivery after a commit, without waiting for the scheduled worker.
-// Best-effort: anything left pending is picked up by the next job run.
-let running: Promise<unknown> | null = null;
-let again = false;
-export function kickNotificationEmails(db: Database) {
-  if (running) {
-    again = true;
-    return;
-  }
-  running = (async () => {
-    do {
-      again = false;
-      await dispatchNotificationEmails(db).catch((error: unknown) =>
-        console.error(
-          JSON.stringify({
-            event: "notifications.email.error",
-            error: String(error),
-          }),
-        ),
-      );
-    } while (again);
-  })().finally(() => {
-    running = null;
-  });
 }

@@ -8,10 +8,15 @@ import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { seedOrganization } from "@lictory/core/domain/organization";
-import { createSyncService, directory } from "@lictory/core/domain/service";
+import { directory } from "@lictory/core/domain/service";
+import {
+  projectionDrift,
+  projectionService,
+} from "@lictory/core/domain/projection-reader.test-helper";
 import { createFakeProvider } from "@lictory/core/delivery/fake-provider";
 import { DeliveryError } from "@lictory/core/delivery/provider";
 import { createDeliveryService } from "@lictory/core/delivery/service";
+import { rebuildProjections } from "@lictory/core/domain/projections";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -22,7 +27,7 @@ const url = new URL(adminUrl);
 url.pathname = `/${databaseName}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
-const sync = createSyncService(db);
+const sync = projectionService(db);
 let created = false;
 process.env.DELIVERY_CREDENTIALS_KEY = "delivery-test-key";
 
@@ -120,22 +125,36 @@ async function fixture(
   const draft = await create(types.Story, "Timeout copy", epic);
   const subtask = await create(types.Subtask, "Add column", story);
   // Readiness is server-maintained evidence; tests set the outcome directly.
-  const setReady = (id: string, ready = true) =>
-    db
+  // Shortcuts around the domain repair the projections the way an operator
+  // would, so the projection invariant still holds for this organization.
+  const setReady = async (id: string, ready = true) => {
+    await db
       .update(s.workItem)
       .set({ refinementState: ready ? "ready" : "refinement" })
       .where(eq(s.workItem.id, id));
+    await rebuildProjections(db, organizationId);
+  };
   await setReady(epic);
   await setReady(story);
 
   const fake = createFakeProvider();
   let clock = Date.now();
-  const service = createDeliveryService(db, {
+  const delivery = createDeliveryService(db, {
     providers: { jira_cloud: fake.provider },
     appUrl: "https://lictory.test",
     now: () => new Date(clock),
     onPublicationCompleted,
   });
+  // `publish` only reserves the export; the worker processes it. Tests run
+  // that step inline, the way the worker does after the commit signal.
+  const service = {
+    ...delivery,
+    async publish(...args: Parameters<typeof delivery.publish>) {
+      const requested = await delivery.publish(...args);
+      assert.equal(requested.status, "running");
+      return delivery.process(requested.id);
+    },
+  };
   const { connectionId } = await service.connect(userId, {
     organizationId,
     name: "Acme Jira",
@@ -176,6 +195,7 @@ async function fixture(
       content,
       authorId: userId,
     });
+    await rebuildProjections(db, organizationId);
   };
   return {
     organizationId,
@@ -261,15 +281,13 @@ void test("exporting an epic creates ready items parents-first and skips the res
   assert.ok(
     entities.some((e) => e.type === "activity" && e.action === "exported"),
   );
-  const changes = await db
+  const projected = await db
     .select()
-    .from(s.syncChange)
-    .where(eq(s.syncChange.organizationId, f.organizationId));
+    .from(s.syncEntity)
+    .where(eq(s.syncEntity.organizationId, f.organizationId));
   assert.ok(
-    changes.some(
-      (c) =>
-        c.change.operation === "upsert" &&
-        c.change.entity.type === "externalLink",
+    projected.some(
+      (row) => row.type === "externalLink" && row.workItemId === null,
     ),
   );
 });
@@ -467,6 +485,7 @@ void test("a crash between the external create and recording it is recovered, no
       payloadHash: null,
     })
     .where(eq(s.workItemExternalLink.id, link.id));
+  await rebuildProjections(db, f.organizationId);
   await f.revise(f.epic, "Changed after the crash");
   const recovered = await f.service.publish(f.userId, {
     organizationId: f.organizationId,
@@ -498,6 +517,7 @@ void test("an unconfirmable recent create attempt waits instead of creating a du
     connectionId: f.connectionId,
     createAttemptedAt: new Date(),
   });
+  await rebuildProjections(db, f.organizationId);
   const waiting = await f.service.publish(f.userId, {
     organizationId: f.organizationId,
     itemIds: [f.epic],
@@ -632,6 +652,7 @@ void test("publication observers fire once at settlement, survive observer failu
     connectionId: f.connectionId,
     createAttemptedAt: new Date(),
   });
+  await rebuildProjections(db, f.organizationId);
   const waiting = await f.service.publish(f.userId, {
     organizationId: f.organizationId,
     itemIds: [f.epic],
@@ -815,14 +836,17 @@ void test("status sync reads Jira status and assignee back without writing eithe
     statuses.find((x) => x.id === item!.statusId)?.category,
     "started",
   );
-  // A routine check that finds nothing new does not churn the change log.
+  // A routine check that finds nothing new does not churn the projections.
   const changes = async () =>
     (
       await db
-        .select()
-        .from(s.syncChange)
-        .where(eq(s.syncChange.organizationId, f.organizationId))
-    ).length;
+        .select({ key: s.syncEntity.key, updatedAt: s.syncEntity.updatedAt })
+        .from(s.syncEntity)
+        .where(eq(s.syncEntity.organizationId, f.organizationId))
+    )
+      .map((r) => `${r.key}@${r.updatedAt.toISOString()}`)
+      .sort()
+      .join();
   const logged = await changes();
   await f.service.refreshPending();
   assert.equal(await changes(), logged);
@@ -840,4 +864,13 @@ void test("status sync reads Jira status and assignee back without writing eithe
     f.service.refreshProject(f.userId, f.organizationId, f.projectId),
     /delivers its work in Lictory/,
   );
+});
+
+void test("projections equal a rebuild from the domain", async () => {
+  const drift: string[] = [];
+  for (const { id } of await db
+    .select({ id: s.organization.id })
+    .from(s.organization))
+    drift.push(...(await projectionDrift(db, id)));
+  assert.deepEqual(drift, []);
 });

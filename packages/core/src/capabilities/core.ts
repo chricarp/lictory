@@ -37,9 +37,10 @@ export type Principal = {
   client?: string | null;
 };
 
-// Process-level side effects owned by the hosting runtime (Next.js routes,
-// tests, workers). Capabilities report what happened; the host decides how
-// analytics are sent and background work is scheduled.
+// Process-level side effects owned by the hosting runtime (API, tests,
+// worker). Capabilities report what happened; the host decides how analytics
+// are sent. Background work (AI runs, email, exports) is queued durably in the
+// domain transaction and processed by the worker.
 export type Effects = {
   track(
     event: string,
@@ -47,11 +48,6 @@ export type Effects = {
     deduplicationKey?: string,
   ): void;
   trackFailure(operation: string, error: unknown): void;
-  // Notifications may have been queued; deliver pending email.
-  notificationsQueued(): void;
-  // Lictory Intelligence runs may have been queued; process them after the
-  // response.
-  aiRunsQueued(): void;
   publicationCompleted?(publication: {
     id: string;
     organizationId: string;
@@ -64,8 +60,6 @@ export type Effects = {
 export const noEffects: Effects = {
   track: () => undefined,
   trackFailure: () => undefined,
-  notificationsQueued: () => undefined,
-  aiRunsQueued: () => undefined,
 };
 
 export type CapabilityContext = {

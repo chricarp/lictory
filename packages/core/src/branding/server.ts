@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as s from "@lictory/core/db/schema";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
+import { refreshDirectoryProjection } from "@lictory/core/domain/projections";
 import { checkLogo, type LogoKind } from "@lictory/core/branding/logo";
 
 type Database = PostgresJsDatabase<typeof s>;
@@ -92,19 +93,22 @@ export async function setLogo(
     updatedById: userId,
     updatedAt: new Date(),
   };
-  await db
-    .insert(s.organizationLogo)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [s.organizationLogo.organizationId, s.organizationLogo.kind],
-      set: {
-        content,
-        mimeType: values.mimeType,
-        sha256,
-        updatedById: userId,
-        updatedAt: sql`now()`,
-      },
-    });
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(s.organizationLogo)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [s.organizationLogo.organizationId, s.organizationLogo.kind],
+        set: {
+          content,
+          mimeType: values.mimeType,
+          sha256,
+          updatedById: userId,
+          updatedAt: sql`now()`,
+        },
+      });
+    await refreshDirectoryProjection(tx, organizationId);
+  });
   return { sha256 };
 }
 
@@ -117,12 +121,15 @@ export async function removeLogo(
   kind: LogoKind,
 ) {
   await requireAdmin(db, organizationId, userId);
-  await db
-    .delete(s.organizationLogo)
-    .where(
-      and(
-        eq(s.organizationLogo.organizationId, organizationId),
-        eq(s.organizationLogo.kind, kind),
-      ),
-    );
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(s.organizationLogo)
+      .where(
+        and(
+          eq(s.organizationLogo.organizationId, organizationId),
+          eq(s.organizationLogo.kind, kind),
+        ),
+      );
+    await refreshDirectoryProjection(tx, organizationId);
+  });
 }

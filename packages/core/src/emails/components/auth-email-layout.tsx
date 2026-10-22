@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import {
   Body,
   Button,
@@ -39,10 +40,7 @@ export function AuthEmailLayout({
         <Container style={container}>
           <Section style={brandRow}>
             <Img
-              src={new URL(
-                "/brand/lictory-logo.png",
-                process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-              ).toString()}
+              src={new URL("/brand/lictory-logo.png", platformUrl()).toString()}
               alt="Lictory"
               width="137"
               height="34"

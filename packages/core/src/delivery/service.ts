@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type { DeliveryItemOutcome } from "@lictory/core/db/schema";
 import { paths } from "@lictory/core/lib/paths";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import {
   canManageProject,
   capabilitiesOf,
@@ -14,19 +15,24 @@ import {
 import { DomainError } from "@lictory/core/domain/errors";
 import { notifyExport } from "@lictory/core/notifications/server";
 import {
+  refreshDirectoryProjection,
+  writeProjections,
+} from "@lictory/core/domain/projections";
+import { signalWork } from "@lictory/core/jobs/signal";
+import {
   authorize,
-  clock,
   directory,
-  emitChanges,
   externalLinks,
   isAdmin,
   lock,
-  publish,
   serialize,
   type Database,
   type Tx,
 } from "@lictory/core/domain/service";
-import { decryptCredential, encryptCredential } from "@lictory/core/delivery/credentials";
+import {
+  decryptCredential,
+  encryptCredential,
+} from "@lictory/core/delivery/credentials";
 import {
   DeliveryError,
   type DeliveryConnection,
@@ -36,7 +42,10 @@ import {
   type ExternalStatusCategory,
   type OwnedField,
 } from "@lictory/core/delivery/provider";
-import { deliveryProviders, type DeliveryProviders } from "@lictory/core/delivery/registry";
+import {
+  deliveryProviders,
+  type DeliveryProviders,
+} from "@lictory/core/delivery/registry";
 
 // Explicit, human-triggered export of ready work to an external delivery
 // system. Invariants:
@@ -108,8 +117,7 @@ type ConnectionRow = typeof s.deliveryConnection.$inferSelect;
 
 export function createDeliveryService(db: Database, options: Options = {}) {
   const providers = () => options.providers ?? deliveryProviders();
-  const appUrl = () =>
-    (options.appUrl ?? process.env.BETTER_AUTH_URL ?? "").replace(/\/$/, "");
+  const appUrl = () => (options.appUrl ?? platformUrl()).replace(/\/$/, "");
   const now = options.now ?? (() => new Date());
 
   const access = async (tx: Tx, userId: string, organizationId: string) => {
@@ -231,9 +239,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     } satisfies DeliveryConnection,
   });
 
-  // Invalidate clients after a directory-only change (connections, targets).
-  const touch = async (tx: Tx, organizationId: string) =>
-    publish(tx, organizationId, await clock(tx, organizationId));
+  // Connections and targets live in the directory projection.
+  const touch = (tx: Tx, organizationId: string) =>
+    refreshDirectoryProjection(tx, organizationId);
 
   const markConnection = async (row: ConnectionRow, error: unknown) => {
     if (!(error instanceof DeliveryError) || error.kind !== "authentication")
@@ -921,20 +929,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         const after = await externalLinks(tx, request.organizationId, {
           workItemIds: ids,
         });
-        await publish(
-          tx,
-          request.organizationId,
-          await emitChanges(
-            tx,
-            request.organizationId,
-            before,
-            after,
-            await clock(tx, request.organizationId),
-          ),
-        );
+        await writeProjections(tx, request.organizationId, before, after);
+        // The worker exports the reserved items outside the lock; clients
+        // follow progress through `publication`.
+        await signalWork(tx, "delivery");
         return id;
       });
-      return this.process(publicationId);
+      return current(publicationId);
     },
 
     // Link an item to an issue that already exists externally. Nothing is
@@ -1075,20 +1076,15 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         const after = await externalLinks(tx, organizationId, {
           workItemIds: [input.workItemId],
         });
-        await publish(
+        await writeProjections(
           tx,
           organizationId,
-          await emitChanges(
-            tx,
-            organizationId,
-            before,
-            [...after, activity],
-            await clock(tx, organizationId),
-            {
-              projectId: prepared.item.projectId,
-              workItemId: prepared.item.id,
-            },
-          ),
+          before,
+          [...after, activity],
+          {
+            projectId: prepared.item.projectId,
+            workItemId: prepared.item.id,
+          },
         );
         return after[0]!;
       });
@@ -1144,20 +1140,15 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         const after = await externalLinks(tx, organizationId, {
           workItemIds: [item.id],
         });
-        await publish(
+        await writeProjections(
           tx,
           organizationId,
-          await emitChanges(
-            tx,
-            organizationId,
-            before,
-            [...after, activity],
-            await clock(tx, organizationId),
-            {
-              projectId: item.projectId,
-              workItemId: item.id,
-            },
-          ),
+          before,
+          [...after, activity],
+          {
+            projectId: item.projectId,
+            workItemId: item.id,
+          },
         );
       });
     },
@@ -1451,16 +1442,11 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         const after = await externalLinks(tx, row.organizationId, {
           workItemIds: ids,
         });
-        await publish(
+        await writeProjections(
           tx,
           row.organizationId,
-          await emitChanges(
-            tx,
-            row.organizationId,
-            before.filter((e) => e.connectionId === row.id),
-            after.filter((e) => e.connectionId === row.id),
-            await clock(tx, row.organizationId),
-          ),
+          before.filter((e) => e.connectionId === row.id),
+          after.filter((e) => e.connectionId === row.id),
         );
       });
     }
@@ -1772,18 +1758,10 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const after = await externalLinks(tx, organizationId, {
         workItemIds: [itemId],
       });
-      await publish(
-        tx,
-        organizationId,
-        await emitChanges(
-          tx,
-          organizationId,
-          before,
-          [...after, ...extra],
-          await clock(tx, organizationId),
-          { projectId: item.projectId, workItemId: item.id },
-        ),
-      );
+      await writeProjections(tx, organizationId, before, [...after, ...extra], {
+        projectId: item.projectId,
+        workItemId: item.id,
+      });
     });
   }
 }

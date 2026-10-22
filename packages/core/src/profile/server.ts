@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as s from "@lictory/core/db/schema";
+import {
+  organizationsOf,
+  refreshDirectoryProjection,
+} from "@lictory/core/domain/projections";
 import { normalizePhoto, PhotoError } from "@lictory/core/profile/image";
-import { MAX_PROFILE_PHOTO_SIZE, profilePhotoUrl } from "@lictory/core/profile/photo";
+import {
+  MAX_PROFILE_PHOTO_SIZE,
+  profilePhotoUrl,
+} from "@lictory/core/profile/photo";
 
 type Database = PostgresJsDatabase<typeof s>;
 
@@ -62,19 +69,11 @@ export async function setProfilePhoto(
     else
       await tx.delete(s.profilePhoto).where(eq(s.profilePhoto.userId, userId));
     await tx.update(s.user).set({ image }).where(eq(s.user.id, userId));
-    const memberships = await tx
-      .select({ organizationId: s.member.organizationId })
-      .from(s.member)
-      .where(eq(s.member.userId, userId));
-    for (const { organizationId } of memberships) {
-      const [clock] = await tx
-        .select({ cursor: s.syncClock.cursor })
-        .from(s.syncClock)
-        .where(eq(s.syncClock.organizationId, organizationId));
-      await tx.execute(
-        sql`select pg_notify('lictory_sync', ${JSON.stringify({ organizationId, cursor: (clock?.cursor ?? 0n).toString() })})`,
-      );
-    }
+    // Every directory listing this person shows the new photo. Locks are
+    // taken in a fixed order so concurrent multi-organization writers cannot
+    // deadlock.
+    for (const organizationId of (await organizationsOf(tx, userId)).sort())
+      await refreshDirectoryProjection(tx, organizationId);
   });
   return { image };
 }
