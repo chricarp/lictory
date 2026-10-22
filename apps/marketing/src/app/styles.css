@@ -1,0 +1,5 @@
+@import "../../../../packages/ui/src/styles.css";
+
+/* Tailwind only detects classes below the working directory (this app), so
+   the shared components' classes are scanned explicitly. */
+@source "../../../../packages/ui/src";
