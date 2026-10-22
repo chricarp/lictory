@@ -19,6 +19,9 @@ export function createJobDatabase(url: string, options: { max: number }) {
   };
 }
 
+const connectionError = (what: string, code: string) =>
+  Object.assign(new Error(`The work signal connection ${what}.`), { code });
+
 export type WorkListener = {
   listening(): boolean;
   close(): Promise<void>;
@@ -67,7 +70,7 @@ export function listenForWork(
       fetch_types: false,
       connect_timeout: 10,
       onnotice: () => undefined,
-      onclose: () => lost(c, new Error("The work signal connection closed.")),
+      onclose: () => lost(c, connectionError("closed", "CONNECTION_CLOSED")),
       // Supported by postgres.js but missing from its option types.
       ...({
         onnotify: (channel: string, payload: string) => {
@@ -103,8 +106,7 @@ export function listenForWork(
       c`select 1`,
       new Promise((_, reject) => {
         timer = setTimeout(
-          () =>
-            reject(new Error("The work signal connection stopped answering.")),
+          () => reject(connectionError("stopped answering", "CONNECT_TIMEOUT")),
           probeTimeoutMs,
         );
       }),
