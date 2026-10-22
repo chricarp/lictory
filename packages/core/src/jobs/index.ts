@@ -11,6 +11,11 @@ export {
 } from "@lictory/core/jobs/signal";
 export { advanceSchedules, processAiRuns, dispatchNotificationEmails };
 export { rebuildProjections } from "@lictory/core/domain/projections";
+export {
+  createJobDatabase,
+  listenForWork,
+  type WorkListener,
+} from "@lictory/core/jobs/listener";
 
 // Background work for the worker process. Every job is idempotent, safe to
 // run concurrently in several processes (claims use leases or the

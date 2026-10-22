@@ -110,7 +110,7 @@ into a started status (`off`, `warn`, `block`). Nothing is exported.
   attention (conflicts, failures, missing issues).
 - Export rules are unchanged (explicit, evidence-gated, idempotent, see
   [delivery](delivery.md)), and only external projects can export.
-- **Status sync back**: the scheduled job (and an on-demand refresh) reads
+- **Status sync back**: the worker's status sync (and an on-demand refresh) reads
   each linked issue's status, status category and assignee from Jira. It is
   read-only: it never writes Jira and never changes Lictory-owned fields or the
   item's Lictory status. Routine checks that find nothing new do not rewrite

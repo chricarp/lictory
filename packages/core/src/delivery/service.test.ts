@@ -150,7 +150,8 @@ async function fixture(
   const service = {
     ...delivery,
     // What the mutation does: reserve the export for the worker.
-    reserve: delivery.publish,
+    reserve: (...args: Parameters<typeof delivery.publish>) =>
+      delivery.publish(...args),
     async publish(...args: Parameters<typeof delivery.publish>) {
       const requested = await delivery.publish(...args);
       assert.equal(requested.status, "running");
@@ -547,7 +548,7 @@ void test("a runner that dies mid-export is resumed after its lease without dupl
   assert.equal(requested.status, "running");
   // Runner A exports the epic, then dies inside the story's create: Jira has
   // the story, Lictory only the attempt marker and A's lease.
-  const create = f.fake.provider.createItem;
+  const create = f.fake.provider.createItem.bind(f.fake.provider);
   let created!: () => void;
   const storyCreated = new Promise<void>((resolve) => (created = resolve));
   f.fake.provider.createItem = async (connection, target, payload) => {
@@ -603,7 +604,7 @@ void test("a runner that lost its lease records nothing and stops", async () => 
     rootId: f.epic,
   });
   // Runner A stalls inside the epic's create long enough to lose its lease.
-  const create = f.fake.provider.createItem;
+  const create = f.fake.provider.createItem.bind(f.fake.provider);
   let stalled!: () => void;
   const inside = new Promise<void>((resolve) => (stalled = resolve));
   let resume!: () => void;
@@ -650,7 +651,7 @@ void test("an interrupted runner hands the remaining items to the next one at on
     rootId: f.epic,
   });
   const stop = new AbortController();
-  const create = f.fake.provider.createItem;
+  const create = f.fake.provider.createItem.bind(f.fake.provider);
   f.fake.provider.createItem = async (connection, target, payload) => {
     // Shutdown arrives while the epic is being created.
     stop.abort();
