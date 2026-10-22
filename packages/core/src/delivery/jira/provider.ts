@@ -3,6 +3,7 @@ import {
   createJiraClient,
   jiraCredential,
   type JiraClientOptions,
+  type JiraRequestOptions,
 } from "@lictory/core/delivery/jira/client";
 import {
   DeliveryError,
@@ -69,6 +70,7 @@ export function createJiraCloudProvider(
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
     body?: unknown,
+    options?: JiraRequestOptions,
   ) =>
     request<T>(
       connection.baseUrl,
@@ -76,6 +78,7 @@ export function createJiraCloudProvider(
       method,
       path,
       body,
+      options,
     );
 
   const toItem = (connection: DeliveryConnection, issue: JiraIssue) => {
@@ -295,6 +298,7 @@ export function createJiraCloudProvider(
           },
           properties: [{ key: JIRA_PROPERTY, value: property(payload) }],
         },
+        { once: true },
       );
       if (!created?.id)
         throw new DeliveryError(

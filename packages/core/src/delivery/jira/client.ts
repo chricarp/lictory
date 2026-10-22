@@ -11,6 +11,15 @@ export type JiraClientOptions = {
   sleep?: (ms: number) => Promise<void>;
   maxAttempts?: number;
   maxRetryDelayMs?: number;
+  // Per request; a hung connection must not hold a publication forever.
+  timeoutMs?: number;
+};
+
+export type JiraRequestOptions = {
+  // Not idempotent (creating an issue): a timeout, network error or 5xx may
+  // have been applied, so it is not retried here. The caller recovers the
+  // attempt instead (see the delivery service's create confirmation).
+  once?: boolean;
 };
 
 export function jiraCredential(value: unknown): JiraCredential {
@@ -33,6 +42,7 @@ export function createJiraClient(options: JiraClientOptions = {}) {
     options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const maxAttempts = options.maxAttempts ?? 4;
   const maxDelay = options.maxRetryDelayMs ?? 30_000;
+  const timeoutMs = options.timeoutMs ?? 30_000;
 
   return async function request<T>(
     baseUrl: string,
@@ -40,6 +50,7 @@ export function createJiraClient(options: JiraClientOptions = {}) {
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
     body?: unknown,
+    call: JiraRequestOptions = {},
   ): Promise<T | null> {
     const authorization = `Basic ${Buffer.from(
       `${credential.email}:${credential.apiToken}`,
@@ -57,9 +68,10 @@ export function createJiraClient(options: JiraClientOptions = {}) {
               : { "Content-Type": "application/json" }),
           },
           body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
-        if (attempt < maxAttempts) {
+        if (attempt < maxAttempts && !call.once) {
           await sleep(backoff(attempt, maxDelay));
           continue;
         }
@@ -72,7 +84,9 @@ export function createJiraClient(options: JiraClientOptions = {}) {
         const text = await response.text();
         return text ? (JSON.parse(text) as T) : null;
       }
-      const retryable = response.status === 429 || response.status >= 500;
+      // 429 means the request was not processed; a 5xx may have been.
+      const retryable =
+        response.status === 429 || (response.status >= 500 && !call.once);
       if (retryable && attempt < maxAttempts) {
         const header = Number(response.headers.get("Retry-After"));
         const delay =

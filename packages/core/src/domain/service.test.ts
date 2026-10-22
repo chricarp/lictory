@@ -2160,6 +2160,20 @@ void test("automatic cycles are scheduled idempotently and roll unfinished work 
     (c) => c.operation === "upsert" && c.entity.type === "workItem",
   );
   assert.ok(moved);
+  // Overlapping workers (several worker processes) are safe: the organization
+  // lock serializes them and the second finds nothing left to do.
+  const twoCyclesLater = new Date(later.getTime() + 15 * 86_400_000);
+  const overlapping = await Promise.all([
+    advanceSchedules(db, twoCyclesLater),
+    advanceSchedules(db, twoCyclesLater),
+  ]);
+  assert.equal(
+    overlapping.reduce((n, r) => n + r.failedOrganizations, 0),
+    0,
+  );
+  rows = await cycles();
+  assert.equal(rows.filter((r) => r.state === "active").length, 1);
+  assert.equal(rows.filter((r) => r.state === "planned").length, 2);
 });
 
 void test("relations stay inside the organization, reject reverse blocks, and tombstone on removal", async () => {

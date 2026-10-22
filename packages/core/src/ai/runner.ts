@@ -38,25 +38,53 @@ type Run = typeof s.aiRun.$inferSelect;
 const MAX_ATTEMPTS = 3;
 // A run still "running" after this long lost its worker and is retried.
 const LEASE_MS = 10 * 60_000;
+// The model call is cut off well before the lease expires, so a live worker
+// never has its run claimed by another one; the claim and the context reads
+// around it are short database work.
+export const RUN_TIMEOUT_MS = 5 * 60_000;
 const MAX_FINDINGS = 25;
+
+// Raised when the caller's signal (worker shutdown) stops a run.
+class Interrupted extends Error {}
 
 // Processes queued runs until none remain (or `limit` is reached). Safe to call
 // concurrently and repeatedly: claims are per run under the organization lock.
+// `signal` stops claiming and aborts the model call; an interrupted run goes
+// back to the queue for the next worker instead of failing.
 export async function processAiRuns(
   db: Database,
-  options: { analyzer?: Analyzer; limit?: number; now?: () => Date } = {},
+  options: {
+    analyzer?: Analyzer;
+    limit?: number;
+    now?: () => Date;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  } = {},
 ) {
   const now = options.now ?? (() => new Date());
   let analyzer = options.analyzer;
-  const outcome = { completed: 0, failed: 0, superseded: 0 };
+  const outcome = { completed: 0, failed: 0, superseded: 0, interrupted: 0 };
   for (let i = 0; i < (options.limit ?? 20); i++) {
+    if (options.signal?.aborted) break;
     const run = await claim(db, now());
     if (!run) break;
+    const bound = <T>(call: (abortSignal: AbortSignal) => Promise<T>) =>
+      bounded(call, options.signal, options.timeoutMs ?? RUN_TIMEOUT_MS);
     try {
       analyzer ??= createAnalyzer();
-      const result = await execute(db, run, analyzer);
+      const result = await execute(db, run, analyzer, bound);
       outcome[result]++;
     } catch (error) {
+      if (error instanceof Interrupted) {
+        await finish(db, run, async (tx) => {
+          await tx
+            .update(s.aiRun)
+            .set({ status: "queued" })
+            .where(eq(s.aiRun.id, run.id));
+        });
+        outcome.interrupted++;
+        break;
+      }
       const message =
         error instanceof AnalyzerError
           ? error.message
@@ -79,6 +107,37 @@ export async function processAiRuns(
     }
   }
   return outcome;
+}
+
+type Bound = <T>(call: (abortSignal: AbortSignal) => Promise<T>) => Promise<T>;
+
+// Settles when the call does, at the deadline, or when the caller stops,
+// whichever comes first. The analyzer receives the combined signal so the
+// provider request is cancelled too; an analyzer that ignores it is abandoned.
+function bounded<T>(
+  call: (abortSignal: AbortSignal) => Promise<T>,
+  stop: AbortSignal | undefined,
+  timeoutMs: number,
+): Promise<T> {
+  const deadline = AbortSignal.timeout(timeoutMs);
+  const signal = stop ? AbortSignal.any([stop, deadline]) : deadline;
+  return new Promise<T>((resolve, reject) => {
+    const abort = () =>
+      reject(
+        stop?.aborted
+          ? new Interrupted()
+          : new AnalyzerError(
+              "The AI provider did not answer in time. Run the review again.",
+            ),
+      );
+    if (signal.aborted) return abort();
+    signal.addEventListener("abort", abort, { once: true });
+    call(signal)
+      .then(resolve, (error: unknown) =>
+        signal.aborted ? abort() : reject(error as Error),
+      )
+      .finally(() => signal.removeEventListener("abort", abort));
+  });
 }
 
 async function projectOf(tx: Tx, run: Run) {
@@ -282,6 +341,7 @@ async function execute(
   db: Database,
   run: Run,
   analyzer: Analyzer,
+  bound: Bound,
 ): Promise<"completed" | "superseded"> {
   const policy = await aiPolicy(db, run.organizationId);
   if (!policy.enabled || !policy.available)
@@ -292,7 +352,9 @@ async function execute(
     const prepared = await db.transaction((tx) =>
       itemReviewContext(tx, run.organizationId, run.workItemId),
     );
-    const output = await analyzer.reviewItem(prepared.context);
+    const output = await bound((abortSignal) =>
+      analyzer.reviewItem(prepared.context, { abortSignal }),
+    );
     const contents = await db.transaction((tx) =>
       currentRevisions(
         tx,
@@ -370,7 +432,9 @@ async function execute(
     });
     return "superseded";
   }
-  const output = await analyzer.reviewPullRequest(prepared.context);
+  const output = await bound((abortSignal) =>
+    analyzer.reviewPullRequest(prepared.context, { abortSignal }),
+  );
   const previousIds = new Map<string, string>();
   const findings = normalizeFindings(
     output.findings,

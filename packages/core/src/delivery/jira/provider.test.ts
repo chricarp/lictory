@@ -226,6 +226,49 @@ void test("rate limits are retried after Retry-After; auth failures are not", as
   assert.equal(denied.calls.length, 1);
 });
 
+void test("an ambiguous create failure is not retried, so it cannot create twice", async () => {
+  const jira = fakeJira({
+    "POST /rest/api/3/issue": [{ status: 502 }, { body: { id: "1", key: "PAY-1" } }],
+  });
+  await assert.rejects(
+    jira.provider.createItem(connection, target, payload),
+    (e: DeliveryError) => e.kind === "unavailable" && e.retryable,
+  );
+  assert.equal(jira.calls.length, 1);
+
+  const limited = fakeJira({
+    "POST /rest/api/3/issue": [
+      { status: 429, headers: { "Retry-After": "1" } },
+      { body: { id: "30000", key: "PAY-7" } },
+    ],
+    "GET /rest/api/3/issue/30000": { body: issue() },
+  });
+  await limited.provider.createItem(connection, target, payload);
+  assert.equal(
+    limited.calls.filter((c) => c.method === "POST").length,
+    2,
+    "a rate-limited create was not processed and is retried",
+  );
+});
+
+void test("a hung Jira request times out instead of holding the export", async () => {
+  const provider = createJiraCloudProvider({
+    timeoutMs: 20,
+    maxAttempts: 2,
+    sleep: async () => undefined,
+    fetch: ((_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init.signal!.addEventListener("abort", () =>
+          reject(init.signal!.reason as Error),
+        ),
+      )) as typeof globalThis.fetch,
+  });
+  await assert.rejects(
+    provider.getItem(connection, "PAY-1"),
+    (e: DeliveryError) => e.kind === "unavailable",
+  );
+});
+
 void test("validation errors surface Jira's field messages", async () => {
   const jira = fakeJira({
     "POST /rest/api/3/issue": {

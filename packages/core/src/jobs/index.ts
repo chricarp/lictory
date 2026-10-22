@@ -26,8 +26,11 @@ function deliveryService(db: Database) {
 
 // Advances running exports (new ones, deferred create confirmations, crashed
 // runners whose lease expired).
-export function processDeliveryPublications(db: Database) {
-  return deliveryService(db).processPending();
+export function processDeliveryPublications(
+  db: Database,
+  options?: { limit?: number; signal?: AbortSignal },
+) {
+  return deliveryService(db).processPending(options);
 }
 
 // Read-only status sync of exported items, least recently checked first.

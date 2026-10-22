@@ -3881,23 +3881,45 @@ export async function advanceSchedules(db: Database, now = new Date()) {
       p.projectId,
     ]);
   let changedOrganizations = 0;
+  // One organization's failure never holds up the others; it is retried on
+  // the next run and reported in the result.
+  const failedOrganizations: string[] = [];
   for (const [organizationId, projectIds] of byOrganization)
-    await db.transaction(async (tx) => {
-      await lock(tx, organizationId);
-      const before = await snapshot(tx, { organizationId });
-      let changed = false;
-      for (const projectId of projectIds)
-        changed =
-          (await advanceProjectSchedule(tx, organizationId, projectId, now)) ||
-          changed;
-      if (!changed) return;
-      changedOrganizations++;
-      const after = await snapshot(tx, { organizationId });
-      await writeProjections(tx, organizationId, before, after);
-      // Iterations live in the directory.
-      await refreshDirectoryProjection(tx, organizationId);
-    });
-  return { projects: projects.length, changedOrganizations };
+    try {
+      await db.transaction(async (tx) => {
+        await lock(tx, organizationId);
+        const before = await snapshot(tx, { organizationId });
+        let changed = false;
+        for (const projectId of projectIds)
+          changed =
+            (await advanceProjectSchedule(
+              tx,
+              organizationId,
+              projectId,
+              now,
+            )) || changed;
+        if (!changed) return;
+        changedOrganizations++;
+        const after = await snapshot(tx, { organizationId });
+        await writeProjections(tx, organizationId, before, after);
+        // Iterations live in the directory.
+        await refreshDirectoryProjection(tx, organizationId);
+      });
+    } catch (error) {
+      failedOrganizations.push(organizationId);
+      console.error(
+        JSON.stringify({
+          event: "schedules.organization_failed",
+          organizationId,
+          error: error instanceof Error ? error.name : "Error",
+        }),
+      );
+    }
+  return {
+    projects: projects.length,
+    changedOrganizations,
+    failedOrganizations: failedOrganizations.length,
+  };
 }
 
 // Every published revision of a project's readiness checks, newest first,

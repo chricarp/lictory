@@ -102,7 +102,14 @@ const exportable = new Set<PlanAction>(["create", "update", "unchanged"]);
 // A create attempt younger than this may not be searchable externally yet;
 // recovery waits instead of risking a duplicate.
 const CREATE_CONFIRM_MS = 90_000;
+// A runner renews its lease while it works, so the lease only expires when
+// the runner is gone. The lease value doubles as the fencing token: a runner
+// that finds it changed stops without writing.
 const LEASE_MS = 5 * 60_000;
+const LEASE_RENEW_MS = 60_000;
+// A publication waiting for a create to become confirmable is not retried
+// before this.
+const DEFER_MS = 30_000;
 
 type Options = {
   providers?: DeliveryProviders;
@@ -1208,8 +1215,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     },
 
     // Advances one publication. Safe to call concurrently and repeatedly:
-    // a lease keeps one runner, finished items are never redone.
-    async process(publicationId: string) {
+    // a lease keeps one runner, finished items are never redone. `signal`
+    // stops it between items and hands the rest to the next runner.
+    async process(publicationId: string, call: { signal?: AbortSignal } = {}) {
       const claimed = (
         await db
           .update(s.deliveryPublication)
@@ -1227,27 +1235,82 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           .returning()
       )[0];
       if (!claimed) return current(publicationId);
+      // Lease values this runner may hold: the current one, plus the next one
+      // while a renewal's outcome is unknown.
+      let tokens = [claimed.leaseUntil!];
+      let lost = false;
+      const held = () =>
+        and(
+          eq(s.deliveryPublication.id, publicationId),
+          eq(s.deliveryPublication.status, "running"),
+          inArray(s.deliveryPublication.leaseUntil, tokens),
+        );
+      const lease: Lease = {
+        // Locks the publication row inside `tx` (renewals wait for it) and
+        // says whether this runner still owns it.
+        async owned(tx) {
+          if (lost) return false;
+          const [own] = await tx
+            .select({ id: s.deliveryPublication.id })
+            .from(s.deliveryPublication)
+            .where(held())
+            .for("update");
+          if (!own) lost = true;
+          return !lost;
+        },
+      };
+      let renewing: Promise<void> = Promise.resolve();
+      const renew = () =>
+        (renewing = renewing.then(async () => {
+          if (lost) return;
+          const next = new Date(now().getTime() + LEASE_MS);
+          const previous = tokens;
+          const where = held();
+          tokens = [...previous, next];
+          try {
+            const [row] = await db
+              .update(s.deliveryPublication)
+              .set({ leaseUntil: next })
+              .where(where)
+              .returning({ id: s.deliveryPublication.id });
+            if (row) tokens = [next];
+            else lost = true;
+          } catch {
+            // Unknown outcome: both values stay valid until the next renewal.
+          }
+        }));
+      const heartbeat = setInterval(() => void renew(), LEASE_RENEW_MS);
+      heartbeat.unref?.();
       const row = await connectionRow(
         db,
         claimed.organizationId,
         claimed.connectionId,
       ).catch(() => null);
       const results = { ...claimed.results };
-      for (const itemId of claimed.itemIds) {
-        if (results[itemId]?.outcome !== "pending") continue;
-        if (!row) {
-          const result = {
-            outcome: "failed" as const,
-            message:
-              "The Jira connection was removed. Reconnect it and export again.",
-          };
-          await finishItem(claimed, itemId, result, null);
-          results[itemId] = result;
-          continue;
+      try {
+        for (const itemId of claimed.itemIds) {
+          if (results[itemId]?.outcome !== "pending") continue;
+          await renew();
+          if (lost || call.signal?.aborted) break;
+          if (!row) {
+            const result = {
+              outcome: "failed" as const,
+              message:
+                "The Jira connection was removed. Reconnect it and export again.",
+            };
+            if (await finishItem(claimed, itemId, result, null, lease))
+              results[itemId] = result;
+            continue;
+          }
+          const result = await exportItem(claimed, row, itemId, results, lease);
+          if (result) results[itemId] = result;
         }
-        const result = await exportItem(claimed, row, itemId, results);
-        if (result) results[itemId] = result;
+      } finally {
+        clearInterval(heartbeat);
+        await renewing;
       }
+      // Another runner owns it now; its results are the ones that count.
+      if (lost) return current(publicationId);
       const done = claimed.itemIds.every(
         (id) => results[id]?.outcome !== "pending",
       );
@@ -1260,20 +1323,19 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           : ok === 0
             ? ("failed" as const)
             : ("partial" as const);
+      const stopped = Boolean(call.signal?.aborted);
       let completed: Publication | undefined;
       await db.transaction(async (tx) => {
         const [finished] = await tx
           .update(s.deliveryPublication)
           .set({
-            leaseUntil: null,
+            // Interrupted: resume at once elsewhere. Waiting on a create
+            // confirmation: retry shortly, not in a tight loop.
+            leaseUntil:
+              done || stopped ? null : new Date(now().getTime() + DEFER_MS),
             ...(done ? { status, finishedAt: now() } : {}),
           })
-          .where(
-            and(
-              eq(s.deliveryPublication.id, publicationId),
-              eq(s.deliveryPublication.status, "running"),
-            ),
-          )
+          .where(held())
           .returning();
         // The requester hears once, when the run settles.
         if (done && finished) {
@@ -1291,9 +1353,11 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       return current(publicationId);
     },
 
-    // Resumes publications left running (deferred create confirmations,
-    // crashed workers). Called by the scheduled job.
-    async processPending() {
+    // Resumes publications left running (new ones, deferred create
+    // confirmations, crashed workers). Called by the worker.
+    async processPending(
+      options: { limit?: number; signal?: AbortSignal } = {},
+    ) {
       const rows = await db
         .select({ id: s.deliveryPublication.id })
         .from(s.deliveryPublication)
@@ -1306,9 +1370,18 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             ),
           ),
         )
-        .limit(50);
-      for (const { id } of rows) await this.process(id);
-      return { publications: rows.length };
+        .orderBy(asc(s.deliveryPublication.createdAt))
+        .limit(options.limit ?? 50);
+      let processed = 0;
+      for (const { id } of rows) {
+        if (options.signal?.aborted) break;
+        await this.process(id, { signal: options.signal });
+        processed++;
+      }
+      return {
+        publications: processed,
+        more: rows.length === (options.limit ?? 50),
+      };
     },
   };
 
@@ -1460,6 +1533,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     row: ConnectionRow,
     itemId: string,
     results: Publication["results"],
+    lease: Lease,
   ): Promise<ItemResult | undefined> {
     const { organizationId } = publication;
     // Re-plan under the lock with the original request shape: readiness,
@@ -1497,13 +1571,15 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         parentLink: item.parentId ? await linkFor(item.parentId) : undefined,
       };
     });
+    // A runner that lost its lease records nothing; the owner redoes the
+    // item, recovering an unrecorded create through the attempt marker.
     const settle = async (
       result: ItemResult,
       written: Written | null = null,
-    ) => {
-      await finishItem(publication, itemId, result, written);
-      return result;
-    };
+    ) =>
+      (await finishItem(publication, itemId, result, written, lease))
+        ? result
+        : undefined;
     if (state.planned instanceof DomainError)
       return settle({ outcome: "skipped", message: state.planned.message });
     const entry = state.planned.entries.find((e) => e.workItemId === itemId);
@@ -1608,10 +1684,15 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           external = await provider.updateItem(connection, external, payload);
       }
       if (!external) {
-        await db
-          .update(s.workItemExternalLink)
-          .set({ createAttemptedAt: now() })
-          .where(eq(s.workItemExternalLink.id, link.id));
+        const attempting = await db.transaction(async (tx) => {
+          if (!(await lease.owned(tx))) return false;
+          await tx
+            .update(s.workItemExternalLink)
+            .set({ createAttemptedAt: now() })
+            .where(eq(s.workItemExternalLink.id, link.id));
+          return true;
+        });
+        if (!attempting) return undefined;
         creating = true;
         external = await provider.createItem(connection, destination, payload);
         creating = false;
@@ -1659,10 +1740,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     itemId: string,
     result: ItemResult,
     written: Written | null,
+    lease: Lease,
   ) {
     const { organizationId } = publication;
-    await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       await lock(tx, organizationId);
+      if (!(await lease.owned(tx))) return false;
       const item = await itemRow(tx, organizationId, itemId);
       const before = await externalLinks(tx, organizationId, {
         workItemIds: [itemId],
@@ -1762,11 +1845,13 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         projectId: item.projectId,
         workItemId: item.id,
       });
+      return true;
     });
   }
 }
 
 type Publication = typeof s.deliveryPublication.$inferSelect;
+type Lease = { owned(tx: Tx): Promise<boolean> };
 type ItemResult = Publication["results"][string];
 type Written = {
   externalId?: string;

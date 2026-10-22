@@ -249,6 +249,7 @@ void test("Lictory Intelligence review is opt-in, analyses the tree and scores v
     completed: 1,
     failed: 0,
     superseded: 0,
+    interrupted: 0,
   });
   const [run] = await f.runs(f.epicId);
   assert.equal(run!.status, "completed");
@@ -583,6 +584,121 @@ void test("provider failures are recorded as actionable errors and never block h
 function branchHead(branches: EntityOf<"specBranch">[], id: string) {
   return branches.find((b) => b.id === id)!.headId;
 }
+
+async function queuedReview(f: Awaited<ReturnType<typeof fixture>>) {
+  await f.command({ type: "setAiPolicy", enabled: true });
+  const runId = crypto.randomUUID();
+  await f.command({ type: "requestAiReview", workItemId: f.storyId, runId });
+  const row = async () =>
+    (await db.select().from(s.aiRun).where(eq(s.aiRun.id, runId)))[0]!;
+  const completions = async () =>
+    (
+      await db
+        .select()
+        .from(s.activity)
+        .where(
+          and(
+            eq(s.activity.organizationId, f.organizationId),
+            eq(s.activity.action, "ai_review_completed"),
+          ),
+        )
+    ).filter((a) => (a.detail as { runId?: string }).runId === runId);
+  return { runId, row, completions };
+}
+
+void test("a run held by a crashed worker is re-claimed after its lease and completes once", async () => {
+  const f = await fixture();
+  const run = await queuedReview(f);
+  // Worker A claims the run and never comes back from the model.
+  let called!: () => void;
+  const inModel = new Promise<void>((resolve) => (called = resolve));
+  let answer!: () => void;
+  const answered = new Promise<void>((resolve) => (answer = resolve));
+  const slow = fakeAnalyzer([], () => []);
+  slow.reviewItem = async () => {
+    called();
+    await answered;
+    return { summary: "Late answer.", strengths: [], findings: [] };
+  };
+  const workerA = processAiRuns(db, { analyzer: slow, limit: 1 });
+  await inModel;
+  assert.equal((await run.row()).status, "running");
+  assert.equal((await run.row()).attempts, 1);
+  // Within the lease no one else takes it.
+  const early = fakeAnalyzer();
+  await processAiRuns(db, { analyzer: early });
+  assert.equal(early.calls, 0);
+
+  const later = new Date(Date.now() + 11 * 60_000);
+  const workerB = fakeAnalyzer();
+  assert.equal(
+    (await processAiRuns(db, { analyzer: workerB, now: () => later }))
+      .completed,
+    1,
+  );
+  const completed = await run.row();
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.attempts, 2);
+  assert.equal(completed.summary, "Mostly clear.");
+
+  // Worker A answers after all: its attempt is fenced off.
+  answer();
+  await workerA;
+  const final = await run.row();
+  assert.equal(final.summary, "Mostly clear.");
+  assert.deepEqual(final.completedAt, completed.completedAt);
+  assert.equal((await run.completions()).length, 1);
+});
+
+void test("a model call past the run deadline fails the run instead of outliving its lease", async () => {
+  const f = await fixture();
+  const run = await queuedReview(f);
+  const hung = fakeAnalyzer();
+  // Ignores the abort signal entirely; the runner still moves on.
+  hung.reviewItem = () => new Promise<never>(() => undefined);
+  assert.equal(
+    (await processAiRuns(db, { analyzer: hung, timeoutMs: 50 })).failed,
+    1,
+  );
+  const row = await run.row();
+  assert.equal(row.status, "failed");
+  assert.match(row.error!, /did not answer in time/);
+});
+
+void test("a run interrupted by shutdown goes back to the queue and completes on the next worker", async () => {
+  const f = await fixture();
+  const run = await queuedReview(f);
+  const stop = new AbortController();
+  const interrupted = fakeAnalyzer();
+  let aborted = false;
+  interrupted.reviewItem = (_context, call) =>
+    new Promise((_resolve, reject) => {
+      call!.abortSignal!.addEventListener("abort", () => {
+        aborted = true;
+        reject(new Error("aborted"));
+      });
+      stop.abort();
+    });
+  assert.equal(
+    (
+      await processAiRuns(db, {
+        analyzer: interrupted,
+        signal: stop.signal,
+      })
+    ).interrupted,
+    1,
+  );
+  assert.ok(aborted, "the provider call is cancelled");
+  assert.equal((await run.row()).status, "queued");
+  assert.equal(
+    (await processAiRuns(db, { analyzer: fakeAnalyzer() })).completed,
+    1,
+  );
+  const row = await run.row();
+  assert.equal(row.status, "completed");
+  assert.equal(row.attempts, 2);
+  assert.equal((await run.completions()).length, 1);
+});
 
 void test("projections equal a rebuild from the domain", async () => {
   const drift: string[] = [];
