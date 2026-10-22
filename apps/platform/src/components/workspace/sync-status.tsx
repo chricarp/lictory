@@ -56,6 +56,7 @@ export function SyncStatus() {
   const presentation: Presentation = presentationOf({
     connection,
     everConnected,
+    reason: connectionReason,
     busy: busyShown,
     rejected: rejected.length,
   });
@@ -85,6 +86,8 @@ export function SyncStatus() {
           {...props}
           aria-label={label}
           title={label}
+          data-sync-status={presentation}
+          data-pending={pending.length}
           className={cn(
             "grid size-7 shrink-0 place-items-center rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
             presentation === "idle" && "text-muted-foreground/70",

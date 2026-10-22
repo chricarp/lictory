@@ -29,6 +29,16 @@ void test("the sync indicator follows the connection and unsent work", () => {
   assert.equal(of("connected", { rejected: 1 }), "attention");
   assert.equal(of("connecting"), "recovering");
   assert.equal(of("connecting", { everConnected: false }), "idle");
+  // A reload while the server is unreachable: still retrying.
+  assert.equal(
+    presentation({
+      ...base,
+      connection: "connecting",
+      everConnected: false,
+      reason: "Failed to connect",
+    }),
+    "recovering",
+  );
   assert.equal(
     of("initializing", { everConnected: false, busy: true }),
     "busy",
@@ -46,6 +56,11 @@ void test("writes are only accepted while Zero can reach the server", () => {
   assert.ok(!canWrite("needs-auth"));
   assert.match(connectionProblem("needs-auth") ?? "", /Sign in again/);
   assert.equal(connectionProblem("connected"), undefined);
+  assert.equal(connectionProblem("connecting"), undefined);
+  assert.match(
+    connectionProblem("connecting", "timeout") ?? "",
+    /interrupted: timeout/,
+  );
   assert.match(connectionProblem("error", "push failed") ?? "", /push failed/);
 });
 

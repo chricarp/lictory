@@ -38,6 +38,8 @@ export function presentation(input: {
   connection: ConnectionName;
   // Has this Zero instance been connected before (a reconnect, not a start)?
   everConnected: boolean;
+  // Why the last connection attempt failed, while Zero keeps trying.
+  reason?: string;
   // Debounced: unsent mutations or a first load in progress.
   busy: boolean;
   // Rejected changes whose text is kept for recovery.
@@ -52,7 +54,7 @@ export function presentation(input: {
     case "error":
       return "attention";
     case "connecting":
-      if (input.everConnected) return "recovering";
+      if (input.everConnected || input.reason) return "recovering";
       break;
   }
   if (input.rejected > 0) return "attention";
@@ -73,6 +75,8 @@ export function connectionProblem(
   reason?: string,
 ): string | undefined {
   switch (connection) {
+    case "connecting":
+      return reason ? `The connection was interrupted: ${reason}` : undefined;
     case "disconnected":
       return "You’re offline. Reconnect to keep working; changes can’t be saved until then.";
     case "error":
