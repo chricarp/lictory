@@ -100,7 +100,7 @@ export function OrganizationHandleField({
       />
       <p id={`${id}-url`} className="text-xs break-all text-muted-foreground">
         Your workspace URL:{" "}
-        <span className="font-mono">/app/{status.handle || "your-handle"}</span>
+        <span className="font-mono">/{status.handle || "your-handle"}</span>
       </p>
       <p
         id={`${id}-status`}

@@ -4,7 +4,7 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useRouter } from "@lictory/platform/lib/navigation";
+import { useRouter as useTanStackRouter } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
@@ -29,6 +29,7 @@ import { handleProblem, normalizeHandle } from "@lictory/core/lib/handles";
 import { paths } from "@lictory/core/lib/paths";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { MutationRejected } from "@lictory/platform/data/mutations";
+import { useFinishSetup } from "@lictory/platform/routes/organization";
 import {
   CardOptions,
   OnboardingFrame,
@@ -88,7 +89,8 @@ type InviteResult = { recipient: string; error?: string };
 export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
   const { organization, userId, directory, reconnect, applyConfirmed } =
     useWorkspace();
-  const router = useRouter();
+  const finishSetup = useFinishSetup();
+  const navigator = useTanStackRouter();
   const storageKey = draftKey(userId, organization.id);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [direction, setDirection] = useState(1);
@@ -237,7 +239,15 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       sessionStorage.removeItem(storageKey);
       sessionStorage.removeItem(`${storageKey}:attempt`);
     } catch {}
-    router.replace(paths.list(organization.slug, key, "epics"));
+    // The organization layout keeps setup in place until it is told it is
+    // done; leaving only after the project's address is current keeps the
+    // organization home from redirecting first.
+    void navigator
+      .navigate({
+        href: paths.list(organization.slug, key, "epics"),
+        replace: true,
+      })
+      .finally(finishSetup);
   };
   const retryInvites = async () => {
     if (!invited) return;
