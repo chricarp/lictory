@@ -63,7 +63,9 @@ const server = createServer((req, res) => {
       "content-type": types[extname(file)] ?? "application/octet-stream",
       "cache-control": pathname.startsWith("/assets/")
         ? "public, max-age=31536000, immutable"
-        : "public, max-age=3600",
+        : /^\/(brand|illustrations)\//.test(pathname)
+          ? "public, max-age=86400"
+          : "public, max-age=3600",
     });
     if (req.method === "HEAD") return res.end();
     createReadStream(file).pipe(res);
@@ -71,9 +73,12 @@ const server = createServer((req, res) => {
   }
   proxy.web(req, res, { target: api });
 });
+// Like the production proxy, only pages from this origin may open the sync
+// socket (cross-site WebSocket hijacking).
 server.on("upgrade", (req, socket, head) => {
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
-  if (pathname.startsWith("/zero/"))
+  const origin = `http://${req.headers.host}`;
+  if (pathname.startsWith("/zero/") && req.headers.origin === origin)
     proxy.ws(req, socket, head, { target: zero });
   else socket.destroy();
 });
