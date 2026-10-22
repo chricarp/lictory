@@ -70,7 +70,7 @@ async function acquireLock(sql: postgres.Sql) {
 async function main() {
   const connection = resolveMigrationConnection(process.env);
   console.log(
-    `Migration target: ${connection.target} (${connection.host}/${connection.database})`,
+    `Migration target: ${connection.target} via ${connection.transport} (${connection.host}/${connection.database})`,
   );
   // One connection: the session advisory lock, timeouts and the migration
   // transaction must share a session.

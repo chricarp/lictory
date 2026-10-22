@@ -19,8 +19,14 @@ bun run dev
 
 Every optional integration (OAuth, Resend, R2, OpenAI, PostHog, Jira) stays
 disabled until its variables are set in `.env`. Core refinement works without any
-of them. Prefer `docker compose up --build` when you want the app in a container
-too; see the [README](../../README.md).
+of them.
+
+The Compose PostgreSQL runs with `wal_level=logical` for Zero. After
+`bun run db:migrate`, `docker compose --profile zero up -d zero-cache` starts a
+zero-cache (port 4848) against the development database that calls the API on
+the host (port 3002). Existing volumes keep their data when the setting changes.
+Production images and the single-server stack are described in
+[deployment](deployment.md).
 
 ## Daily commands
 

@@ -9,7 +9,11 @@ import {
   type Baseline,
   type Change,
 } from "@lictory/core/release/model";
-import { compareStable, conventionalTitle, stableParts } from "@lictory/core/release/version";
+import {
+  compareStable,
+  conventionalTitle,
+  stableParts,
+} from "@lictory/core/release/version";
 
 const execute = promisify(execFile);
 export async function git(root: string, ...args: string[]): Promise<string> {

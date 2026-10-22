@@ -1,0 +1,362 @@
+# One Lictory environment (production or staging) on one server.
+# Always run through deploy/bin/lictory-compose (or deploy.sh), which supplies
+# the project name and both env files:
+#
+#   docker compose -p lictory-production -f compose.production.yaml \
+#     --env-file .env --env-file current-release.env <command>
+#
+# .env                 environment secrets and hosts (deploy/env/*.env.example)
+# current-release.env  image digests of the active release (written by deploy.sh)
+#
+# Networks: only the proxy publishes ports. PostgreSQL and zero-cache sit on an
+# internal network without internet access; services that call external APIs
+# also join `egress`. See docs/operations/deployment.md.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  logging: *logging
+
+x-server-environment: &server-environment
+  NODE_ENV: production
+  LICTORY_ENVIRONMENT: ${LICTORY_ENVIRONMENT:?}
+  APP_VERSION: ${LICTORY_VERSION:?}
+  DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
+  PLATFORM_URL: https://${APP_HOST:?}
+  SITE_URL: https://${SITE_HOST:?}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+  DELIVERY_CREDENTIALS_KEY: ${DELIVERY_CREDENTIALS_KEY:?}
+  ZERO_API_KEY: ${ZERO_API_KEY:?}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?}
+  R2_BUCKET_NAME: ${R2_BUCKET_NAME:?}
+  R2_S3_ENDPOINT: ${R2_S3_ENDPOINT:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  LICTORY_AI_MODEL: ${LICTORY_AI_MODEL:-}
+  LICTORY_TRANSCRIPTION_MODEL: ${LICTORY_TRANSCRIPTION_MODEL:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+  MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+  MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-common}
+  OAUTH_PROXY_URL: ${OAUTH_PROXY_URL:-}
+  OAUTH_PROXY_SECRET: ${OAUTH_PROXY_SECRET:-}
+  OAUTH_PROXY_TRUSTED_ORIGINS: ${OAUTH_PROXY_TRUSTED_ORIGINS:-}
+  POSTHOG_PROJECT_TOKEN: ${POSTHOG_PROJECT_TOKEN:-}
+  POSTHOG_HOST: ${POSTHOG_HOST:-}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17.11-alpine}
+    <<: *hardening
+    restart: unless-stopped
+    networks: [internal]
+    shm_size: 256m
+    mem_limit: ${POSTGRES_MEM_LIMIT:-3g}
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      POSTGRES_DB: postgres
+      # Code point ordering independent of the C library: indexes survive base
+      # image upgrades and sort like Zero's replica and the browser.
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+      LICTORY_DB_NAME: ${LICTORY_DB_NAME:?}
+      LICTORY_OWNER_PASSWORD: ${LICTORY_OWNER_PASSWORD:?}
+      LICTORY_APP_PASSWORD: ${LICTORY_APP_PASSWORD:?}
+      ZERO_DB_PASSWORD: ${ZERO_DB_PASSWORD:?}
+      LICTORY_OPS_PASSWORD: ${LICTORY_OPS_PASSWORD:?}
+    # Sized for an 8 GB server (raise shared_buffers/effective_cache_size with
+    # POSTGRES_SHARED_BUFFERS / POSTGRES_EFFECTIVE_CACHE_SIZE on larger hosts).
+    # Connections: API pool + worker + Zero (CVR 8, upstream 4, replication,
+    # change streamer, initial sync) + migrations, backups, monitoring.
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-1GB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-3GB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - wal_level=logical
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      # An abandoned Zero slot must not fill the disk: past this size the slot
+      # is invalidated and zero-cache resyncs its replica (docs/operations/recovery.md).
+      - -c
+      - max_slot_wal_keep_size=${POSTGRES_MAX_SLOT_WAL_KEEP_SIZE:-8GB}
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=256MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_lock_waits=on
+      - -c
+      - log_autovacuum_min_duration=10s
+      - -c
+      - log_connections=off
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${LICTORY_HOME:-.}/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d ${LICTORY_DB_NAME:?} -h 127.0.0.1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # One-shot: applies committed migrations, then exits. deploy.sh runs it
+  # before replacing any application container.
+  migrate:
+    image: ${MIGRATE_IMAGE:?}
+    <<: *hardening
+    restart: "no"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    networks: [internal]
+    mem_limit: 512m
+    environment:
+      LICTORY_ENVIRONMENT: ${LICTORY_ENVIRONMENT:?}
+      DATABASE_MIGRATION_TARGET: ${LICTORY_ENVIRONMENT:?}
+      DATABASE_MIGRATION_TRANSPORT: compose-internal
+      DATABASE_MIGRATION_URL: postgresql://lictory_owner:${LICTORY_OWNER_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}?sslmode=disable
+      DATABASE_MIGRATION_EXPECTED_HOST: postgres
+      DATABASE_MIGRATION_EXPECTED_DATABASE: ${LICTORY_DB_NAME:?}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  zero-cache:
+    image: ${ZERO_IMAGE:-rocicorp/zero:1.11.2}
+    <<: *hardening
+    restart: unless-stopped
+    networks: [internal]
+    mem_limit: ${ZERO_MEM_LIMIT:-2g}
+    # Lets zero-cache finish cleanup and drain WebSockets during deploys.
+    stop_grace_period: 5m
+    environment:
+      NODE_ENV: production
+      # Logical replication needs a direct connection (no pooler).
+      ZERO_UPSTREAM_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
+      # Client view records and the change log live in a separate database,
+      # outside the application backups (rebuildable state).
+      ZERO_CVR_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}_zero
+      ZERO_CHANGE_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}_zero
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?}
+      ZERO_APP_PUBLICATIONS: lictory_zero
+      ZERO_QUERY_URL: http://api:3002/api/zero/query
+      ZERO_MUTATE_URL: http://api:3002/api/zero/mutate
+      ZERO_QUERY_API_KEY: ${ZERO_API_KEY:?}
+      ZERO_MUTATE_API_KEY: ${ZERO_API_KEY:?}
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
+      ZERO_NUM_SYNC_WORKERS: ${ZERO_NUM_SYNC_WORKERS:-2}
+      ZERO_UPSTREAM_MAX_CONNS: ${ZERO_UPSTREAM_MAX_CONNS:-4}
+      ZERO_CVR_MAX_CONNS: ${ZERO_CVR_MAX_CONNS:-8}
+      ZERO_INITIAL_SYNC_TABLE_COPY_WORKERS: "2"
+      ZERO_AUTO_RESET: "true"
+      ZERO_ENABLE_TELEMETRY: "false"
+      ZERO_LOG_FORMAT: json
+      ZERO_LOG_LEVEL: ${ZERO_LOG_LEVEL:-info}
+    volumes:
+      - zero_replica:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "-o",
+          "/dev/null",
+          "http://127.0.0.1:4848/keepalive",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # Initial sync or a full resync happens before the first healthy check.
+      start_period: 10m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    image: ${API_IMAGE:?}
+    <<: *hardening
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    networks: [internal, egress]
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    stop_grace_period: 30s
+    environment:
+      <<: *server-environment
+      PORT: "3002"
+      NODE_OPTIONS: --max-old-space-size=${API_HEAP_MB:-768}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: ${API_IMAGE:?}
+    <<: *hardening
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    networks: [internal, egress]
+    mem_limit: ${WORKER_MEM_LIMIT:-768m}
+    # Lets an in-flight job finish; leases make interrupted work resumable.
+    stop_grace_period: 60s
+    command: ["node", "--enable-source-maps", "apps/worker/dist/index.js"]
+    environment:
+      <<: *server-environment
+      NODE_OPTIONS: --max-old-space-size=${WORKER_HEAP_MB:-512}
+    # The worker has no HTTP port; the restart policy and job monitoring
+    # (deploy/monitor) cover it.
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  marketing:
+    image: ${MARKETING_IMAGE:?}
+    <<: *hardening
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    tmpfs:
+      - /tmp
+      - /app/apps/marketing/.next/cache:uid=1000,gid=1000
+    networks: [internal, egress]
+    mem_limit: ${MARKETING_MEM_LIMIT:-512m}
+    stop_grace_period: 15s
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+
+  proxy:
+    image: ${PROXY_IMAGE:?}
+    <<: *hardening
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    sysctls:
+      # Bind 80/443 as an unprivileged user without capabilities.
+      net.ipv4.ip_unprivileged_port_start: 0
+    tmpfs:
+      - /tmp
+    networks: [edge, internal]
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    mem_limit: 256m
+    stop_grace_period: 15s
+    environment:
+      SITE_HOST: ${SITE_HOST:?}
+      WWW_HOST: ${WWW_HOST:?}
+      APP_HOST: ${APP_HOST:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # Backups, restores and monitoring; never started by `up`.
+  #   lictory-compose run --rm ops backup.sh
+  ops:
+    image: ${OPS_IMAGE:?}
+    <<: *hardening
+    profiles: [ops]
+    restart: "no"
+    networks: [internal, egress]
+    mem_limit: 512m
+    environment:
+      LICTORY_ENVIRONMENT: ${LICTORY_ENVIRONMENT:?}
+      LICTORY_VERSION: ${LICTORY_VERSION:-}
+      PGHOST: postgres
+      PGUSER: lictory_ops
+      PGPASSWORD: ${LICTORY_OPS_PASSWORD:?}
+      PGDATABASE: ${LICTORY_DB_NAME:?}
+      PGAPPNAME: lictory-ops
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:?}
+      BACKUP_BUCKET: ${BACKUP_BUCKET:?}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+      BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-6}
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+      RCLONE_CONFIG_BACKUP_TYPE: s3
+      RCLONE_CONFIG_BACKUP_PROVIDER: ${BACKUP_S3_PROVIDER:-Cloudflare}
+      RCLONE_CONFIG_BACKUP_ENDPOINT: ${BACKUP_S3_ENDPOINT:?}
+      RCLONE_CONFIG_BACKUP_REGION: ${BACKUP_S3_REGION:-auto}
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:?}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:?}
+      RCLONE_CONFIG_BACKUP_NO_CHECK_BUCKET: "true"
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      MONITOR_PING_URL: ${MONITOR_PING_URL:-}
+      MONITOR_SLOT_LAG_ALERT_BYTES: ${MONITOR_SLOT_LAG_ALERT_BYTES:-2147483648}
+      MONITOR_BACKUP_MAX_AGE_HOURS: ${MONITOR_BACKUP_MAX_AGE_HOURS:-30}
+      ZERO_ADMIN_PASSWORD: ${ZERO_ADMIN_PASSWORD:?}
+    volumes:
+      - backups:/backups
+
+networks:
+  edge: {}
+  internal:
+    internal: true
+  egress: {}
+
+volumes:
+  postgres_data:
+  zero_replica:
+  caddy_data:
+  caddy_config:
+  backups:

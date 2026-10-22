@@ -1,5 +1,7 @@
 name: lictory
 
+# Local development services. The applications run on the host (`bun run dev`);
+# see docs/operations/development.md. Production uses deploy/compose.production.yaml.
 services:
   postgres:
     image: postgres:17-alpine
@@ -7,6 +9,15 @@ services:
       POSTGRES_DB: lictory
       POSTGRES_USER: lictory
       POSTGRES_PASSWORD: lictory
+    # Zero replicates through logical decoding.
+    command:
+      [
+        "postgres",
+        "-c",
+        "wal_level=logical",
+        "-c",
+        "max_slot_wal_keep_size=2GB",
+      ]
     ports:
       - "5432:5432"
     volumes:
@@ -28,45 +39,39 @@ services:
       - "8025:8025"
     restart: unless-stopped
 
-  app:
-    build:
-      context: .
-      target: development
+  # Optional: `docker compose --profile zero up -d zero-cache` after
+  # `bun run db:migrate` (the lictory_zero publication must exist). Calls the
+  # API running on the host at :3002.
+  zero-cache:
+    image: rocicorp/zero:1.11.2
+    profiles: [zero]
     environment:
-      BETTER_AUTH_URL: http://localhost:3000
-      BETTER_AUTH_SECRET: local-development-secret-change-before-production
-      OAUTH_PROXY_URL: ${OAUTH_PROXY_URL:-}
-      OAUTH_PROXY_SECRET: ${OAUTH_PROXY_SECRET:-}
-      OAUTH_PROXY_TRUSTED_ORIGINS: ${OAUTH_PROXY_TRUSTED_ORIGINS:-}
-      DATABASE_URL: postgresql://lictory:lictory@postgres:5432/lictory
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Lictory <no-reply@email.lictory.com>}
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_FROM: Lictory <no-reply@lictory.local>
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
-      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
-      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-common}
-    command:
-      [
-        "sh",
-        "-c",
-        "bun install --frozen-lockfile && bun run db:migrate && bun run dev --hostname 0.0.0.0",
-      ]
+      ZERO_UPSTREAM_DB: postgresql://lictory:lictory@postgres:5432/lictory
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_APP_PUBLICATIONS: lictory_zero
+      ZERO_QUERY_URL: http://host.docker.internal:3002/api/zero/query
+      ZERO_MUTATE_URL: http://host.docker.internal:3002/api/zero/mutate
+      ZERO_QUERY_API_KEY: ${ZERO_API_KEY:-}
+      ZERO_MUTATE_API_KEY: ${ZERO_API_KEY:-}
+      ZERO_QUERY_FORWARD_COOKIES: "true"
+      ZERO_MUTATE_FORWARD_COOKIES: "true"
+      ZERO_ENABLE_CRUD_MUTATIONS: "false"
+      ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "60"
+      ZERO_NUM_SYNC_WORKERS: "1"
+      ZERO_ENABLE_TELEMETRY: "false"
+      ZERO_LOG_FORMAT: text
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "3000:3000"
+      - "4848:4848"
     volumes:
-      - .:/app
-      - app_node_modules:/app/node_modules
+      - zero_replica:/data
+    stop_grace_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     restart: unless-stopped
 
 volumes:
   postgres_data:
-  app_node_modules:
+  zero_replica:

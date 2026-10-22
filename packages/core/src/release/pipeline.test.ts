@@ -1,13 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { executeRelease, type ReleasePorts } from "@lictory/core/release/pipeline";
-import { nightly, stable } from "@lictory/core/release/fixtures.test-helper";
+import {
+  executeRelease,
+  type ReleasePorts,
+} from "@lictory/core/release/pipeline";
+import {
+  images,
+  nightly,
+  stable,
+} from "@lictory/core/release/fixtures.test-helper";
 
 function ports() {
   const calls: string[] = [];
   let active = false;
   let publicationFails = false;
-  const build = { id: "dpl_verified", url: "https://verified.vercel.app" };
+  const build = {
+    id: "verified",
+    url: "https://app.lictory.com",
+    images: images("b"),
+  };
   const adapter: ReleasePorts = {
     validate: async () => {
       calls.push("validate");
@@ -128,9 +139,13 @@ void test("a verified nightly creates and publishes a preview without migrations
   ]);
 });
 
-void test("a nightly publication retry reuses the journaled preview without touching production", async () => {
+void test("a nightly publication retry reuses the journaled images without touching production", async () => {
   const fixture = ports();
-  const preview = { id: "dpl_preview", url: "https://preview.vercel.app" };
+  const preview = {
+    id: "nightly",
+    url: "https://app.staging.lictory.com",
+    images: images("c"),
+  };
   fixture.adapter.active = async () => preview;
   assert.equal(await executeRelease(nightly(), fixture.adapter), preview);
   assert.deepEqual(fixture.calls, [

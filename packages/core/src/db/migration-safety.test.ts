@@ -104,18 +104,131 @@ void describe("migration connection", () => {
     );
   });
 
-  void test("refuses to run inside Vercel and unknown targets", () => {
-    assert.throws(
-      () =>
-        resolveMigrationConnection({
-          VERCEL: "1",
-          DATABASE_URL: "postgresql://a:b@localhost/db",
-        }),
-      /never run inside Vercel/,
-    );
+  void test("refuses unknown targets and transports", () => {
     assert.throws(
       () => resolveMigrationConnection({ DATABASE_MIGRATION_TARGET: "prod" }),
       /must be one of/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          DATABASE_MIGRATION_TARGET: "production",
+          DATABASE_MIGRATION_TRANSPORT: "plaintext",
+        }),
+      /DATABASE_MIGRATION_TRANSPORT must be one of/,
+    );
+  });
+});
+
+void describe("compose-internal migration connection", () => {
+  const production = {
+    DATABASE_MIGRATION_TARGET: "production",
+    DATABASE_MIGRATION_TRANSPORT: "compose-internal",
+    DATABASE_MIGRATION_URL:
+      "postgresql://lictory_owner:secret@postgres:5432/lictory?sslmode=disable",
+    DATABASE_MIGRATION_EXPECTED_HOST: "postgres",
+    DATABASE_MIGRATION_EXPECTED_DATABASE: "lictory",
+    LICTORY_ENVIRONMENT: "production",
+  };
+
+  void test("accepts the server's own Compose database when every guard agrees", () => {
+    const resolved = resolveMigrationConnection(production);
+    assert.equal(resolved.target, "production");
+    assert.equal(resolved.transport, "compose-internal");
+    assert.equal(resolved.host, "postgres");
+    assert.equal(resolved.database, "lictory");
+  });
+
+  void test("the same Compose host still refuses the plain TLS rules", () => {
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          DATABASE_MIGRATION_TRANSPORT: undefined,
+        }),
+      /local database host/,
+    );
+  });
+
+  void test("only staging and production may use the internal transport", () => {
+    for (const target of ["local", "test", "preview"])
+      assert.throws(
+        () =>
+          resolveMigrationConnection({
+            ...production,
+            DATABASE_MIGRATION_TARGET: target,
+            LICTORY_ENVIRONMENT: target,
+          }),
+        /only serves the staging and production servers/,
+      );
+  });
+
+  void test("a staging configuration cannot migrate production and vice versa", () => {
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          LICTORY_ENVIRONMENT: "staging",
+        }),
+      /does not confirm the production target/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({ ...production, LICTORY_ENVIRONMENT: "" }),
+      /does not confirm/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          DATABASE_MIGRATION_URL: production.DATABASE_MIGRATION_URL.replace(
+            "/lictory?",
+            "/lictory_staging?",
+          ),
+        }),
+      /does not match DATABASE_MIGRATION_EXPECTED_DATABASE/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          DATABASE_MIGRATION_EXPECTED_DATABASE: undefined,
+        }),
+      /EXPECTED_DATABASE is required/,
+    );
+  });
+
+  void test("refuses other hosts and implicit transport security", () => {
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          DATABASE_MIGRATION_URL: production.DATABASE_MIGRATION_URL.replace(
+            "@postgres:",
+            "@db.example.com:",
+          ),
+          DATABASE_MIGRATION_EXPECTED_HOST: "db.example.com",
+        }),
+      /only reaches the Compose service "postgres"/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          DATABASE_MIGRATION_URL: production.DATABASE_MIGRATION_URL.replace(
+            "?sslmode=disable",
+            "",
+          ),
+        }),
+      /sslmode=disable stated explicitly/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...production,
+          DATABASE_MIGRATION_EXPECTED_HOST: undefined,
+        }),
+      /EXPECTED_HOST is required/,
     );
   });
 });

@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { conventionalTitle, nightlyVersion, stableParts } from "@lictory/core/release/version";
+import {
+  conventionalTitle,
+  nightlyVersion,
+  stableParts,
+} from "@lictory/core/release/version";
 
 export const shaSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const changeSchema = z

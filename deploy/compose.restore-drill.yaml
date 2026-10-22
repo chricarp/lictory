@@ -1,0 +1,112 @@
+# Isolated restore drill: a throwaway PostgreSQL with the Lictory roles, the
+# release's ops image to download/decrypt/restore/verify, and optional checks
+# with the release's migrate and API images. Separate project, separate
+# networks, no published ports: it cannot reach the live environment's
+# database. Driven by deploy/bin/lictory-restore-drill; always torn down with -v.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "2"
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17.11-alpine}
+    logging: *logging
+    networks: [drill]
+    shm_size: 256m
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DRILL_SUPERUSER_PASSWORD:?}
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+      LICTORY_DB_NAME: ${DRILL_DB_NAME:?}
+      LICTORY_OWNER_PASSWORD: ${DRILL_OWNER_PASSWORD:?}
+      LICTORY_APP_PASSWORD: ${DRILL_APP_PASSWORD:?}
+      ZERO_DB_PASSWORD: ${DRILL_ZERO_PASSWORD:?}
+      LICTORY_OPS_PASSWORD: ${DRILL_OPS_PASSWORD:?}
+    command: [postgres, -c, wal_level=logical]
+    volumes:
+      - drill_postgres:/var/lib/postgresql/data
+      - ${DRILL_ROLES_SCRIPT:?}:/docker-entrypoint-initdb.d/10-lictory-roles.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d ${DRILL_DB_NAME:?} -h 127.0.0.1",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  ops:
+    image: ${OPS_IMAGE:?}
+    logging: *logging
+    profiles: [tools]
+    networks: [drill, egress]
+    environment:
+      LICTORY_ENVIRONMENT: ${LICTORY_ENVIRONMENT:?}
+      RESTORE_PGHOST: postgres
+      RESTORE_PGUSER: postgres
+      RESTORE_PGPASSWORD: ${DRILL_SUPERUSER_PASSWORD:?}
+      RESTORE_DATABASE: ${DRILL_DB_NAME:?}
+      AGE_IDENTITY_FILE: /run/age-identity
+      BACKUP_BUCKET: ${BACKUP_BUCKET:?}
+      RCLONE_CONFIG_BACKUP_TYPE: s3
+      RCLONE_CONFIG_BACKUP_PROVIDER: ${BACKUP_S3_PROVIDER:-Cloudflare}
+      RCLONE_CONFIG_BACKUP_ENDPOINT: ${BACKUP_S3_ENDPOINT:?}
+      RCLONE_CONFIG_BACKUP_REGION: ${BACKUP_S3_REGION:-auto}
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:?}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:?}
+      RCLONE_CONFIG_BACKUP_NO_CHECK_BUCKET: "true"
+    volumes:
+      - ${AGE_IDENTITY_FILE:?}:/run/age-identity:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # The release's migration runner must find the restored history up to date.
+  migrate:
+    image: ${MIGRATE_IMAGE:?}
+    logging: *logging
+    profiles: [tools]
+    networks: [drill]
+    environment:
+      DATABASE_MIGRATION_TARGET: local
+      DATABASE_MIGRATION_URL: postgresql://lictory_owner:${DRILL_OWNER_PASSWORD:?}@postgres:5432/${DRILL_DB_NAME:?}
+    command: [node, migrate.mjs, --status]
+
+  # The release's API must become ready against the restored data. Drill-only
+  # secrets; no external service is configured.
+  api:
+    image: ${API_IMAGE:?}
+    logging: *logging
+    profiles: [app]
+    networks: [drill]
+    init: true
+    environment:
+      NODE_ENV: production
+      LICTORY_ENVIRONMENT: restore-drill
+      PORT: "3002"
+      DATABASE_URL: postgresql://lictory_app:${DRILL_APP_PASSWORD:?}@postgres:5432/${DRILL_DB_NAME:?}
+      PLATFORM_URL: https://app.restore-drill.invalid
+      SITE_URL: https://restore-drill.invalid
+      BETTER_AUTH_SECRET: ${DRILL_APP_SECRET:?}
+      DELIVERY_CREDENTIALS_KEY: ${DRILL_APP_SECRET:?}
+      ZERO_API_KEY: ${DRILL_APP_SECRET:?}
+      R2_ACCOUNT_ID: restore-drill
+      R2_ACCESS_KEY_ID: restore-drill
+      R2_SECRET_ACCESS_KEY: restore-drill
+      R2_BUCKET_NAME: restore-drill
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  drill:
+    internal: true
+  egress: {}
+
+volumes:
+  drill_postgres:

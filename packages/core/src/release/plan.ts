@@ -1,4 +1,8 @@
-import { type GitHub, runSchema, type Release } from "@lictory/core/release/github";
+import {
+  type GitHub,
+  runSchema,
+  type Release,
+} from "@lictory/core/release/github";
 import {
   fingerprint,
   manifestSchema,
@@ -6,7 +10,12 @@ import {
   type Baseline,
   type Manifest,
 } from "@lictory/core/release/model";
-import { ancestor, collectChanges, git, latestBaseline } from "@lictory/core/release/repository";
+import {
+  ancestor,
+  collectChanges,
+  git,
+  latestBaseline,
+} from "@lictory/core/release/repository";
 import {
   compareStable,
   conventionalTitle,
@@ -147,7 +156,7 @@ export async function planNightly(
 export async function verifiedNightly(
   github: GitHub,
   release: Release,
-  projectId: string,
+  registry: string,
 ): Promise<Manifest> {
   if (
     release.draft ||
@@ -175,7 +184,7 @@ export async function verifiedNightly(
       record.sha === manifest.sha &&
       payload.tag === manifest.tag &&
       payload.manifestHash === fingerprint(manifest) &&
-      payload.projectId === projectId &&
+      payload.registry === registry &&
       payload.runId === manifest.run.id,
   );
   if (
@@ -184,12 +193,12 @@ export async function verifiedNightly(
         record.sha === manifest.sha &&
         payload.tag === manifest.tag &&
         payload.manifestHash === fingerprint(manifest) &&
-        payload.projectId === projectId &&
+        payload.registry === registry &&
         payload.runId === manifest.run.id,
     )
   )
     throw new IneligibleNightly(
-      "Nightly has no successful, matching preview deployment.",
+      "Nightly has no successful, matching image build.",
     );
   return manifest;
 }
@@ -232,7 +241,7 @@ export async function planProduction(
   github: GitHub,
   root: string,
   tag: string | undefined,
-  projectId: string,
+  registry: string,
   bootstrap: Baseline,
 ): Promise<Manifest> {
   const releases = await github.releases();
@@ -257,7 +266,7 @@ export async function planProduction(
   const baseline = await latestBaseline(github, bootstrap);
   for (const choice of choices) {
     try {
-      const nightly = await verifiedNightly(github, choice, projectId);
+      const nightly = await verifiedNightly(github, choice, registry);
       const stable = manifestSchema.parse({
         ...nightly,
         channel: "stable",

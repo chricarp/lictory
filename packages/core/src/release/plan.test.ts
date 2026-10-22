@@ -3,7 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import { GitHubFixture, change, nightly, stable } from "@lictory/core/release/fixtures.test-helper";
+import {
+  GitHubFixture,
+  change,
+  nightly,
+  stable,
+} from "@lictory/core/release/fixtures.test-helper";
 import {
   accountForCommits,
   collectChanges,
@@ -11,7 +16,11 @@ import {
   latestBaseline,
   reviewedChange,
 } from "@lictory/core/release/repository";
-import { planNightly, planProduction, verifiedNightly } from "@lictory/core/release/plan";
+import {
+  planNightly,
+  planProduction,
+  verifiedNightly,
+} from "@lictory/core/release/plan";
 import { nightlyVersion, predictedStable } from "@lictory/core/release/version";
 import { changelog, type Manifest } from "@lictory/core/release/model";
 
@@ -72,7 +81,7 @@ void test("stable selection pins an older verified nightly, excluding newer main
       repo.fixture.github,
       repo.root,
       older.tag,
-      "night-project",
+      "ghcr.io/example",
       repo.baseline,
     );
     assert.equal(selected.sha, repo.feature);
@@ -87,7 +96,7 @@ void test("stable selection pins an older verified nightly, excluding newer main
           repo.fixture.github,
           repo.root,
           undefined,
-          "night-project",
+          "ghcr.io/example",
           repo.baseline,
         )
       ).sha,
@@ -137,29 +146,29 @@ void test("a nightly requires a matching tag, successful workflow, and preview d
   const fixture = new GitHubFixture();
   const candidate = nightly();
   const release = fixture.add(candidate);
-  await verifiedNightly(fixture.github, release, "night-project");
+  await verifiedNightly(fixture.github, release, "ghcr.io/example");
   await assert.rejects(
-    verifiedNightly(fixture.github, release, "prod-project"),
-    /deployment/,
+    verifiedNightly(fixture.github, release, "ghcr.io/other"),
+    /image build/,
   );
   const run = fixture.responses.get(
     `/actions/runs/${candidate.run.id}`,
   ) as Record<string, unknown>;
   run.conclusion = "failure";
   await assert.rejects(
-    verifiedNightly(fixture.github, release, "night-project"),
+    verifiedNightly(fixture.github, release, "ghcr.io/example"),
     /workflow run/,
   );
   run.conclusion = "success";
   run.head_sha = "c".repeat(40);
   await assert.rejects(
-    verifiedNightly(fixture.github, release, "night-project"),
+    verifiedNightly(fixture.github, release, "ghcr.io/example"),
     /workflow run/,
   );
   run.head_sha = candidate.sha;
   fixture.tags.set(candidate.tag, "c".repeat(40));
   await assert.rejects(
-    verifiedNightly(fixture.github, release, "night-project"),
+    verifiedNightly(fixture.github, release, "ghcr.io/example"),
     /tag/,
   );
 });
@@ -177,7 +186,7 @@ void test("stable publication retry retains the exact version/source and old nig
       repo.fixture.github,
       repo.root,
       older.tag,
-      "night-project",
+      "ghcr.io/example",
       repo.baseline,
     );
     assert.equal(retry.sha, older.sha);
@@ -187,7 +196,7 @@ void test("stable publication retry retains the exact version/source and old nig
         repo.fixture.github,
         repo.root,
         newer.tag,
-        "night-project",
+        "ghcr.io/example",
         repo.baseline,
       ),
       /duplicate|downgrade|stale/,
@@ -208,7 +217,7 @@ void test("stable publication retry retains the exact version/source and old nig
           repo.fixture.github,
           repo.root,
           fresh.tag,
-          "night-project",
+          "ghcr.io/example",
           repo.baseline,
         )
       ).version,
@@ -232,7 +241,7 @@ void test("edited merged PR metadata and stable tag collisions block promotion",
         repo.fixture.github,
         repo.root,
         candidate.tag,
-        "night-project",
+        "ghcr.io/example",
         repo.baseline,
       ),
       /metadata|version/,
@@ -244,7 +253,7 @@ void test("edited merged PR metadata and stable tag collisions block promotion",
         repo.fixture.github,
         repo.root,
         candidate.tag,
-        "night-project",
+        "ghcr.io/example",
         repo.baseline,
       ),
       /reserved/,
@@ -329,7 +338,7 @@ void test("stacked PRs targeting feature branches drive nightly versions and sur
       repo.fixture.github,
       repo.root,
       plan.tag,
-      "night-project",
+      "ghcr.io/example",
       repo.baseline,
     );
     assert.equal(promoted.version, "1.5.0");
@@ -424,7 +433,7 @@ void test("maintenance-only candidates cannot silently republish an existing sta
         repo.fixture.github,
         repo.root,
         maintenance.tag,
-        "night-project",
+        "ghcr.io/example",
         repo.baseline,
       ),
       /release-worthy/,
@@ -434,7 +443,7 @@ void test("maintenance-only candidates cannot silently republish an existing sta
         repo.fixture.github,
         repo.root,
         undefined,
-        "night-project",
+        "ghcr.io/example",
         repo.baseline,
       ),
       /No verified nightly/,
@@ -496,7 +505,7 @@ void test("hotfixes omit unfinished main changes and subsequent releases preserv
       repo.fixture.github,
       repo.root,
       hotfix.tag,
-      "night-project",
+      "ghcr.io/example",
       repo.baseline,
     );
     assert.equal(selected.version, "1.4.3");
