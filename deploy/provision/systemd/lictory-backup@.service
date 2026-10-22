@@ -1,0 +1,14 @@
+[Unit]
+Description=Lictory encrypted database backup (%i)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+ExecStart=/srv/lictory/bin/lictory-backup %i scheduled
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
