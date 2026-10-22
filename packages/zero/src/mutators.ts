@@ -74,7 +74,7 @@ export const mutators = defineMutators({
         const row = projectionRow(entity, scope);
         await tx.mutate.syncEntity.upsert({
           ...row,
-          data: row.data as { readonly [key: string]: never },
+          data: row.data as Readonly<Record<string, never>>,
           updatedAt: now,
         });
       }

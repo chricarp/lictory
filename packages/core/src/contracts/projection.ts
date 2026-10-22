@@ -74,7 +74,7 @@ export function projectionRow(
     projectId,
     workItemId,
     type: entity.type,
-    data: entity as unknown as Record<string, unknown>,
+    data: entity,
   };
 }
 

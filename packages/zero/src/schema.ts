@@ -30,7 +30,7 @@ const syncEntity = table("syncEntity")
     projectId: string().from("project_id").optional(),
     workItemId: string().from("work_item_id").optional(),
     type: string(),
-    data: json<{ readonly [key: string]: ReadonlyJSONValue }>(),
+    data: json<Readonly<Record<string, ReadonlyJSONValue>>>(),
     updatedAt: number().from("updated_at"),
   })
   .primaryKey("key");

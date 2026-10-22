@@ -1,22 +1,49 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  // Bun runs colocated tests; schedulers and the Better Auth CLI load these by path.
-  "entry": ["src/**/*.test.ts", "scripts/*.ts", "better-auth.config.ts"],
-  "project": ["**/*.{ts,tsx,mjs}"],
-  // `server-only` is provided by Next.js; Tailwind and the Next ESLint plugin are
-  // loaded through CSS and eslint-config-next.
-  "ignoreDependencies": [
-    "server-only",
-    "tailwindcss",
-    "@next/eslint-plugin-next",
-  ],
-  // Findings that predate knip. Remove each entry when the follow-up lands;
-  // do not add new ones without a reason.
-  "ignore": [
-    "src/components/review/suggestion-details.tsx",
-    "src/components/review/suggestion-view.tsx",
-    "src/components/review/suggestions.tsx",
-  ],
+  "workspaces": {
+    ".": {
+      // Bun runs colocated tests; operators and the Better Auth CLI load these by path.
+      "entry": [
+        "scripts/*.ts",
+        "tests/**/*.ts",
+        "better-auth.config.ts",
+        "drizzle.config.ts",
+        "playwright.config.ts",
+      ],
+      "project": ["*.{ts,mjs}", "scripts/**/*.ts", "tests/**/*.ts"],
+    },
+    "packages/core": {
+      "entry": ["src/**/*.test.ts", "src/jobs/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+    },
+    "packages/ui": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+    },
+    "packages/zero": {
+      "entry": ["src/*.ts"],
+      "project": ["src/**/*.ts"],
+    },
+    "apps/marketing": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+    },
+    "apps/platform": {
+      "entry": ["src/main.tsx", "src/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": ["src/routeTree.gen.ts"],
+    },
+    "apps/api": {
+      "entry": ["src/index.ts", "src/**/*.test.ts", "build.ts"],
+      "project": ["src/**/*.ts"],
+    },
+    "apps/worker": {
+      "entry": ["src/index.ts", "src/**/*.test.ts", "build.ts"],
+      "project": ["src/**/*.ts"],
+    },
+  },
+  // Tailwind is loaded through CSS.
+  "ignoreDependencies": ["tailwindcss"],
   // Exported types are contracts before they have consumers. Unused value
   // exports and duplicate (named + default) exports are not enforced yet.
   "rules": {
