@@ -2,7 +2,10 @@ import {
   comparisonCellText,
   comparisonRows,
 } from "@lictory/marketing/components/landing/content";
-import { comparisons, type Comparison } from "@lictory/marketing/content/comparisons";
+import {
+  comparisons,
+  type Comparison,
+} from "@lictory/marketing/content/comparisons";
 import { guides, type Guide } from "@lictory/marketing/content/guides";
 import { absoluteUrl, publicPage } from "@lictory/marketing/lib/site";
 

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 
-import { marketingImage, siteName, siteTitle } from "@lictory/marketing/lib/site";
+import {
+  marketingImage,
+  siteName,
+  siteTitle,
+} from "@lictory/marketing/lib/site";
 
 // Public, closed vocabulary only. Never load workspace data or echo URL values.
 export const previewLabels = {

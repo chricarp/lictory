@@ -22,7 +22,10 @@ import {
 } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
 import { publicPageMetadata } from "@lictory/marketing/lib/public-metadata";
-import { faqNode, publicPageStructuredData } from "@lictory/marketing/lib/structured-data";
+import {
+  faqNode,
+  publicPageStructuredData,
+} from "@lictory/marketing/lib/structured-data";
 import { cn } from "@lictory/core/lib/utils";
 
 export const dynamicParams = false;

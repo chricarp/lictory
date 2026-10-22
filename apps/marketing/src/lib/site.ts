@@ -3,11 +3,18 @@
 
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
+import { configuredOrigin } from "@lictory/marketing/lib/platform";
 
-/** The canonical public origin. Never derived from a request Host header. */
-export const siteUrl = new URL(
-  process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-).origin;
+/**
+ * The canonical public origin of this website. Never derived from a request
+ * Host header. Pages are prerendered, so it is fixed at build time.
+ */
+export const siteUrl = configuredOrigin(
+  process.env.SITE_URL,
+  process.env.NODE_ENV === "production"
+    ? "https://lictory.com"
+    : "http://localhost:3100",
+);
 
 /** RSS feed of the guides, so feed readers and crawlers notice new ones. */
 export const guidesFeedPath = "/guides/feed.xml";
@@ -69,7 +76,10 @@ export type PublicPage = {
 
 const latest = (dates: readonly string[]) => [...dates].sort().at(-1)!;
 
-/** Public, indexable pages. Signed-in and authentication pages are excluded. */
+/**
+ * Public, indexable pages of this website. Sign-in, sign-up and the workspace
+ * live on the platform origin and are not listed here.
+ */
 export const publicPages: readonly PublicPage[] = [
   {
     path: "/",
@@ -103,14 +113,6 @@ export const publicPages: readonly PublicPage[] = [
     priority: 0.7,
     lastModified: item.updated,
   })),
-  {
-    path: "/sign-up",
-    title: "Create your account",
-    description:
-      "Start refining specifications with your team in Lictory for free.",
-    changeFrequency: "yearly",
-    priority: 0.5,
-  },
   {
     path: "/privacy",
     title: "Privacy Notice",

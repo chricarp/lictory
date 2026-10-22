@@ -1,6 +1,9 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { previewKind, socialMetadata } from "@lictory/marketing/lib/social-preview";
+import {
+  previewKind,
+  socialMetadata,
+} from "@lictory/marketing/lib/social-preview";
 
 void describe("public social previews", () => {
   for (const [path, kind] of [

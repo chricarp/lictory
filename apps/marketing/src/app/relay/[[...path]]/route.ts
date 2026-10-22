@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server";
 
-import { analyticsRelayPath, relayTarget } from "@lictory/core/lib/analytics/relay";
+import {
+  analyticsRelayPath,
+  relayTarget,
+} from "@lictory/core/lib/analytics/relay";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

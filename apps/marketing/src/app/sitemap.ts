@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 
-import { absoluteUrl, marketingImage, publicPages } from "@lictory/marketing/lib/site";
+import {
+  absoluteUrl,
+  marketingImage,
+  publicPages,
+} from "@lictory/marketing/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return publicPages.map((page) => ({

@@ -1,5 +1,9 @@
 import { JsonLd } from "@lictory/marketing/components/json-ld";
-import { comparisonRows, faqs } from "@lictory/marketing/components/landing/content";
+import { platformHref } from "@lictory/marketing/lib/platform";
+import {
+  comparisonRows,
+  faqs,
+} from "@lictory/marketing/components/landing/content";
 import {
   absoluteUrl,
   marketingImage,
@@ -70,7 +74,7 @@ export const landingStructuredData = {
         price: "0",
         priceCurrency: "USD",
         description: "Free to start",
-        url: absoluteUrl("/sign-up"),
+        url: platformHref("/sign-up"),
       },
       featureList: comparisonRows
         .filter((row) => row.lictory === "yes")

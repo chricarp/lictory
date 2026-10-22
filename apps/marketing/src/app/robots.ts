@@ -4,7 +4,7 @@ import { absoluteUrl, guidesFeedPath } from "@lictory/marketing/lib/site";
 
 // Search engines and AI assistants named explicitly, so the policy for each is
 // deliberate rather than inherited. They read the public website only; the
-// workspace requires a session and asks crawlers not to index it.
+// application has its own origin and asks crawlers not to index it.
 const searchAndAiCrawlers = [
   // Bingbot also feeds Microsoft Copilot, DuckDuckGo and ChatGPT search.
   "Googlebot",
@@ -35,10 +35,11 @@ const searchAndAiCrawlers = [
   "CCBot",
 ];
 
-// API and analytics relay responses are not pages, and /markdown/ is only the
-// internal target of the public `<page>.md` URLs. Workspace URLs stay crawlable
-// so link unfurlers can read their safe, noindex social previews.
-const disallow = ["/api/", "/relay/", "/markdown/"];
+// Analytics relay responses are not pages, and /markdown/ is only the internal
+// target of the public `<page>.md` URLs. Old workspace URLs (/app/...) stay
+// crawlable: they redirect to the application, whose noindex social previews
+// link unfurlers must still be able to read.
+const disallow = ["/relay/", "/markdown/"];
 
 export default function robots(): MetadataRoute.Robots {
   return {

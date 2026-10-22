@@ -1,13 +1,16 @@
 import type { MetadataRoute } from "next";
 
-import { siteDescription, siteName, siteThemeColor } from "@lictory/marketing/lib/site";
+import {
+  siteDescription,
+  siteName,
+  siteThemeColor,
+} from "@lictory/marketing/lib/site";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: siteName,
     short_name: siteName,
     description: siteDescription,
-    // "/" opens the workspace for signed-in people and the landing page otherwise.
     start_url: "/",
     scope: "/",
     display: "standalone",
