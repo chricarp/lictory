@@ -3,7 +3,11 @@ import { chromium, type FullConfig } from "@playwright/test";
 // Browser tests record "Reject All" once per origin (platform and marketing)
 // so the consent banner does not cover the flows under test. Consent
 // behaviour itself is covered in tests/marketing/consent.spec.ts.
-export const consentStatePath = "/tmp/lictory-playwright-consent.json";
+// Checkouts running side by side (E2E_PORT_OFFSET) keep their own files.
+const suffix = process.env.E2E_PORT_OFFSET
+  ? `-${process.env.E2E_PORT_OFFSET}`
+  : "";
+export const consentStatePath = `/tmp/lictory-playwright-consent${suffix}.json`;
 
 export default async function consentSetup(config: FullConfig) {
   const browser = await chromium.launch();

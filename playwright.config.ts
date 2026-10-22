@@ -19,7 +19,8 @@ export default defineConfig({
   // A broken step should fail in seconds, not consume the whole test timeout
   // (twice, with the retry). Known-slow waits pass their own timeout.
   expect: { timeout: 15_000 },
-  outputDir: "/tmp/lictory-playwright-results",
+  // Separate per port offset: Playwright empties this directory on start.
+  outputDir: `/tmp/lictory-playwright-results${process.env.E2E_PORT_OFFSET ? `-${process.env.E2E_PORT_OFFSET}` : ""}`,
   use: {
     headless: true,
     actionTimeout: 15_000,
