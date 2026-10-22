@@ -185,7 +185,7 @@ function OrganizationWorkspace({
       queryError={error}
     >
       {content}
-      <ConnectionNotice />
+      {ready && <ConnectionNotice />}
       <RecoveryWatcher />
     </WorkspaceProvider>
   );

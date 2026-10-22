@@ -37,7 +37,7 @@ export function ConnectionNotice() {
   return (
     <div
       role="alert"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border bg-popover p-4 text-[13px] text-popover-foreground shadow-lg"
+      className="fixed inset-x-4 top-4 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border bg-popover p-4 text-[13px] text-popover-foreground shadow-lg"
     >
       <KeyRound className="size-4 shrink-0 text-destructive" aria-hidden />
       <p className="min-w-0 flex-1 leading-relaxed">
