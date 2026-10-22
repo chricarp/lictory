@@ -7,7 +7,10 @@ import {
   aiSeverities,
 } from "@lictory/core/contracts/ai";
 import { itemReviewSystem, pullRequestSystem } from "@lictory/core/ai/prompts";
-import type { ItemReviewContext, PullRequestContext } from "@lictory/core/ai/context";
+import type {
+  ItemReviewContext,
+  PullRequestContext,
+} from "@lictory/core/ai/context";
 
 // What the model may return. Every field is required (nullable instead of
 // optional) so providers with strict structured output accept the schema. The

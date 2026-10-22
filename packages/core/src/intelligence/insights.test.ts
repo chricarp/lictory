@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Directory, Entity } from "@lictory/core/contracts/protocol";
-import { computeInsights, type InsightCard } from "@lictory/core/intelligence/insights";
+import {
+  computeInsights,
+  type InsightCard,
+} from "@lictory/core/intelligence/insights";
 
 const now = new Date("2026-10-16T12:00:00Z");
 const daysAgo = (n: number) =>

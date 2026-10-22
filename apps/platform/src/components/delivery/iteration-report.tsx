@@ -3,7 +3,10 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useParams } from "@lictory/platform/lib/navigation";
 import { BarChart3, ChevronLeft } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { iterationLabel, type IterationReport } from "@lictory/core/contracts/protocol";
+import {
+  iterationLabel,
+  type IterationReport,
+} from "@lictory/core/contracts/protocol";
 import { MissingState } from "@lictory/ui/status-page";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";

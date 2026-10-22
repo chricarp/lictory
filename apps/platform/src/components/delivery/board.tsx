@@ -1,5 +1,9 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { usePathname, useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Plus,
@@ -39,10 +43,19 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { StatusIcon } from "@lictory/platform/components/items/status";
-import { PriorityIcon, TypeIcon } from "@lictory/platform/components/items/icons";
+import {
+  PriorityIcon,
+  TypeIcon,
+} from "@lictory/platform/components/items/icons";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
-import { ItemCard, startBlocker } from "@lictory/platform/components/delivery/card";
-import { ItemPeek, useItemPeek } from "@lictory/platform/components/delivery/item-peek";
+import {
+  ItemCard,
+  startBlocker,
+} from "@lictory/platform/components/delivery/card";
+import {
+  ItemPeek,
+  useItemPeek,
+} from "@lictory/platform/components/delivery/item-peek";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {

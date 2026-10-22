@@ -1,4 +1,7 @@
-import { markdownToAdf, type AdfDocument } from "@lictory/core/delivery/jira/adf";
+import {
+  markdownToAdf,
+  type AdfDocument,
+} from "@lictory/core/delivery/jira/adf";
 import {
   createJiraClient,
   jiraCredential,

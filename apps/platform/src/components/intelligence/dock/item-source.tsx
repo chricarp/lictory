@@ -1,8 +1,14 @@
 import { useCallback, useMemo } from "react";
 import { identifier } from "@lictory/core/lib/work-items";
 import { useItem } from "@lictory/platform/components/items/item-context";
-import { useAiBlocker, useAiRuns } from "@lictory/platform/components/review/ai-review";
-import { usePublishDockItem, type DockItem } from "@lictory/platform/components/intelligence/dock/store";
+import {
+  useAiBlocker,
+  useAiRuns,
+} from "@lictory/platform/components/review/ai-review";
+import {
+  usePublishDockItem,
+  type DockItem,
+} from "@lictory/platform/components/intelligence/dock/store";
 
 // Rendered inside an open work item: tells the dock which item the person is
 // looking at and lets it start and follow the item's Lictory Intelligence

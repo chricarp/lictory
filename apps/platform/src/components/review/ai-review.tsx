@@ -36,7 +36,11 @@ import { StateIllustration } from "@lictory/ui/state-illustration";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { useItem } from "@lictory/platform/components/items/item-context";
-import { CheckIcon, duration, type CheckState } from "@lictory/platform/components/review/flow-ui";
+import {
+  CheckIcon,
+  duration,
+  type CheckState,
+} from "@lictory/platform/components/review/flow-ui";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   ContextCitations,

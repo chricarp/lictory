@@ -10,10 +10,19 @@ import {
   type Delivery,
   type Project,
 } from "@lictory/core/lib/work-items";
-import { estimateOptions, type WorkItem } from "@lictory/core/contracts/protocol";
+import {
+  estimateOptions,
+  type WorkItem,
+} from "@lictory/core/contracts/protocol";
 import { Avatar } from "@lictory/ui/primitives";
-import { PriorityIcon, TypeIcon } from "@lictory/platform/components/items/icons";
-import { RefinementIcon, StatusIcon } from "@lictory/platform/components/items/status";
+import {
+  PriorityIcon,
+  TypeIcon,
+} from "@lictory/platform/components/items/icons";
+import {
+  RefinementIcon,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 
 export function estimateLabel(
   project: Pick<Project, "estimateScale"> | undefined,

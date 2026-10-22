@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import sharp from "sharp";
 import { normalizePhoto, PhotoError } from "@lictory/core/profile/image";
-import { MAX_PROFILE_PHOTO_SIZE, safeProfileImage } from "@lictory/core/profile/photo";
+import {
+  MAX_PROFILE_PHOTO_SIZE,
+  safeProfileImage,
+} from "@lictory/core/profile/photo";
 
 void test("photos are square, bounded and stripped of metadata", async () => {
   const input = await sharp({

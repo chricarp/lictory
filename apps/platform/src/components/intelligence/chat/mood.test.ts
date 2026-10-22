@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ASK_QUESTIONS, RECOMMEND_ACTION } from "@lictory/core/intelligence/chat/shared";
+import {
+  ASK_QUESTIONS,
+  RECOMMEND_ACTION,
+} from "@lictory/core/intelligence/chat/shared";
 import { answerMood } from "@lictory/platform/components/intelligence/chat/mood";
 
 type Parts = Parameters<typeof answerMood>[0]["parts"];

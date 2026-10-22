@@ -17,7 +17,7 @@ import {
 import { iterationReport } from "@lictory/platform/data/lookups";
 import {
   iterationLabel,
-    type Iteration,
+  type Iteration,
   type IterationReport,
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
@@ -28,11 +28,17 @@ import { Avatar, EmptyState } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
-import { RefinementIcon, StatusIcon } from "@lictory/platform/components/items/status";
+import {
+  RefinementIcon,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
-import { ItemPeek, useItemPeek } from "@lictory/platform/components/delivery/item-peek";
+import {
+  ItemPeek,
+  useItemPeek,
+} from "@lictory/platform/components/delivery/item-peek";
 import {
   ExternalProjectNotice,
   TeamFilterPicker,

@@ -82,7 +82,7 @@ const server = createServer((req, res) => {
       // Build output and illustrations carry content hashes in their names.
       "cache-control": /^\/(assets|illustrations)\//.test(pathname)
         ? "public, max-age=31536000, immutable"
-        : /^\/brand\//.test(pathname)
+        : pathname.startsWith("/brand/")
           ? "public, max-age=86400"
           : "public, max-age=3600",
     });

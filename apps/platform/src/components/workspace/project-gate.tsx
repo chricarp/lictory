@@ -9,7 +9,10 @@ import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
-import { SyncIssue, isSyncBlocked } from "@lictory/platform/components/workspace/sync-issue";
+import {
+  SyncIssue,
+  isSyncBlocked,
+} from "@lictory/platform/components/workspace/sync-issue";
 
 const ProjectContext = createContext<Project | null>(null);
 

@@ -1,6 +1,9 @@
 import { useState } from "react";
 
-import { FormField, FormMessage } from "@lictory/platform/components/auth/form-field";
+import {
+  FormField,
+  FormMessage,
+} from "@lictory/platform/components/auth/form-field";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { track } from "@lictory/core/lib/analytics/client";

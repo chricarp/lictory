@@ -14,7 +14,10 @@ import {
 } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
-import { SyncIssue, isSyncBlocked } from "@lictory/platform/components/workspace/sync-issue";
+import {
+  SyncIssue,
+  isSyncBlocked,
+} from "@lictory/platform/components/workspace/sync-issue";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { ItemDetail } from "@lictory/platform/components/items/item-detail";
 

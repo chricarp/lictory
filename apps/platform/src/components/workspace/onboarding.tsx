@@ -1,7 +1,10 @@
 import { useId, useState } from "react";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import { ArrowRight } from "lucide-react";
-import { OnboardingFrame, OnboardingHeading } from "@lictory/platform/components/workspace/onboarding-frame";
+import {
+  OnboardingFrame,
+  OnboardingHeading,
+} from "@lictory/platform/components/workspace/onboarding-frame";
 import { seedSetupDraft } from "@lictory/platform/components/workspace/onboarding-draft";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { Button } from "@lictory/ui/button";

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { decryptCredential, encryptCredential } from "@lictory/core/delivery/credentials";
+import {
+  decryptCredential,
+  encryptCredential,
+} from "@lictory/core/delivery/credentials";
 
 const secret = "test-secret";
 

@@ -5,7 +5,10 @@ import { ConversionError } from "@lictory/core/intelligence/convert";
 import { ContextError } from "@lictory/core/intelligence/server";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
 import { DomainError } from "@lictory/core/domain/errors";
-import { CapabilityError, type ErrorCategory } from "@lictory/core/capabilities/core";
+import {
+  CapabilityError,
+  type ErrorCategory,
+} from "@lictory/core/capabilities/core";
 
 function fromStatus(status: number): ErrorCategory {
   if (status === 401) return "unauthorized";

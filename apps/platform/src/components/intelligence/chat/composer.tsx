@@ -20,7 +20,10 @@ import {
   mapCaret,
   write,
 } from "@lictory/platform/components/intelligence/chat/dictation-text";
-import { dictationSupported, useDictation } from "@lictory/platform/components/intelligence/chat/use-dictation";
+import {
+  dictationSupported,
+  useDictation,
+} from "@lictory/platform/components/intelligence/chat/use-dictation";
 
 // Browser capabilities never change during a session.
 const noSubscribe = () => () => undefined;

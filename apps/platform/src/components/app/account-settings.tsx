@@ -42,7 +42,10 @@ import {
   type Theme,
 } from "@lictory/core/lib/appearance";
 import { authClient } from "@lictory/platform/lib/auth-client";
-import { accountChanged, forgetAccountLocally } from "@lictory/platform/lib/account";
+import {
+  accountChanged,
+  forgetAccountLocally,
+} from "@lictory/platform/lib/account";
 import { useSessionUser } from "@lictory/platform/lib/session";
 import { oauthErrorMessage } from "@lictory/core/lib/oauth-errors";
 import { cn, formValue } from "@lictory/core/lib/utils";

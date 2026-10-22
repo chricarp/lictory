@@ -34,7 +34,11 @@ import {
 } from "@lictory/core/lib/work-items";
 import { Kbd } from "@lictory/ui/primitives";
 import { StatusIcon } from "@lictory/platform/components/items/status";
-import { TypeIcon, epicGlyph, storyGlyph } from "@lictory/platform/components/items/icons";
+import {
+  TypeIcon,
+  epicGlyph,
+  storyGlyph,
+} from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";

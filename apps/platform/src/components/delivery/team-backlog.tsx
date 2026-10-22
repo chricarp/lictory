@@ -39,7 +39,10 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 import { BacklogRow } from "@lictory/platform/components/delivery/backlog";
-import { ItemPeek, useItemPeek } from "@lictory/platform/components/delivery/item-peek";
+import {
+  ItemPeek,
+  useItemPeek,
+} from "@lictory/platform/components/delivery/item-peek";
 
 // A team's own backlog: the work it has taken on but not yet planned (into an
 // iteration, or for external projects, handed off), ranked by the team, plus

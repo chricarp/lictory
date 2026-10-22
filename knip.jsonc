@@ -6,9 +6,15 @@
       "entry": [
         "scripts/*.ts",
         "tests/**/*.ts",
+        "deploy/docker/*.mjs",
         "better-auth.config.ts",
       ],
-      "project": ["*.{ts,mjs}", "scripts/**/*.ts", "tests/**/*.ts"],
+      "project": [
+        "*.{ts,mjs}",
+        "scripts/**/*.ts",
+        "tests/**/*.ts",
+        "deploy/**/*.mjs",
+      ],
     },
     "packages/core": {
       "entry": ["src/**/*.test.ts", "src/jobs/index.ts"],

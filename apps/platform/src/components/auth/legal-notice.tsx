@@ -7,9 +7,10 @@ export function AccountLegalNotice({ signIn = false }: { signIn?: boolean }) {
       {signIn
         ? "If continuing creates a new Lictory account, you agree to our "
         : "By creating a Lictory account, you agree to our "}
-      <AuthLink href={siteLink("/terms-of-service")}>Terms of Service</AuthLink> and
-      acknowledge our <AuthLink href={siteLink("/privacy")}>Privacy Notice</AuthLink>.{" "}
-      Optional analytics is a separate choice in Privacy preferences.
+      <AuthLink href={siteLink("/terms-of-service")}>Terms of Service</AuthLink>{" "}
+      and acknowledge our{" "}
+      <AuthLink href={siteLink("/privacy")}>Privacy Notice</AuthLink>. Optional
+      analytics is a separate choice in Privacy preferences.
     </p>
   );
 }

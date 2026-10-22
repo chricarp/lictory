@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import { StateIllustration, type IllustrationKind } from "@lictory/ui/state-illustration";
+import {
+  StateIllustration,
+  type IllustrationKind,
+} from "@lictory/ui/state-illustration";
 import { cn } from "@lictory/core/lib/utils";
 
 export { Avatar } from "@lictory/ui/avatar";

@@ -29,7 +29,10 @@ const missing = [...warnings].filter(
 for (const warning of missing) console.error(String(warning.message));
 let copied = 0;
 for (const file of fileList) {
-  if (!file.startsWith("node_modules/") || file.startsWith("node_modules/@lictory/"))
+  if (
+    !file.startsWith("node_modules/") ||
+    file.startsWith("node_modules/@lictory/")
+  )
     continue;
   mkdirSync(join(out, dirname(file)), { recursive: true });
   cpSync(file, join(out, file), { dereference: false, recursive: true });

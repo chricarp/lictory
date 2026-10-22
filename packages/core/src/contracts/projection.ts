@@ -98,7 +98,10 @@ export function diffProjections(
     const previous = old.get(key);
     if (previous && JSON.stringify(previous) === JSON.stringify(entity))
       continue;
-    operations.push({ operation: "upsert", row: projectionRow(entity, fallback) });
+    operations.push({
+      operation: "upsert",
+      row: projectionRow(entity, fallback),
+    });
   }
   for (const key of old.keys())
     if (!seen.has(key)) operations.push({ operation: "delete", key });

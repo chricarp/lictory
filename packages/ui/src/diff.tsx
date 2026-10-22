@@ -1,7 +1,11 @@
 import { cn } from "@lictory/core/lib/utils";
 import { diffLines, type DiffLine } from "@lictory/core/contracts/diff";
 
-export { diffLines, diffStats, type DiffLine } from "@lictory/core/contracts/diff";
+export {
+  diffLines,
+  diffStats,
+  type DiffLine,
+} from "@lictory/core/contracts/diff";
 
 // Unified view with collapsed unchanged context, GitHub style.
 export function RevisionDiff({

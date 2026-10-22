@@ -1,4 +1,3 @@
-
 import { CapabilityError } from "@lictory/core/capabilities/core";
 import { webPrincipal } from "@lictory/core/capabilities/http";
 import { db } from "@lictory/core/db";

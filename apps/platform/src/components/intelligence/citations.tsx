@@ -1,7 +1,10 @@
 import { Link } from "@lictory/platform/lib/navigation";
 import { BookOpen } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { scopeLabel, type IntelligenceContextUse } from "@lictory/core/intelligence/shared";
+import {
+  scopeLabel,
+  type IntelligenceContextUse,
+} from "@lictory/core/intelligence/shared";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 
 // Where a citation points: the settings page that manages its scope.

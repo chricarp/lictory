@@ -15,7 +15,10 @@ import {
   minimizeAnonymousAnalyticsProperties,
   sanitizeAnalyticsProperties,
 } from "@lictory/core/lib/analytics/events";
-import { analyticsRelayPath, posthogHosts } from "@lictory/core/lib/analytics/relay";
+import {
+  analyticsRelayPath,
+  posthogHosts,
+} from "@lictory/core/lib/analytics/relay";
 
 const posthogToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;

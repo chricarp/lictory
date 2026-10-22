@@ -71,7 +71,11 @@ export function PrivacyPreferencesButton({
   );
 }
 
-export function ConsentBanner({ privacyHref = "/privacy" }: { privacyHref?: string }) {
+export function ConsentBanner({
+  privacyHref = "/privacy",
+}: {
+  privacyHref?: string;
+}) {
   const { banner, performBannerAction, openDialog } = useHeadlessConsentUI();
   const t = useTranslations();
   const [pending, setPending] = useState(false);

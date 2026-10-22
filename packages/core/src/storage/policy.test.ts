@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { objectKey, validateFile, MAX_FILE_SIZE } from "@lictory/core/storage/policy";
+import {
+  objectKey,
+  validateFile,
+  MAX_FILE_SIZE,
+} from "@lictory/core/storage/policy";
 
 void describe("file uploads", () => {
   void it("permits supported images and documents up to the limit", () => {

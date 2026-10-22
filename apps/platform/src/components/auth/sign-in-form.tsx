@@ -2,7 +2,10 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import { useState } from "react";
 
-import { FormField, FormMessage } from "@lictory/platform/components/auth/form-field";
+import {
+  FormField,
+  FormMessage,
+} from "@lictory/platform/components/auth/form-field";
 import { PasswordInput } from "@lictory/platform/components/auth/password-field";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";

@@ -3,7 +3,11 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { paths } from "@lictory/core/lib/paths";
 import { identifier, segmentOf, typeOf } from "@lictory/core/lib/work-items";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
-import type { ItemRef, Lookup, RefKind } from "@lictory/platform/components/intelligence/chat/activity";
+import type {
+  ItemRef,
+  Lookup,
+  RefKind,
+} from "@lictory/platform/components/intelligence/chat/activity";
 
 // Resolves the ids in the assistant's tool calls against the synced workspace,
 // so the chat names items, people and statuses instead of showing UUIDs.

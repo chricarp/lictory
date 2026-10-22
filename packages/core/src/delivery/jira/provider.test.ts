@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { DeliveryError, DeliveryPayload } from "@lictory/core/delivery/provider";
-import { createJiraCloudProvider, JIRA_PROPERTY } from "@lictory/core/delivery/jira/provider";
+import type {
+  DeliveryError,
+  DeliveryPayload,
+} from "@lictory/core/delivery/provider";
+import {
+  createJiraCloudProvider,
+  JIRA_PROPERTY,
+} from "@lictory/core/delivery/jira/provider";
 
 type Call = { method: string; path: string; body: unknown; auth: string };
 type Reply = {
@@ -228,7 +234,10 @@ void test("rate limits are retried after Retry-After; auth failures are not", as
 
 void test("an ambiguous create failure is not retried, so it cannot create twice", async () => {
   const jira = fakeJira({
-    "POST /rest/api/3/issue": [{ status: 502 }, { body: { id: "1", key: "PAY-1" } }],
+    "POST /rest/api/3/issue": [
+      { status: 502 },
+      { body: { id: "1", key: "PAY-1" } },
+    ],
   });
   await assert.rejects(
     jira.provider.createItem(connection, target, payload),

@@ -11,15 +11,15 @@ before opening a pull request.
 
 One repository, Bun workspaces:
 
-| Workspace         | What it is                                                                               |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| `apps/platform`   | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
-| `apps/api`        | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery      |
-| `apps/worker`     | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles        |
-| `apps/marketing`  | Next.js public website (`lictory.com`), server-rendered, no database                     |
-| `packages/core`   | Domain logic, contracts, database access (Drizzle) and adapters                          |
-| `packages/zero`   | Zero schema, server-defined queries and the mutator                                      |
-| `packages/ui`     | Shared React primitives, theme and consent UI                                            |
+| Workspace        | What it is                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `apps/platform`  | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
+| `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery     |
+| `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles       |
+| `apps/marketing` | Next.js public website (`lictory.com`), server-rendered, no database                    |
+| `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                         |
+| `packages/zero`  | Zero schema, server-defined queries and the mutator                                     |
+| `packages/ui`    | Shared React primitives, theme and consent UI                                           |
 
 PostgreSQL is the source of truth. Every domain write maintains read
 projections in the same transaction; Zero replicates only those projections
@@ -99,15 +99,15 @@ tested version to the production server after approval. See
 
 ## Scripts
 
-| Command                | Purpose                                              |
-| ---------------------- | ---------------------------------------------------- |
-| `bun run dev`          | Platform, API, worker, zero-cache and website        |
-| `bun run typecheck`    | TypeScript check of every workspace                  |
-| `bun run lint`         | ESLint (flat config, type-aware)                     |
-| `bun run format`       | Format the repository with Prettier                  |
-| `bun run check`        | Types, lint, format, unused code and PR assets       |
-| `bun test src`         | Domain and unit tests (disposable PostgreSQL)        |
-| `bun run test:e2e`     | Production builds and browser workflows (both sites) |
+| Command             | Purpose                                              |
+| ------------------- | ---------------------------------------------------- |
+| `bun run dev`       | Platform, API, worker, zero-cache and website        |
+| `bun run typecheck` | TypeScript check of every workspace                  |
+| `bun run lint`      | ESLint (flat config, type-aware)                     |
+| `bun run format`    | Format the repository with Prettier                  |
+| `bun run check`     | Types, lint, format, unused code and PR assets       |
+| `bun test src`      | Domain and unit tests (disposable PostgreSQL)        |
+| `bun run test:e2e`  | Production builds and browser workflows (both sites) |
 
 `bun run check` never modifies files.
 

@@ -13,7 +13,10 @@ import {
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
-import { canReviewSuggestions, type EntityOf } from "@lictory/core/contracts/protocol";
+import {
+  canReviewSuggestions,
+  type EntityOf,
+} from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
 import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
 import { Picker, Popover } from "@lictory/ui/popover";
@@ -22,8 +25,14 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useItem } from "@lictory/platform/components/items/item-context";
-import { Thread, ThreadComposer } from "@lictory/platform/components/review/threads";
-import { SuggestionStatusBadge, useSuggestionState } from "@lictory/platform/components/review/suggestions";
+import {
+  Thread,
+  ThreadComposer,
+} from "@lictory/platform/components/review/threads";
+import {
+  SuggestionStatusBadge,
+  useSuggestionState,
+} from "@lictory/platform/components/review/suggestions";
 import { SuggestionDetailsFields } from "@lictory/platform/components/review/suggestion-details";
 
 // A suggestion is reviewed like a pull request: the author drafts, opens for

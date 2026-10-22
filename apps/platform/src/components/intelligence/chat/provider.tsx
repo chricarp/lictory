@@ -11,7 +11,10 @@ import {
   type ReactNode,
 } from "react";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import type { ChatMessage, ChatSummary } from "@lictory/core/intelligence/chat/shared";
+import type {
+  ChatMessage,
+  ChatSummary,
+} from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { createChat } from "@lictory/platform/components/intelligence/chat/chat-instance";
 

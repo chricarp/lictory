@@ -19,10 +19,7 @@ const title = (
 void test("organization surfaces name the organization", () => {
   assert.equal(title("/northstar"), "Northstar · Lictory");
   assert.equal(title("/northstar/inbox"), "Inbox · Northstar · Lictory");
-  assert.equal(
-    title("/northstar/settings"),
-    "Settings · Northstar · Lictory",
-  );
+  assert.equal(title("/northstar/settings"), "Settings · Northstar · Lictory");
   assert.equal(title("/northstar/account"), "Account · Lictory");
 });
 

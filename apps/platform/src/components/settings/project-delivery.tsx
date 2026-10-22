@@ -13,7 +13,10 @@ import {
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
 import { ProjectHandoffTarget } from "@lictory/platform/components/delivery/delivery-settings";
-import { Choice, useCommand } from "@lictory/platform/components/settings/project-shared";
+import {
+  Choice,
+  useCommand,
+} from "@lictory/platform/components/settings/project-shared";
 
 const modes: {
   value: DeliveryMode;

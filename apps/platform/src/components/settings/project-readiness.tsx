@@ -33,7 +33,10 @@ import {
   SettingsList,
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
-import { Choice, useCommand } from "@lictory/platform/components/settings/project-shared";
+import {
+  Choice,
+  useCommand,
+} from "@lictory/platform/components/settings/project-shared";
 
 // The Definition of Ready reads as a sentence per type ("A Story is ready
 // when…"). Editing happens in place on a draft; publishing goes through a

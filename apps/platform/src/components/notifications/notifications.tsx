@@ -33,7 +33,10 @@ import {
   notificationKinds,
   type NotificationCategory,
 } from "@lictory/core/notifications/catalog";
-import { describeNotification, notificationHref } from "@lictory/core/notifications/format";
+import {
+  describeNotification,
+  notificationHref,
+} from "@lictory/core/notifications/format";
 import type { NotificationItem } from "@lictory/core/notifications/service";
 import {
   announceNotificationChange,

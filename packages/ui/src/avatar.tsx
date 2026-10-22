@@ -73,7 +73,7 @@ export function Avatar({
       {!intelligence && src && failed !== src && (
         // Provider photos and private authenticated images cannot use the
         // public Next image optimizer. Keep initials underneath while loading.
-         
+
         <img
           key={src}
           src={src}

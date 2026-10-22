@@ -3,12 +3,19 @@
 import { execFileSync } from "node:child_process";
 
 const media = /\.(png|jpe?g|gif|webp|mp4|mov|webm)$/i;
-const allowed = ["public/", "src/app/", "tests/", ".agents/skills/"];
+// Shipped assets live in each workspace's public/static directories and the
+// website's file-convention icons.
+const allowed = [
+  /^(apps|packages)\/[^/]+\/(public|static)\//,
+  /^apps\/marketing\/src\/app\//,
+  /^tests\//,
+  /^\.agents\/skills\//,
+];
 
 const offenders = execFileSync("git", ["ls-files"], { encoding: "utf8" })
   .split("\n")
   .filter((file) => media.test(file))
-  .filter((file) => !allowed.some((prefix) => file.startsWith(prefix)));
+  .filter((file) => !allowed.some((pattern) => pattern.test(file)));
 
 if (offenders.length) {
   console.error(

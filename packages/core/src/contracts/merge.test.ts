@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeText, mergeSnapshot, mergeBase } from "@lictory/core/contracts/merge";
+import {
+  mergeText,
+  mergeSnapshot,
+  mergeBase,
+} from "@lictory/core/contracts/merge";
 const merged = (base: string, ours: string, theirs: string) =>
   mergeText(base, ours, theirs)
     .flatMap((c) => ("lines" in c ? c.lines : c.ours))

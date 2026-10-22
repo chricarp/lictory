@@ -17,7 +17,10 @@ import {
   type PreferenceRule,
   type PreferenceScope,
 } from "@lictory/core/notifications/catalog";
-import { notificationRequest, type PreferencesResponse } from "@lictory/platform/components/notifications/client";
+import {
+  notificationRequest,
+  type PreferencesResponse,
+} from "@lictory/platform/components/notifications/client";
 
 type Scope = { scope: PreferenceScope; scopeId: string };
 type Rule =

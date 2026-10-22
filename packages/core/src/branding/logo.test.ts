@@ -7,7 +7,12 @@ import * as s from "@lictory/core/db/schema";
 import { directory } from "@lictory/core/domain/service";
 import { directorySchema } from "@lictory/core/contracts/protocol";
 import { checkLogo } from "@lictory/core/branding/logo";
-import { LogoError, readLogo, removeLogo, setLogo } from "@lictory/core/branding/server";
+import {
+  LogoError,
+  readLogo,
+  removeLogo,
+  setLogo,
+} from "@lictory/core/branding/server";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??

@@ -13,7 +13,11 @@ import {
   SquarePen,
   X,
 } from "lucide-react";
-import { useParams, usePathname, useRouter } from "@lictory/platform/lib/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+} from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,
@@ -26,23 +30,37 @@ import {
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Button } from "@lictory/ui/button";
 import { Badge, Kbd } from "@lictory/ui/primitives";
-import { counts, ScoreRing, severityMeta } from "@lictory/platform/components/review/ai-review";
+import {
+  counts,
+  ScoreRing,
+  severityMeta,
+} from "@lictory/platform/components/review/ai-review";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import type { ChatContext, ChatMessage } from "@lictory/core/intelligence/chat/shared";
+import type {
+  ChatContext,
+  ChatMessage,
+} from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { aiScoreBand } from "@lictory/core/contracts/ai";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import { createChat } from "@lictory/platform/components/intelligence/chat/chat-instance";
-import { Composer, type ComposerHandle } from "@lictory/platform/components/intelligence/chat/composer";
+import {
+  Composer,
+  type ComposerHandle,
+} from "@lictory/platform/components/intelligence/chat/composer";
 import {
   ThreadMessages,
   useThread,
   useThreadMood,
   type Thread,
 } from "@lictory/platform/components/intelligence/chat/thread";
-import { pageOf, pageSuggestions, type Suggestion } from "@lictory/platform/components/intelligence/dock/page";
+import {
+  pageOf,
+  pageSuggestions,
+  type Suggestion,
+} from "@lictory/platform/components/intelligence/dock/page";
 import {
   useDock,
   useDockState,

@@ -55,8 +55,14 @@ import {
 } from "@lictory/platform/components/intelligence/chat/activity";
 import { InsightCards } from "@lictory/platform/components/intelligence/chat/insights";
 import { answerMood } from "@lictory/platform/components/intelligence/chat/mood";
-import { AnsweredQuestions, Questionnaire } from "@lictory/platform/components/intelligence/chat/questionnaire";
-import { DecidedRecommendation, RecommendationCard } from "@lictory/platform/components/intelligence/chat/recommendation";
+import {
+  AnsweredQuestions,
+  Questionnaire,
+} from "@lictory/platform/components/intelligence/chat/questionnaire";
+import {
+  DecidedRecommendation,
+  RecommendationCard,
+} from "@lictory/platform/components/intelligence/chat/recommendation";
 import { useLookup } from "@lictory/platform/components/intelligence/chat/use-lookup";
 
 type Part = ChatMessage["parts"][number];

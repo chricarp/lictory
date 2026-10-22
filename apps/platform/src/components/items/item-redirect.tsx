@@ -12,7 +12,10 @@ import {
   typeOf,
 } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { SyncIssue, isSyncBlocked } from "@lictory/platform/components/workspace/sync-issue";
+import {
+  SyncIssue,
+  isSyncBlocked,
+} from "@lictory/platform/components/workspace/sync-issue";
 
 export function ItemRedirect({ identifier: raw }: { identifier: string }) {
   const { items, projects, organization, view, delivery } = useWorkspace();

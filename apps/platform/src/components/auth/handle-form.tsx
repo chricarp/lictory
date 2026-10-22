@@ -7,7 +7,11 @@ import { FormMessage } from "@lictory/platform/components/auth/form-field";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { useDebouncedCallback } from "@lictory/ui/use-debounced-callback";
-import { HANDLE_MAX, handleProblem, normalizeHandle } from "@lictory/core/lib/handles";
+import {
+  HANDLE_MAX,
+  handleProblem,
+  normalizeHandle,
+} from "@lictory/core/lib/handles";
 import { cn } from "@lictory/core/lib/utils";
 
 type Checked =

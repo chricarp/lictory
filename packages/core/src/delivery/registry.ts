@@ -1,5 +1,8 @@
 import { createJiraCloudProvider } from "@lictory/core/delivery/jira/provider";
-import type { DeliveryProvider, DeliveryProviderKind } from "@lictory/core/delivery/provider";
+import type {
+  DeliveryProvider,
+  DeliveryProviderKind,
+} from "@lictory/core/delivery/provider";
 
 // Resolves a connection's provider kind to its adapter. Tests pass their own
 // registry (see fake-provider.ts) instead of patching this one.

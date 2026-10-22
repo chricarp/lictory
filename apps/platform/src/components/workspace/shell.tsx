@@ -53,7 +53,10 @@ import { signOut } from "@lictory/platform/lib/account";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { workspaceTitle } from "@lictory/platform/lib/document-title";
-import { rememberProject, useLastProjectKey } from "@lictory/platform/lib/last-project";
+import {
+  rememberProject,
+  useLastProjectKey,
+} from "@lictory/platform/lib/last-project";
 import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
 import {
   needsMyReview,
@@ -72,16 +75,26 @@ import type { QuickCreateOptions } from "@lictory/platform/components/workspace/
 import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
-import { TypeIcon, epicGlyph, storyGlyph } from "@lictory/platform/components/items/icons";
+import {
+  TypeIcon,
+  epicGlyph,
+  storyGlyph,
+} from "@lictory/platform/components/items/icons";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
 const loadCommandPalette = () =>
-  import("@lictory/platform/components/workspace/command-palette").then((m) => m.CommandPalette);
+  import("@lictory/platform/components/workspace/command-palette").then(
+    (m) => m.CommandPalette,
+  );
 const loadQuickCreate = () =>
-  import("@lictory/platform/components/workspace/quick-create").then((m) => m.QuickCreate);
+  import("@lictory/platform/components/workspace/quick-create").then(
+    (m) => m.QuickCreate,
+  );
 const loadIntelligenceDock = () =>
-  import("@lictory/platform/components/intelligence/dock/dock").then((m) => m.IntelligenceDock);
+  import("@lictory/platform/components/intelligence/dock/dock").then(
+    (m) => m.IntelligenceDock,
+  );
 const CommandPalette = lazy(() =>
   loadCommandPalette().then((m) => ({ default: m })),
 );
@@ -401,7 +414,9 @@ export function Shell({
               id="main"
               tabIndex={-1}
               className="min-h-0 flex-1 overflow-hidden outline-none"
-            >{children}</main>
+            >
+              {children}
+            </main>
             {dockReady && (
               <Suspense fallback={null}>
                 <IntelligenceDock />
@@ -496,7 +511,7 @@ function Sidebar({
                 // The full logo already contains the name; keep it for
                 // assistive technology.
                 <>
-                  { }
+                  {}
                   <img
                     src={organization.logos.full}
                     alt=""

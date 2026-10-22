@@ -1,6 +1,10 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { relativeTime, priorityMeta, refinementMeta } from "@lictory/core/lib/work-items";
+import {
+  relativeTime,
+  priorityMeta,
+  refinementMeta,
+} from "@lictory/core/lib/work-items";
 import type {
   EntityOf,
   RefinementState,
@@ -9,7 +13,10 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
 import { Avatar, SectionLabel } from "@lictory/ui/primitives";
-import { RefinementIcon, StatusIcon } from "@lictory/platform/components/items/status";
+import {
+  RefinementIcon,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { cn } from "@lictory/core/lib/utils";

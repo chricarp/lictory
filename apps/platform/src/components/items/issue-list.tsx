@@ -1,7 +1,11 @@
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { paths } from "@lictory/core/lib/paths";
-import { usePathname, useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,
@@ -10,7 +14,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { readListState, writeListState } from "@lictory/platform/lib/list-params";
+import {
+  readListState,
+  writeListState,
+} from "@lictory/platform/lib/list-params";
 import { ArrowUpDown, Filter, Plus, X } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { track } from "@lictory/core/lib/analytics/client";
@@ -49,7 +56,10 @@ import type { IllustrationKind } from "@lictory/ui/state-illustration";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { IssueRow } from "@lictory/platform/components/items/issue-row";
-import { RefinementIcon, StatusIcon } from "@lictory/platform/components/items/status";
+import {
+  RefinementIcon,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { PriorityIcon } from "@lictory/platform/components/items/properties";
 import { ColorDot } from "@lictory/platform/components/items/labels";

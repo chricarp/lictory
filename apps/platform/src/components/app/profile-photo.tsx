@@ -5,7 +5,10 @@ import { Avatar } from "@lictory/ui/primitives";
 import { Button } from "@lictory/ui/button";
 import { InlineError } from "@lictory/platform/components/workspace/settings-section";
 import { authClient } from "@lictory/platform/lib/auth-client";
-import { ACCEPT_PROFILE_PHOTO, MAX_PROFILE_PHOTO_SIZE } from "@lictory/core/profile/photo";
+import {
+  ACCEPT_PROFILE_PHOTO,
+  MAX_PROFILE_PHOTO_SIZE,
+} from "@lictory/core/profile/photo";
 
 const subscribe = () => () => undefined;
 const clientReady = () => true;

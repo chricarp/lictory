@@ -6,11 +6,7 @@ import {
   projectionRow,
   type DirectoryProjection,
 } from "@lictory/core/contracts/projection";
-import {
-
-  mutationSchema,
-  type Entity,
-} from "@lictory/core/contracts/protocol";
+import { mutationSchema, type Entity } from "@lictory/core/contracts/protocol";
 import { zql } from "@lictory/zero/schema";
 
 // Every workspace command is one mutation of the existing domain protocol.
@@ -83,4 +79,3 @@ export const mutators = defineMutators({
     }),
   },
 });
-

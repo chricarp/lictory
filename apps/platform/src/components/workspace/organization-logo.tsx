@@ -16,7 +16,6 @@ export function OrganizationMark({
   const mark = organization.logos?.mark;
   if (mark)
     return (
-       
       <img
         src={mark}
         alt=""

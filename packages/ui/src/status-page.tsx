@@ -1,7 +1,10 @@
 import type { ComponentType, ReactNode } from "react";
 
 import { cn } from "@lictory/core/lib/utils";
-import { StateIllustration, type IllustrationKind } from "@lictory/ui/state-illustration";
+import {
+  StateIllustration,
+  type IllustrationKind,
+} from "@lictory/ui/state-illustration";
 
 type Icon = ComponentType<{ className?: string; strokeWidth?: number }>;
 

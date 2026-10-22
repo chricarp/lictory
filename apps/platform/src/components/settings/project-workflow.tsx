@@ -33,7 +33,10 @@ import {
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { ColorDot } from "@lictory/platform/components/items/labels";
-import { SectionError, useCommand } from "@lictory/platform/components/settings/project-shared";
+import {
+  SectionError,
+  useCommand,
+} from "@lictory/platform/components/settings/project-shared";
 
 type Run = ReturnType<typeof useCommand>["run"];
 

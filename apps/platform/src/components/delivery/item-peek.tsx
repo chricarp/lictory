@@ -20,7 +20,10 @@ import {
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
-import { iterationLabel, type WorkItem } from "@lictory/core/contracts/protocol";
+import {
+  iterationLabel,
+  type WorkItem,
+} from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
@@ -29,7 +32,10 @@ import {
   StatusIcon,
 } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
-import { AssigneePicker, IssuePriority } from "@lictory/platform/components/items/properties";
+import {
+  AssigneePicker,
+  IssuePriority,
+} from "@lictory/platform/components/items/properties";
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 
 const PARAM = "item";

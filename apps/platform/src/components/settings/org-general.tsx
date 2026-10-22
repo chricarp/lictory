@@ -209,7 +209,6 @@ function Branding() {
               )}
             >
               {src ? (
-                 
                 <img
                   src={src}
                   alt={`${organization.name} ${field.label.toLowerCase()}`}

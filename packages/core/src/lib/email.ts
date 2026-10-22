@@ -1,7 +1,9 @@
-
 import { createHash } from "node:crypto";
 
-import { createAuthEmail, type AuthEmailMessage } from "@lictory/core/emails/auth-email";
+import {
+  createAuthEmail,
+  type AuthEmailMessage,
+} from "@lictory/core/emails/auth-email";
 import { sendEmail } from "@lictory/core/lib/mailer";
 
 export async function sendAuthEmail(message: AuthEmailMessage) {

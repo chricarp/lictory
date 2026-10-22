@@ -7,7 +7,11 @@ import type {
   EntityOf,
   Capabilities,
 } from "@lictory/core/contracts/protocol";
-import { mergeBase, mergeSnapshot, type Snapshot } from "@lictory/core/contracts/merge";
+import {
+  mergeBase,
+  mergeSnapshot,
+  type Snapshot,
+} from "@lictory/core/contracts/merge";
 import type { Tx } from "@lictory/core/domain/service";
 import { DomainError } from "@lictory/core/domain/errors";
 

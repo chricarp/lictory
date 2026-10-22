@@ -17,7 +17,11 @@ import {
   SettingsList,
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
-import { SectionError, plural, useCommand } from "@lictory/platform/components/settings/project-shared";
+import {
+  SectionError,
+  plural,
+  useCommand,
+} from "@lictory/platform/components/settings/project-shared";
 
 export function ProjectMembers({
   project,

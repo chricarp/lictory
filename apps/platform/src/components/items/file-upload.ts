@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { ACCEPT_FILES, MAX_FILE_SIZE, validateFile } from "@lictory/core/storage/policy";
+import {
+  ACCEPT_FILES,
+  MAX_FILE_SIZE,
+  validateFile,
+} from "@lictory/core/storage/policy";
 export { ACCEPT_FILES, MAX_FILE_SIZE };
 
 export type FileContext = { organizationId: string; workItemId: string };

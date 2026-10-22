@@ -30,10 +30,22 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type { ChatMessage } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
-import { ChatList, chatLabel } from "@lictory/platform/components/intelligence/chat/chat-list";
-import { Composer, type ComposerHandle } from "@lictory/platform/components/intelligence/chat/composer";
-import { ChatsProvider, useChats } from "@lictory/platform/components/intelligence/chat/provider";
-import { ThreadMessages, useThread } from "@lictory/platform/components/intelligence/chat/thread";
+import {
+  ChatList,
+  chatLabel,
+} from "@lictory/platform/components/intelligence/chat/chat-list";
+import {
+  Composer,
+  type ComposerHandle,
+} from "@lictory/platform/components/intelligence/chat/composer";
+import {
+  ChatsProvider,
+  useChats,
+} from "@lictory/platform/components/intelligence/chat/provider";
+import {
+  ThreadMessages,
+  useThread,
+} from "@lictory/platform/components/intelligence/chat/thread";
 
 const ease = [0.23, 1, 0.32, 1] as const;
 

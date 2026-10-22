@@ -20,7 +20,10 @@ import {
 import { Popover, Picker } from "@lictory/ui/popover";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { Button } from "@lictory/ui/button";
-import { useDelivery, useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  useDelivery,
+  useWorkspace,
+} from "@lictory/platform/components/workspace/provider";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { IssueStatus } from "@lictory/platform/components/items/status";
 

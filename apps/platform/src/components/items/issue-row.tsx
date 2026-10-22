@@ -12,11 +12,20 @@ import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { Avatar } from "@lictory/ui/primitives";
 import { IssueStatus } from "@lictory/platform/components/items/status";
-import { AssigneePicker, IssuePriority } from "@lictory/platform/components/items/properties";
+import {
+  AssigneePicker,
+  IssuePriority,
+} from "@lictory/platform/components/items/properties";
 import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
-import { ReadinessBar, ReviewSignal } from "@lictory/platform/components/items/signals";
+import {
+  ReadinessBar,
+  ReviewSignal,
+} from "@lictory/platform/components/items/signals";
 import { TypeIcon, epicGlyph } from "@lictory/platform/components/items/icons";
-import { LabelChip, MilestoneBadge } from "@lictory/platform/components/items/labels";
+import {
+  LabelChip,
+  MilestoneBadge,
+} from "@lictory/platform/components/items/labels";
 import type { Label, Milestone } from "@lictory/core/lib/work-items";
 
 export const IssueRow = memo(function IssueRow({

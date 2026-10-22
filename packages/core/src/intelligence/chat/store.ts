@@ -2,7 +2,10 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@lictory/core/domain/service";
 import * as s from "@lictory/core/db/schema";
 import { CapabilityError } from "@lictory/core/capabilities/core";
-import type { ChatMessage, ChatSummary } from "@lictory/core/intelligence/chat/shared";
+import type {
+  ChatMessage,
+  ChatSummary,
+} from "@lictory/core/intelligence/chat/shared";
 
 // Persistence for Intelligence conversations. Every read and write is scoped to
 // the organization and to the person who owns the chat; callers must already

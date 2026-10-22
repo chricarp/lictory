@@ -41,7 +41,10 @@ import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { Thread, ThreadComposer } from "@lictory/platform/components/review/threads";
+import {
+  Thread,
+  ThreadComposer,
+} from "@lictory/platform/components/review/threads";
 import {
   ActionCheckRow,
   ActionChecksPanel,
