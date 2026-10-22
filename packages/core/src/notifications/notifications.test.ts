@@ -400,6 +400,7 @@ void test("email outbox sends once, retries failures, and skips former members",
     skipped: 0,
     failed: 0,
     retrying: 1,
+    claimed: 1,
   });
   // Not due yet: backoff holds it.
   assert.equal(
@@ -433,6 +434,60 @@ void test("email outbox sends once, retries failures, and skips former members",
     (await dispatchNotificationEmails(db, { send, now })).skipped,
     1,
   );
+});
+
+void test("an email whose runner died is sent once more, with the same idempotency key, after its lease expires", async () => {
+  const f = await fixture();
+  await db.delete(s.notificationEmail);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.itemId,
+    assigneeId: f.reviewerId,
+  });
+  let clock = new Date();
+  const now = () => clock;
+  const keys: string[] = [];
+  const record = async (e: { idempotencyKey: string }) =>
+    void keys.push(e.idempotencyKey);
+  // Runner A claims the row and hangs inside the provider call; to everyone
+  // else that is indistinguishable from a crash.
+  let releaseA!: () => void;
+  const hung = new Promise<void>((resolve) => (releaseA = resolve));
+  let sending!: () => void;
+  const inside = new Promise<void>((resolve) => (sending = resolve));
+  const runnerA = dispatchNotificationEmails(db, {
+    now,
+    send: async (e) => {
+      keys.push(e.idempotencyKey);
+      sending();
+      await hung;
+      throw new Error("connection reset");
+    },
+  });
+  await inside;
+  assert.equal(
+    (await dispatchNotificationEmails(db, { now, send: record })).claimed,
+    0,
+    "the lease keeps other runners away",
+  );
+  clock = new Date(clock.getTime() + 3 * 60_000);
+  assert.equal(
+    (await dispatchNotificationEmails(db, { now, send: record })).sent,
+    1,
+  );
+  // A finishes late and fails: its outcome no longer counts.
+  releaseA();
+  await runnerA;
+  const [row] = await db.select().from(s.notificationEmail);
+  assert.equal(row!.status, "sent");
+  assert.equal(row!.attempts, 2);
+  assert.equal(
+    (await dispatchNotificationEmails(db, { now, send: record })).claimed,
+    0,
+  );
+  assert.equal(keys.length, 2);
+  assert.equal(keys[0], keys[1]);
+  assert.equal(keys[0], `lictory-notification-${row!.notificationId}`);
 });
 
 void test("iteration start and completion notify project members once", async () => {

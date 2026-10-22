@@ -12,11 +12,17 @@ import {
 
 const MAX_ATTEMPTS = 5;
 const LEASE_MS = 2 * 60_000;
+// A row is only sent while this much of its lease remains, so a slow batch
+// never sends after another runner may have reclaimed the row.
+const SEND_MARGIN_MS = 45_000;
 
 // Sends queued notification emails. Safe to run concurrently and repeatedly:
 // rows are claimed with SKIP LOCKED plus a lease, the provider receives a
 // stable idempotency key, and each outcome is recorded. Nothing is sent to
 // someone who has since left the organization or archived the notification.
+// Outcomes are fenced on the lease, so a runner that lost its rows cannot
+// overwrite another runner's result; `signal` stops between rows and returns
+// the unsent ones.
 export async function dispatchNotificationEmails(
   db: Database,
   options: {
@@ -24,16 +30,18 @@ export async function dispatchNotificationEmails(
     now?: () => Date;
     send?: (email: OutgoingEmail) => Promise<void>;
     baseUrl?: string;
+    signal?: AbortSignal;
   } = {},
 ) {
   const now = options.now ?? (() => new Date());
   const send = options.send ?? sendEmail;
   const baseUrl = (options.baseUrl ?? platformUrl()).replace(/\/$/, "");
   const at = now();
+  const lease = new Date(at.getTime() + LEASE_MS);
   const claimed = await db
     .update(s.notificationEmail)
     .set({
-      leaseUntil: new Date(at.getTime() + LEASE_MS),
+      leaseUntil: lease,
       attempts: sql`${s.notificationEmail.attempts} + 1`,
     })
     .where(
@@ -47,12 +55,32 @@ export async function dispatchNotificationEmails(
     )
     .returning();
   const outcome = { sent: 0, skipped: 0, failed: 0, retrying: 0 };
-  for (const row of claimed) {
+  const held = (notificationId: string) =>
+    and(
+      eq(s.notificationEmail.notificationId, notificationId),
+      eq(s.notificationEmail.leaseUntil, lease),
+    );
+  for (const [index, row] of claimed.entries()) {
+    if (
+      options.signal?.aborted ||
+      now().getTime() > lease.getTime() - SEND_MARGIN_MS
+    ) {
+      // Never attempted: give the rows back without spending an attempt.
+      for (const rest of claimed.slice(index))
+        await db
+          .update(s.notificationEmail)
+          .set({
+            leaseUntil: null,
+            attempts: sql`${s.notificationEmail.attempts} - 1`,
+          })
+          .where(held(rest.notificationId));
+      break;
+    }
     const settle = (values: Partial<typeof s.notificationEmail.$inferInsert>) =>
       db
         .update(s.notificationEmail)
         .set({ leaseUntil: null, ...values })
-        .where(eq(s.notificationEmail.notificationId, row.notificationId));
+        .where(held(row.notificationId));
     const [n] = await db
       .select({
         notification: s.notification,
@@ -142,5 +170,5 @@ export async function dispatchNotificationEmails(
       else outcome.retrying++;
     }
   }
-  return outcome;
+  return { ...outcome, claimed: claimed.length };
 }

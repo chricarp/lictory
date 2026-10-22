@@ -11,6 +11,11 @@ export {
 } from "@lictory/core/jobs/signal";
 export { advanceSchedules, processAiRuns, dispatchNotificationEmails };
 export { rebuildProjections } from "@lictory/core/domain/projections";
+export {
+  createJobDatabase,
+  listenForWork,
+  type WorkListener,
+} from "@lictory/core/jobs/listener";
 
 // Background work for the worker process. Every job is idempotent, safe to
 // run concurrently in several processes (claims use leases or the
@@ -26,8 +31,11 @@ function deliveryService(db: Database) {
 
 // Advances running exports (new ones, deferred create confirmations, crashed
 // runners whose lease expired).
-export function processDeliveryPublications(db: Database) {
-  return deliveryService(db).processPending();
+export function processDeliveryPublications(
+  db: Database,
+  options?: { limit?: number; signal?: AbortSignal },
+) {
+  return deliveryService(db).processPending(options);
 }
 
 // Read-only status sync of exported items, least recently checked first.

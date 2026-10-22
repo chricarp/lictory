@@ -149,6 +149,9 @@ async function fixture(
   // that step inline, the way the worker does after the commit signal.
   const service = {
     ...delivery,
+    // What the mutation does: reserve the export for the worker.
+    reserve: (...args: Parameters<typeof delivery.publish>) =>
+      delivery.publish(...args),
     async publish(...args: Parameters<typeof delivery.publish>) {
       const requested = await delivery.publish(...args);
       assert.equal(requested.status, "running");
@@ -534,6 +537,142 @@ void test("an unconfirmable recent create attempt waits instead of creating a du
   );
   assert.equal(done.status, "completed");
   assert.equal(f.fake.items.size, 1);
+});
+
+void test("a runner that dies mid-export is resumed after its lease without duplicating work", async () => {
+  const f = await fixture();
+  const requested = await f.service.reserve(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  assert.equal(requested.status, "running");
+  // Runner A exports the epic, then dies inside the story's create: Jira has
+  // the story, Lictory only the attempt marker and A's lease.
+  const create = f.fake.provider.createItem.bind(f.fake.provider);
+  let created!: () => void;
+  const storyCreated = new Promise<void>((resolve) => (created = resolve));
+  f.fake.provider.createItem = async (connection, target, payload) => {
+    const item = await create(connection, target, payload);
+    if (payload.lictoryItemId !== f.story) return item;
+    created();
+    return new Promise<never>(() => undefined);
+  };
+  void f.service.process(requested.id);
+  await storyCreated;
+  f.fake.provider.createItem = create;
+  assert.equal(f.fake.items.size, 2);
+  const crashed = await f.service.publication(
+    f.userId,
+    f.organizationId,
+    requested.id,
+  );
+  assert.equal(crashed.results[f.epic]!.outcome, "created");
+  assert.equal(crashed.results[f.story]!.outcome, "pending");
+  assert.ok((await f.linkOf(f.story))!.createAttemptedAt);
+
+  // A second worker leaves it alone while the lease holds...
+  await f.service.processPending();
+  assert.equal(f.fake.items.size, 2);
+  // ...and resumes it once the lease has expired.
+  f.advance(6 * 60_000);
+  await f.service.processPending();
+  const resumed = await f.service.publication(
+    f.userId,
+    f.organizationId,
+    requested.id,
+  );
+  assert.equal(resumed.status, "completed");
+  assert.equal(resumed.results[f.epic]!.outcome, "created");
+  assert.equal(resumed.results[f.story]!.outcome, "created");
+  assert.equal(resumed.results[f.subtask]!.outcome, "created");
+  // The story Jira already had was adopted, not created again.
+  assert.equal(f.fake.items.size, 3);
+  const story = (await f.linkOf(f.story))!;
+  assert.equal(f.fake.items.get(story.externalId!)!.lictoryItemId, f.story);
+  assert.equal(story.createAttemptedAt, null);
+  assert.equal(
+    f.fake.calls.filter((c) => c === "createItem").length,
+    3,
+    "epic and story by the first runner, subtask by the second",
+  );
+});
+
+void test("a runner that lost its lease records nothing and stops", async () => {
+  const f = await fixture();
+  const requested = await f.service.reserve(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  // Runner A stalls inside the epic's create long enough to lose its lease.
+  const create = f.fake.provider.createItem.bind(f.fake.provider);
+  let stalled!: () => void;
+  const inside = new Promise<void>((resolve) => (stalled = resolve));
+  let resume!: () => void;
+  const unblocked = new Promise<void>((resolve) => (resume = resolve));
+  f.fake.provider.createItem = async (connection, target, payload) => {
+    const item = await create(connection, target, payload);
+    if (payload.lictoryItemId === f.epic) {
+      stalled();
+      await unblocked;
+      // Its late outcome differs from what the owner recorded.
+      throw new DeliveryError("validation", "Late rejection.");
+    }
+    return item;
+  };
+  const runnerA = f.service.process(requested.id);
+  await inside;
+  f.fake.provider.createItem = create;
+  f.advance(6 * 60_000);
+  // Runner B takes over and finishes the whole export, adopting the epic.
+  await f.service.processPending();
+  const settled = await f.service.publication(
+    f.userId,
+    f.organizationId,
+    requested.id,
+  );
+  assert.equal(settled.status, "completed");
+  const settledAt = settled.finishedAt;
+  resume();
+  await runnerA;
+  const after = await f.service.publication(
+    f.userId,
+    f.organizationId,
+    requested.id,
+  );
+  assert.deepEqual(after.results, settled.results);
+  assert.deepEqual(after.finishedAt, settledAt);
+  assert.equal(f.fake.items.size, 3);
+});
+
+void test("an interrupted runner hands the remaining items to the next one at once", async () => {
+  const f = await fixture();
+  const requested = await f.service.reserve(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  const stop = new AbortController();
+  const create = f.fake.provider.createItem.bind(f.fake.provider);
+  f.fake.provider.createItem = async (connection, target, payload) => {
+    // Shutdown arrives while the epic is being created.
+    stop.abort();
+    return create(connection, target, payload);
+  };
+  const interrupted = await f.service.process(requested.id, {
+    signal: stop.signal,
+  });
+  f.fake.provider.createItem = create;
+  assert.equal(interrupted.status, "running");
+  assert.equal(interrupted.leaseUntil, null);
+  assert.equal(interrupted.results[f.epic]!.outcome, "created");
+  assert.equal(interrupted.results[f.story]!.outcome, "pending");
+  await f.service.processPending();
+  const done = await f.service.publication(
+    f.userId,
+    f.organizationId,
+    requested.id,
+  );
+  assert.equal(done.status, "completed");
+  assert.equal(f.fake.items.size, 3);
 });
 
 void test("linking an existing issue requires confirmation before the first overwrite", async () => {

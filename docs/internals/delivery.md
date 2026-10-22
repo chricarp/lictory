@@ -124,16 +124,14 @@ organization. A reverse `blocks` pair is rejected.
 ## Scheduled work
 
 Automatic cycles need a clock. The domain job is `advanceSchedules(db, now)`,
-which is deterministic from stored state and `now`, so retries and overlapping
-runs are safe. Three runners call the same function:
-
-- `POST /api/jobs/iterations` with `Authorization: Bearer $CRON_SECRET`. This is
-  the recommended target for Trigger.dev or another hosted scheduler when running
-  on serverless Next.js. The route is disabled until `CRON_SECRET` is set.
-- `bun scripts/iteration-worker.ts` for self-hosted/Docker installations.
-- A project switching to automatic cycles runs the job for it immediately.
-
-Nothing in the domain depends on a scheduler vendor.
+which is deterministic from stored state and `now`, and each organization is
+advanced under its organization lock, so retries and overlapping runs (several
+worker processes) are safe; an organization that fails is retried on the next
+run without holding up the others. The worker (`apps/worker`) runs it every
+five minutes (`WORKER_SCHEDULES_INTERVAL_MS`), and a project switching to
+automatic cycles runs it for that project immediately. Nothing in the domain
+depends on a scheduler vendor. See
+[background work](synchronization.md#background-work).
 
 ## External delivery
 
@@ -154,7 +152,8 @@ Export is explicit and evidence-gated, independent of the readiness policy:
   criteria) and labels, pushed one-way on each export. Labels added in Jira
   are kept. Status, assignee, sprint and comments are Jira's; status, its
   category and the assignee are copied back read-only on each export and by
-  the scheduled status sync or an on-demand refresh. The sync never writes
+  the worker's status sync (every ten minutes, least recently checked links
+  first, bounded batches) or an on-demand refresh. The sync never writes
   Jira and never changes Lictory-owned fields.
 - Unchanged items (same payload hash) are not written. Items whose owned
   fields were edited in Jira since the last export, and items linked to an
@@ -168,7 +167,17 @@ Export is explicit and evidence-gated, independent of the readiness policy:
 - No duplicates: links are reserved before the first call, a create attempt
   is committed before it is made, and the `lictory.item` issue property lets a
   crashed create be found and adopted. A recent attempt that cannot be
-  confirmed yet is left running and resumed by the scheduled job.
+  confirmed yet is left running and retried by the worker 30 seconds later.
+  An issue create is never retried blindly by the Jira client (a timeout or
+  5xx may have created it); only the confirmation search decides.
+- One runner per publication: the worker claims it with a five-minute lease
+  and renews the lease while it works. Every item result and create attempt
+  is written only while the lease is still held, so a runner that stalled
+  past its lease records nothing; the new owner redoes the item, adopting a
+  create through the attempt marker. Items already settled are never redone,
+  so a resumed export keeps its partial results. On shutdown the runner stops
+  between items and releases the lease for the next worker. Jira requests
+  time out after 30 seconds.
 - Network calls never run inside the organization lock; each item's outcome
   commits with its projections and an `exported` activity.
 - Organization administrators connect Jira sites (credentials). Each project's

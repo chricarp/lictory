@@ -80,10 +80,18 @@ export type PullRequestOutput = z.infer<typeof pullRequestOutput>;
 
 // The domain depends on this interface, not on a provider. Tests and failure
 // drills substitute their own implementation.
+// `abortSignal` cancels the provider call (run deadline, worker shutdown).
+export type AnalyzerCall = { abortSignal?: AbortSignal };
 export type Analyzer = {
   model: string;
-  reviewItem(context: ItemReviewContext): Promise<ItemReviewOutput>;
-  reviewPullRequest(context: PullRequestContext): Promise<PullRequestOutput>;
+  reviewItem(
+    context: ItemReviewContext,
+    call?: AnalyzerCall,
+  ): Promise<ItemReviewOutput>;
+  reviewPullRequest(
+    context: PullRequestContext,
+    call?: AnalyzerCall,
+  ): Promise<PullRequestOutput>;
 };
 
 export const DEFAULT_AI_MODEL = "gpt-6-luna";
@@ -106,6 +114,7 @@ export function createAnalyzer(
     name: string,
     system: string,
     prompt: string,
+    call: AnalyzerCall = {},
   ): Promise<T> {
     try {
       const { output } = await generateText({
@@ -114,7 +123,9 @@ export function createAnalyzer(
         prompt,
         output: Output.object({ schema, name }),
         maxRetries: 2,
+        // Covers every retry; well below the run lease in the runner.
         timeout: { totalMs: 240_000 },
+        abortSignal: call.abortSignal,
         // Customer content is not retained by the provider for later use.
         providerOptions: { openai: { store: false } },
       });
@@ -125,19 +136,21 @@ export function createAnalyzer(
   }
   return {
     model: modelId,
-    reviewItem: (context) =>
+    reviewItem: (context, call) =>
       run(
         itemReviewOutput,
         "item_review",
         itemReviewSystem,
         JSON.stringify(context),
+        call,
       ),
-    reviewPullRequest: (context) =>
+    reviewPullRequest: (context, call) =>
       run(
         pullRequestOutput,
         "pull_request_review",
         pullRequestSystem,
         JSON.stringify(context),
+        call,
       ),
   };
 }
