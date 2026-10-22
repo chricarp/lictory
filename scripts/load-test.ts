@@ -16,6 +16,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { hashPassword } from "better-auth/crypto";
+import { serializeSignedCookie } from "better-call";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
 import postgres from "postgres";
@@ -36,6 +37,7 @@ import { mutators } from "@lictory/zero/mutators";
 const env = (name: string, fallback: number) =>
   Number(process.env[name] ?? fallback);
 const password = process.env.LOAD_PASSWORD ?? "load-test-password-0001";
+
 const run = process.argv[2];
 
 function percentile(values: number[], p: number) {
@@ -67,7 +69,16 @@ async function seed() {
   const hash = await hashPassword(password);
   const started = Date.now();
   let mutations = 0;
-  const users: { email: string; organizationId: string }[] = [];
+  // Sessions are minted like Better Auth's own (random token, signed cookie),
+  // so the run is not throttled by the per-address sign-in rate limit.
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) throw new Error("BETTER_AUTH_SECRET of the stack is required.");
+  const users: {
+    email: string;
+    organizationId: string;
+    userId: string;
+    token: string;
+  }[] = [];
 
   async function seedOrg(index: number) {
     const organizationId = crypto.randomUUID();
@@ -111,7 +122,22 @@ async function seed() {
       })),
     );
     await seedOrganization(db, organizationId);
-    for (const p of people) users.push({ email: p.email, organizationId });
+    const sessions = people.map((p) => ({
+      id: crypto.randomUUID(),
+      token: crypto.randomUUID().replaceAll("-", ""),
+      userId: p.id,
+      expiresAt: new Date(Date.now() + 7 * 86_400_000),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await db.insert(s.session).values(sessions);
+    for (const [i, p] of people.entries())
+      users.push({
+        email: p.email,
+        organizationId,
+        userId: p.id,
+        token: sessions[i]!.token,
+      });
     const owner = people[0]!.id;
     const command = async (c: Command, actor = owner) => {
       mutations++;
@@ -141,16 +167,30 @@ async function seed() {
         name: `Project ${p}`,
         key: `P${String.fromCharCode(65 + p)}${index % 100}`.slice(0, 6),
       });
-      const types = (await directory()).types;
+      const roster = await directory();
+      const types = roster.types;
+      // Everyone edits properties and specifications, as in a small team
+      // where all members hold the Product discipline.
+      const product = roster.disciplines.find(
+        (d) => d.projectId === projectId && d.name === "Product",
+      )!;
       const epicType = types.find((t) => t.name === "Epic")!;
       const storyType = types.find((t) => t.name === "Story")!;
-      for (const person of people.slice(1))
+      for (const person of people.slice(1)) {
         await command({
           type: "setProjectMember",
           projectId,
           userId: person.id,
           role: "member",
-        }).catch(() => undefined);
+        });
+        await command({
+          type: "setDisciplineMember",
+          projectId,
+          disciplineId: product.id,
+          userId: person.id,
+          member: true,
+        });
+      }
       let epicId: string | null = null;
       for (let i = 0; i < items; i++) {
         const workItemId = crypto.randomUUID();
@@ -234,7 +274,12 @@ async function load() {
   const platform = process.env.PLATFORM_URL ?? "http://localhost:3001";
   const users = JSON.parse(
     readFileSync("/tmp/lictory-load-users.json", "utf8"),
-  ) as { email: string; organizationId: string }[];
+  ) as {
+    email: string;
+    organizationId: string;
+    userId: string;
+    token: string;
+  }[];
   const clients = Math.min(env("LOAD_CLIENTS", 50), users.length);
   const duration = env("LOAD_DURATION_S", 180) * 1000;
   const interval = env("LOAD_MUTATION_INTERVAL_MS", 15_000);
@@ -271,25 +316,31 @@ async function load() {
   const zeros: Zero[] = [];
   let stop = false;
 
-  async function signIn(email: string) {
-    const response = await fetch(`${platform}/api/auth/sign-in/email`, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: platform },
-      body: JSON.stringify({ email, password }),
+  // The seeded session, presented exactly as a browser would (signed cookie).
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) throw new Error("BETTER_AUTH_SECRET of the stack is required.");
+  const cookieName =
+    process.env.LOAD_COOKIE_NAME ??
+    (platform.startsWith("https:")
+      ? "__Secure-better-auth.session_token"
+      : "better-auth.session_token");
+  async function signIn(user: (typeof users)[number]) {
+    const cookie = (
+      await serializeSignedCookie(cookieName, user.token, secret!)
+    ).split(";")[0]!;
+    const response = await fetch(`${platform}/api/session`, {
+      headers: { cookie },
     });
-    if (!response.ok) throw new Error(`sign-in ${response.status}`);
-    const cookie = response.headers
-      .getSetCookie()
-      .map((c) => c.split(";")[0])
-      .join("; ");
-    const { user } = (await response.json()) as { user: { id: string } };
-    return { cookie, userID: user.id };
+    const body = (await response.json()) as { user: { id: string } | null };
+    if (!response.ok || body.user?.id !== user.userId)
+      throw new Error(`session ${response.status}`);
+    return { cookie, userID: user.userId };
   }
 
   async function simulate(user: (typeof users)[number], observer: boolean) {
     let session;
     try {
-      session = await signIn(user.email);
+      session = await signIn(user);
     } catch {
       failedSignIns++;
       return;
@@ -327,12 +378,12 @@ async function load() {
         if (!sent) return;
         for (const row of data as unknown as {
           key: string;
-          data: { title?: string };
+          data: { priority?: string };
         }[]) {
-          const at = sent.get(`${row.key}:${row.data.title}`);
+          const at = sent.get(`${row.key}:${row.data.priority}`);
           if (at !== undefined) {
             propagation.push(performance.now() - at);
-            sent.delete(`${row.key}:${row.data.title}`);
+            sent.delete(`${row.key}:${row.data.priority}`);
           }
         }
       });
@@ -357,15 +408,21 @@ async function load() {
       await new Promise((r) => setTimeout(r, interval * (0.5 + Math.random())));
       if (stop || !items.length) break;
       const item = items[Math.floor(Math.random() * items.length)]!;
-      const title = `Story ${Math.random().toString(36).slice(2, 8)}: retry failed payments`;
       const key = `workItem:${String(item.data.id)}`;
+      // A property change: the server recomputes the item summary and
+      // rewrites its projection, which every member's list subscription sees.
+      const current = (
+        view.data as unknown as { key: string; data: { priority?: string } }[]
+      ).find((row) => row.key === key)?.data.priority;
+      const choices = (["low", "medium", "high", "urgent"] as const).filter(
+        (p) => p !== current,
+      );
+      const priority = choices[Math.floor(Math.random() * choices.length)]!;
       const sent =
         watchers.get(user.organizationId) ?? new Map<string, number>();
       watchers.set(user.organizationId, sent);
       const at = performance.now();
-      sent.set(`${key}:${title}`, at);
-      // A property-only rename keeps load representative of list editing:
-      // the server recomputes the item summary and updates its projection.
+      sent.set(`${key}:${priority}`, at);
       const write = z.mutate(
         mutators.workspace.apply({
           protocol: PROTOCOL,
@@ -374,16 +431,15 @@ async function load() {
           command: {
             type: "updateWorkItem",
             workItemId: String(item.data.id),
-            priority: (["low", "medium", "high"] as const)[
-              Math.floor(Math.random() * 3)
-            ],
+            priority,
           },
         }),
       );
       const result = await write.server;
-      if (result.type === "error") rejected++;
-      else serverAck.push(performance.now() - at);
-      sent.delete(`${key}:${title}`);
+      if (result.type === "error") {
+        rejected++;
+        sent.delete(`${key}:${priority}`);
+      } else serverAck.push(performance.now() - at);
     }
   }
 
@@ -426,6 +482,9 @@ async function load() {
     organizationHydrationMs: summary(hydration),
     itemHydrationMs: summary(itemHydration),
     mutationServerAckMs: summary(serverAck),
+    // From the writer's call to the change appearing in another member's
+    // open organization subscription.
+    propagationMs: summary(propagation),
     samples,
   };
   writeFileSync(
@@ -433,7 +492,6 @@ async function load() {
     JSON.stringify(report, null, 2),
   );
   console.log(JSON.stringify({ ...report, samples: samples.length }));
-  void propagation;
   process.exit(0);
 }
 
