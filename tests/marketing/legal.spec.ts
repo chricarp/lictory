@@ -49,32 +49,14 @@ for (const path of ["/privacy", "/terms-of-service"]) {
     await expect(page.locator("main h1")).toBeVisible();
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      `http://localhost:3001${path}`,
+      new URL(path, page.url()).toString(),
     );
-  });
-}
-
-for (const path of ["/sign-up", "/sign-in"]) {
-  test(`${path} explains account acceptance separately from analytics and links to public documents`, async ({
-    page,
-  }) => {
-    await page.goto(`${path}?callbackUrl=%2Fapp%2Finvitation%3Fid%3Dtest`);
-    const notice = page.getByText(/you agree to our/);
-    await expect(notice).toContainText("acknowledge our Privacy Notice");
-    await expect(notice).toContainText(
-      "Optional analytics is a separate choice",
-    );
-    await notice.getByRole("link", { name: "Terms of Service" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Terms of Service", exact: true }),
-    ).toBeVisible();
-    await page.goBack();
-    await expect(page).toHaveURL(/callbackUrl=/);
-    await page
-      .getByRole("link", { name: "Privacy Notice", exact: true })
-      .click();
-    await expect(
-      page.getByRole("heading", { name: "Privacy Notice", exact: true }),
-    ).toBeVisible();
+    // Signing in happens in the application, on its own origin.
+    const signIn = page
+      .getByRole("banner")
+      .getByRole("link", { name: "Sign in" });
+    const target = new URL((await signIn.getAttribute("href"))!);
+    expect(target.pathname).toBe("/sign-in");
+    expect(target.origin).not.toBe(new URL(page.url()).origin);
   });
 }
