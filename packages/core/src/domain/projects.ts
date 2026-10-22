@@ -133,12 +133,16 @@ export async function seedProject(
     await tx
       .insert(s.projectWorkItemType)
       .values(types.map((t) => ({ organizationId, projectId, typeId: t.id })));
-  const disciplines = defaultDisciplines.map((d) => ({
+  // Creation order is display order (Product, Engineering, QA, ...): one
+  // statement would give every default the same timestamp.
+  const created = Date.now();
+  const disciplines = defaultDisciplines.map((d, index) => ({
     id: crypto.randomUUID(),
     organizationId,
     projectId,
     name: d.name,
     description: d.description,
+    createdAt: new Date(created + index),
     ...disciplineColumns(d.capabilities),
   }));
   await tx.insert(s.discipline).values(disciplines);

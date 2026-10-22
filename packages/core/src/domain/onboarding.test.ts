@@ -13,6 +13,7 @@ import {
 import { directory } from "@lictory/core/domain/service";
 import { projectionService } from "@lictory/core/domain/projection-reader.test-helper";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { defaultDisciplines } from "@lictory/core/domain/projects";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -115,6 +116,11 @@ void test("setup configures the first project from explicit choices and records 
   assert.deepEqual(
     roster.disciplines.find((d) => d.name === "Product")?.userIds,
     [f.userId],
+  );
+  // Disciplines keep their default order everywhere they are listed.
+  assert.deepEqual(
+    roster.disciplines.map((d) => d.name),
+    defaultDisciplines.map((d) => d.name),
   );
   const [record] = await db
     .select()
