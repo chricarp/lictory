@@ -94,7 +94,8 @@ services:
       SITE_URL: https://restore-drill.invalid
       BETTER_AUTH_SECRET: ${DRILL_APP_SECRET:?}
       DELIVERY_CREDENTIALS_KEY: ${DRILL_APP_SECRET:?}
-      ZERO_API_KEY: ${DRILL_APP_SECRET:?}
+      ZERO_QUERY_API_KEY: ${DRILL_APP_SECRET:?}
+      ZERO_MUTATE_API_KEY: ${DRILL_APP_SECRET:?}
       R2_ACCOUNT_ID: restore-drill
       R2_ACCESS_KEY_ID: restore-drill
       R2_SECRET_ACCESS_KEY: restore-drill
