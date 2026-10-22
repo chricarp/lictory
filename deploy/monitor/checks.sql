@@ -17,6 +17,13 @@ UNION ALL
 SELECT 'replication_slot', 'no logical replication slot exists: zero-cache is not replicating'
 WHERE NOT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_type = 'logical')
 UNION ALL
+-- After a replica resync zero-cache replicates through a new slot and leaves
+-- the old one behind, retaining WAL until max_slot_wal_keep_size invalidates it.
+SELECT 'replication_slot', format('%s is orphaned (another slot is active); drop it: SELECT pg_drop_replication_slot(%L)', s.slot_name, s.slot_name)
+FROM pg_replication_slots s
+WHERE s.slot_type = 'logical' AND NOT s.active
+  AND EXISTS (SELECT 1 FROM pg_replication_slots a WHERE a.slot_type = 'logical' AND a.active)
+UNION ALL
 SELECT 'wal_size', format('pg_wal holds %s', pg_size_pretty(sum(size)))
 FROM pg_ls_waldir()
 HAVING sum(size) > :wal_bytes

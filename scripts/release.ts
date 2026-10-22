@@ -66,13 +66,23 @@ async function savePlan(manifest: Manifest, path: string) {
       `Selected **${manifest.tag}** from \`${manifest.sha}\`. Baseline: ${manifest.baseline.version}.\n`,
     );
 }
-function server(environment: Environment, registry: string) {
+function server(github: GitHub, environment: Environment, registry: string) {
   return new Server(
     { environment, registry },
     sshRemote(required("DEPLOY_SSH_TARGET"), {
       knownHostsFile: optional("DEPLOY_SSH_KNOWN_HOSTS_FILE"),
       identityFile: optional("DEPLOY_SSH_KEY_FILE"),
     }),
+    // A rollback target is a published stable release of exactly that commit.
+    async (version, sha) => {
+      const release = await github.release(`v${version}`);
+      return (
+        !!release &&
+        !release.draft &&
+        !release.prerelease &&
+        (await github.tagSha(`v${version}`)) === sha
+      );
+    },
   );
 }
 
@@ -142,7 +152,9 @@ async function deploy(
     throw new Error("Source checkout is not the selected release commit.");
   const registry = required("IMAGE_REGISTRY");
   const production =
-    manifest.channel === "stable" ? server("production", registry) : undefined;
+    manifest.channel === "stable"
+      ? server(github, "production", registry)
+      : undefined;
   const validate = async () => {
     if (!production) return;
     const current = await planProduction(
@@ -235,7 +247,7 @@ async function stage(github: GitHub, manifest: Manifest) {
   const registry = required("IMAGE_REGISTRY");
   const build = await journaledBuild(github, manifest, registry);
   if (!build) throw new Error(`${manifest.tag} has no journaled image build.`);
-  const staging = server("staging", registry);
+  const staging = server(github, "staging", registry);
   await staging.prepare(manifest, build.images);
   await staging.migrate(manifest);
   await staging.activate(manifest, build);

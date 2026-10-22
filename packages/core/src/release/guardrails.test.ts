@@ -26,18 +26,24 @@ import {
 function fakeServer(
   environment: Environment,
   initial: ServerStatus | { version: null },
+  published: (version: string, sha: string) => Promise<boolean> = async () =>
+    false,
 ) {
   let status: ServerStatus = { environment, ...initial };
   const calls: string[] = [];
   const inputs: string[] = [];
-  const server = new Server({ environment, registry }, async (args, input) => {
-    calls.push(args.join(" "));
-    if (input) inputs.push(input);
-    if (args[1] === "status") return JSON.stringify(status);
-    if (args[1] === "prepare")
-      return `${input?.match(/^LICTORY_VERSION=(.*)$/m)?.[1]}\n`;
-    return "";
-  });
+  const server = new Server(
+    { environment, registry },
+    async (args, input) => {
+      calls.push(args.join(" "));
+      if (input) inputs.push(input);
+      if (args[1] === "status") return JSON.stringify(status);
+      if (args[1] === "prepare")
+        return `${input?.match(/^LICTORY_VERSION=(.*)$/m)?.[1]}\n`;
+      return "";
+    },
+    published,
+  );
   return {
     server,
     calls,
@@ -97,6 +103,17 @@ void test("production moves forward only and accepts exact retries and a first l
       channel: "nightly",
     }).server.assertOrder(candidate),
     /non-stable/,
+  );
+  // An operator rollback to an older published release does not block.
+  const rolledBack = { ...baseline, version: "1.4.1", sha: "d".repeat(40) };
+  await fakeServer(
+    "production",
+    rolledBack,
+    async (version, sha) => version === "1.4.1" && sha === "d".repeat(40),
+  ).server.assertOrder(candidate);
+  await assert.rejects(
+    fakeServer("production", rolledBack).server.assertOrder(candidate),
+    /publication/,
   );
 });
 

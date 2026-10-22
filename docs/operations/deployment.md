@@ -1,140 +1,286 @@
 # Deployment and operations
 
-The minimum hosted stack is Vercel, managed PostgreSQL, Resend and private
-Cloudflare R2. OAuth is optional; verified email/password authentication works
-without Google or Microsoft credentials. No AI provider is required.
+Lictory runs as one Docker Compose stack per environment on a single EU
+server: a reverse proxy, the website, the API, the background worker,
+zero-cache and PostgreSQL. Images are built off-server by GitHub Actions and
+deployed by digest. Production changes only through the manually approved
+**Release to Production** workflow ([versions and releases](releases.md)).
 
-## Environment boundaries
+```text
+                    ┌──────────────────────── server ─────────────────────────┐
+ lictory.com ──────▶│ proxy (Caddy, TLS) ──▶ marketing   (Next.js)             │
+ www ─ 308 ────────▶│   │                                                      │
+ app.lictory.com ──▶│   ├─ /assets, /brand, … static SPA files (in the proxy)   │
+                    │   ├─ /api/*, /relay/*, documents ──▶ api ◀── zero-cache   │
+                    │   └─ /zero/* (WebSocket) ─────────▶ zero-cache            │
+                    │                     api, worker, zero-cache ──▶ postgres  │
+                    └──────────────────────────────────────────────────────────┘
+```
 
-Production and previews must use separate databases, storage buckets, email
-credentials and authentication secrets. Never expose production credentials to
-pull-request builds. Keep the local Docker database and Mailpit for development.
-Until an isolated preview stack exists, a failing preview is safer than connecting
-unreviewed code to production data.
+| Service      | Image                   | Purpose                                                                                            |
+| ------------ | ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `proxy`      | `lictory-proxy`         | Caddy: automatic TLS, routing, security headers, the SPA's hashed files (current and previous)     |
+| `marketing`  | `lictory-marketing`     | Public website; no database, no session                                                            |
+| `api`        | `lictory-api`           | Hono API, Better Auth, Zero query/mutate endpoints, SPA document handler (social-preview metadata) |
+| `worker`     | `lictory-api`           | Background jobs: AI reviews, notification email, delivery exports, automatic cycles                |
+| `zero-cache` | `rocicorp/zero:1.11.2`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume                    |
+| `postgres`   | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                                   |
+| `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before anything else changes                                |
+| `ops`        | `lictory-ops`           | Backups, restores, monitoring; never runs permanently                                              |
 
-Production requires `DATABASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`,
-`RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`,
-`R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. Configure `CRON_SECRET` to enable
-scheduled work. Use a stable `DELIVERY_CREDENTIALS_KEY` before storing Jira
-credentials; rotating it makes existing encrypted tokens unreadable. These are
-server-only variables and must never use the `NEXT_PUBLIC_` prefix.
+Files bytes stay in private Cloudflare R2 (see
+[private file storage](../internals/file-storage.md)); email goes through Resend.
+OAuth and AI are optional.
 
-`BETTER_AUTH_URL` must be the canonical HTTPS origin. Redirect other domains to
-that origin and register OAuth callbacks against it. R2 public access stays
-disabled; configure upload CORS for exact supported origins. Do not use wildcard
-CORS to make arbitrary preview deployments work.
+## Network boundaries
 
-For social login on local development and trusted previews, see
-[OAuth proxy setup](oauth-proxy.md). A dedicated shared proxy secret is optional;
-the main authentication secrets remain separate. Prefer a staging callback
-server when keeping separate production and development OAuth clients.
+Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
+an internal Docker network with no route to or from the internet. The API,
+worker, website and ops tooling also join an egress-only network for external
+APIs (R2, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
+allows SSH (rate limited), HTTP and HTTPS only.
 
-The realtime hub uses PostgreSQL LISTEN/NOTIFY and needs a direct connection.
-Configure `DATABASE_URL` for pooled application queries and
-`DATABASE_URL_UNPOOLED` for the direct TLS listener. Neon's Vercel
-integration supplies both. Without the unpooled variable, the listener and
-listener falls back to `DATABASE_URL`, which must then be direct. Migrations use
-the separate `DATABASE_MIGRATION_URL`, which is never configured in Vercel. SSE streams
-last four minutes, below their five-minute function limit, and reconnect;
-synchronization recovery is authoritative even when presence/realtime is
-temporarily unavailable.
+The proxy:
 
-Application queries use protocol-level prepared statements: each statement is
-described once per connection, and queries issued together are pipelined in one
-round trip. A pooler in front of `DATABASE_URL` must support them (PgBouncer 1.22
-or later with `max_prepared_statements` above zero; Neon's pooler does). Keep the
-application database in the same region as the functions (`fra1` with Neon's
-`aws-eu-central-1`), and disable scale-to-zero on the production compute so
-requests never wait for a cold database.
+- sends `/zero/*` to zero-cache unchanged (Zero 1.11 serves the `/zero`
+  prefix itself) and refuses WebSocket upgrades whose `Origin` is not
+  `https://app.lictory.com` (cross-site WebSocket hijacking);
+- answers `/api/zero/*` with 404: zero-cache calls those endpoints on the
+  internal network with its API key and forwarded session cookies;
+- streams `/api/*` and `/relay/*` without buffering (server-sent events,
+  AI chat streams) and without a response timeout; request bodies are capped
+  per route slightly above the application limits;
+- serves `/assets/*` as immutable, `/brand/*` and `/illustrations/*` for a day
+  and other static files for an hour, and keeps the previous release's
+  `/assets/*` so open tabs can still load their code-split chunks;
+- sends every other path to the API, which returns `index.html` with
+  path-derived metadata and `Cache-Control: no-store`;
+- sets HSTS, `nosniff`, `strict-origin-when-cross-origin`, and refuses framing
+  of the application (`frame-ancestors 'none'` unless the API sends a CSP).
+
+`scripts/edge-proxy.ts` is the local stand-in for these routes; keep both in
+step.
+
+## Environments
+
+Production and staging are separate servers with separate databases, R2
+buckets (files and backups), email domains, OAuth clients and secrets. Staging
+uses `staging.lictory.com` and `app.staging.lictory.com` and runs nightly
+images; production runs stable images only. Never copy a value between their
+`.env` files.
+
+Each server has `/srv/lictory/<environment>/`:
+
+| Path                  | Contents                                                                    |
+| --------------------- | --------------------------------------------------------------------------- |
+| `.env`                | Secrets and settings (mode 0600, owner `deploy`); template in `deploy/env/` |
+| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling       |
+| `current`             | Symlink to the active release                                               |
+| `release-history.log` | Every activation                                                            |
+| `deploy.log`          | Deployment log                                                              |
+
+`/srv/lictory/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
+environment), `lictory-remote` (the CI key's forced command), and the backup,
+monitor and restore-drill wrappers. A newly activated release installs its
+versions of these tools.
+
+## Secrets and settings
+
+`deploy/provision/new-environment.sh` creates `.env` with generated database
+passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
+`ZERO_ADMIN_PASSWORD`. Fill in the rest by hand:
+
+| Setting                                                    | Notes                                                                                                  |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
+| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
+| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                          |
+| `BACKUP_*`                                                 | Dedicated private backup bucket and its own token; `BACKUP_AGE_RECIPIENTS` is a public key             |
+| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                              |
+| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                               |
+| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` production, `nightly` staging) |
+
+Each service receives only the variables it needs (see
+`deploy/compose.production.yaml`). Secrets are visible to anyone who can run
+Docker on the server, which is why only the administrator and `deploy` can log
+in. Browser bundles receive public origins and PostHog tokens at build time
+from GitHub variables, not from `.env`.
+
+## Database roles
+
+`deploy/postgres/10-lictory-roles.sh` creates the roles on the first start and
+re-applies them before every migration:
+
+| Role            | Used by                     | Privileges                                                                                 |
+| --------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
+| `lictory_owner` | `migrate`                   | Owns the application database and schema; DDL                                              |
+| `lictory_app`   | `api`, `worker`             | DML on application tables (default privileges cover future tables); no DDL, no temp tables |
+| `zero`          | `zero-cache`                | Superuser with replication; owns `<db>_zero` (client view records and change log)          |
+| `lictory_ops`   | backups, monitoring         | `pg_read_all_data`, `pg_monitor`                                                           |
+| `postgres`      | operators via `docker exec` | Bootstrap superuser, local socket only                                                     |
+
+zero-cache needs a superuser because PostgreSQL only lets superusers create
+event triggers, which Zero uses to replicate schema changes precisely. Without
+them a migration halts replication and `ZERO_AUTO_RESET` rebuilds every replica
+and client from scratch. The superuser credential exists only in the
+zero-cache container on the internal network; the runtime API role cannot run
+DDL. Zero's event triggers run as the role issuing DDL, so the role script
+grants `lictory_owner` usage of `zero_0` and update on
+`zero_0."publishedSchema"` (never membership in `zero`).
+
+The cluster is initialised with the built-in `C.UTF-8` collation: code-point
+ordering that matches Zero's replica and the browser, and indexes that survive
+C library upgrades.
+
+## Images
+
+`Dockerfile` has one target per image; `deploy/docker-bake.hcl` builds all of
+them for `linux/amd64` and `linux/arm64` from one checkout, so the API's
+`index.html` and the proxy's assets come from the same SPA build. Tags are the
+release version and `sha-<commit>-<channel>`; deployments always pin digests.
+The browser and website bundles embed their public origins, so a stable build
+of a commit differs from its nightly build.
+
+Local build of all images for this machine:
+
+```sh
+REGISTRY=lictory-local VERSION=0.0.0-local PLATFORMS=linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') \
+  docker buildx bake -f deploy/docker-bake.hcl --load
+```
+
+The API image bundles the API and worker; only packages left external by the
+bundles (`sharp`, `@firecrawl/anydoc`, `postgres` and any other bare import)
+are installed for the target platform at the lockfile's versions.
+
+## Provisioning a server
+
+1. Create an Ubuntu 24.04 server in an EU region with
+   `deploy/provision/cloud-init.yaml` (your SSH key) and enable provider
+   backups or snapshots if wanted.
+2. Point DNS at it (below), then copy `deploy/` and run
+   `sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
+   It installs Docker from Docker's repository, automatic security updates
+   (with a 04:00 UTC reboot when required), the firewall, SSH hardening,
+   fail2ban, swap, journald limits, the `deploy` user, `/srv/lictory` and the
+   backup and monitor timers. Re-running it is safe.
+3. As `deploy`: `new-environment.sh production`, then edit `.env`.
+4. `docker login ghcr.io` as `deploy` with a token limited to `read:packages`.
+5. Add the release automation's public key to `~deploy/.ssh/authorized_keys`:
+   `command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… release`.
+   It can then only prepare, migrate, activate, backfill, roll back and report
+   status.
+6. Record the host key for GitHub (`ssh-keyscan -t ed25519 <server>`, compared
+   with the console output) as `DEPLOY_SSH_KNOWN_HOSTS`.
+
+DNS checklist (production): `A`/`AAAA` for `lictory.com`, `www.lictory.com`
+and `app.lictory.com`; a `CAA` record allowing `letsencrypt.org`; keep existing
+MX/SPF/DKIM/DMARC records for email. Lower TTLs to 300 s a day before moving
+traffic. Staging needs the same three names under `staging.lictory.com`.
+
+## First launch
+
+On an empty database a normal release does everything in order: the first
+start of PostgreSQL creates the roles and databases, the migrate service
+applies every migration (including the `lictory_zero` publication), zero-cache
+performs its initial sync, then the proxy, API, worker and website start.
+
+```sh
+# from GitHub: Actions → Release to Production → Run workflow (main)
+# or by hand on the server with a release file of digests:
+/srv/lictory/bin/deploy.sh production release < release.env
+/srv/lictory/bin/deploy.sh production status
+systemctl start lictory-backup@production.timer lictory-monitor@production.timer
+```
+
+Then verify sign-up and email verification, password reset, organization
+creation, a revision/approval between two browsers (live updates through
+Zero), attachment upload and download, a denied cross-organization request,
+the first backup, and a restore drill ([recovery](recovery.md)).
+
+## Deploying a release
+
+`deploy.sh` (driven by the release workflow over SSH) runs three steps:
+
+1. **prepare**: validates the release file (known keys, digests in the
+   configured registry, the environment's channel), stores it, pulls the
+   images and installs the release's compose file. Nothing changes yet.
+2. **migrate**: if migrations are pending, takes a pre-deploy backup,
+   re-applies the database roles, runs the `migrate` one-shot (locked,
+   transactional; see [migrations](migrations.md)), then waits until
+   zero-cache has confirmed replication past the migration's WAL position.
+3. **activate**: rolls zero-cache (if its image changed), the proxy (which
+   carries the old and new assets), the API, the worker and the website, each
+   waiting for its health check; verifies `https://<app>/healthz`, the website
+   and a Zero WebSocket upgrade through the proxy; checks that every service
+   runs exactly the release's image; then records the activation. If anything
+   fails it restores the previous release's images. The proxy holds requests
+   for up to 30 s while the API container is replaced.
+
+This is Zero's expand order: database, then API, then client (the API serves
+the client's `index.html`, so they switch together). Contract changes (drop or
+rename) go the other way across releases: first a release that stops using
+the column, table, query or mutator, then a later release with the contract
+migration. The previous release must always work against the new schema,
+because a rollback never reverts it. Separate Zero version upgrades from
+schema changes; upgrade zero-cache before the client.
+
+## Rollback
+
+```sh
+/srv/lictory/bin/deploy.sh production rollback   # previous activated release
+/srv/lictory/bin/deploy.sh production activate 1.4.2
+```
+
+Rollback switches application images only; migrations stay applied. After a
+rollback, tabs that loaded the newer release reload when they next need a
+chunk. Publish a fix as a new release; the release workflow refuses to
+activate a version older than the active one.
+
+## Health and monitoring
+
+| Check                       | Where                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| API liveness / readiness    | `GET /healthz`, `GET /readyz` (container health check uses `/readyz`)                                                     |
+| zero-cache                  | `GET /keepalive` inside the network (health check, monitor)                                                               |
+| Website, proxy              | Container health checks                                                                                                   |
+| Active version and services | `deploy.sh <env> status [--json]`                                                                                         |
+| Zero diagnostics            | `lictory-compose <env> exec zero-cache sh -c 'curl -su "admin:$ZERO_ADMIN_PASSWORD" localhost:4848/statz'` (never public) |
+
+`lictory-monitor@<env>.timer` runs every five minutes and alerts on disk usage
+above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
+replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
+overdue notification email, partial, failed or stuck delivery exports,
+automatic cycles overdue by two hours, and a backup older than 30 hours. It
+posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
+problems changes, every six hours while it persists, and once on recovery, and
+pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
+a server that stopped reporting. Logs rotate at 5 × 20 MB per container.
 
 ## Microsoft Entra sign-in
 
-Set the server-only `MICROSOFT_CLIENT_ID` to
-`674718cd-ca91-451c-84eb-02aa492d2b10` and `MICROSOFT_CLIENT_SECRET` in the
-deployment's secret store. Both values are required to show Microsoft alongside
-Google on sign-in, sign-up and Account settings. Keep secrets out of source
-control; local development can use an ignored `.env.local`.
+Set `MICROSOFT_CLIENT_ID` (`674718cd-ca91-451c-84eb-02aa492d2b10`) and
+`MICROSOFT_CLIENT_SECRET` in production's `.env`. In the Entra application
+registration, add the **Web** redirect URI
+`https://app.lictory.com/api/auth/callback/microsoft` (and
+`http://localhost:3000/api/auth/callback/microsoft` for development); remove
+the old `https://lictory.com/...` URI after the switch. `MICROSOFT_TENANT_ID`
+defaults to `common`. Add the `email` optional claim to ID tokens. Microsoft
+email claims do not prove ownership: new accounts verify through Lictory.
+The publisher-domain file
+`https://lictory.com/.well-known/microsoft-identity-association.json` must stay
+reachable on the website. Google's authorized redirect URI is likewise
+`https://app.lictory.com/api/auth/callback/google`.
 
-In the Entra application registration, add a **Web** redirect URI of
-`https://lictory.com/api/auth/callback/microsoft` (and
-`http://localhost:3000/api/auth/callback/microsoft` for local development).
-`MICROSOFT_TENANT_ID` defaults to `common`; the app registration's supported
-account types must allow the intended organizational and/or personal accounts.
-For a single-tenant installation, set it to that tenant's ID.
+## Verification and CI
 
-Add the `email` optional claim to **ID tokens** in Entra Token configuration so
-managed users supply a contact address. Lictory requires a real email for
-verification and invitations; it does not substitute a username or a fabricated
-mailbox. Microsoft email claims do not prove ownership: new accounts verify
-through Lictory, and existing accounts connect Microsoft while signed in.
-See [Better Auth's Microsoft setup](https://better-auth.com/docs/authentication/microsoft).
+GitHub Actions CI runs only `bun run typecheck` and `bun run db:check`; the
+full verification sequence runs locally ([development](development.md)).
+Release workflows build images on hosted runners and need no database
+credentials: databases are reachable only on their server.
 
-The public publisher-domain association is served without authentication at
-`https://lictory.com/.well-known/microsoft-identity-association.json`. It contains
-only the application ID and ships with the application; deploy it before
-verifying `lictory.com` as the publisher domain in Entra.
+## Costs
 
-## Verification and updates
-
-`CI / Verify` runs on pull requests, main pushes and explicit releases. It uses PostgreSQL 17 and
-Mailpit, frozen Bun dependencies, lint/types/format, committed migrations, all
-domain tests, signup/verification/password-reset emails through Mailpit,
-two-browser workflow tests against a production build. Production
-credentials are never supplied to this workflow. Failure screenshots are retained
-for seven days. Static checks, domain tests and four browser-test shards run as
-parallel jobs; `Verify` passes only when all of them pass. Jobs time out and
-superseded CI runs are canceled to limit minutes.
-
-Action dependencies are pinned to verified release commits. Dependabot proposes
-weekly Bun and Actions updates; review and merge them after CI passes. Do not
-automatically merge changes to authentication, migrations or synchronization.
-
-Keep Actions spending capped at zero and monitor included minutes. Hosted Linux
-CI and the hourly job consume the private repository's included allowance.
-Branch protection for a private personal repository may require GitHub Pro.
-Once available, require `Verify` and `Conventional PR title`, prohibit force pushes and require PR review
-when another maintainer joins. Keep the repository private.
-
-Production deploys only through the manually dispatched **Release to Production**.
-It selects a verified Nightly source, validates its provenance and semantic
-version, runs CI on that source, builds with production settings without assigning
-domains, applies migrations and then promotes the build. Git tag pushes cannot
-activate production. Automatic Nightly releases create Preview deployments in
-the same Vercel project, using its Preview settings without promotion or migrations.
-`vercel.json` disables Vercel's Git deployments for `main`; previews of other
-branches still deploy automatically.
-
-See [versions and releases](releases.md) for PR-driven versions, automatic
-nightlies, stable promotion, one-time configuration and hotfixes. Merging to
-`main` does not deploy production.
-
-## Migrations and recovery
-
-See [database migrations](migrations.md) for the connection contract, developer
-workflow, rollout order, expand/contract rules, data backfills and recovery.
-Migrations never run from the application, Vercel builds or pull requests.
-
-## Background jobs
-
-Vercel Cron (configured in `vercel.json`) calls the authenticated endpoint
-hourly on the production deployment, advancing cycles, resuming interrupted
-delivery exports and sending queued notifications. Vercel sends
-`Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set in
-the Production environment; without it the endpoint stays disabled. Hourly
-schedules require a Vercel Pro plan. The endpoint is idempotent, so overlapping
-or retried runs are safe. Notification email can wait for the next run. Watch
-the cron logs in the Vercel dashboard, where a run can also be triggered by hand.
-
-## Costs and release checks
-
-Free plans have usage and retention limits. Vercel Hobby is restricted to personal,
-non-commercial use. Cloudflare R2 can charge for usage above its free allowance;
-an existing billing account is not a hard zero-cost cap. Review storage/operations,
-email volume, database compute/storage and GitHub minutes regularly. Keep paid
-features and automatic paid upgrades disabled where the provider supports it.
-
-Before a real release, verify signup and verification email, password reset,
-organization creation, review/revision/approval synchronization between two users,
-private attachment upload/download, denied cross-organization access, scheduled
-job authorization and an actual recovery procedure. A successful build is not
-proof that connected services work.
+The baseline is one server, a backup bucket, the files bucket, email and
+optional AI. Review provider usage monthly: server size, R2 storage and
+operations, email volume and AI tokens. Keep paid upgrades manual.

@@ -43,7 +43,8 @@ fail() {
   fi
 }
 cleanup() { rm -rf "$work"; }
-trap 'fail "line $LINENO exited with status $?"; cleanup' ERR
+# shellcheck disable=SC2154 # assigned inside the trap
+trap 'status=$?; fail "step \"${BASH_COMMAND:0:160}\" (line $LINENO) exited with status $status"; cleanup' ERR
 trap cleanup EXIT
 ping /start "$name"
 

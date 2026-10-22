@@ -54,10 +54,14 @@ function expectedChannel(environment: Environment): Manifest["channel"] {
   return environment === "production" ? "stable" : "nightly";
 }
 
+/** Whether a stable version is a published GitHub release of exactly this commit. */
+export type PublishedCheck = (version: string, sha: string) => Promise<boolean>;
+
 export class Server {
   constructor(
     private readonly config: ServerConfiguration,
     private readonly remote: Remote,
+    private readonly published: PublishedCheck = async () => false,
   ) {}
 
   private assertChannel(manifest: Manifest) {
@@ -112,7 +116,8 @@ export class Server {
   /**
    * Production moves forward only: never to an older or equal version with
    * different code, and never past an activated release that still needs its
-   * GitHub publication. An empty server (first launch) accepts any release.
+   * GitHub publication. An operator rollback to an older published release is
+   * fine. An empty server (first launch) accepts any release.
    */
   async assertOrder(manifest: Manifest): Promise<void> {
     if (this.config.environment !== "production") return;
@@ -125,8 +130,9 @@ export class Server {
         "Cannot reactivate an older production version or reuse a version for different code.",
       );
     if (
-      current.version !== manifest.baseline.version ||
-      current.sha !== manifest.baseline.sha
+      (current.version !== manifest.baseline.version ||
+        current.sha !== manifest.baseline.sha) &&
+      !(current.sha && (await this.published(current.version, current.sha)))
     )
       throw new Error(
         "An activated production release still needs publication. Retry that release before deploying another.",
