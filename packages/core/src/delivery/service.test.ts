@@ -750,7 +750,7 @@ void test("exporting and configuring delivery are authorized on the server", asy
       organizationId: f.organizationId,
       rootId: f.epic,
     }),
-    /access has been removed/,
+    /You are not a member of this organization/,
   );
   // Credentials are stored encrypted and never reach the directory.
   const [row] = await db

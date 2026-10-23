@@ -112,7 +112,7 @@ export function createNotificationService(db: Database) {
     if (!m)
       throw new DomainError(
         "forbidden",
-        "Organization access has been removed.",
+        "You are not a member of this organization.",
       );
   }
   const memberOf = and(

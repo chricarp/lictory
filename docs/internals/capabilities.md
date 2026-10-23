@@ -36,6 +36,11 @@ Surfaces only narrow what is available:
   the same `applyMutation` as `executeMutation`. Agents must not mint
   credentials or see secrets.
 - **Read tokens** may only invoke queries; MCP hides commands from them.
+- **Intelligence chats** bind organization-scoped tools to the authenticated
+  conversation's organization on the server. The model's tool schema omits
+  `organizationId`; execution supplies it even when an older transcript still
+  carries a value. This binding does not grant membership or project
+  capabilities: domain authorization runs on every call.
 - Account identity and security (sign-in, password, email, sessions, social
   links, account deletion, handle) and organization membership (creating
   organizations, invitations, application roles) stay Better Auth operations in
@@ -93,6 +98,14 @@ from the Zod input, annotations from kind, `destructive`, `idempotent` and
 shape (`category`, `message`, optional `currentRevisionId`, `issues`, `kind`,
 `retryable`) so the model can correct itself; protocol misuse is a JSON-RPC
 error.
+
+For MCP calls, `organizationId` accepts an exact id or slug returned by
+`listOrganizations`. The registry resolves it only among the person's current
+memberships, then invokes the domain operation and audits the canonical id.
+Unknown and inaccessible references return the same error with a discovery
+hint; ambiguous id/slug matches are refused. Organization notification
+preferences can use the same reference as `scopeId`. Web inputs continue to
+use canonical ids.
 
 Clients authenticate with `Authorization: Bearer lct_…`, a personal access token
 created in Account settings. Only a SHA-256 hash is stored; tokens are `read` or

@@ -48,7 +48,7 @@ async function requireMember(
   if (!member)
     throw new CapabilityError(
       "forbidden",
-      "Organization access has been removed.",
+      "You are not a member of this organization.",
     );
 }
 async function fileOf(

@@ -44,7 +44,7 @@ async function membership(
       ),
     );
   if (!row)
-    throw new ContextError("Organization access has been removed.", 403);
+    throw new ContextError("You are not a member of this organization.", 403);
   return applicationRoleOf(row.role);
 }
 export async function canManageIntelligenceContext(

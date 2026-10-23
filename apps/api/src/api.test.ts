@@ -180,7 +180,7 @@ void test(
     );
     await assert.rejects(
       command(member.id, { type: "setAiPolicy", enabled: true }),
-      /Organization access has been removed/,
+      /You are not a member of this organization/,
     );
     // The member row Zero authorizes subscriptions with is gone.
     assert.equal(

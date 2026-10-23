@@ -31,7 +31,8 @@ async function membership(
         eq(s.member.userId, userId),
       ),
     );
-  if (!row) throw new LogoError("Organization access has been removed.", 403);
+  if (!row)
+    throw new LogoError("You are not a member of this organization.", 403);
   return applicationRoleOf(row.role);
 }
 

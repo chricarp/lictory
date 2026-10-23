@@ -1,4 +1,5 @@
 import * as s from "@lictory/core/db/schema";
+import { and, eq, or } from "drizzle-orm";
 import { accessTokenCapabilities } from "@lictory/core/capabilities/access-tokens";
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
@@ -50,6 +51,51 @@ function organizationOf(input: unknown): string | null {
   };
   const id = value.organizationId ?? value.scope?.organizationId;
   return typeof id === "string" ? id : null;
+}
+
+// MCP clients can use the readable slug instead of copying an opaque id.
+// Only memberships are searched: unknown and inaccessible organizations have
+// the same response. Domain services still authorize inside their transactions.
+async function resolveMcpOrganization(ctx: CapabilityContext, input: unknown) {
+  if (!input || typeof input !== "object" || !("organizationId" in input))
+    return input;
+  const reference = input.organizationId;
+  if (typeof reference !== "string") return input;
+  const matches = await ctx.db
+    .selectDistinct({ id: s.organization.id })
+    .from(s.organization)
+    .innerJoin(
+      s.member,
+      and(
+        eq(s.member.organizationId, s.organization.id),
+        eq(s.member.userId, ctx.principal.userId),
+      ),
+    )
+    .where(
+      or(eq(s.organization.id, reference), eq(s.organization.slug, reference)),
+    )
+    .limit(2);
+  if (!matches.length)
+    throw new CapabilityError(
+      "forbidden",
+      `Organization “${reference}” is unavailable or you are not a member. Call listOrganizations and use an id or slug from its results.`,
+    );
+  if (matches.length > 1)
+    throw new CapabilityError(
+      "validation",
+      "This organization reference matches more than one organization. Call listOrganizations and use an unambiguous id or slug.",
+    );
+  return {
+    ...input,
+    organizationId: matches[0]!.id,
+    // Organization notification preferences use the organization as scopeId.
+    ...("scope" in input &&
+    input.scope === "organization" &&
+    "scopeId" in input &&
+    input.scopeId === reference
+      ? { scopeId: matches[0]!.id }
+      : {}),
+  };
 }
 
 async function audit(
@@ -113,7 +159,12 @@ export async function invoke(
         "This access token is read-only. Create a token with write access to make changes.",
       );
     organizationId = organizationOf(rawInput);
-    const input = capability.input.parse(rawInput ?? {});
+    const parsed = capability.input.parse(rawInput ?? {});
+    const input =
+      ctx.principal.surface === "mcp"
+        ? await resolveMcpOrganization(ctx, parsed)
+        : parsed;
+    organizationId = organizationOf(input);
     const output = await capability.run(ctx, input);
     if (output && typeof output === "object" && "mutationId" in output)
       mutationId = String(output.mutationId);
