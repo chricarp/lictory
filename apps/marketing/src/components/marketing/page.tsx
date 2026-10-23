@@ -4,12 +4,11 @@ import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 
 import {
-  CtaLink,
   MarketingFooter,
   MarketingHeader,
 } from "@lictory/marketing/components/marketing/chrome";
+import { StartCta } from "@lictory/marketing/components/marketing/account-cta";
 import { cn } from "@lictory/core/lib/utils";
-import { platformHref } from "@lictory/marketing/lib/platform";
 
 /** Dark marketing frame for public guides and comparisons. */
 export function MarketingPage({ children }: { children: ReactNode }) {
@@ -166,14 +165,7 @@ export function TryLictory({
           {children}
         </p>
       </div>
-      <CtaLink
-        href={platformHref("/sign-up")}
-        size="lg"
-        className="w-full sm:w-auto"
-      >
-        Start for free
-        <ArrowRight aria-hidden className="size-4" />
-      </CtaLink>
+      <StartCta label="Start for free" className="w-full sm:w-auto" />
     </aside>
   );
 }

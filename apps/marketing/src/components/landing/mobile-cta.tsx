@@ -4,14 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { openWorkspaceLabel } from "@lictory/marketing/components/marketing/account-cta";
+import { platformHref } from "@lictory/marketing/lib/platform";
+import { useSignedIn } from "@lictory/marketing/lib/signed-in";
 
 /**
- * A small-screen signup bar. It appears once the hero call to action has
+ * A small-screen signup bar (or "Open workspace" when signed in). It appears once the hero call to action has
  * scrolled away and hides again while another call to action is on screen,
  * so it never duplicates a visible button or covers the footer.
  */
-export function MobileCta({ href, label }: { href: string; label: string }) {
+export function MobileCta({ label }: { label: string }) {
   const [visible, setVisible] = useState(false);
+  const signedIn = useSignedIn();
 
   useEffect(() => {
     const targets = document.querySelectorAll("[data-cta-anchor]");
@@ -42,11 +46,11 @@ export function MobileCta({ href, label }: { href: string; label: string }) {
       )}
     >
       <Link
-        href={href}
+        href={platformHref(signedIn ? "/" : "/sign-up")}
         tabIndex={visible ? undefined : -1}
         className="flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-foreground text-sm font-medium text-background shadow-[0_8px_24px_-8px_oklch(0_0_0/0.7)] outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
-        {label}
+        {signedIn ? openWorkspaceLabel : label}
         <ArrowRight aria-hidden className="size-4" />
       </Link>
     </div>

@@ -1,6 +1,8 @@
 // The Lictory application lives on its own origin. The website never reads its
 // session or data, so calls to action link there and the application decides
-// what a visitor sees. Kept free of other imports: client components use it.
+// what a visitor sees; only a non-identifying signed-in hint (see
+// `lib/signed-in.ts`) picks the label. Kept free of other imports: client
+// components use it.
 
 /** An origin from configuration; an empty variable counts as unset. */
 export function configuredOrigin(value: string | undefined, fallback: string) {

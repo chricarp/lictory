@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { z } from "zod";
+import { rememberSignedIn } from "@lictory/platform/lib/site";
 
 // The signed-in person, read once at boot from GET /api/session and again
 // after anything changes the account (sign-in, handle, profile, sign-out).
@@ -40,6 +41,7 @@ const listeners = new Set<() => void>();
 
 function set(next: State) {
   state = next;
+  if (next.status === "ready") rememberSignedIn(next.session.user !== null);
   for (const listener of listeners) listener();
 }
 

@@ -84,10 +84,24 @@ Linear is described as coming.
 Only public, closed facts about the product belong in these files. Never expose
 organization, project, item or user data, and never load workspace data to build
 them. The website has no database, session or authentication: it never reads the
-application's cookies, so the same page is served to everyone and calls to action
+application's session, so the same page is served to everyone and calls to action
 always link to the application (`NEXT_PUBLIC_PLATFORM_URL`), which decides what a
-signed-in person sees. Links shared before the split (`/app/...`, `/sign-in`,
-`/sign-up` and the other account pages) permanently redirect there, and `/home`,
+signed-in person sees.
+
+The one exception is a signed-in hint, the pattern GitHub uses with its
+`logged_in` cookie. While someone is signed in, the application keeps a
+`lictory_signed_in=1` cookie on the domain it shares with the website
+(`lictory.com`, derived from `VITE_SITE_URL`), and it clears the cookie when they
+sign out. The cookie carries no identity and grants nothing. After hydration the
+website reads it in the browser and changes "Log in", "Sign up" and "Start for
+free" into a single "Open workspace" link. Crawlers and the prerendered HTML
+always see the signed-out page. A stale hint, such as one left by a session that
+expired without a visit, only means the application shows its sign-in page. If
+the two hosts share no domain, there is no hint and the website stays signed
+out.
+
+Links shared before the split (`/app/...`, `/sign-in`,
+`/sign-up` and the other account pages) permanently redirect to the application, and `/home`,
 once the landing page for signed-in people, redirects to `/`.
 
 The files are generated at build time from `SITE_URL`, which must be the
