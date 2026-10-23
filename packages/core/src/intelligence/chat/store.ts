@@ -1,10 +1,12 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@lictory/core/domain/service";
 import * as s from "@lictory/core/db/schema";
 import { CapabilityError } from "@lictory/core/capabilities/core";
-import type {
-  ChatMessage,
-  ChatSummary,
+import {
+  ASK_QUESTIONS,
+  RECOMMEND_ACTION,
+  type ChatMessage,
+  type ChatSummary,
 } from "@lictory/core/intelligence/chat/shared";
 
 // Persistence for Intelligence conversations. Every read and write is scoped to
@@ -35,6 +37,11 @@ function textOf(parts: unknown) {
   return text ? text.slice(0, 160) : null;
 }
 
+// A message part that waits for the person: an approval request, or a
+// clarification or recommendation without an answer. Mirrors `answerMood` in
+// the chat UI, which decides the same from live messages.
+const awaitingPath = `$[*] ? (@.state == "approval-requested" || (@.state == "input-available" && (@.type == "tool-${ASK_QUESTIONS}" || @.type == "tool-${RECOMMEND_ACTION}")))`;
+
 export async function listChats(
   db: Database,
   owner: Owner,
@@ -63,6 +70,21 @@ export async function listChats(
       ),
     );
   const previews = new Map(first.map((m) => [m.chatId, textOf(m.parts)]));
+  const message = s.intelligenceChatMessage;
+  const last = await db
+    .selectDistinctOn([message.chatId], {
+      chatId: message.chatId,
+      waiting: sql<boolean>`${message.role} = 'assistant' and jsonb_path_exists(${message.parts}, ${awaitingPath}::jsonpath)`,
+    })
+    .from(message)
+    .where(
+      inArray(
+        message.chatId,
+        chats.map((c) => c.id),
+      ),
+    )
+    .orderBy(message.chatId, desc(message.position));
+  const waiting = new Set(last.filter((m) => m.waiting).map((m) => m.chatId));
   return chats.map((c) => ({
     id: c.id,
     title: c.title,
@@ -70,6 +92,7 @@ export async function listChats(
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     preview: previews.get(c.id) ?? null,
+    awaitingInput: waiting.has(c.id),
   }));
 }
 

@@ -190,4 +190,7 @@ export type ChatSummary = {
   createdAt: string;
   updatedAt: string;
   preview: string | null;
+  // The stored transcript ends on a question, recommendation or approval
+  // that waits for the person.
+  awaitingInput: boolean;
 };
