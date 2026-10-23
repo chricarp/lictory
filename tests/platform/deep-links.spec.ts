@@ -131,6 +131,21 @@ test("unknown addresses explain that they do not exist", async ({ page }) => {
   await expect(page.getByText("Someone Else")).toHaveCount(0);
 });
 
+test("signed-in people skip the signed-out account pages", async ({ page }) => {
+  await signIn(page, seeded.owner.email);
+  for (const path of ["/sign-in", "/sign-up", "/forgot-password"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(new RegExp(`/${seeded.slug}(/|$)`));
+  }
+  // A requested destination is honored instead of the home page.
+  const target = seeded.itemPath(1);
+  await page.goto(`/sign-in?callbackUrl=${encodeURIComponent(target)}`);
+  await expect(page).toHaveURL(target);
+  await expect(
+    page.getByRole("heading", { name: "Refund webhooks" }),
+  ).toBeVisible();
+});
+
 test("an anonymous deep link signs in and returns to the same place", async ({
   browser,
 }) => {
