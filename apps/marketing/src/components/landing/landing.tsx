@@ -25,10 +25,14 @@ import { faqs } from "@lictory/marketing/components/landing/content";
 import { StructuredData } from "@lictory/marketing/components/landing/structured-data";
 import { MobileCta } from "@lictory/marketing/components/landing/mobile-cta";
 import {
-  CtaLink,
   MarketingFooter,
   MarketingHeader,
 } from "@lictory/marketing/components/marketing/chrome";
+import {
+  SignInCta,
+  StartCta,
+} from "@lictory/marketing/components/marketing/account-cta";
+import { CtaLink } from "@lictory/marketing/components/marketing/cta-link";
 import { ReviewDemo } from "@lictory/marketing/components/landing/review-demo";
 import {
   DeliveryVisual,
@@ -39,7 +43,6 @@ import {
   ReviewVisual,
 } from "@lictory/marketing/components/landing/visuals";
 import { cn } from "@lictory/core/lib/utils";
-import { platformHref } from "@lictory/marketing/lib/platform";
 
 /** Content rises in as it scrolls into view, where scroll-driven CSS exists. */
 function Reveal({
@@ -58,29 +61,28 @@ function Reveal({
   );
 }
 
-/** Where the primary calls to action lead: sign-up in the application. */
-type Cta = { href: string; label: string };
+/** The primary call to action's label for visitors who are not signed in. */
+const startLabel = "Start for free";
 
 export function Landing() {
-  const cta: Cta = { href: platformHref("/sign-up"), label: "Start for free" };
   return (
     <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
       <div className="relative overflow-clip">
         <MarketingHeader />
         <main>
-          <Hero cta={cta} />
+          <Hero />
           <Journey />
           <Problem />
           <Features />
           <Disciplines />
-          <Delivery cta={cta} />
+          <Delivery />
           <Comparison />
           <Faq />
-          <FinalCta cta={cta} />
+          <FinalCta />
         </main>
         <MarketingFooter />
       </div>
-      <MobileCta href={cta.href} label={cta.label} />
+      <MobileCta label={startLabel} />
       <StructuredData />
     </div>
   );
@@ -92,7 +94,7 @@ function rise(delayMs: number) {
   return { animationDelay: `${delayMs}ms` };
 }
 
-function Hero({ cta }: { cta: Cta }) {
+function Hero() {
   return (
     <section
       aria-labelledby="hero-title"
@@ -138,14 +140,7 @@ function Hero({ cta }: { cta: Cta }) {
           style={rise(260)}
           className="landing-rise mt-6 flex flex-col items-center justify-center gap-2 sm:mt-8 sm:flex-row sm:gap-3"
         >
-          <CtaLink
-            href={cta.href}
-            size="lg"
-            className="w-full max-w-80 sm:w-auto"
-          >
-            {cta.label}
-            <ArrowRight aria-hidden className="size-4" />
-          </CtaLink>
+          <StartCta label={startLabel} className="w-full max-w-80 sm:w-auto" />
           <CtaLink href="#features" variant="ghost" size="lg">
             See how it works <ArrowRight aria-hidden className="size-3.5" />
           </CtaLink>
@@ -648,7 +643,7 @@ function Disciplines() {
   );
 }
 
-function Delivery({ cta }: { cta: Cta }) {
+function Delivery() {
   return (
     <>
       <Divider />
@@ -714,10 +709,7 @@ function Delivery({ cta }: { cta: Cta }) {
               Start refining in Lictory today. Switch delivery mode any time.
             </p>
           </div>
-          <CtaLink href={cta.href} size="lg" className="w-full sm:w-auto">
-            Try it with one spec
-            <ArrowRight aria-hidden className="size-4" />
-          </CtaLink>
+          <StartCta label="Try it with one spec" className="w-full sm:w-auto" />
         </Reveal>
       </Section>
     </>
@@ -799,7 +791,7 @@ function Faq() {
   );
 }
 
-function FinalCta({ cta }: { cta: Cta }) {
+function FinalCta() {
   return (
     <Section className="relative overflow-hidden text-center sm:py-36">
       <div
@@ -819,22 +811,8 @@ function FinalCta({ cta }: { cta: Cta }) {
           data-cta-anchor
           className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
-          <CtaLink
-            href={cta.href}
-            size="lg"
-            className="w-full max-w-80 sm:w-auto"
-          >
-            {cta.label}
-            <ArrowRight className="size-4" />
-          </CtaLink>
-          <CtaLink
-            href={platformHref("/sign-in")}
-            size="lg"
-            variant="secondary"
-            className="w-full max-w-80 sm:w-auto"
-          >
-            Log in
-          </CtaLink>
+          <StartCta label={startLabel} className="w-full max-w-80 sm:w-auto" />
+          <SignInCta className="w-full max-w-80 sm:w-auto" />
         </div>
       </Reveal>
     </Section>
