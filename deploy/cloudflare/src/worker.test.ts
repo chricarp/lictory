@@ -6,7 +6,7 @@ const env = {
   SITE_KIND: "marketing" as const,
   SITE_URL: "https://lictory.com",
   PLATFORM_URL: "https://app.lictory.com",
-  BACKEND_ORIGIN: "https://backend.lictory.com",
+  BACKEND_ORIGIN: "https://app.lictory.com",
   ASSETS: { fetch: () => Promise.resolve(new Response("static")) },
 };
 

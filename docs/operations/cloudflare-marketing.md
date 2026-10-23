@@ -17,14 +17,21 @@ remain hidden, and cross-origin Zero WebSocket handshakes are rejected.
 
 ## One-time setup
 
-Configure `BACKEND_ORIGIN` in both Wrangler files with the HTTPS backend gateway
-served through Openship. Keep PostgreSQL and Zero private; the gateway routes
-requests to them as defined in the backend deployment. Do not point the backend
-origin at either frontend, which would create a proxy loop.
+Set `BACKEND_ORIGIN=https://app.lictory.com` in both Wrangler files. The platform
+uses a Cloudflare **Worker Route**, with a proxied `app` DNS record pointing to
+the VPS. Its static assets come from Cloudflare; `/api`, `/zero` and `/relay`
+fetch the HTTPS origin on that same hostname. Cloudflare routes same-zone
+subrequests directly to the DNS-configured origin without invoking the Worker
+again. A Worker Custom Domain has different fetch semantics and must not replace
+this route. See [Cloudflare's route documentation](https://developers.cloudflare.com/workers/configuration/routing/routes/).
+Keep PostgreSQL and Zero private behind the gateway. No backend subdomain is
+needed, and Zero's WebSocket endpoint remains under `app.lictory.com/zero`.
 
-Deploy `lictory-marketing` and `lictory-platform` and verify their provider URLs
-before adding custom domains. Adding custom domains changes production DNS;
-keep the old host available until both frontends and the backend are verified.
+Verify `lictory-marketing` and `lictory-platform` through their provider URLs
+before enabling the production Worker Routes. The marketing routes serve static
+assets on the apex and `www`; `www` redirects to the apex. Point the proxied `app`
+DNS record at the VPS and configure Openship's HTTPS edge for `app.lictory.com`.
+Keep the old host available until both frontends and the backend are verified.
 Preserve the existing email DNS records and the Openship dashboard domain.
 
 In the protected GitHub environment **Production**, configure variable
@@ -41,7 +48,7 @@ place for service visibility and provide saved jobs for its operations; a second
 Compose deploy path must not bypass the controller's migration gate.
 
 When Openship owns public ports 80/443, configure the Compose environment with
-`APP_HOST=backend.lictory.com`, `PUBLIC_APP_HOST=app.lictory.com`,
+`APP_HOST=app.lictory.com`, `PUBLIC_APP_HOST=app.lictory.com`,
 `PROXY_SCHEME=http`, `HTTP_PORT=8080`,
 `HTTP_BINDING=127.0.0.1:8080:80` and
 `HTTPS_BINDING=127.0.0.1:8443:443`. Publish the backend gateway through Openship's
