@@ -1,3 +1,4 @@
+import type { Chat } from "@ai-sdk/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -15,10 +16,17 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Popover } from "@lictory/ui/popover";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import type { ChatSummary } from "@lictory/core/intelligence/chat/shared";
+import type {
+  ChatMessage,
+  ChatSummary,
+} from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { useChats } from "@lictory/platform/components/intelligence/chat/provider";
+import {
+  useChatActivity,
+  type ChatActivity,
+} from "@lictory/platform/components/intelligence/chat/thread";
 
 const DAY = 86_400_000;
 
@@ -174,7 +182,8 @@ function ChatRow({
   onNavigate?: () => void;
 }) {
   const { organization } = useWorkspace();
-  const { rename, setPinned, remove, freshTitles } = useChats();
+  const { rename, setPinned, remove, freshTitles, chatFor } = useChats();
+  const live = chatFor(chat.id);
   const { toast } = useShell();
   const reduce = useReducedMotion();
   const [editing, setEditing] = useState(false);
@@ -257,6 +266,11 @@ function ChatRow({
               {label}
             </motion.span>
           </AnimatePresence>
+          {live ? (
+            <LiveStatus chat={live} />
+          ) : (
+            chat.awaitingInput && <ActivityIndicator activity="waiting" />
+          )}
         </Link>
       )}
       {!editing && (
@@ -313,6 +327,45 @@ function ChatRow({
         </div>
       )}
     </motion.li>
+  );
+}
+
+function LiveStatus({ chat }: { chat: Chat<ChatMessage> }) {
+  const activity = useChatActivity(chat);
+  return activity ? <ActivityIndicator activity={activity} /> : null;
+}
+
+const activityLabel: Record<ChatActivity, string> = {
+  working: "Working",
+  waiting: "Waiting for your input",
+  failed: "Stopped with an error",
+};
+
+// Sits where the row's actions appear, and gives way to them on hover.
+function ActivityIndicator({ activity }: { activity: ChatActivity }) {
+  return (
+    <span
+      role="status"
+      className="pointer-events-none absolute inset-y-0 right-1 grid w-6 place-items-center transition-opacity group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-state=open]]:opacity-0"
+    >
+      <span className="sr-only">{activityLabel[activity]}</span>
+      {activity === "working" ? (
+        <span
+          aria-hidden
+          className="size-3 animate-spin rounded-full border-[1.5px] border-primary/25 border-t-primary [animation-duration:0.9s] motion-reduce:animate-none"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            "size-2 rounded-full",
+            activity === "waiting"
+              ? "bg-warning shadow-[0_0_0_3px_color-mix(in_oklch,var(--warning)_22%,transparent)]"
+              : "bg-destructive",
+          )}
+        />
+      )}
+    </span>
   );
 }
 

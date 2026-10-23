@@ -177,6 +177,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
           createdAt: now,
           updatedAt: now,
           preview: text.slice(0, 160),
+          awaitingInput: false,
         },
         ...current,
       ]);

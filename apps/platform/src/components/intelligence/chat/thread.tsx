@@ -33,6 +33,26 @@ export function useThread(chat: Chat<ChatMessage>) {
 }
 export type Thread = ReturnType<typeof useThread>;
 
+// What a conversation needs from the person, for lists that show many at
+// once: still working, waiting for an answer or approval, or stopped on an
+// error. Subscribes with a coarse throttle, since a list only needs the state.
+export type ChatActivity = "working" | "waiting" | "failed";
+export function useChatActivity(
+  chat: Chat<ChatMessage>,
+): ChatActivity | undefined {
+  const { status, messages, error } = useChat<ChatMessage>({
+    chat,
+    experimental_throttle: 250,
+  });
+  const busy = status === "submitted" || status === "streaming";
+  const last = messages.at(-1);
+  const mood = last?.role === "assistant" ? answerMood(last, busy) : undefined;
+  if (mood === "asking") return "waiting";
+  if (busy) return "working";
+  if (error) return "failed";
+  return undefined;
+}
+
 // Lictory Intelligence's expression for a conversation as a whole: what its
 // latest answer is doing, then how the last one ended.
 export function useThreadMood(thread: Thread): IntelligenceMood {

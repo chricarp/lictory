@@ -125,3 +125,71 @@ void test("a dock conversation stays out of the history until it is continued on
     [chatId],
   );
 });
+
+void test("the history shows which conversations wait for the person", async () => {
+  const owner = {
+    organizationId: await organization(),
+    userId: await user("A"),
+  };
+  const question = (state: string) =>
+    ({
+      id: "a1",
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Which project?" },
+        {
+          type: "tool-askQuestions",
+          toolCallId: "c1",
+          state,
+          input: { title: "Where?", questions: [] },
+          ...(state === "output-available" ? { output: { answers: [] } } : {}),
+        },
+      ],
+    }) as unknown as ChatMessage;
+  const approval = {
+    id: "a1",
+    role: "assistant",
+    parts: [
+      {
+        type: "tool-createWorkItem",
+        toolCallId: "c2",
+        state: "approval-requested",
+        input: {},
+        approval: { id: "ap1" },
+      },
+    ],
+  } as unknown as ChatMessage;
+  const [asking, approving, answered, replied] = [
+    crypto.randomUUID(),
+    crypto.randomUUID(),
+    crypto.randomUUID(),
+    crypto.randomUUID(),
+  ];
+  for (const id of [asking, approving, answered, replied])
+    await openChat(db, owner, id);
+  await saveMessages(db, owner, asking, [
+    text("u1", "user", "Draft a story"),
+    question("input-available"),
+  ]);
+  await saveMessages(db, owner, approving, [
+    text("u1", "user", "Create it"),
+    approval,
+  ]);
+  await saveMessages(db, owner, answered, [
+    text("u1", "user", "Draft a story"),
+    question("output-available"),
+  ]);
+  // Only the latest message counts: a newer message from the person moves on.
+  await saveMessages(db, owner, replied, [
+    text("u1", "user", "Draft a story"),
+    question("input-available"),
+    text("u2", "user", "Never mind"),
+  ]);
+  const waiting = new Map(
+    (await listChats(db, owner)).map((c) => [c.id, c.awaitingInput]),
+  );
+  assert.equal(waiting.get(asking), true);
+  assert.equal(waiting.get(approving), true);
+  assert.equal(waiting.get(answered), false);
+  assert.equal(waiting.get(replied), false);
+});
