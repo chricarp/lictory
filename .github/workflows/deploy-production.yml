@@ -116,6 +116,12 @@ jobs:
           path: ${{ runner.temp }}/plan
       - run: bun install --frozen-lockfile
         working-directory: control
+      - name: Free space for multi-architecture images
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          docker image prune --all --force
+          df -h /
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
