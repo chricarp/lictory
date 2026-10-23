@@ -156,6 +156,13 @@ version and image digests decide what is live. Only after migrations pass is
 the stable tag reserved; only after activation does its GitHub Release become
 published and latest. The original nightly remains unchanged.
 
+The same workflow then deploys both Cloudflare websites from that published
+stable tag. One **Run workflow** starts the complete production release; approve
+the protected Production jobs if prompted. A backend failure skips the websites.
+If the website job fails, the healthy backend stays deployed: use **Re-run failed
+jobs** to retry the websites with the same tag without repeating the backend
+release. Do not rerun all jobs to recover a frontend failure.
+
 Nightly and Stable share a verified source commit, not byte-identical images:
 their versions and public origins differ.
 
@@ -177,8 +184,10 @@ old branch with unknown applied migrations plus new pending migrations is
 refused by the existing migration safety rules.
 
 For the production topology with static websites on Cloudflare and the backend
-managed through Openship, deploy the backend stable release first, then dispatch
-the website workflow with that same published tag. See
+managed through Openship, **Release to Production** deploys the backend first
+and automatically calls the website workflow with that same published tag. The
+standalone website workflow remains available for compatible frontend rollback
+or recovery. See
 [websites on Cloudflare](cloudflare-marketing.md) for gateway configuration and
 the frontend verification and rollback procedure.
 

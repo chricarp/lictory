@@ -62,13 +62,18 @@ host ports. The runtime authentication origin remains the public SPA origin.
 
 ## Releases
 
-**Deploy websites to Cloudflare** is manually dispatched from `main` with an
-existing published stable release tag. It refuses draft/prerelease tags and
+**Release to Production** automatically calls **Deploy websites to Cloudflare**
+after the VPS backend succeeds, using the same newly published stable release
+tag. A single manual dispatch releases the backend and both websites in order.
+The website workflow can also be manually dispatched from `main` with an
+existing published stable release tag for recovery or compatible frontend
+rollback. It refuses draft/prerelease tags and
 source outside `main`, builds that exact source with production origins, then
 deploys both frontends through the protected **Production** environment. Pushes
 do not deploy either frontend. The selected tag must contain this configuration.
 
-Deploy the compatible backend before these frontends. If one frontend deploys
+If the Cloudflare job fails in a combined release, use **Re-run failed jobs**;
+the successful backend release is not repeated. If one frontend deploys
 and the second fails, inspect the workflow log and retry the same selected tag;
 do not assume both changed atomically. An earlier compatible stable tag can be
 redeployed without rolling back the database.

@@ -192,8 +192,9 @@ traffic. Staging needs the same three names under `staging.lictory.com`.
 On an empty database a normal release does everything in order: the first
 start of PostgreSQL creates the roles and databases, the migrate service
 applies every migration (including the `lictory_zero` publication), zero-cache
-performs its initial sync, then the proxy, API and worker start. Deploy the
-Cloudflare frontends separately after the compatible backend is healthy.
+performs its initial sync, then the proxy, API and worker start. The
+**Release to Production** workflow then deploys both Cloudflare frontends from
+the same published stable tag after the backend is healthy.
 
 ```sh
 # from GitHub: Actions → Release to Production → Run workflow (main)
