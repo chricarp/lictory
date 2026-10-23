@@ -3,6 +3,10 @@
   "name": "lictory-marketing",
   "main": "../../deploy/cloudflare/src/worker.ts",
   "compatibility_date": "2026-10-22",
+  "routes": [
+    { "pattern": "lictory.com/*", "zone_name": "lictory.com" },
+    { "pattern": "www.lictory.com/*", "zone_name": "lictory.com" },
+  ],
   "assets": {
     "directory": "out",
     "binding": "ASSETS",
@@ -13,6 +17,6 @@
     "SITE_KIND": "marketing",
     "SITE_URL": "https://lictory.com",
     "PLATFORM_URL": "https://app.lictory.com",
-    "BACKEND_ORIGIN": "https://backend.lictory.com",
+    "BACKEND_ORIGIN": "https://app.lictory.com",
   },
 }

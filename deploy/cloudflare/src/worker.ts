@@ -45,6 +45,8 @@ async function backend(request: Request, env: Environment) {
   const clientIp = request.headers.get("cf-connecting-ip");
   headers.delete("x-forwarded-for");
   if (clientIp) headers.set("x-forwarded-for", clientIp);
+  // A same-zone fetch from a Worker Route reaches the DNS-configured VPS
+  // origin without invoking this route again. Do not use a Custom Domain here.
   // Return the response directly: cloning would break WebSocket upgrades.
   return fetch(new Request(target, request), { headers, redirect: "manual" });
 }

@@ -176,6 +176,12 @@ stable commit is an ancestor. Hotfix migrations must obey expand/contract; an
 old branch with unknown applied migrations plus new pending migrations is
 refused by the existing migration safety rules.
 
+For the production topology with static websites on Cloudflare and the backend
+managed through Openship, deploy the backend stable release first, then dispatch
+the website workflow with that same published tag. See
+[websites on Cloudflare](cloudflare-marketing.md) for gateway configuration and
+the frontend verification and rollback procedure.
+
 ## Direct pushes and recovery
 
 Require PRs for main and maintenance branches, including bot/dependency changes.
