@@ -76,18 +76,44 @@ const authRoute = createRoute({
     </AuthLayout>
   ),
 });
-const authPage = (path: string, name: string) =>
+// Pages only for people who are signed out: a signed-in person continues to
+// the destination they asked for, or the home page. The cached session is
+// confirmed with the server first, so an ended session still reaches them.
+async function redirectSignedIn({
+  location,
+}: {
+  location: { searchStr: string };
+}) {
+  const cached = await loadSession().catch(() => undefined);
+  if (!cached?.user) return;
+  const session = await loadSession(true).catch(() => undefined);
+  if (!session?.user) return;
+  // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
+  throw redirect({
+    href: safeCallbackPath(
+      new URLSearchParams(location.searchStr).get("callbackUrl"),
+    ),
+    replace: true,
+  });
+}
+
+const authPage = (path: string, name: string, signedOutOnly = false) =>
   createRoute({
     getParentRoute: () => authRoute,
     path,
+    beforeLoad: signedOutOnly ? redirectSignedIn : undefined,
     component: lazyRouteComponent(
       () => import("@lictory/platform/routes/auth"),
       name as "SignInPage",
     ),
   });
-const signInRoute = authPage("/sign-in", "SignInPage");
-const signUpRoute = authPage("/sign-up", "SignUpPage");
-const forgotPasswordRoute = authPage("/forgot-password", "ForgotPasswordPage");
+const signInRoute = authPage("/sign-in", "SignInPage", true);
+const signUpRoute = authPage("/sign-up", "SignUpPage", true);
+const forgotPasswordRoute = authPage(
+  "/forgot-password",
+  "ForgotPasswordPage",
+  true,
+);
 const resetPasswordRoute = authPage("/reset-password", "ResetPasswordPage");
 const verifyEmailRoute = authPage("/verify-email", "VerifyEmailPage");
 const authErrorRoute = authPage("/auth-error", "AuthErrorPage");
