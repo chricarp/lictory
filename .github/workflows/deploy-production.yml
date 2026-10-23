@@ -151,3 +151,14 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$DEPLOY_SSH_KNOWN_HOSTS_FILE" -i "$DEPLOY_SSH_KEY_FILE" \
             "$DEPLOY_SSH_TARGET" 'production registry-logout'
+
+  websites:
+    name: Deploy Cloudflare websites
+    needs: [plan, deploy]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-marketing.yml
+    with:
+      release_tag: ${{ format('v{0}', needs.plan.outputs.version) }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
