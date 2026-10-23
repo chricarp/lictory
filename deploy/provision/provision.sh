@@ -178,6 +178,6 @@ Next steps (docs/operations/deployment.md, "First launch"):
   1. sudo -u deploy $source_dir/provision/new-environment.sh <environment>   # secrets
   2. Add the release automation key to /home/deploy/.ssh/authorized_keys with
      command="$root/bin/lictory-remote",restrict
-  3. sudo -u deploy docker login ghcr.io   # read:packages token
+  3. Configure the production workflow's SSH variables; it supplies temporary GHCR authentication.
   4. Deploy the first release, then: systemctl start lictory-backup@<env>.timer lictory-monitor@<env>.timer
 EOF

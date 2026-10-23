@@ -22,6 +22,18 @@ case "$environment" in production | staging) ;; *)
   ;;
 esac
 [ "${#words[@]}" -le 4 ] || { echo "Refused: too many arguments." >&2; exit 64; }
+case "$action" in
+  registry-login)
+    [ "${#words[@]}" -eq 2 ] || exit 64
+    IFS= read -r registry_user || exit 64
+    [[ "$registry_user" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?$ ]] || exit 64
+    exec docker login ghcr.io --username "$registry_user" --password-stdin
+    ;;
+  registry-logout)
+    [ "${#words[@]}" -eq 2 ] || exit 64
+    exec docker logout ghcr.io
+    ;;
+esac
 if [ -n "$name" ] && { [ "$action" != backfill ] || ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; }; then
   echo "Refused: invalid arguments." >&2
   exit 64

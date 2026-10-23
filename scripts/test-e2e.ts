@@ -38,7 +38,7 @@ const workerAvailable = existsSync("apps/worker/build.mjs");
 // disabled; placeholder OAuth clients let tests reach provider redirects.
 const appEnv = {
   ...process.env,
-  NODE_ENV: "production",
+  NODE_ENV: "production" as const,
   DATABASE_URL: url,
   DATABASE_URL_UNPOOLED: url,
   PLATFORM_URL: platformUrl,
@@ -181,7 +181,8 @@ try {
   if (!process.env.E2E_SKIP_BUILD) {
     const buildEnv = {
       ...appEnv,
-      NODE_ENV: "production",
+      API_ORIGIN: `http://localhost:${ports.api}`,
+      NODE_ENV: "production" as const,
       VITE_SITE_URL: siteUrl,
       NEXT_PUBLIC_PLATFORM_URL: platformUrl,
       NEXT_TELEMETRY_DISABLED: "1",

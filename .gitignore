@@ -3,6 +3,10 @@ node_modules/
 
 # Next.js
 .next/
+.open-next/
+.wrangler/
+.dev.vars
+.dev.vars.*
 out/
 build/
 dist/

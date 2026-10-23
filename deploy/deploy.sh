@@ -208,15 +208,20 @@ roll() { # roll <dir>
 }
 
 verify() { # verify <dir>
-  local dir="$1" app site insecure=()
+  local dir="$1" app site public_app scheme insecure=()
   app=$(setting APP_HOST)
   site=$(setting SITE_HOST)
+  public_app=$(setting PUBLIC_APP_HOST)
+  public_app="${public_app:-$app}"
+  scheme=$(setting PROXY_SCHEME)
+  scheme="${scheme:-https}"
+  case "$scheme" in http | https) ;; *) die "Unsupported PROXY_SCHEME." ;; esac
   [ -n "$(setting CADDY_GLOBAL_OPTIONS)" ] && insecure=(-k)
   local url port code
-  port=$(setting HTTPS_PORT)
-  port="${port:-443}"
-  for url in "https://$app/healthz" "https://$site/"; do
-    local host="${url#https://}"
+  if [ "$scheme" = http ]; then port=$(setting HTTP_PORT); port="${port:-80}";
+  else port=$(setting HTTPS_PORT); port="${port:-443}"; fi
+  for url in "$scheme://$app/healthz" "$scheme://$site/"; do
+    local host="${url#*://}"
     host="${host%%/*}"
     curl -fsS "${insecure[@]+"${insecure[@]}"}" -m 15 --retry 5 --retry-delay 2 --retry-all-errors \
       --resolve "$host:${port}:127.0.0.1" -o /dev/null "${url/$host/$host:$port}" ||
@@ -224,10 +229,10 @@ verify() { # verify <dir>
   done
   # Zero answers WebSocket upgrades only: 101 proves proxy -> zero-cache routing.
   code=$(curl -s "${insecure[@]+"${insecure[@]}"}" --http1.1 -m 3 -o /dev/null -w '%{http_code}' \
-    --resolve "$app:${port}:127.0.0.1" -H "Origin: https://$app" \
+    --resolve "$app:${port}:127.0.0.1" -H "Origin: https://$public_app" \
     -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
     -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
-    "https://$app:$port/zero/sync/v1/connect" || true)
+    "$scheme://$app:$port/zero/sync/v1/connect" || true)
   [ "$code" = 101 ] || { log "Verification failed: Zero WebSocket upgrade returned $code"; return 1; }
   active_matches "$dir" || return 1
 }

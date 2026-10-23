@@ -3,6 +3,9 @@
 **/node_modules
 **/.next
 **/.next-e2e
+**/.open-next
+**/.wrangler
+**/out
 **/dist
 **/.zero
 **/*.db

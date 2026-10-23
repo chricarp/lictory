@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+export const dynamic = "force-static";
+
 import { absoluteUrl, guidesFeedPath } from "@lictory/marketing/lib/site";
 
 // Search engines and AI assistants named explicitly, so the policy for each is

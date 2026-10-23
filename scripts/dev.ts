@@ -10,8 +10,9 @@ import { spawn, type ChildProcess } from "node:child_process";
 // Empty variables count as unset.
 const or = (value: string | undefined, fallback: string) =>
   value?.trim() ? value : fallback;
-const env: Record<string, string | undefined> = {
+const env: NodeJS.ProcessEnv = {
   ...process.env,
+  NODE_ENV: process.env.NODE_ENV ?? "development",
   PLATFORM_URL: or(process.env.PLATFORM_URL, "http://localhost:3000"),
   SITE_URL: or(process.env.SITE_URL, "http://localhost:3100"),
   VITE_SITE_URL: or(process.env.VITE_SITE_URL, "http://localhost:3100"),

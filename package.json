@@ -66,11 +66,12 @@
     "unrs-resolver"
   ],
   "trustedDependencies": [
-    "sharp",
-    "unrs-resolver",
     "@rocicorp/zero-sqlite3",
     "esbuild",
-    "protobufjs"
+    "protobufjs",
+    "sharp",
+    "unrs-resolver",
+    "workerd"
   ],
   "workspaces": [
     "apps/*",

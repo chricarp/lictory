@@ -7,6 +7,8 @@
         "scripts/*.ts",
         "tests/**/*.ts",
         "deploy/docker/*.mjs",
+        "deploy/cloudflare/src/worker.ts",
+        "deploy/cloudflare/src/*.test.ts",
         "better-auth.config.ts",
       ],
       "project": [
@@ -14,6 +16,7 @@
         "scripts/**/*.ts",
         "tests/**/*.ts",
         "deploy/**/*.mjs",
+        "deploy/cloudflare/**/*.ts",
       ],
     },
     "packages/core": {

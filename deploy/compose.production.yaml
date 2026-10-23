@@ -28,7 +28,7 @@ x-server-environment: &server-environment
   LICTORY_ENVIRONMENT: ${LICTORY_ENVIRONMENT:?}
   APP_VERSION: ${LICTORY_VERSION:?}
   DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
-  PLATFORM_URL: https://${APP_HOST:?}
+  PLATFORM_URL: https://${PUBLIC_APP_HOST:-${APP_HOST:?}}
   SITE_URL: https://${SITE_HOST:?}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
   DELIVERY_CREDENTIALS_KEY: ${DELIVERY_CREDENTIALS_KEY:?}
@@ -306,14 +306,16 @@ services:
       - /tmp
     networks: [edge, internal]
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      - "${HTTP_BINDING:-${HTTP_PORT:-80}:80}"
+      - "${HTTPS_BINDING:-${HTTPS_PORT:-443}:443}"
     mem_limit: 256m
     stop_grace_period: 15s
     environment:
       SITE_HOST: ${SITE_HOST:?}
       WWW_HOST: ${WWW_HOST:?}
       APP_HOST: ${APP_HOST:?}
+      PUBLIC_APP_HOST: ${PUBLIC_APP_HOST:-${APP_HOST:?}}
+      PROXY_SCHEME: ${PROXY_SCHEME:-https}
       ACME_EMAIL: ${ACME_EMAIL:?}
       CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
     volumes:

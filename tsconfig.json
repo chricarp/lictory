@@ -1,5 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["*.ts", "*.mjs", "scripts/**/*.ts", "tests/**/*.ts"],
+  "include": [
+    "*.ts",
+    "*.mjs",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "deploy/cloudflare/**/*.ts"
+  ],
   "exclude": ["node_modules", "apps", "packages"]
 }

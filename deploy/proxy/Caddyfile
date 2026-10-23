@@ -73,12 +73,12 @@
 	}
 }
 
-{$WWW_HOST} {
+{$PROXY_SCHEME}://{$WWW_HOST} {
 	import access_log
 	redir https://{$SITE_HOST}{uri} 308
 }
 
-{$SITE_HOST} {
+{$PROXY_SCHEME}://{$SITE_HOST} {
 	import access_log
 	import common_headers
 	header X-Frame-Options SAMEORIGIN
@@ -102,7 +102,7 @@
 	}
 }
 
-{$APP_HOST} {
+{$PROXY_SCHEME}://{$APP_HOST} {
 	import access_log
 	import common_headers
 	header {
@@ -118,7 +118,7 @@
 		# cookie, so only pages served from this origin may open it.
 		@foreignSocket {
 			header_regexp Connection (?i)upgrade
-			not header Origin https://{$APP_HOST}
+			not header Origin https://{$PUBLIC_APP_HOST}
 		}
 		respond @foreignSocket 403
 

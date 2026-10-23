@@ -14,7 +14,7 @@ export const dynamicParams = false;
 
 export function generateStaticParams() {
   return markdownPages.map((path) => ({
-    path: path.split("/").filter(Boolean),
+    path: `${path}.md`.split("/").filter(Boolean),
   }));
 }
 
@@ -23,7 +23,7 @@ export async function GET(
   { params }: RouteContext<"/markdown/[...path]">,
 ) {
   const { path: segments } = await params;
-  const path = `/${segments.join("/")}`;
+  const path = `/${segments.join("/")}`.replace(/\.md$/, "");
   const document = markdownDocument(path);
   if (!document) notFound();
   return new Response(document, {

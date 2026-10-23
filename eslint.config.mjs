@@ -22,6 +22,8 @@ const scoped = (configs, files) =>
 export default defineConfig([
   globalIgnores([
     "**/.next/**",
+    "**/.open-next/**",
+    "**/.wrangler/**",
     "**/.next-e2e/**",
     "**/dist/**",
     "**/out/**",

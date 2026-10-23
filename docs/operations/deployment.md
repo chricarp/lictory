@@ -6,6 +6,10 @@ zero-cache and PostgreSQL. Images are built off-server by GitHub Actions and
 deployed by digest. Production changes only through the manually approved
 **Release to Production** workflow ([versions and releases](releases.md)).
 
+For static frontends hosted separately on Cloudflare Workers, see
+[websites on Cloudflare](cloudflare-marketing.md). Both frontends have a manually selected stable deployment; the API,
+worker, database and Zero remain on the VPS. The Compose website service below is the existing container-hosted option.
+
 ```text
                     ┌──────────────────────── server ─────────────────────────┐
  lictory.com ──────▶│ proxy (Caddy, TLS) ──▶ marketing   (Next.js)             │
@@ -165,7 +169,10 @@ are installed for the target platform at the lockfile's versions.
    fail2ban, swap, journald limits, the `deploy` user, `/srv/lictory` and the
    backup and monitor timers. Re-running it is safe.
 3. As `deploy`: `new-environment.sh production`, then edit `.env`.
-4. `docker login ghcr.io` as `deploy` with a token limited to `read:packages`.
+4. The production workflow authenticates `deploy` to GHCR with its temporary
+   GitHub job token and removes that credential afterward. No long-lived
+   registry token is needed on the server. Direct manual releases outside the
+   workflow still need a registry login before pulling private images.
 5. Add the release automation's public key to `~deploy/.ssh/authorized_keys`:
    `command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… release`.
    It can then only prepare, migrate, activate, backfill, roll back and report
