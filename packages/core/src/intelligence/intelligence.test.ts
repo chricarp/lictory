@@ -227,7 +227,7 @@ void test("context never crosses organizations", async () => {
   // Not a member of A at all.
   await assert.rejects(
     listIntelligenceContext(db, a.organizationId, b.adminId),
-    /access has been removed/,
+    /You are not a member of this organization/,
   );
   assert.equal((await compose(b)).entries.length, 0);
 });

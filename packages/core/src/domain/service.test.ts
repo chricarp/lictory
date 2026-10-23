@@ -392,11 +392,11 @@ void test("bootstrap, delta, and mutations reject foreign tenants and revoked me
   const b = await fixture();
   await assert.rejects(
     service.read(a.userId, b.scope),
-    /access has been removed/,
+    /You are not a member of this organization/,
   );
   await assert.rejects(
     service.read(a.userId, b.scope, "0"),
-    /access has been removed/,
+    /You are not a member of this organization/,
   );
   await assert.rejects(
     service.read(a.userId, { ...a.scope, projectId: b.projectId }),
@@ -423,7 +423,10 @@ void test("bootstrap, delta, and mutations reject foreign tenants and revoked me
     );
   // What the Better Auth membership hooks do after their own write.
   await refreshDirectories(db, [a.organizationId]);
-  await assert.rejects(a.read(before.nextCursor), /access has been removed/);
+  await assert.rejects(
+    a.read(before.nextCursor),
+    /You are not a member of this organization/,
+  );
 });
 void test("concurrent writes all project and a failed projection write rolls back domain writes", async () => {
   const f = await fixture();
@@ -1070,7 +1073,7 @@ void test("member search pages and filters without returning the full roster", a
   });
   await assert.rejects(
     () => searchMembers(db, outsider, f.organizationId),
-    /Organization access has been removed/,
+    /You are not a member of this organization/,
   );
 });
 void test("epic search is paginated, project-scoped, searchable, and authorized", async () => {
@@ -1166,7 +1169,7 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
   });
   await assert.rejects(
     () => searchEpics(db, outsider, f.organizationId, f.projectId, ""),
-    /Organization access has been removed/,
+    /You are not a member of this organization/,
   );
   await assert.rejects(
     () => searchEpics(db, f.userId, f.organizationId, crypto.randomUUID(), ""),

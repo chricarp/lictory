@@ -136,7 +136,7 @@ export async function authorize(
           ),
         )
     )[0],
-    "Organization access has been removed.",
+    "You are not a member of this organization.",
     "forbidden",
   );
 }
@@ -210,7 +210,7 @@ export async function directory(
     };
   requireValue(
     organizations.find((o) => o.id === organizationId),
-    "Organization access has been removed.",
+    "You are not a member of this organization.",
     "forbidden",
   );
   return {
@@ -597,7 +597,7 @@ export async function searchMembers(
     .where(eq(s.organization.id, organizationId));
   requireValue(
     organizations[0],
-    "Organization access has been removed.",
+    "You are not a member of this organization.",
     "forbidden",
   );
   const raw = query.trim();
@@ -660,7 +660,7 @@ export async function searchEpics(
     );
   requireValue(
     membership[0],
-    "Organization access has been removed.",
+    "You are not a member of this organization.",
     "forbidden",
   );
   requireValue(

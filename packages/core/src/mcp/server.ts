@@ -27,6 +27,7 @@ const SERVER_INFO = { name: "lictory", title: "Lictory", version: "1.0.0" };
 const INSTRUCTIONS = `Lictory is a work-management platform where product specifications are refined and reviewed like code before delivery.
 You act as the person who created this access token, with exactly their permissions.
 Start with listOrganizations, then getWorkspace to resolve projects, teams, statuses, types, roles and members; use listWorkItems and getWorkItem (by id or key such as PAY-142) to read work.
+organizationId accepts either an exact organization id or slug from listOrganizations. Use the same reference as scopeId for organization notification preferences.
 Specifications are Markdown revisions. To change one, prefer createSuggestion (reviewed by people) over updateSpecification; both need the current revision id as baseRevisionId.
 Humans decide: do not approve, merge, resolve discussions or export to delivery tools unless the person explicitly asked you to.
 Commands accept an optional mutationId; reuse it when retrying so nothing is applied twice.`;
@@ -56,6 +57,11 @@ export function inputSchemaOf(capability: AnyCapability) {
       unrepresentable: "any",
     }) as Record<string, unknown>;
     delete json.$schema;
+    const properties = json.properties as
+      Record<string, Record<string, unknown>> | undefined;
+    if (properties?.organizationId)
+      properties.organizationId.description =
+        "Exact organization id or slug from listOrganizations.";
     schema = json.type === "object" ? json : { type: "object", ...json };
     schemaCache.set(capability.name, schema);
   }

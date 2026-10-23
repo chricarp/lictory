@@ -27,10 +27,12 @@ export function chatModel() {
   return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
 }
 
-export function assistantTools(ctx: CapabilityContext): ToolSet {
+export function assistantTools(
+  ctx: CapabilityContext,
+  organizationId: string,
+): ToolSet {
   return {
-    // The conversation is bound to one organization, named in the prompt.
-    ...agentTools(ctx, { only: (name) => name !== "listOrganizations" }),
+    ...agentTools(ctx, { organizationId }),
     // No `execute`: the browser shows a questionnaire and returns the answers.
     [ASK_QUESTIONS]: tool({
       description:
@@ -88,7 +90,7 @@ export function systemPrompt(input: {
   return `You are Lictory Intelligence, the assistant inside Lictory: a work-management platform where product specifications are refined and reviewed like code, then delivered natively (boards, backlog, iterations) or published to tools like Jira.
 
 You act for ${user.name} (userId ${user.id}) with exactly their permissions, through tools that are the same operations they can perform in the app.
-Organization: "${org.name}" (organizationId ${organizationId}, slug ${org.slug}). Always use this organizationId.
+Organization: "${org.name}" (slug ${org.slug}). Tools are bound to this conversation's organization on the server; do not supply an organizationId.
 Today is ${input.now.toISOString().slice(0, 10)}.
 Application role: ${org.role}. Work item capabilities come from their disciplines in each project.
 

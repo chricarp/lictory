@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { and, eq } from "drizzle-orm";
+import { validateUIMessages, type ToolSet } from "ai";
+import { z } from "zod";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { projectionDrift } from "@lictory/core/domain/projection-reader.test-helper";
+import { refreshDirectories } from "@lictory/core/domain/projections";
 import * as s from "@lictory/core/db/schema";
 import { handleMcp } from "@lictory/core/mcp/server";
 import { seedOrganization } from "@lictory/core/domain/organization";
@@ -17,6 +20,7 @@ import {
   type Principal,
 } from "@lictory/core/capabilities/core";
 import { invoke, listCapabilities } from "@lictory/core/capabilities/registry";
+import { assistantTools } from "@lictory/core/intelligence/chat/assistant";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -45,8 +49,11 @@ const context = (principal: Principal): CapabilityContext => ({
   effects: noEffects,
 });
 
-async function organization(ownerId: string, memberIds: string[] = []) {
-  const organizationId = crypto.randomUUID();
+async function organization(
+  ownerId: string,
+  memberIds: string[] = [],
+  organizationId: string = crypto.randomUUID(),
+) {
   await db.insert(s.organization).values({
     id: organizationId,
     name: "Workspace",
@@ -75,7 +82,11 @@ async function fixture() {
   const ownerId = await user("Owner");
   const memberId = await user("Member");
   const outsiderId = await user("Outsider");
-  const organizationId = await organization(ownerId, [memberId]);
+  const organizationId = await organization(
+    ownerId,
+    [memberId],
+    `Org${crypto.randomUUID().replaceAll("-", "")}Il0O`,
+  );
   await organization(outsiderId);
   const web = context({ userId: ownerId, surface: "web" });
   const projectId = crypto.randomUUID();
@@ -273,6 +284,244 @@ void test("agents hold exactly the person's permissions and tenant boundary", as
     invoke(f.mcp, "createWorkItem", { organizationId: f.organizationId }),
     "validation",
   );
+});
+
+async function executeTool(tools: ToolSet, name: string, input: unknown) {
+  const tool = tools[name];
+  assert.ok(tool?.execute);
+  const output: unknown = await tool.execute(input, {
+    toolCallId: crypto.randomUUID(),
+    messages: [],
+  });
+  return output;
+}
+
+void test("chat tools bind reads and writes to the conversation organization", async () => {
+  const f = await fixture();
+  const otherOrganizationId = await organization(f.ownerId);
+  const agent = context({ userId: f.ownerId, surface: "agent" });
+  const tools = assistantTools(agent, f.organizationId);
+  assert.equal(tools.listOrganizations, undefined);
+  for (const tool of Object.values(tools)) {
+    assert.ok(tool.inputSchema instanceof z.ZodObject);
+    assert.ok(!("organizationId" in tool.inputSchema.shape));
+  }
+  assert.equal(tools.mergePullRequest!.needsApproval, true);
+  assert.equal(tools.deleteBranch!.needsApproval, true);
+  const readSchema = tools.getWorkItem!.inputSchema as z.ZodObject;
+  assert.equal(readSchema.safeParse({}).success, false);
+  assert.equal(readSchema.safeParse({ key: "PAY-1" }).success, true);
+  assert.equal(
+    readSchema.safeParse({ key: "PAY-1", workItemId: crypto.randomUUID() })
+      .success,
+    false,
+  );
+  const schema = tools.createWorkItem!.inputSchema as z.ZodObject;
+  const input = schema.parse({
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Created in the chat organization",
+    mutationId: crypto.randomUUID(),
+  });
+  const first = await executeTool(tools, "createWorkItem", input);
+  assert.equal((first as { ok: boolean }).ok, true);
+  // Old transcripts or a client may still supply an organization. It never
+  // overrides the chat, even when this person belongs to both organizations.
+  const retry = await executeTool(tools, "createWorkItem", {
+    ...input,
+    organizationId: otherOrganizationId,
+  });
+  assert.deepEqual(retry, first);
+  for (const organizationId of ["mistyped-organization", otherOrganizationId]) {
+    const read = (await executeTool(tools, "listWorkItems", {
+      organizationId,
+    })) as { ok: boolean; result: { total: number } };
+    assert.equal(read.ok, true);
+    assert.equal(read.result.total, 1);
+  }
+  const other = (await invoke(f.web, "listWorkItems", {
+    organizationId: otherOrganizationId,
+  })) as { total: number };
+  assert.equal(other.total, 0);
+  // Existing conversation messages with the previous tool schema still load.
+  await validateUIMessages({
+    tools,
+    messages: [
+      {
+        id: "old-message",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-createWorkItem",
+            toolCallId: "old-call",
+            state: "output-available",
+            input: { ...input, organizationId: f.organizationId },
+            output: first,
+          },
+        ],
+      },
+    ],
+  });
+  const audit = await db
+    .select()
+    .from(s.capabilityInvocation)
+    .where(
+      and(
+        eq(s.capabilityInvocation.userId, f.ownerId),
+        eq(s.capabilityInvocation.surface, "agent"),
+      ),
+    );
+  assert.ok(audit.every((row) => row.organizationId === f.organizationId));
+});
+
+void test("chat binding preserves permissions and rechecks removed membership", async () => {
+  const f = await fixture();
+  const memberTools = assistantTools(
+    context({ userId: f.memberId, surface: "agent" }),
+    f.organizationId,
+  );
+  const denied = (await executeTool(memberTools, "createWorkItem", {
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Not permitted",
+  })) as { ok: boolean; error: { category: string } };
+  assert.equal(denied.ok, false);
+  assert.equal(denied.error.category, "forbidden");
+  const readerTools = assistantTools(
+    context({ userId: f.ownerId, surface: "agent", access: "read" }),
+    f.organizationId,
+  );
+  assert.equal(readerTools.createWorkItem, undefined);
+  const tools = assistantTools(
+    context({ userId: f.memberId, surface: "agent" }),
+    f.organizationId,
+  );
+  await db
+    .delete(s.member)
+    .where(
+      and(
+        eq(s.member.organizationId, f.organizationId),
+        eq(s.member.userId, f.memberId),
+      ),
+    );
+  await refreshDirectories(db, [f.organizationId]);
+  const removed = (await executeTool(tools, "getWorkspace", {})) as {
+    ok: boolean;
+    error: { category: string; message: string };
+  };
+  assert.equal(removed.ok, false);
+  assert.equal(removed.error.category, "forbidden");
+  assert.equal(
+    removed.error.message,
+    "You are not a member of this organization.",
+  );
+});
+
+void test("MCP accepts slugs, audits canonical ids and gives safe recovery errors", async () => {
+  const f = await fixture();
+  const slug = `payments-${crypto.randomUUID()}`;
+  await db
+    .update(s.organization)
+    .set({ slug })
+    .where(eq(s.organization.id, f.organizationId));
+  await refreshDirectories(db, [f.organizationId]);
+  const call = async (
+    name: string,
+    args: Record<string, unknown>,
+    ctx = f.mcp,
+  ) => {
+    const response = await handleMcp(ctx, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name, arguments: args },
+    });
+    return (
+      response as {
+        result: {
+          isError: boolean;
+          structuredContent?: Record<string, unknown>;
+          content: { text: string }[];
+        };
+      }
+    ).result;
+  };
+  for (const organizationId of [f.organizationId, slug]) {
+    const read = await call("getWorkspace", { organizationId });
+    assert.equal(read.isError, false);
+    assert.equal(
+      (read.structuredContent!.organizations as { id: string }[])[0]!.id,
+      f.organizationId,
+    );
+  }
+  const args = {
+    organizationId: slug,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Created by slug",
+    mutationId: crypto.randomUUID(),
+  };
+  const created = await call("createWorkItem", args);
+  assert.equal(created.isError, false);
+  const retried = await call("createWorkItem", {
+    ...args,
+    organizationId: f.organizationId,
+  });
+  assert.deepEqual(retried.structuredContent, created.structuredContent);
+  const preferences = await call("setNotificationPreferences", {
+    organizationId: slug,
+    scope: "organization",
+    scopeId: slug,
+    rules: [{ kind: "review_requested", inApp: true, email: false }],
+  });
+  assert.equal(preferences.isError, false);
+  for (const reference of ["unknown-organization", f.organizationId, slug]) {
+    const denied = await call(
+      "getWorkspace",
+      { organizationId: reference },
+      context({ userId: f.outsiderId, surface: "mcp" }),
+    );
+    assert.equal(denied.isError, true);
+    const { error } = JSON.parse(denied.content[0]!.text) as {
+      error: { category: string; message: string };
+    };
+    assert.equal(error.category, "forbidden");
+    assert.equal(
+      error.message,
+      `Organization “${reference}” is unavailable or you are not a member. Call listOrganizations and use an id or slug from its results.`,
+    );
+  }
+  const audit = await db
+    .select()
+    .from(s.capabilityInvocation)
+    .where(
+      and(
+        eq(s.capabilityInvocation.userId, f.ownerId),
+        eq(s.capabilityInvocation.surface, "mcp"),
+      ),
+    );
+  assert.ok(audit.every((row) => row.organizationId === f.organizationId));
+  // A slug that is also a different organization's id is refused rather
+  // than silently sending a command to one of two accessible organizations.
+  const ambiguous = await organization(f.ownerId);
+  await db
+    .update(s.organization)
+    .set({ slug: `other-${ambiguous}` })
+    .where(eq(s.organization.id, ambiguous));
+  await db
+    .update(s.organization)
+    .set({ slug: ambiguous })
+    .where(eq(s.organization.id, f.organizationId));
+  await refreshDirectories(db, [f.organizationId, ambiguous]);
+  const failure = await call("createWorkItem", {
+    ...args,
+    organizationId: ambiguous,
+  });
+  assert.equal(failure.isError, true);
+  assert.match(failure.content[0]!.text, /matches more than one organization/);
 });
 
 void test("access tokens: read-only, revocation, and audit", async () => {

@@ -51,6 +51,7 @@ function mcp(request: APIRequestContext, token: string) {
         result?: {
           tools?: { name: string }[];
           isError?: boolean;
+          content?: { text: string }[];
           structuredContent?: Record<string, unknown>;
         };
       } | null,
@@ -111,17 +112,17 @@ test("a person connects an MCP agent that works with their permissions", async (
     return body!.result!.structuredContent!;
   };
   const { organizations } = (await tool("listOrganizations", {})) as {
-    organizations: { id: string; name: string }[];
+    organizations: { id: string; name: string; slug: string }[];
   };
   const organization = organizations.find((o) => o.name === "Agent Co")!;
   const workspace = (await tool("getWorkspace", {
-    organizationId: organization.id,
+    organizationId: organization.slug,
   })) as {
     projects: { id: string; key: string }[];
     types: { id: string; name: string }[];
   };
   const created = (await tool("createWorkItem", {
-    organizationId: organization.id,
+    organizationId: organization.slug,
     projectId: workspace.projects.find((p) => p.key === "AGT")!.id,
     typeId: workspace.types.find((t) => t.name === "Epic")!.id,
     parentId: null,
@@ -129,6 +130,20 @@ test("a person connects an MCP agent that works with their permissions", async (
     description: "Created through MCP.",
   })) as { workItemId: string };
   expect(created.workItemId).toBeTruthy();
+
+  const invalid = await call("tools/call", {
+    name: "getWorkspace",
+    arguments: { organizationId: "mistyped-workspace" },
+  });
+  expect(invalid.body!.result!.isError).toBe(true);
+  expect(invalid.body!.result!.content![0]!.text).toContain(
+    "Call listOrganizations",
+  );
+  // The same client can recover with the exact id returned by discovery.
+  await tool("getWorkItem", {
+    organizationId: organization.id,
+    workItemId: created.workItemId,
+  });
 
   // The person sees the agent's work in the browser like any other change.
   await page.goto(workspaceUrl);

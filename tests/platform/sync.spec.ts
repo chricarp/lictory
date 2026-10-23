@@ -335,7 +335,7 @@ test("removing a member takes the organization away from their open workspace an
     // The change made from the outdated view was refused, not applied.
     await expect(
       ben.page.getByRole("dialog", { name: "Change not applied" }),
-    ).toContainText("Organization access has been removed.");
+    ).toContainText("You are not a member of this organization.");
     await expect(ben.page).toHaveURL(appHome);
     await expect(ben.page.getByText("Dispute evidence")).toHaveCount(0);
     await expect(ben.page.getByText("Sync GONE")).toHaveCount(0);

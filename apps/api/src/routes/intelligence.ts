@@ -105,7 +105,7 @@ async function chatTurn(request: Request) {
     { userId: owner.userId, surface: "agent", client: "Lictory Intelligence" },
     request.headers,
   );
-  const tools = assistantTools(ctx);
+  const tools = assistantTools(ctx, owner.organizationId);
   const messages = await validateUIMessages<ChatMessage>({
     messages: history,
     tools,
