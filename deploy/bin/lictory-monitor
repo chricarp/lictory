@@ -20,11 +20,21 @@ for path in / "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /
 "
 done
 
-for service in postgres zero-cache api worker marketing proxy; do
+for service in postgres zero-cache api worker proxy; do
   id=$(LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" ps -q "$service" 2>/dev/null)
   state=$(docker inspect --format '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' "$id" 2>/dev/null || echo missing)
   case "$state" in running | running/healthy) ;; *) report="${report}container $service is $state
 " ;; esac
+done
+
+# Frontends have their own release lifecycle on Cloudflare. Check the public
+# routes here, without making backend activation depend on a frontend release.
+site=$(setting SITE_HOST)
+app=$(setting PUBLIC_APP_HOST)
+app="${app:-$(setting APP_HOST)}"
+for url in "https://$site/" "https://$app/readyz"; do
+  curl -fsS -m 15 -o /dev/null "$url" 2>/dev/null || report="${report}public route $url is not healthy
+"
 done
 
 LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" run --rm --no-deps -T \

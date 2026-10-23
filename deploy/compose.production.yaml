@@ -275,24 +275,6 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  marketing:
-    image: ${MARKETING_IMAGE:?}
-    <<: *hardening
-    restart: unless-stopped
-    init: true
-    read_only: true
-    cap_drop: [ALL]
-    tmpfs:
-      - /tmp
-      - /app/apps/marketing/.next/cache:uid=1000,gid=1000
-    networks: [internal, egress]
-    mem_limit: ${MARKETING_MEM_LIMIT:-512m}
-    stop_grace_period: 15s
-    environment:
-      NODE_ENV: production
-      PORT: "3000"
-      HOSTNAME: 0.0.0.0
-
   proxy:
     image: ${PROXY_IMAGE:?}
     <<: *hardening
@@ -311,8 +293,6 @@ services:
     mem_limit: 256m
     stop_grace_period: 15s
     environment:
-      SITE_HOST: ${SITE_HOST:?}
-      WWW_HOST: ${WWW_HOST:?}
       APP_HOST: ${APP_HOST:?}
       PUBLIC_APP_HOST: ${PUBLIC_APP_HOST:-${APP_HOST:?}}
       PROXY_SCHEME: ${PROXY_SCHEME:-https}

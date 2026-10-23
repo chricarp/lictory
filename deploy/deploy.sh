@@ -124,7 +124,7 @@ prepare() {
   chmod 0644 "$dir/release.env"
 
   if [ "$(setting LICTORY_ALLOW_LOCAL_IMAGES)" != true ]; then
-    for key in API_IMAGE MARKETING_IMAGE PROXY_IMAGE MIGRATE_IMAGE OPS_IMAGE; do
+    for key in API_IMAGE PROXY_IMAGE MIGRATE_IMAGE OPS_IMAGE; do
       docker pull -q "$(env_value "$dir/release.env" "$key")" >/dev/null
     done
   fi
@@ -137,6 +137,8 @@ prepare() {
   docker rm "$container" >/dev/null
   cp "$dir/bundle/compose.production.yaml" "$dir/compose.production.yaml"
   mkdir -p "$home/postgres"
+  # This code-only bind mount is read by PostgreSQL's unprivileged user.
+  chmod 0755 "$home/postgres"
   rm -f "$home/postgres/10-lictory-roles.sh"
   cp "$dir/bundle/postgres/10-lictory-roles.sh" "$home/postgres/10-lictory-roles.sh"
   compose "$dir" config --quiet || die "Compose configuration for $version is invalid with $home/.env."
@@ -194,7 +196,7 @@ roll() { # roll <dir>
   local dir="$1" service
   # zero-cache first (rolling-update order), proxy before the API so assets of
   # both releases exist when new documents are served.
-  for service in zero-cache proxy api worker marketing; do
+  for service in zero-cache proxy api worker; do
     log "Rolling ${service}…"
     compose "$dir" up -d --no-deps --wait --wait-timeout "$([ "$service" = zero-cache ] && echo 900 || echo 180)" "$service" >&2 ||
       return 1
@@ -208,9 +210,8 @@ roll() { # roll <dir>
 }
 
 verify() { # verify <dir>
-  local dir="$1" app site public_app scheme insecure=()
+  local dir="$1" app public_app scheme insecure=()
   app=$(setting APP_HOST)
-  site=$(setting SITE_HOST)
   public_app=$(setting PUBLIC_APP_HOST)
   public_app="${public_app:-$app}"
   scheme=$(setting PROXY_SCHEME)
@@ -220,7 +221,7 @@ verify() { # verify <dir>
   local url port code
   if [ "$scheme" = http ]; then port=$(setting HTTP_PORT); port="${port:-80}";
   else port=$(setting HTTPS_PORT); port="${port:-443}"; fi
-  for url in "$scheme://$app/healthz" "$scheme://$site/"; do
+  for url in "$scheme://$app/healthz"; do
     local host="${url#*://}"
     host="${host%%/*}"
     curl -fsS "${insecure[@]+"${insecure[@]}"}" -m 15 --retry 5 --retry-delay 2 --retry-all-errors \
@@ -239,8 +240,8 @@ verify() { # verify <dir>
 
 active_matches() { # every service runs exactly the release's image
   local dir="$1" service key expected running
-  for service in api worker marketing proxy; do
-    case "$service" in api | worker) key=API_IMAGE ;; marketing) key=MARKETING_IMAGE ;; proxy) key=PROXY_IMAGE ;; esac
+  for service in api worker proxy; do
+    case "$service" in api | worker) key=API_IMAGE ;; proxy) key=PROXY_IMAGE ;; esac
     expected=$(docker image inspect --format '{{.Id}}' "$(env_value "$dir/release.env" "$key")" 2>/dev/null || true)
     running=$(docker inspect --format '{{.Image}}' "$(compose "$dir" ps -q "$service")" 2>/dev/null || true)
     [ -n "$expected" ] && [ "$expected" = "$running" ] || {
@@ -302,7 +303,7 @@ status() {
     [ "$json" = --json ] && printf '{"environment":"%s","version":null}\n' "$environment" || echo "No active release."
     return 0
   fi
-  for service in postgres zero-cache api worker marketing proxy; do
+  for service in postgres zero-cache api worker proxy; do
     state=$(docker inspect --format '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' \
       "$(compose "$dir" ps -q "$service" 2>/dev/null)" 2>/dev/null || echo missing)
     case "$state" in running | running/healthy) ;; *) ok=false ;; esac

@@ -1,36 +1,38 @@
 # Deployment and operations
 
-Lictory runs as one Docker Compose stack per environment on a single EU
-server: a reverse proxy, the website, the API, the background worker,
-zero-cache and PostgreSQL. Images are built off-server by GitHub Actions and
-deployed by digest. Production changes only through the manually approved
-**Release to Production** workflow ([versions and releases](releases.md)).
+Cloudflare serves the static marketing website at `lictory.com`, redirects
+`www.lictory.com` to the apex, and serves the platform SPA at `app.lictory.com`.
+The production server runs five long-lived services: the app gateway, API,
+background worker, zero-cache and PostgreSQL. There is no marketing container.
+See [websites on Cloudflare](cloudflare-marketing.md) for frontend releases.
 
-For static frontends hosted separately on Cloudflare Workers, see
-[websites on Cloudflare](cloudflare-marketing.md). Both frontends have a manually selected stable deployment; the API,
-worker, database and Zero remain on the VPS. The Compose website service below is the existing container-hosted option.
+Images are built off-server by GitHub Actions and deployed by digest. Backend
+production changes go through the manually approved **Release to Production**
+workflow ([versions and releases](releases.md)). Openship provides service
+controls, live logs, routing, health monitoring and saved operational jobs.
 
 ```text
-                    ┌──────────────────────── server ─────────────────────────┐
- lictory.com ──────▶│ proxy (Caddy, TLS) ──▶ marketing   (Next.js)             │
- www ─ 308 ────────▶│   │                                                      │
- app.lictory.com ──▶│   ├─ /assets, /brand, … static SPA files (in the proxy)   │
-                    │   ├─ /api/*, /relay/*, documents ──▶ api ◀── zero-cache   │
-                    │   └─ /zero/* (WebSocket) ─────────▶ zero-cache            │
-                    │                     api, worker, zero-cache ──▶ postgres  │
-                    └──────────────────────────────────────────────────────────┘
+lictory.com / www ──▶ Cloudflare static marketing / canonical redirect
+app.lictory.com ────▶ Cloudflare SPA
+                       └─ /api, /zero, /relay ──▶ Openship HTTPS edge
+                                                  └─ private Caddy gateway
+                                                       ├─ API / worker
+                                                       └─ Zero ──▶ PostgreSQL
 ```
 
-| Service      | Image                   | Purpose                                                                                            |
-| ------------ | ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `proxy`      | `lictory-proxy`         | Caddy: automatic TLS, routing, security headers, the SPA's hashed files (current and previous)     |
-| `marketing`  | `lictory-marketing`     | Public website; no database, no session                                                            |
-| `api`        | `lictory-api`           | Hono API, Better Auth, Zero query/mutate endpoints, SPA document handler (social-preview metadata) |
-| `worker`     | `lictory-api`           | Background jobs: AI reviews, notification email, delivery exports, automatic cycles                |
-| `zero-cache` | `rocicorp/zero:1.11.2`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume                    |
-| `postgres`   | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                                   |
-| `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before anything else changes                                |
-| `ops`        | `lictory-ops`           | Backups, restores, monitoring; never runs permanently                                              |
+| Service      | Image                   | Purpose                                                                           |
+| ------------ | ----------------------- | --------------------------------------------------------------------------------- |
+| `proxy`      | `lictory-proxy`         | Private app gateway: API, streaming, Zero and retained SPA assets                 |
+| `api`        | `lictory-api`           | Hono API, Better Auth, files, Zero query/mutate endpoints and document metadata   |
+| `worker`     | `lictory-api`           | Durable AI, email and delivery jobs; delivery status refresh and automatic cycles |
+| `zero-cache` | `rocicorp/zero:1.11.2`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume   |
+| `postgres`   | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                  |
+| `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before activation                          |
+| `ops`        | `lictory-ops`           | One-shot backups, restores and monitoring                                         |
+
+The release manifest still includes a marketing image for release-format
+compatibility; it is not a production service and is not pulled by the backend
+controller. Cloudflare builds its own static frontend from the selected tag.
 
 Files bytes stay in private Cloudflare R2 (see
 [private file storage](../internals/file-storage.md)); email goes through Resend.
@@ -40,7 +42,7 @@ OAuth and AI are optional.
 
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
-worker, website and ops tooling also join an egress-only network for external
+worker and ops tooling also join an egress-only network for external
 APIs (R2, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only.
 
@@ -190,14 +192,16 @@ traffic. Staging needs the same three names under `staging.lictory.com`.
 On an empty database a normal release does everything in order: the first
 start of PostgreSQL creates the roles and databases, the migrate service
 applies every migration (including the `lictory_zero` publication), zero-cache
-performs its initial sync, then the proxy, API, worker and website start.
+performs its initial sync, then the proxy, API and worker start. Deploy the
+Cloudflare frontends separately after the compatible backend is healthy.
 
 ```sh
 # from GitHub: Actions → Release to Production → Run workflow (main)
 # or by hand on the server with a release file of digests:
 /srv/lictory/bin/deploy.sh production release < release.env
 /srv/lictory/bin/deploy.sh production status
-systemctl start lictory-backup@production.timer lictory-monitor@production.timer
+# With Openship, enable its saved backup and health jobs (see below).
+# Standalone hosts can instead use the supplied systemd timers, never both.
 ```
 
 Then verify sign-up and email verification, password reset, organization
@@ -217,17 +221,17 @@ the first backup, and a restore drill ([recovery](recovery.md)).
    transactional; see [migrations](migrations.md)), then waits until
    zero-cache has confirmed replication past the migration's WAL position.
 3. **activate**: rolls zero-cache (if its image changed), the proxy (which
-   carries the old and new assets), the API, the worker and the website, each
-   waiting for its health check; verifies `https://<app>/healthz`, the website
-   and a Zero WebSocket upgrade through the proxy; checks that every service
+   carries the old and new assets), the API and the worker, each
+   waiting for its health check; verifies app liveness and a Zero WebSocket
+   upgrade through the private proxy; checks that every service
    runs exactly the release's image; then records the activation. If anything
    fails it restores the previous release's images. The proxy holds requests
    for up to 30 s while the API container is replaced, so API restarts drop
    no requests; replacing the proxy itself refuses connections for about two
    seconds (open WebSockets reconnect).
 
-This is Zero's expand order: database, then API, then client (the API serves
-the client's `index.html`, so they switch together). Contract changes (drop or
+This is Zero's expand order: database, then API, then the Cloudflare client
+release. The private gateway retains compatible SPA assets for origin fallback. Contract changes (drop or
 rename) go the other way across releases: first a release that stops using
 the column, table, query or mutator, then a later release with the contract
 migration. The previous release must always work against the new schema,
@@ -252,11 +256,12 @@ activate a version older than the active one.
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | API liveness / readiness    | `GET /healthz`, `GET /readyz` (container health check uses `/readyz`)                                                     |
 | zero-cache                  | `GET /keepalive` inside the network (health check, monitor)                                                               |
-| Website, proxy              | Container health checks                                                                                                   |
+| Worker, proxy               | Container health checks                                                                                                   |
 | Active version and services | `deploy.sh <env> status [--json]`                                                                                         |
 | Zero diagnostics            | `lictory-compose <env> exec zero-cache sh -c 'curl -su "admin:$ZERO_ADMIN_PASSWORD" localhost:4848/statz'` (never public) |
 
-`lictory-monitor@<env>.timer` runs every five minutes and alerts on disk usage
+The Openship health job (or `lictory-monitor@<env>.timer` on a standalone host)
+runs every five minutes and alerts on public Cloudflare route failures, disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
 overdue notification email, partial, failed or stuck delivery exports,
@@ -265,6 +270,63 @@ posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
 problems changes, every six hours while it persists, and once on recovery, and
 pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
 a server that stopped reporting. Logs rotate at 5 × 20 MB per container.
+
+## Openship production operations
+
+Open **Lictory production → Services** to inspect the five backend services.
+Each service exposes its runtime logs, health, restart count and resource
+usage. The project stays always on; push-to-deploy stays disabled. Only the
+`proxy` service is public, on `app.lictory.com`. Keep the API, worker,
+PostgreSQL and Zero ports private. The edge preserves WebSocket upgrades and
+unbuffered streams with five-minute proxy timeouts.
+
+Use service **Restart** for process recovery. Release, migration and image
+rollback belong to the guarded controller, not a native stack redeploy: the
+controller preserves migration ordering, backup gates and Zero catch-up.
+Use GitHub's manual production release for a new version. The saved rollback
+job switches only application images and requires a previously activated
+version; it never reverses database migrations.
+
+The Openship Jobs view provides:
+
+- **Release status**: active version, digests and service health.
+- **Scheduler status**: worker liveness, LISTEN connection and per-job last
+  success/failure, next run, run count and consecutive failures.
+- **Manual backup** and **Rollback**: explicit operator actions.
+- **Nightly encrypted backup**: `30 2 * * *` UTC, using the private backup R2 bucket.
+- **Health check**: every five minutes, including disk, containers, public routes,
+  replication, queued work and backup freshness.
+
+Enable the Openship schedules or the equivalent systemd timers, never both.
+The engine's continuous health watcher detects crashed/unhealthy services.
+Failure notifications go to the configured email channel; do not enable
+routine success notifications. Docker logs rotate at 5 × 20 MB per container.
+Neither in-server checks nor in-server alerts can report during a total VPS
+outage without an independently configured external monitor.
+
+### Platform scheduling replaces Vercel Cron
+
+The always-running `worker` owns platform scheduling; no public cron endpoint,
+Vercel schedule or duplicate Openship recurring job is needed.
+
+| Activity                  | Trigger / fallback interval                    |
+| ------------------------- | ---------------------------------------------- |
+| AI runs                   | PostgreSQL notification; poll every 30 seconds |
+| Notification email outbox | PostgreSQL notification; poll every 30 seconds |
+| Delivery publishing       | PostgreSQL notification; poll every 30 seconds |
+| Delivery status refresh   | Every 10 minutes                               |
+| Automatic cycles          | Every 5 minutes                                |
+
+Work is durable in PostgreSQL. Leases and fencing make interrupted jobs
+recoverable; retries and notification bursts cannot create concurrent runs
+of one loop. The LISTEN connection reconnects and wakes every loop. Failures
+back off independently. Docker restarts the worker after a crash and on host
+boot; stopping the worker deliberately pauses these activities until it is
+started again. See [background work](../internals/synchronization.md#background-work).
+
+The internal worker `GET /healthz` reports every loop's counters and timing.
+It remains bound to container loopback; read it through the saved **Scheduler
+status** job or an authorized service terminal, never a public route.
 
 ## Microsoft Entra sign-in
 

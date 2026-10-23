@@ -36,7 +36,7 @@ adding domain writes or synchronized entities.
 ## Operations
 
 - [Deployment and operations](./operations/deployment.md): single-server
-  Docker Compose topology, images, environments, first launch and releases
+  Docker Compose topology, Openship operations, worker scheduling, first launch and releases
 - [Websites on Cloudflare](./operations/cloudflare-marketing.md): public domains,
   static HTML, the platform SPA and manually selected stable deployments
 - [Backups and recovery](./operations/recovery.md): backups, restore drills,

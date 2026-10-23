@@ -45,7 +45,10 @@ optional public PostHog settings when enabling analytics.
 The existing migration controller remains responsible for schema changes,
 replication catch-up and activation. Openship can adopt the running stack in
 place for service visibility and provide saved jobs for its operations; a second
-Compose deploy path must not bypass the controller's migration gate.
+Compose deploy path must not bypass the controller's migration gate. The backend
+Compose stack contains no marketing service; marketing and `www` never need a
+Next.js server on the VPS. See [Openship production operations](deployment.md#openship-production-operations)
+for service logs, scheduler status and saved recovery jobs.
 
 When Openship owns public ports 80/443, configure the Compose environment with
 `APP_HOST=app.lictory.com`, `PUBLIC_APP_HOST=app.lictory.com`,

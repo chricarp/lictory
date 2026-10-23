@@ -1,8 +1,7 @@
 # Public entry point for one Lictory environment (deploy/compose.production.yaml).
 #
-#   {$SITE_HOST}  website (apps/marketing)
-#   {$WWW_HOST}   308 to {$SITE_HOST}
 #   {$APP_HOST}   platform: SPA static files, API, document handler, Zero
+# Marketing and the www redirect are served by Cloudflare.
 #
 # scripts/edge-proxy.ts is the local stand-in for the {$APP_HOST} routes; keep
 # both in step. See docs/operations/deployment.md.
@@ -69,35 +68,6 @@
 		transport http {
 			dial_timeout 3s
 			# No response timeout: SSE lives 240 s, AI streams can take minutes.
-		}
-	}
-}
-
-{$PROXY_SCHEME}://{$WWW_HOST} {
-	import access_log
-	redir https://{$SITE_HOST}{uri} 308
-}
-
-{$PROXY_SCHEME}://{$SITE_HOST} {
-	import access_log
-	import common_headers
-	header X-Frame-Options SAMEORIGIN
-
-	@relay path /relay/*
-	@otherBody not path /relay/*
-	request_body @relay {
-		max_size 10MB
-	}
-	request_body @otherBody {
-		max_size 1MB
-	}
-
-	encode zstd gzip
-	reverse_proxy marketing:3000 {
-		lb_try_duration 30s
-		lb_try_interval 250ms
-		transport http {
-			dial_timeout 3s
 		}
 	}
 }
