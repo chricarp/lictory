@@ -93,7 +93,7 @@ export function ChatList({ onNavigate }: { onNavigate?: () => void }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search conversations"
             aria-label="Search conversations"
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground touch:text-base"
           />
           {query && (
             <button
@@ -219,7 +219,7 @@ function ChatRow({
               if (e.key === "Escape") setEditing(false);
             }}
             aria-label="Conversation title"
-            className="h-7 w-full rounded-md border bg-background px-2 text-[13px] outline-none focus:ring-2 focus:ring-ring/40"
+            className="h-7 w-full rounded-md border bg-background px-2 text-[13px] outline-none focus:ring-2 focus:ring-ring/40 touch:text-base"
           />
         </form>
       ) : (

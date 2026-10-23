@@ -456,7 +456,7 @@ export const MarkdownEditor = forwardRef<
           rows={rows}
           spellCheck
           className={cn(
-            "min-h-28 w-full resize-y rounded-[inherit] bg-transparent px-3 pt-3 pb-14 text-[13px] leading-6 outline-none placeholder:text-muted-foreground/70",
+            "min-h-28 w-full resize-y rounded-[inherit] bg-transparent px-3 pt-3 pb-14 text-[13px] leading-6 outline-none placeholder:text-muted-foreground/70 touch:text-base",
             autoResize && "resize-none overflow-y-hidden",
             className,
           )}

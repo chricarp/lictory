@@ -329,7 +329,7 @@ export function Picker<T extends string>({
             placeholder={placeholder}
             autoFocus
             aria-label={title ?? placeholder}
-            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 touch:text-base"
           />
         </div>
       ) : (

@@ -118,7 +118,7 @@ export function EpicPicker({
             placeholder="Search for an epic…"
             autoComplete="off"
             spellCheck={false}
-            className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+            className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
             onFocus={() => {
               setQuery("");
               setActive(0);

@@ -296,7 +296,7 @@ export function IssueList({
             placeholder="Filter…"
             aria-label="Filter by title or identifier"
             className={cn(
-              "h-7 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted",
+              "h-7 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted touch:text-base",
               compact ? "w-24" : "w-32",
             )}
           />

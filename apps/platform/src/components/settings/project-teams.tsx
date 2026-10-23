@@ -150,7 +150,7 @@ function TeamRow({
               disabled={!editable}
               maxLength={60}
               aria-label={`Team name ${t.name}`}
-              className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-[13px] font-semibold outline-none focus:bg-muted enabled:hover:bg-muted"
+              className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-[13px] font-semibold outline-none focus:bg-muted enabled:hover:bg-muted touch:text-base"
               onBlur={(e) => {
                 const name = e.currentTarget.value.trim();
                 if (name && name !== t.name) update({ name });
@@ -169,7 +169,7 @@ function TeamRow({
               editable ? "What this team works on" : "No description"
             }
             aria-label={`Description of ${t.name}`}
-            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-muted enabled:hover:bg-muted"
+            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-muted enabled:hover:bg-muted touch:text-base"
             onBlur={(e) => {
               const description = e.currentTarget.value.trim() || null;
               if (description !== (t.description ?? null))

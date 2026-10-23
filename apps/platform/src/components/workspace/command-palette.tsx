@@ -437,7 +437,7 @@ export function CommandPalette({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search items by ID or title, or type a command…"
             aria-label="Search"
-            className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+            className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
           />
           <Kbd>esc</Kbd>
         </div>

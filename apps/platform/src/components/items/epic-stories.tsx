@@ -313,7 +313,7 @@ export function EpicStories() {
               }}
               placeholder={`${childType?.name ?? "Item"} title — Enter to add another, Esc to finish`}
               aria-label={`New ${childType?.name.toLowerCase() ?? "item"} title`}
-              className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+              className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70 touch:text-base"
             />
             <Button type="submit" size="sm" disabled={!title.trim()}>
               Add
