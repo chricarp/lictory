@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
+/* Text-entry controls use touch:text-base to avoid iOS focus zoom below 16px.
+   Include tablets, landscape phones and devices with both touch and a mouse. */
+@custom-variant touch (@media (any-pointer: coarse));
 
 /* Default (Lictory) palette. Also applied to any element carrying a theme so a
    nested preview never inherits the surrounding page's mode. */
@@ -538,6 +541,16 @@
   a {
     -webkit-tap-highlight-color: transparent;
   }
+  /* Avoid accidental double-tap zoom on controls while retaining scrolling
+     and pinch zoom. Leave document gestures to the browser. */
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
+  }
   ::selection {
     @apply bg-primary/20 text-foreground;
   }
@@ -666,6 +679,14 @@
   border-radius: 8px;
   height: 40px;
   font-size: 14px;
+}
+
+/* This onboarding override sits outside Tailwind's layers, so it must also
+   honor the 16px minimum that prevents iOS focus zoom on touch devices. */
+@media (any-pointer: coarse) {
+  .onboarding input:not([type="checkbox"]) {
+    font-size: max(1rem, 16px);
+  }
 }
 
 /* Landing review demo: autoplay progress and step entrance. */

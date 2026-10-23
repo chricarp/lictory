@@ -366,7 +366,7 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
           onChange={(e) => setSummary(e.target.value)}
           placeholder="What changed? (optional)"
           aria-label="Change summary"
-          className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60"
+          className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"
         />
       )}
       <div className="flex flex-wrap items-center justify-end gap-2">

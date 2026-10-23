@@ -299,7 +299,7 @@ function PersonCombobox({
             placeholder={name ?? "Unassigned"}
             autoComplete="off"
             spellCheck={false}
-            className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+            className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
             onFocus={() => {
               setQuery("");
               setActive(0);

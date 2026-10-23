@@ -638,7 +638,10 @@ function ChipInput({
       maxLength={120}
       size={Math.max(placeholder.length, value.length, 4)}
       onChange={(e) => onChange(e.target.value)}
-      className={cn(chip, "outline-none focus:border-primary/60 focus:bg-card")}
+      className={cn(
+        chip,
+        "outline-none focus:border-primary/60 focus:bg-card touch:text-base",
+      )}
     />
   );
 }
@@ -710,7 +713,7 @@ function CustomSentence({
               onChange={(e) =>
                 onChange({ ...check, description: e.target.value || null })
               }
-              className="mt-0.5 block w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60"
+              className="mt-0.5 block w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 touch:text-base"
             />
           ) : (
             check.description && (
@@ -1039,7 +1042,7 @@ function Review({
             maxLength={500}
             placeholder="Why is this changing? (shown in history)"
             aria-label="Change summary"
-            className="h-8 min-w-48 flex-1 rounded-md border bg-card px-2.5 text-[13px] outline-none focus:border-primary/60"
+            className="h-8 min-w-48 flex-1 rounded-md border bg-card px-2.5 text-[13px] outline-none focus:border-primary/60 touch:text-base"
           />
           <Button variant="ghost" size="md" onClick={onBack}>
             Back

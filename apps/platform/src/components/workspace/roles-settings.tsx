@@ -370,7 +370,7 @@ function Invite({
         <label className="block text-xs text-muted-foreground">
           Invitation email sent. You can also share this link.
           <input
-            className="mt-1.5 w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs"
+            className="mt-1.5 w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs touch:text-base"
             readOnly
             value={url}
             aria-label="Invitation link"

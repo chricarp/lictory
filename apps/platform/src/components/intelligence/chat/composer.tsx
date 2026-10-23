@@ -251,7 +251,7 @@ export const Composer = forwardRef<
         }}
         placeholder={placeholder ?? "Ask Lictory or describe what to do…"}
         aria-label="Message Lictory Intelligence"
-        className="block max-h-60 min-h-[52px] w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed"
+        className="block max-h-60 min-h-[52px] w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed touch:text-base"
       />
       <div className="flex items-center gap-2 px-2.5 pb-2.5">
         {voice.error ? (

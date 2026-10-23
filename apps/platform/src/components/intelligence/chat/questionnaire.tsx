@@ -268,7 +268,7 @@ export function Questionnaire({
                         checked={selected}
                         onChange={() => toggle(option.value)}
                         data-autofocus={i === 0 ? true : undefined}
-                        className="peer sr-only"
+                        className="peer sr-only touch:text-base"
                       />
                       <span
                         aria-hidden
@@ -313,7 +313,7 @@ export function Questionnaire({
                   data-autofocus
                   aria-label={q.prompt}
                   placeholder="Type your answer…"
-                  className="w-full resize-none rounded-xl border bg-background px-3 py-2 text-[13px] outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                  className="w-full resize-none rounded-xl border bg-background px-3 py-2 text-[13px] outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 touch:text-base"
                 />
               ) : (
                 q.allowOther && (
@@ -329,7 +329,7 @@ export function Questionnaire({
                     }
                     aria-label={`Another answer to: ${q.prompt}`}
                     placeholder="Something else…"
-                    className="h-10 w-full rounded-xl border bg-background px-3 text-[13px] outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                    className="h-10 w-full rounded-xl border bg-background px-3 text-[13px] outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 touch:text-base"
                   />
                 )
               )}

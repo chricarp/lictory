@@ -220,7 +220,7 @@ function DisciplineRow({
               disabled={!editable}
               maxLength={60}
               aria-label={`Discipline name ${d.name}`}
-              className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-[13px] font-semibold outline-none focus:bg-muted enabled:hover:bg-muted"
+              className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-[13px] font-semibold outline-none focus:bg-muted enabled:hover:bg-muted touch:text-base"
               onBlur={(e) => {
                 const name = e.currentTarget.value.trim();
                 if (name && name !== d.name) update({ name });
@@ -240,7 +240,7 @@ function DisciplineRow({
             maxLength={500}
             placeholder={editable ? "Add a description" : "No description"}
             aria-label={`Description of ${d.name}`}
-            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-muted enabled:hover:bg-muted"
+            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-muted enabled:hover:bg-muted touch:text-base"
             onBlur={(e) => {
               const description = e.currentTarget.value.trim() || null;
               if (description !== (d.description ?? null))

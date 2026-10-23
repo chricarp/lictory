@@ -74,7 +74,7 @@ export type BranchScreen =
   | { kind: "branch"; id: string }
   | { kind: "pr"; id: string };
 const field =
-  "w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+  "w-full rounded-md border border-input bg-card px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base";
 const decisionLabel = {
   approved: "Approved",
   changes_requested: "Changes requested",

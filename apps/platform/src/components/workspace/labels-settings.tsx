@@ -186,7 +186,7 @@ function LabelRow({
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         aria-label={`Label name ${label.name}`}
         disabled={!canEdit}
-        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none focus:bg-muted enabled:hover:bg-muted"
+        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none focus:bg-muted enabled:hover:bg-muted touch:text-base"
       />
       <span className="text-xs text-muted-foreground tabular-nums">
         {count} item{count === 1 ? "" : "s"}
@@ -317,7 +317,7 @@ function MilestoneRow({
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         aria-label={`Milestone name ${milestone.name}`}
         disabled={!canEdit}
-        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none focus:bg-muted enabled:hover:bg-muted"
+        className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 outline-none focus:bg-muted enabled:hover:bg-muted touch:text-base"
       />
       <input
         type="date"
@@ -325,7 +325,7 @@ function MilestoneRow({
         onChange={(e) => void update({ targetDate: e.target.value || null })}
         aria-label={`Target date for ${milestone.name}`}
         disabled={!canEdit}
-        className="h-7 rounded-md border bg-card px-1 text-xs"
+        className="h-7 rounded-md border bg-card px-1 text-xs touch:text-base"
         title={
           milestone.targetDate
             ? formatDate(milestone.targetDate)
@@ -411,7 +411,7 @@ function NewMilestone({ projectId }: { projectId: string }) {
         value={date}
         onChange={(e) => setDate(e.target.value)}
         aria-label="New milestone target date"
-        className="h-8 rounded-md border bg-card px-2 text-sm"
+        className="h-8 rounded-md border bg-card px-2 text-sm touch:text-base"
       />
       <Button type="submit" variant="secondary" disabled={!name.trim()}>
         Add milestone
