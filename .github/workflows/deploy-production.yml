@@ -133,10 +133,15 @@ jobs:
       - name: Allow the server to pull this workflow's private images
         run: |
           printf '%s\n%s\n' "$GITHUB_ACTOR" "$GH_TOKEN" | \
-            ssh "$DEPLOY_SSH_TARGET" 'production registry-login'
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$DEPLOY_SSH_KNOWN_HOSTS_FILE" -i "$DEPLOY_SSH_KEY_FILE" \
+              "$DEPLOY_SSH_TARGET" 'production registry-login'
       - name: Release the selected source with the clean stable version
         working-directory: control
         run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source
       - name: Remove the temporary registry credential
         if: always()
-        run: ssh "$DEPLOY_SSH_TARGET" 'production registry-logout'
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$DEPLOY_SSH_KNOWN_HOSTS_FILE" -i "$DEPLOY_SSH_KEY_FILE" \
+            "$DEPLOY_SSH_TARGET" 'production registry-logout'
