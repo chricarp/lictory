@@ -63,7 +63,7 @@ const concepts = `## How ${siteName} works
 
 ## Lictory Intelligence
 
-Lictory Intelligence is the optional AI assistant. It finds missing information, contradictions, ambiguity and edge cases, and proposes acceptance criteria, rewrites and delivery decomposition. Its output is always a proposal: people decide what becomes part of the specification, and it never silently rewrites, resolves, approves or publishes. All core collaboration keeps working when it is disabled.`;
+Lictory Intelligence is the umbrella for AI-assisted features, including automated reviews and shared context. Litto is the conversational assistant, powered by Lictory Intelligence and its context. Lictory Intelligence finds missing information, contradictions, ambiguity and edge cases, and proposes acceptance criteria, rewrites and delivery decomposition. Its output is always a proposal: people decide what becomes part of the specification, and it never silently rewrites, resolves, approves or publishes. All core collaboration keeps working when it is disabled.`;
 
 function comparison() {
   const header = `| Capability | ${comparisonProducts.map((p) => p.label).join(" | ")} |`;

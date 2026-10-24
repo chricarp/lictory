@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,8 +18,9 @@ import type {
 } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { createChat } from "@lictory/platform/components/intelligence/chat/chat-instance";
+import { answerMood } from "@lictory/platform/components/intelligence/chat/mood";
 
-// Client state for Lictory Intelligence: the person's conversation list and
+// Client state for Litto: the person's conversation list and
 // one live `Chat` per open conversation. Chats live here, above the routes, so
 // a streaming answer survives navigating between conversations.
 
@@ -37,6 +39,7 @@ type ChatsContextValue = {
   newChat: () => void;
   // Ids whose title just arrived, for the reveal animation.
   freshTitles: Set<string>;
+  unread: Set<string>;
   version: number;
 };
 
@@ -54,11 +57,52 @@ async function readError(response: Response) {
   return body?.error?.message ?? `Request failed (${response.status}).`;
 }
 
+function readUnread(key: string): Set<string> {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return new Set(
+      Array.isArray(stored)
+        ? stored.filter((id): id is string => typeof id === "string")
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 export function ChatsProvider({ children }: { children: ReactNode }) {
-  const { organization } = useWorkspace();
+  const { organization, userId } = useWorkspace();
   const router = useRouter();
   const params = useParams<{ chat?: string }>();
   const activeId = params.chat;
+  const viewing = useRef(activeId);
+  useLayoutEffect(() => {
+    viewing.current = activeId;
+  }, [activeId]);
+  // Read state is a browser preference scoped to this person and workspace.
+  const unreadKey = `lictory:unread-chats:${organization.id}:${userId}`;
+  const [unread, setUnread] = useState(() => readUnread(unreadKey));
+  useEffect(() => {
+    try {
+      localStorage.setItem(unreadKey, JSON.stringify([...unread]));
+    } catch {
+      // Keep the indicators usable when browser storage is unavailable.
+    }
+  }, [unread, unreadKey]);
+  useEffect(() => {
+    const markViewed = () => {
+      if (!activeId || document.visibilityState !== "visible") return;
+      setUnread((current) => {
+        if (!current.has(activeId)) return current;
+        const next = new Set(current);
+        next.delete(activeId);
+        return next;
+      });
+    };
+    markViewed();
+    document.addEventListener("visibilitychange", markViewed);
+    return () => document.removeEventListener("visibilitychange", markViewed);
+  }, [activeId]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -117,8 +161,17 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
           touch(id, { title });
           setFreshTitles((s) => new Set(s).add(id));
         },
-        onFinish: () => {
+        onFinish: ({ message, isAbort, isDisconnect, isError }) => {
           touch(id, { updatedAt: new Date().toISOString() });
+          if (
+            !isAbort &&
+            !isDisconnect &&
+            !isError &&
+            answerMood(message, false) !== "asking" &&
+            (viewing.current !== id || document.visibilityState !== "visible")
+          ) {
+            setUnread((current) => new Set(current).add(id));
+          }
         },
       });
       instances.current.set(id, chat);
@@ -223,6 +276,11 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
         throw new Error(await readError(response));
       }
       instances.current.delete(id);
+      setUnread((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
     },
     [activeId, chats, organization.slug, query, router],
   );
@@ -241,6 +299,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
       remove,
       newChat: () => router.push(paths.intelligence(organization.slug)),
       freshTitles,
+      unread,
       version,
     }),
     [
@@ -256,6 +315,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
       router,
       organization.slug,
       freshTitles,
+      unread,
     ],
   );
   return (

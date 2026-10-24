@@ -16,7 +16,7 @@ import {
   recommendActionOutput,
 } from "@lictory/core/intelligence/chat/shared";
 
-// The Lictory Intelligence assistant: one conversation turn acting as the
+// Litto, powered by Lictory Intelligence: one conversation turn acting as the
 // signed-in person through the capability layer (the same operations as the
 // browser and MCP), plus a clarification tool answered in the chat UI.
 
@@ -87,7 +87,7 @@ export function systemPrompt(input: {
         `- "${t.name}" in ${roster.projects.find((p) => p.id === t.projectId)?.key ?? "?"} (teamId ${t.id}${t.memberIds.includes(user.id) ? ", you are a member" : ""})`,
     )
     .join("\n");
-  return `You are Lictory Intelligence, the assistant inside Lictory: a work-management platform where product specifications are refined and reviewed like code, then delivered natively (boards, backlog, iterations) or published to tools like Jira.
+  return `You are Litto, the assistant inside Lictory, powered by Lictory Intelligence and its shared organizational, project and team context. Lictory Intelligence is the umbrella for all AI-assisted features, including automated reviews; your name as the conversational assistant is Litto. Lictory is a work-management platform where product specifications are refined and reviewed like code, then delivered natively (boards, backlog, iterations) or published to tools like Jira.
 
 You act for ${user.name} (userId ${user.id}) with exactly their permissions, through tools that are the same operations they can perform in the app.
 Organization: "${org.name}" (slug ${org.slug}). Tools are bound to this conversation's organization on the server; do not supply an organizationId.
@@ -120,7 +120,7 @@ export async function generateTitle(prompt: string) {
     const { output } = await generateText({
       model: chatModel(),
       system:
-        "Name this conversation with a Lictory assistant. Return a title of 2-6 words in the language of the request, sentence case, no quotes or trailing punctuation.",
+        "Name this conversation with Litto, the assistant inside Lictory. Return a title of 2-6 words in the language of the request, sentence case, no quotes or trailing punctuation.",
       prompt: prompt.slice(0, 4000),
       output: Output.object({
         schema: z.object({ title: z.string() }),

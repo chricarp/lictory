@@ -10,6 +10,12 @@ a generic AI icon. Code keeps the shorter `ai` prefix (`ai_run`,
 `setAiPolicy`, the `lictory-ai` actor id) because those names are stored in
 history and in the protocol.
 
+**Litto** is the conversational assistant, powered by Lictory Intelligence
+and its shared organization, project and team context. The assistant's page,
+dock and conversations use the Litto name. AI settings, context, automated
+reviews and the non-human review actor remain Lictory Intelligence. The
+assistant name does not change stored identifiers, routes or authorization.
+
 ## Authority
 
 - Lictory Intelligence never writes main, approves, resolves discussions or
@@ -68,15 +74,15 @@ so deterministically, without another model call. Lictory Intelligence opens
 one branch and pull request per affected item and invites the requester as a
 collaborator. It reviews like any other pull request.
 
-People start an item review from the Intelligence dock ("Assess PAY-142") while
+People start an item review from the Litto dock ("Assess PAY-142") while
 the item is open. The dock follows the run and shows its score and top
 findings; the full findings and corrective pull requests open in the item.
 
-## The Intelligence dock
+## The Litto dock
 
-Every workspace page except the Intelligence page has a small dock at the
+Every workspace page except the Litto page has a small dock at the
 bottom (⌘J / Ctrl+J). It opens into a conversation with the same assistant,
-tools and approvals as the Intelligence page, without the history list.
+tools and approvals as the Litto page, without the history list.
 
 - **Page context.** Each message the person sends from the dock carries what
   they were looking at: the page, the project, the open work item, the text
@@ -90,7 +96,7 @@ tools and approvals as the Intelligence page, without the history list.
   board, backlog, inbox and other pages.
 - **Unlisted conversations.** Dock conversations are saved like any chat but
   stay out of the history (`intelligence_chat.listed = false`) until the person
-  opens them on the Intelligence page, which lists them.
+  opens them on the Litto page, which lists them.
 - The dock is absent when Lictory Intelligence is off or unavailable.
 
 ## Lictory Actions
@@ -168,7 +174,7 @@ interface only.
 
 ## Voice dictation
 
-The Lictory Intelligence composer can dictate. Words stream into the draft at the
+The Litto composer can dictate. Words stream into the draft at the
 caret where dictation started, and the person can keep editing while they
 talk. Dictation only fills the draft: nothing is sent until the person sends
 it.

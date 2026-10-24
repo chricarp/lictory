@@ -53,7 +53,7 @@ export function useChatActivity(
   return undefined;
 }
 
-// Lictory Intelligence's expression for a conversation as a whole: what its
+// Litto's expression for a conversation as a whole: what its
 // latest answer is doing, then how the last one ended.
 export function useThreadMood(thread: Thread): IntelligenceMood {
   const done = useAfterglow(thread.busy);

@@ -120,7 +120,7 @@ test("an existing member can create and switch to another organization", async (
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
-  // Switching organizations lands on Lictory Intelligence, the home page.
+  // Switching organizations lands on Litto, the home page.
   await expect(page).toHaveURL(
     new RegExp(`${firstOrganization}/intelligence$`),
   );

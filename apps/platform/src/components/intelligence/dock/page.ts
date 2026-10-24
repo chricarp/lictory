@@ -1,4 +1,4 @@
-// Where the person is, read from the workspace route, for the Intelligence
+// Where the person is, read from the workspace route, for the Litto
 // dock: the label it sends as context and the suggestions it offers there.
 
 export type PageKind =
@@ -22,7 +22,7 @@ export type PageKind =
 
 const labels: Record<PageKind, string> = {
   home: "Home",
-  intelligence: "Lictory Intelligence",
+  intelligence: "Litto",
   inbox: "Inbox",
   settings: "Organization settings",
   account: "Account settings",

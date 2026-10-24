@@ -69,7 +69,7 @@ const notFound = () =>
     status: 404,
   });
 
-// One turn of a Lictory Intelligence conversation, streamed to the browser.
+// One turn of a Litto conversation, streamed to the browser.
 // The stored transcript is authoritative; the browser only adds its newest
 // message. The assistant acts as the signed-in person (surface `agent`), so
 // every tool call is authorized like the same action in the app.
@@ -102,7 +102,7 @@ async function chatTurn(request: Request) {
   } else history.push(incoming);
 
   const ctx = serverContext(
-    { userId: owner.userId, surface: "agent", client: "Lictory Intelligence" },
+    { userId: owner.userId, surface: "agent", client: "Litto" },
     request.headers,
   );
   const tools = assistantTools(ctx, owner.organizationId);
@@ -180,8 +180,8 @@ async function chatTurn(request: Request) {
     },
     onError: (error) =>
       error instanceof Error
-        ? `Lictory Intelligence stopped: ${error.message}`
-        : "Lictory Intelligence stopped unexpectedly. Try again.",
+        ? `Litto stopped: ${error.message}`
+        : "Litto stopped unexpectedly. Try again.",
     onEnd: async ({ messages: final }) => {
       await saveMessages(db, owner, input.id, final).catch((error) =>
         console.error("Saving an Intelligence chat failed", error),

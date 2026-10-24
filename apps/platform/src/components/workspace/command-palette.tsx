@@ -176,10 +176,10 @@ export function CommandPalette({
     list.push(
       {
         id: "intelligence",
-        label: "Ask Lictory Intelligence",
+        label: "Ask Litto",
         group: "Navigate",
         icon: <IntelligenceMark className="size-4" />,
-        keywords: "ai assistant chat",
+        keywords: "ai assistant chat lictory intelligence",
         run: () => {
           if (!aiOn || !dock) return go(paths.intelligence(org));
           onClose();
@@ -188,10 +188,10 @@ export function CommandPalette({
       },
       {
         id: "intelligence-history",
-        label: "Lictory Intelligence conversations",
+        label: "Litto conversations",
         group: "Navigate",
         icon: <IntelligenceMark className="size-4" />,
-        keywords: "ai assistant chat history",
+        keywords: "ai assistant chat history lictory intelligence",
         run: () => go(paths.intelligence(org)),
       },
       {
@@ -344,14 +344,14 @@ export function CommandPalette({
     const matchedCommands = commands.filter(
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
-    // Anything typed can also be a question for Lictory Intelligence.
+    // Anything typed can also be a question for Litto.
     const ask: Item[] =
       q && !parsed && aiOn && dock
         ? [
             {
               id: "ask-intelligence",
-              label: `Ask Lictory Intelligence: “${query.trim()}”`,
-              group: "Lictory Intelligence",
+              label: `Ask Litto: “${query.trim()}”`,
+              group: "Litto",
               icon: <IntelligenceMark className="size-4" />,
               run: () => {
                 onClose();
