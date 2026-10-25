@@ -8,7 +8,7 @@ import {
 
 const interactive = new Set<string>([ASK_QUESTIONS, RECOMMEND_ACTION]);
 
-// What Lictory Intelligence's face shows for one answer: asking while a
+// What Litto's face shows for one answer: asking while a
 // question, recommendation or approval waits for the person (even after the
 // stream ends), working while the answer is being elaborated, and nothing of
 // its own once it is finished.

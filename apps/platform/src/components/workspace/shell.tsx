@@ -642,7 +642,7 @@ function Sidebar({
             active={active(paths.intelligence(org))}
             icon={<IntelligenceMark className="size-4" />}
           >
-            Lictory Intelligence
+            Litto
           </NavLink>
         </div>
         <div>

@@ -59,7 +59,8 @@
     "@next/eslint-plugin-next": {
       "fast-glob": "npm:tinyglobby@0.2.17"
     },
-    "tinypool": "2.2.0"
+    "tinypool": "2.2.0",
+    "undici": "7.30.1"
   },
   "ignoreScripts": [
     "sharp",

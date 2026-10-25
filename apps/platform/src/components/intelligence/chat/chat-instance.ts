@@ -3,6 +3,7 @@ import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithApprovalResponses,
   lastAssistantMessageIsCompleteWithToolCalls,
+  type ChatOnFinishCallback,
   type UIMessage,
 } from "ai";
 import {
@@ -37,7 +38,7 @@ export function createChat(options: {
   surface: "page" | "dock";
   messages?: ChatMessage[];
   onTitle?: (title: string) => void;
-  onFinish?: () => void;
+  onFinish?: ChatOnFinishCallback<ChatMessage>;
 }) {
   const { organizationId, surface } = options;
   return new Chat<ChatMessage>({
@@ -53,6 +54,6 @@ export function createChat(options: {
     onData: (part) => {
       if (part.type === "data-title") options.onTitle?.(part.data.title);
     },
-    onFinish: () => options.onFinish?.(),
+    onFinish: options.onFinish,
   });
 }

@@ -34,7 +34,7 @@ function AiPolicySection() {
         />
       }
       title="Lictory Intelligence"
-      description="Chat, reviews of work items, and the Lictory Intelligence review action on pull requests. It proposes findings and changes; people decide what becomes part of a specification."
+      description="Powers Litto, your assistant, and AI reviews of work items and pull requests, using shared Lictory Intelligence Context. Findings and changes are proposals; people decide what becomes part of a specification."
       action={
         <button
           role="switch"

@@ -56,16 +56,16 @@ there, together with its delivery configuration, in one command. An invited memb
 an unfinished organization waits for an administrator instead of being asked to
 make administrator decisions.
 
-| Decision                            | Why it is needed                                             | Default / later changes                                           |
-| ----------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Organization name                   | Names the shared workspace                                   | Organization settings                                             |
-| Project name and key                | Gives work a home and stable identifiers                     | The name can change; the key is lasting identity                  |
-| Native or Jira Cloud delivery       | Establishes which system owns delivery                       | No default. Project settings; delivery ownership rules apply      |
-| Readiness policy (native only)      | Makes the starting-work gate explicit                        | Warn. Project settings; external export always requires it        |
-| Cadence and estimates (native only) | Defines native delivery behavior                             | No default. Project settings                                      |
-| Automatic cycle schedule            | Establishes cadence before cycles start                      | 2 weeks from Monday. Project settings; needs the server scheduler |
-| Lictory Intelligence                | Allows Lictory Intelligence chat, reviews and proposed fixes | Enabled. Organization settings → Lictory Intelligence             |
-| People to invite                    | Refinement needs engineering and QA in the loop              | Optional. Organization settings → Members                         |
+| Decision                            | Why it is needed                                 | Default / later changes                                           |
+| ----------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| Organization name                   | Names the shared workspace                       | Organization settings                                             |
+| Project name and key                | Gives work a home and stable identifiers         | The name can change; the key is lasting identity                  |
+| Native or Jira Cloud delivery       | Establishes which system owns delivery           | No default. Project settings; delivery ownership rules apply      |
+| Readiness policy (native only)      | Makes the starting-work gate explicit            | Warn. Project settings; external export always requires it        |
+| Cadence and estimates (native only) | Defines native delivery behavior                 | No default. Project settings                                      |
+| Automatic cycle schedule            | Establishes cadence before cycles start          | 2 weeks from Monday. Project settings; needs the server scheduler |
+| Lictory Intelligence                | Allows Litto chat, AI reviews and proposed fixes | Enabled. Organization settings → Lictory Intelligence             |
+| People to invite                    | Refinement needs engineering and QA in the loop  | Optional. Organization settings → Members                         |
 
 Starter types are seeded by Better Auth's organization creation hook; the
 project's workflow, enabled types and Product, Engineering and QA disciplines are

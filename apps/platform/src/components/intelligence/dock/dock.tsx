@@ -152,7 +152,7 @@ const selectionSuggestions: Suggestion[] = [
   },
 ];
 
-// Lictory Intelligence on every workspace page: a small bar that follows what
+// Litto on every workspace page: a small bar that follows what
 // the person is doing (the page, the open item, the text they select) and
 // opens into a conversation that knows that context. Conversations are saved
 // unlisted and can continue on the Intelligence page.
@@ -447,7 +447,7 @@ function Bar({
       ? "Continue the conversation"
       : item
         ? `Ask about ${item.key}`
-        : "Ask Lictory Intelligence";
+        : "Ask Litto";
   // Buttons keep the page's text selection when pressed.
   const keep = (e: React.MouseEvent) => e.preventDefault();
   const [content, width] = useContentWidth();
@@ -697,7 +697,7 @@ function Panel({
       style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
       onKeyDown={onKeyDown}
       role="dialog"
-      aria-label="Lictory Intelligence"
+      aria-label="Litto"
       data-intelligence-dock="panel"
       className={cn(
         "pointer-events-auto flex max-h-[min(680px,calc(100dvh-5rem))] w-[min(600px,100%)] flex-col overflow-hidden rounded-[18px] border bg-popover shadow-[0_1px_2px_oklch(0_0_0/0.06),0_24px_64px_-16px_oklch(0_0_0/0.35)]",
@@ -707,9 +707,12 @@ function Panel({
     >
       <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
         <DockMark chat={chat} review={item?.review} />
-        <span className="mr-auto truncate text-[13px] font-medium">
-          Lictory Intelligence
-        </span>
+        <div className="mr-auto min-w-0">
+          <p className="truncate text-[13px] font-medium">Litto</p>
+          <p className="truncate text-[10px] text-muted-foreground">
+            Powered by Lictory Intelligence
+          </p>
+        </div>
         {chat && <ChatActions chat={chat} onContinue={onContinue} />}
         {chat && (
           <HeaderButton label="New conversation" onClick={onNewChat}>
@@ -855,11 +858,7 @@ function ChatActions({
   if (!messages.length) return null;
   return (
     <HeaderButton
-      label={
-        busy
-          ? "Open in Lictory Intelligence when the answer finishes"
-          : "Open in Lictory Intelligence"
-      }
+      label={busy ? "Open in Litto when the answer finishes" : "Open in Litto"}
       disabled={busy}
       onClick={() => onContinue(chat.id)}
     >
@@ -995,7 +994,7 @@ function Footer({
               ? "Ask about the selection…"
               : item
                 ? `Ask about ${item.key}, or what to change…`
-                : "Ask Lictory or describe what to do…"
+                : "Ask Litto or describe what to do…"
         }
         onSend={(text) => onSend(text)}
         onStop={() => void thread?.stop()}

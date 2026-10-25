@@ -448,7 +448,7 @@ test("joining waits without creating an organization, discovers invitations, and
   });
   await page.getByRole("button", { name: "Check invitations" }).click();
   await page.getByRole("button", { name: "Join", exact: true }).click();
-  // Joining an organization with projects lands on Lictory Intelligence.
+  // Joining an organization with projects lands on Litto.
   await expect(page).toHaveURL(/\/intelligence$/);
   expect(
     await db

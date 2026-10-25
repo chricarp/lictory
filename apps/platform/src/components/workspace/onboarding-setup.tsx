@@ -569,14 +569,14 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                       value: "enabled",
                       title: "Enable Lictory Intelligence",
                       description:
-                        "Chat with Lictory Intelligence, spot gaps and contradictions in its reviews, and get suggested fixes to review changes.",
+                        "Chat with Litto, your assistant powered by Lictory Intelligence, spot gaps and contradictions in AI reviews, and get suggested fixes to review changes.",
                       icon: <IntelligenceMark />,
                     },
                     {
                       value: "disabled",
                       title: "Keep Lictory Intelligence off",
                       description:
-                        "No Lictory Intelligence chat, automated reviews or suggested fixes. Write specs, discuss, review and approve with your team.",
+                        "No Litto assistant, automated reviews or suggested fixes. Write specs, discuss, review and approve with your team.",
                       icon: <Users />,
                     },
                   ]}

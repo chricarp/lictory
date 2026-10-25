@@ -274,7 +274,7 @@ You need four things:
 
 ## How Lictory supports async refinement
 
-Lictory was designed for this cycle: proposals that can start rough, discipline-based review requests, threads anchored to text, suggestions accepted as revisions, revision-bound approvals, durable decisions and readiness checks that update as answers arrive. The optional Lictory Intelligence assistant can point out missing failure behavior or contradictions, but it only proposes; people decide.
+Lictory was designed for this cycle: proposals that can start rough, discipline-based review requests, threads anchored to text, suggestions accepted as revisions, revision-bound approvals, durable decisions and readiness checks that update as answers arrive. Litto, the optional assistant powered by Lictory Intelligence, can point out missing failure behavior or contradictions, but it only proposes; people decide.
 
 The result is not zero meetings. It is meetings only for the questions that genuinely need one.`,
   },

@@ -216,7 +216,7 @@ function OrganizationWorkspace({
   );
 }
 
-// Organization root: Lictory Intelligence is the home page. A brand-new
+// Organization root: Litto is the home page. A brand-new
 // organization without projects first creates its first project.
 export function OrganizationIndex() {
   const { organization, projects, view, isAdmin } = useWorkspace();

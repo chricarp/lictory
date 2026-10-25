@@ -478,7 +478,7 @@ function WorkedFor({
   );
 }
 
-// Lictory Intelligence beside its answer, showing what it is doing.
+// Litto beside its answer, showing what it is doing.
 export function AssistantMark({
   mood,
   active,

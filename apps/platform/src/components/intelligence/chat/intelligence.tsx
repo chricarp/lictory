@@ -49,7 +49,7 @@ import {
 
 const ease = [0.23, 1, 0.32, 1] as const;
 
-// Lictory Intelligence: conversation history beside the active conversation.
+// Litto: conversation history beside the active conversation.
 // Rendered by the route layout so the composer and a streaming answer keep
 // their state while the URL moves from the new-chat page to the chat.
 export function Intelligence() {
@@ -312,7 +312,9 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
 
   return (
     <>
-      <Header toolbar={toolbar} />
+      <Header toolbar={toolbar}>
+        <span className="text-[13px] font-medium">Litto</span>
+      </Header>
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-16">
         <div
           aria-hidden
@@ -334,8 +336,11 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
               {greeting(me?.name ?? "")}
             </h1>
             <p className="mt-1.5 text-[14px] text-muted-foreground">
-              Ask about your work, or tell Lictory what to create, refine or
+              Ask Litto about your work, or say what to create, refine or
               update.
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Powered by Lictory Intelligence and your workspace context.
             </p>
           </motion.div>
           {ai.ok ? (
@@ -519,9 +524,7 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
               busy={busy}
               disabled={pendingQuestion}
               placeholder={
-                pendingQuestion
-                  ? "Answer above to continue"
-                  : "Reply to Lictory…"
+                pendingQuestion ? "Answer above to continue" : "Reply to Litto…"
               }
               onSend={(text) => void sendMessage({ text })}
               onStop={() => void stop()}
@@ -532,8 +535,8 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
             <AiUnavailable message={ai.message} action={ai.action} />
           )}
           <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
-            Lictory Intelligence can be wrong. Decisions, approvals and
-            publishing always stay with people.
+            Litto can be wrong. Decisions, approvals and publishing always stay
+            with people.
           </p>
         </motion.div>
       </div>

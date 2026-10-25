@@ -126,7 +126,7 @@ export function ChatList({ onNavigate }: { onNavigate?: () => void }) {
         {loaded && !chats.length && !listError && (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
             <MessageSquare className="size-5 opacity-60" aria-hidden />
-            Your conversations with Lictory Intelligence appear here.
+            Your conversations with Litto appear here.
           </div>
         )}
         {loaded && chats.length > 0 && !groups.length && (
@@ -182,7 +182,8 @@ function ChatRow({
   onNavigate?: () => void;
 }) {
   const { organization } = useWorkspace();
-  const { rename, setPinned, remove, freshTitles, chatFor } = useChats();
+  const { rename, setPinned, remove, freshTitles, chatFor, unread } =
+    useChats();
   const live = chatFor(chat.id);
   const { toast } = useShell();
   const reduce = useReducedMotion();
@@ -267,9 +268,13 @@ function ChatRow({
             </motion.span>
           </AnimatePresence>
           {live ? (
-            <LiveStatus chat={live} />
+            <LiveStatus chat={live} unread={unread.has(chat.id)} />
           ) : (
-            chat.awaitingInput && <ActivityIndicator activity="waiting" />
+            (chat.awaitingInput || unread.has(chat.id)) && (
+              <ActivityIndicator
+                activity={chat.awaitingInput ? "waiting" : "unread"}
+              />
+            )
           )}
         </Link>
       )}
@@ -330,19 +335,28 @@ function ChatRow({
   );
 }
 
-function LiveStatus({ chat }: { chat: Chat<ChatMessage> }) {
-  const activity = useChatActivity(chat);
+function LiveStatus({
+  chat,
+  unread,
+}: {
+  chat: Chat<ChatMessage>;
+  unread: boolean;
+}) {
+  const activity = useChatActivity(chat) ?? (unread ? "unread" : undefined);
   return activity ? <ActivityIndicator activity={activity} /> : null;
 }
 
-const activityLabel: Record<ChatActivity, string> = {
+type ListActivity = ChatActivity | "unread";
+
+const activityLabel: Record<ListActivity, string> = {
   working: "Working",
   waiting: "Waiting for your input",
   failed: "Stopped with an error",
+  unread: "Unread response",
 };
 
 // Sits where the row's actions appear, and gives way to them on hover.
-function ActivityIndicator({ activity }: { activity: ChatActivity }) {
+function ActivityIndicator({ activity }: { activity: ListActivity }) {
   return (
     <span
       role="status"
@@ -361,7 +375,9 @@ function ActivityIndicator({ activity }: { activity: ChatActivity }) {
             "size-2 rounded-full",
             activity === "waiting"
               ? "bg-warning shadow-[0_0_0_3px_color-mix(in_oklch,var(--warning)_22%,transparent)]"
-              : "bg-destructive",
+              : activity === "failed"
+                ? "bg-destructive"
+                : "bg-primary",
           )}
         />
       )}
