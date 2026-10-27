@@ -716,9 +716,6 @@ function Panel({
         <DockMark chat={chat} review={item?.review} />
         <div className="mr-auto min-w-0">
           <p className="truncate text-[13px] font-medium">Litto</p>
-          <p className="truncate text-[10px] text-muted-foreground">
-            Powered by Lictory Intelligence
-          </p>
         </div>
         {chat && <ChatActions chat={chat} onContinue={onContinue} />}
         {chat && (

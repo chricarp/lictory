@@ -12,6 +12,9 @@ import { seedWorkspace, signIn, withDb } from "../helpers/seed";
 
 // The conversation list shows which conversations are still working and which
 // wait for the person, including unread replies completed in the background.
+// Working and waiting hide on the open conversation and return on another one.
+// A finished turn (completed, failed) and an unread reply clear once its
+// messages are on screen, and stay cleared.
 
 const question = (title: string) => ({
   title,
@@ -171,16 +174,22 @@ for (const [index, outcome] of (
     await expect(row(page, "Greeting").getByRole("status")).toHaveCount(0);
 
     await row(page, "Refund limits").click();
+    // Pending input is part of the open conversation, so the row icon yields.
+    await expect(row(page, "Refund limits").getByRole("status")).toHaveCount(0);
     await page.getByRole("button", { name: "Dismiss questions" }).click();
 
     // The person moves on while the answer is still being worked on.
     if (outcome !== "viewed") {
       await row(page, "Greeting").click();
       await expect(page).toHaveURL(new RegExp(`/intelligence/${other}$`));
+      await expect(row(page, "Refund limits").getByRole("status")).toHaveText(
+        "Working",
+      );
+    } else {
+      await expect(row(page, "Refund limits").getByRole("status")).toHaveCount(
+        0,
+      );
     }
-    await expect(row(page, "Refund limits").getByRole("status")).toHaveText(
-      "Working",
-    );
 
     release();
     const status = row(page, "Refund limits").getByRole("status");
@@ -190,9 +199,12 @@ for (const [index, outcome] of (
           exact: true,
         }),
       ).toBeVisible();
-      await expect(status).toHaveText("Completed");
+      // The resolved turn was read here, so the checkmark does not stick.
+      await expect(status).toHaveCount(0);
       await row(page, "Greeting").click();
-      await expect(status).toHaveText("Completed");
+      await expect(status).toHaveCount(0);
+      await page.reload();
+      await expect(status).toHaveCount(0);
     } else {
       await expect(status).toHaveText(
         outcome === "waiting"
@@ -224,10 +236,31 @@ for (const [index, outcome] of (
           exact: true,
         }),
       ).toBeVisible();
-      await expect(status).toHaveText("Completed");
+      await expect(status).toHaveCount(0);
       await row(page, "Greeting").click();
       await page.reload();
-      await expect(status).toHaveText("Completed");
+      await expect(status).toHaveCount(0);
+    }
+
+    if (outcome === "waiting") {
+      await row(page, "Refund limits").click();
+      await expect(
+        page.getByText("Refund currency", { exact: true }),
+      ).toBeVisible();
+      await expect(status).toHaveCount(0);
+      await row(page, "Greeting").click();
+      await expect(status).toHaveText("Waiting for your input");
+    }
+
+    if (outcome === "failed") {
+      await row(page, "Refund limits").click();
+      await expect(
+        page.getByText("The provider is unavailable."),
+      ).toBeVisible();
+      await expect(status).toHaveCount(0);
+      await row(page, "Greeting").click();
+      await page.reload();
+      await expect(status).toHaveCount(0);
     }
   });
 }
