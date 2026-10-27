@@ -183,7 +183,27 @@ export type ChatMetadata = {
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts>;
 
+export type ChatRunState =
+  "queued" | "running" | "waiting" | "completed" | "canceled" | "failed";
+export type ChatRunSummary = {
+  id: string;
+  requestId?: string;
+  status: ChatRunState;
+  error: string | null;
+  updatedAt: string;
+};
+export type ChatSnapshot = {
+  version?: number;
+  chat: { id: string; title: string | null; pinned: boolean } | null;
+  messages: ChatMessage[];
+  run: ChatRunSummary | null;
+};
+export type ChatResponse =
+  | { toolCallId: string; output: unknown }
+  | { approvalId: string; approved: boolean };
+
 export type ChatSummary = {
+  version?: number;
   id: string;
   title: string | null;
   pinned: boolean;
@@ -193,4 +213,7 @@ export type ChatSummary = {
   // The stored transcript ends on a question, recommendation or approval
   // that waits for the person.
   awaitingInput: boolean;
+  // An answer is still being produced on the server.
+  running: boolean;
+  run?: ChatRunSummary | null;
 };

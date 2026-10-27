@@ -78,6 +78,53 @@ People start an item review from the Litto dock ("Assess PAY-142") while
 the item is open. The dock follows the run and shows its score and top
 findings; the full findings and corrective pull requests open in the item.
 
+## Litto conversations
+
+A conversation is private to its owner in one organization. Its execution is
+stored in PostgreSQL, outside Zero's publication. API instances accept messages,
+answers, approvals, retries and cancellations; workers execute the saved turns.
+The browser reads saved snapshots every few seconds and when it reconnects.
+Neither a browser connection nor an API process owns an answer. Snapshots carry
+a monotonically increasing chat version; delayed reads cannot overwrite newer
+accepted input or progress.
+
+A turn is queued, running, waiting for input, completed, canceled or failed.
+The submitted message, execution record and input receipt commit together.
+Retries of the same request replay the receipt; reuse with a different payload
+is rejected. A database constraint allows only one active turn per conversation,
+including waiting turns. An input response targets one saved tool call or
+approval; the client cannot replace the assistant transcript or its arguments.
+Concurrent responses are serialized and consumed once. Waiting releases the
+worker and has no execution deadline: the question remains until answered or
+canceled. This applies to dock conversations as well as the full page.
+
+Workers claim turns with a renewable lease, check current organization access
+and AI policy, and recheck domain permissions on every tool execution. A lost
+worker's lease expires after one minute; available workers recover it on their
+next poll. Ownership tokens fence checkpoint writes from replaced workers.
+Provider calls and attempts have deadlines even if an adapter ignores abort.
+Repeated crashes exhaust a bounded attempt budget and become a visible failure.
+Graceful shutdown queues the last completed checkpoint for another worker.
+
+Partial text is saved about once per second. Only a completed model step is a
+recovery checkpoint; recovery can replace unfinished text while preserving
+completed steps, human responses and decisions. Model steps never execute tools
+automatically. Tool identities and arguments commit first; stable mutation IDs
+reuse the existing workspace mutation receipts. Tool results are saved before
+continuing the model. If a command commits before its result is recorded,
+recovery repeats the same mutation ID, preserving its original entity IDs.
+Actions without safe replay semantics fail with an explicit uncertain-outcome
+message when their worker disappears. They must be inspected before another
+action is requested. Retry never grants a new approval or blindly repeats them.
+
+Stop is addressed to one run and its current submission or retry request ID,
+and recorded durably even when it arrives before submission. A delayed Stop
+cannot cancel a later retry, and retry explicitly identifies the turn it resumes. It prevents further steps; an external action already started
+may still finish. Deleting a conversation removes its runs and prevents their
+workers from writing more progress. Historical transcripts remain readable;
+legacy questions acquire a durable run when answered, and earlier turns ending
+on a user message expose an interrupted state with Retry.
+
 ## The Litto dock
 
 Every workspace page except the Litto page has a small dock at the

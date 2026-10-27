@@ -1,4 +1,4 @@
-import { useChat, type Chat } from "@ai-sdk/react";
+import { useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import {
@@ -9,14 +9,19 @@ import { Button } from "@lictory/ui/button";
 import {
   ASK_QUESTIONS,
   RECOMMEND_ACTION,
-  type ChatMessage,
 } from "@lictory/core/intelligence/chat/shared";
+import type { LittoChat } from "@lictory/platform/components/intelligence/chat/chat-instance";
 import { MessageView } from "@lictory/platform/components/intelligence/chat/message";
 import { answerMood } from "@lictory/platform/components/intelligence/chat/mood";
 
-// One live conversation as the page and the dock both show it.
-export function useThread(chat: Chat<ChatMessage>) {
-  const state = useChat<ChatMessage>({ chat, experimental_throttle: 40 });
+// One live conversation as the page and the dock both show it. Messages and
+// run status come from the saved snapshot the client polls while subscribed.
+export function useThread(chat: LittoChat) {
+  const state = useSyncExternalStore(
+    chat.subscribe,
+    chat.getSnapshot,
+    chat.getSnapshot,
+  );
   const busy = state.status === "submitted" || state.status === "streaming";
   // A clarification or recommendation waits for the person: the composer
   // pauses until they answer it.
@@ -24,34 +29,29 @@ export function useThread(chat: Chat<ChatMessage>) {
     .at(-1)
     ?.parts.some(
       (p) =>
-        (p.type === `tool-${ASK_QUESTIONS}` ||
-          p.type === `tool-${RECOMMEND_ACTION}`) &&
         "state" in p &&
-        p.state === "input-available",
+        (p.state === "approval-requested" ||
+          ((p.type === `tool-${ASK_QUESTIONS}` ||
+            p.type === `tool-${RECOMMEND_ACTION}`) &&
+            p.state === "input-available")),
     );
-  return { ...state, busy, pendingQuestion };
+
+  return {
+    ...state,
+    busy,
+    pendingQuestion,
+    sendMessage: chat.sendMessage,
+    stop: chat.stop,
+    regenerate: chat.regenerate,
+    addToolOutput: chat.addToolOutput,
+    addToolApprovalResponse: chat.addToolApprovalResponse,
+    clearError: chat.clearError,
+  };
 }
 export type Thread = ReturnType<typeof useThread>;
 
-// What a conversation needs from the person, for lists that show many at
-// once: still working, waiting for an answer or approval, or stopped on an
-// error. Subscribes with a coarse throttle, since a list only needs the state.
-export type ChatActivity = "working" | "waiting" | "failed";
-export function useChatActivity(
-  chat: Chat<ChatMessage>,
-): ChatActivity | undefined {
-  const { status, messages, error } = useChat<ChatMessage>({
-    chat,
-    experimental_throttle: 250,
-  });
-  const busy = status === "submitted" || status === "streaming";
-  const last = messages.at(-1);
-  const mood = last?.role === "assistant" ? answerMood(last, busy) : undefined;
-  if (mood === "asking") return "waiting";
-  if (busy) return "working";
-  if (error) return "failed";
-  return undefined;
-}
+export type ChatActivity =
+  "working" | "waiting" | "failed" | "completed" | "canceled";
 
 // Litto's expression for a conversation as a whole: what its
 // latest answer is doing, then how the last one ended.
@@ -72,10 +72,13 @@ export function ThreadMessages({ thread }: { thread: Thread }) {
     status,
     error,
     busy,
+    canRetry,
     regenerate,
     addToolOutput,
     addToolApprovalResponse,
     clearError,
+    pendingQuestion,
+    stop,
   } = thread;
   return (
     <>
@@ -88,14 +91,14 @@ export function ThreadMessages({ thread }: { thread: Thread }) {
           failed={!!error && i === messages.length - 1}
           onAnswer={(toolCallId, output) =>
             void addToolOutput({
-              tool: ASK_QUESTIONS as never,
+              tool: ASK_QUESTIONS,
               toolCallId,
               output,
             })
           }
           onDecide={(toolCallId, output) =>
             void addToolOutput({
-              tool: RECOMMEND_ACTION as never,
+              tool: RECOMMEND_ACTION,
               toolCallId,
               output,
             })
@@ -104,7 +107,7 @@ export function ThreadMessages({ thread }: { thread: Thread }) {
             void addToolApprovalResponse({ id: approvalId, approved })
           }
           onRegenerate={
-            i === messages.length - 1 && !busy
+            i === messages.length - 1 && !busy && canRetry
               ? () => void regenerate()
               : undefined
           }
@@ -126,6 +129,15 @@ export function ThreadMessages({ thread }: { thread: Thread }) {
           />
         </motion.div>
       )}
+      {pendingQuestion && !busy && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => void stop().catch(() => undefined)}
+        >
+          Cancel this turn
+        </Button>
+      )}
       <AnimatePresence>
         {error && (
           <motion.div
@@ -140,16 +152,18 @@ export function ThreadMessages({ thread }: { thread: Thread }) {
               aria-hidden
             />
             <p className="min-w-0 flex-1">{readableError(error)}</p>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                clearError();
-                void regenerate();
-              }}
-            >
-              <RotateCcw className="size-3.5" /> Retry
-            </Button>
+            {canRetry && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  clearError();
+                  void regenerate();
+                }}
+              >
+                <RotateCcw className="size-3.5" /> Retry
+              </Button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
