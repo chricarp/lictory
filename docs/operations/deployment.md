@@ -239,6 +239,14 @@ migration. The previous release must always work against the new schema,
 because a rollback never reverts it. Separate Zero version upgrades from
 schema changes; upgrade zero-cache before the client.
 
+When first upgrading from API-owned Litto streams to durable chat runs, let the
+old API finish its active conversations before replacing it and reload existing
+Litto tabs after activation. In-memory work from the old version cannot be
+recovered by the new worker. Historical saved questions remain answerable and
+unsaved answers appear as interrupted with Retry. Subsequent durable runs survive
+API replacement and recover after worker lease expiry; keep at least one healthy
+worker running when rolling multiple instances.
+
 ## Rollback
 
 ```sh

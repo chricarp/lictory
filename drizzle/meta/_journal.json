@@ -141,6 +141,13 @@
       "when": 1792671402583,
       "tag": "0019_drop_change_log",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793133056467,
+      "tag": "0020_durable_litto_runs",
+      "breakpoints": true
     }
   ]
 }

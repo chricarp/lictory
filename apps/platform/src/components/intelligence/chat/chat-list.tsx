@@ -1,7 +1,7 @@
-import type { Chat } from "@ai-sdk/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
+  Check,
   MessageSquare,
   MoreHorizontal,
   PenLine,
@@ -16,17 +16,12 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Popover } from "@lictory/ui/popover";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import type {
-  ChatMessage,
-  ChatSummary,
-} from "@lictory/core/intelligence/chat/shared";
+import type { ChatSummary } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import { summaryActivity } from "@lictory/platform/components/intelligence/chat/chat-instance";
 import { useChats } from "@lictory/platform/components/intelligence/chat/provider";
-import {
-  useChatActivity,
-  type ChatActivity,
-} from "@lictory/platform/components/intelligence/chat/thread";
+import type { ChatActivity } from "@lictory/platform/components/intelligence/chat/thread";
 
 const DAY = 86_400_000;
 
@@ -182,9 +177,7 @@ function ChatRow({
   onNavigate?: () => void;
 }) {
   const { organization } = useWorkspace();
-  const { rename, setPinned, remove, freshTitles, chatFor, unread } =
-    useChats();
-  const live = chatFor(chat.id);
+  const { rename, setPinned, remove, freshTitles, unread } = useChats();
   const { toast } = useShell();
   const reduce = useReducedMotion();
   const [editing, setEditing] = useState(false);
@@ -267,15 +260,7 @@ function ChatRow({
               {label}
             </motion.span>
           </AnimatePresence>
-          {live ? (
-            <LiveStatus chat={live} unread={unread.has(chat.id)} />
-          ) : (
-            (chat.awaitingInput || unread.has(chat.id)) && (
-              <ActivityIndicator
-                activity={chat.awaitingInput ? "waiting" : "unread"}
-              />
-            )
-          )}
+          <RowActivity chat={chat} unread={unread.has(chat.id)} />
         </Link>
       )}
       {!editing && (
@@ -335,14 +320,12 @@ function ChatRow({
   );
 }
 
-function LiveStatus({
-  chat,
-  unread,
-}: {
-  chat: Chat<ChatMessage>;
-  unread: boolean;
-}) {
-  const activity = useChatActivity(chat) ?? (unread ? "unread" : undefined);
+function RowActivity({ chat, unread }: { chat: ChatSummary; unread: boolean }) {
+  const saved = summaryActivity(chat);
+  const activity =
+    saved === "completed" && unread
+      ? "unread"
+      : (saved ?? (unread ? "unread" : undefined));
   return activity ? <ActivityIndicator activity={activity} /> : null;
 }
 
@@ -352,6 +335,8 @@ const activityLabel: Record<ListActivity, string> = {
   working: "Working",
   waiting: "Waiting for your input",
   failed: "Stopped with an error",
+  completed: "Completed",
+  canceled: "Canceled",
   unread: "Unread response",
 };
 
@@ -368,6 +353,8 @@ function ActivityIndicator({ activity }: { activity: ListActivity }) {
           aria-hidden
           className="size-3 animate-spin rounded-full border-[1.5px] border-primary/25 border-t-primary [animation-duration:0.9s] motion-reduce:animate-none"
         />
+      ) : activity === "completed" ? (
+        <Check className="size-3.5 text-muted-foreground" aria-hidden />
       ) : (
         <span
           aria-hidden
@@ -375,9 +362,11 @@ function ActivityIndicator({ activity }: { activity: ListActivity }) {
             "size-2 rounded-full",
             activity === "waiting"
               ? "bg-warning shadow-[0_0_0_3px_color-mix(in_oklch,var(--warning)_22%,transparent)]"
-              : activity === "failed"
-                ? "bg-destructive"
-                : "bg-primary",
+              : activity === "canceled"
+                ? "bg-muted-foreground/50"
+                : activity === "failed"
+                  ? "bg-destructive"
+                  : "bg-primary",
           )}
         />
       )}
