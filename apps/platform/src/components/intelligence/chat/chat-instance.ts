@@ -301,6 +301,66 @@ export function summaryActivity(
   return undefined;
 }
 
+const TERMINAL_OUTCOME = new Set(["completed", "failed", "canceled"]);
+
+export type SidebarActivity =
+  "working" | "waiting" | "failed" | "completed" | "canceled" | "unread";
+
+// Which icon a conversation row shows.
+// Working and waiting are still in progress: hidden on the open conversation,
+// shown again from any other one. A finished turn and an unread reply stay
+// until that outcome has been seen, then they stay gone.
+export function sidebarActivity(input: {
+  chat: Pick<ChatSummary, "running" | "awaitingInput" | "run">;
+  open: boolean;
+  unread: boolean;
+  // The finished outcome already seen for this conversation, if any.
+  seenRun: { id: string; status: string } | null;
+}): SidebarActivity | undefined {
+  if (input.open) return undefined;
+  const activity = summaryActivity(input.chat);
+  const runId = input.chat.run?.id ?? null;
+  const seen =
+    runId !== null &&
+    activity !== undefined &&
+    input.seenRun?.id === runId &&
+    input.seenRun.status === activity &&
+    TERMINAL_OUTCOME.has(activity);
+  if (activity === "working" || activity === "waiting") return activity;
+  if (seen) return undefined;
+  if (activity === "failed" || activity === "canceled") return activity;
+  if (activity === "completed") return input.unread ? "unread" : "completed";
+  if (input.unread) return "unread";
+  return undefined;
+}
+
+export type RenderedOutcome = {
+  id: string;
+  status: "completed" | "failed" | "canceled";
+  updatedAt: string;
+};
+
+// The finished outcome to remember once this transcript is on screen, or null
+// when the transcript is still catching up to a newer listed turn. Status is
+// part of the identity: seeing a failure must not hide a later success.
+export function seenOutcome(input: {
+  rendered: RenderedOutcome | null;
+  listed: { id: string; status: string; updatedAt: string } | null;
+}): { id: string; status: RenderedOutcome["status"] } | null {
+  const rendered = input.rendered;
+  if (!rendered) return null;
+  const listed = input.listed;
+  const outcome = { id: rendered.id, status: rendered.status };
+  if (!listed) return outcome;
+  if (listed.id === rendered.id) {
+    if (!TERMINAL_OUTCOME.has(listed.status)) return outcome;
+    return listed.status === rendered.status ? outcome : null;
+  }
+  const renderedAt = Date.parse(rendered.updatedAt);
+  const listedAt = Date.parse(listed.updatedAt);
+  return renderedAt > listedAt ? outcome : null;
+}
+
 export class LittoChat {
   readonly id: string;
   private readonly organizationId: string;
@@ -370,6 +430,19 @@ export class LittoChat {
   };
 
   getSnapshot = () => this.view;
+
+  // The settled turn currently rendered, after a snapshot has been absorbed.
+  // Null while a turn is still running or waiting, or before the first snapshot.
+  renderedOutcome(): RenderedOutcome | null {
+    if (!this.seen || this.messages.length === 0) return null;
+    const run = this.localRun ?? this.serverRun;
+    if (!run || !TERMINAL_OUTCOME.has(run.status)) return null;
+    return {
+      id: run.id,
+      status: run.status as RenderedOutcome["status"],
+      updatedAt: run.updatedAt,
+    };
+  }
 
   // The first saved view. A run that is already finished was not watched here,
   // so it does not count as a completion the person missed.
@@ -848,11 +921,14 @@ export class LittoChat {
   }
 
   private sign(view: ChatView) {
+    const run = this.localRun ?? this.serverRun;
     return JSON.stringify({
       messages: view.messages,
       status: view.status,
       error: view.error?.message ?? null,
       canRetry: view.canRetry,
+      // So a turn that settles without changing the text still notifies.
+      outcome: run ? [run.id, run.status] : null,
     });
   }
 

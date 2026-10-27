@@ -19,9 +19,11 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type { ChatSummary } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
-import { summaryActivity } from "@lictory/platform/components/intelligence/chat/chat-instance";
+import {
+  sidebarActivity,
+  type SidebarActivity,
+} from "@lictory/platform/components/intelligence/chat/chat-instance";
 import { useChats } from "@lictory/platform/components/intelligence/chat/provider";
-import type { ChatActivity } from "@lictory/platform/components/intelligence/chat/thread";
 
 const DAY = 86_400_000;
 
@@ -177,7 +179,8 @@ function ChatRow({
   onNavigate?: () => void;
 }) {
   const { organization } = useWorkspace();
-  const { rename, setPinned, remove, freshTitles, unread } = useChats();
+  const { rename, setPinned, remove, freshTitles, unread, seenRuns } =
+    useChats();
   const { toast } = useShell();
   const reduce = useReducedMotion();
   const [editing, setEditing] = useState(false);
@@ -260,7 +263,12 @@ function ChatRow({
               {label}
             </motion.span>
           </AnimatePresence>
-          <RowActivity chat={chat} unread={unread.has(chat.id)} />
+          <RowActivity
+            chat={chat}
+            open={active}
+            unread={unread.has(chat.id)}
+            seenRun={seenRuns.get(chat.id) ?? null}
+          />
         </Link>
       )}
       {!editing && (
@@ -320,18 +328,22 @@ function ChatRow({
   );
 }
 
-function RowActivity({ chat, unread }: { chat: ChatSummary; unread: boolean }) {
-  const saved = summaryActivity(chat);
-  const activity =
-    saved === "completed" && unread
-      ? "unread"
-      : (saved ?? (unread ? "unread" : undefined));
+function RowActivity({
+  chat,
+  open,
+  unread,
+  seenRun,
+}: {
+  chat: ChatSummary;
+  open: boolean;
+  unread: boolean;
+  seenRun: { id: string; status: string } | null;
+}) {
+  const activity = sidebarActivity({ chat, open, unread, seenRun });
   return activity ? <ActivityIndicator activity={activity} /> : null;
 }
 
-type ListActivity = ChatActivity | "unread";
-
-const activityLabel: Record<ListActivity, string> = {
+const activityLabel: Record<SidebarActivity, string> = {
   working: "Working",
   waiting: "Waiting for your input",
   failed: "Stopped with an error",
@@ -341,7 +353,7 @@ const activityLabel: Record<ListActivity, string> = {
 };
 
 // Sits where the row's actions appear, and gives way to them on hover.
-function ActivityIndicator({ activity }: { activity: ListActivity }) {
+function ActivityIndicator({ activity }: { activity: SidebarActivity }) {
   return (
     <span
       role="status"

@@ -8,6 +8,8 @@ import {
   CHAT_POLL_MS,
   ConnectivityError,
   createChat,
+  seenOutcome,
+  sidebarActivity,
   startVisiblePolling,
   summaryActivity,
   type LittoChat,
@@ -501,6 +503,194 @@ void test("sidebar activity comes from the summary", () => {
     summaryActivity({ running: false, awaitingInput: false }),
     undefined,
   );
+});
+
+const icon = (
+  run: {
+    id: string;
+    status:
+      "queued" | "running" | "waiting" | "completed" | "failed" | "canceled";
+  } | null,
+  flags: {
+    open?: boolean;
+    unread?: boolean;
+    seenRun?: { id: string; status: string } | null;
+    running?: boolean;
+    awaitingInput?: boolean;
+  } = {},
+) =>
+  sidebarActivity({
+    chat: {
+      running: flags.running ?? false,
+      awaitingInput: flags.awaitingInput ?? false,
+      run: run
+        ? { ...run, error: null, updatedAt: "2026-10-27T12:00:00.000Z" }
+        : null,
+    },
+    open: flags.open ?? false,
+    unread: flags.unread ?? false,
+    seenRun: flags.seenRun ?? null,
+  });
+
+void test("sidebar icons follow whether the conversation is open and seen", () => {
+  const working = { id: "run-1", status: "running" as const };
+  const waiting = { id: "run-1", status: "waiting" as const };
+  const done = { id: "run-1", status: "completed" as const };
+  const failed = { id: "run-1", status: "failed" as const };
+
+  assert.equal(icon(working, { running: true }), "working");
+  assert.equal(icon(working, { running: true, open: true }), undefined);
+  assert.equal(icon(waiting, { awaitingInput: true }), "waiting");
+  assert.equal(icon(waiting, { awaitingInput: true, open: true }), undefined);
+  // In progress comes back on the next conversation; seeing it does not retire it.
+  assert.equal(
+    icon(waiting, {
+      awaitingInput: true,
+      seenRun: { id: "run-1", status: "waiting" },
+    }),
+    "waiting",
+  );
+
+  assert.equal(icon(done), "completed");
+  assert.equal(icon(done, { unread: true }), "unread");
+  assert.equal(icon(done, { open: true }), undefined);
+  assert.equal(
+    icon(done, { seenRun: { id: "run-1", status: "completed" } }),
+    undefined,
+  );
+  assert.equal(
+    icon(done, {
+      unread: true,
+      seenRun: { id: "run-1", status: "completed" },
+    }),
+    undefined,
+  );
+  // Seeing the failure does not hide the later success of the same turn.
+  assert.equal(
+    icon(done, { seenRun: { id: "run-1", status: "failed" } }),
+    "completed",
+  );
+  // A later turn is a new outcome.
+  assert.equal(
+    icon(
+      { id: "run-2", status: "completed" },
+      { seenRun: { id: "run-1", status: "completed" }, unread: true },
+    ),
+    "unread",
+  );
+
+  assert.equal(icon(failed), "failed");
+  assert.equal(icon(failed, { open: true }), undefined);
+  assert.equal(
+    icon(failed, { seenRun: { id: "run-1", status: "failed" } }),
+    undefined,
+  );
+  assert.equal(
+    icon(
+      { id: "run-2", status: "failed" },
+      { seenRun: { id: "run-1", status: "failed" } },
+    ),
+    "failed",
+  );
+  assert.equal(
+    icon(
+      { id: "run-1", status: "canceled" },
+      { seenRun: { id: "run-1", status: "canceled" } },
+    ),
+    undefined,
+  );
+
+  assert.equal(icon(null, { unread: true }), "unread");
+  assert.equal(icon(null, { unread: true, open: true }), undefined);
+});
+
+void test("a seen outcome is the finished turn actually on screen", () => {
+  const done = {
+    id: "run-2",
+    status: "completed" as const,
+    updatedAt: "2026-10-27T12:02:00.000Z",
+  };
+  const outcome = { id: "run-2", status: "completed" as const };
+  assert.deepEqual(seenOutcome({ rendered: done, listed: null }), outcome);
+  assert.deepEqual(
+    seenOutcome({
+      rendered: done,
+      listed: {
+        id: "run-2",
+        status: "running",
+        updatedAt: "2026-10-27T12:01:00.000Z",
+      },
+    }),
+    outcome,
+  );
+  assert.deepEqual(
+    seenOutcome({ rendered: done, listed: { ...done } }),
+    outcome,
+  );
+  // The list already settled this turn differently than the transcript.
+  assert.equal(
+    seenOutcome({
+      rendered: done,
+      listed: { id: "run-2", status: "failed", updatedAt: done.updatedAt },
+    }),
+    null,
+  );
+  // The transcript is older than the listed turn.
+  assert.equal(
+    seenOutcome({
+      rendered: {
+        id: "run-1",
+        status: "completed",
+        updatedAt: "2026-10-27T12:00:00.000Z",
+      },
+      listed: done,
+    }),
+    null,
+  );
+  // The transcript already shows a later turn than the list.
+  assert.deepEqual(
+    seenOutcome({
+      rendered: done,
+      listed: {
+        id: "run-1",
+        status: "completed",
+        updatedAt: "2026-10-27T12:00:00.000Z",
+      },
+    }),
+    outcome,
+  );
+  assert.equal(seenOutcome({ rendered: null, listed: done }), null);
+});
+
+void test("rendered outcome follows the absorbed terminal run", () => {
+  const { chat } = client();
+  assert.equal(chat.renderedOutcome(), null);
+  chat.hydrate(
+    snapshot([text("u", "Hi"), text("a", "Done", "assistant")], {
+      id: "run-1",
+      status: "completed",
+      error: null,
+      updatedAt: "2026-10-27T12:00:00.000Z",
+    }),
+  );
+  assert.deepEqual(chat.renderedOutcome(), {
+    id: "run-1",
+    status: "completed",
+    updatedAt: "2026-10-27T12:00:00.000Z",
+  });
+  chat.hydrate(
+    snapshot([text("u", "Hi"), text("a", "Done", "assistant")], {
+      id: "run-1",
+      status: "running",
+      error: null,
+      updatedAt: "2026-10-27T12:01:00.000Z",
+    }),
+  );
+  assert.equal(chat.renderedOutcome(), null);
+  chat.hydrate(
+    snapshot([], { id: "run-2", status: "failed", error: "x", updatedAt: "t" }),
+  );
+  assert.equal(chat.renderedOutcome(), null);
 });
 
 void test("older saved snapshots cannot replace a newer accepted turn", () => {

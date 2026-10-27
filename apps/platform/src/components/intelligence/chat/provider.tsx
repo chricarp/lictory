@@ -21,6 +21,7 @@ import {
   isAbortError,
   responseError,
   retryableStatus,
+  seenOutcome,
   startVisiblePolling,
   type LittoChat,
 } from "@lictory/platform/components/intelligence/chat/chat-instance";
@@ -49,6 +50,8 @@ type ChatsContextValue = {
   // Ids whose title just arrived, for the reveal animation.
   freshTitles: Set<string>;
   unread: Set<string>;
+  // Chat id to the finished outcome this person has already seen.
+  seenRuns: ReadonlyMap<string, { id: string; status: string }>;
   version: number;
 };
 
@@ -59,17 +62,47 @@ export function useChats() {
   return value;
 }
 
-function readUnread(key: string): Set<string> {
+function readStored(key: string): unknown {
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
-    return new Set(
-      Array.isArray(stored)
-        ? stored.filter((id): id is string => typeof id === "string")
-        : [],
-    );
+    return JSON.parse(localStorage.getItem(key) ?? "null");
   } catch {
-    return new Set();
+    return null;
   }
+}
+
+function writeStored(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Keep the indicators usable when browser storage is unavailable.
+  }
+}
+
+function readUnread(key: string): Set<string> {
+  const stored = readStored(key);
+  return new Set(
+    Array.isArray(stored)
+      ? stored.filter((id): id is string => typeof id === "string")
+      : [],
+  );
+}
+
+function readSeenRuns(
+  key: string,
+): Map<string, { id: string; status: string }> {
+  const stored = readStored(key);
+  if (!stored || typeof stored !== "object" || Array.isArray(stored))
+    return new Map();
+  return new Map(
+    Object.entries(stored).flatMap(([chatId, value]) => {
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return [];
+      const record = value as { id?: unknown; status?: unknown };
+      if (typeof record.id !== "string" || typeof record.status !== "string")
+        return [];
+      return [[chatId, { id: record.id, status: record.status }] as const];
+    }),
+  );
 }
 
 type Snapshot = {
@@ -78,6 +111,7 @@ type Snapshot = {
   listError: string | null;
   freshTitles: Set<string>;
   unread: Set<string>;
+  seenRuns: Map<string, { id: string; status: string }>;
   // Bumped when a conversation finishes loading so consumers re-read chatFor.
   version: number;
 };
@@ -93,10 +127,15 @@ class ChatStore {
   // The conversation on screen; none while the person is on another page.
   private viewing: string | undefined;
 
+  // Completions observed while this conversation was open but not yet on screen.
+  private unconfirmed = new Set<string>();
+  private unbindView: (() => void) | undefined;
+
   constructor(
     private organizationId: string,
     // Read state is a browser preference scoped to this person and workspace.
     private unreadKey: string,
+    private seenKey: string,
   ) {
     this.query = `organizationId=${encodeURIComponent(organizationId)}`;
     this.snapshot = {
@@ -105,6 +144,7 @@ class ChatStore {
       listError: null,
       freshTitles: new Set(),
       unread: readUnread(unreadKey),
+      seenRuns: readSeenRuns(seenKey),
       version: 0,
     };
   }
@@ -125,17 +165,12 @@ class ChatStore {
   private set(patch: Partial<Snapshot>) {
     const unreadChanged =
       patch.unread !== undefined && patch.unread !== this.snapshot.unread;
+    const seenChanged =
+      patch.seenRuns !== undefined && patch.seenRuns !== this.snapshot.seenRuns;
     this.snapshot = { ...this.snapshot, ...patch };
-    if (unreadChanged) {
-      try {
-        localStorage.setItem(
-          this.unreadKey,
-          JSON.stringify([...this.snapshot.unread]),
-        );
-      } catch {
-        // Keep the indicators usable when browser storage is unavailable.
-      }
-    }
+    if (unreadChanged) writeStored(this.unreadKey, [...this.snapshot.unread]);
+    if (seenChanged)
+      writeStored(this.seenKey, Object.fromEntries(this.snapshot.seenRuns));
     for (const listener of this.listeners) listener();
   }
 
@@ -156,16 +191,88 @@ class ChatStore {
   }
 
   // Shows a conversation (or the new-chat page); returns the cleanup for
-  // leaving it.
+  // leaving it. Leaving before a finished turn is on screen keeps its icon.
   view(id: string | undefined) {
     this.viewing = id;
+    this.bindView(id);
     return () => {
-      if (this.viewing === id) this.viewing = undefined;
+      if (this.viewing !== id) return;
+      if (id) this.noteDeparture(id);
+      this.viewing = undefined;
+      this.bindView(undefined);
     };
   }
 
-  markViewed(id: string) {
-    if (document.visibilityState === "visible") this.setUnread(id, false);
+  private bindView(id: string | undefined) {
+    this.unbindView?.();
+    this.unbindView = undefined;
+    if (!id || typeof document === "undefined") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") this.acknowledge(id);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const chat = this.instances.get(id);
+    const unsubscribe = chat?.subscribe(() => this.acknowledge(id));
+    this.acknowledge(id);
+    this.unbindView = () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      unsubscribe?.();
+    };
+  }
+
+  // Records the finished turn on screen so its sidebar icon stays gone.
+  // Returns false when the transcript does not yet show that outcome.
+  private acknowledge(id: string) {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    )
+      return false;
+    const outcome = seenOutcome({
+      rendered: this.instances.get(id)?.renderedOutcome() ?? null,
+      listed: this.snapshot.chats.find((chat) => chat.id === id)?.run ?? null,
+    });
+    if (!outcome) return false;
+    this.unconfirmed.delete(id);
+    const current = this.snapshot.seenRuns.get(id);
+    if (
+      current?.id === outcome.id &&
+      current.status === outcome.status &&
+      !this.snapshot.unread.has(id)
+    )
+      return true;
+    const seenRuns = new Map(this.snapshot.seenRuns);
+    seenRuns.set(id, outcome);
+    const unread = new Set(this.snapshot.unread);
+    unread.delete(id);
+    this.set({ seenRuns, unread });
+    return true;
+  }
+
+  private noteDeparture(id: string) {
+    if (!this.unconfirmed.delete(id)) return;
+    const run = this.snapshot.chats.find((chat) => chat.id === id)?.run;
+    const seen = this.snapshot.seenRuns.get(id);
+    if (
+      run?.status !== "completed" ||
+      (seen?.id === run.id && seen.status === run.status)
+    )
+      return;
+    this.setUnread(id, true);
+  }
+
+  // A reply finished in the background, or while this conversation was open
+  // but its transcript had not caught up yet.
+  private noteListedCompletion(id: string) {
+    const visibleHere =
+      this.viewing === id &&
+      (typeof document === "undefined" ||
+        document.visibilityState !== "hidden");
+    if (!visibleHere) {
+      this.setUnread(id, true);
+      return;
+    }
+    if (!this.acknowledge(id)) this.unconfirmed.add(id);
   }
 
   private poll = async (signal: AbortSignal) => {
@@ -217,6 +324,7 @@ class ChatStore {
     const previous = new Map(
       this.snapshot.chats.map((chat) => [chat.id, chat]),
     );
+    const completions: string[] = [];
     const chats = body.chats.map((chat) => {
       const before = previous.get(chat.id);
       if (
@@ -229,11 +337,7 @@ class ChatStore {
         chat.run?.status === "completed" &&
         before &&
         (before.run?.status !== "completed" || before.run.id !== chat.run.id);
-      if (
-        completed &&
-        (this.viewing !== chat.id || document.visibilityState !== "visible")
-      )
-        this.setUnread(chat.id, true);
+      if (completed) completions.push(chat.id);
       const live = this.instances.get(chat.id);
       if (!live?.hasUnacceptedPrompt()) return chat;
       return {
@@ -243,11 +347,20 @@ class ChatStore {
         preview: chat.preview ?? live.promptPreview(),
       };
     });
+    const listed = [...pending, ...chats];
+    const present = new Set(listed.map((chat) => chat.id));
+    const seenRuns = [...this.snapshot.seenRuns.keys()].some(
+      (id) => !present.has(id),
+    )
+      ? new Map([...this.snapshot.seenRuns].filter(([id]) => present.has(id)))
+      : this.snapshot.seenRuns;
     this.set({
-      chats: [...pending, ...chats],
+      chats: listed,
+      seenRuns,
       listError: null,
       loaded: true,
     });
+    for (const id of completions) this.noteListedCompletion(id);
   };
 
   private create(id: string, snapshot?: ChatSnapshot) {
@@ -264,14 +377,8 @@ class ChatStore {
         const asking =
           !isAbort && !isError && answerMood(message, false) === "asking";
         void this.refresh().catch(() => undefined);
-        if (
-          !isAbort &&
-          !isDisconnect &&
-          !isError &&
-          !asking &&
-          (this.viewing !== id || document.visibilityState !== "visible")
-        )
-          this.setUnread(id, true);
+        if (isAbort || isDisconnect || isError || asking) return;
+        this.noteListedCompletion(id);
       },
     });
     if (snapshot) chat.hydrate(snapshot);
@@ -303,6 +410,7 @@ class ChatStore {
       if (this.instances.has(id)) this.instances.get(id)!.hydrate(snapshot);
       else this.create(id, snapshot);
       this.errors.delete(id);
+      if (this.viewing === id) this.bindView(id);
     } catch (error) {
       this.errors.set(
         id,
@@ -373,7 +481,12 @@ class ChatStore {
       );
       if (!response.ok) throw new Error(await responseError(response));
       this.instances.delete(id);
-      this.setUnread(id, false);
+      this.unconfirmed.delete(id);
+      const seenRuns = new Map(this.snapshot.seenRuns);
+      seenRuns.delete(id);
+      const unread = new Set(this.snapshot.unread);
+      unread.delete(id);
+      this.set({ seenRuns, unread });
     } catch (error) {
       this.set({ chats: before });
       throw error;
@@ -389,6 +502,7 @@ function storeFor(organizationId: string, userId: string) {
     store = new ChatStore(
       organizationId,
       `lictory:unread-chats:${organizationId}:${userId}`,
+      `lictory:seen-chat-runs:${organizationId}:${userId}`,
     );
     stores.set(key, store);
   }
@@ -401,17 +515,10 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
   const params = useParams<{ chat?: string }>();
   const activeId = params.chat;
   const store = storeFor(organization.id, userId);
-  const { chats, loaded, listError, freshTitles, unread, version } =
+  const { chats, loaded, listError, freshTitles, unread, seenRuns, version } =
     useSyncExternalStore(store.subscribe, store.get, store.get);
 
   useLayoutEffect(() => store.view(activeId), [store, activeId]);
-  useEffect(() => {
-    if (!activeId) return;
-    const markViewed = () => store.markViewed(activeId);
-    markViewed();
-    document.addEventListener("visibilitychange", markViewed);
-    return () => document.removeEventListener("visibilitychange", markViewed);
-  }, [store, activeId]);
   useEffect(() => {
     if (activeId) store.open(activeId);
   }, [store, activeId]);
@@ -447,6 +554,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
       newChat: () => router.push(paths.intelligence(organization.slug)),
       freshTitles,
       unread,
+      seenRuns,
       version,
     }),
     [
@@ -462,6 +570,7 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
       organization.slug,
       freshTitles,
       unread,
+      seenRuns,
     ],
   );
   return (
