@@ -9,7 +9,7 @@
 # verified commit. Tags: <version> and sha-<git sha>-<channel>; deploy by digest.
 
 variable "REGISTRY" { default = "ghcr.io/lictory" }
-variable "VERSION" { default = "0.0.0-local" }
+variable "VERSION" { default = "0.0.0" }
 variable "GIT_SHA" { default = "unknown" }
 variable "CHANNEL" { default = "local" }
 variable "SOURCE_URL" { default = "" }
@@ -25,9 +25,11 @@ variable "PREVIOUS_PROXY_IMAGE" { default = "no-previous-assets" }
 variable "PLATFORMS" { default = "linux/amd64,linux/arm64" }
 # Optional registry namespace for BuildKit caches, e.g. ghcr.io/acme/lictory-cache.
 variable "CACHE_REGISTRY" { default = "" }
+variable "CACHE_SCOPE" { default = "local" }
+variable "TAG_SUFFIX" { default = "" }
 
 group "default" {
-  targets = ["api", "marketing", "proxy", "migrate", "ops"]
+  targets = ["api", "proxy", "migrate", "ops"]
 }
 
 target "_common" {
@@ -59,19 +61,19 @@ target "_common" {
 
 function "cache_from" {
   params = [name]
-  result = CACHE_REGISTRY == "" ? [] : ["type=registry,ref=${CACHE_REGISTRY}:${name}"]
+  result = CACHE_REGISTRY == "" ? [] : ["type=registry,ref=${CACHE_REGISTRY}:${name}-${CACHE_SCOPE}"]
 }
 
 function "cache_to" {
   params = [name]
-  result = CACHE_REGISTRY == "" ? [] : ["type=registry,ref=${CACHE_REGISTRY}:${name},mode=max"]
+  result = CACHE_REGISTRY == "" ? [] : ["type=registry,ref=${CACHE_REGISTRY}:${name}-${CACHE_SCOPE},mode=max"]
 }
 
 function "tags" {
   params = [name]
   result = [
-    "${REGISTRY}/lictory-${name}:${VERSION}",
-    "${REGISTRY}/lictory-${name}:sha-${GIT_SHA}-${CHANNEL}",
+    "${REGISTRY}/lictory-${name}:${VERSION}${TAG_SUFFIX}",
+    "${REGISTRY}/lictory-${name}:sha-${GIT_SHA}-${CHANNEL}${TAG_SUFFIX}",
   ]
 }
 
