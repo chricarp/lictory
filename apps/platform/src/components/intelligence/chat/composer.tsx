@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { cn } from "@lictory/core/lib/utils";
+import { Kbd } from "@lictory/ui/primitives";
 import {
   applyEdit,
   begin,
@@ -287,9 +288,13 @@ export const Composer = forwardRef<
             </span>
           )
         )}
-        <span className="ml-auto hidden text-[11px] text-muted-foreground/70 sm:inline">
-          <kbd className="font-sans">⏎</kbd> to send ·{" "}
-          <kbd className="font-sans">⇧⏎</kbd> new line
+        <span className="ml-auto hidden shrink-0 items-center gap-3 text-[11px] text-muted-foreground sm:inline-flex">
+          <span className="inline-flex items-center gap-1">
+            <Kbd>↵</Kbd> to send
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Kbd>⇧↵</Kbd> new line
+          </span>
         </span>
         {canDictate && (
           <button

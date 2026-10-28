@@ -28,9 +28,18 @@ FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS source
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 ENV NEXT_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 CI=1
 WORKDIR /src
-COPY . .
+COPY package.json package.json
+COPY apps/platform/package.json apps/platform/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY apps/marketing/package.json apps/marketing/package.json
+COPY apps/worker/package.json apps/worker/package.json
+COPY packages/ui/package.json packages/ui/package.json
+COPY packages/core/package.json packages/core/package.json
+COPY packages/zero/package.json packages/zero/package.json
+COPY bun.lock bunfig.toml ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
+COPY . .
 
 FROM source AS platform-build
 ARG APP_VERSION
@@ -42,7 +51,8 @@ ENV VITE_APP_VERSION=$APP_VERSION \
     VITE_SITE_URL=$VITE_SITE_URL \
     VITE_POSTHOG_PROJECT_TOKEN=$VITE_POSTHOG_PROJECT_TOKEN \
     VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
-RUN bun run --filter @lictory/platform build \
+RUN bun scripts/inject-release-version.ts "$APP_VERSION" \
+ && bun run --filter @lictory/platform build \
  && test -f apps/platform/dist/index.html
 
 FROM source AS server-build
@@ -88,7 +98,9 @@ ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
     LICTORY_LEGAL_ADDRESS=$LICTORY_LEGAL_ADDRESS \
     LICTORY_LEGAL_EMAIL=$LICTORY_LEGAL_EMAIL \
     LICTORY_LEGAL_REGISTRATION=$LICTORY_LEGAL_REGISTRATION
-RUN bun run --filter @lictory/marketing build \
+RUN --mount=type=cache,target=/src/apps/marketing/.next/cache \
+    bun scripts/inject-release-version.ts "$APP_VERSION" \
+ && bun run --filter @lictory/marketing build \
  && mkdir -p /out \
  && cp -r apps/marketing/.next/standalone/. /out/ \
  && mkdir -p /out/apps/marketing/public \
@@ -145,7 +157,7 @@ COPY --from=server-build /src/apps/worker/dist ./apps/worker/dist
 COPY --from=platform-build /src/apps/platform/dist ./platform
 USER node
 EXPOSE 3002
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --start-interval=1s --interval=10s --timeout=5s --start-period=30s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3002)+'/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "--enable-source-maps", "apps/api/dist/index.js"]
 
@@ -156,7 +168,7 @@ COPY --from=marketing-build /out/ ./
 COPY --from=marketing-dependencies /deps/node_modules/ ./node_modules/
 USER node
 EXPOSE 3000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --start-interval=1s --interval=15s --timeout=5s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/robots.txt').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "apps/marketing/server.js"]
 
@@ -186,7 +198,7 @@ COPY --from=platform-build /src/apps/platform/dist /srv/platform/current
 # The API renders index.html (social previews); the proxy never serves it.
 RUN rm -f /srv/platform/current/index.html
 USER caddy
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --start-interval=1s --interval=10s --timeout=5s --start-period=10s --retries=3 \
   CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
 
 # Backup, restore and monitoring tooling (deploy/backup, deploy/monitor), plus

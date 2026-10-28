@@ -58,9 +58,74 @@ jobs:
   # production release verifies the exact candidate before activation.
   # Nightly images are built with the staging origins; they never reach
   # production, which rebuilds the same commit with production origins.
-  deploy:
-    name: Build and publish nightly images
+  build:
+    name: Build native ARM64 backend images
     needs: [plan]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      deployments: read
+      packages: write
+      pull-requests: read
+      actions: read
+    env:
+      BUILD_ARCHITECTURE: arm64
+      GH_TOKEN: ${{ github.token }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+      IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
+      SITE_URL: ${{ vars.STAGING_SITE_URL }}
+      PLATFORM_URL: ${{ vars.STAGING_PLATFORM_URL }}
+      POSTHOG_PROJECT_TOKEN: ${{ vars.STAGING_POSTHOG_PROJECT_TOKEN }}
+      POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+      LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
+      LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
+      LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
+      LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: control/package.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: nightly-plan
+          path: ${{ runner.temp }}/plan
+      - run: bun install --frozen-lockfile
+        working-directory: control
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          cleanup: false # Disposable hosted runner; avoid BuildKit shutdown on the critical path.
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build the selected source on its native architecture
+        env:
+          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/arm64.json
+        working-directory: control
+        run: bun run release build "$RUNNER_TEMP/plan/release-plan.json" ../source
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-arm64
+          path: ${{ runner.temp }}/arm64.json
+          retention-days: 2
+          overwrite: true
+
+  deploy:
+    name: Assemble and publish nightly images
+    needs: [plan, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -100,25 +165,22 @@ jobs:
         with:
           name: nightly-plan
           path: ${{ runner.temp }}/plan
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: native-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/native
       - run: bun install --frozen-lockfile
         working-directory: control
-      - name: Free space for multi-architecture images
-        run: |
-          test "$RUNNER_ENVIRONMENT" = github-hosted
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
-          docker image prune --all --force
-          df -h /
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          platforms: arm64
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Build and publish this exact nightly candidate
+      - name: Assemble and publish this exact nightly candidate
         working-directory: control
+        env:
+          NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
         run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source
 
   # Optional: runs the published nightly on the staging server, migrations

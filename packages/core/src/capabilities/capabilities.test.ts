@@ -292,6 +292,7 @@ async function executeTool(tools: ToolSet, name: string, input: unknown) {
   const output: unknown = await tool.execute(input, {
     toolCallId: crypto.randomUUID(),
     messages: [],
+    context: undefined,
   });
   return output;
 }

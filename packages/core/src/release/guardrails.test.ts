@@ -312,7 +312,7 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
     production.jobs.verify!.with?.ref,
     "${{ needs.plan.outputs.sha }}",
   );
-  assert.deepEqual(production.jobs.deploy!.needs, ["plan", "verify"]);
+  assert.deepEqual(production.jobs.deploy!.needs, ["plan", "verify", "build"]);
   for (const flow of [production, nightly]) {
     const source = flow.jobs.deploy!.steps!.find(
       (step) => step.with?.path === "source",
@@ -351,7 +351,8 @@ void test("pushes build nightlies without re-verifying; PR and manual CI remain 
   ]);
   assert.deepEqual(nightly.on.push, { branches: ["main", "release/*"] });
   assert.equal(nightly.jobs.verify, undefined);
-  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan"]);
+  assert.deepEqual(nightly.jobs.build!.needs, ["plan"]);
+  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan", "build"]);
   assert.deepEqual(nightly.jobs.stage!.needs, ["plan", "deploy"]);
   assert.equal(
     production.jobs.verify!.with?.release_version,
