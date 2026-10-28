@@ -1150,6 +1150,9 @@ workflows run only here, locally, so this sequence is the real quality gate.
 Execute every command in this order with the same arguments, running the
 browser suite unsharded:
 
+Bun installs in Actions deliberately omit the broad download cache: measured
+restore/save overhead exceeded the cost of a fresh frozen-lockfile install.
+
 ```sh
 bun install --frozen-lockfile
 bun audit --audit-level=high

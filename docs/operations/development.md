@@ -136,3 +136,21 @@ run to use.
 Agents follow `AGENTS.md`. Skills in `.agents/skills` cover UI polish and
 [app verification](../../.agents/skills/test-lictory-app/SKILL.md). Run agents in
 a separate worktree and give each worktree its own disposable databases.
+
+## Release performance
+
+Backend release builds run on native ARM64 runners for the Hetzner server. Production
+verification and Cloudflare frontend preparation also run in parallel with
+those builds. Assembly rejects missing ARM64 output, mismatched release plans
+and stale previous-proxy assets before publishing multi-platform indexes.
+Migration, Zero catch-up and healthy backend activation still precede frontend
+publication. The standalone website dispatch builds its selected stable tag.
+
+Bun installs directly from the lockfile: restoring and saving its broad download
+cache cost more than an uncached install in measured Actions runs. BuildKit registry caches default
+to `IMAGE_REGISTRY/lictory-cache`, with separate tags per target, channel and
+architecture; `IMAGE_CACHE_REGISTRY` overrides the namespace. The workflow token
+needs package write access there. A cold cache, slow runner allocation, required
+environment approval, database backup or initial Zero sync can exceed the
+two-minute warm-run target. Measure the entire run, including job queue time and
+post steps, rather than only Docker's build duration.
