@@ -7,15 +7,9 @@ import { z } from "zod";
 import type { Manifest } from "@lictory/core/release/model";
 
 // Images of one release (deploy/docker-bake.hcl). The API image also runs the worker.
-export const imageNames = [
-  "api",
-  "marketing",
-  "proxy",
-  "migrate",
-  "ops",
-] as const;
+export const imageNames = ["api", "proxy", "migrate", "ops"] as const;
 export type ImageName = (typeof imageNames)[number];
-export type Images = Record<ImageName, string>;
+export type Images = Record<ImageName, string> & { marketing?: string };
 
 const registryPattern = /^[a-z0-9.-]+(?::\d+)?(?:\/[a-z0-9._-]+)+$/;
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
@@ -28,7 +22,7 @@ export function assertRegistry(registry: string): void {
 }
 
 function assertImage(
-  name: ImageName,
+  name: ImageName | "marketing",
   reference: string | undefined,
   registry: string,
 ) {
@@ -46,6 +40,7 @@ function assertImage(
 export function assertImages(images: Images, registry: string): Images {
   assertRegistry(registry);
   for (const name of imageNames) assertImage(name, images[name], registry);
+  if (images.marketing) assertImage("marketing", images.marketing, registry);
   return images;
 }
 
@@ -56,6 +51,7 @@ export const imagesSchema = z
       z.ZodString
     >,
   )
+  .extend({ marketing: z.string().optional() })
   .strict();
 
 /** Stable identity of an image set, used as the build ID in journals. */
@@ -110,7 +106,7 @@ export function releaseFile(manifest: Manifest, images: Images): string {
     `LICTORY_GIT_SHA=${manifest.sha}`,
     `LICTORY_CHANNEL=${manifest.channel}`,
     `API_IMAGE=${images.api}`,
-    `MARKETING_IMAGE=${images.marketing}`,
+    `MARKETING_IMAGE=${images.marketing ?? images.api}`,
     `PROXY_IMAGE=${images.proxy}`,
     `MIGRATE_IMAGE=${images.migrate}`,
     `OPS_IMAGE=${images.ops}`,
@@ -133,6 +129,7 @@ export type BuildConfiguration = {
   previousProxyImage?: string;
   /** Registry namespace for BuildKit layer caches (one cache image per target). */
   cacheRegistry?: string;
+  architecture?: "amd64" | "arm64";
 };
 
 export type Command = (
@@ -142,7 +139,7 @@ export type Command = (
 ) => Promise<void>;
 
 // Streams build output to the job log.
-const runCommand: Command = (command, args, options) =>
+export const runCommand: Command = (command, args, options) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, [...args], { ...options, stdio: "inherit" });
     child.on("error", reject);
@@ -181,11 +178,16 @@ export function bakeEnvironment(
     LICTORY_LEGAL_EMAIL: config.legal?.email ?? "",
     LICTORY_LEGAL_REGISTRATION: config.legal?.registration ?? "",
     PREVIOUS_PROXY_IMAGE: config.previousProxyImage ?? "no-previous-assets",
-    CACHE_REGISTRY: config.cacheRegistry ?? "",
+    CACHE_REGISTRY: config.cacheRegistry ?? `${config.registry}/lictory-cache`,
+    CACHE_SCOPE: `${manifest.channel}-${config.architecture ?? "multi"}`,
+    TAG_SUFFIX: config.architecture ? `-${config.architecture}` : "",
+    ...(config.architecture
+      ? { PLATFORMS: `linux/${config.architecture}` }
+      : {}),
   };
 }
 
-/** Builds and pushes all images for linux/amd64 and linux/arm64. */
+/** Builds and pushes backend images for the configured platform(s). */
 export async function buildImages(
   root: string,
   manifest: Manifest,
@@ -203,6 +205,15 @@ export async function buildImages(
         "--file",
         "deploy/docker-bake.hcl",
         "--push",
+        // Override tags even for an older selected source whose bake file
+        // predates TAG_SUFFIX. Architecture jobs must never overwrite each other.
+        ...imageNames,
+        ...(config.architecture
+          ? imageNames.flatMap((name) => [
+              "--set",
+              `${name}.tags=${config.registry}/lictory-${name}:${manifest.version}-${config.architecture}`,
+            ])
+          : []),
         "--metadata-file",
         metadata,
       ],

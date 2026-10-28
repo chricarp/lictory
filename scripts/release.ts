@@ -1,4 +1,8 @@
 import { appendFile, readFile, writeFile } from "node:fs/promises";
+import { z } from "zod";
+import { promisify } from "node:util";
+import { execFile } from "node:child_process";
+import { mergeArchitectureBuilds } from "@lictory/core/release/parallel-images";
 import { resolve } from "node:path";
 import {
   GitHub,
@@ -7,6 +11,7 @@ import {
 } from "@lictory/core/release/github";
 import {
   assertImages,
+  runCommand,
   buildImages,
   imageNames,
   imagesId,
@@ -191,11 +196,45 @@ async function deploy(
       const previousProxyImage = production
         ? (await production.status()).images?.proxy
         : await latestNightlyProxy(github, registry);
-      const images = await buildImages(
-        root,
-        manifest,
-        buildConfiguration(registry, previousProxyImage),
-      );
+      const directory = optional("NATIVE_BUILDS_DIRECTORY");
+      const images = directory
+        ? await mergeArchitectureBuilds(
+            await Promise.all(
+              ["arm64"].map(
+                async (arch) =>
+                  JSON.parse(
+                    await readFile(resolve(directory, `${arch}.json`), "utf8"),
+                  ) as unknown,
+              ),
+            ),
+            manifest,
+            registry,
+            previousProxyImage,
+            runCommand,
+            root,
+            async (tag) =>
+              z
+                .object({ digest: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
+                .parse(
+                  JSON.parse(
+                    (
+                      await promisify(execFile)("docker", [
+                        "buildx",
+                        "imagetools",
+                        "inspect",
+                        tag,
+                        "--format",
+                        "{{json .Manifest}}",
+                      ])
+                    ).stdout,
+                  ) as unknown,
+                ).digest,
+          )
+        : await buildImages(
+            root,
+            manifest,
+            buildConfiguration(registry, previousProxyImage),
+          );
       return { id: imagesId(images), url: required("PLATFORM_URL"), images };
     },
     record: async (build) =>
@@ -303,6 +342,49 @@ try {
     if (process.env.GITHUB_WORKFLOW === "Release to Production")
       await github.keepReleaseIntent(runId, manifest);
     await savePlan(manifest, planPath);
+  } else if (command === "build") {
+    if (!sourcePath)
+      throw new Error("Native build requires a source checkout.");
+    const manifest = manifestSchema.parse(
+      JSON.parse(await readFile(planPath, "utf8")),
+    );
+    const root = resolve(sourcePath);
+    if (
+      manifest.repository !== github.repository ||
+      (await git(root, "rev-parse", "HEAD")) !== manifest.sha
+    )
+      throw new Error(
+        "Native build source does not match the selected release.",
+      );
+    const architecture = process.env.BUILD_ARCHITECTURE;
+    if (architecture !== "amd64" && architecture !== "arm64")
+      throw new Error("BUILD_ARCHITECTURE must be amd64 or arm64.");
+    const registry = required("IMAGE_REGISTRY");
+    const previousProxyImage =
+      manifest.channel === "stable"
+        ? (await server(github, "production", registry).status()).images?.proxy
+        : await latestNightlyProxy(github, registry);
+    // Older eligible nightlies stamped package.json before invoking Docker.
+    // New Dockerfiles stamp only version-sensitive stages, preserving install caches.
+    if (
+      !(await readFile(resolve(root, "Dockerfile"), "utf8")).includes(
+        "bun scripts/inject-release-version.ts",
+      )
+    )
+      await injectVersion(root, manifest.version);
+    const images = await buildImages(root, manifest, {
+      ...buildConfiguration(registry, previousProxyImage),
+      architecture,
+    });
+    await writeFile(
+      required("NATIVE_BUILD_OUTPUT"),
+      JSON.stringify({
+        architecture,
+        manifestHash: fingerprint(manifest),
+        previousProxyImage,
+        images,
+      }),
+    );
   } else if (command === "deploy" || command === "stage") {
     const manifest = manifestSchema.parse(
       JSON.parse(await readFile(planPath, "utf8")),
