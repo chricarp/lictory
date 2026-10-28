@@ -95,7 +95,7 @@ candidate again before activation.
    attempt number.
    The `nightly-intent` journal preserves the original candidate across whole-run
    retries, even if another stable release appears while it is being repaired.
-3. Build all images for `linux/amd64` and `linux/arm64` with the staging
+3. Build the four backend images natively for `linux/arm64` with the staging
    origins and push them to the registry (`IMAGE_REGISTRY`), tagged with the
    version; the deployment journal records their digests. Nightlies never run
    production migrations or touch the production server, and the job holds no
