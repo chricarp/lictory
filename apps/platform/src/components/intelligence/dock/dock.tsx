@@ -1,4 +1,3 @@
-import type { Chat } from "@ai-sdk/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowDown,
@@ -36,16 +35,16 @@ import {
   severityMeta,
 } from "@lictory/platform/components/review/ai-review";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import type {
-  ChatContext,
-  ChatMessage,
-} from "@lictory/core/intelligence/chat/shared";
+import type { ChatContext } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { aiScoreBand } from "@lictory/core/contracts/ai";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
-import { createChat } from "@lictory/platform/components/intelligence/chat/chat-instance";
+import {
+  createChat,
+  type LittoChat,
+} from "@lictory/platform/components/intelligence/chat/chat-instance";
 import {
   Composer,
   type ComposerHandle,
@@ -171,7 +170,7 @@ export function IntelligenceDock() {
   const openItem = page.kind === "item" ? item : null;
 
   const [open, setOpen] = useState(false);
-  const [chat, setChat] = useState<Chat<ChatMessage> | null>(null);
+  const [chat, setChat] = useState<LittoChat | null>(null);
   // The selection travels with the next message, even after the page loses
   // it to the composer's focus.
   const [attached, setAttached] = useState<DockSelection | null>(null);
@@ -316,10 +315,18 @@ export function IntelligenceDock() {
   };
 
   const newChat = () => {
-    void chat?.stop();
-    setChat(null);
-    setAssessing(null);
-    requestAnimationFrame(() => composer.current?.focus());
+    const current = chat;
+    const reset = () => {
+      setChat(null);
+      setAssessing(null);
+      requestAnimationFrame(() => composer.current?.focus());
+    };
+    // Stop the saved run before dropping it. A failed ack stays on screen.
+    if (!current) {
+      reset();
+      return;
+    }
+    void current.stop().then(reset, () => undefined);
   };
 
   const continueOnPage = async (id: string) => {
@@ -434,7 +441,7 @@ function Bar({
   hidden: boolean;
   item: DockItem | null;
   selection: DockSelection | null;
-  chat: Chat<ChatMessage> | null;
+  chat: LittoChat | null;
   shortcut: string;
   onOpen: () => void;
   onAsk: (prompt: string) => void;
@@ -632,7 +639,7 @@ function Panel({
   onClose,
 }: {
   reduce: boolean;
-  chat: Chat<ChatMessage> | null;
+  chat: LittoChat | null;
   item: DockItem | null;
   pageLabel: string;
   suggestions: Suggestion[];
@@ -709,9 +716,6 @@ function Panel({
         <DockMark chat={chat} review={item?.review} />
         <div className="mr-auto min-w-0">
           <p className="truncate text-[13px] font-medium">Litto</p>
-          <p className="truncate text-[10px] text-muted-foreground">
-            Powered by Lictory Intelligence
-          </p>
         </div>
         {chat && <ChatActions chat={chat} onContinue={onContinue} />}
         {chat && (
@@ -793,7 +797,7 @@ function DockMark({
   chat,
   review,
 }: {
-  chat: Chat<ChatMessage> | null;
+  chat: LittoChat | null;
   review?: DockReview | null;
 }) {
   const reviewing = !!review && reviewState(review).active;
@@ -810,7 +814,7 @@ function ChatMark({
   chat,
   reviewing,
 }: {
-  chat: Chat<ChatMessage>;
+  chat: LittoChat;
   reviewing: boolean;
 }) {
   const mood = useThreadMood(useThread(chat));
@@ -851,7 +855,7 @@ function ChatActions({
   chat,
   onContinue,
 }: {
-  chat: Chat<ChatMessage>;
+  chat: LittoChat;
   onContinue: (id: string) => void;
 }) {
   const { busy, messages } = useThread(chat);
@@ -872,7 +876,7 @@ function Conversation({
   top,
   children,
 }: {
-  chat: Chat<ChatMessage>;
+  chat: LittoChat;
   top: ReactNode;
   children: (thread: Thread) => ReactNode;
 }) {
@@ -997,7 +1001,9 @@ function Footer({
                 : "Ask Litto or describe what to do…"
         }
         onSend={(text) => onSend(text)}
-        onStop={() => void thread?.stop()}
+        onStop={() => {
+          void thread?.stop().catch(() => undefined);
+        }}
         organizationId={organizationId}
       />
     </div>

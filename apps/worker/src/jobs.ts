@@ -7,6 +7,7 @@ import {
   refreshDeliveryStatuses,
 } from "@lictory/core/jobs";
 import type { Analyzer } from "@lictory/core/ai/analyzer";
+import { processChatRuns } from "@lictory/core/intelligence/chat/runner";
 import type { Job } from "@lictory/worker/supervisor";
 
 export type WorkerConfig = ReturnType<typeof workerConfig>;
@@ -76,6 +77,15 @@ export function workerJobs(
   options: { analyzer?: Analyzer } = {},
 ): Job[] {
   return [
+    ...Array.from({ length: 4 }, (_, index): Job => ({
+      name: `chat-${index + 1}`,
+      kind: "chat",
+      intervalMs: 5_000,
+      async run({ cancel }) {
+        const counts = await processChatRuns(db, { signal: cancel });
+        return { more: counts.claimed > 0 && !cancel.aborted, counts };
+      },
+    })),
     {
       name: "ai",
       kind: "ai",

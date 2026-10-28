@@ -1,4 +1,3 @@
-import type { Chat } from "@ai-sdk/react";
 import {
   AnimatePresence,
   LayoutGroup,
@@ -27,13 +26,13 @@ import {
 } from "react";
 import { Button } from "@lictory/ui/button";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import type { ChatMessage } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import {
   ChatList,
   chatLabel,
 } from "@lictory/platform/components/intelligence/chat/chat-list";
+import type { LittoChat } from "@lictory/platform/components/intelligence/chat/chat-instance";
 import {
   Composer,
   type ComposerHandle,
@@ -50,7 +49,7 @@ import {
 const ease = [0.23, 1, 0.32, 1] as const;
 
 // Litto: conversation history beside the active conversation.
-// Rendered by the route layout so the composer and a streaming answer keep
+// Rendered by the route layout so the composer and an answer in progress keep
 // their state while the URL moves from the new-chat page to the chat.
 export function Intelligence() {
   return (
@@ -460,7 +459,7 @@ function Conversation({ id, toolbar }: { id: string; toolbar: ReactNode }) {
   );
 }
 
-function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
+function ChatThread({ chat }: { chat: LittoChat }) {
   const { organization } = useWorkspace();
   const ai = useAiState();
   const thread = useThread(chat);
@@ -527,7 +526,9 @@ function ChatThread({ chat }: { chat: Chat<ChatMessage> }) {
                 pendingQuestion ? "Answer above to continue" : "Reply to Litto…"
               }
               onSend={(text) => void sendMessage({ text })}
-              onStop={() => void stop()}
+              onStop={() => {
+                void stop().catch(() => undefined);
+              }}
               organizationId={organization.id}
               context={`Acts as you in ${organization.name}`}
             />

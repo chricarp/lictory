@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import type { Database } from "@lictory/core/domain/service";
+import type { Database, Tx } from "@lictory/core/domain/service";
 import * as s from "@lictory/core/db/schema";
 import { CapabilityError } from "@lictory/core/capabilities/core";
 import {
@@ -7,7 +7,13 @@ import {
   RECOMMEND_ACTION,
   type ChatMessage,
   type ChatSummary,
+  type ChatSnapshot,
 } from "@lictory/core/intelligence/chat/shared";
+
+import {
+  latestChatRuns,
+  runSummary,
+} from "@lictory/core/intelligence/chat/runs";
 
 // Persistence for Intelligence conversations. Every read and write is scoped to
 // the organization and to the person who owns the chat; callers must already
@@ -42,8 +48,8 @@ function textOf(parts: unknown) {
 // the chat UI, which decides the same from live messages.
 const awaitingPath = `$[*] ? (@.state == "approval-requested" || (@.state == "input-available" && (@.type == "tool-${ASK_QUESTIONS}" || @.type == "tool-${RECOMMEND_ACTION}")))`;
 
-export async function listChats(
-  db: Database,
+async function readChats(
+  db: Database | Tx,
   owner: Owner,
   limit = 200,
 ): Promise<ChatSummary[]> {
@@ -74,6 +80,7 @@ export async function listChats(
   const last = await db
     .selectDistinctOn([message.chatId], {
       chatId: message.chatId,
+      role: message.role,
       waiting: sql<boolean>`${message.role} = 'assistant' and jsonb_path_exists(${message.parts}, ${awaitingPath}::jsonpath)`,
     })
     .from(message)
@@ -85,18 +92,44 @@ export async function listChats(
     )
     .orderBy(message.chatId, desc(message.position));
   const waiting = new Set(last.filter((m) => m.waiting).map((m) => m.chatId));
+  const interrupted = new Set(
+    last.filter((m) => m.role === "user").map((m) => m.chatId),
+  );
+  const runs = await latestChatRuns(
+    db,
+    chats.map((c) => c.id),
+  );
   return chats.map((c) => ({
     id: c.id,
+    version: c.version,
     title: c.title,
     pinned: c.pinned,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     preview: previews.get(c.id) ?? null,
-    awaitingInput: waiting.has(c.id),
+    awaitingInput: runs.has(c.id)
+      ? runs.get(c.id)!.status === "waiting"
+      : waiting.has(c.id),
+    running: ["queued", "running"].includes(runs.get(c.id)?.status ?? ""),
+    run: runs.has(c.id)
+      ? runSummary(runs.get(c.id)!)
+      : interrupted.has(c.id)
+        ? {
+            id: `legacy:${c.id}`,
+            status: "failed",
+            error:
+              "This earlier turn was interrupted before its answer was saved. Retry to continue.",
+            updatedAt: c.updatedAt.toISOString(),
+          }
+        : null,
   }));
 }
 
-export async function findChat(db: Database, owner: Owner, chatId: string) {
+export async function findChat(
+  db: Database | Tx,
+  owner: Owner,
+  chatId: string,
+) {
   const [chat] = await db
     .select()
     .from(s.intelligenceChat)
@@ -104,7 +137,7 @@ export async function findChat(db: Database, owner: Owner, chatId: string) {
   return chat ?? null;
 }
 
-export async function getChat(db: Database, owner: Owner, chatId: string) {
+export async function getChat(db: Database | Tx, owner: Owner, chatId: string) {
   const chat = await findChat(db, owner, chatId);
   if (!chat) return null;
   const rows = await db
@@ -175,7 +208,10 @@ export async function saveMessages(
       );
     await tx
       .update(s.intelligenceChat)
-      .set({ updatedAt: new Date() })
+      .set({
+        updatedAt: new Date(),
+        version: sql`${s.intelligenceChat.version} + 1`,
+      })
       .where(eq(s.intelligenceChat.id, chatId));
   });
 }
@@ -188,7 +224,7 @@ export async function updateChat(
 ) {
   const [chat] = await db
     .update(s.intelligenceChat)
-    .set(patch)
+    .set({ ...patch, version: sql`${s.intelligenceChat.version} + 1` })
     .where(and(owned(owner), eq(s.intelligenceChat.id, chatId)))
     .returning();
   return chat ?? null;
@@ -200,4 +236,48 @@ export async function deleteChat(db: Database, owner: Owner, chatId: string) {
     .where(and(owned(owner), eq(s.intelligenceChat.id, chatId)))
     .returning({ id: s.intelligenceChat.id });
   return deleted.length > 0;
+}
+
+// One consistent saved view, served identically by every API instance.
+export async function getChatSnapshot(
+  db: Database,
+  owner: Owner,
+  chatId: string,
+): Promise<ChatSnapshot> {
+  return db.transaction(
+    async (tx) => {
+      const found = await getChat(tx, owner, chatId);
+      if (!found) return { chat: null, messages: [], run: null };
+      const run = (await latestChatRuns(tx, [chatId])).get(chatId);
+      const last = found.messages.at(-1);
+      const legacy =
+        !run && last?.role === "user"
+          ? {
+              id: `legacy:${chatId}`,
+              status: "failed" as const,
+              error:
+                "This earlier turn was interrupted before its answer was saved. Retry to continue.",
+              updatedAt: found.chat.updatedAt.toISOString(),
+            }
+          : null;
+      return {
+        version: found.chat.version,
+        chat: {
+          id: found.chat.id,
+          title: found.chat.title,
+          pinned: found.chat.pinned,
+        },
+        messages: found.messages,
+        run: run ? runSummary(run) : legacy,
+      };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
+}
+
+export function listChats(db: Database, owner: Owner, limit = 200) {
+  return db.transaction((tx) => readChats(tx, owner, limit), {
+    isolationLevel: "repeatable read",
+    accessMode: "read only",
+  });
 }

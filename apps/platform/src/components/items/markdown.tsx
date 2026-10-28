@@ -76,7 +76,6 @@ const components: Components = {
     ) : (
       <a
         href={href}
-        target="_blank"
         rel="noreferrer noopener"
         className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
       >
