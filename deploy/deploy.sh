@@ -124,9 +124,15 @@ prepare() {
   chmod 0644 "$dir/release.env"
 
   if [ "$(setting LICTORY_ALLOW_LOCAL_IMAGES)" != true ]; then
+    local pulls=() pull_pid pull_failed=false
     for key in API_IMAGE PROXY_IMAGE MIGRATE_IMAGE OPS_IMAGE; do
-      docker pull -q "$(env_value "$dir/release.env" "$key")" >/dev/null
+      docker pull -q "$(env_value "$dir/release.env" "$key")" >/dev/null &
+      pulls+=("$!")
     done
+    for pull_pid in "${pulls[@]}"; do
+      wait "$pull_pid" || pull_failed=true
+    done
+    [ "$pull_failed" = false ] || die "Could not pull every release image; activation is blocked."
   fi
   # The deployment bundle (compose file, role script, these scripts) ships in
   # the ops image of the same release.

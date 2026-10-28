@@ -30,9 +30,10 @@ app.lictory.com ────▶ Cloudflare SPA
 | `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before activation                          |
 | `ops`        | `lictory-ops`           | One-shot backups, restores and monitoring                                         |
 
-The release manifest still includes a marketing image for release-format
-compatibility; it is not a production service and is not pulled by the backend
-controller. Cloudflare builds its own static frontend from the selected tag.
+The release file retains the legacy marketing key for compatibility with
+installed controllers, using the API digest for new releases. No marketing
+container is built, pulled or started. Cloudflare receives static frontend
+artifacts prepared from the selected source.
 
 Files bytes stay in private Cloudflare R2 (see
 [private file storage](../internals/file-storage.md)); email goes through Resend.
@@ -142,16 +143,34 @@ C library upgrades.
 ## Images
 
 `Dockerfile` has one target per image; `deploy/docker-bake.hcl` builds all of
-them for `linux/amd64` and `linux/arm64` from one checkout, so the API's
+the API/worker, proxy, migration and operations images. Actions builds only
+`linux/arm64` on a native runner for Hetzner. Every target uses the selected checkout, so the API's
 `index.html` and the proxy's assets come from the same SPA build. Tags are the
 release version and `sha-<commit>-<channel>`; deployments always pin digests.
 The browser and website bundles embed their public origins, so a stable build
-of a commit differs from its nightly build.
+of a commit differs from its nightly build. Registry layer caches default to
+`IMAGE_REGISTRY/lictory-cache`; set `IMAGE_CACHE_REGISTRY` to use another
+namespace. Cache tags are isolated by image, release channel and architecture.
+The marketing Docker target is excluded from releases: both public frontends
+run on Cloudflare. The legacy `MARKETING_IMAGE` release-file key remains for
+compatibility with installed server controllers and points to the API image
+for new releases; no service starts or pulls it separately. Old release journals
+and rollback targets retain their original marketing digest.
+Dependency installation precedes copying application source; release versions
+are stamped only in the browser/website build stages.
+
+Production builds and exact-candidate verification run concurrently. Both
+Cloudflare websites are prepared alongside backend images, then uploaded in
+parallel only after stable publication and healthy backend activation. Website
+artifacts are scoped to the current workflow run and selected version. No
+production deployment skips verification, backup, migration or Zero catch-up.
+See [release performance](development.md#release-performance) for measuring the
+two-minute warm-run target and the cold-run limits.
 
 Local build of all images for this machine:
 
 ```sh
-REGISTRY=lictory-local VERSION=0.0.0-local PLATFORMS=linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') \
+REGISTRY=lictory-local VERSION=0.0.0 PLATFORMS=linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') \
   docker buildx bake -f deploy/docker-bake.hcl --load
 ```
 
@@ -238,6 +257,14 @@ the column, table, query or mutator, then a later release with the contract
 migration. The previous release must always work against the new schema,
 because a rollback never reverts it. Separate Zero version upgrades from
 schema changes; upgrade zero-cache before the client.
+
+When first upgrading from API-owned Litto streams to durable chat runs, let the
+old API finish its active conversations before replacing it and reload existing
+Litto tabs after activation. In-memory work from the old version cannot be
+recovered by the new worker. Historical saved questions remain answerable and
+unsaved answers appear as interrupted with Retry. Subsequent durable runs survive
+API replacement and recover after worker lease expiry; keep at least one healthy
+worker running when rolling multiple instances.
 
 ## Rollback
 
