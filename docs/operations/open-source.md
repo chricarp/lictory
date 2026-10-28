@@ -13,9 +13,12 @@ The root `LICENSE` contains the license text; first-party package manifests
 use SPDX `MIT`. CONTRIBUTING.md adopts inbound-equals-outbound terms with no
 CLA, copyright assignment or DCO requirement. Contributors retain copyright.
 
-**Blocking before publication:** confirm rights to the existing code and
-complete third-party provenance and distribution review. Choosing MIT does not
-establish those rights.
+Christian Carpinelli confirmed that the original code and artwork were created
+by him with no third-party ownership exceptions. The bundled third-party source,
+fonts and icons are inventoried in [third-party notices](../../THIRD_PARTY_NOTICES.md).
+Preserved notices accompany those materials. Dependency artifact review remains
+separate: the installed package report flags missing notice files and does not
+establish license compatibility or binary-distribution compliance.
 
 | Option     | What recipients may do                                                                                                           | Commercial implication                                                                |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -72,7 +75,10 @@ Sources: [MIT](https://opensource.org/license/mit),
 The owner records completion evidence in the launch issue. None of these gates
 is implied complete by the templates in this change.
 
-- [ ] Complete licensing and third-party provenance review above.
+- [x] Record the owner's original-code/artwork declaration and preserve verified
+      notices for bundled source, agent skills, fonts and icons.
+- [ ] Review the exact notices and obligations for distributed dependency binaries,
+      Linux variants and container OS layers; see THIRD_PARTY_NOTICES.md.
 - [ ] Scan **all history and refs to be published**, not just the working tree,
       with a current secret scanner (for example Gitleaks). Review findings privately;
       also inspect Git LFS objects, tags, release assets, Actions logs/artifacts,
@@ -83,11 +89,14 @@ is implied complete by the templates in this change.
       and coordinate clones/forks before doing it; this runbook authorizes no rewrite.
 - [x] Publish the owner-confirmed private conduct contact (`me@chricarp.com`)
       and enforcement owner in CODE_OF_CONDUCT.md.
-- [ ] Name an independent fallback for reports involving the enforcement owner.
-- [ ] Configure private vulnerability reporting and test the reporting path.
+- [x] Document the sole-maintainer reporting limitation; add an independent
+      fallback when a trusted person is available.
+- [ ] Enable GitHub private vulnerability reporting after publication and test it.
       Until available, keep the repository private or publish an owner-approved
       monitored private security contact. Do not route vulnerabilities to public issues.
-- [ ] Complete the GitHub settings below and inspect all privileged workflows.
+- [x] Apply standard labels and protect `main` with PRs, required checks, current
+      branch status, resolved conversations, and no force pushes/deletion.
+- [ ] Complete publication-only settings and review artifact/log exposure below.
 - [ ] Reproduce first checkout from a clean clone with no private packages,
       company credentials, personal files or optional paid integrations. Verify both
       delivery modes, core review without AI, migrations and backup restoration.
@@ -112,7 +121,7 @@ CODEOWNERS, labels or the existing title check.
 1. Enable Issues. Keep proposals as issues initially; add Discussions only when
    someone can moderate it. Set an accurate description, homepage and topics
    (requirements, collaboration, self-hosted). Set the license to MIT consistently in public project descriptions.
-2. After the labels manifest is on the default branch, run **Repository labels**
+2. The standard labels have been applied through the API. For future updates, run **Repository labels**
    manually from Actions. It creates/updates `.github/labels.json` entries without
    deleting other labels. Review name/color/description changes before running;
    the token has issues write permission only in that job. The existing
@@ -189,3 +198,68 @@ approach. [Ghostfolio](https://github.com/ghostfolio/ghostfolio#readme) provides
 another useful example: it documents self-hosting alongside a paid managed
 service and uses AGPL. These examples demonstrate possible structures, not proof
 that a particular license or business model will succeed for Lictory.
+
+## Remaining operator actions
+
+The following describes the preparation checked on 28 October 2026. Recheck
+settings immediately before publication; GitHub settings are not versioned here.
+The project remains private, and no release or deployment was triggered.
+
+Already applied: 14 standard labels (other labels preserved), vulnerability
+alerts enabled, and `main` branch protection. Its required checks are `Verify`
+and `Conventional PR title`, restricted to the GitHub Actions app. PRs must be
+up to date, conversations resolved, and administrators are subject to the rules.
+Required approval count is zero while there is only one maintainer. The default
+workflow token was already read-only; Actions cannot approve PRs, and there are
+no registered self-hosted runners. Production already restricts deployment to
+`main` but has no required environment reviewer.
+
+The nightly workflow in this change skips forks. Fork operators who want their
+own release pipeline must adapt that repository guard and configure their own
+infrastructure. Node 24 is now documented alongside Bun; a bare Bun-only clean
+installation failed in Zero's native install, whereas the paired environment
+uses the supported Node ABI.
+
+Before changing visibility:
+
+1. Review and merge the prepared source changes through a PR; this task does
+   not publish a PR. Keep the full verification evidence with the reviewed SHA.
+2. Review all historical releases and their descriptions for internal information.
+   Existing release tags predate the new MIT notice: publish the first public
+   source release from a commit containing LICENSE and the notices, and describe
+   exactly which version you support. Do not imply that an old artifact contains
+   the new notice files. Current Docker targets copy the project/bundled notices;
+   dependency and OS-layer obligations still need release-specific review.
+3. Inspect Actions logs and any issue/PR attachments for credentials, personal
+   information and private hostnames. Git history and artifact scans do not cover
+   those surfaces. Review container registry package visibility independently of
+   repository visibility; do not make old images public without inspecting them.
+4. In **Actions → Caches**, delete old caches immediately before making the
+   repository public. The audit found 20 caches totaling about 8.7 GB. Treat this
+   as a launch-time purge, since private CI can recreate caches before then.
+5. In **Settings → General → Danger Zone → Change visibility**, choose Public
+   only when the above review is complete. This is the owner's publication action.
+
+Immediately after changing visibility:
+
+1. Open **Settings → Actions → General → Approval for running fork pull request
+   workflows** and select **Require approval for all outside collaborators**.
+   The API rejected this setting while private with HTTP 422, so it cannot be
+   preconfigured here. The current title workflow remains metadata-only.
+2. Open **Settings → Code security** (or **Security & analysis**) and enable
+   available secret scanning, push protection, Dependabot alerts and security
+   updates. Confirm the dependency graph is populated. Public-repository features
+   are not assumed enabled just because their configuration files exist.
+3. Enable **Private vulnerability reporting** there; verify notifications reach
+   you. The endpoint returned 404 while private. SECURITY.md now provides
+   `me@chricarp.com` as the private fallback, so reporters have a working channel.
+4. Check the repository signed out: license detection, README, issue forms,
+   private security reporting, and contribution links. Use synthetic content for
+   the product walkthrough and announce the documented support level.
+
+When adding a second maintainer, agree an independent conduct reporting contact
+and update CODE_OF_CONDUCT.md, require one approval and CODEOWNERS review,
+add a Production environment reviewer, and review release-branch protections.
+No release branches currently exist. Until then, protect each new `release/*`
+branch before accepting changes to it; do not weaken the documented maintenance
+merge semantics just to enforce a linear-history rule.

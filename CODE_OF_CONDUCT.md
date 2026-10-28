@@ -20,9 +20,13 @@ channel for conduct reports.
 The current enforcement owner is Christian Carpinelli (@chricarp). A report
 should describe the behavior and context, with links where safe. Reports will
 be handled privately, with information shared only as needed to investigate and
-respond; absolute confidentiality cannot be promised. A maintainer involved in
-a complaint must recuse themselves. An independent fallback
-contact for reports involving the enforcement owner still needs to be named.
+respond; absolute confidentiality cannot be promised.
+
+Lictory currently has one maintainer. Reports involving that maintainer can use
+the same private address, but there is no independent reviewer or appeal contact
+at present. This limitation is explicit. When another maintainer or a trusted
+independent contact joins, publish their agreed reporting address and require
+any maintainer involved in a complaint to recuse themselves.
 
 Maintainers may remove harmful content, give a warning, limit participation or
 ban someone according to severity and repetition. Explain the reason privately

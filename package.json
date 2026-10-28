@@ -24,7 +24,8 @@
     "auth:generate": "bunx auth@1.7.7 generate --config better-auth.config.ts --adapter drizzle --dialect postgresql --output packages/core/src/db/auth-schema.ts --yes",
     "db:test": "bun test packages/core/src/db/schema.test.ts",
     "test:sync": "bun test packages/core/src/domain",
-    "test:e2e": "bun scripts/test-e2e.ts"
+    "test:e2e": "bun scripts/test-e2e.ts",
+    "licenses:report": "bun scripts/license-report.ts"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.4.2",

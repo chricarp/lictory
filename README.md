@@ -29,8 +29,9 @@ projections in the same transaction; Zero replicates only those projections
 
 ## Getting started
 
-Requirements: Bun (version in `packageManager`), Docker and Git. Bun is the only
-supported package manager.
+Requirements: Bun (version in `packageManager`), Node.js 24 LTS, Docker and Git.
+Bun is the only supported package manager. Node.js runs the application builds
+and provides the supported ABI for Zero's native SQLite module.
 
 ```bash
 cp .env.example .env
@@ -127,7 +128,7 @@ Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md),
 [Security policy](.github/SECURITY.md).
 
 Lictory is licensed under the [MIT License](LICENSE). Third-party components
-retain their own licenses. Open-source launch is being prepared: the
+retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Open-source launch is being prepared: the
 [launch runbook](docs/operations/open-source.md) tracks rights review, GitHub
 configuration and the remaining publication gates. Package manifests remain
 private to prevent accidental package publication.

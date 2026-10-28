@@ -8,7 +8,10 @@ seriously.
 
 Report privately through GitHub's
 [private vulnerability reporting](https://github.com/chricarp/lictory/security/advisories/new) for this
-repository. Do not open a public issue, pull request or discussion.
+repository. If that form is unavailable (including before public launch), email
+[me@chricarp.com](mailto:me@chricarp.com) privately. Start with a description and
+minimal reproduction; do not email production credentials or customer data.
+Do not open a public issue, pull request or discussion.
 
 Include what is affected, how to reproduce it, and the impact you observed.
 Cross-organization data access, authorization bypasses, authentication flaws

@@ -3,7 +3,18 @@
 ## First checkout
 
 Requirements: [Bun](https://bun.sh) at the version in `package.json`
-(`packageManager`), Docker, and Git. Bun is the only supported package manager.
+(`packageManager`), **Node.js 24 LTS**, Docker, and Git. Bun is the only supported
+package manager; Node runs workspace build scripts and supplies Zero's supported
+native SQLite ABI. Install Node before `bun install`, and check `node --version`.
+A bare Bun-only container can fall back to compiling Zero's SQLite module;
+it is not the supported development environment. The production Dockerfile
+also pairs Bun with Node 24.
+
+For a memory-limited container, allow at least 8 GB of Docker memory. The full
+type-aware ESLint check can exceed Node's default 2 GB heap in that environment;
+if it reports a JavaScript heap limit, run
+`export NODE_OPTIONS=--max-old-space-size=4096` before the verification commands.
+This increases the process heap allowance without filtering or disabling checks.
 
 ```sh
 cp .env.example .env

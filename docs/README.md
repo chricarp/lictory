@@ -8,6 +8,7 @@ Product principles, the glossary and engineering conventions live in
 - [Development runbook](./operations/development.md): setup, daily commands,
   tests and the full verification sequence
 - [Contributing](../CONTRIBUTING.md): what a pull request needs
+- [Third-party notices](../THIRD_PARTY_NOTICES.md): bundled materials and dependency reports
 
 ## Internals
 
