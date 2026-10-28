@@ -340,6 +340,10 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
     assert.equal(body.listening, true);
     assert.deepEqual(body.jobs.map((j) => j.name).sort(), [
       "ai",
+      "chat-1",
+      "chat-2",
+      "chat-3",
+      "chat-4",
       "delivery",
       "delivery-status",
       "email",

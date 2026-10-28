@@ -1,14 +1,20 @@
 import { test, expect, type Page } from "@playwright/test";
+import { eq } from "drizzle-orm";
+import * as s from "@lictory/core/db/schema";
 import type { ChatMessage } from "@lictory/core/intelligence/chat/shared";
 import {
   openChat,
   saveMessages,
   updateChat,
+  getChatSnapshot,
 } from "@lictory/core/intelligence/chat/store";
 import { seedWorkspace, signIn, withDb } from "../helpers/seed";
 
 // The conversation list shows which conversations are still working and which
 // wait for the person, including unread replies completed in the background.
+// Working and waiting hide on the open conversation and return on another one.
+// A finished turn (completed, failed) and an unread reply clear once its
+// messages are on screen, and stay cleared.
 
 const question = (title: string) => ({
   title,
@@ -49,6 +55,7 @@ for (const [index, outcome] of (
       organizationId: seeded.organizationId,
       userId: seeded.owner.id,
     };
+    const runId = crypto.randomUUID();
     const [asking, other] = [crypto.randomUUID(), crypto.randomUUID()];
     await withDb(async (db) => {
       await openChat(db, owner, other);
@@ -79,66 +86,82 @@ for (const [index, outcome] of (
         } as unknown as ChatMessage,
       ]);
       await updateChat(db, owner, asking, { title: "Refund limits" });
+      const found = await getChatSnapshot(db, owner, asking);
+      await db.insert(s.intelligenceChatRun).values({
+        id: runId,
+        chatId: asking,
+        assistantId: "a1",
+        position: 1,
+        checkpoint: found.messages.at(-1),
+        status: "waiting",
+      });
     });
 
     // The assistant's reply is held until the test releases it.
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => (release = resolve));
     await page.route("**/api/intelligence/chat", async (route) => {
-      await held;
-      if (outcome === "failed") {
-        await route.fulfill({
-          status: 500,
-          body: "The provider is unavailable.",
-        });
-        return;
-      }
-      const reply = "The refund limits are ready for review.";
-      if (outcome !== "waiting") {
-        // Match the real transport: the server stores the completed transcript.
-        await withDb(async (db) => {
-          await saveMessages(db, owner, asking, [
-            {
-              id: "u1",
-              role: "user",
-              parts: [{ type: "text", text: "Draft refund limits" }],
-            },
-            {
-              id: "a2",
-              role: "assistant",
-              parts: [{ type: "text", text: reply }],
-            },
-          ]);
-        });
-      }
-      const chunks = [
-        { type: "start", messageId: "a2" },
-        { type: "start-step" },
-        ...(outcome === "waiting"
-          ? [
-              {
-                type: "tool-input-available",
-                toolCallId: "q2",
-                toolName: "askQuestions",
-                input: question("Refund currency"),
-              },
-            ]
-          : [
-              { type: "text-start", id: "text" },
-              { type: "text-delta", id: "text", delta: reply },
-              { type: "text-end", id: "text" },
-            ]),
-        { type: "finish-step" },
-        { type: "finish" },
-      ];
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-        body: `${chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("")}data: [DONE]\n\n`,
+      expect(
+        (route.request().postDataJSON() as { response: unknown }).response,
+      ).toEqual({
+        toolCallId: "q1",
+        output: { dismissed: true },
       });
+      await withDb(async (db) => {
+        await db
+          .update(s.intelligenceChatRun)
+          .set({
+            status: "running",
+            leaseToken: crypto.randomUUID(),
+            leaseUntil: new Date(Date.now() + 600_000),
+            updatedAt: new Date(),
+          })
+          .where(eq(s.intelligenceChatRun.id, runId));
+      });
+      await held;
+      const reply = "The refund limits are ready for review.";
+      const assistant = {
+        id: "a1",
+        role: "assistant",
+        parts:
+          outcome === "waiting"
+            ? [
+                { type: "step-start" },
+                {
+                  type: "tool-askQuestions",
+                  toolCallId: "q2",
+                  state: "input-available",
+                  input: question("Refund currency"),
+                },
+              ]
+            : [{ type: "text", text: reply }],
+      } as ChatMessage;
+      const snapshot = await withDb(async (db) => {
+        await saveMessages(db, owner, asking, [
+          {
+            id: "u1",
+            role: "user",
+            parts: [{ type: "text", text: "Draft refund limits" }],
+          },
+          assistant,
+        ]);
+        await db
+          .update(s.intelligenceChatRun)
+          .set({
+            status:
+              outcome === "failed"
+                ? "failed"
+                : outcome === "waiting"
+                  ? "waiting"
+                  : "completed",
+            checkpoint: assistant,
+            error: outcome === "failed" ? "The provider is unavailable." : null,
+            updatedAt: new Date(),
+          })
+          .where(eq(s.intelligenceChatRun.id, runId));
+        return getChatSnapshot(db, owner, asking);
+      });
+      await route.fulfill({ status: 202, json: snapshot });
     });
 
     await signIn(page, seeded.owner.email);
@@ -151,16 +174,22 @@ for (const [index, outcome] of (
     await expect(row(page, "Greeting").getByRole("status")).toHaveCount(0);
 
     await row(page, "Refund limits").click();
+    // Pending input is part of the open conversation, so the row icon yields.
+    await expect(row(page, "Refund limits").getByRole("status")).toHaveCount(0);
     await page.getByRole("button", { name: "Dismiss questions" }).click();
 
     // The person moves on while the answer is still being worked on.
     if (outcome !== "viewed") {
       await row(page, "Greeting").click();
       await expect(page).toHaveURL(new RegExp(`/intelligence/${other}$`));
+      await expect(row(page, "Refund limits").getByRole("status")).toHaveText(
+        "Working",
+      );
+    } else {
+      await expect(row(page, "Refund limits").getByRole("status")).toHaveCount(
+        0,
+      );
     }
-    await expect(row(page, "Refund limits").getByRole("status")).toHaveText(
-      "Working",
-    );
 
     release();
     const status = row(page, "Refund limits").getByRole("status");
@@ -170,8 +199,11 @@ for (const [index, outcome] of (
           exact: true,
         }),
       ).toBeVisible();
+      // The resolved turn was read here, so the checkmark does not stick.
       await expect(status).toHaveCount(0);
       await row(page, "Greeting").click();
+      await expect(status).toHaveCount(0);
+      await page.reload();
       await expect(status).toHaveCount(0);
     } else {
       await expect(status).toHaveText(
@@ -203,6 +235,27 @@ for (const [index, outcome] of (
         page.getByText("The refund limits are ready for review.", {
           exact: true,
         }),
+      ).toBeVisible();
+      await expect(status).toHaveCount(0);
+      await row(page, "Greeting").click();
+      await page.reload();
+      await expect(status).toHaveCount(0);
+    }
+
+    if (outcome === "waiting") {
+      await row(page, "Refund limits").click();
+      await expect(
+        page.getByText("Refund currency", { exact: true }),
+      ).toBeVisible();
+      await expect(status).toHaveCount(0);
+      await row(page, "Greeting").click();
+      await expect(status).toHaveText("Waiting for your input");
+    }
+
+    if (outcome === "failed") {
+      await row(page, "Refund limits").click();
+      await expect(
+        page.getByText("The provider is unavailable."),
       ).toBeVisible();
       await expect(status).toHaveCount(0);
       await row(page, "Greeting").click();

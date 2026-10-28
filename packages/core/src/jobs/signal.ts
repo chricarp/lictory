@@ -6,7 +6,7 @@ import type { Tx } from "@lictory/core/domain/service";
 // domain change, and this signal, delivered by PostgreSQL only on commit,
 // wakes the worker. The worker also polls, so a lost signal only delays work.
 export const WORK_CHANNEL = "lictory_work";
-export const workKinds = ["ai", "email", "delivery"] as const;
+export const workKinds = ["ai", "email", "delivery", "chat"] as const;
 export type WorkKind = (typeof workKinds)[number];
 
 export async function signalWork(tx: Tx, kind: WorkKind) {
