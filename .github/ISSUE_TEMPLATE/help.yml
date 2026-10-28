@@ -1,0 +1,28 @@
+name: Setup or usage help
+description: Ask about documented setup or behavior after checking the docs and existing issues.
+labels: [question, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: "Best-effort community support. Never include secrets, customer content or database dumps. Report vulnerabilities privately through the Security tab."
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: Include the documentation you followed and where you got stuck.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Release or commit and environment
+      description: Include OS, browser, and local or self-hosted setup.
+    validations:
+      required: true
+  - type: textarea
+    id: attempts
+    attributes:
+      label: What have you tried?
+      description: Include relevant redacted errors and the expected result.
+    validations:
+      required: true

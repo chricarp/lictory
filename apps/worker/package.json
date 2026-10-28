@@ -16,5 +16,6 @@
   },
   "dependencies": {
     "@lictory/core": "workspace:*"
-  }
+  },
+  "license": "MIT"
 }

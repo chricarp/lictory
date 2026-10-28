@@ -1,0 +1,38 @@
+name: Repository labels
+
+# Manual, additive synchronization. Never deletes existing labels.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Create or update standard labels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Apply labels from the reviewed manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          for label in json.loads(Path(".github/labels.json").read_text()):
+              subprocess.run([
+                  "gh", "label", "create", label["name"],
+                  "--color", label["color"],
+                  "--description", label["description"], "--force",
+              ], check=True)
+          PYTHON

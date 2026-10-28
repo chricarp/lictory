@@ -115,10 +115,16 @@ test("navigation, reload and a second device retain working, waiting and complet
   const f = await seed();
   await signIn(page, f.seeded.owner.email);
   await page.goto(`/${f.seeded.slug}/intelligence/${f.chatId}`);
-  await expect(row(page).getByRole("status")).toHaveText("Working");
+  await expect(row(page)).toBeVisible();
+  await expect(row(page).getByRole("status")).toHaveCount(0);
   await expect(
     page.getByText("Checking refund behavior…", { exact: true }),
   ).toBeVisible();
+  // The open conversation suppresses its activity icon; background rows still
+  // expose the run state when the reader navigates away.
+  await page.goto(`/${f.seeded.slug}/intelligence`);
+  await expect(row(page).getByRole("status")).toHaveText("Working");
+  await row(page).click();
   const navigation = page.getByRole("navigation", { name: "Workspace" });
   await navigation.getByRole("link", { name: "Inbox", exact: true }).click();
   await f.save("waiting", f.asking);
@@ -202,7 +208,8 @@ test("a saved failure remains actionable after refresh and Stop works through th
   const f = await seed();
   await signIn(page, f.seeded.owner.email);
   await page.goto(`/${f.seeded.slug}/intelligence/${f.chatId}`);
-  await expect(row(page).getByRole("status")).toHaveText("Working");
+  await expect(row(page)).toBeVisible();
+  await expect(row(page).getByRole("status")).toHaveCount(0);
   const stopped = await page.request.post(
     `/api/intelligence/chats/${f.chatId}/stop?organizationId=${f.owner.organizationId}`,
     { data: { runId: f.runId }, headers: { Origin: platformOrigin } },
@@ -243,7 +250,5 @@ test("a saved failure remains actionable after refresh and Stop works through th
   await expect(
     page.getByRole("button", { name: "Retry", exact: true }),
   ).toBeVisible();
-  await expect(row(page).getByRole("status")).toHaveText(
-    /needs attention|failed|stopped/i,
-  );
+  await expect(row(page).getByRole("status")).toHaveCount(0);
 });

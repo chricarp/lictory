@@ -77,5 +77,6 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "license": "MIT"
 }

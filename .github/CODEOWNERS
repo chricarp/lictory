@@ -1,10 +1,17 @@
-# Enable required code-owner review in branch protections for release changes.
-/.github/workflows/ @chricarp
-/src/release/ @chricarp
-/scripts/release.ts @chricarp
-/scripts/inject-release-version.ts @chricarp
-/scripts/migrate.ts @chricarp
-/src/db/migration-safety.ts @chricarp
-/src/lib/auth-base-url.ts @chricarp
-/src/lib/auth.ts @chricarp
-/src/app/api/invitations/route.ts @chricarp
+# Code ownership requests review; enable required owner review in the ruleset.
+* @chricarp
+/.github/ @chricarp
+/AGENTS.md @chricarp
+/CLAUDE.md @chricarp
+/.agents/ @chricarp
+/CONTRIBUTING.md @chricarp
+/packages/core/src/release/ @chricarp
+/packages/core/src/db/ @chricarp
+/packages/core/src/lib/auth* @chricarp
+/packages/core/src/capabilities/ @chricarp
+/packages/core/src/domain/ @chricarp
+/packages/zero/ @chricarp
+/apps/api/ @chricarp
+/drizzle/ @chricarp
+/scripts/ @chricarp
+/deploy/ @chricarp

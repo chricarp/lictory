@@ -1,0 +1,72 @@
+[
+  {
+    "name": "bug",
+    "color": "d73a4a",
+    "description": "Reproducible defect in existing behavior"
+  },
+  {
+    "name": "enhancement",
+    "color": "a2eeef",
+    "description": "Proposed feature or intentional behavior change"
+  },
+  {
+    "name": "question",
+    "color": "d876e3",
+    "description": "Setup or usage help"
+  },
+  {
+    "name": "documentation",
+    "color": "0075ca",
+    "description": "Documentation improvement"
+  },
+  {
+    "name": "needs-triage",
+    "color": "ededed",
+    "description": "Awaiting maintainer assessment"
+  },
+  {
+    "name": "needs-information",
+    "color": "fbca04",
+    "description": "Waiting for reproduction or context"
+  },
+  {
+    "name": "accepted",
+    "color": "0e8a16",
+    "description": "Maintainer agreed on direction and scope; no delivery date"
+  },
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Maintainer-scoped task with enough context for a newcomer"
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Maintainers welcome implementation help"
+  },
+  {
+    "name": "blocked",
+    "color": "b60205",
+    "description": "Waiting on an identified prerequisite"
+  },
+  {
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "description": "Tracked elsewhere; link the canonical issue"
+  },
+  {
+    "name": "wontfix",
+    "color": "ffffff",
+    "description": "Not planned; record the reason"
+  },
+  {
+    "name": "dependencies",
+    "color": "0366d6",
+    "description": "Dependency maintenance"
+  },
+  {
+    "name": "release:stable-api",
+    "color": "5319e7",
+    "description": "Breaking release explicitly declares stable API compatibility"
+  }
+]

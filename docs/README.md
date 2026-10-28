@@ -46,3 +46,4 @@ adding domain writes or synchronized entities.
 - [Versions, release preparation and hotfixes](./operations/releases.md)
 - [Database migrations](./operations/migrations.md)
 - [Public legal notices](./operations/legal.md)
+- [Open-source launch and repository administration](./operations/open-source.md)
