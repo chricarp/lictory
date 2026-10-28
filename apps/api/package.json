@@ -22,5 +22,6 @@
   "devDependencies": {
     "esbuild": "0.28.2",
     "postgres": "^3.4.9"
-  }
+  },
+  "license": "MIT"
 }

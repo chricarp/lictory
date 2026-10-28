@@ -29,8 +29,9 @@ projections in the same transaction; Zero replicates only those projections
 
 ## Getting started
 
-Requirements: Bun (version in `packageManager`), Docker and Git. Bun is the only
-supported package manager.
+Requirements: Bun (version in `packageManager`), Node.js 24 LTS, Docker and Git.
+Bun is the only supported package manager. Node.js runs the application builds
+and provides the supported ABI for Zero's native SQLite module.
 
 ```bash
 cp .env.example .env
@@ -119,3 +120,15 @@ IntelliSense.
 Workspace settings in `.vscode/settings.json` format files with Prettier on
 save and apply ESLint fixes on save. Tailwind classes are sorted automatically
 by `prettier-plugin-tailwindcss`.
+
+## Community and open-source preparation
+
+Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md),
+[Support](SUPPORT.md), the [Code of conduct](CODE_OF_CONDUCT.md), and the
+[Security policy](.github/SECURITY.md).
+
+Lictory is licensed under the [MIT License](LICENSE). Third-party components
+retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Open-source launch is being prepared: the
+[launch runbook](docs/operations/open-source.md) tracks rights review, GitHub
+configuration and the remaining publication gates. Package manifests remain
+private to prevent accidental package publication.

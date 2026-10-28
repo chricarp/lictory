@@ -20,6 +20,9 @@ concurrency:
 
 jobs:
   plan:
+    # Forks can build/test without publishing the operator's release pipeline.
+    # A fork that wants its own releases must deliberately adapt this guard.
+    if: github.repository == 'chricarp/lictory'
     name: Calculate nightly candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 15

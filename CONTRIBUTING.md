@@ -80,7 +80,7 @@ description. We judge the problem, scope and evidence, not who or what wrote it.
 
 ## Security
 
-Never report vulnerabilities in public issues. See [SECURITY.md](SECURITY.md).
+Never report vulnerabilities in public issues. See [the security policy](.github/SECURITY.md).
 
 ## Closing and reconsideration
 
@@ -88,3 +88,20 @@ A pull request that misses these requirements may be closed before deeper
 review. The closing comment names the specific requirement and what would fix
 it. Address it and ask for reconsideration, or open focused replacements linked
 to the original.
+
+## Community and contribution rights
+
+Follow the [code of conduct](CODE_OF_CONDUCT.md). See [governance](GOVERNANCE.md)
+for decisions and maintainership, and [support](SUPPORT.md) for help.
+
+By intentionally submitting a contribution, you agree to license it under the
+project's [MIT License](LICENSE). You retain copyright in your contributions;
+no copyright assignment, CLA or DCO sign-off is currently required. Submit only
+work you have the right to contribute, including any required employer approval.
+Preserve third-party license notices and identify copied code, assets or
+generated material that needs attribution. A human contributor remains
+responsible for AI-assisted work, its correctness and the right to submit it.
+
+The owner must complete the existing-code rights and third-party review in the
+[launch runbook](docs/operations/open-source.md#licensing) before soliciting or
+merging outside contributions.

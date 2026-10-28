@@ -36,11 +36,14 @@ test("the website offers the workspace to someone signed in to the application",
   await expectSignedOutWebsite(page);
 
   await signIn(page, seeded.owner.email);
-  const hint = (await page.context().cookies(platformOrigin)).find(
-    (cookie) => cookie.name === "lictory_signed_in",
-  );
-  expect(hint?.value).toBe("1");
-  expect(hint?.httpOnly).toBe(false);
+  // Navigation can finish before the session store publishes the hint.
+  await expect
+    .poll(async () =>
+      (await page.context().cookies(platformOrigin)).find(
+        (cookie) => cookie.name === "lictory_signed_in",
+      ),
+    )
+    .toMatchObject({ value: "1", httpOnly: false });
 
   await page.goto(`${marketingOrigin}/`);
   const banner = page.getByRole("banner");

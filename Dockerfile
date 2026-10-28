@@ -149,6 +149,9 @@ FROM ${PREVIOUS_PROXY_IMAGE} AS previous-assets
 # ------------------------------------------------------------ runtime images
 # API and worker: node apps/api/dist/index.js | node apps/worker/dist/index.js
 FROM ${NODE_IMAGE} AS api
+# Preserve the project and bundled-source notices in distributed images.
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
+COPY LICENSES /usr/share/licenses/lictory/bundled/
 ENV NODE_ENV=production PORT=3002 PLATFORM_DIST_DIR=/app/platform
 WORKDIR /app
 COPY --from=server-dependencies /deps/node_modules ./node_modules
@@ -162,6 +165,9 @@ HEALTHCHECK --start-interval=1s --interval=10s --timeout=5s --start-period=30s -
 CMD ["node", "--enable-source-maps", "apps/api/dist/index.js"]
 
 FROM ${NODE_IMAGE} AS marketing
+# Preserve the project and bundled-source notices in distributed images.
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
+COPY LICENSES /usr/share/licenses/lictory/bundled/
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=marketing-build /out/ ./
@@ -174,6 +180,9 @@ CMD ["node", "apps/marketing/server.js"]
 
 # Runs pending migrations once and exits (deploy/compose.production.yaml `migrate`).
 FROM ${NODE_IMAGE} AS migrate
+# Preserve the project and bundled-source notices in distributed images.
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
+COPY LICENSES /usr/share/licenses/lictory/bundled/
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=migrate-build /out/migrate.mjs ./migrate.mjs
@@ -184,6 +193,9 @@ CMD ["node", "migrate.mjs"]
 
 # Reverse proxy with the SPA's static files (deploy/proxy/Caddyfile).
 FROM ${CADDY_IMAGE} AS proxy
+# Preserve the project and bundled-source notices in distributed images.
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
+COPY LICENSES /usr/share/licenses/lictory/bundled/
 # Ports 80/443 are bound via the net.ipv4.ip_unprivileged_port_start sysctl
 # (compose), so the binary needs no file capability; with all capabilities
 # dropped, a capability-bearing binary could not even be executed.
@@ -204,6 +216,9 @@ HEALTHCHECK --start-interval=1s --interval=10s --timeout=5s --start-period=10s -
 # Backup, restore and monitoring tooling (deploy/backup, deploy/monitor), plus
 # the release's deployment bundle that deploy.sh installs on the server.
 FROM ${POSTGRES_IMAGE} AS ops
+# Preserve the project and bundled-source notices in distributed images.
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
+COPY LICENSES /usr/share/licenses/lictory/bundled/
 RUN apk add --no-cache age rclone curl bash coreutils jq \
  && mkdir -p /backups && chown postgres:postgres /backups \
  && touch /opt/rclone.conf
