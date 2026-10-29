@@ -104,10 +104,16 @@ const createContext = defineCapability({
   name: "createIntelligenceContext",
   title: "Add intelligence context",
   description:
-    "Administrators: add a note (Markdown `content`) or a document (`file`) at organization, project or team scope.",
+    "Administrators: add a note (Markdown `content`) or a document (`file`) at organization, project or team scope. Pass `idempotencyKey` to make a retry return the original entry.",
   kind: "command",
   surfaces: everywhere,
-  input: z.object({ organizationId, target: contextTarget, ...body }),
+  idempotent: true,
+  input: z.object({
+    organizationId,
+    target: contextTarget,
+    idempotencyKey: z.uuid().optional(),
+    ...body,
+  }),
   async run(ctx, input) {
     return createIntelligenceContext(
       ctx.db,
@@ -115,6 +121,7 @@ const createContext = defineCapability({
       ctx.principal.userId,
       input.target,
       await contextInput(ctx, input.organizationId, input),
+      input.idempotencyKey,
     );
   },
 });
@@ -123,10 +130,16 @@ const reviseContext = defineCapability({
   name: "reviseIntelligenceContext",
   title: "Revise intelligence context",
   description:
-    "Administrators: save a new version of an entry. Earlier versions are kept.",
+    "Administrators: save a new version of an entry. Earlier versions are kept. Pass `idempotencyKey` to make a retry return the original version.",
   kind: "command",
   surfaces: everywhere,
-  input: z.object({ organizationId, entryId: id, ...body }),
+  idempotent: true,
+  input: z.object({
+    organizationId,
+    entryId: id,
+    idempotencyKey: z.uuid().optional(),
+    ...body,
+  }),
   async run(ctx, input) {
     return reviseIntelligenceContext(
       ctx.db,
@@ -134,6 +147,7 @@ const reviseContext = defineCapability({
       ctx.principal.userId,
       input.entryId,
       await contextInput(ctx, input.organizationId, input),
+      input.idempotencyKey,
     );
   },
 });

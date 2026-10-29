@@ -18,6 +18,7 @@ export const syncMutation = pgTable(
     id: text("id").notNull(),
     userId: text("user_id").notNull(),
     fingerprint: text("fingerprint").notNull(),
+    summary: jsonb("summary").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.id] })],

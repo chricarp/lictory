@@ -1887,11 +1887,18 @@ export const intelligenceContextEntry = pgTable(
     updatedAt: updatedAt(),
     archivedAt: timestamp("archived_at"),
     archivedById: optionalActor("archived_by_id"),
+    // Retries of createIntelligenceContext with the same key return this entry.
+    idempotencyKey: text("idempotency_key"),
   },
   (t) => [
     unique("intelligence_context_entry_org_id_unique").on(
       t.organizationId,
       t.id,
+    ),
+    unique("intelligence_context_entry_idempotency_unique").on(
+      t.organizationId,
+      t.createdById,
+      t.idempotencyKey,
     ),
     foreignKey({
       name: "intelligence_context_entry_project_fk",
@@ -1940,11 +1947,18 @@ export const intelligenceContextVersion = pgTable(
     sourceSha256: text("source_sha256"),
     authorId: actor("author_id"),
     createdAt: createdAt(),
+    // Retries of reviseIntelligenceContext with the same key return this version.
+    idempotencyKey: text("idempotency_key"),
   },
   (t) => [
     unique("intelligence_context_version_org_id_unique").on(
       t.organizationId,
       t.id,
+    ),
+    unique("intelligence_context_version_idempotency_unique").on(
+      t.organizationId,
+      t.authorId,
+      t.idempotencyKey,
     ),
     unique("intelligence_context_version_number_unique").on(
       t.organizationId,

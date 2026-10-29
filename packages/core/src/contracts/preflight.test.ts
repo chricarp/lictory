@@ -147,7 +147,7 @@ void test("readiness preflight gates only starting unready specification work un
   const entities = { "workItem:item": item };
   assert.match(
     statusChangeBlocker(command, entities, directory)!,
-    /LIC-1 is not ready to start: 3\/5 readiness checks pass, 1 blocking discussion/,
+    /LIC-1 is not ready to start: 2 of 5 readiness checks are still missing, 1 blocking discussion/,
   );
   for (const readinessPolicy of ["off", "warn"] as const)
     assert.equal(
@@ -214,7 +214,7 @@ void test("preflight uses available readiness evidence and the project's policy"
   };
   assert.match(
     statusChangeBlocker(command, entities, directory)!,
-    /current revision approved by every required review/,
+    /Current revision approved by every required review/,
   );
   // Moving the item to another team does not change the policy: it is the
   // project's.
@@ -224,7 +224,7 @@ void test("preflight uses available readiness evidence and the project's policy"
       entities,
       directory,
     )!,
-    /current revision approved by every required review/,
+    /Current revision approved by every required review/,
   );
   assert.equal(
     statusChangeBlocker(command, entities, {

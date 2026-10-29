@@ -86,7 +86,11 @@ Agents may omit identifiers of entities a command creates. They are derived from
 the `mutationId`, so retrying a command with the same `mutationId` replays the
 receipt instead of creating duplicate work. Optimistic concurrency is unchanged:
 specification writes carry `baseRevisionId` and a stale base is a `conflict`
-naming the current revision.
+naming the current revision. Command replies capture created keys, revisions,
+commits and copied reviews under the same organization lock as the write, and
+store them in the mutation receipt. A retry returns the original result even
+when later commands have changed the item or branch. Receipts written before
+result capture was introduced replay without these additional fields.
 
 ## MCP
 

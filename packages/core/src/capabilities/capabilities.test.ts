@@ -232,6 +232,9 @@ void test("agents create work through the shared write path, idempotently", asyn
   // Historical revisions stay intact; their content is opt-in.
   assert.equal(revised.revisions.length, 2);
   assert.equal(revised.revisions[1]!.content, undefined);
+  // Replaying create after a later edit must return the revision it created,
+  // not whichever revision happens to be current at response time.
+  assert.deepEqual(await invoke(f.mcp, "createWorkItem", input), first);
 });
 
 void test("agents hold exactly the person's permissions and tenant boundary", async () => {
@@ -565,7 +568,7 @@ void test("access tokens: read-only, revocation, and audit", async () => {
         tokenId: f.tokenId,
       },
     ),
-    "unavailable",
+    "not_found",
   );
 
   // Agent calls are audited with their outcome; inputs are not stored.
@@ -644,7 +647,7 @@ void test("MCP server lists typed tools and reports failures as tool results", a
   const failure = JSON.parse(call.result.content[0]!.text) as {
     error: { category: string };
   };
-  assert.equal(failure.error.category, "unavailable");
+  assert.equal(failure.error.category, "not_found");
   const unknown = (await handleMcp(f.mcp, {
     jsonrpc: "2.0",
     id: 4,
@@ -708,8 +711,290 @@ void test("insights are computed from the person's own workspace and stay inside
       topic: "people",
       teamId: crypto.randomUUID(),
     }),
-    "unavailable",
+    "not_found",
   );
+});
+
+void test("MCP work item keys survive a second project and writes name what they created", async () => {
+  const f = await fixture();
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "First key",
+    description: "The original project.",
+  })) as { workItemId: string; key: string; revisionId: string };
+  assert.match(created.key, /^PAY-1$/);
+  assert.ok(created.revisionId);
+  const billingId = crypto.randomUUID();
+  await invoke(f.mcp, "createProject", {
+    organizationId: f.organizationId,
+    projectId: billingId,
+    name: "Billing",
+    key: "BIL",
+  });
+  const billingType = (
+    (await invoke(f.web, "getWorkspace", {
+      organizationId: f.organizationId,
+    })) as { types: { id: string; name: string }[] }
+  ).types.find((type) => type.name === "Story")!.id;
+  const billing = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: billingId,
+    typeId: billingType,
+    parentId: null,
+    title: "Billing key",
+  })) as { key: string };
+  assert.equal(billing.key, "BIL-1");
+  const read = async (key: string) =>
+    (await invoke(f.mcp, "getWorkItem", {
+      organizationId: f.organizationId,
+      key,
+    })) as { item: { id: string; key: string }; aiRuns: { model?: string }[] };
+  assert.equal((await read(created.key)).item.id, created.workItemId);
+  assert.equal((await read("bil-1")).item.key, "BIL-1");
+  await invoke(f.mcp, "archiveProject", {
+    organizationId: f.organizationId,
+    projectId: billingId,
+    archived: true,
+  });
+  assert.equal((await read("PAY-1")).item.id, created.workItemId);
+  assert.equal((await read("BIL-1")).item.key, "BIL-1");
+  await rejected(
+    invoke(f.mcp, "getWorkItem", {
+      organizationId: f.organizationId,
+      key: "NOPE-1",
+    }),
+    "not_found",
+  );
+  await assert.rejects(
+    invoke(f.mcp, "createWorkItem", {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      typeId: f.storyTypeId,
+      parentId: null,
+      title: "Wrong fields",
+      content: "This is specification text.",
+      estimate: 4,
+    }),
+    (error) => {
+      assert.ok(error instanceof CapabilityError);
+      assert.equal(error.category, "validation");
+      assert.match(error.message, /Unknown field\(s\):/);
+      assert.match(error.message, /content/);
+      assert.match(error.message, /estimate/);
+      assert.match(error.message, /belongs in `description`/);
+      return true;
+    },
+  );
+});
+
+void test("workspace reads report application roles, one project, and catalog lists", async () => {
+  const f = await fixture();
+  const organizations = (await invoke(f.web, "listOrganizations", {})) as {
+    organizations: { id: string; role: string }[];
+  };
+  assert.equal(
+    organizations.organizations.find((o) => o.id === f.organizationId)?.role,
+    "admin",
+  );
+  const otherId = crypto.randomUUID();
+  await invoke(f.web, "createProject", {
+    organizationId: f.organizationId,
+    projectId: otherId,
+    name: "Billing",
+    key: "BIL",
+  });
+  const scoped = (await invoke(f.web, "getWorkspace", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+  })) as {
+    projects: { id: string }[];
+    organizations: { role: string }[];
+    statuses: { projectId: string }[];
+  };
+  assert.deepEqual(
+    scoped.projects.map((project) => project.id),
+    [f.projectId],
+  );
+  assert.ok(
+    scoped.statuses.every((status) => status.projectId === f.projectId),
+  );
+  assert.equal(scoped.organizations[0]!.role, "admin");
+  await rejected(
+    invoke(f.web, "getWorkspace", {
+      organizationId: f.organizationId,
+      projectId: crypto.randomUUID(),
+    }),
+    "not_found",
+  );
+  const labelId = crypto.randomUUID();
+  await invoke(f.mcp, "createLabel", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    labelId,
+    name: "risk",
+    color: "red",
+  });
+  const labels = (await invoke(f.mcp, "listLabels", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+  })) as { labels: { id: string; name: string }[] };
+  assert.deepEqual(
+    labels.labels.map((label) => label.name),
+    ["risk"],
+  );
+  await invoke(f.mcp, "updateLabel", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    labelId,
+    archived: true,
+  });
+  const hidden = (await invoke(f.mcp, "listLabels", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+  })) as { labels: unknown[] };
+  assert.equal(hidden.labels.length, 0);
+  const milestones = (await invoke(f.mcp, "listMilestones", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+  })) as { milestones: unknown[] };
+  assert.deepEqual(milestones.milestones, []);
+});
+
+void test("watch reasons, logo removal, context retries, and empty notification writes report what changed", async () => {
+  const f = await fixture();
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Watched",
+  })) as { workItemId: string };
+  const watching = (await invoke(f.mcp, "getWatching", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+  })) as { watching: boolean | null; reasons: string[] };
+  assert.equal(watching.watching, null);
+  assert.deepEqual(watching.reasons, ["author"]);
+  await rejected(
+    invoke(f.mcp, "getWatching", {
+      organizationId: f.organizationId,
+      workItemId: crypto.randomUUID(),
+    }),
+    "not_found",
+  );
+  const removed = (await invoke(f.web, "removeOrganizationLogo", {
+    organizationId: f.organizationId,
+    kind: "mark",
+  })) as { removed: boolean };
+  assert.equal(removed.removed, false);
+  const key = crypto.randomUUID();
+  const first = (await invoke(f.web, "createIntelligenceContext", {
+    organizationId: f.organizationId,
+    target: { scope: "organization" },
+    title: "Voice",
+    content: "Be concise.",
+    idempotencyKey: key,
+  })) as { id: string };
+  const retry = (await invoke(f.web, "createIntelligenceContext", {
+    organizationId: f.organizationId,
+    target: { scope: "organization" },
+    title: "Voice",
+    content: "Be verbose.",
+    idempotencyKey: key,
+  })) as { id: string };
+  assert.equal(retry.id, first.id);
+  const entries = await db
+    .select()
+    .from(s.intelligenceContextEntry)
+    .where(eq(s.intelligenceContextEntry.organizationId, f.organizationId));
+  assert.equal(entries.length, 1);
+  const read = (await invoke(f.web, "markNotificationsRead", {
+    ids: [crypto.randomUUID()],
+    read: true,
+  })) as { ok: boolean; affected: number };
+  assert.deepEqual(read, { ok: true, affected: 0 });
+  await rejected(
+    invoke(f.mcp, "unlinkExternalItem", {
+      organizationId: f.organizationId,
+      workItemId: created.workItemId,
+      connectionId: crypto.randomUUID(),
+    }),
+    "not_found",
+  );
+});
+
+void test("missing intelligence context uses not_found across the capability boundary", async () => {
+  const f = await fixture();
+  await rejected(
+    invoke(f.mcp, "getIntelligenceContextHistory", {
+      organizationId: f.organizationId,
+      entryId: crypto.randomUUID(),
+    }),
+    "not_found",
+  );
+});
+
+void test("attachment downloads honor inline MIME types and reject removed files", async () => {
+  const f = await fixture();
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "With attachment",
+  })) as { workItemId: string };
+  const downloads: boolean[] = [];
+  const withStorage: CapabilityContext = {
+    ...f.mcp,
+    storage: () => ({
+      presignUpload: () =>
+        Promise.resolve("https://storage.example.test/upload"),
+      presignDownload: (_key, _filename, mimeType, inline) => {
+        assert.equal(mimeType, "application/pdf");
+        downloads.push(inline);
+        return Promise.resolve("https://storage.example.test/download");
+      },
+      stat: () => Promise.resolve({ size: 3, contentType: "application/pdf" }),
+      delete: () => Promise.resolve(),
+    }),
+  };
+  const input = {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    filename: "spec.pdf",
+    mimeType: "application/pdf",
+    size: 3,
+  };
+  const upload = (await invoke(
+    withStorage,
+    "startAttachmentUpload",
+    input,
+  )) as { id: string };
+  await invoke(withStorage, "finishAttachmentUpload", {
+    organizationId: f.organizationId,
+    id: upload.id,
+  });
+  await invoke(withStorage, "getAttachmentDownloadUrl", {
+    fileId: upload.id,
+    inline: true,
+  });
+  await invoke(withStorage, "getAttachmentDownloadUrl", { fileId: upload.id });
+  assert.deepEqual(downloads, [true, false]);
+  await invoke(withStorage, "removeAttachment", {
+    organizationId: f.organizationId,
+    id: upload.id,
+  });
+  await rejected(
+    invoke(withStorage, "getAttachmentDownloadUrl", {
+      fileId: upload.id,
+      inline: true,
+    }),
+    "not_found",
+  );
+  assert.equal(downloads.length, 2);
 });
 
 void test("projections equal a rebuild from the domain", async () => {

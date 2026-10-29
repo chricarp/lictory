@@ -29,15 +29,18 @@ const types: Record<string, string[]> = {
   mov: ["video/quicktime"],
   mp3: ["audio/mpeg"],
 };
-export const ACCEPT_FILES = Object.keys(types)
-  .map((ext) => `.${ext}`)
-  .join(",");
+export const SUPPORTED_FILE_EXTENSIONS = Object.keys(types);
+export const ACCEPT_FILES = SUPPORTED_FILE_EXTENSIONS.map(
+  (ext) => `.${ext}`,
+).join(",");
 export function validateFile(filename: string, mimeType: string, size: number) {
   if (!filename || filename.length > 255 || /[\\/\x00-\x1f\x7f]/.test(filename))
     throw new Error("Use a filename without paths or control characters.");
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   if (!types[ext]?.includes(mimeType.toLowerCase()))
-    throw new Error("This file type is not supported.");
+    throw new Error(
+      `This file type is not supported. Allowed types: ${SUPPORTED_FILE_EXTENSIONS.join(", ")}.`,
+    );
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_FILE_SIZE)
     throw new Error("Files must be between 1 byte and 25 MB.");
 }

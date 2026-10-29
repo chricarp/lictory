@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidBranchName } from "@lictory/core/lib/branch-name";
+import { branchNameProblem } from "@lictory/core/lib/branch-name";
 import {
   aiActionPolicies,
   aiFindingSchema,
@@ -1102,12 +1102,21 @@ export const commandSchema = z.discriminatedUnion("type", [
     messageId: z.uuid(),
     body: text,
     blocking: z.boolean(),
-    section: z.string().max(200),
+    section: z
+      .string()
+      .max(200)
+      .describe(
+        "Heading this discussion is anchored to. An empty string anchors the thread to the whole text. An unknown heading is rejected.",
+      ),
     quote: z.string().max(2000).optional(),
     // Discuss a suggestion's proposed text instead of the specification.
     suggestionId: id.optional(),
     pullRequestId: id.optional(),
-    commitId: id.optional(),
+    commitId: id
+      .optional()
+      .describe(
+        "Required when pullRequestId is set: the commit this discussion concerns.",
+      ),
   }),
   z.object({
     type: z.literal("replyToThread"),
@@ -1127,7 +1136,16 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createBranch"),
     ...revisionCommand,
     branchId: z.uuid(),
-    name: z.string().trim().refine(isValidBranchName, "Invalid branch name."),
+    name: z
+      .string()
+      .trim()
+      .superRefine((name, ctx) => {
+        const problem = branchNameProblem(name);
+        if (problem) ctx.addIssue({ code: "custom", message: problem });
+      })
+      .describe(
+        "At most 80 characters. Letters, numbers, “-”, “_”, “.” and “/”. No “..” or “//”, no trailing separator, no part ending in “.lock”, and not the name main.",
+      ),
     fromBranchId: id.optional(),
   }),
   z.object({
@@ -1504,6 +1522,7 @@ export const errorSchema = z.object({
       "unauthorized",
       "forbidden",
       "unavailable",
+      "not_found",
       "validation",
       "conflict",
       "server",

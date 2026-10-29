@@ -148,6 +148,20 @@
       "when": 1793133056467,
       "tag": "0020_durable_litto_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793233992400,
+      "tag": "0021_intelligence_context_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793234960471,
+      "tag": "0022_mutation_result_receipts",
+      "breakpoints": true
     }
   ]
 }

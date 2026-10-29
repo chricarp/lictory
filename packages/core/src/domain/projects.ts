@@ -45,8 +45,45 @@ const fail = (
   throw new DomainError(category, message);
 };
 function found<T>(value: T | undefined, message: string): T {
-  if (value === undefined) throw new DomainError("unavailable", message);
+  if (value === undefined) throw new DomainError("not_found", message);
   return value;
+}
+const day = (value: Date) => value.toISOString().slice(0, 10);
+async function rejectOverlappingIteration(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+  startsAt: Date,
+  endsAt: Date,
+  exceptId?: string,
+) {
+  const rows = await tx
+    .select({
+      id: s.iteration.id,
+      name: s.iteration.name,
+      number: s.iteration.number,
+      startsAt: s.iteration.startsAt,
+      endsAt: s.iteration.endsAt,
+    })
+    .from(s.iteration)
+    .where(
+      and(
+        eq(s.iteration.organizationId, organizationId),
+        eq(s.iteration.projectId, projectId),
+        not(eq(s.iteration.state, "completed")),
+        exceptId ? not(eq(s.iteration.id, exceptId)) : undefined,
+      ),
+    );
+  const overlap = rows.find(
+    (row) => row.startsAt < endsAt && row.endsAt > startsAt,
+  );
+  if (!overlap) return;
+  const label = overlap.name?.trim()
+    ? overlap.name.trim()
+    : `Iteration ${overlap.number}`;
+  fail(
+    `These dates overlap ${label} (${day(overlap.startsAt)}–${day(overlap.endsAt)}). Choose a range that does not overlap another open iteration.`,
+  );
 }
 const blank = (v: string | null | undefined) => (v?.trim() ? v.trim() : null);
 const closed = ["done", "canceled"];
@@ -550,7 +587,7 @@ export async function applyProjectCommand(
         )) as [{ count: number }];
       if (count > 0)
         fail(
-          `${count} ${type.name} ${count === 1 ? "item belongs" : "items belong"} to ${project.name}. Change their type before disabling it.`,
+          `${count} ${count === 1 ? "item" : "items"} of type ${type.name} ${count === 1 ? "belongs" : "belong"} to ${project.name}. Change their type before disabling it.`,
         );
       await tx
         .delete(s.projectWorkItemType)
@@ -706,6 +743,13 @@ export async function applyProjectCommand(
       const startsAt = new Date(`${c.startsAt}T00:00:00.000Z`);
       const endsAt = new Date(`${c.endsAt}T00:00:00.000Z`);
       if (endsAt <= startsAt) fail("An iteration must end after it starts.");
+      await rejectOverlappingIteration(
+        tx,
+        organizationId,
+        project.id,
+        startsAt,
+        endsAt,
+      );
       await tx.insert(s.iteration).values({
         id: c.iterationId,
         organizationId,
@@ -734,6 +778,14 @@ export async function applyProjectCommand(
         ? new Date(`${c.endsAt}T00:00:00.000Z`)
         : new Date(it.endsAt);
       if (endsAt <= startsAt) fail("An iteration must end after it starts.");
+      await rejectOverlappingIteration(
+        tx,
+        organizationId,
+        project.id,
+        startsAt,
+        endsAt,
+        it.id,
+      );
       await tx
         .update(s.iteration)
         .set({
