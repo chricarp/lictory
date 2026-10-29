@@ -122,15 +122,17 @@ export async function removeLogo(
   kind: LogoKind,
 ) {
   await requireAdmin(db, organizationId, userId);
-  await db.transaction(async (tx) => {
-    await tx
+  return db.transaction(async (tx) => {
+    const removed = await tx
       .delete(s.organizationLogo)
       .where(
         and(
           eq(s.organizationLogo.organizationId, organizationId),
           eq(s.organizationLogo.kind, kind),
         ),
-      );
-    await refreshDirectoryProjection(tx, organizationId);
+      )
+      .returning({ organizationId: s.organizationLogo.organizationId });
+    if (removed.length) await refreshDirectoryProjection(tx, organizationId);
+    return { removed: removed.length > 0 };
   });
 }

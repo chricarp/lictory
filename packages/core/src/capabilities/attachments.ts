@@ -2,7 +2,11 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
-import { objectKey, validateFile } from "@lictory/core/storage/policy";
+import {
+  SUPPORTED_FILE_EXTENSIONS,
+  objectKey,
+  validateFile,
+} from "@lictory/core/storage/policy";
 import {
   CapabilityError,
   defineCapability,
@@ -65,7 +69,7 @@ async function fileOf(
         eq(s.fileObject.organizationId, organizationId),
       ),
     );
-  if (!file) throw new CapabilityError("unavailable", "File not found.");
+  if (!file) throw new CapabilityError("not_found", "File not found.");
   return file;
 }
 
@@ -87,7 +91,7 @@ const listAttachments = defineCapability({
           eq(s.workItem.id, input.workItemId),
         ),
       );
-    if (!item) throw new CapabilityError("unavailable", "Work item not found.");
+    if (!item) throw new CapabilityError("not_found", "Work item not found.");
     const files = await ctx.db.query.fileObject.findMany({
       where: and(
         eq(s.fileObject.organizationId, input.organizationId),
@@ -114,8 +118,7 @@ const listAttachments = defineCapability({
 const startAttachmentUpload = defineCapability({
   name: "startAttachmentUpload",
   title: "Start attachment upload",
-  description:
-    "Reserve an attachment on a work item and get a presigned URL. PUT the bytes to `uploadUrl` with `headers` within five minutes, then call finishAttachmentUpload.",
+  description: `Reserve an attachment on a work item and get a presigned URL. PUT the bytes to \`uploadUrl\` with \`headers\` within five minutes, then call finishAttachmentUpload. Allowed types: ${SUPPORTED_FILE_EXTENSIONS.join(", ")}. Files must be between 1 byte and 25 MB.`,
   kind: "command",
   surfaces: everywhere,
   external: true,
@@ -154,7 +157,7 @@ const startAttachmentUpload = defineCapability({
           ),
         );
       if (!item || item.archivedAt)
-        throw new CapabilityError("unavailable", "Work item not found.");
+        throw new CapabilityError("not_found", "Work item not found.");
       await tx.insert(s.fileObject).values({
         id: fileId,
         organizationId: input.organizationId,
@@ -300,14 +303,15 @@ const getAttachmentDownloadUrl = defineCapability({
       .where(
         and(eq(s.fileObject.id, input.fileId), isNotNull(s.fileObject.readyAt)),
       );
-    if (!file) throw new CapabilityError("unavailable", "File not found.");
+    if (!file || file.removedAt)
+      throw new CapabilityError("not_found", "File not found.");
     await requireMember(ctx.db, file.organizationId, ctx.principal.userId);
     return {
       url: await storage(ctx).presignDownload(
         file.objectKey,
         file.filename,
         file.mimeType,
-        input.inline && file.mimeType.startsWith("image/"),
+        input.inline,
       ),
       filename: file.filename,
       mimeType: file.mimeType,

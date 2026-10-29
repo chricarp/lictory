@@ -48,13 +48,12 @@ const removeOrganizationLogo = defineCapability({
   idempotent: true,
   input: z.object({ organizationId, kind }),
   async run(ctx, input) {
-    await removeLogo(
+    return removeLogo(
       ctx.db,
       input.organizationId,
       ctx.principal.userId,
       input.kind,
     );
-    return { removed: true };
   },
 });
 

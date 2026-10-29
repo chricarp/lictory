@@ -47,13 +47,17 @@ export function toCapabilityError(error: unknown): CapabilityError {
       "File storage is not configured. Ask an administrator to add storage credentials.",
       { status: 503 },
     );
-  if (error instanceof z.ZodError)
-    return new CapabilityError("validation", "The input is invalid.", {
-      issues: error.issues.map((issue) => ({
-        path: issue.path.join("."),
-        message: issue.message,
-      })),
-    });
+  if (error instanceof z.ZodError) {
+    const issues = error.issues.map((issue) => ({
+      path: issue.path.join("."),
+      message: issue.message,
+    }));
+    return new CapabilityError(
+      "validation",
+      issues.length === 1 ? issues[0]!.message : "The input is invalid.",
+      { issues },
+    );
+  }
   return new CapabilityError(
     "server",
     "The operation failed unexpectedly. Retry shortly.",

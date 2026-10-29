@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { committedEvents } from "@lictory/core/lib/analytics/events";
@@ -146,22 +146,22 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createWorkItem: {
     title: "Create work item",
     description:
-      "Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision.",
+      "Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision. Unknown fields are rejected. Specification text belongs in `description`, not `content`. Set an estimate afterwards with updateWorkItem. The result includes `key` and `revisionId`.",
   },
   updateWorkItem: {
     title: "Update work item properties",
     description:
-      "Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. Never creates a revision or stales approvals. Requires change-properties in the item's project.",
+      "Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. An estimate must be one of the project's scale (Fibonacci, linear, or T-shirt points). Moving a ready item back is rejected while its readiness checks still pass. Never creates a revision or stales approvals. Requires change-properties in the item's project.",
   },
   rankWorkItem: {
     title: "Rank work item",
     description:
-      "Move an item in backlog/board order between two neighbours (null = open end).",
+      "Move an item in backlog/board order between two neighbours (null = open end). `afterId` is the item before this one and `beforeId` the item after it; reversed neighbours are rejected.",
   },
   addRelation: {
     title: "Add relation",
     description:
-      "Link two work items: blocks, relates or duplicates (from this item to `toId`).",
+      "Link two work items: blocks, relates or duplicates (from this item to `toId`). Creating the same relation again is a conflict and names the existing relation id.",
   },
   removeRelation: {
     title: "Remove relation",
@@ -193,7 +193,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   archiveWorkItem: {
     title: "Archive work item",
     description:
-      "Archive (archived: true) or restore (archived: false) a work item. History is kept.",
+      "Archive (archived: true) or restore (archived: false) a work item. Archiving also archives active descendants. Restoring does not restore them. History is kept.",
   },
   updateSpecification: {
     title: "Revise specification",
@@ -203,7 +203,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createThread: {
     title: "Start discussion",
     description:
-      "Start a discussion thread anchored to a section (and optionally a quoted range) of a revision, a suggestion, a pull request or a commit. `blocking` threads block readiness until resolved.",
+      "Start a discussion thread anchored to a section (and optionally a quoted range) of a revision, a suggestion, a pull request or a commit. `section` must be a heading in that text, or empty to anchor the whole text. A pull request thread requires `commitId`. `blocking` threads block readiness until resolved.",
   },
   replyToThread: {
     title: "Reply to discussion",
@@ -218,7 +218,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createBranch: {
     title: "Create branch",
     description:
-      "Start a named line of work on a specification, from the main line or another branch.",
+      "Start a named line of work on a specification, from the main line or another branch. Names are at most 80 characters and use letters, numbers, “-”, “_”, “.” and “/”, without “..”, “//”, a trailing separator, a “.lock” part, or the name main.",
   },
   setBranchCollaborator: {
     title: "Set branch collaborator",
@@ -232,7 +232,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   syncBranch: {
     title: "Sync branch",
     description:
-      "Bring changes from a target line into a branch, optionally with a resolved title/content for conflicts.",
+      "Bring changes from a target line into a branch, optionally with a resolved title/content for conflicts. When the branch already has that result, no commit is created and the result reports `alreadyUpToDate`. Otherwise the result includes `commitId`.",
   },
   deleteBranch: {
     title: "Delete branch",
@@ -242,7 +242,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createPullRequest: {
     title: "Open pull request",
     description:
-      "Propose merging a branch into a target line for review, optionally as a draft.",
+      "Propose merging a branch into a target line for review, optionally as a draft. Required reviews already open on the current specification are copied onto the pull request and returned as `reviews`. Optional reviews are not copied, and no review is added unless one was already required.",
   },
   setPullRequestDraft: {
     title: "Set pull request draft",
@@ -250,7 +250,8 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   deletePullRequest: {
     title: "Close pull request",
-    description: "Close and remove an unmerged pull request.",
+    description:
+      "Close and remove an unmerged pull request. Open discussions on it are resolved.",
     destructive: true,
   },
   requestPullRequestReview: {
@@ -261,19 +262,19 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   decidePullRequest: {
     title: "Review pull request",
     description:
-      "Approve, request changes or revoke a decision on a pull request review assigned to you or your discipline. Heads pin the reviewed content.",
+      "Approve, request changes or revoke a decision on a pull request review assigned to you or your discipline. Heads pin the reviewed content. The only member of an organization can approve their own changes; with more members, contributors cannot.",
     decision: true,
   },
   mergePullRequest: {
     title: "Merge pull request",
     description:
-      "Merge an approved pull request; merging into main creates a new revision.",
+      "Merge an approved pull request; merging into main creates a new revision and the result includes `revisionId`. The only member of an organization can satisfy a required review of their own changes.",
     decision: true,
   },
   revertSpecification: {
     title: "Restore revision",
     description:
-      "Create a new revision restoring the content of an earlier revision. History is never rewritten.",
+      "Create a new revision restoring the content of an earlier revision. History is never rewritten. A ready specification is protected: change it through a branch and pull request. The result includes `revisionId`.",
   },
   createSuggestion: {
     title: "Create suggestion",
@@ -430,6 +431,113 @@ function derivedId(mutationId: string, field: string) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
+async function commandSummary(
+  ctx: CapabilityContext,
+  organizationId: string,
+  command: Record<string, unknown>,
+) {
+  const extra: Record<string, unknown> = {};
+  const workItemId =
+    typeof command.workItemId === "string" ? command.workItemId : undefined;
+  const type = command.type;
+  if (
+    workItemId &&
+    (type === "createWorkItem" ||
+      type === "updateSpecification" ||
+      type === "revertSpecification" ||
+      type === "mergeSuggestion" ||
+      type === "mergePullRequest")
+  ) {
+    const [row] = await ctx.db
+      .select({ number: s.workItem.number, key: s.project.key })
+      .from(s.workItem)
+      .innerJoin(
+        s.project,
+        and(
+          eq(s.project.id, s.workItem.projectId),
+          eq(s.project.organizationId, s.workItem.organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(s.workItem.organizationId, organizationId),
+          eq(s.workItem.id, workItemId),
+        ),
+      );
+    if (row && type === "createWorkItem")
+      extra.key = `${row.key}-${row.number}`;
+    const [revision] = await ctx.db
+      .select({ id: s.specificationRevision.id })
+      .from(s.specificationRevision)
+      .where(
+        and(
+          eq(s.specificationRevision.organizationId, organizationId),
+          eq(s.specificationRevision.workItemId, workItemId),
+        ),
+      )
+      .orderBy(desc(s.specificationRevision.number))
+      .limit(1);
+    if (revision) extra.revisionId = revision.id;
+  }
+  if (
+    (type === "commitBranch" || type === "syncBranch") &&
+    typeof command.branchId === "string"
+  ) {
+    const [branch] = await ctx.db
+      .select({ headId: s.specificationBranch.headId })
+      .from(s.specificationBranch)
+      .where(
+        and(
+          eq(s.specificationBranch.organizationId, organizationId),
+          eq(s.specificationBranch.id, command.branchId),
+        ),
+      );
+    if (branch) {
+      extra.commitId = branch.headId;
+      if (type === "syncBranch" && branch.headId === command.sourceHeadId)
+        extra.alreadyUpToDate = true;
+    }
+  }
+  if (
+    type === "mergePullRequest" &&
+    typeof command.pullRequestId === "string"
+  ) {
+    const [pullRequest] = await ctx.db
+      .select({
+        mergedCommitId: s.specificationPullRequest.mergedCommitId,
+      })
+      .from(s.specificationPullRequest)
+      .where(
+        and(
+          eq(s.specificationPullRequest.organizationId, organizationId),
+          eq(s.specificationPullRequest.id, command.pullRequestId),
+        ),
+      );
+    if (pullRequest?.mergedCommitId)
+      extra.commitId = pullRequest.mergedCommitId;
+  }
+  if (
+    type === "createPullRequest" &&
+    typeof command.pullRequestId === "string"
+  ) {
+    extra.reviews = await ctx.db
+      .select({
+        id: s.pullRequestReview.id,
+        disciplineId: s.pullRequestReview.disciplineId,
+        userId: s.pullRequestReview.userId,
+        required: s.pullRequestReview.required,
+      })
+      .from(s.pullRequestReview)
+      .where(
+        and(
+          eq(s.pullRequestReview.organizationId, organizationId),
+          eq(s.pullRequestReview.pullRequestId, command.pullRequestId),
+        ),
+      );
+  }
+  return extra;
+}
+
 function commandCapability(option: (typeof commandSchema.options)[number]) {
   const type = option.shape.type.value;
   const doc = commandDocs[type];
@@ -444,16 +552,29 @@ function commandCapability(option: (typeof commandSchema.options)[number]) {
         .describe("Identifier for the new entity. Omit to have one assigned.");
     } else shape[key] = field as z.ZodType;
   }
-  const input = z.object({
-    organizationId,
-    mutationId: z
-      .uuid()
-      .optional()
-      .describe(
-        "Idempotency key. Retrying with the same value never applies the command twice.",
-      ),
-    ...shape,
-  });
+  const input = z.strictObject(
+    {
+      organizationId,
+      mutationId: z
+        .uuid()
+        .optional()
+        .describe(
+          "Idempotency key. Retrying with the same value never applies the command twice.",
+        ),
+      ...shape,
+    },
+    {
+      error: (issue) => {
+        if (issue.code !== "unrecognized_keys") return undefined;
+        const keys = issue.keys ?? [];
+        const hint =
+          type === "createWorkItem" && keys.includes("content")
+            ? " Specification text belongs in `description`."
+            : "";
+        return `Unknown field(s): ${keys.join(", ")}.${hint}`;
+      },
+    },
+  );
   return defineCapability({
     name: type,
     title: doc.title,
@@ -483,7 +604,12 @@ function commandCapability(option: (typeof commandSchema.options)[number]) {
         ids[key] = value;
       }
       const result = await executeMutation(ctx, mutationSchema.parse(mutation));
-      return { mutationId: result.mutationId, ...ids };
+      const summary = await commandSummary(
+        ctx,
+        organizationId,
+        mutation.command,
+      );
+      return { mutationId: result.mutationId, ...ids, ...summary };
     },
   });
 }
@@ -507,7 +633,7 @@ const listOrganizations = defineCapability({
   name: "listOrganizations",
   title: "List organizations",
   description:
-    "Organizations you belong to, with your application role (owner/admin/member). Start here to find an organizationId.",
+    "Organizations you belong to, with your application role (admin or member). An organization owner is reported as admin. Start here to find an organizationId.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({}),
@@ -528,33 +654,69 @@ const getWorkspace = defineCapability({
   name: "getWorkspace",
   title: "Get workspace configuration",
   description:
-    "The organization's projects (with their delivery settings, workflow statuses, enabled types, members, disciplines, teams and iterations), work item types, delivery targets and Lictory Intelligence policy, plus your application role and your capabilities in each project. Use it to resolve ids for other tools.",
+    "The organization's projects (with their delivery settings, workflow statuses, enabled types, members, disciplines, teams and iterations), work item types, delivery targets and Lictory Intelligence policy, plus your application role and your capabilities in each project. Pass `projectId` to limit projects, statuses, teams, iterations, disciplines and delivery targets to that project. Organization roles are admin or member. Use it to resolve ids for other tools.",
   kind: "query",
   surfaces: everywhere,
-  input: z.object({ organizationId }),
-  async run(ctx, { organizationId }) {
+  input: z.object({
+    organizationId,
+    projectId: id
+      .optional()
+      .describe(
+        "When set, the workspace is limited to this project. A missing project is not found.",
+      ),
+  }),
+  async run(ctx, { organizationId, projectId }) {
     const roster = await directory(
       ctx.db,
       ctx.principal.userId,
       organizationId,
     );
-    const me = roster.members.find((m) => m.id === ctx.principal.userId);
+    if (projectId && !roster.projects.some((p) => p.id === projectId))
+      throw new CapabilityError("not_found", "This project is unavailable.");
+    const scoped = projectId
+      ? {
+          ...roster,
+          projects: roster.projects.filter((p) => p.id === projectId),
+          projectMembers: roster.projectMembers.filter(
+            (m) => m.projectId === projectId,
+          ),
+          disciplines: roster.disciplines.filter(
+            (d) => d.projectId === projectId,
+          ),
+          teams: roster.teams.filter((t) => t.projectId === projectId),
+          projectTypes: roster.projectTypes.filter(
+            (t) => t.projectId === projectId,
+          ),
+          statuses: roster.statuses.filter((s) => s.projectId === projectId),
+          iterations: roster.iterations.filter(
+            (i) => i.projectId === projectId,
+          ),
+          readiness: roster.readiness.filter((r) => r.projectId === projectId),
+          delivery: {
+            ...roster.delivery,
+            targets: roster.delivery.targets.filter(
+              (t) => t.projectId === projectId,
+            ),
+          },
+        }
+      : roster;
+    const me = scoped.members.find((m) => m.id === ctx.principal.userId);
     return {
-      ...roster,
-      organizations: roster.organizations.filter(
-        (o) => o.id === organizationId,
-      ),
+      ...scoped,
+      organizations: roster.organizations
+        .filter((o) => o.id === organizationId)
+        .map((o) => ({ ...o, role: applicationRoleOf(o.role) })),
       me: {
         userId: ctx.principal.userId,
         applicationRole: me?.role ?? "member",
-        projects: roster.projects.map((p) => ({
+        projects: scoped.projects.map((p) => ({
           projectId: p.id,
           role:
-            roster.projectMembers.find(
+            scoped.projectMembers.find(
               (m) => m.projectId === p.id && m.userId === ctx.principal.userId,
             )?.role ?? null,
           capabilities: capabilitiesOf(
-            roster.disciplines,
+            scoped.disciplines,
             ctx.principal.userId,
             p.id,
           ),
@@ -750,31 +912,54 @@ const getWorkItem = defineCapability({
       ctx.principal.userId,
       q.organizationId,
     );
-    let where;
+    let row: { id: string; projectId: string } | undefined;
     if (q.key) {
       const [projectKey, number] = q.key.toUpperCase().split("-");
-      const project = roster.projects.find((p) => p.key === projectKey);
-      if (!project)
-        throw new CapabilityError("unavailable", `${q.key} does not exist.`);
-      where = and(
-        eq(s.workItem.organizationId, q.organizationId),
-        eq(s.workItem.projectId, project.id),
-        eq(s.workItem.number, Number(number)),
-      );
-    } else
-      where = and(
-        eq(s.workItem.organizationId, q.organizationId),
-        eq(s.workItem.id, q.workItemId!),
-      );
-    const [row] = await ctx.db
-      .select({ id: s.workItem.id, projectId: s.workItem.projectId })
-      .from(s.workItem)
-      .where(where);
-    if (!row)
-      throw new CapabilityError(
-        "unavailable",
-        "This work item is unavailable.",
-      );
+      const [found] = await ctx.db
+        .select({
+          id: s.workItem.id,
+          projectId: s.project.id,
+        })
+        .from(s.project)
+        .leftJoin(
+          s.workItem,
+          and(
+            eq(s.workItem.projectId, s.project.id),
+            eq(s.workItem.organizationId, s.project.organizationId),
+            eq(s.workItem.number, Number(number)),
+          ),
+        )
+        .where(
+          and(
+            eq(s.project.organizationId, q.organizationId),
+            sql`upper(${s.project.key}) = ${projectKey}`,
+          ),
+        );
+      if (!found)
+        throw new CapabilityError("not_found", `${q.key} does not exist.`);
+      if (!found.id)
+        throw new CapabilityError(
+          "not_found",
+          "This work item is unavailable.",
+        );
+      row = { id: found.id, projectId: found.projectId };
+    } else {
+      const [found] = await ctx.db
+        .select({ id: s.workItem.id, projectId: s.workItem.projectId })
+        .from(s.workItem)
+        .where(
+          and(
+            eq(s.workItem.organizationId, q.organizationId),
+            eq(s.workItem.id, q.workItemId!),
+          ),
+        );
+      if (!found)
+        throw new CapabilityError(
+          "not_found",
+          "This work item is unavailable.",
+        );
+      row = found;
+    }
     const { entities } = await bootstrap(ctx, {
       organizationId: q.organizationId,
       projectId: row.projectId,
@@ -827,7 +1012,7 @@ const getWorkItem = defineCapability({
       commits: of("specCommit"),
       pullRequests: of("pullRequest"),
       pullRequestReviews: of("prReview"),
-      aiRuns: of("aiRun"),
+      aiRuns: of("aiRun").map(({ model: _model, ...run }) => run),
       relations: entities.filter(
         (e) =>
           e.type === "relation" && (e.fromId === item.id || e.toId === item.id),
@@ -877,7 +1062,7 @@ const getInsights = defineCapability({
       ? roster.teams.find((t) => t.id === q.teamId)
       : undefined;
     if (q.teamId && !team)
-      throw new CapabilityError("unavailable", "The team is unavailable.");
+      throw new CapabilityError("not_found", "The team is unavailable.");
     const projectId = q.projectId ?? team?.projectId;
     if (team && team.projectId !== projectId)
       throw new CapabilityError(
@@ -916,11 +1101,65 @@ const getInsights = defineCapability({
   },
 });
 
+const listLabels = defineCapability({
+  name: "listLabels",
+  title: "List labels",
+  description:
+    "Labels defined on a project. Archived labels are omitted unless includeArchived is true.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({
+    organizationId,
+    projectId: id,
+    includeArchived: z.boolean().default(false),
+  }),
+  async run(ctx, q) {
+    const { entities } = await bootstrap(ctx, {
+      organizationId: q.organizationId,
+      projectId: q.projectId,
+    });
+    return {
+      labels: entities.filter(
+        (e): e is EntityOf<"label"> =>
+          e.type === "label" && (q.includeArchived || !e.archivedAt),
+      ),
+    };
+  },
+});
+
+const listMilestones = defineCapability({
+  name: "listMilestones",
+  title: "List milestones",
+  description:
+    "Milestones defined on a project. Archived milestones are omitted unless includeArchived is true.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({
+    organizationId,
+    projectId: id,
+    includeArchived: z.boolean().default(false),
+  }),
+  async run(ctx, q) {
+    const { entities } = await bootstrap(ctx, {
+      organizationId: q.organizationId,
+      projectId: q.projectId,
+    });
+    return {
+      milestones: entities.filter(
+        (e): e is EntityOf<"milestone"> =>
+          e.type === "milestone" && (q.includeArchived || !e.archivedAt),
+      ),
+    };
+  },
+});
+
 export const workspaceCapabilities: AnyCapability[] = [
   listOrganizations,
   getWorkspace,
   listWorkItems,
   getWorkItem,
+  listLabels,
+  listMilestones,
   getInsights,
   searchMembersCapability,
   searchEpicsCapability,

@@ -26,6 +26,7 @@ export type RejectionCategory =
   | "unauthorized"
   | "forbidden"
   | "unavailable"
+  | "not_found"
   | "validation"
   | "conflict"
   | "server";
@@ -52,6 +53,7 @@ const categories = new Set<string>([
   "unauthorized",
   "forbidden",
   "unavailable",
+  "not_found",
   "validation",
   "conflict",
   "server",

@@ -1108,7 +1108,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       },
     ) {
       const { organizationId } = input;
-      await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
         await lock(tx, organizationId);
         const item = await itemRow(tx, organizationId, input.workItemId);
         requirePublisher(
@@ -1120,7 +1120,11 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           workItemIds: [item.id],
         });
         const link = before.find((l) => l.connectionId === input.connectionId);
-        if (!link) return;
+        if (!link)
+          throw new DomainError(
+            "not_found",
+            "This item is not linked to that connection.",
+          );
         if (link.status === "pending")
           throw new DomainError(
             "conflict",
@@ -1157,6 +1161,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             workItemId: item.id,
           },
         );
+        return { affected: 1 };
       });
     },
 
@@ -1934,7 +1939,7 @@ async function itemRow(tx: Tx, organizationId: string, workItemId: string) {
         ),
       )
   )[0];
-  if (!row) throw new DomainError("unavailable", "This item is unavailable.");
+  if (!row) throw new DomainError("not_found", "This item is unavailable.");
   return row;
 }
 

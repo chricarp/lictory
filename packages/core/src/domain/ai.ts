@@ -403,7 +403,9 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
           "This Lictory Intelligence review run is unavailable.",
         );
       const finding = run.findings.find((f) => f.id === c.findingId);
-      if (!finding?.edit)
+      if (!finding)
+        throw new DomainError("not_found", "This finding is unavailable.");
+      if (!finding.edit)
         throw new DomainError("validation", "This finding proposes no change.");
       if (run.appliedFindingIds.includes(finding.id))
         throw new DomainError(

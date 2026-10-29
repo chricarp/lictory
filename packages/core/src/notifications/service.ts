@@ -20,7 +20,11 @@ import {
 
 const kind = z
   .string()
-  .refine(isNotificationKind, "Unknown notification kind.");
+  .refine(
+    isNotificationKind,
+    `Unknown notification kind. Allowed kinds: ${notificationKindList.join(", ")}.`,
+  )
+  .describe(`One of: ${notificationKindList.join(", ")}.`);
 
 export const notificationQuerySchema = z.object({
   organizationId: z.string().min(1).optional(),
@@ -232,6 +236,21 @@ export function createNotificationService(db: Database) {
     },
     async watching(userId: string, organizationId: string, workItemId: string) {
       await requireMember(userId, organizationId);
+      const [item] = await db
+        .select({
+          id: s.workItem.id,
+          createdById: s.workItem.createdById,
+          assigneeId: s.workItem.assigneeId,
+        })
+        .from(s.workItem)
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.id, workItemId),
+          ),
+        );
+      if (!item)
+        throw new DomainError("not_found", "This work item is unavailable.");
       const [row] = await db
         .select({ watching: s.workItemWatcher.watching })
         .from(s.workItemWatcher)
@@ -242,7 +261,51 @@ export function createNotificationService(db: Database) {
             eq(s.workItemWatcher.userId, userId),
           ),
         );
-      return { watching: row?.watching ?? null };
+      const [assigned, suggested, requested] = await Promise.all([
+        db
+          .select({ id: s.reviewAssignment.id })
+          .from(s.reviewAssignment)
+          .innerJoin(s.review, eq(s.review.id, s.reviewAssignment.reviewId))
+          .where(
+            and(
+              eq(s.review.organizationId, organizationId),
+              eq(s.review.workItemId, workItemId),
+              eq(s.reviewAssignment.userId, userId),
+              isNull(s.reviewAssignment.withdrawnAt),
+            ),
+          )
+          .limit(1),
+        db
+          .select({ id: s.suggestionReviewer.id })
+          .from(s.suggestionReviewer)
+          .where(
+            and(
+              eq(s.suggestionReviewer.organizationId, organizationId),
+              eq(s.suggestionReviewer.workItemId, workItemId),
+              eq(s.suggestionReviewer.userId, userId),
+              isNull(s.suggestionReviewer.withdrawnAt),
+            ),
+          )
+          .limit(1),
+        db
+          .select({ id: s.pullRequestReview.id })
+          .from(s.pullRequestReview)
+          .where(
+            and(
+              eq(s.pullRequestReview.organizationId, organizationId),
+              eq(s.pullRequestReview.workItemId, workItemId),
+              eq(s.pullRequestReview.userId, userId),
+            ),
+          )
+          .limit(1),
+      ]);
+      const reasons: ("explicit" | "author" | "assignee" | "reviewer")[] = [];
+      if (row?.watching) reasons.push("explicit");
+      if (item.createdById === userId) reasons.push("author");
+      if (item.assigneeId === userId) reasons.push("assignee");
+      if (assigned.length || suggested.length || requested.length)
+        reasons.push("reviewer");
+      return { watching: row?.watching ?? null, reasons };
     },
     async act(userId: string, input: NotificationAction) {
       const a = notificationActionSchema.parse(input);
@@ -253,14 +316,15 @@ export function createNotificationService(db: Database) {
           else where.push(isNull(s.notification.readAt));
           if (a.organizationId)
             where.push(eq(s.notification.organizationId, a.organizationId));
-          await db
+          const read = await db
             .update(s.notification)
             .set({ readAt: a.read ? new Date() : null })
-            .where(and(...where));
-          return { ok: true };
+            .where(and(...where))
+            .returning({ id: s.notification.id });
+          return { ok: true, affected: read.length };
         }
-        case "archive":
-          await db
+        case "archive": {
+          const archived = await db
             .update(s.notification)
             .set(
               a.archived
@@ -275,8 +339,10 @@ export function createNotificationService(db: Database) {
                 eq(s.notification.userId, userId),
                 inArray(s.notification.id, a.ids),
               ),
-            );
-          return { ok: true };
+            )
+            .returning({ id: s.notification.id });
+          return { ok: true, affected: archived.length };
+        }
         case "setPreferences":
         case "resetScope": {
           await requireMember(userId, a.organizationId);
@@ -338,7 +404,7 @@ export function createNotificationService(db: Database) {
               ),
             );
           if (!item)
-            throw new DomainError("unavailable", "This item is unavailable.");
+            throw new DomainError("not_found", "This item is unavailable.");
           const key = and(
             eq(s.workItemWatcher.organizationId, a.organizationId),
             eq(s.workItemWatcher.workItemId, a.workItemId),
@@ -403,5 +469,5 @@ async function requireScope(
               )
           ).length > 0;
   if (!exists)
-    throw new DomainError("unavailable", `That ${scope} is unavailable.`);
+    throw new DomainError("not_found", `That ${scope} is unavailable.`);
 }

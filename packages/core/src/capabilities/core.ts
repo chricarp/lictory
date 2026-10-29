@@ -76,6 +76,7 @@ export const errorCategories = [
   "unauthorized",
   "forbidden",
   "unavailable",
+  "not_found",
   "validation",
   "conflict",
   "external",
@@ -115,6 +116,7 @@ export function httpStatus(error: CapabilityError) {
     case "forbidden":
       return 403;
     case "unavailable":
+    case "not_found":
       return 404;
     case "validation":
       return 422;

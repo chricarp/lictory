@@ -20,6 +20,7 @@ import {
   canReviewSuggestions,
   capabilitiesOf,
   entitySchema,
+  estimateOptions,
   isProjectConfigurationCommand,
   isTypeCommand,
   noCapabilities,
@@ -43,6 +44,7 @@ import { rankBetween } from "@lictory/core/contracts/rank";
 import {
   checksFor,
   evaluateReadiness,
+  sectionContent,
   type ReadinessCheckDefinition,
   type ReadinessImpact,
   type ReadinessRules,
@@ -93,12 +95,13 @@ import {
   iterationReportRows,
 } from "@lictory/core/domain/delivery";
 export { DomainError };
-// Missing or out-of-scope entities are "unavailable" (404) so a stale link never
-// looks like a revoked membership. Organization access failures stay forbidden.
+// A missing entity is not_found (404). That is distinct from forbidden, so a
+// stale link never looks like a revoked membership, and from unavailable,
+// which means a service is not configured. Organization access stays forbidden.
 function requireValue<T>(
   v: T | undefined,
   message = "This item is unavailable.",
-  category: "forbidden" | "unavailable" = "unavailable",
+  category: "forbidden" | "unavailable" | "not_found" = "not_found",
 ): T {
   if (!v) throw new DomainError(category, message);
   return v;
@@ -553,9 +556,31 @@ export function isAdmin(membership: { role: string }) {
 function require(
   allowed: boolean,
   message: string,
-  category: "forbidden" | "validation" = "forbidden",
+  category: "forbidden" | "validation" | "conflict" = "forbidden",
 ) {
   if (!allowed) throw new DomainError(category, message);
+}
+function article(name: string) {
+  return /^[aeiou]/i.test(name.trim()) ? "An" : "A";
+}
+function rejectEstimate(
+  scale: keyof typeof estimateOptions,
+  value: number | null,
+) {
+  if (value === null || scale === "none") return;
+  const options = estimateOptions[scale];
+  if (options.some((option) => option.value === value)) return;
+  const list = options
+    .map((option) =>
+      option.label === String(option.value)
+        ? option.label
+        : `${option.label} (${option.value})`,
+    )
+    .join(", ");
+  throw new DomainError(
+    "validation",
+    `Estimate ${value} is not on the ${scale} scale. Allowed values: ${list}.`,
+  );
 }
 // Capability failures name the missing capability so a project administrator
 // knows which discipline to adjust, rather than a generic "not allowed".
@@ -2035,7 +2060,7 @@ export async function applyMutation(
       if (parentType.level <= child.level)
         throw new DomainError(
           "validation",
-          `A ${child.name} cannot be placed under a ${parentType.name}.`,
+          `${article(child.name)} ${child.name} cannot be placed under ${article(parentType.name).toLowerCase()} ${parentType.name}.`,
         );
       return parent;
     };
@@ -2170,7 +2195,7 @@ export async function applyMutation(
             .where(eq(s.organizationOnboarding.organizationId, organizationId))
             .limit(1);
           require(!roster.projects.length &&
-            !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.");
+            !previousSetup.length, "Initial setup has already been completed. Use settings to change configuration.", "conflict");
           if (c.setup.aiEnabled !== undefined)
             await setAiPolicy(tx, organizationId, userId, c.setup.aiEnabled);
         }
@@ -2411,7 +2436,7 @@ export async function applyMutation(
             if (projectRow!.readinessPolicy === "block")
               throw new DomainError(
                 "validation",
-                `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.map((f) => f.toLowerCase()).join("; ")}` : ""}.`,
+                `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.join("; ")}` : ""}.`,
               );
             override = failing;
           }
@@ -2478,6 +2503,7 @@ export async function applyMutation(
               "validation",
               `${projectRow!.name} does not estimate work in Lictory.`,
             );
+          rejectEstimate(projectRow!.estimateScale, c.estimate);
           if (iterationId && c.iterationId === undefined)
             await iterationEvent(
               iterationId,
@@ -2651,9 +2677,11 @@ export async function applyMutation(
               ).rank;
         let low = neighbour(c.afterId);
         let high = neighbour(c.beforeId);
-        // Stale neighbours (another client moved them) must not produce
-        // an invalid range; fall back to placing after `afterId`.
-        if (low !== null && high !== null && low >= high) high = null;
+        if (low !== null && high !== null && low >= high)
+          throw new DomainError(
+            "validation",
+            "Place the item between neighbours that are already in order.",
+          );
         if (low === null && high === null)
           low =
             before
@@ -2718,7 +2746,11 @@ export async function applyMutation(
               ),
             ),
           );
-        if (existing.length) break;
+        if (existing[0])
+          throw new DomainError(
+            "conflict",
+            `This relation already exists (${existing[0].id}).`,
+          );
         if (c.kind === "blocks") {
           const reverse = await tx
             .select({ id: s.workItemRelation.id })
@@ -2892,19 +2924,54 @@ export async function applyMutation(
         }
         break;
       }
-      case "archiveWorkItem":
+      case "archiveWorkItem": {
         requireCapability(capabilities, "changeProperties");
+        const ids = [workItemId!];
+        // Archiving a parent takes its active descendants with it. Restoring
+        // the parent leaves them archived so a child is never revived unseen.
+        if (c.archived) {
+          const rows = await tx
+            .select({ id: s.workItem.id, parentId: s.workItem.parentId })
+            .from(s.workItem)
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.projectId, projectId),
+                isNull(s.workItem.archivedAt),
+              ),
+            );
+          const byParent = new Map<string, string[]>();
+          for (const row of rows) {
+            if (!row.parentId) continue;
+            const children = byParent.get(row.parentId) ?? [];
+            children.push(row.id);
+            byParent.set(row.parentId, children);
+          }
+          const queue = [...(byParent.get(workItemId!) ?? [])];
+          const seen = new Set<string>();
+          while (queue.length) {
+            const id = queue.pop()!;
+            if (seen.has(id)) continue;
+            seen.add(id);
+            ids.push(id);
+            queue.push(...(byParent.get(id) ?? []));
+          }
+        }
         await tx
           .update(s.workItem)
           .set({ archivedAt: c.archived ? now : null })
           .where(
             and(
               eq(s.workItem.organizationId, organizationId),
-              eq(s.workItem.id, workItemId!),
+              inArray(s.workItem.id, ids),
             ),
           );
-        log(c.archived ? "archived" : "restored");
+        log(
+          c.archived ? "archived" : "restored",
+          ids.length > 1 ? { children: ids.length - 1 } : undefined,
+        );
         break;
+      }
       case "updateSpecification":
         requireCapability(capabilities, "editSpecifications");
         if (item!.mainProtected)
@@ -2946,9 +3013,30 @@ export async function applyMutation(
             pr.status !==
               "merged", "This pull request is unavailable for discussion.");
           require(!c.suggestionId, "Choose one discussion context.");
-          require(before.some(
-            (e) => e.type === "specCommit" && e.id === c.commitId,
-          ), "Choose the commit this discussion concerns.");
+          require(Boolean(c.commitId) &&
+            before.some(
+              (e) => e.type === "specCommit" && e.id === c.commitId,
+            ), "Choose the commit this discussion concerns.", "validation");
+        }
+        if (c.section.trim()) {
+          let content = latest?.type === "revision" ? latest.content : "";
+          if (c.suggestionId) {
+            const suggestion = before.find(
+              (e) => e.type === "suggestion" && e.id === c.suggestionId,
+            );
+            if (suggestion?.type === "suggestion")
+              content = suggestion.replacement;
+          } else if (c.commitId) {
+            const commit = before.find(
+              (e) => e.type === "specCommit" && e.id === c.commitId,
+            );
+            if (commit?.type === "specCommit") content = commit.content;
+          }
+          if (sectionContent(content, c.section) === undefined)
+            throw new DomainError(
+              "validation",
+              `The section “${c.section}” is not in this text.`,
+            );
         }
         await tx.insert(s.thread).values({
           id: c.threadId,
@@ -3201,8 +3289,9 @@ export async function applyMutation(
                 c.userId,
                 projectId,
               ), "Suggestion reviewers need a discipline in this project that can both edit specifications and be asked to review.", "validation");
-              require(c.userId !==
-                userId, "You cannot review your own suggestion.", "validation");
+              require(c.userId !== userId ||
+                roster.members.length ===
+                  1, "You cannot review your own suggestion.", "validation");
               if (existing) break;
               await tx.insert(s.suggestionReviewer).values({
                 organizationId,
@@ -3685,6 +3774,18 @@ export async function applyMutation(
           : !ready && state === "ready"
             ? "in_review"
             : undefined;
+      if (
+        next &&
+        c.type === "updateWorkItem" &&
+        c.refinementState !== undefined &&
+        c.refinementState !== next
+      )
+        throw new DomainError(
+          "conflict",
+          next === "ready"
+            ? "This item still meets its readiness checks, so it stays ready. Change the specification or the checks before moving it back."
+            : "This item does not meet its readiness checks, so it cannot stay ready.",
+        );
       if (next) {
         await setRefinement(next, state, true);
         after = await snapshot(tx, scope);

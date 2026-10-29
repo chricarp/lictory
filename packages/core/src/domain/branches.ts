@@ -40,7 +40,7 @@ const require = (ok: unknown, message: string) => {
 const available = <T>(value: T | undefined): T => {
   if (!value)
     throw new DomainError(
-      "unavailable",
+      "not_found",
       "This branch or pull request is unavailable.",
     );
   return value;
@@ -199,6 +199,8 @@ export async function applyBranchCommand(
         isNull(s.specificationPullRequest.deletedAt),
       ),
     );
+  const soleMember =
+    roster.members.length === 1 && roster.members[0]!.id === userId;
   const branch = (id: string) => available(branches.find((b) => b.id === id));
   const commit = (id: string) => available(commits.find((b) => b.id === id));
   const pr = (id: string) => available(prs.find((p) => p.id === id));
@@ -366,15 +368,17 @@ export async function applyBranchCommand(
           "conflict",
           "Resolve the overlapping changes before updating the branch.",
         );
-      await insertCommit(
-        b,
-        {
-          title: c.title ?? result!.title,
-          content: c.content ?? result!.content,
-        },
-        `Merge ${target.name} into ${b.name}`,
-        [b.headId, target.headId],
-      );
+      const snapshot = {
+        title: c.title ?? result!.title,
+        content: c.content ?? result!.content,
+      };
+      const head = commit(b.headId);
+      if (snapshot.title === head.title && snapshot.content === head.content)
+        break;
+      await insertCommit(b, snapshot, `Merge ${target.name} into ${b.name}`, [
+        b.headId,
+        target.headId,
+      ]);
       break;
     }
     case "deleteBranch": {
@@ -437,7 +441,8 @@ export async function applyBranchCommand(
         status: c.draft ? "draft" : "open",
         authorId: userId,
       });
-      // Carry existing required responsibilities as PR review requests.
+      // Copy required reviews of the current specification. Optional reviews
+      // stay on the specification; nothing is requested that was not required.
       const reviews = await tx
         .select()
         .from(s.review)
@@ -453,7 +458,9 @@ export async function applyBranchCommand(
         .from(s.reviewAssignment)
         .where(eq(s.reviewAssignment.organizationId, organizationId));
       const added = new Set<string>();
-      for (const review of reviews.filter((r) => r.status !== "cancelled")) {
+      for (const review of reviews.filter(
+        (r) => r.required && r.status !== "cancelled",
+      )) {
         const targets = assignments.filter(
           (a) => a.reviewId === review.id && !a.withdrawnAt,
         );
@@ -508,10 +515,27 @@ export async function applyBranchCommand(
       const p = pr(c.pullRequestId);
       require(p.authorId === userId ||
         capabilities.editSpecifications, "Only the author or a specification editor can delete this pull request.");
+      const deletedAt = new Date();
       await tx
         .update(s.specificationPullRequest)
-        .set({ deletedAt: new Date() })
+        .set({ deletedAt })
         .where(eq(s.specificationPullRequest.id, p.id));
+      // Open discussions would otherwise drop out of the item with the pull
+      // request and could never be resolved.
+      await tx
+        .update(s.thread)
+        .set({
+          status: "resolved",
+          resolvedById: userId,
+          resolvedAt: deletedAt,
+        })
+        .where(
+          and(
+            eq(s.thread.organizationId, organizationId),
+            eq(s.thread.pullRequestId, p.id),
+            eq(s.thread.status, "open"),
+          ),
+        );
       log("pull_request_deleted", { title: p.title, pullRequestId: p.id });
       break;
     }
@@ -591,6 +615,7 @@ export async function applyBranchCommand(
           r.userId ===
             userId), "Only an assigned reviewer can decide this review.");
       require(c.decision !== "approve" ||
+        soleMember ||
         !commits.some(
           (commit) =>
             commit.authorId === userId &&
@@ -667,12 +692,13 @@ export async function applyBranchCommand(
         r.decision === "approved" &&
         r.resultHash === hash &&
         roster.members.some((m) => m.id === r.reviewerId) &&
-        !commits.some(
-          (c) =>
-            c.authorId === r.reviewerId &&
-            reachable(commits, source.headId, c.id) &&
-            !reachable(commits, target.headId, c.id),
-        ) &&
+        (soleMember ||
+          !commits.some(
+            (authored) =>
+              authored.authorId === r.reviewerId &&
+              reachable(commits, source.headId, authored.id) &&
+              !reachable(commits, target.headId, authored.id),
+          )) &&
         disciplines.some(
           (role) =>
             role.id === r.disciplineId &&
@@ -807,6 +833,20 @@ export async function applyBranchCommand(
     }
     case "revertSpecification": {
       require(capabilities.editSpecifications, "Your disciplines in this project cannot restore specification revisions.");
+      const [item] = await tx
+        .select({ mainProtected: s.workItem.mainProtected })
+        .from(s.workItem)
+        .where(
+          and(
+            eq(s.workItem.organizationId, organizationId),
+            eq(s.workItem.id, workItemId),
+          ),
+        );
+      if (item?.mainProtected)
+        throw new DomainError(
+          "conflict",
+          "This specification is ready. Use a branch and pull request to change main.",
+        );
       const r = available(
         (
           await tx

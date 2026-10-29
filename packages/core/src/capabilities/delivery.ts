@@ -307,12 +307,12 @@ const unlinkExternalItem = defineCapability({
   destructive: true,
   input: z.object({ organizationId, workItemId: id, connectionId: id }),
   async run(ctx, input) {
-    await service(ctx).unlink(ctx.principal.userId, input);
+    const result = await service(ctx).unlink(ctx.principal.userId, input);
     track(ctx, "delivery_item_unlinked", {
       organization_id: input.organizationId,
       work_item_id: input.workItemId,
     });
-    return { ok: true };
+    return { ok: true, affected: result?.affected ?? 0 };
   },
 });
 

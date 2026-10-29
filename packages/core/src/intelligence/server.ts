@@ -352,12 +352,26 @@ export async function createIntelligenceContext(
   userId: string,
   target: ContextTarget,
   input: ContextInput,
+  idempotencyKey?: string,
 ) {
   const parsed = parseInput(input);
   if (parsed.content === undefined)
     throw new ContextError("The entry has no content.", 422);
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
+    if (idempotencyKey) {
+      const [existing] = await tx
+        .select({ id: s.intelligenceContextEntry.id })
+        .from(s.intelligenceContextEntry)
+        .where(
+          and(
+            eq(s.intelligenceContextEntry.organizationId, organizationId),
+            eq(s.intelligenceContextEntry.createdById, userId),
+            eq(s.intelligenceContextEntry.idempotencyKey, idempotencyKey),
+          ),
+        );
+      if (existing) return { id: existing.id };
+    }
     const placement = {
       scope: target.scope,
       projectId: target.scope === "project" ? target.projectId : null,
@@ -373,6 +387,7 @@ export async function createIntelligenceContext(
       ...placement,
       kind: input.document ? "document" : "note",
       createdById: userId,
+      idempotencyKey: idempotencyKey ?? null,
     });
     await tx.insert(s.intelligenceContextVersion).values({
       organizationId,
@@ -395,10 +410,33 @@ export async function reviseIntelligenceContext(
   userId: string,
   entryId: string,
   input: ContextInput,
+  idempotencyKey?: string,
 ) {
   const parsed = parseInput(input);
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
+    if (idempotencyKey) {
+      const [existing] = await tx
+        .select({
+          id: s.intelligenceContextVersion.id,
+          entryId: s.intelligenceContextVersion.entryId,
+          number: s.intelligenceContextVersion.number,
+        })
+        .from(s.intelligenceContextVersion)
+        .where(
+          and(
+            eq(s.intelligenceContextVersion.organizationId, organizationId),
+            eq(s.intelligenceContextVersion.authorId, userId),
+            eq(s.intelligenceContextVersion.idempotencyKey, idempotencyKey),
+          ),
+        );
+      if (existing)
+        return {
+          id: existing.entryId,
+          versionId: existing.id,
+          number: existing.number,
+        };
+    }
     const entry = await entryOf(tx, organizationId, entryId);
     await requireManage(tx, organizationId, userId, entry);
     if (entry.archivedAt)
@@ -436,6 +474,7 @@ export async function reviseIntelligenceContext(
         title: parsed.title,
         content,
         authorId: userId,
+        idempotencyKey: idempotencyKey ?? null,
         ...source,
       })
       .returning({ id: s.intelligenceContextVersion.id });

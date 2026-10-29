@@ -217,7 +217,7 @@ void test("domain workflow converges in the projections, retains history, and de
     threadId,
     messageId: crypto.randomUUID(),
     body: "Define late responses.",
-    section: "Failure behavior",
+    section: "",
     blocking: true,
   });
   const messageId = crypto.randomUUID();
@@ -738,8 +738,7 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
       item.refinementState === "ready" &&
       item.priority === "high",
   );
-  // Protected main cannot be edited directly. Restoring an earlier revision
-  // is an explicit capability-gated operation and stales the approval.
+  // Protected main cannot be edited or restored directly.
   await assert.rejects(
     f.command({
       type: "updateSpecification",
@@ -749,38 +748,13 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
     }),
     /ready/,
   );
-  await f.command({
-    type: "revertSpecification",
-    ...base2,
-    revisionId: first.id,
-  });
-  all = await f.entities();
-  const third = await f.current();
-  assert.ok(all.some((e) => e.type === "approval" && e.status === "stale"));
-  const carried = all.filter(
-    (e) => e.type === "review" && e.revisionId === third.id,
-  );
-  assert.equal(carried.length, 1);
-  assert.equal(carried[0]!.type === "review" && carried[0].status, "requested");
-  assert.ok(
-    all.some(
-      (e) =>
-        e.type === "assignment" &&
-        e.reviewId === carried[0]!.id &&
-        e.userId === f.reviewerId,
-    ),
-  );
-  item = all.find((e) => e.type === "workItem")!;
-  assert.ok(
-    item.type === "workItem" &&
-      item.refinementState === "in_review" &&
-      item.reviews.length === 1,
-  );
-  assert.deepEqual(item.type === "workItem" && item.reviews[0]!.assigneeIds, [
-    f.reviewerId,
-  ]);
-  assert.ok(
-    all.some((e) => e.type === "activity" && e.action === "refinement_changed"),
+  await assert.rejects(
+    f.command({
+      type: "revertSpecification",
+      ...base2,
+      revisionId: first.id,
+    }),
+    /ready/,
   );
 });
 
@@ -1887,7 +1861,7 @@ void test("readiness gates starting spec-backed work according to team policy", 
       workItemId: f.proposalId,
       statusId: f.statuses["In Progress"],
     }),
-    /PAY-1 is not ready to start: at least one required review is requested/,
+    /PAY-1 is not ready to start: At least one required review is requested/,
   );
   // Plain tasks are never gated.
   const task = await create(f, f.types.Task);
@@ -2712,17 +2686,15 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     ),
     /cannot restore specification revisions/,
   );
-  await f.command({
-    type: "revertSpecification",
-    workItemId: f.proposalId,
-    baseRevisionId: main.id,
-    revisionId: original.id,
-  });
-  main = await f.current();
-  assert.equal(main.number, 4);
-  assert.equal(main.content, original.content);
-  all = await f.entities();
-  assert.ok(all.some((e) => e.type === "approval" && e.status === "stale"));
+  await assert.rejects(
+    f.command({
+      type: "revertSpecification",
+      workItemId: f.proposalId,
+      baseRevisionId: main.id,
+      revisionId: original.id,
+    }),
+    /ready/,
+  );
   await assert.rejects(
     f.command({
       type: "updateSpecification",
@@ -3138,7 +3110,7 @@ void test("enabled types are project configuration and plain work needs no speci
       typeId: f.types.Story,
       enabled: false,
     }),
-    /Story item belongs/,
+    /1 item of type Story belongs/,
   );
   await f.command({
     type: "setProjectType",
@@ -3467,7 +3439,7 @@ void test("readiness checks are revisioned; ready and done items keep the checks
     threadId: crypto.randomUUID(),
     messageId: crypto.randomUUID(),
     body: "What happens on timeout?",
-    section: "Intent",
+    section: "",
     blocking: true,
   });
   const moved = await readinessOf(f, f.proposalId);
@@ -3637,28 +3609,579 @@ void test("publishing checks moves following items with their evidence; manual s
   assert.equal((await itemOf(f, story)).refinementState, "in_review");
   await signOff(true);
   assert.equal((await itemOf(f, story)).refinementState, "ready");
-  // A new revision needs a new sign-off.
-  await f.command({
-    type: "revertSpecification",
-    workItemId: story,
-    baseRevisionId: v2.id,
-    revisionId: v1.id,
-  });
-  designs = (await readinessOf(f, story)).checks.find(
-    (c) => c.key === "designs",
-  )!;
-  assert.equal(designs.passed, false);
-  assert.equal(
-    designs.detail,
-    "Signed off on revision 2. Sign off again for revision 3.",
+  // Ready main is protected, so a new revision has to come from a branch.
+  await assert.rejects(
+    f.command({
+      type: "revertSpecification",
+      workItemId: story,
+      baseRevisionId: v2.id,
+      revisionId: v1.id,
+    }),
+    /ready/,
   );
-  assert.equal((await itemOf(f, story)).refinementState, "in_review");
   const rows = await db
     .select()
     .from(s.readinessSignOff)
     .where(eq(s.readinessSignOff.workItemId, story));
   assert.equal(rows.length, 2);
   assert.equal(rows.filter((r) => r.withdrawnAt).length, 1);
+});
+
+void test("estimates must belong to the project scale", async () => {
+  const f = await fixture();
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    estimateScale: "tshirt",
+  });
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      estimate: 4,
+    }),
+    /Estimate 4 is not on the tshirt scale\. Allowed values: XS \(1\), S \(2\), M \(3\), L \(5\), XL \(8\)/,
+  );
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    estimate: 5,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).estimate, 5);
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    estimateScale: "fibonacci",
+  });
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      estimate: 4,
+    }),
+    /not on the fibonacci scale/,
+  );
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    estimate: null,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).estimate, null);
+});
+
+void test("a ready item stays ready until its checks stop passing", async () => {
+  const f = await fixture();
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    refinementState: "refinement",
+  });
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "refinement");
+  const revision = await f.current();
+  const reviewId = crypto.randomUUID();
+  await f.command({
+    type: "requestReview",
+    workItemId: f.proposalId,
+    baseRevisionId: revision.id,
+    reviewId,
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  await f.command(
+    {
+      type: "decideReview",
+      workItemId: f.proposalId,
+      baseRevisionId: revision.id,
+      reviewId,
+      decision: "approve",
+    },
+    f.reviewerId,
+  );
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "ready");
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      refinementState: "refinement",
+    }),
+    /stays ready/,
+  );
+  assert.equal((await itemOf(f, f.proposalId)).refinementState, "ready");
+});
+
+void test("duplicate relations report the existing id and reversed neighbours are refused", async () => {
+  const f = await fixture();
+  const a = await create(f, f.types.Task);
+  const relationId = crypto.randomUUID();
+  await f.command({
+    type: "addRelation",
+    workItemId: a,
+    relationId,
+    toId: f.proposalId,
+    kind: "relates",
+  });
+  await assert.rejects(
+    f.command({
+      type: "addRelation",
+      workItemId: f.proposalId,
+      relationId: crypto.randomUUID(),
+      toId: a,
+      kind: "relates",
+    }),
+    new RegExp(`already exists \\(${relationId}\\)`),
+  );
+  const rows = await db
+    .select()
+    .from(s.workItemRelation)
+    .where(eq(s.workItemRelation.organizationId, f.organizationId));
+  assert.equal(rows.length, 1);
+  const later = await create(f, f.types.Task);
+  await assert.rejects(
+    f.command({
+      type: "rankWorkItem",
+      workItemId: f.proposalId,
+      afterId: later,
+      beforeId: a,
+    }),
+    /already in order/,
+  );
+});
+
+void test("discussion anchors must name a section that exists", async () => {
+  const f = await fixture();
+  const revision = await f.current();
+  const thread = (section: string) =>
+    f.command({
+      type: "createThread",
+      workItemId: f.proposalId,
+      baseRevisionId: revision.id,
+      threadId: crypto.randomUUID(),
+      messageId: crypto.randomUUID(),
+      body: "Where does this belong?",
+      section,
+      blocking: false,
+    });
+  await assert.rejects(thread("Missing heading"), /not in this text/);
+  await thread("");
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: revision.id,
+    title: "Safe retries",
+    content: "# Intent\n\nRetries stay safe.",
+  });
+  const next = await f.current();
+  await f.command({
+    type: "createThread",
+    workItemId: f.proposalId,
+    baseRevisionId: next.id,
+    threadId: crypto.randomUUID(),
+    messageId: crypto.randomUUID(),
+    body: "On the intent.",
+    section: "Intent",
+    blocking: false,
+  });
+});
+
+void test("archiving a parent archives active descendants and restoring it does not", async () => {
+  const f = await fixture();
+  const epic = await create(f, f.types.Epic);
+  const task = await create(f, f.types.Task, { parentId: epic });
+  const subtask = await create(f, f.types.Subtask, { parentId: task });
+  await f.command({
+    type: "archiveWorkItem",
+    workItemId: epic,
+    archived: true,
+  });
+  for (const id of [epic, task, subtask])
+    assert.ok((await itemOf(f, id)).archivedAt);
+  const archived = await db
+    .select()
+    .from(s.activity)
+    .where(eq(s.activity.workItemId, epic));
+  assert.ok(
+    archived.some(
+      (row) => row.action === "archived" && row.detail?.children === 2,
+    ),
+  );
+  await f.command({
+    type: "archiveWorkItem",
+    workItemId: epic,
+    archived: false,
+  });
+  assert.equal((await itemOf(f, epic)).archivedAt, null);
+  assert.ok((await itemOf(f, task)).archivedAt);
+  assert.ok((await itemOf(f, subtask)).archivedAt);
+});
+
+void test("open iterations in one project cannot overlap", async () => {
+  const f = await fixture();
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  await f.command({
+    type: "createIteration",
+    projectId: f.projectId,
+    iterationId: crypto.randomUUID(),
+    name: "Now",
+    goal: null,
+    startsAt: day(-1),
+    endsAt: day(13),
+  });
+  await assert.rejects(
+    f.command({
+      type: "createIteration",
+      projectId: f.projectId,
+      iterationId: crypto.randomUUID(),
+      name: "Overlap",
+      goal: null,
+      startsAt: day(0),
+      endsAt: day(20),
+    }),
+    /overlap Now/,
+  );
+  await f.command({
+    type: "createIteration",
+    projectId: f.projectId,
+    iterationId: crypto.randomUUID(),
+    name: "Next",
+    goal: null,
+    startsAt: day(13),
+    endsAt: day(27),
+  });
+});
+
+void test("an epic uses the article An", async () => {
+  const f = await fixture();
+  const task = await create(f, f.types.Task);
+  await assert.rejects(
+    create(f, f.types.Epic, { parentId: task }),
+    /An Epic cannot be placed under a Task/,
+  );
+});
+
+void test("reverting a specification that has never been ready restores that revision", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+    title: "Edited",
+    content: "Second draft",
+  });
+  const second = await f.current();
+  await f.command({
+    type: "revertSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: second.id,
+    revisionId: first.id,
+  });
+  const restored = await f.current();
+  assert.equal(restored.content, first.content);
+  assert.equal(restored.number, 3);
+  assert.notEqual((await itemOf(f, f.proposalId)).refinementState, "ready");
+});
+
+void test("the only organization member can review and approve their own suggestion", async () => {
+  const f = await fixture();
+  // Membership is removed outside a command; later commands rewrite the
+  // directory from the remaining member, so the projection check still holds.
+  await db.delete(s.member).where(eq(s.member.userId, f.reviewerId));
+  const revision = await f.current();
+  const suggestionId = crypto.randomUUID();
+  await f.command({
+    type: "createSuggestion",
+    workItemId: f.proposalId,
+    baseRevisionId: revision.id,
+    suggestionId,
+    replacement: "# Safe retries\n\nSolo edit.",
+    title: "Solo",
+    rationale: "Nobody else can review.",
+    open: true,
+  });
+  await f.command({
+    type: "setSuggestionReviewer",
+    workItemId: f.proposalId,
+    suggestionId,
+    userId: f.userId,
+    assigned: true,
+  });
+  await f.command({
+    type: "decideSuggestion",
+    workItemId: f.proposalId,
+    suggestionId,
+    version: 1,
+    decision: "approve",
+  });
+  const decision = (await f.entities()).find(
+    (entity) => entity.type === "suggestionDecision",
+  );
+  assert.ok(
+    decision?.type === "suggestionDecision" && decision.decision === "approved",
+  );
+});
+
+void test("deleting a pull request resolves its open discussions", async () => {
+  const f = await fixture();
+  const original = await f.current();
+  const branchId = crypto.randomUUID();
+  const pullRequestId = crypto.randomUUID();
+  const threadId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "discuss",
+  });
+  const source = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.id === branchId,
+  );
+  assert.ok(source?.type === "specBranch");
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: source.headId,
+    title: "Discussed",
+    content: "A change worth discussing.",
+    message: "Discuss",
+  });
+  const committed = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.id === branchId,
+  );
+  const target = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.name === "main",
+  );
+  assert.ok(committed?.type === "specBranch" && target?.type === "specBranch");
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: target.id,
+    title: "Discuss",
+    description: "Please look.",
+    draft: true,
+  });
+  await f.command({
+    type: "createThread",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    threadId,
+    messageId: crypto.randomUUID(),
+    body: "Which commit?",
+    section: "",
+    blocking: false,
+    pullRequestId,
+    commitId: committed.headId,
+  });
+  await f.command({
+    type: "deletePullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+  });
+  const [thread] = await db
+    .select()
+    .from(s.thread)
+    .where(eq(s.thread.id, threadId));
+  assert.equal(thread!.status, "resolved");
+  assert.equal(thread!.resolvedById, f.userId);
+  assert.ok(thread!.resolvedAt);
+});
+
+void test("syncBranch does nothing when the branch already has the resolved text", async () => {
+  const f = await fixture();
+  const original = await f.current();
+  const branchId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "synced",
+  });
+  const branch = async () => {
+    const found = (await f.entities()).find(
+      (entity) => entity.type === "specBranch" && entity.id === branchId,
+    );
+    assert.ok(found?.type === "specBranch");
+    return found;
+  };
+  const source = await branch();
+  const title = "Already there";
+  const content = "No further merge is required.";
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: source.headId,
+    title,
+    content,
+    message: "Land the text",
+  });
+  const head = (await branch()).headId;
+  const target = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.name === "main",
+  );
+  assert.ok(target?.type === "specBranch");
+  await f.command({
+    type: "syncBranch",
+    workItemId: f.proposalId,
+    branchId,
+    targetId: target.id,
+    sourceHeadId: head,
+    targetHeadId: target.headId,
+    title,
+    content,
+  });
+  assert.equal((await branch()).headId, head);
+});
+
+void test("a pull request carries only required specification reviews", async () => {
+  const f = await fixture();
+  const original = await f.current();
+  const base = { workItemId: f.proposalId, baseRevisionId: original.id };
+  await f.command({
+    type: "requestReview",
+    ...base,
+    reviewId: crypto.randomUUID(),
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  await f.command({
+    type: "requestReview",
+    ...base,
+    reviewId: crypto.randomUUID(),
+    disciplineId: f.roles.QA,
+    userId: f.reviewerId,
+    required: false,
+  });
+  const branchId = crypto.randomUUID();
+  const pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "required-only",
+  });
+  const source = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.id === branchId,
+  );
+  const target = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.name === "main",
+  );
+  assert.ok(source?.type === "specBranch" && target?.type === "specBranch");
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: source.headId,
+    title: "Required reviews",
+    content: "Only required reviews move with the pull request.",
+    message: "Open",
+  });
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: target.id,
+    title: "Required reviews",
+    description: "Carry the required one.",
+    draft: false,
+  });
+  const reviews = await db
+    .select()
+    .from(s.pullRequestReview)
+    .where(eq(s.pullRequestReview.pullRequestId, pullRequestId));
+  assert.equal(reviews.length, 1);
+  assert.equal(reviews[0]!.disciplineId, f.roles.Engineering);
+  assert.equal(reviews[0]!.required, true);
+});
+
+void test("the only organization member can approve and merge their own pull request", async () => {
+  const f = await fixture();
+  await db.delete(s.member).where(eq(s.member.userId, f.reviewerId));
+  const original = await f.current();
+  const branchId = crypto.randomUUID();
+  const pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "solo",
+  });
+  const source = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.id === branchId,
+  );
+  const target = (await f.entities()).find(
+    (entity) => entity.type === "specBranch" && entity.name === "main",
+  );
+  assert.ok(source?.type === "specBranch" && target?.type === "specBranch");
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: source.headId,
+    title: "Solo change",
+    content: "The only member wrote this.",
+    message: "Solo",
+  });
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: target.id,
+    title: "Solo change",
+    description: "Self review.",
+    draft: false,
+  });
+  await f.command({
+    type: "requestPullRequestReview",
+    workItemId: f.proposalId,
+    pullRequestId,
+    disciplineId: f.roles.Product,
+    userId: f.userId,
+    required: true,
+  });
+  const review = (await f.entities()).find(
+    (entity) =>
+      entity.type === "prReview" && entity.pullRequestId === pullRequestId,
+  );
+  const heads = (await f.entities()).filter(
+    (entity) => entity.type === "specBranch",
+  );
+  const sourceHead = heads.find((entity) => entity.id === branchId);
+  const targetHead = heads.find((entity) => entity.name === "main");
+  assert.ok(
+    review?.type === "prReview" &&
+      sourceHead?.type === "specBranch" &&
+      targetHead?.type === "specBranch",
+  );
+  await f.command({
+    type: "decidePullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    reviewId: review.id,
+    sourceHeadId: sourceHead.headId,
+    targetHeadId: targetHead.headId,
+    decision: "approve",
+  });
+  await f.command({
+    type: "mergePullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceHeadId: sourceHead.headId,
+    targetHeadId: targetHead.headId,
+  });
+  const merged = await f.current();
+  assert.equal(merged.content, "The only member wrote this.");
 });
 
 void test("projections written by every command above equal a rebuild from the domain", async () => {
