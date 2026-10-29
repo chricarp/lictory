@@ -121,6 +121,11 @@ created in Account settings. Only a SHA-256 hash is stored; tokens are `read` or
 Every MCP and agent call is recorded in `capability_invocation`: person, token,
 client, capability, organization, outcome (or error category), mutation id and
 duration. Inputs are not stored because they can contain specification content.
+Organization attribution is resolved among the caller's current memberships
+inside the audit insert, even when validation or token checks reject the call
+before execution. MCP references accept ids or slugs; embedded-agent references
+use canonical ids. Unknown, inaccessible or ambiguous references leave the
+organization empty while preserving the attempt and its original outcome.
 Domain changes are attributed to the person in activity history as before; the
 mutation id joins the two.
 
