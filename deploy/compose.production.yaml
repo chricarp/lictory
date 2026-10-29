@@ -301,6 +301,7 @@ services:
       PROXY_SCHEME: ${PROXY_SCHEME:-https}
       ACME_EMAIL: ${ACME_EMAIL:?}
       CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-}
     volumes:
       - caddy_data:/data
       - caddy_config:/config

@@ -68,6 +68,28 @@ The proxy:
 `scripts/edge-proxy.ts` is the local stand-in for these routes; keep both in
 step.
 
+### Client addresses and authentication rate limits
+
+The gateway overwrites `X-Forwarded-For` with one address from Caddy's
+`{client_ip}` resolution before forwarding to the API. Better Auth 1.7.7 reads
+that header by default but rejects multi-address chains without its own
+trusted-proxy configuration. Keep the normalization at the gateway, which can
+verify its direct peer; do not make auth trust raw `CF-Connecting-IP` or the
+leftmost address of a forwarded chain.
+
+On a standalone gateway, Caddy uses the connection's remote address. Behind
+Openship or another edge, set `CADDY_TRUSTED_PROXIES` to the space-separated
+actual proxy IPs or CIDRs. Empty trusts no proxies. The gateway enables
+`trusted_proxies_strict` to parse `X-Forwarded-For` from right to left.
+Include every trusted hop in the forwarded chain, including
+Cloudflare when it is present. The edge must overwrite the client address or
+append its connecting peer; clients must not be able to reach the private API
+directly. Avoid trusting all private ranges or arbitrary client headers. If
+the edge is not trusted, all its users share the edge's address and rate limit.
+
+After changing the edge topology, confirm that the gateway's `client_ip` is the
+visitor's address and that separate clients have independent auth limits.
+
 ## Environments
 
 Production and staging are separate servers with separate databases, R2
