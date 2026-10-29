@@ -1,7 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type {
+  AskQuestionsInput,
+  AskQuestionsOutput,
   ChatMessage,
   ChatRunState,
 } from "@lictory/core/intelligence/chat/shared";
@@ -28,13 +30,13 @@ const question = {
       required: true,
     },
   ],
-};
+} satisfies AskQuestionsInput;
 const row = (page: Page) =>
   page
     .getByRole("navigation", { name: "Conversations" })
     .getByRole("link", { name: /Refund limits/ });
 
-async function seed() {
+async function seed(input: AskQuestionsInput = question) {
   const seeded = await seedWorkspace({
     name: "Background Lab",
     key: "BGL",
@@ -99,7 +101,7 @@ async function seed() {
         type: "tool-askQuestions",
         toolCallId: "scope-question",
         state: "input-available",
-        input: question,
+        input,
       },
     ],
   } as ChatMessage;
@@ -197,6 +199,146 @@ test("navigation, reload and a second device retain working, waiting and complet
     });
   } finally {
     await otherContext.close();
+  }
+});
+
+async function expectContained(card: Locator) {
+  await expect(card).toBeVisible();
+  // Check text itself as well as element boxes: clipping overflow would hide
+  // this regression without making the questions and answers readable.
+  await expect
+    .poll(() =>
+      card.evaluate((root) => {
+        const bounds = root.getBoundingClientRect();
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.textContent?.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          for (const rect of range.getClientRects()) {
+            if (rect.left < bounds.left - 1 || rect.right > bounds.right + 1)
+              return false;
+          }
+        }
+        return root.scrollWidth <= root.clientWidth + 1;
+      }),
+    )
+    .toBe(true);
+}
+
+test("long questions and answers remain readable before submission and in saved history", async ({
+  page,
+  context,
+}) => {
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.178" });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const longUrl = `https://example.test/specifications/${"archive-policy-".repeat(20)}`;
+  const prompt =
+    "These epics contain substantive product specifications and four child items, rather than empty placeholders. Should we archive all of the active work, including the requirements that engineering and QA have already reviewed, or retain those specifications for a follow-up review?";
+  const label =
+    "Proceed — archive all 63 active items, preserving their specifications, revisions, approvals and discussion history so the team can restore them later if needed.";
+  const answer = `Retain the reviewed specifications and their child items until the team has agreed on the replacement behavior.\nReference: ${longUrl}`;
+  const input: AskQuestionsInput = {
+    title:
+      "Confirm the scope of archiving LICT-111 and LICT-112 and explain how the team should handle their existing specifications and delivery work",
+    questions: [
+      {
+        ...question.questions[0]!,
+        kind: "single",
+        prompt,
+        description: `Review the archive policy before deciding: ${longUrl}`,
+        options: [{ value: "archive", label, description: longUrl }],
+      },
+      {
+        ...question.questions[0]!,
+        id: "reason",
+        prompt: `What should we preserve, and why? Include any relevant policy from ${longUrl}`,
+      },
+    ],
+  };
+  const output: AskQuestionsOutput = {
+    answers: [
+      {
+        id: "scope",
+        values: ["archive"],
+        labels: [label],
+        text: null,
+        skipped: false,
+      },
+      { id: "reason", values: [], labels: [], text: answer, skipped: false },
+    ],
+  };
+  const f = await seed(input);
+  await f.save("waiting", f.asking);
+  await page.route("**/api/intelligence/chat", async (route) => {
+    expect(
+      (route.request().postDataJSON() as { response: unknown }).response,
+    ).toEqual({ toolCallId: "scope-question", output });
+    const completed: ChatMessage = {
+      ...f.assistant,
+      parts: [
+        {
+          type: "tool-askQuestions",
+          toolCallId: "scope-question",
+          state: "output-available",
+          input,
+          output,
+        },
+        { type: "text", text: "Archive scope recorded for review." },
+      ],
+    };
+    await route.fulfill({
+      status: 202,
+      json: await f.save("completed", completed),
+    });
+  });
+  await signIn(page, f.seeded.owner.email);
+  await page.goto(`/${f.seeded.slug}/intelligence/${f.chatId}`);
+  const questionnaire = page.getByRole("group", { name: input.title });
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectContained(questionnaire);
+  }
+  await questionnaire.getByText(label, { exact: true }).click();
+  const text = questionnaire.getByRole("textbox");
+  await expect(text).toBeVisible();
+  await expectContained(questionnaire);
+  await text.fill(answer);
+  await questionnaire.getByRole("button", { name: "Previous" }).click();
+  await expect(questionnaire.getByRole("radio")).toBeChecked();
+  await questionnaire
+    .getByRole("button", { name: "Next", exact: true })
+    .click();
+  await expect(text).toHaveValue(answer);
+  await questionnaire.getByRole("button", { name: "Submit answers" }).click();
+  await expect(
+    page.getByText("Archive scope recorded for review.", { exact: true }),
+  ).toBeVisible();
+
+  // The saved record is also used inside the collapsed activity transcript.
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.reload();
+    await page.getByRole("button", { name: /Worked/ }).click();
+    const record = page.locator("dl").filter({ hasText: prompt }).locator("..");
+    await expectContained(record);
+    await expect(record.locator("dt")).toHaveText(
+      input.questions.map((q) => q.prompt),
+    );
+    await expect(record.locator("dd")).toHaveText([label, answer]);
+    for (const pair of await record.locator("dl > div").all()) {
+      const questionBounds = await pair.locator("dt").boundingBox();
+      const answerBounds = await pair.locator("dd").boundingBox();
+      expect(answerBounds!.y).toBeGreaterThanOrEqual(
+        questionBounds!.y + questionBounds!.height,
+      );
+      expect(answerBounds!.width).toBeGreaterThanOrEqual(
+        questionBounds!.width - 1,
+      );
+    }
+    await record.screenshot({
+      path: test.info().outputPath(`long-answers-${width}.png`),
+    });
   }
 });
 
