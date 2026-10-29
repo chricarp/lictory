@@ -528,6 +528,142 @@ void test("MCP accepts slugs, audits canonical ids and gives safe recovery error
   assert.match(failure.content[0]!.text, /matches more than one organization/);
 });
 
+void test("audit resolves failed MCP calls without rejected inserts or foreign attribution", async () => {
+  const f = await fixture();
+  const slug = `payments-${crypto.randomUUID()}`;
+  await db
+    .update(s.organization)
+    .set({ slug })
+    .where(eq(s.organization.id, f.organizationId));
+
+  // Both organizations are accessible, but this id is also the other's slug.
+  const ambiguousId = await organization(f.ownerId, [f.memberId]);
+  const unambiguousSlug = `workspace-${ambiguousId}`;
+  await db
+    .update(s.organization)
+    .set({ slug: unambiguousSlug })
+    .where(eq(s.organization.id, ambiguousId));
+  const otherId = await organization(f.ownerId, [f.memberId]);
+  await db
+    .update(s.organization)
+    .set({ slug: ambiguousId })
+    .where(eq(s.organization.id, otherId));
+  await refreshDirectories(db, [f.organizationId, ambiguousId, otherId]);
+
+  let inserts = 0;
+  const auditedDb = drizzle(client, {
+    schema: s,
+    logger: {
+      logQuery(query) {
+        if (query.startsWith('insert into "capability_invocation"')) inserts++;
+      },
+    },
+  });
+  async function check(
+    name: string,
+    input: unknown,
+    outcome: string,
+    organizationId: string | null,
+    principal: Principal = { userId: f.memberId, surface: "mcp" },
+  ) {
+    const clientName = `audit-regression-${crypto.randomUUID()}`;
+    const ctx = {
+      ...context({ ...principal, client: clientName }),
+      db: auditedDb,
+    };
+    inserts = 0;
+    if (outcome === "ok") await invoke(ctx, name, input);
+    else await rejected(invoke(ctx, name, input), outcome);
+    // The old FK-error fallback also left a row, but attempted two inserts.
+    assert.equal(inserts, 1, `${name}: exactly one audit insert`);
+    const rows = await db
+      .select()
+      .from(s.capabilityInvocation)
+      .where(eq(s.capabilityInvocation.client, clientName));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]!.outcome, outcome);
+    assert.equal(rows[0]!.organizationId, organizationId);
+  }
+
+  for (const reference of [slug, f.organizationId]) {
+    await check(
+      "createWorkItem",
+      { organizationId: reference },
+      "validation",
+      f.organizationId,
+    );
+    await check(
+      "createTeam",
+      { organizationId: reference, projectId: f.projectId, name: "Platform" },
+      "forbidden",
+      f.organizationId,
+    );
+    await check(
+      "getWorkspace",
+      { organizationId: reference },
+      "ok",
+      f.organizationId,
+    );
+    // Token rejection happens before input validation and slug resolution.
+    await check(
+      "createTeam",
+      { organizationId: reference },
+      "forbidden",
+      f.organizationId,
+      { userId: f.memberId, surface: "mcp", access: "read" },
+    );
+    await check(
+      "getWorkspace",
+      { organizationId: reference },
+      "forbidden",
+      null,
+      {
+        userId: f.outsiderId,
+        surface: "mcp",
+      },
+    );
+  }
+  for (const reference of ["unknown-organization", ambiguousId]) {
+    await check(
+      "getWorkspace",
+      { organizationId: reference },
+      reference === ambiguousId ? "validation" : "forbidden",
+      null,
+    );
+    await check(
+      "createWorkItem",
+      { organizationId: reference },
+      "validation",
+      null,
+    );
+  }
+  // Audit must keep the resolved id, not reinterpret it as an ambiguous id/slug
+  // after a successful operation.
+  await check(
+    "getWorkspace",
+    { organizationId: unambiguousSlug },
+    "ok",
+    ambiguousId,
+  );
+  await check(
+    "getWorkspace",
+    { scope: { organizationId: slug } },
+    "validation",
+    null,
+  );
+  await check("getWorkspace", { organizationId: 123 }, "validation", null);
+  await check("listOrganizations", {}, "ok", null);
+  for (const reference of [f.organizationId, slug, "unknown-organization"]) {
+    await check(
+      "createWorkItem",
+      { organizationId: reference },
+      "validation",
+      reference === f.organizationId ? f.organizationId : null,
+      { userId: f.memberId, surface: "agent" },
+    );
+  }
+});
+
 void test("access tokens: read-only, revocation, and audit", async () => {
   const f = await fixture();
   const readToken = (await invoke(f.web, "createAccessToken", {

@@ -1,5 +1,5 @@
 import * as s from "@lictory/core/db/schema";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { accessTokenCapabilities } from "@lictory/core/capabilities/access-tokens";
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
@@ -45,23 +45,19 @@ export function getCapability(name: string, surface: Surface) {
 
 function organizationOf(input: unknown): string | null {
   if (!input || typeof input !== "object") return null;
-  const value = input as {
-    organizationId?: unknown;
-    scope?: { organizationId?: unknown };
-  };
-  const id = value.organizationId ?? value.scope?.organizationId;
+  const id = (input as { organizationId?: unknown }).organizationId;
   return typeof id === "string" ? id : null;
 }
 
 // MCP clients can use the readable slug instead of copying an opaque id.
 // Only memberships are searched: unknown and inaccessible organizations have
 // the same response. Domain services still authorize inside their transactions.
-async function resolveMcpOrganization(ctx: CapabilityContext, input: unknown) {
-  if (!input || typeof input !== "object" || !("organizationId" in input))
-    return input;
-  const reference = input.organizationId;
-  if (typeof reference !== "string") return input;
-  const matches = await ctx.db
+function organizationMatches(
+  ctx: CapabilityContext,
+  reference: string,
+  acceptSlug: boolean,
+) {
+  return ctx.db
     .selectDistinct({ id: s.organization.id })
     .from(s.organization)
     .innerJoin(
@@ -72,9 +68,22 @@ async function resolveMcpOrganization(ctx: CapabilityContext, input: unknown) {
       ),
     )
     .where(
-      or(eq(s.organization.id, reference), eq(s.organization.slug, reference)),
+      acceptSlug
+        ? or(
+            eq(s.organization.id, reference),
+            eq(s.organization.slug, reference),
+          )
+        : eq(s.organization.id, reference),
     )
     .limit(2);
+}
+
+async function resolveMcpOrganization(ctx: CapabilityContext, input: unknown) {
+  if (!input || typeof input !== "object" || !("organizationId" in input))
+    return input;
+  const reference = input.organizationId;
+  if (typeof reference !== "string") return input;
+  const matches = await organizationMatches(ctx, reference, true);
   if (!matches.length)
     throw new CapabilityError(
       "forbidden",
@@ -103,36 +112,55 @@ async function audit(
   record: {
     capability: string;
     organizationId: string | null;
+    organizationReference: string | null;
     outcome: string;
     mutationId: string | null;
     durationMs: number;
   },
 ) {
-  const values = {
-    userId: ctx.principal.userId,
-    surface: ctx.principal.surface,
-    tokenId: ctx.principal.tokenId ?? null,
-    client: ctx.principal.client?.slice(0, 200) ?? null,
-    ...record,
-  };
   try {
-    await ctx.db.insert(s.capabilityInvocation).values(values);
-  } catch {
-    try {
-      // An organization id that does not exist (or was mistyped) still leaves
-      // an audit record of the attempt.
-      await ctx.db
-        .insert(s.capabilityInvocation)
-        .values({ ...values, organizationId: null });
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          event: "capability.audit_failed",
-          capability: record.capability,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    }
+    const {
+      organizationId: resolvedId,
+      organizationReference,
+      ...fields
+    } = record;
+    // Once execution has resolved a reference, keep that exact organization
+    // even if its slug changes before the audit is written.
+    const reference = resolvedId ?? organizationReference;
+    const matches =
+      reference === null
+        ? null
+        : organizationMatches(
+            ctx,
+            reference,
+            resolvedId === null && ctx.principal.surface === "mcp",
+          ).as("audit_organizations");
+    // Resolve even invalid calls, without inserting raw references or relying
+    // on FK errors. Unknown, inaccessible and ambiguous references stay null.
+    // Keep the lookup in the insert to avoid another database round trip.
+    const organizationId = matches
+      ? sql`(${ctx.db
+          .select({
+            id: sql`case when count(*) = 1 then min(${matches.id}) else null end`,
+          })
+          .from(matches)})`
+      : null;
+    await ctx.db.insert(s.capabilityInvocation).values({
+      userId: ctx.principal.userId,
+      surface: ctx.principal.surface,
+      tokenId: ctx.principal.tokenId ?? null,
+      client: ctx.principal.client?.slice(0, 200) ?? null,
+      ...fields,
+      organizationId,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "capability.audit_failed",
+        capability: record.capability,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
   }
 }
 
@@ -158,7 +186,6 @@ export async function invoke(
         "forbidden",
         "This access token is read-only. Create a token with write access to make changes.",
       );
-    organizationId = organizationOf(rawInput);
     const parsed = capability.input.parse(rawInput ?? {});
     const input =
       ctx.principal.surface === "mcp"
@@ -193,6 +220,7 @@ export async function invoke(
       await audit(ctx, {
         capability: name.slice(0, 120),
         organizationId,
+        organizationReference: organizationOf(rawInput),
         outcome,
         mutationId,
         durationMs: Date.now() - start,
