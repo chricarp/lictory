@@ -10,6 +10,7 @@ import {
   projectionDrift,
   projectionService,
 } from "@lictory/core/domain/projection-reader.test-helper";
+import { refreshDirectories } from "@lictory/core/domain/projections";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import {
   PROTOCOL,
@@ -200,6 +201,133 @@ void test("only administrators change context; every member can read it", async 
     }),
     /Only organization administrators/,
   );
+});
+
+void test("context retries preserve versions, reject different targets, and recheck authorization", async () => {
+  const f = await fixture();
+  const key = crypto.randomUUID();
+  const input = { title: "Glossary", content: "A charge moves money." };
+  const target = { scope: "organization" as const };
+  const first = await createIntelligenceContext(
+    db,
+    f.organizationId,
+    f.adminId,
+    target,
+    input,
+    key,
+  );
+  assert.deepEqual(
+    await createIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      target,
+      input,
+      key,
+    ),
+    first,
+  );
+  await assert.rejects(
+    createIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      { scope: "project", projectId: f.projectId },
+      input,
+      key,
+    ),
+    /different context target/,
+  );
+  const second = await createIntelligenceContext(
+    db,
+    f.organizationId,
+    f.adminId,
+    target,
+    { title: "Other", content: "Different entry." },
+  );
+  const revisionKey = crypto.randomUUID();
+  const edit = { title: "Glossary", content: "A charge transfers money." };
+  const revised = await reviseIntelligenceContext(
+    db,
+    f.organizationId,
+    f.adminId,
+    first.id,
+    edit,
+    revisionKey,
+  );
+  assert.deepEqual(
+    await reviseIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      first.id,
+      edit,
+      revisionKey,
+    ),
+    revised,
+  );
+  await assert.rejects(
+    reviseIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      second.id,
+      edit,
+      revisionKey,
+    ),
+    /different entry/,
+  );
+  await db
+    .update(s.member)
+    .set({ role: "member" })
+    .where(eq(s.member.userId, f.adminId));
+  await assert.rejects(
+    createIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      target,
+      input,
+      key,
+    ),
+    /Only organization administrators/,
+  );
+  await assert.rejects(
+    reviseIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      first.id,
+      edit,
+      revisionKey,
+    ),
+    /Only organization administrators/,
+  );
+  await db.delete(s.member).where(eq(s.member.userId, f.adminId));
+  await assert.rejects(
+    createIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      target,
+      input,
+      key,
+    ),
+    /not a member/,
+  );
+  await assert.rejects(
+    reviseIntelligenceContext(
+      db,
+      f.organizationId,
+      f.adminId,
+      first.id,
+      edit,
+      revisionKey,
+    ),
+    /not a member/,
+  );
+  // This test writes memberships directly, so restore the directory projection.
+  await refreshDirectories(db, [f.organizationId]);
 });
 
 void test("context never crosses organizations", async () => {

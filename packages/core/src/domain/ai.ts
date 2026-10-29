@@ -129,7 +129,7 @@ async function runOf(tx: Tx, organizationId: string, runId: string) {
     );
   if (!row)
     throw new DomainError(
-      "unavailable",
+      "not_found",
       "This Lictory Intelligence run is unavailable.",
     );
   return row;
@@ -257,7 +257,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
         );
       if (!pr || pr.status === "merged")
         throw new DomainError(
-          "unavailable",
+          pr ? "conflict" : "not_found",
           "This pull request is not open for review.",
         );
       const [source] = await tx
@@ -399,7 +399,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
       const run = await runOf(tx, organizationId, c.runId);
       if (run.kind !== "pr_action" || run.workItemId !== workItemId)
         throw new DomainError(
-          "unavailable",
+          "not_found",
           "This Lictory Intelligence review run is unavailable.",
         );
       const finding = run.findings.find((f) => f.id === c.findingId);
@@ -438,7 +438,7 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
           ),
         );
       if (!source)
-        throw new DomainError("unavailable", "The source branch was deleted.");
+        throw new DomainError("not_found", "The source branch was deleted.");
       const [head] = await tx
         .select()
         .from(s.specificationCommit)

@@ -78,7 +78,9 @@ async function rejectOverlappingIteration(
     (row) => row.startsAt < endsAt && row.endsAt > startsAt,
   );
   if (!overlap) return;
-  const label = overlap.name?.trim() || `Iteration ${overlap.number}`;
+  const label = overlap.name?.trim()
+    ? overlap.name.trim()
+    : `Iteration ${overlap.number}`;
   fail(
     `These dates overlap ${label} (${day(overlap.startsAt)}–${day(overlap.endsAt)}). Choose a range that does not overlap another open iteration.`,
   );

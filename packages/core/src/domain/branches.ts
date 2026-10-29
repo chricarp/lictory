@@ -373,7 +373,13 @@ export async function applyBranchCommand(
         content: c.content ?? result!.content,
       };
       const head = commit(b.headId);
-      if (snapshot.title === head.title && snapshot.content === head.content)
+      // Identical text is only a no-op when the target is already in our
+      // history. Otherwise record the merge parent so later syncs use it.
+      if (
+        snapshot.title === head.title &&
+        snapshot.content === head.content &&
+        reachable(commits, b.headId, target.headId)
+      )
         break;
       await insertCommit(b, snapshot, `Merge ${target.name} into ${b.name}`, [
         b.headId,

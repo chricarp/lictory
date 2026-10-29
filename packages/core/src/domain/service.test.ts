@@ -730,7 +730,7 @@ void test("metadata updates never stale approvals; revisions carry reviews forwa
     priority: "high",
     assigneeId: f.reviewerId,
   });
-  let all = await f.entities();
+  const all = await f.entities();
   assert.ok(all.some((e) => e.type === "approval" && e.status === "granted"));
   item = all.find((e) => e.type === "workItem")!;
   assert.ok(
@@ -1861,7 +1861,7 @@ void test("readiness gates starting spec-backed work according to team policy", 
       workItemId: f.proposalId,
       statusId: f.statuses["In Progress"],
     }),
-    /PAY-1 is not ready to start: At least one required review is requested/,
+    /PAY-1 is not ready to start: outstanding checks: At least one required review is requested/,
   );
   // Plain tasks are never gated.
   const task = await create(f, f.types.Task);
@@ -2592,7 +2592,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
   const checkpoint = (await f.read()).nextCursor;
   await f.command(mergeCommand, f.userId, mutationId);
   await f.command(mergeCommand, f.userId, mutationId);
-  let all = await f.entities(),
+  const all = await f.entities(),
     main = await f.current();
   assert.equal(main.title, "Final title");
   assert.equal(main.number, 3);
@@ -2794,12 +2794,17 @@ for (const scenario of ["non-main", "draft-source", "open-target"] as const) {
       },
       f.reviewerId,
     );
-    await f.command({
+    const merged = await f.command({
       type: "mergePullRequest",
       workItemId: f.proposalId,
       pullRequestId,
       ...heads,
     });
+    assert.ok(merged.summary?.commitId);
+    assert.equal(
+      merged.summary?.revisionId,
+      scenario === "non-main" ? undefined : (await f.current()).id,
+    );
     const all = await f.entities();
     assert.ok(all.some((e) => e.type === "specBranch" && e.id === sourceId));
     assert.ok(
@@ -3598,7 +3603,7 @@ void test("publishing checks moves following items with their evidence; manual s
   );
   await signOff(true);
   await assert.rejects(signOff(true), /already signed off/);
-  let designs = (await readinessOf(f, story)).checks.find(
+  const designs = (await readinessOf(f, story)).checks.find(
     (c) => c.key === "designs",
   )!;
   assert.equal(designs.passed, true);
@@ -3746,6 +3751,27 @@ void test("duplicate relations report the existing id and reversed neighbours ar
     }),
     /already in order/,
   );
+  const another = await create(f, f.types.Task);
+  for (const workItemId of [f.proposalId, another])
+    await f.command({
+      type: "rankWorkItem",
+      workItemId,
+      afterId: a,
+      beforeId: later,
+    });
+  assert.notEqual(
+    (await itemOf(f, f.proposalId)).rank,
+    (await itemOf(f, another)).rank,
+  );
+  await assert.rejects(
+    f.command({
+      type: "rankWorkItem",
+      workItemId: a,
+      afterId: a,
+      beforeId: null,
+    }),
+    /own rank neighbour/,
+  );
 });
 
 void test("discussion anchors must name a section that exists", async () => {
@@ -3813,6 +3839,19 @@ void test("archiving a parent archives active descendants and restoring it does 
   assert.equal((await itemOf(f, epic)).archivedAt, null);
   assert.ok((await itemOf(f, task)).archivedAt);
   assert.ok((await itemOf(f, subtask)).archivedAt);
+  // An active grandchild below an archived intermediate must still be found.
+  await f.command({
+    type: "archiveWorkItem",
+    workItemId: subtask,
+    archived: false,
+  });
+  await f.command({
+    type: "archiveWorkItem",
+    workItemId: epic,
+    archived: true,
+  });
+  assert.ok((await itemOf(f, subtask)).archivedAt);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
 
 void test("open iterations in one project cannot overlap", async () => {
@@ -3920,6 +3959,42 @@ void test("the only organization member can review and approve their own suggest
   assert.ok(
     decision?.type === "suggestionDecision" && decision.decision === "approved",
   );
+  // A later member joining ends the sole-member exception, including approvals
+  // recorded before they joined.
+  await db.insert(s.member).values({
+    id: crypto.randomUUID(),
+    organizationId: f.organizationId,
+    userId: f.reviewerId,
+    role: "member",
+    createdAt: new Date(),
+  });
+  await assert.rejects(
+    f.command({
+      type: "decideSuggestion",
+      workItemId: f.proposalId,
+      suggestionId,
+      version: 1,
+      decision: "approve",
+    }),
+    /own suggestion/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "mergeSuggestion",
+      baseRevisionId: revision.id,
+      workItemId: f.proposalId,
+      suggestionId,
+    }),
+    /own suggestion/,
+  );
+  await db.delete(s.member).where(eq(s.member.userId, f.reviewerId));
+  await f.command({
+    type: "mergeSuggestion",
+    baseRevisionId: revision.id,
+    workItemId: f.proposalId,
+    suggestionId,
+  });
+  assert.equal((await f.current()).content, "# Safe retries\n\nSolo edit.");
 });
 
 void test("deleting a pull request resolves its open discussions", async () => {
@@ -4182,6 +4257,88 @@ void test("the only organization member can approve and merge their own pull req
   });
   const merged = await f.current();
   assert.equal(merged.content, "The only member wrote this.");
+});
+
+void test("sync records identical-text merge ancestry so later target edits merge cleanly", async () => {
+  const f = await fixture();
+  const original = await f.current();
+  const branchId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "same-text",
+  });
+  const branches = async () => {
+    const entities = await f.entities();
+    const source = entities.find(
+      (e) => e.type === "specBranch" && e.id === branchId,
+    );
+    const target = entities.find(
+      (e) => e.type === "specBranch" && e.name === "main",
+    );
+    assert.ok(source?.type === "specBranch" && target?.type === "specBranch");
+    return { source, target };
+  };
+  const { source } = await branches();
+  const content = "Identical change on both lines.";
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: source.headId,
+    title: original.title,
+    content,
+    message: "Same change",
+  });
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    title: original.title,
+    content,
+  });
+  let heads = await branches();
+  await f.command({
+    type: "syncBranch",
+    workItemId: f.proposalId,
+    branchId,
+    targetId: heads.target.id,
+    sourceHeadId: heads.source.headId,
+    targetHeadId: heads.target.headId,
+  });
+  const synced = await branches();
+  assert.notEqual(synced.source.headId, heads.source.headId);
+  const commit = (await f.entities()).find(
+    (e) => e.type === "specCommit" && e.id === synced.source.headId,
+  );
+  assert.ok(commit?.type === "specCommit");
+  assert.ok(commit.parentIds.includes(heads.target.headId));
+  const current = await f.current();
+  const updatedContent = "Target changed that same line again.";
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: current.id,
+    title: current.title,
+    content: updatedContent,
+  });
+  heads = await branches();
+  await f.command({
+    type: "syncBranch",
+    workItemId: f.proposalId,
+    branchId,
+    targetId: heads.target.id,
+    sourceHeadId: heads.source.headId,
+    targetHeadId: heads.target.headId,
+  });
+  const result = await branches();
+  const last = (await f.entities()).find(
+    (e) => e.type === "specCommit" && e.id === result.source.headId,
+  );
+  assert.ok(last?.type === "specCommit");
+  assert.equal(last.content, updatedContent);
 });
 
 void test("projections written by every command above equal a rebuild from the domain", async () => {

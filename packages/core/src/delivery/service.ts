@@ -155,7 +155,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
   ) => {
     const a = await access(tx, userId, organizationId);
     if (!a.roster.projects.some((p) => p.id === projectId))
-      throw new DomainError("unavailable", "This project is unavailable.");
+      throw new DomainError("not_found", "This project is unavailable.");
     if (!canManageProject(a.roster, userId, a.admin, projectId))
       throw new DomainError(
         "forbidden",
@@ -230,7 +230,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     )[0];
     if (!row)
       throw new DomainError(
-        "unavailable",
+        "not_found",
         "The delivery connection is unavailable.",
       );
     return row;
@@ -293,7 +293,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         ),
       );
     if (seeds.length !== new Set(requested).size)
-      throw new DomainError("unavailable", "An item to export is unavailable.");
+      throw new DomainError("not_found", "An item to export is unavailable.");
     const projectId = seeds[0]!.projectId;
     if (seeds.some((i) => i.projectId !== projectId))
       throw new DomainError(
@@ -995,7 +995,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       );
       if (!external)
         throw new DomainError(
-          "unavailable",
+          "not_found",
           `Jira issue ${input.externalKey} does not exist or is not visible to ${prepared.row.accountLabel}.`,
         );
       if (external.lictoryItemId && external.lictoryItemId !== input.workItemId)
@@ -1184,7 +1184,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             )
         )[0];
         if (!row)
-          throw new DomainError("unavailable", "The export is unavailable.");
+          throw new DomainError("not_found", "The export is unavailable.");
         return row;
       });
     },
@@ -1204,7 +1204,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         const a = await access(tx, userId, organizationId);
         const project = a.roster.projects.find((p) => p.id === projectId);
         if (!project)
-          throw new DomainError("unavailable", "This project is unavailable.");
+          throw new DomainError("not_found", "This project is unavailable.");
         if (project.deliveryMode !== "external")
           throw new DomainError(
             "validation",

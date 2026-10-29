@@ -40,6 +40,7 @@ import {
   type WorkflowStatus,
   type WorkItemType,
 } from "@lictory/core/contracts/protocol";
+import { commandSummary } from "@lictory/core/domain/mutation-summary";
 import { rankBetween } from "@lictory/core/contracts/rank";
 import {
   checksFor,
@@ -1680,6 +1681,7 @@ export type MutationResult = {
   mutationId: string;
   // The mutation id had already been applied; nothing was written.
   replayed: boolean;
+  summary?: Record<string, unknown>;
 };
 // What a mutation did, reported to the host while its transaction is still
 // open. Hosts act on it (analytics) only after the transaction commits.
@@ -1738,7 +1740,12 @@ export async function applyMutation(
           "conflict",
           "Mutation ID was already used for a different command.",
         );
-      return { protocol: PROTOCOL, mutationId: mutation.id, replayed: true };
+      return {
+        protocol: PROTOCOL,
+        mutationId: mutation.id,
+        replayed: true,
+        summary: previous.summary ?? undefined,
+      };
     }
     const admin = isAdmin(membership);
     if (isTypeCommand(c)) {
@@ -2436,7 +2443,7 @@ export async function applyMutation(
             if (projectRow!.readinessPolicy === "block")
               throw new DomainError(
                 "validation",
-                `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: ${failing.join("; ")}` : ""}.`,
+                `${projectRow!.key}-${item!.number} is not ready to start${failing.length ? `: outstanding checks: ${failing.join("; ")}` : ""}.`,
               );
             override = failing;
           }
@@ -2665,6 +2672,11 @@ export async function applyMutation(
       }
       case "rankWorkItem": {
         requireCapability(capabilities, "changeProperties");
+        if (c.afterId === workItemId || c.beforeId === workItemId)
+          throw new DomainError(
+            "validation",
+            "An item cannot be its own rank neighbour.",
+          );
         const neighbour = (id: string | null) =>
           id === null
             ? null
@@ -2676,7 +2688,7 @@ export async function applyMutation(
                 "The neighbouring item is unavailable.",
               ).rank;
         let low = neighbour(c.afterId);
-        let high = neighbour(c.beforeId);
+        const high = neighbour(c.beforeId);
         if (low !== null && high !== null && low >= high)
           throw new DomainError(
             "validation",
@@ -2692,9 +2704,18 @@ export async function applyMutation(
               .map((e) => e.rank)
               .sort()
               .at(-1) ?? null;
+        // Filtered boards and stale neighbours can leave other items inside
+        // this interval. Never reuse an occupied rank, even on a later call.
+        const occupied = new Set(
+          before
+            .filter((e) => e.type === "workItem" && e.id !== workItemId)
+            .map((e) => (e.type === "workItem" ? e.rank : "")),
+        );
+        let rank = rankBetween(low, high);
+        while (occupied.has(rank)) rank = rankBetween(rank, high);
         await tx
           .update(s.workItem)
-          .set({ rank: rankBetween(low, high) })
+          .set({ rank })
           .where(
             and(
               eq(s.workItem.organizationId, organizationId),
@@ -2931,13 +2952,16 @@ export async function applyMutation(
         // the parent leaves them archived so a child is never revived unseen.
         if (c.archived) {
           const rows = await tx
-            .select({ id: s.workItem.id, parentId: s.workItem.parentId })
+            .select({
+              id: s.workItem.id,
+              parentId: s.workItem.parentId,
+              archivedAt: s.workItem.archivedAt,
+            })
             .from(s.workItem)
             .where(
               and(
                 eq(s.workItem.organizationId, organizationId),
                 eq(s.workItem.projectId, projectId),
-                isNull(s.workItem.archivedAt),
               ),
             );
           const byParent = new Map<string, string[]>();
@@ -2947,13 +2971,16 @@ export async function applyMutation(
             children.push(row.id);
             byParent.set(row.parentId, children);
           }
+          const archived = new Set(
+            rows.filter((row) => row.archivedAt).map((row) => row.id),
+          );
           const queue = [...(byParent.get(workItemId!) ?? [])];
           const seen = new Set<string>();
           while (queue.length) {
             const id = queue.pop()!;
             if (seen.has(id)) continue;
             seen.add(id);
-            ids.push(id);
+            if (!archived.has(id)) ids.push(id);
             queue.push(...(byParent.get(id) ?? []));
           }
         }
@@ -3324,6 +3351,9 @@ export async function applyMutation(
           }
           case "decideSuggestion": {
             require(isReviewer, "Only an assigned reviewer can decide this suggestion.");
+            require(!isAuthor ||
+              roster.members.length ===
+                1, "You cannot review your own suggestion.");
             if (suggestion.status !== "open")
               throw new DomainError(
                 "conflict",
@@ -3371,6 +3401,9 @@ export async function applyMutation(
           }
           case "mergeSuggestion": {
             require(isReviewer, "Only an assigned reviewer can merge this suggestion.");
+            require(!isAuthor ||
+              roster.members.length ===
+                1, "You cannot merge your own suggestion.");
             // Merging writes the mainline: the reviewer must still hold
             // the editing capability they were chosen for.
             requireCapability(capabilities, "editSpecifications");
@@ -3389,7 +3422,9 @@ export async function applyMutation(
               (d) =>
                 d.decision === "approved" &&
                 d.version === suggestion.version &&
-                reviewers.some((r) => r.userId === d.reviewerId),
+                reviewers.some((r) => r.userId === d.reviewerId) &&
+                (d.reviewerId !== suggestion.authorId ||
+                  roster.members.length === 1),
             );
             require(approved.length >
               0, `Version ${suggestion.version} needs at least one reviewer approval before merging.`, "validation");
@@ -3875,7 +3910,14 @@ export async function applyMutation(
       projectId,
       workItemId,
     });
-    return receipt(tx, organizationId, mutation.id, userId, fingerprint);
+    return receipt(
+      tx,
+      organizationId,
+      mutation.id,
+      userId,
+      fingerprint,
+      await commandSummary(tx, organizationId, c),
+    );
   })();
   // Directory inputs (projects, members, disciplines, workflow, iterations,
   // types, AI policy, readiness revisions) change with many commands; the
@@ -4234,14 +4276,14 @@ async function receipt(
   mutationId: string,
   userId: string,
   fingerprint: string,
+  summary?: Record<string, unknown>,
 ): Promise<MutationResult> {
   await tx.insert(s.syncMutation).values({
     organizationId,
     id: mutationId,
     userId,
     fingerprint,
-    // Unused since projections replaced the change log; dropped by a later
-    // migration.
+    summary,
   });
-  return { protocol: PROTOCOL, mutationId, replayed: false };
+  return { protocol: PROTOCOL, mutationId, replayed: false, summary };
 }

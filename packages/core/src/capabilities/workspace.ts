@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { committedEvents } from "@lictory/core/lib/analytics/events";
@@ -232,7 +232,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   syncBranch: {
     title: "Sync branch",
     description:
-      "Bring changes from a target line into a branch, optionally with a resolved title/content for conflicts. When the branch already has that result, no commit is created and the result reports `alreadyUpToDate`. Otherwise the result includes `commitId`.",
+      "Bring changes from a target line into a branch, optionally with a resolved title/content for conflicts. When the branch already includes the target history and has that result, no commit is created and the result reports `alreadyUpToDate`. Otherwise the result includes `commitId`.",
   },
   deleteBranch: {
     title: "Delete branch",
@@ -431,113 +431,6 @@ function derivedId(mutationId: string, field: string) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-async function commandSummary(
-  ctx: CapabilityContext,
-  organizationId: string,
-  command: Record<string, unknown>,
-) {
-  const extra: Record<string, unknown> = {};
-  const workItemId =
-    typeof command.workItemId === "string" ? command.workItemId : undefined;
-  const type = command.type;
-  if (
-    workItemId &&
-    (type === "createWorkItem" ||
-      type === "updateSpecification" ||
-      type === "revertSpecification" ||
-      type === "mergeSuggestion" ||
-      type === "mergePullRequest")
-  ) {
-    const [row] = await ctx.db
-      .select({ number: s.workItem.number, key: s.project.key })
-      .from(s.workItem)
-      .innerJoin(
-        s.project,
-        and(
-          eq(s.project.id, s.workItem.projectId),
-          eq(s.project.organizationId, s.workItem.organizationId),
-        ),
-      )
-      .where(
-        and(
-          eq(s.workItem.organizationId, organizationId),
-          eq(s.workItem.id, workItemId),
-        ),
-      );
-    if (row && type === "createWorkItem")
-      extra.key = `${row.key}-${row.number}`;
-    const [revision] = await ctx.db
-      .select({ id: s.specificationRevision.id })
-      .from(s.specificationRevision)
-      .where(
-        and(
-          eq(s.specificationRevision.organizationId, organizationId),
-          eq(s.specificationRevision.workItemId, workItemId),
-        ),
-      )
-      .orderBy(desc(s.specificationRevision.number))
-      .limit(1);
-    if (revision) extra.revisionId = revision.id;
-  }
-  if (
-    (type === "commitBranch" || type === "syncBranch") &&
-    typeof command.branchId === "string"
-  ) {
-    const [branch] = await ctx.db
-      .select({ headId: s.specificationBranch.headId })
-      .from(s.specificationBranch)
-      .where(
-        and(
-          eq(s.specificationBranch.organizationId, organizationId),
-          eq(s.specificationBranch.id, command.branchId),
-        ),
-      );
-    if (branch) {
-      extra.commitId = branch.headId;
-      if (type === "syncBranch" && branch.headId === command.sourceHeadId)
-        extra.alreadyUpToDate = true;
-    }
-  }
-  if (
-    type === "mergePullRequest" &&
-    typeof command.pullRequestId === "string"
-  ) {
-    const [pullRequest] = await ctx.db
-      .select({
-        mergedCommitId: s.specificationPullRequest.mergedCommitId,
-      })
-      .from(s.specificationPullRequest)
-      .where(
-        and(
-          eq(s.specificationPullRequest.organizationId, organizationId),
-          eq(s.specificationPullRequest.id, command.pullRequestId),
-        ),
-      );
-    if (pullRequest?.mergedCommitId)
-      extra.commitId = pullRequest.mergedCommitId;
-  }
-  if (
-    type === "createPullRequest" &&
-    typeof command.pullRequestId === "string"
-  ) {
-    extra.reviews = await ctx.db
-      .select({
-        id: s.pullRequestReview.id,
-        disciplineId: s.pullRequestReview.disciplineId,
-        userId: s.pullRequestReview.userId,
-        required: s.pullRequestReview.required,
-      })
-      .from(s.pullRequestReview)
-      .where(
-        and(
-          eq(s.pullRequestReview.organizationId, organizationId),
-          eq(s.pullRequestReview.pullRequestId, command.pullRequestId),
-        ),
-      );
-  }
-  return extra;
-}
-
 function commandCapability(option: (typeof commandSchema.options)[number]) {
   const type = option.shape.type.value;
   const doc = commandDocs[type];
@@ -604,12 +497,7 @@ function commandCapability(option: (typeof commandSchema.options)[number]) {
         ids[key] = value;
       }
       const result = await executeMutation(ctx, mutationSchema.parse(mutation));
-      const summary = await commandSummary(
-        ctx,
-        organizationId,
-        mutation.command,
-      );
-      return { mutationId: result.mutationId, ...ids, ...summary };
+      return { mutationId: result.mutationId, ...ids, ...result.summary };
     },
   });
 }

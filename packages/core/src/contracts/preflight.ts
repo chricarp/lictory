@@ -41,7 +41,7 @@ export function statusChangeBlocker(
       : [];
   const missing = item.readinessTotal - item.readinessPassed;
   const detail = failing.length
-    ? failing.join("; ")
+    ? `Outstanding checks: ${failing.join("; ")}`
     : `${missing} of ${item.readinessTotal} readiness checks are still missing${item.blockingThreads ? `, ${item.blockingThreads} blocking discussion${item.blockingThreads > 1 ? "s" : ""}` : ""}`;
   return `${project?.key ?? "Item"}-${item.number} is not ready to start: ${detail}. Complete the required reviews and readiness checks first.`;
 }

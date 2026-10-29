@@ -1287,28 +1287,27 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "/tmp/lictory-story-mobile.png" });
-  // Main stays protected after readiness. A restore creates a fresh revision.
+  // Main stays protected after readiness, including historical restores.
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(
     page.getByRole("button", { name: "Edit", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Changes", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Restore revision 3", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Confirm restore revision 3", exact: true })
-    .click();
+  await expect(
+    page.getByRole("button", { name: /Restore revision/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Main is protected. Use a branch and pull request to restore earlier content.",
+    ),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Close comparison", exact: true })
     .click();
-  await expect(page.getByText("Revision 5 ·").first()).toBeVisible();
+  await expect(page.getByText("Revision 4 ·").first()).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Edit", exact: true }),
   ).toHaveCount(0);
-  await expect(
-    reviewer.getByRole("button", { name: "Approve revision 5", exact: true }),
-  ).toBeVisible();
   await reviewerContext.close();
 });
 

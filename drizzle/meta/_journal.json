@@ -155,6 +155,13 @@
       "when": 1793233992400,
       "tag": "0021_intelligence_context_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793234960471,
+      "tag": "0022_mutation_result_receipts",
+      "breakpoints": true
     }
   ]
 }

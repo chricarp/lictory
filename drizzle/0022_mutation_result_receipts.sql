@@ -1,0 +1,1 @@
+ALTER TABLE "sync_mutation" ADD COLUMN "summary" jsonb;

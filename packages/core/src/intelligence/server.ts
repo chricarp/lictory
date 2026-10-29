@@ -359,9 +359,16 @@ export async function createIntelligenceContext(
     throw new ContextError("The entry has no content.", 422);
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
+    const placement = {
+      scope: target.scope,
+      projectId: target.scope === "project" ? target.projectId : null,
+      teamId: target.scope === "team" ? target.teamId : null,
+    };
+    await requireManage(tx, organizationId, userId, placement);
+    await checkTarget(tx, organizationId, target);
     if (idempotencyKey) {
       const [existing] = await tx
-        .select({ id: s.intelligenceContextEntry.id })
+        .select()
         .from(s.intelligenceContextEntry)
         .where(
           and(
@@ -370,15 +377,20 @@ export async function createIntelligenceContext(
             eq(s.intelligenceContextEntry.idempotencyKey, idempotencyKey),
           ),
         );
-      if (existing) return { id: existing.id };
+      if (existing) {
+        if (
+          existing.scope !== placement.scope ||
+          existing.projectId !== placement.projectId ||
+          existing.teamId !== placement.teamId
+        )
+          throw new ContextError(
+            "Idempotency key was already used for a different context target.",
+            409,
+          );
+        await requireManage(tx, organizationId, userId, existing);
+        return { id: existing.id };
+      }
     }
-    const placement = {
-      scope: target.scope,
-      projectId: target.scope === "project" ? target.projectId : null,
-      teamId: target.scope === "team" ? target.teamId : null,
-    };
-    await requireManage(tx, organizationId, userId, placement);
-    await checkTarget(tx, organizationId, target);
     await requireRoom(tx, organizationId, placement);
     const id = crypto.randomUUID();
     await tx.insert(s.intelligenceContextEntry).values({
@@ -415,6 +427,8 @@ export async function reviseIntelligenceContext(
   const parsed = parseInput(input);
   return db.transaction(async (tx) => {
     await lock(tx, organizationId);
+    const entry = await entryOf(tx, organizationId, entryId);
+    await requireManage(tx, organizationId, userId, entry);
     if (idempotencyKey) {
       const [existing] = await tx
         .select({
@@ -430,15 +444,19 @@ export async function reviseIntelligenceContext(
             eq(s.intelligenceContextVersion.idempotencyKey, idempotencyKey),
           ),
         );
-      if (existing)
+      if (existing) {
+        if (existing.entryId !== entryId)
+          throw new ContextError(
+            "Idempotency key was already used for a different entry.",
+            409,
+          );
         return {
           id: existing.entryId,
           versionId: existing.id,
           number: existing.number,
         };
+      }
     }
-    const entry = await entryOf(tx, organizationId, entryId);
-    await requireManage(tx, organizationId, userId, entry);
     if (entry.archivedAt)
       throw new ContextError("Restore this entry before changing it.", 409);
     if (input.document && entry.kind !== "document")

@@ -164,7 +164,7 @@ const revokeAccessToken = defineCapability({
       )
       .returning();
     if (!row)
-      throw new CapabilityError("unavailable", "This token does not exist.");
+      throw new CapabilityError("not_found", "This token does not exist.");
     ctx.effects.track("access_token_revoked", {});
     return { token: summary(row) };
   },

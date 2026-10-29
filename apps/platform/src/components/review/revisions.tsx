@@ -106,6 +106,7 @@ export function CompareRevisions({
     memberName,
     mutateConfirmed: mutate,
     base,
+    item,
     capabilities,
     readOnly,
   } = useItem();
@@ -160,7 +161,14 @@ export function CompareRevisions({
         </p>
       )}
       <RevisionDiff before={a.content} after={b.content} />
+      {!readOnly && item.mainProtected && capabilities.editSpecifications && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Main is protected. Use a branch and pull request to restore earlier
+          content.
+        </p>
+      )}
       {!readOnly &&
+        !item.mainProtected &&
         capabilities.editSpecifications &&
         a.id !== base.baseRevisionId && (
           <div className="mt-4 space-y-2 rounded-md border p-3">
