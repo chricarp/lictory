@@ -153,21 +153,24 @@ export function Questionnaire({
       initial={reduce ? false : { opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", duration: 0.45, bounce: 0.12 }}
-      className="overflow-hidden rounded-2xl border bg-card shadow-[0_8px_30px_-12px_oklch(0_0_0/0.18)]"
+      className="min-w-0 overflow-hidden rounded-2xl border bg-card wrap-anywhere shadow-[0_8px_30px_-12px_oklch(0_0_0/0.18)]"
       role="group"
       aria-labelledby={`${baseId}-title`}
     >
-      <div className="flex items-center gap-2 border-b px-4 py-2.5">
-        <CircleHelp className="size-4 text-primary" aria-hidden />
+      <div className="flex items-start gap-2 border-b px-4 py-2.5">
+        <CircleHelp
+          className="mt-0.5 size-4 shrink-0 text-primary"
+          aria-hidden
+        />
         <p
           id={`${baseId}-title`}
-          className="min-w-0 flex-1 truncate text-[13px] font-medium"
+          className="min-w-0 flex-1 text-[13px] font-medium"
         >
           {input.title}
         </p>
         {questions.length > 1 && (
           <span
-            className="inline-flex items-center text-[11px] text-muted-foreground tabular-nums"
+            className="inline-flex shrink-0 items-center text-[11px] text-muted-foreground tabular-nums"
             aria-label={`Question ${step + 1} of ${questions.length}`}
           >
             <span className="relative inline-grid h-[1.2em] overflow-hidden">
@@ -195,7 +198,7 @@ export function Questionnaire({
           onClick={() => onSubmit({ dismissed: true })}
           aria-label="Dismiss questions"
           title="Dismiss — answer in the chat instead"
-          className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <X className="size-3.5" />
         </button>
@@ -231,10 +234,11 @@ export function Questionnaire({
                 : { opacity: 0, x: -24 * direction, filter: "blur(4px)" }
             }
             transition={{ type: "spring", duration: 0.35, bounce: 0 }}
+            className="min-w-0"
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${baseId}-error` : undefined}
           >
-            <legend className="text-[15px] font-medium">
+            <legend className="max-w-full text-[15px] font-medium">
               {q.prompt}
               {!q.required && (
                 <span className="ml-2 text-[11px] font-normal text-muted-foreground">
@@ -394,29 +398,30 @@ export function AnsweredQuestions({
 }) {
   if ("dismissed" in output)
     return (
-      <p className="text-[13px] text-muted-foreground italic">
+      <p className="text-[13px] wrap-anywhere text-muted-foreground italic">
         Questions dismissed: {input.title}
       </p>
     );
   return (
-    <div className="rounded-xl border bg-muted/30 px-3 py-2.5 text-[13px]">
-      <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
-        <CircleHelp className="size-3.5" aria-hidden /> {input.title}
+    <div className="min-w-0 rounded-xl border bg-muted/30 px-3 py-2.5 text-[13px] wrap-anywhere">
+      <p className="mb-1.5 flex items-start gap-1.5 text-[12px] font-medium text-muted-foreground">
+        <CircleHelp className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0">{input.title}</span>
       </p>
-      <dl className="space-y-1">
+      <dl className="space-y-2">
         {output.answers.map((answer) => {
           const question = input.questions.find((q) => q.id === answer.id);
           const value = [...answer.labels, answer.text]
             .filter(Boolean)
             .join(", ");
           return (
-            <div key={answer.id} className="flex gap-2">
-              <dt className="shrink-0 text-muted-foreground">
+            <div key={answer.id}>
+              <dt className="text-muted-foreground">
                 {question?.prompt ?? answer.id}
               </dt>
               <dd
                 className={cn(
-                  "min-w-0 font-medium",
+                  "mt-0.5 font-medium whitespace-pre-wrap",
                   answer.skipped && "font-normal text-muted-foreground italic",
                 )}
               >
