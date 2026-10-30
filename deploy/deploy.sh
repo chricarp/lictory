@@ -76,6 +76,48 @@ psql_admin() { # psql_admin <release-dir> <sql>
     -d "$(setting LICTORY_DB_NAME)" -c "$2"
 }
 
+# Resolve through Compose so defaults, quoting and multiline options match the
+# real proxy. Keep configuration and Caddy diagnostics private: both may contain
+# env values. No production networks, ports or volumes are used by validation.
+validate_proxy() ( # validate_proxy <release-dir>
+  local dir="$1" tmp image entry proxy_env=()
+  umask 077
+  tmp=$(mktemp -d) || die "Could not create a private validation directory."
+  trap 'rm -rf "$tmp"' EXIT
+  compose "$dir" config --format json >"$tmp/compose.json" 2>/dev/null ||
+    die "Compose configuration is invalid; check the environment's .env."
+  image=$(jq -er '.services.proxy.image' "$tmp/compose.json" 2>/dev/null) ||
+    die "Could not resolve the proxy image."
+  jq -j '.services.proxy.environment | to_entries[] | .key, "=", .value, "\u0000"' \
+    "$tmp/compose.json" >"$tmp/proxy.env" 2>/dev/null || die "Could not resolve the proxy environment."
+  while IFS= read -r -d '' entry; do
+    proxy_env+=(--env "$entry")
+  done <"$tmp/proxy.env"
+  docker run --rm --pull never --network none --log-driver none \
+    --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+    --tmpfs /data:mode=1777 --tmpfs /config:mode=1777 --tmpfs /tmp \
+    "${proxy_env[@]}" --entrypoint sh "$image" -ec '
+      caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1
+      exec caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile
+    ' >"$tmp/caddy.json" 2>/dev/null ||
+    die "Caddy configuration is invalid; check CADDY_TRUSTED_PROXIES and CADDY_GLOBAL_OPTIONS. Validation output is suppressed to protect env values."
+  # A servers block in CADDY_GLOBAL_OPTIONS can silently replace our defaults.
+  # Empty ranges intentionally trust nobody (standalone deployments); otherwise
+  # the adapted ranges must be exactly the configured space-separated peers.
+  jq -e --slurpfile config "$tmp/compose.json" '
+    [$config[0].services.proxy.environment.CADDY_TRUSTED_PROXIES // "" | scan("\\S+")] as $peers |
+    .apps.http.servers | length > 0 and all(.[];
+      .trusted_proxies.source == "static" and
+      (.trusted_proxies.ranges // []) == $peers and
+      .trusted_proxies_strict == 1 and
+      .protocols == ["h1", "h2"] and
+      .read_header_timeout == 15000000000 and
+      .idle_timeout == 300000000000
+    )
+  ' "$tmp/caddy.json" >/dev/null 2>&1 ||
+    die "Caddy server safeguards were overridden; remove servers blocks from CADDY_GLOBAL_OPTIONS and use explicit IPs/CIDRs in CADDY_TRUSTED_PROXIES."
+)
+
 # --------------------------------------------------------------------- prepare
 prepare() {
   local file version channel expected registry key value tmp dir
@@ -142,12 +184,12 @@ prepare() {
   docker cp -q "$container:/opt/lictory/deploy" "$dir/bundle"
   docker rm "$container" >/dev/null
   cp "$dir/bundle/compose.production.yaml" "$dir/compose.production.yaml"
+  validate_proxy "$dir" || die "Proxy validation failed; nothing was activated."
   mkdir -p "$home/postgres"
   # This code-only bind mount is read by PostgreSQL's unprivileged user.
   chmod 0755 "$home/postgres"
   rm -f "$home/postgres/10-lictory-roles.sh"
   cp "$dir/bundle/postgres/10-lictory-roles.sh" "$home/postgres/10-lictory-roles.sh"
-  compose "$dir" config --quiet || die "Compose configuration for $version is invalid with $home/.env."
   compose "$dir" pull -q postgres zero-cache 2>/dev/null || true
   log "Prepared $version ($channel)."
   printf '%s\n' "$version"
@@ -175,6 +217,7 @@ wait_for_zero() { # wait_for_zero <dir> <lsn>
 migrate() {
   local dir status lsn
   dir=$(release_dir "$1")
+  validate_proxy "$dir" || die "Proxy validation failed; nothing was migrated."
   compose "$dir" up -d --wait --wait-timeout 180 postgres >/dev/null
   status=$(compose "$dir" run --rm --no-deps -T migrate node migrate.mjs --status) ||
     die "Migration status failed: $status"
@@ -260,6 +303,7 @@ active_matches() { # every service runs exactly the release's image
 activate() {
   local version="$1" dir previous
   dir=$(release_dir "$version")
+  validate_proxy "$dir" || die "Proxy validation failed; the running stack is unchanged."
   previous=$(current_version)
   log "Activating $version (active: ${previous:-none})…"
   if roll "$dir" && verify "$dir"; then
@@ -274,8 +318,11 @@ activate() {
   fi
   if [ -n "$previous" ] && [ "$previous" != "$version" ]; then
     log "Activation failed; restoring $previous images (schema unchanged)."
-    roll "$home/current" && verify "$home/current" && log "$previous restored." ||
+    if validate_proxy "$home/current" && roll "$home/current" && verify "$home/current"; then
+      log "$previous restored."
+    else
       log "Restoring $previous also failed; investigate immediately."
+    fi
   fi
   die "Activation of $version failed."
 }
