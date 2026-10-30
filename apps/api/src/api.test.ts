@@ -94,6 +94,40 @@ const directoryOf = async (organizationId: string) =>
   )[0]?.data as
     { members: { id: string; name: string; role: string }[] } | undefined;
 
+void test("auth rate limits use the gateway's single client address and ignore other IP headers", async () => {
+  const context = await m.auth.$context;
+  const enabled = context.rateLimit.enabled;
+  context.rateLimit.enabled = true;
+  const attempt = (address: string, claimedAddress = "203.0.113.99") =>
+    m.app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers: {
+        origin,
+        "content-type": "application/json",
+        "x-forwarded-for": address,
+        "cf-connecting-ip": claimedAddress,
+        "x-real-ip": claimedAddress,
+      },
+      // Validation fails before credential lookup, but the request still
+      // consumes the sign-in endpoint's production rate limit.
+      body: "{}",
+    });
+  try {
+    for (let i = 0; i < 3; i++)
+      assert.equal((await attempt("198.51.100.117")).status, 400);
+    assert.equal((await attempt("198.51.100.117")).status, 429);
+    // Changing untrusted headers cannot escape this client's bucket.
+    assert.equal(
+      (await attempt("198.51.100.117", "203.0.113.100")).status,
+      429,
+    );
+    // Another visitor can still attempt a sign-in.
+    assert.equal((await attempt("198.51.100.118")).status, 400);
+  } finally {
+    context.rateLimit.enabled = enabled;
+  }
+});
+
 void test(
   "membership changes through Better Auth refresh the directory and govern domain access",
   { timeout: 30_000 },

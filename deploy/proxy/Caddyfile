@@ -18,6 +18,9 @@
 		exclude admin.api
 	}
 	servers {
+		# Only known upstream proxies may supply a forwarded client address.
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES}
+		trusted_proxies_strict
 		# HTTP/3 would need UDP 443 published as well; HTTP/1.1 and 2 suffice.
 		protocols h1 h2
 		timeouts {
@@ -60,6 +63,9 @@
 
 (api_upstream) {
 	reverse_proxy api:3002 {
+		# Better Auth accepts a single address by default, not a proxy chain.
+		# Use Caddy's trusted-proxy resolution; never a raw client-supplied header.
+		header_up X-Forwarded-For {client_ip}
 		# Server-sent events (/api/events) and AI chat streams are never buffered.
 		flush_interval -1
 		# Hold requests briefly while the API container is being replaced.
