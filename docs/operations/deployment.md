@@ -257,7 +257,14 @@ the first backup, and a restore drill ([recovery](recovery.md)).
 
 1. **prepare**: validates the release file (known keys, digests in the
    configured registry, the environment's channel), stores it, pulls the
-   images and installs the release's compose file. Nothing changes yet.
+   images and installs the release's compose file. It resolves the proxy's
+   environment through Compose and runs `caddy validate` and `caddy adapt`
+   using that release's proxy image in a throwaway container with no network,
+   published ports or production volumes. Invalid IPs/CIDRs, comma-separated
+   trusted proxies and overrides of the server safeguards fail before any
+   migration or service replacement. Empty trusted proxies remain valid for
+   standalone deployments. Configuration and Caddy diagnostics are suppressed
+   to keep environment values out of deployment logs. Nothing changes yet.
 2. **migrate**: if migrations are pending, takes a pre-deploy backup,
    re-applies the database roles, runs the `migrate` one-shot (locked,
    transactional; see [migrations](migrations.md)), then waits until
@@ -299,6 +306,13 @@ Rollback switches application images only; migrations stay applied. After a
 rollback, tabs that loaded the newer release reload when they next need a
 chunk. Publish a fix as a new release; the release workflow refuses to
 activate a version older than the active one.
+
+Proxy validation runs again before migrations and activation with the current
+environment, including manual activation, rollback and automatic recovery to
+the previous release. A validation failure blocks that operation before it
+replaces any service. Keep `servers` blocks out of `CADDY_GLOBAL_OPTIONS`:
+they can override the Caddyfile's strict trusted-proxy handling, protocols and
+timeouts even when Caddy considers the configuration valid.
 
 ## Health and monitoring
 
