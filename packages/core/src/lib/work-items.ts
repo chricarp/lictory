@@ -214,6 +214,12 @@ export type ViewId =
   | "updated";
 export const views: { id: ViewId; label: string; description: string }[] = [
   {
+    id: "all",
+    label: "Refinement",
+    description:
+      "From rough proposal to an agreed scope, delivery and retained product knowledge.",
+  },
+  {
     id: "needs-my-review",
     label: "Needs my review",
     description:
@@ -231,13 +237,14 @@ export const views: { id: ViewId; label: string; description: string }[] = [
   },
   {
     id: "ready",
-    label: "Ready for development",
-    description: "Specifications whose readiness checks all pass.",
+    label: "Ready for selection",
+    description:
+      "Agreed specifications available for the team to select for delivery.",
   },
   {
     id: "drafts",
-    label: "Drafts",
-    description: "Draft specifications without a review yet.",
+    label: "Proposals",
+    description: "Rough specifications waiting to be selected for refinement.",
   },
   {
     id: "updated",
@@ -293,11 +300,13 @@ export function applyFilters(
   filters: Filters,
   projects: Project[],
   delivery: Delivery,
+  categoryFor: (item: WorkItem) => StatusCategory | undefined = (item) =>
+    categoryOf(delivery, item),
 ) {
   const q = filters.search?.trim().toLowerCase();
   return items.filter((item) => {
     if (filters.status?.length) {
-      const category = categoryOf(delivery, item);
+      const category = categoryFor(item);
       if (!category || !filters.status.includes(category)) return false;
     }
     if (
@@ -348,11 +357,18 @@ export function applyFilters(
     return true;
   });
 }
-export function sortItems(items: WorkItem[], key: SortKey, delivery: Delivery) {
+export function sortItems(
+  items: WorkItem[],
+  key: SortKey,
+  delivery: Delivery,
+  categoryFor: (item: WorkItem) => StatusCategory | undefined = (item) =>
+    categoryOf(delivery, item),
+) {
   const statusRank = (item: WorkItem) => {
     const status = statusOf(delivery, item);
-    return status
-      ? categoryOrder.indexOf(status.category) * 1000 + status.position
+    const category = categoryFor(item);
+    return category
+      ? categoryOrder.indexOf(category) * 1000 + (status?.position ?? 0)
       : 99_999;
   };
   const sorted = [...items];

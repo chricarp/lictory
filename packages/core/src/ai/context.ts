@@ -343,7 +343,24 @@ export async function pullRequestContext(
       target: target.name,
     },
     main: { title: main.title, content: clip(main.content) },
-    proposed: { title: head.title, content: clip(head.content) },
+    proposed: {
+      title: head.title,
+      content: clip(head.content),
+      children: head.proposedChildren
+        .filter(
+          (child) =>
+            !main.proposedChildren.some(
+              (accepted) => accepted.workItemId === child.workItemId,
+            ),
+        )
+        .slice(0, MAX_ITEMS)
+        .map((child) => ({
+          title: child.title,
+          typeId: child.typeId,
+          description: clip(child.description, 1000),
+        })),
+      childrenTruncated: head.proposedChildren.length > MAX_ITEMS,
+    },
     changedLines: clip(changed, 6_000),
     previousFindings: previousFindings.map((f) => ({
       id: f.id,

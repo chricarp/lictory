@@ -12,8 +12,8 @@ const daysAgo = (n: number) =>
 
 const directory = {
   projects: [
-    { id: "p1", key: "PAY", name: "Payments" },
-    { id: "p2", key: "OPS", name: "Operations" },
+    { id: "p1", key: "PAY", name: "Payments", deliveryMode: "native" },
+    { id: "p2", key: "OPS", name: "Operations", deliveryMode: "native" },
   ],
   members: [
     { id: "u1", name: "Ada" },
@@ -28,6 +28,9 @@ const directory = {
   ],
   teams: [],
   iterations: [],
+  types: [],
+  projectTypes: [],
+  delivery: { connections: [], targets: [] },
 } as unknown as Directory;
 
 let n = 0;
@@ -303,4 +306,57 @@ void test("two samples from the same day are not a burndown", () => {
     },
   });
   assert.ok(!insights.cards.some((c) => c.id === "burndown"));
+});
+
+void test("external delivery insights use provider status and exclude completed specifications from refinement", () => {
+  const external = {
+    ...directory,
+    projects: directory.projects.map((p) => ({
+      ...p,
+      deliveryMode: "external" as const,
+    })),
+  };
+  const work = item({
+    id: "external-work",
+    refinementState: "ready",
+    statusId: "s-backlog",
+  });
+  const link = {
+    type: "externalLink",
+    id: "external-link",
+    workItemId: "external-work",
+    projectId: "p1",
+    connectionId: "jira",
+    externalKey: "PAY-42",
+    externalStatusCategory: "done",
+    status: "synced",
+    syncedAt: daysAgo(1),
+  } as unknown as Entity;
+  const result = computeInsights({
+    topic: "delivery",
+    directory: external,
+    entities: [work, link],
+    projectId: "p1",
+    now,
+  });
+  assert.equal(
+    card<"distribution">(result.cards, "delivery-status").segments.find(
+      (s) => s.key === "done",
+    )!.value,
+    1,
+  );
+  const refinement = computeInsights({
+    topic: "refinement",
+    directory: external,
+    entities: [work, link],
+    projectId: "p1",
+    now,
+  });
+  assert.equal(
+    card<"distribution">(refinement.cards, "refinement-state").segments.reduce(
+      (sum, s) => sum + s.value,
+      0,
+    ),
+    0,
+  );
 });

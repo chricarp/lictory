@@ -10,8 +10,15 @@ import {
 } from "@lictory/core/lib/work-items";
 import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
+import {
+  deliveryCategory,
+  type ExternalLink,
+} from "@lictory/core/lib/lifecycle";
 import { Avatar } from "@lictory/ui/primitives";
-import { IssueStatus } from "@lictory/platform/components/items/status";
+import {
+  IssueStatus,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 import {
   AssigneePicker,
   IssuePriority,
@@ -41,6 +48,8 @@ export const IssueRow = memo(function IssueRow({
   memberName,
   onUpdate,
   onFocus,
+  externalLink,
+  hint,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -59,6 +68,8 @@ export const IssueRow = memo(function IssueRow({
     assigneeId?: string | null;
   }) => void;
   onFocus: () => void;
+  externalLink?: ExternalLink;
+  hint?: string;
 }) {
   const delivery = useDelivery();
   const type = typeOf(delivery, item);
@@ -68,7 +79,7 @@ export const IssueRow = memo(function IssueRow({
       data-focused={focused || undefined}
       className={cn(
         "group relative flex items-center gap-2 border-b px-3 text-[13px] last:border-b-0",
-        compact ? "h-9" : "h-10",
+        compact ? "h-9" : hint ? "min-h-14" : "h-10",
         selected
           ? "bg-primary/6"
           : focused
@@ -84,12 +95,26 @@ export const IssueRow = memo(function IssueRow({
           onChange={onUpdate && ((priority) => onUpdate({ priority }))}
         />
       )}
-      <IssueStatus
-        projectId={item.projectId}
-        statusId={item.statusId}
-        compact
-        onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}
-      />
+      {project?.deliveryMode === "external" ? (
+        <span
+          title={
+            externalLink?.externalKey
+              ? `${externalLink.externalStatus ?? "Status unavailable"} in Jira`
+              : "Not handed off to Jira"
+          }
+        >
+          <StatusIcon
+            category={deliveryCategory(item, project, delivery, externalLink)}
+          />
+        </span>
+      ) : (
+        <IssueStatus
+          projectId={item.projectId}
+          statusId={item.statusId}
+          compact
+          onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}
+        />
+      )}
       <TypeIcon type={type} />
       <IssueIdentifier
         project={project}
@@ -101,7 +126,12 @@ export const IssueRow = memo(function IssueRow({
         className="min-w-0 flex-1 truncate py-2 font-medium outline-none after:absolute after:inset-0 after:content-[''] focus-visible:text-primary"
         aria-current={selected ? "page" : undefined}
       >
-        {item.title}
+        <span className="block truncate">{item.title}</span>
+        {hint && !compact && (
+          <span className="block truncate text-xs font-normal text-muted-foreground">
+            {hint}
+          </span>
+        )}
       </Link>
       {!compact && labels.length > 0 && (
         <span className="hidden items-center gap-1 lg:inline-flex">
@@ -140,19 +170,32 @@ export const IssueRow = memo(function IssueRow({
           {item.childDoneCount}/{item.childCount} done
         </span>
       )}
-      {!compact && item.estimate !== null && (
-        <span
-          className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
-          title="Estimate"
-        >
-          {item.estimate}
-        </span>
-      )}
+      {!compact &&
+        project?.deliveryMode !== "external" &&
+        item.estimate !== null && (
+          <span
+            className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
+            title="Estimate"
+          >
+            {item.estimate}
+          </span>
+        )}
       <ReviewSignal item={item} />
       {!compact && (
         <ReadinessBar item={item} className="hidden md:inline-flex" />
       )}
-      {!compact ? (
+      {project?.deliveryMode === "external" ? (
+        <span
+          className="hidden max-w-28 truncate text-xs text-muted-foreground sm:block"
+          title="Assignee in Jira"
+        >
+          {externalLink?.externalKey
+            ? externalLink.externalAssignee?.length
+              ? externalLink.externalAssignee
+              : "Unassigned in Jira"
+            : "Not handed off"}
+        </span>
+      ) : !compact ? (
         <AssigneePicker
           assigneeId={item.assigneeId}
           compact

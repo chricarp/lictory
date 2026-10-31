@@ -447,8 +447,8 @@ test("work item panels collapse independently and persist across routes and relo
     "Backlog",
     "Needs review",
     "Blocked",
-    "Ready for development",
-    "Drafts",
+    "Ready for selection",
+    "Proposals",
     "Recently updated",
     "Organization settings",
   ]) {
@@ -1185,9 +1185,78 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeVisible();
   await expect(
     page.getByText(
-      "All checks pass; this specification is ready for development.",
+      "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work.",
     ),
   ).toBeVisible();
+
+  // Record the agreed conclusion without changing readiness or revision.
+  // The second participant sees it through synchronization; history survives
+  // archive, restore and reload, and search finds its original evidence.
+  await page
+    .getByRole("button", { name: "Record decision", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Decision title" })
+    .fill("Cancellation amounts are bounded");
+  await page
+    .getByRole("textbox", { name: "Decision details" })
+    .fill("A partial cancellation cannot exceed the settled total.");
+  await page
+    .getByRole("button", { name: "Save decision", exact: true })
+    .click();
+  await expect(
+    reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Archive decision: Cancellation amounts are bounded",
+    })
+    .click();
+  await expect(
+    reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
+  ).toBeHidden();
+  await page.getByRole("checkbox", { name: "Show archived decisions" }).check();
+  await page
+    .getByRole("button", {
+      name: "Restore decision: Cancellation amounts are bounded",
+    })
+    .click();
+  await expect(
+    reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
+  ).toBeVisible();
+  await reloadWhenSaved(page);
+  await expect(
+    page.getByRole("heading", { name: "Cancellation amounts are bounded" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Find related agreements" }).click();
+  await page
+    .getByRole("textbox", { name: "Search product agreements" })
+    .fill("Cancellation amounts are bounded");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Cancellation amounts are bounded" }),
+  ).toBeVisible();
+  await page.screenshot({ path: "/tmp/lictory-recorded-decisions.png" });
+
+  // Ready is an available agreement, visible in the lifecycle rather than
+  // being confused with a delivery status. The stage filter survives reload.
+  await page.getByRole("link", { name: "Refinement", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Refinement", exact: true }),
+  ).toBeVisible();
+  const lifecycle = page.getByRole("navigation", {
+    name: "Specification lifecycle",
+  });
+  await lifecycle.getByRole("link", { name: /Ready for selection/ }).click();
+  await expect(page).toHaveURL(/stage=ready/);
+  await expect(
+    page.getByRole("link", { name: /Define cancellation API/ }),
+  ).toBeVisible();
+  await reloadWhenSaved(page);
+  await expect(
+    lifecycle.getByRole("link", { name: /Ready for selection/ }),
+  ).toHaveAttribute("aria-current", "page");
+  await page.screenshot({ path: "/tmp/lictory-refinement-lifecycle.png" });
 
   // 17. Navigate quickly between stories via keyboard in the split view.
   await page.goto(storyUrl.replace(/\/PAY-2$/, ""));
@@ -1270,10 +1339,10 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // Inbox for the owner mentions the item; archive/restore round trip.
   await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Archive" }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(reviewer.getByText("Archived", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("button", { name: "Restore" }).click();
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(reviewer.getByText("Archived", { exact: true })).toHaveCount(0);
   // History keeps both transitions.
   await expect(reviewer.getByText("restored this item")).toBeVisible();
@@ -1572,4 +1641,93 @@ test("a shared private link preserves its destination after sign-in and denies n
   await expect(
     page.getByRole("heading", { name: "This workspace was not found" }),
   ).toBeVisible();
+});
+
+test("native delivery preserves accepted scope through an amendment, completion and reopen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await signIn(page, multiOrgEmail);
+  await page.goto("/new-organization");
+  await createWorkspace(page, {
+    organization: "Scope agreements",
+    project: "Scope",
+    key: "SCP",
+    planning: "manual",
+  });
+  await page.keyboard.press("c");
+  const create = page.getByRole("dialog", { name: /^Create/ });
+  await create.getByRole("button", { name: /^Type:/ }).click();
+  await page.getByRole("option", { name: /^Task/ }).click();
+  await create
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Keep the accepted payment scope");
+  await create
+    .getByRole("button", { name: "Create & open", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/stories\/SCP-1$/);
+  const scope = page.getByRole("region", {
+    name: "Delivery scope",
+    exact: true,
+  });
+  await expect(scope).toContainText("No scope accepted yet");
+  await scope
+    .getByRole("button", { name: "Accept scope · revision 1", exact: true })
+    .click();
+  await expect(scope).toContainText("Accepted for delivery: revision 1");
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Specification", exact: true })
+    .fill(
+      "An amended payment behavior that is not part of the accepted scope yet.",
+    );
+  await page.getByRole("button", { name: /^Save revision 2/ }).click();
+  await expect(scope).toContainText(
+    "Revision 2 changes the agreed specification",
+  );
+  await scope
+    .getByRole("button", { name: "Compare with accepted scope", exact: true })
+    .click();
+  await expect(
+    page
+      .getByText(
+        "An amended payment behavior that is not part of the accepted scope yet.",
+      )
+      .first(),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Close comparison", exact: true })
+    .click();
+  const properties = page
+    .getByRole("heading", { name: "Properties", exact: true })
+    .locator("..");
+  await properties
+    .getByRole("button", { name: "Status: Todo", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^Done/ }).click();
+  await expect(scope).toContainText("Delivered: revision 1");
+  await expect(
+    scope.getByRole("button", { name: /^Accept updated scope/ }),
+  ).toHaveCount(0);
+  await reloadWhenSaved(page);
+  await expect(scope).toContainText("Delivered: revision 1");
+  await properties
+    .getByRole("button", { name: "Status: Done", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^Todo/ }).click();
+  await scope
+    .getByRole("button", {
+      name: "Accept updated scope · revision 2",
+      exact: true,
+    })
+    .click();
+  await expect(scope).toContainText("Accepted for delivery: revision 2");
+  await expect(scope).toContainText("Delivered: revision 1");
+  await properties
+    .getByRole("button", { name: "Status: Todo", exact: true })
+    .click();
+  await page.getByRole("option", { name: /^Done/ }).click();
+  await expect(scope).toContainText("Delivered: revision 2");
+  await reloadWhenSaved(page);
+  await expect(scope).toContainText("Delivered: revision 2");
 });

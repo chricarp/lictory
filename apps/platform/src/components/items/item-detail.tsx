@@ -80,6 +80,8 @@ import { Readiness } from "@lictory/platform/components/review/readiness";
 import { AiReviewView } from "@lictory/platform/components/review/ai-review";
 import { DockItemSource } from "@lictory/platform/components/intelligence/dock/item-source";
 import { Activity } from "@lictory/platform/components/review/activity";
+import { Decisions } from "@lictory/platform/components/review/decisions";
+import { DeliveryScope } from "@lictory/platform/components/items/delivery-scope";
 import {
   RevisionPanel,
   CompareRevisions,
@@ -334,14 +336,18 @@ export function ItemDetail({
   );
   const properties = (
     <div className="space-y-1">
-      <Property label="Status">
-        <IssueStatus
-          projectId={item.projectId}
-          statusId={item.statusId}
-          onChange={canChange ? (statusId) => update({ statusId }) : undefined}
-          hint={startHint}
-        />
-      </Property>
+      {native && (
+        <Property label="Status">
+          <IssueStatus
+            projectId={item.projectId}
+            statusId={item.statusId}
+            onChange={
+              canChange ? (statusId) => update({ statusId }) : undefined
+            }
+            hint={startHint}
+          />
+        </Property>
+      )}
       {item.refinementState && (
         <Property label="Refinement">
           <RefinementStatus
@@ -402,14 +408,16 @@ export function ItemDetail({
           onChange={canChange ? (priority) => update({ priority }) : undefined}
         />
       </Property>
-      <Property label="Owner">
-        <AssigneePicker
-          assigneeId={item.assigneeId}
-          onChange={
-            canChange ? (assigneeId) => update({ assigneeId }) : undefined
-          }
-        />
-      </Property>
+      {native && (
+        <Property label="Owner">
+          <AssigneePicker
+            assigneeId={item.assigneeId}
+            onChange={
+              canChange ? (assigneeId) => update({ assigneeId }) : undefined
+            }
+          />
+        </Property>
+      )}
       {type.level === 1 && (
         <Property label="Epic">
           {canChange ? (
@@ -466,7 +474,10 @@ export function ItemDetail({
         <SectionLabel className="mb-2">Properties</SectionLabel>
         {properties}
       </section>
-      {type.hasSpecification && <ExternalDelivery item={item} />}
+      <ExternalDelivery item={item} />
+      <DeliveryScope
+        onCompare={(from, to) => setMode({ kind: "compare", from, to })}
+      />
       {ctx.reviewable ? (
         <>
           <ReviewPanel />
@@ -710,19 +721,38 @@ export function ItemDetail({
                 </div>
               )}
               {!focusScreen && <InlineTitle />}
+              {!focusScreen && item.refinementState === "draft" && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>
+                    A proposal captures intent. Start refinement to clarify the
+                    behavior with the team.
+                  </span>
+                  {canChange && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => update({ refinementState: "refinement" })}
+                    >
+                      Start refinement
+                    </Button>
+                  )}
+                </div>
+              )}
               {!focusScreen && (
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
-                    <IssueStatus
-                      projectId={item.projectId}
-                      statusId={item.statusId}
-                      onChange={
-                        canChange
-                          ? (statusId) => update({ statusId })
-                          : undefined
-                      }
-                      hint={startHint}
-                    />
+                    {native && (
+                      <IssueStatus
+                        projectId={item.projectId}
+                        statusId={item.statusId}
+                        onChange={
+                          canChange
+                            ? (statusId) => update({ statusId })
+                            : undefined
+                        }
+                        hint={startHint}
+                      />
+                    )}
                     <IssuePriority
                       priority={item.priority}
                       onChange={
@@ -731,14 +761,16 @@ export function ItemDetail({
                           : undefined
                       }
                     />
-                    <AssigneePicker
-                      assigneeId={item.assigneeId}
-                      onChange={
-                        canChange
-                          ? (assigneeId) => update({ assigneeId })
-                          : undefined
-                      }
-                    />
+                    {native && (
+                      <AssigneePicker
+                        assigneeId={item.assigneeId}
+                        onChange={
+                          canChange
+                            ? (assigneeId) => update({ assigneeId })
+                            : undefined
+                        }
+                      />
+                    )}
                   </div>
                 </>
               )}
@@ -779,13 +811,18 @@ export function ItemDetail({
               {!focusScreen && (
                 <>
                   <section className="mt-10">
-                    <EpicStories />
+                    <EpicStories
+                      onPropose={() => setMode({ kind: "branches" })}
+                    />
                   </section>
                   <section className="mt-10">
                     <Relations item={item} canChange={canChange} />
                   </section>
                   <section className="mt-10">
                     <Discussions draft={draft} onDraftChange={setDraft} />
+                  </section>
+                  <section className="mt-10">
+                    <Decisions />
                   </section>
                 </>
               )}

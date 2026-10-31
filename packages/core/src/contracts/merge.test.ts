@@ -70,3 +70,53 @@ void test("large ambiguous rewrites become conflicts without an unbounded diff m
     ),
   );
 });
+
+void test("independent breakdown additions combine and competing child edits conflict", () => {
+  const child = {
+    workItemId: "a",
+    typeId: "task",
+    title: "Retries",
+    description: "Stable IDs",
+  };
+  const other = { ...child, workItemId: "b", title: "Timeouts" };
+  const base = {
+    title: "Behavior",
+    content: "Retries are safe",
+    proposedChildren: [],
+  };
+  const result = mergeSnapshot(
+    base,
+    { ...base, proposedChildren: [child] },
+    { ...base, proposedChildren: [other] },
+  );
+  assert.equal(result.conflicted, false);
+  assert.deepEqual(result.proposedChildren, [child, other]);
+  const original = { ...base, proposedChildren: [child] };
+  assert.equal(
+    mergeSnapshot(
+      original,
+      { ...original, proposedChildren: [{ ...child, description: "Ours" }] },
+      { ...original, proposedChildren: [{ ...child, description: "Theirs" }] },
+    ).decompositionConflict,
+    true,
+  );
+  // jsonb reorders keys; equal scope remains equal after persistence.
+  assert.equal(
+    mergeSnapshot(
+      base,
+      { ...base, proposedChildren: [child] },
+      {
+        ...base,
+        proposedChildren: [
+          {
+            description: child.description,
+            title: child.title,
+            typeId: child.typeId,
+            workItemId: child.workItemId,
+          },
+        ],
+      },
+    ).conflicted,
+    false,
+  );
+});

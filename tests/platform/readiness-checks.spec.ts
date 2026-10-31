@@ -217,7 +217,7 @@ test("project administrators edit the Definition of Ready per type, review its i
   ).toBeVisible();
   await expect(
     page.getByText(
-      "All checks pass; this specification is ready for development.",
+      "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work.",
     ),
   ).toBeVisible();
 
@@ -231,7 +231,7 @@ test("project administrators edit the Definition of Ready per type, review its i
   await expect(page.getByText(/Signed off by Ada Admin/)).toBeVisible();
   await expect(
     page.getByText(
-      "All checks pass; this specification is ready for development.",
+      "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work.",
     ),
   ).toBeVisible();
   await page.screenshot({ path: "/tmp/lictory-readiness-item.png" });

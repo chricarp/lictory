@@ -679,3 +679,118 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await reviewerContext.close();
   }
 });
+
+test("a breakdown-only pull request creates children only after review and merge", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await page
+    .context()
+    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.191" });
+  await signIn(page, authorEmail);
+  const branchUrl = await createBranch(page, "engineering/delivery-breakdown");
+  await page
+    .getByRole("textbox", { name: "Proposed child title", exact: true })
+    .fill("Persist stable retry identifiers");
+  await page
+    .getByRole("textbox", { name: "Proposed child description", exact: true })
+    .fill("Keep the original transaction ID across timeout retries.");
+  await page
+    .getByRole("button", { name: "Propose child", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Proposed breakdown" }),
+  ).toContainText("Persist stable retry identifiers");
+  await page
+    .getByRole("textbox", { name: "Commit message", exact: true })
+    .fill("Propose implementation breakdown");
+  await page
+    .getByRole("button", { name: "Commit changes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Commit message", exact: true }),
+  ).toHaveValue("");
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "Proposed breakdown" }),
+  ).toContainText("Keep the original transaction ID");
+  const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+  const db = drizzle(client, { schema: s });
+  const childRows = () =>
+    db.select().from(s.workItem).where(eq(s.workItem.parentId, workItemId));
+  const before = await childRows();
+  expect(
+    before.some((child) => child.title === "Persist stable retry identifiers"),
+  ).toBe(false);
+  const pr = await openPR(
+    page,
+    "Review retry implementation breakdown",
+    "main",
+  );
+  await expect(
+    page.getByRole("button", { name: "Merge pull request", exact: true }),
+  ).toBeDisabled();
+  const hasReview = await page
+    .getByText("QA approval is pending or stale.", { exact: true })
+    .count();
+  if (!hasReview) {
+    await page
+      .getByRole("combobox", { name: "PR reviewing discipline" })
+      .click();
+    await page.getByRole("option", { name: "QA", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Request required review", exact: true })
+      .click();
+  }
+  const reviewerContext = await browser.newContext({
+    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.192" },
+    storageState: consentStatePath,
+  });
+  try {
+    const reviewer = await reviewerContext.newPage();
+    await signIn(reviewer, reviewerEmail);
+    await reviewer.goto(pr);
+    await expect(
+      reviewer.getByRole("region", { name: "Proposed breakdown" }),
+    ).toContainText("Persist stable retry identifiers");
+    await reviewer
+      .getByRole("button", { name: "Approve", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Merge pull request", exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole("button", { name: "Merge pull request", exact: true })
+      .click();
+    await expect(
+      page.getByText("Merged. The reviewed content is recorded", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect
+      .poll(async () => (await childRows()).length)
+      .toBe(before.length + 1);
+    const child = (await childRows()).find(
+      (child) => child.title === "Persist stable retry identifiers",
+    )!;
+    const revisions = await db
+      .select()
+      .from(s.specificationRevision)
+      .where(eq(s.specificationRevision.workItemId, workItemId));
+    const latest = revisions.sort((a, b) => b.number - a.number)[0]!;
+    expect(child.sourceRevisionId).toBe(latest.id);
+    await page.reload();
+    await expect(
+      page.getByRole("region", { name: "Proposed breakdown" }),
+    ).toContainText("Persist stable retry identifiers");
+    await page.screenshot({
+      path: "/tmp/lictory-reviewed-delivery-breakdown.png",
+      fullPage: true,
+    });
+    expect(branchUrl).toContain("?branch=");
+  } finally {
+    await reviewerContext.close();
+    await client.end();
+  }
+});

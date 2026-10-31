@@ -8,6 +8,11 @@ import type {
   StatusCategory,
 } from "@lictory/core/contracts/protocol";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
+import { deliveryIndex } from "@lictory/core/lib/work-items";
+import {
+  deliveryCategory,
+  externalLinksByItem,
+} from "@lictory/core/lib/lifecycle";
 
 // Insights: figures about refinement, delivery and people computed from the
 // workspace, never by the model. Lictory Intelligence asks for them with the
@@ -129,7 +134,8 @@ export function computeInsights(input: {
 }): Insights {
   const { directory, projectId, teamId, now } = input;
   const projects = new Map(directory.projects.map((p) => [p.id, p]));
-  const categories = new Map(directory.statuses.map((s) => [s.id, s.category]));
+  const delivery = deliveryIndex(directory);
+  const links = externalLinksByItem(input.entities, directory.delivery.targets);
   const teams = directory.teams.filter(
     (t) => !t.archivedAt && (!projectId || t.projectId === projectId),
   );
@@ -141,7 +147,13 @@ export function computeInsights(input: {
       (!teamId || e.teamId === teamId),
   );
   const byId = new Map(items.map((i) => [i.id, i]));
-  const categoryOf = (i: WorkItem) => categories.get(i.statusId) ?? "backlog";
+  const categoryOf = (i: WorkItem) =>
+    deliveryCategory(
+      i,
+      projects.get(i.projectId)!,
+      delivery,
+      links.get(i.id),
+    ) ?? "backlog";
   const open = (i: WorkItem) =>
     categoryOf(i) !== "done" && categoryOf(i) !== "canceled";
   const keyOf = (i: WorkItem) =>

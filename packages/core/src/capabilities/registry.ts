@@ -1,6 +1,7 @@
 import * as s from "@lictory/core/db/schema";
 import { and, eq, or, sql } from "drizzle-orm";
 import { accessTokenCapabilities } from "@lictory/core/capabilities/access-tokens";
+import { productKnowledgeCapabilities } from "@lictory/core/capabilities/product-knowledge";
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
 import {
@@ -25,6 +26,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...attachmentCapabilities,
   ...brandingCapabilities,
   ...accessTokenCapabilities,
+  ...productKnowledgeCapabilities,
 ];
 
 const byName = new Map<string, AnyCapability>();

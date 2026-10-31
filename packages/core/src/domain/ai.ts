@@ -202,6 +202,12 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
           "Lictory Intelligence cannot change main.",
         );
       },
+      materializeChildren: () => {
+        throw new DomainError(
+          "conflict",
+          "Lictory Intelligence cannot accept a delivery breakdown.",
+        );
+      },
       log,
     });
   switch (c.type) {

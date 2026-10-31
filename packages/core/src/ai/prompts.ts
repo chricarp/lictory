@@ -53,6 +53,7 @@ Focus on the changed content:
 - Does it remove or weaken acceptance criteria, failure behaviour or constraints without explanation?
 - Are new behaviours testable and complete, including failure and edge cases?
 - Does it change scope in a way that affects other items, estimates or dependencies?
+- When proposed.children is present, review the proposed delivery breakdown together with the specification: coverage, missing acceptance criteria, conflicting behavior and sensible scope boundaries. These children do not exist as accepted work yet. Attribute findings about their scope to the parent item's key. Propose text edits only against the parent specification; ask a question when the breakdown itself needs changing. If childrenTruncated is true, say that the assessment covers only the included children.
 
 Edits apply to the proposed (source branch) content, so "find" must be copied from the proposed content.
 You may receive open findings from earlier runs on this pull request. When an issue is still present, return it again with previousFindingId set to that finding's id. Do not return earlier findings that the new commit resolved.

@@ -305,7 +305,7 @@ export function QuickCreate({
               onValueChange={setDescription}
               placeholder={
                 type?.hasSpecification
-                  ? "Intent, problem or first draft of the behavior… (Markdown)"
+                  ? "What problem should this solve? Describe expected behavior, acceptance criteria and important failure cases… (Markdown)"
                   : "What needs to be done… (Markdown)"
               }
               aria-label="Description"
@@ -315,6 +315,11 @@ export function QuickCreate({
               containerClassName="bg-muted/30"
             />
           </div>
+          <p className="text-xs text-muted-foreground">
+            {type?.hasSpecification
+              ? "Capture a proposal now and refine it with the team. Creating it does not commit it to delivery."
+              : "Plain work has a revisioned description and can be delivered without specification reviews."}
+          </p>
           {!type && project && (
             <p className="text-xs text-muted-foreground">
               Your disciplines in {project.name} cannot create work items. Ask a

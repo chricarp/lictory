@@ -42,6 +42,7 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { commandSummary } from "@lictory/core/domain/mutation-summary";
 import { rankBetween } from "@lictory/core/contracts/rank";
+import type { ProposedChild } from "@lictory/core/contracts/decomposition";
 import {
   checksFor,
   evaluateReadiness,
@@ -59,6 +60,7 @@ import {
   seedProject,
 } from "@lictory/core/domain/projects";
 import { auditConfiguration } from "@lictory/core/domain/audit";
+import { applyDecisionCommand } from "@lictory/core/domain/decisions";
 import {
   refreshDirectoryProjection,
   writeEntities,
@@ -782,7 +784,16 @@ async function loadItemContext(
   historyFor?: string,
 ) {
   const ids = items.map((i) => i.id);
-  const [typeRows, categoryRows, readinessRows, disciplineRows] =
+  const baselineIds = [
+    ...new Set(
+      items.flatMap((item) =>
+        [item.committedRevisionId, item.deliveredRevisionId].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    ),
+  ];
+  const [typeRows, categoryRows, readinessRows, disciplineRows, baselineRows] =
     await Promise.all([
       tx
         .select()
@@ -805,6 +816,20 @@ async function loadItemContext(
         .select({ id: s.discipline.id, name: s.discipline.name })
         .from(s.discipline)
         .where(eq(s.discipline.organizationId, organizationId)),
+      baselineIds.length
+        ? tx
+            .select({
+              id: s.specificationRevision.id,
+              number: s.specificationRevision.number,
+            })
+            .from(s.specificationRevision)
+            .where(
+              and(
+                eq(s.specificationRevision.organizationId, organizationId),
+                inArray(s.specificationRevision.id, baselineIds),
+              ),
+            )
+        : Promise.resolve([]),
     ]);
   const types = new Map(typeRows.map((t) => [t.id, t]));
   const categories = new Map(categoryRows.map((x) => [x.id, x.category]));
@@ -820,6 +845,7 @@ async function loadItemContext(
     readinessRevisions,
     latestReadiness,
     disciplineNames,
+    baselineNumbers: new Map(baselineRows.map((r) => [r.id, r.number])),
   };
   if (ids.length === 0)
     return indexItemContext({
@@ -1085,6 +1111,16 @@ function summarize(
     position: item.position,
     rank: item.rank,
     sourceRevisionId: item.sourceRevisionId,
+    committedRevisionId: item.committedRevisionId,
+    committedRevisionNumber:
+      (item.committedRevisionId &&
+        ctx.baselineNumbers.get(item.committedRevisionId)) ??
+      null,
+    deliveredRevisionId: item.deliveredRevisionId,
+    deliveredRevisionNumber:
+      (item.deliveredRevisionId &&
+        ctx.baselineNumbers.get(item.deliveredRevisionId)) ??
+      null,
     createdById: item.createdById,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -1402,53 +1438,64 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
       t.workItemId === workItemId &&
       (!t.pullRequestId || activePrIds.has(t.pullRequestId)),
   );
-  const [branchRows, commitRows, messages, activity, runs] = await Promise.all([
-    tx
-      .select()
-      .from(s.specificationBranch)
-      .where(
-        and(
-          eq(s.specificationBranch.organizationId, organizationId),
-          eq(s.specificationBranch.workItemId, workItemId),
-          isNull(s.specificationBranch.deletedAt),
+  const [branchRows, commitRows, messages, activity, runs, decisions] =
+    await Promise.all([
+      tx
+        .select()
+        .from(s.specificationBranch)
+        .where(
+          and(
+            eq(s.specificationBranch.organizationId, organizationId),
+            eq(s.specificationBranch.workItemId, workItemId),
+            isNull(s.specificationBranch.deletedAt),
+          ),
         ),
-      ),
-    tx
-      .select()
-      .from(s.specificationCommit)
-      .where(
-        and(
-          eq(s.specificationCommit.organizationId, organizationId),
-          eq(s.specificationCommit.workItemId, workItemId),
+      tx
+        .select()
+        .from(s.specificationCommit)
+        .where(
+          and(
+            eq(s.specificationCommit.organizationId, organizationId),
+            eq(s.specificationCommit.workItemId, workItemId),
+          ),
         ),
-      ),
-    threads.length
-      ? tx
-          .select()
-          .from(s.threadMessage)
-          .where(
-            and(
-              eq(s.threadMessage.organizationId, organizationId),
-              inArray(
-                s.threadMessage.threadId,
-                threads.map((t) => t.id),
+      threads.length
+        ? tx
+            .select()
+            .from(s.threadMessage)
+            .where(
+              and(
+                eq(s.threadMessage.organizationId, organizationId),
+                inArray(
+                  s.threadMessage.threadId,
+                  threads.map((t) => t.id),
+                ),
               ),
-            ),
-          )
-          .orderBy(asc(s.threadMessage.createdAt), asc(s.threadMessage.id))
-      : Promise.resolve([]),
-    tx
-      .select()
-      .from(s.activity)
-      .where(
-        and(
-          eq(s.activity.organizationId, organizationId),
-          eq(s.activity.workItemId, workItemId),
-        ),
-      )
-      .orderBy(asc(s.activity.createdAt)),
-    aiRunEntities(tx, organizationId, workItemId),
-  ]);
+            )
+            .orderBy(asc(s.threadMessage.createdAt), asc(s.threadMessage.id))
+        : Promise.resolve([]),
+      tx
+        .select()
+        .from(s.activity)
+        .where(
+          and(
+            eq(s.activity.organizationId, organizationId),
+            eq(s.activity.workItemId, workItemId),
+          ),
+        )
+        .orderBy(asc(s.activity.createdAt)),
+      aiRunEntities(tx, organizationId, workItemId),
+      tx
+        .select()
+        .from(s.decision)
+        .where(
+          and(
+            eq(s.decision.organizationId, organizationId),
+            eq(s.decision.workItemId, workItemId),
+          ),
+        )
+        .orderBy(asc(s.decision.createdAt)),
+    ]);
   const reviews = ctx.reviews.filter((r) => r.workItemId === workItemId);
   const reviewIds = new Set(reviews.map((r) => r.id));
   for (const [type, rows] of [
@@ -1471,6 +1518,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ["assignment", ctx.assignments.filter((a) => reviewIds.has(a.reviewId))],
     ["message", messages],
     ["activity", activity],
+    ["decision", decisions],
   ] as const)
     entities.push(...rows.map((row) => serialize(type, row)));
   entities.push(
@@ -1554,7 +1602,8 @@ export async function externalLinks(
 
 const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
 
-// Readiness projections of a project's spec-backed items.
+// Readiness projections, including empty plain-work results whose policy
+// metadata must stay consistent when the project's checks change.
 async function projectReadiness(
   tx: Tx,
   organizationId: string,
@@ -1570,11 +1619,7 @@ async function projectReadiness(
       ),
     );
   const ctx = await loadItemContext(tx, organizationId, rows);
-  return new Map(
-    rows
-      .filter((row) => isSpecBacked(row, ctx))
-      .map((row) => [row.id, readinessEntity(row, rows, ctx)]),
-  );
+  return new Map(rows.map((row) => [row.id, readinessEntity(row, rows, ctx)]));
 }
 
 // After new readiness checks are published, items that follow them move with
@@ -1662,7 +1707,6 @@ async function followReadinessChecks(
     : [];
   const changes: { workItemId: string; entity: Entity }[] = [];
   for (const row of rows) {
-    if (!isSpecBacked(row, ctx)) continue;
     const entity = readinessEntity(row, rows, ctx);
     if (JSON.stringify(entity) !== JSON.stringify(before.get(row.id)))
       changes.push({ workItemId: row.id, entity });
@@ -1675,7 +1719,11 @@ async function followReadinessChecks(
   return changes;
 }
 
-export type Actor = { userId: string };
+export type Actor = {
+  userId: string;
+  surface?: "web" | "mcp" | "agent";
+  client?: string | null;
+};
 export type MutationResult = {
   protocol: typeof PROTOCOL;
   mutationId: string;
@@ -1917,7 +1965,17 @@ export async function applyMutation(
       detail?: Record<string, unknown>;
     }[] = [];
     const log = (action: string, detail?: Record<string, unknown>) =>
-      activities.push({ action, detail });
+      activities.push({
+        action,
+        detail:
+          actor.surface && actor.surface !== "web"
+            ? {
+                ...detail,
+                performedVia: actor.surface,
+                agentClient: actor.client?.slice(0, 200) ?? null,
+              }
+            : detail,
+      });
     // Lictory Intelligence runs owned by other items (an Epic review
     // covering this Story) whose projection this command changed.
     const touchedRuns = new Set<string>();
@@ -1927,8 +1985,13 @@ export async function applyMutation(
       summary: string | undefined,
       previous = latest,
       mergeParents?: string[],
+      proposedChildren?: ProposedChild[],
     ) => {
-      if (previous?.title === title && previous.content === content)
+      if (
+        previous?.title === title &&
+        previous.content === content &&
+        !mergeParents
+      )
         return previous.id;
       const revisionId = crypto.randomUUID();
       const number = (previous?.number ?? 0) + 1;
@@ -1955,6 +2018,7 @@ export async function applyMutation(
           authorId: userId,
         },
         mergeParents,
+        proposedChildren,
       );
       await tx
         .update(s.workItem)
@@ -2112,6 +2176,56 @@ export async function applyMutation(
         );
       return found;
     };
+    const deliveryScopeChecks = (
+      typeId: string,
+      state: RefinementState | null,
+      parentId = item?.parentId ?? null,
+    ) => {
+      const spec = typeOf(typeId).hasSpecification;
+      if (spec && state === "ready") return [];
+      let ancestor: EntityOf<"workItem"> | undefined;
+      if (!spec) {
+        // Plain implementation work inherits the nearest specification's
+        // readiness; independent tasks retain their lightweight fast path.
+        const seen = new Set<string>();
+        while (parentId && !seen.has(parentId)) {
+          seen.add(parentId);
+          const parent = before.find(
+            (e): e is EntityOf<"workItem"> =>
+              e.type === "workItem" &&
+              e.id === parentId &&
+              e.projectId === projectId,
+          );
+          if (!parent) break;
+          if (typeOf(parent.typeId).hasSpecification) {
+            ancestor = parent;
+            break;
+          }
+          parentId = parent.parentId;
+        }
+        if (!ancestor || ancestor.refinementState === "ready") return [];
+      }
+      const evidence = before.find(
+        (e) => e.type === "readiness" && e.id === workItemId,
+      );
+      const failing = ancestor
+        ? [
+            `Parent specification ${projectRow!.key}-${ancestor.number} is not ready (${ancestor.readinessPassed}/${ancestor.readinessTotal} checks pass)`,
+          ]
+        : evidence?.type === "readiness"
+          ? evidence.checks
+              .filter((check) => !check.passed)
+              .map((check) => check.label)
+          : ["The specification has not passed its readiness checks"];
+      if (failing.length === 0)
+        failing.push("The specification has no applicable readiness evidence");
+      if (projectRow!.readinessPolicy === "block")
+        throw new DomainError(
+          "validation",
+          `${projectRow!.key}-${item?.number ?? "new"} is not ready to commit to delivery: ${failing.join("; ")}.`,
+        );
+      return failing;
+    };
     const setRefinement = async (
       state: RefinementState,
       from: RefinementState | null,
@@ -2141,8 +2255,130 @@ export async function applyMutation(
         capabilities,
         roster,
         latest: latest!,
-        revision: (title, content, summary, parents) =>
-          revision(title, content, summary, latest, parents),
+        revision: (title, content, summary, parents, proposedChildren) =>
+          revision(title, content, summary, latest, parents, proposedChildren),
+        materializeChildren: async (children, sourceRevisionId) => {
+          if (!children.length) return;
+          requireCapability(capabilities, "editSpecifications");
+          const status =
+            projectStatuses().find(
+              (status) => !status.archivedAt && status.category === "backlog",
+            ) ??
+            projectStatuses().find(
+              (status) => !status.archivedAt && status.category === "unstarted",
+            ) ??
+            projectStatuses().find((status) => !status.archivedAt);
+          if (!status)
+            throw new DomainError(
+              "validation",
+              "The project needs an active workflow status before a breakdown can be accepted.",
+            );
+          const [tail] = await tx
+            .select({
+              number: sql<number>`coalesce(max(${s.workItem.number}), 0)`,
+              rank: sql<string | null>`max(${s.workItem.rank})`,
+              position: sql<number>`coalesce(max(${s.workItem.position}), 0)`,
+            })
+            .from(s.workItem)
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.projectId, projectId),
+              ),
+            );
+          let number = Number(tail!.number),
+            rank = tail!.rank;
+          for (const [index, child] of children.entries()) {
+            const childType = typeOf(child.typeId);
+            if (
+              childType.archivedAt ||
+              childType.level >= typeOf(item!.typeId).level ||
+              !roster.projectTypes.some(
+                (entry) =>
+                  entry.projectId === projectId &&
+                  entry.typeId === child.typeId,
+              )
+            )
+              throw new DomainError(
+                "validation",
+                `“${child.title}” needs an enabled child type below the parent.`,
+              );
+            rank = rankBetween(rank, null);
+            await tx.insert(s.workItem).values({
+              id: child.workItemId,
+              organizationId,
+              projectId,
+              typeId: child.typeId,
+              parentId: workItemId!,
+              teamId: item!.teamId,
+              number: ++number,
+              title: child.title,
+              statusId: status.id,
+              refinementState: childType.hasSpecification ? "draft" : null,
+              rank,
+              position: Number(tail!.position) + (index + 1) * 1024,
+              sourceRevisionId,
+              createdById: userId,
+            });
+            await tx.insert(s.specificationRevision).values({
+              organizationId,
+              workItemId: child.workItemId,
+              number: 1,
+              title: child.title,
+              content: child.description,
+              changeSummary: "Accepted delivery breakdown",
+              authorId: userId,
+            });
+            await tx.insert(s.activity).values({
+              id: crypto.randomUUID(),
+              organizationId,
+              projectId,
+              workItemId: child.workItemId,
+              actorId: userId,
+              action: "created",
+              detail: {
+                type: childType.name,
+                number,
+                sourceRevisionId,
+                parentId: workItemId!,
+                pullRequestId:
+                  c.type === "mergePullRequest" ? c.pullRequestId : undefined,
+                ...(actor.surface && actor.surface !== "web"
+                  ? {
+                      performedVia: actor.surface,
+                      agentClient: actor.client?.slice(0, 200) ?? null,
+                    }
+                  : {}),
+              },
+              createdAt: now,
+            });
+            const entities = await snapshot(tx, {
+              organizationId,
+              projectId,
+              workItemId: child.workItemId,
+            });
+            await writeEntities(
+              tx,
+              organizationId,
+              entities
+                .filter((entity) =>
+                  entity.type === "workItem"
+                    ? entity.id === child.workItemId
+                    : "workItemId" in entity &&
+                      entity.workItemId === child.workItemId,
+                )
+                .map((entity) => ({
+                  entity,
+                  scope: { projectId, workItemId: child.workItemId },
+                })),
+            );
+          }
+          log("delivery_breakdown_accepted", {
+            count: children.length,
+            childIds: children.map((child) => child.workItemId),
+            sourceRevisionId,
+          });
+        },
         log,
         actionCheck: (pullRequestId, sourceHeadId) =>
           roster.ai.enabled &&
@@ -2280,6 +2516,14 @@ export async function applyMutation(
             "validation",
             `${projectRow!.name} has no workflow statuses.`,
           );
+        if (
+          projectRow!.deliveryMode === "external" &&
+          ((c.statusId && status.category !== "backlog") || c.assigneeId)
+        )
+          throw new DomainError(
+            "validation",
+            `${projectRow!.name} delivers externally; status and assignee are managed in the delivery tool.`,
+          );
         if (c.iterationId) {
           if (projectRow!.deliveryMode === "external")
             throw new DomainError(
@@ -2351,7 +2595,47 @@ export async function applyMutation(
           sourceRevisionId: parentRevision ?? null,
           createdById: userId,
         });
-        await revision(c.title, c.description ?? "", "Created", undefined);
+        const firstRevisionId = await revision(
+          c.title,
+          c.description ?? "",
+          "Created",
+          undefined,
+        );
+        if (
+          projectRow!.deliveryMode === "native" &&
+          ["started", "done"].includes(status.category)
+        ) {
+          const failingChecks = deliveryScopeChecks(
+            type.id,
+            type.hasSpecification ? "draft" : null,
+            c.parentId,
+          );
+          await tx
+            .update(s.workItem)
+            .set({
+              committedRevisionId: firstRevisionId,
+              ...(status.category === "done"
+                ? { deliveredRevisionId: firstRevisionId }
+                : {}),
+            })
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.id, workItemId!),
+              ),
+            );
+          log("delivery_scope_committed", {
+            revision: 1,
+            revisionId: firstRevisionId,
+            failingChecks,
+            automatic: true,
+          });
+          if (status.category === "done")
+            log("delivery_scope_completed", {
+              revision: 1,
+              revisionId: firstRevisionId,
+            });
+        }
         await iterationEvent(c.iterationId ?? null, "added", null);
         log("created", {
           type: type.name,
@@ -2362,6 +2646,15 @@ export async function applyMutation(
       }
       case "updateWorkItem": {
         requireCapability(capabilities, "changeProperties");
+        if (
+          projectRow!.deliveryMode === "external" &&
+          ((c.statusId !== undefined && c.statusId !== item!.statusId) ||
+            (c.assigneeId !== undefined && c.assigneeId !== item!.assigneeId))
+        )
+          throw new DomainError(
+            "validation",
+            `${projectRow!.name} delivers externally; status and assignee are managed in the delivery tool.`,
+          );
         const patch: Partial<ItemRow> = {};
         const failingChecks = () => {
           const checks = before.find(
@@ -2435,6 +2728,19 @@ export async function applyMutation(
           if (
             to.category === "started" &&
             from?.category !== "started" &&
+            !typeOf(typeId).hasSpecification
+          ) {
+            const inherited = deliveryScopeChecks(
+              typeId,
+              item!.refinementState,
+              c.parentId === undefined ? item!.parentId : c.parentId,
+            );
+            if (inherited.length && projectRow!.readinessPolicy === "warn")
+              override = inherited;
+          }
+          if (
+            to.category === "started" &&
+            from?.category !== "started" &&
             typeOf(typeId).hasSpecification &&
             item!.refinementState !== "ready" &&
             projectRow!.readinessPolicy !== "off"
@@ -2457,6 +2763,42 @@ export async function applyMutation(
               nowClosed ? "completed" : "reopened",
               item!.estimate,
             );
+          if (
+            projectRow!.deliveryMode === "native" &&
+            ["started", "done"].includes(to.category) &&
+            latest
+          ) {
+            const committed = item!.committedRevisionId ?? latest.id;
+            const committedRevision = before.find(
+              (e) => e.type === "revision" && e.id === committed,
+            );
+            const revisionNumber =
+              committedRevision?.type === "revision"
+                ? committedRevision.number
+                : latest.number;
+            if (!item!.committedRevisionId) {
+              const failingChecks = deliveryScopeChecks(
+                typeId,
+                item!.refinementState,
+                c.parentId === undefined ? item!.parentId : c.parentId,
+              );
+              patch.committedRevisionId = committed;
+              log("delivery_scope_committed", {
+                revision: revisionNumber,
+                revisionId: committed,
+                failingChecks,
+                automatic: true,
+              });
+            }
+            if (to.category === "done" && from?.category !== "done") {
+              patch.deliveredRevisionId = committed;
+              log("delivery_scope_completed", {
+                revision: revisionNumber,
+                revisionId: committed,
+                currentRevision: latest.number,
+              });
+            }
+          }
           patch.statusId = to.id;
           statusId = to.id;
           log("status_changed", {
@@ -2612,6 +2954,59 @@ export async function applyMutation(
                 eq(s.workItem.id, workItemId!),
               ),
             );
+        break;
+      }
+      case "acceptDeliveryScope": {
+        requireCapability(capabilities, "changeProperties");
+        if (projectRow!.deliveryMode !== "native")
+          throw new DomainError(
+            "validation",
+            "External delivery scope is accepted by publishing to the project's delivery tool.",
+          );
+        const category = projectStatuses().find(
+          (s) => s.id === item!.statusId,
+        )?.category;
+        if (category === "done" || category === "canceled")
+          throw new DomainError(
+            "conflict",
+            "Reopen this item before accepting a new delivery scope. Its delivered revision remains history.",
+          );
+        if (item!.committedRevisionId === latest!.id) break;
+        const failingChecks = deliveryScopeChecks(
+          item!.typeId,
+          item!.refinementState,
+        );
+        const unstarted =
+          category === "backlog"
+            ? projectStatuses().find(
+                (s) => !s.archivedAt && s.category === "unstarted",
+              )
+            : undefined;
+        await tx
+          .update(s.workItem)
+          .set({
+            committedRevisionId: latest!.id,
+            ...(unstarted ? { statusId: unstarted.id } : {}),
+          })
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, workItemId!),
+            ),
+          );
+        log("delivery_scope_committed", {
+          revision: latest!.number,
+          revisionId: latest!.id,
+          previousRevisionId: item!.committedRevisionId,
+          failingChecks,
+          automatic: false,
+        });
+        if (unstarted)
+          log("status_changed", {
+            from: projectStatuses().find((s) => s.id === item!.statusId)?.name,
+            to: unstarted.name,
+            category: unstarted.category,
+          });
         break;
       }
       case "reorderWorkItem": {
@@ -2943,6 +3338,17 @@ export async function applyMutation(
               ),
             );
         }
+        break;
+      }
+      case "recordDecision":
+      case "setDecisionArchived": {
+        await applyDecisionCommand(tx, c, {
+          organizationId,
+          projectId,
+          userId,
+          capabilities,
+          log,
+        });
         break;
       }
       case "archiveWorkItem": {
