@@ -407,8 +407,14 @@ export async function applyBranchCommand(
           "conflict",
           "Your edits overlap another commit. Resolve the conflicts before committing.",
         );
+      // Resolving against the current head keeps its merged breakdown unless
+      // the author chose the children explicitly.
       const snapshot = c.expectedHeadId
-        ? { title: c.title, content: c.content, proposedChildren }
+        ? {
+            title: c.title,
+            content: c.content,
+            proposedChildren: c.proposedChildren ?? result.proposedChildren,
+          }
         : {
             title: result.title,
             content: result.content,

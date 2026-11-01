@@ -386,3 +386,46 @@ void test("accepting a breakdown revalidates enabled types and leaves the parent
   assert.equal(parent.revisionNumber, 1);
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
+void test("resolving a branch conflict without choosing children keeps the current head's breakdown", async () => {
+  const f = await fixture(),
+    branchId = await f.branch("agents/conflict");
+  const start = (await f.head(branchId)).headId;
+  const child: ProposedChild = {
+    workItemId: crypto.randomUUID(),
+    typeId: f.task.id,
+    title: "Persist transaction identifiers",
+    description: "Store the identifier before the first attempt.",
+  };
+  await f.commit(
+    branchId,
+    [child],
+    "Retries reuse the original transaction ID and amount.",
+  );
+  const current = (await f.head(branchId)).headId;
+  // An agent resolves an overlapping text edit from its stale starting
+  // commit and omits proposedChildren.
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.workItemId,
+    branchId,
+    baseCommitId: start,
+    expectedHeadId: current,
+    title: "Safe retries",
+    content: "Retries reuse the stored transaction ID and amount.",
+    message: "Resolve overlapping edit",
+  });
+  const resolved = (await f.head(branchId)).headId;
+  assert.notEqual(resolved, current);
+  const [commit] = await db
+    .select()
+    .from(s.specificationCommit)
+    .where(eq(s.specificationCommit.id, resolved));
+  assert.equal(
+    commit!.content,
+    "Retries reuse the stored transaction ID and amount.",
+  );
+  assert.deepEqual(
+    commit!.proposedChildren.map((c) => c.workItemId),
+    [child.workItemId],
+  );
+});

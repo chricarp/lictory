@@ -87,6 +87,95 @@ async function rejectOverlappingIteration(
 }
 const blank = (v: string | null | undefined) => (v?.trim() ? v.trim() : null);
 const closed = ["done", "canceled"];
+// Moving items into started or done through workflow configuration records
+// the same native scope facts as moving them one at a time: the first agreed
+// revision, then the delivered one. Existing agreements are never advanced.
+async function recordScopeForCategoryChange(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  project: { deliveryMode: string },
+  items: (typeof s.workItem.$inferSelect)[],
+  from: string,
+  to: string,
+  now: Date,
+) {
+  if (project.deliveryMode !== "native" || !["started", "done"].includes(to))
+    return;
+  const completing = to === "done" && from !== "done";
+  const pending = items.filter((i) => !i.committedRevisionId || completing);
+  if (!pending.length) return;
+  const revisions = await tx
+    .select({
+      id: s.specificationRevision.id,
+      workItemId: s.specificationRevision.workItemId,
+      number: s.specificationRevision.number,
+    })
+    .from(s.specificationRevision)
+    .where(
+      and(
+        eq(s.specificationRevision.organizationId, organizationId),
+        inArray(
+          s.specificationRevision.workItemId,
+          pending.map((i) => i.id),
+        ),
+      ),
+    );
+  for (const item of pending) {
+    const own = revisions.filter((r) => r.workItemId === item.id);
+    const latest = own.reduce<(typeof own)[number] | undefined>(
+      (a, r) => (!a || r.number > a.number ? r : a),
+      undefined,
+    );
+    const committed =
+      own.find((r) => r.id === item.committedRevisionId) ?? latest;
+    if (!committed) continue;
+    await tx
+      .update(s.workItem)
+      .set({
+        committedRevisionId: committed.id,
+        ...(completing ? { deliveredRevisionId: committed.id } : {}),
+      })
+      .where(
+        and(
+          eq(s.workItem.organizationId, organizationId),
+          eq(s.workItem.id, item.id),
+        ),
+      );
+    const target = [{ projectId: item.projectId, workItemId: item.id }];
+    if (!item.committedRevisionId)
+      await activity(
+        tx,
+        organizationId,
+        userId,
+        target,
+        "delivery_scope_committed",
+        {
+          revision: committed.number,
+          revisionId: committed.id,
+          failingChecks: [],
+          automatic: true,
+          reason: "status_configuration",
+        },
+        now,
+      );
+    if (completing)
+      await activity(
+        tx,
+        organizationId,
+        userId,
+        target,
+        "delivery_scope_completed",
+        {
+          revision: committed.number,
+          revisionId: committed.id,
+          currentRevision: latest?.number ?? committed.number,
+          reason: "status_configuration",
+        },
+        now,
+      );
+  }
+}
 
 // Every project starts with these disciplines. Project administrators rename,
 // re-scope, archive or add disciplines afterwards; nothing here is fixed.
@@ -641,6 +730,26 @@ export async function applyProjectCommand(
           ...(c.category !== undefined ? { category: c.category } : {}),
         })
         .where(where(s.workflowStatus, status.id));
+      if (c.category !== undefined && c.category !== status.category)
+        await recordScopeForCategoryChange(
+          tx,
+          organizationId,
+          userId,
+          project,
+          await tx
+            .select()
+            .from(s.workItem)
+            .where(
+              and(
+                eq(s.workItem.organizationId, organizationId),
+                eq(s.workItem.projectId, project.id),
+                eq(s.workItem.statusId, status.id),
+              ),
+            ),
+          status.category,
+          c.category,
+          now,
+        );
       if (c.beforeId !== undefined) {
         const others = statuses.filter((x) => x.id !== status.id);
         const index = c.beforeId
@@ -720,6 +829,16 @@ export async function applyProjectCommand(
             category: replacement.category,
             reason: "status_archived",
           },
+          now,
+        );
+        await recordScopeForCategoryChange(
+          tx,
+          organizationId,
+          userId,
+          project,
+          items,
+          status.category,
+          replacement.category,
           now,
         );
       }

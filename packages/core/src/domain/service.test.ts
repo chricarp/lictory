@@ -9,6 +9,7 @@ import {
   DomainError,
   advanceSchedules,
   directory,
+  executeMutation,
   iterationReport,
   readinessHistory,
   readinessPreview,
@@ -442,6 +443,188 @@ void test("plain implementation work inherits parent readiness without gating in
     statusId: f.statuses["In Progress"],
   });
   assert.equal((await itemOf(f, taskId)).statusId, f.statuses["In Progress"]);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("an accepted parent scope keeps covering its work while the parent is amended", async () => {
+  const f = await fixture();
+  const epic = async (title: string) => {
+    const epicId = crypto.randomUUID();
+    const taskId = crypto.randomUUID();
+    await f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: epicId,
+      typeId: f.types.Epic,
+      parentId: null,
+      title,
+      description: "Define stable payment behavior.",
+    });
+    await f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: taskId,
+      typeId: f.types.Task,
+      parentId: epicId,
+      title: `Implement ${title}`,
+    });
+    // The warning policy records this agreement with its missing evidence.
+    await f.command({
+      type: "acceptDeliveryScope",
+      workItemId: epicId,
+      baseRevisionId: (await itemOf(f, epicId)).revisionId,
+    });
+    return { epicId, taskId };
+  };
+  const amended = await epic("Amended behavior");
+  const agreed = (await itemOf(f, amended.epicId)).revisionId;
+  await f.command({
+    type: "updateSpecification",
+    workItemId: amended.epicId,
+    baseRevisionId: agreed,
+    title: "Amended behavior",
+    content: "Define stable payment behavior, including cancellation.",
+  });
+  const unchanged = await epic("Unchanged behavior");
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    readinessPolicy: "block",
+  });
+  // The amendment awaits agreement; the accepted revision keeps going.
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: amended.taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: amended.epicId,
+    statusId: f.statuses["In Progress"],
+  });
+  assert.equal((await itemOf(f, amended.epicId)).committedRevisionId, agreed);
+  // Missing evidence on the agreed revision itself still blocks new work.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: unchanged.taskId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /Parent specification PAY-\d+ is not ready/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: unchanged.epicId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /is not ready to start/,
+  );
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("agents accept specification scope explicitly instead of implicitly by moving status", async () => {
+  const f = await fixture();
+  const agent = { userId: f.userId, surface: "mcp" as const, client: "test" };
+  const run = (command: Command) =>
+    executeMutation(db, agent, {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      command,
+    });
+  for (const statusId of [f.statuses["In Progress"], f.statuses.Done])
+    await assert.rejects(
+      run({ type: "updateWorkItem", workItemId: f.proposalId, statusId }),
+      /acceptDeliveryScope/,
+    );
+  await assert.rejects(
+    run({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Story,
+      parentId: null,
+      title: "Started by an agent",
+      statusId: f.statuses["In Progress"],
+    }),
+    /acceptDeliveryScope/,
+  );
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, null);
+  // Lightweight plain work keeps its fast path for agents.
+  const taskId = crypto.randomUUID();
+  await run({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: taskId,
+    typeId: f.types.Task,
+    parentId: null,
+    title: "Agent task",
+  });
+  await run({
+    type: "updateWorkItem",
+    workItemId: taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  const first = await f.current();
+  await run({
+    type: "acceptDeliveryScope",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+  });
+  await run({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Done,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionId, first.id);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("workflow configuration that moves items records their delivery scope", async () => {
+  const f = await fixture();
+  const archivedId = crypto.randomUUID();
+  const recategorizedId = crypto.randomUUID();
+  const triage = crypto.randomUUID();
+  await f.command({
+    type: "createStatus",
+    projectId: f.projectId,
+    statusId: triage,
+    name: "Triage",
+    color: "gray",
+    category: "unstarted",
+  });
+  for (const [workItemId, statusId] of [
+    [archivedId, f.statuses.Todo],
+    [recategorizedId, triage],
+  ] as const)
+    await f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId,
+      typeId: f.types.Task,
+      parentId: null,
+      title: "Configured work",
+      statusId,
+    });
+  await f.command({
+    type: "archiveStatus",
+    projectId: f.projectId,
+    statusId: f.statuses.Todo,
+    replacementId: f.statuses.Done,
+  });
+  const archived = await itemOf(f, archivedId);
+  assert.equal(archived.committedRevisionId, archived.revisionId);
+  assert.equal(archived.deliveredRevisionId, archived.revisionId);
+  await f.command({
+    type: "updateStatus",
+    projectId: f.projectId,
+    statusId: triage,
+    category: "started",
+  });
+  const recategorized = await itemOf(f, recategorizedId);
+  assert.equal(recategorized.committedRevisionId, recategorized.revisionId);
+  assert.equal(recategorized.deliveredRevisionId, null);
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
 

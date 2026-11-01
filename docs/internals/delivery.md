@@ -104,6 +104,20 @@ activity. Independent plain work has no specification gate. Plain implementation
 items under a specification inherit their nearest specification ancestor's
 readiness, so decomposing unsettled behavior into Tasks cannot bypass the gate.
 
+An accepted agreement keeps covering its work while a later amendment is
+refined: when the current revision differs from the accepted one, losing
+readiness on the amendment does not stop the item or its implementation
+children from starting. Missing evidence on the accepted revision itself, such
+as a new blocking discussion, still applies the policy.
+
+Agents never make that first commitment implicitly. Starting or completing a
+specification-backed item without an accepted revision through MCP or Litto is
+refused; the agent asks the person to accept the scope with the confirmable
+`acceptDeliveryScope` decision. Plain work keeps its fast path. Workflow
+configuration that moves items into started or Done categories (archiving a
+status, changing a status's category) records the same agreement and delivered
+revision as moving each item by hand.
+
 The accepted revision is stored separately from the current specification.
 Merging an amendment never silently advances the delivery agreement. The item
 shows the changed scope, offers a comparison, and asks an authorized person to

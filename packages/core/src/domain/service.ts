@@ -2176,6 +2176,20 @@ export async function applyMutation(
         );
       return found;
     };
+    // Starting or completing a specification without an agreed revision
+    // records that agreement implicitly. People may do that in one step;
+    // agents ask for the explicit, confirmable acceptDeliveryScope decision.
+    const agentCannotCommit = (typeId: string) => {
+      if (
+        typeOf(typeId).hasSpecification &&
+        actor.surface &&
+        actor.surface !== "web"
+      )
+        throw new DomainError(
+          "validation",
+          "Starting or completing this specification would accept its delivery scope. Ask the person to accept the current revision with acceptDeliveryScope first.",
+        );
+    };
     const deliveryScopeChecks = (
       typeId: string,
       state: RefinementState | null,
@@ -2203,7 +2217,16 @@ export async function applyMutation(
           }
           parentId = parent.parentId;
         }
-        if (!ancestor || ancestor.refinementState === "ready") return [];
+        // An accepted scope keeps covering its implementation work while a
+        // later amendment of the parent is refined. Missing evidence on the
+        // agreed revision itself still applies.
+        if (
+          !ancestor ||
+          ancestor.refinementState === "ready" ||
+          (ancestor.committedRevisionId &&
+            ancestor.committedRevisionId !== ancestor.revisionId)
+        )
+          return [];
       }
       const evidence = before.find(
         (e) => e.type === "readiness" && e.id === workItemId,
@@ -2605,6 +2628,7 @@ export async function applyMutation(
           projectRow!.deliveryMode === "native" &&
           ["started", "done"].includes(status.category)
         ) {
+          agentCannotCommit(type.id);
           const failingChecks = deliveryScopeChecks(
             type.id,
             type.hasSpecification ? "draft" : null,
@@ -2743,6 +2767,13 @@ export async function applyMutation(
             from?.category !== "started" &&
             typeOf(typeId).hasSpecification &&
             item!.refinementState !== "ready" &&
+            // Accepting the scope applied the policy to the agreed revision;
+            // a later amendment does not stop that agreement from starting.
+            !(
+              projectRow!.deliveryMode === "native" &&
+              item!.committedRevisionId &&
+              item!.committedRevisionId !== latest?.id
+            ) &&
             projectRow!.readinessPolicy !== "off"
           ) {
             const failing = failingChecks().map((k) => k.label);
@@ -2777,6 +2808,7 @@ export async function applyMutation(
                 ? committedRevision.number
                 : latest.number;
             if (!item!.committedRevisionId) {
+              agentCannotCommit(typeId);
               const failingChecks = deliveryScopeChecks(
                 typeId,
                 item!.refinementState,

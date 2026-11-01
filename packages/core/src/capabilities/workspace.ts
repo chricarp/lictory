@@ -306,7 +306,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createSuggestion: {
     title: "Create suggestion",
     description:
-      "Propose replacement Markdown for the specification with a title and rationale. Anyone in the organization can suggest; `open: false` saves a draft.",
+      "Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use createBranch, commitBranch and createPullRequest instead. Anyone in the organization can suggest; `open: false` saves a draft.",
   },
   updateSuggestion: {
     title: "Update suggestion",
