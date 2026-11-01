@@ -12,11 +12,16 @@ import { Button } from "@lictory/ui/button";
 import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { identifier, isTopLevel, typeOf } from "@lictory/core/lib/work-items";
+import { identifier, matchesView } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { IssueList } from "@lictory/platform/components/items/issue-list";
+import {
+  itemOrigin,
+  originLink,
+  useLifecycleQueues,
+} from "@lictory/platform/components/items/queues";
 
 const ListPanelContext = createContext<{
   collapsed: boolean;
@@ -44,42 +49,44 @@ export function WorkItemListToggle() {
   );
 }
 
-// List + detail side by side on wide screens. Both read from the organization
-// store, so selecting another item only changes which local data is shown. The
-// URL stays the source of truth; on narrow screens the detail takes over.
-export function SplitView({
-  kind,
-  children,
-}: {
-  kind: "epics" | "stories";
-  children: ReactNode;
-}) {
+// List + detail side by side on wide screens. Every item type shares one
+// address; `?from=` keeps the queue the item was opened from beside it. Both
+// read from the organization store, so selecting another item only changes
+// which local data is shown. On narrow screens the detail takes over.
+export function SplitView({ children }: { children: ReactNode }) {
   // The selected item is the child route's `$id`.
   const segment = useParams<{ id: string }>().id;
   const searchParams = useSearchParams();
-  const { items, organization, delivery } = useWorkspace();
+  const { items, organization, userId, disciplineIds } = useWorkspace();
   const [collapsed, toggle] = usePanelCollapsed(
     organization.id,
     "work-item-list",
   );
   const listId = useId();
   const project = useProject();
+  const queues = useLifecycleQueues(project);
+  const origin = itemOrigin(searchParams);
+  const stage = searchParams.get("stage");
   const selected = segment ? decodeURIComponent(segment) : undefined;
-  const scoped = useMemo(
-    () =>
-      items.filter(
+  const listed = useMemo(() => {
+    if (origin === "proposals") return queues.proposals;
+    if (origin === "refinement")
+      return queues.refining.filter(
+        (item) => !stage || queues.stages.get(item.id) === stage,
+      );
+    if (origin === "reviews")
+      return queues.projectItems.filter((item) =>
+        matchesView(item, "needs-my-review", userId, disciplineIds),
+      );
+    return items.filter((i) => i.projectId === project.id);
+  }, [origin, stage, queues, items, project.id, userId, disciplineIds]);
+  const selectedItem = selected
+    ? items.find(
         (i) =>
           i.projectId === project.id &&
-          (kind === "epics") === isTopLevel(typeOf(delivery, i)),
-      ),
-    [items, project.id, kind, delivery],
-  );
-  const selectedItem = selected
-    ? scoped.find(
-        (i) =>
-          i.id === selected ||
-          identifier(project, i.number).toLowerCase() ===
-            selected.toLowerCase(),
+          (i.id === selected ||
+            identifier(project, i.number).toLowerCase() ===
+              selected.toLowerCase()),
       )
     : undefined;
   const hrefFor = useCallback(
@@ -87,31 +94,18 @@ export function SplitView({
       paths.item(
         organization.slug,
         project.key,
-        kind,
         identifier(project, item.number),
         searchParams,
       ),
-    [organization.slug, project, kind, searchParams],
+    [organization.slug, project, searchParams],
   );
-  const list = (compact: boolean) => (
-    <IssueList
-      items={scoped}
-      project={project}
-      hrefFor={hrefFor}
-      selectedId={selectedItem?.id}
-      compact={compact}
-      title={kind === "epics" ? "Epics" : "Work items"}
-      createKind={kind === "epics" ? "epic" : "story"}
-      allowEpicFilter={kind === "stories"}
-      emptyTitle={kind === "epics" ? "No epics yet" : "No work items yet"}
-      emptyBody={
-        kind === "epics"
-          ? "An Epic captures a project capability. Start with a title; refine it with your team."
-          : "Stories describe concrete behavior engineering will implement. Create them from an Epic or here."
-      }
-    />
+  if (!selected) return <div className="h-full">{children}</div>;
+  const { label } = originLink(
+    organization.slug,
+    project.key,
+    origin,
+    searchParams,
   );
-  if (!selected) return <div className="h-full">{list(false)}</div>;
   return (
     <ListPanelContext.Provider value={{ collapsed, toggle, id: listId }}>
       <div className="flex h-full">
@@ -122,7 +116,29 @@ export function SplitView({
             !collapsed && "xl:block",
           )}
         >
-          {!collapsed && list(true)}
+          {!collapsed && (
+            <IssueList
+              items={listed}
+              project={project}
+              hrefFor={hrefFor}
+              selectedId={selectedItem?.id}
+              compact
+              title={label}
+              createKind="story"
+              createIntent={
+                origin === "proposals" || origin === "refinement"
+                  ? "proposal"
+                  : undefined
+              }
+              createLabel={
+                origin === "proposals" || origin === "refinement"
+                  ? "New proposal"
+                  : "New item"
+              }
+              emptyTitle="Nothing else here"
+              groupBy={origin ? "refinement" : "status"}
+            />
+          )}
         </div>
         <div className="min-w-0 flex-1">{children}</div>
       </div>

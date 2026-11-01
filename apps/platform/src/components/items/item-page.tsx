@@ -6,12 +6,7 @@ import { FileSearch } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { MissingState } from "@lictory/ui/status-page";
 import { paths } from "@lictory/core/lib/paths";
-import {
-  identifier,
-  parseIdentifier,
-  segmentOf,
-  typeOf,
-} from "@lictory/core/lib/work-items";
+import { identifier, parseIdentifier } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import {
@@ -63,7 +58,6 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
         paths.item(
           organization.slug,
           otherProject.key,
-          segmentOf(typeOf(delivery, otherItem)),
           identifier(otherProject, otherItem.number),
         ),
       );
@@ -74,7 +68,6 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
         paths.item(
           organization.slug,
           project.key,
-          segmentOf(typeOf(delivery, item)),
           identifier(project, item.number),
         ),
       );
@@ -99,10 +92,10 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
         title={`${raw} was not found in ${project.name}`}
         action={
           <Link
-            href={paths.list(organization.slug, project.key, "epics")}
+            href={paths.items(organization.slug, project.key)}
             className="contents"
           >
-            <Button variant="secondary">Back to Epics</Button>
+            <Button variant="secondary">Back to all items</Button>
           </Link>
         }
       >

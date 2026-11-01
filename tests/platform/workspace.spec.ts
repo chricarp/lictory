@@ -90,7 +90,7 @@ test("an existing member can create and switch to another organization", async (
     key: "ONE",
   });
   const firstOrganization = new URL(page.url()).pathname.replace(
-    /\/one\/epics$/,
+    /\/one\/proposals$/,
     "",
   );
 
@@ -278,7 +278,7 @@ test("navigation commits immediately inside the persistent shell and shows a loa
     project: "Loading project",
     key: "LDS",
   });
-  await expect(page).toHaveURL(/\/lds\/epics$/);
+  await expect(page).toHaveURL(/\/lds\/proposals$/);
   const rail = page.getByRole("navigation", { name: "Workspace" });
   const board = rail.getByRole("link", { name: "Board", exact: true });
   await expect(board).toBeVisible();
@@ -333,9 +333,13 @@ test("revisiting a work item paints its local history on the first frame", async
   const rail = page.getByRole("navigation", { name: "Workspace" });
   const watch = page.getByRole("button", { name: /^Watch(ing)?$/ });
   for (const title of ["First epic", "Second epic"]) {
-    await rail.getByRole("link", { name: "Epics", exact: true }).click();
-    await expect(page).toHaveURL(/\/rvt\/epics$/);
-    await page.getByRole("button", { name: "New epic", exact: true }).click();
+    await rail.getByRole("link", { name: "All items", exact: true }).click();
+    await expect(page).toHaveURL(/\/rvt\/items$/);
+    await page.getByRole("button", { name: "New item", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Type: Story", exact: true })
+      .click();
+    await page.getByRole("option", { name: /^Epic/ }).click();
     await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
     await page.getByRole("button", { name: "Create & open" }).click();
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
@@ -374,7 +378,7 @@ test("revisiting a work item paints its local history on the first frame", async
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
   await page.getByRole("link", { name: /First epic/ }).click();
-  await expect(page).toHaveURL(/\/epics\/RVT-1$/);
+  await expect(page).toHaveURL(/\/items\/RVT-1(\?.*)?$/);
   await expect(page.getByRole("heading", { name: "First epic" })).toBeVisible();
   const frames = () =>
     page.evaluate(() =>
@@ -405,16 +409,19 @@ test("work item panels collapse independently and persist across routes and relo
     key: "PNL",
   });
 
-  await page.getByRole("button", { name: "New epic", exact: true }).click();
+  await page.getByRole("button", { name: "New proposal", exact: true }).click();
+  await page.getByRole("button", { name: "Type: Story", exact: true }).click();
+  await page.getByRole("option", { name: /^Epic/ }).click();
   await page
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Focused epic");
   await page.getByRole("button", { name: "Create & open" }).click();
-  await expect(page).toHaveURL(/\/epics\/PNL-1$/);
+  await expect(page).toHaveURL(/\/items\/PNL-1(\?.*)?$/);
   const epicUrl = page.url();
-  const filter = page.getByRole("textbox", {
-    name: "Filter by title or identifier",
-  });
+  // The compact list beside an item opens its search from a button.
+  const filter = page
+    .getByRole("textbox", { name: "Filter by title or identifier" })
+    .or(page.getByRole("button", { name: "Search items", exact: true }));
   const heading = page.getByRole("heading", { name: "Focused epic" });
   const initialWidth = (await heading.boundingBox())!.width;
   await page.getByRole("button", { name: "Hide work item list" }).click();
@@ -440,14 +447,13 @@ test("work item panels collapse independently and persist across routes and relo
   await expect(rail).toBeVisible();
   for (const name of [
     "Inbox",
-    "Epics",
-    "Work items",
+    "All items",
+    "Refinement",
     "Reviews",
     "Board",
     "Backlog",
     "Needs review",
     "Blocked",
-    "Ready for selection",
     "Proposals",
     "Recently updated",
     "Organization settings",
@@ -455,7 +461,7 @@ test("work item panels collapse independently and persist across routes and relo
     await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
   }
   await expect(
-    rail.getByRole("link", { name: "Epics", exact: true }),
+    rail.getByRole("link", { name: "All items", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page
     .getByRole("button", { name: "Switch project: Panel project" })
@@ -479,13 +485,13 @@ test("work item panels collapse independently and persist across routes and relo
     page.getByText(`Lictory v${version}`, { exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await rail.getByRole("link", { name: "Work items", exact: true }).click();
-  await expect(page).toHaveURL(/\/pnl\/stories$/);
+  await rail.getByRole("link", { name: "All items", exact: true }).click();
+  await expect(page).toHaveURL(/\/pnl\/items$/);
   await expect(
-    rail.getByRole("link", { name: "Work items", exact: true }),
+    rail.getByRole("link", { name: "All items", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(expandSidebar).toBeVisible();
-  await rail.getByRole("link", { name: "Epics", exact: true }).click();
+  await rail.getByRole("link", { name: "All items", exact: true }).click();
   await page.getByRole("link", { name: /Focused epic/ }).click();
   await expect(heading).toBeVisible();
   await test.info().attach("Focused work item", {
@@ -502,7 +508,7 @@ test("work item panels collapse independently and persist across routes and relo
   // A full list remains accessible through the breadcrumb even when collapsed.
   await page
     .getByRole("navigation", { name: "Breadcrumb" })
-    .getByRole("link", { name: "Epics", exact: true })
+    .getByRole("link", { name: "All items", exact: true })
     .click();
   await expect(filter).toBeVisible();
   await page.getByRole("link", { name: /Focused epic/ }).click();
@@ -516,9 +522,9 @@ test("work item panels collapse independently and persist across routes and relo
   // The same list preference applies to stories and other non-epic types.
   await page
     .getByRole("navigation", { name: "Workspace" })
-    .getByRole("link", { name: /Work items/ })
+    .getByRole("link", { name: /All items/ })
     .click();
-  await expect(page).toHaveURL(/\/pnl\/stories$/);
+  await expect(page).toHaveURL(/\/pnl\/items$/);
   await page.keyboard.press("c");
   await page
     .getByRole("dialog", { name: /^Create/ })
@@ -529,7 +535,7 @@ test("work item panels collapse independently and persist across routes and relo
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Focused story");
   await page.getByRole("button", { name: "Create & open" }).click();
-  await expect(page).toHaveURL(/\/stories\/PNL-2$/);
+  await expect(page).toHaveURL(/\/items\/PNL-2(\?.*)?$/);
   await page.getByRole("button", { name: "Hide work item list" }).click();
   await page.goto(epicUrl);
   await expect(
@@ -631,7 +637,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Partial cancellation");
   await page.getByRole("button", { name: "Create & open" }).click();
-  await expect(page).toHaveURL(/\/pay\/epics\/PAY-1$/);
+  await expect(page).toHaveURL(/\/pay\/items\/PAY-1(\?.*)?$/);
   await expect(
     page.getByRole("heading", { name: "Partial cancellation" }),
   ).toBeVisible();
@@ -656,7 +662,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("Define cancellation API");
-  const epicCombobox = page.getByRole("combobox", { name: "Epic: None" });
+  const epicCombobox = page.getByRole("combobox", { name: "Parent: None" });
   await epicCombobox.fill("Partial");
   await page.getByRole("option", { name: /Partial cancellation/ }).click();
   const description = page.getByRole("textbox", { name: "Description" });
@@ -684,7 +690,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeLessThanOrEqual(320);
   await page
     .getByRole("dialog", { name: "Create story" })
-    .getByRole("button", { name: "Create Story", exact: true })
+    .getByRole("button", { name: "Create another", exact: true })
     .click();
   await expect(
     page.getByText("Story “Define cancellation API” created"),
@@ -701,8 +707,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .getByRole("textbox", { name: "New story title" })
     .fill("Handle provider callback");
   await page.keyboard.press("Enter");
-  await expect(page.getByText("PAY-2")).toBeVisible();
-  await expect(page.getByText("PAY-3")).toBeVisible();
+  const breakdown = page.getByRole("region", {
+    name: "Breakdown",
+    exact: true,
+  });
+  await expect(breakdown.getByText("PAY-2")).toBeVisible();
+  await expect(breakdown.getByText("PAY-3")).toBeVisible();
   await expect(page.getByText("0/2 ready")).toBeVisible();
 
   // Reorder stories: drag handle is keyboard-accessible (Alt+Arrow).
@@ -717,8 +727,10 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .toEqual(["Handle provider callback", "Define cancellation API"]);
 
   // 4. Open a Story without losing context (Epic stays in breadcrumb).
-  await page.getByRole("link", { name: "Define cancellation API" }).click();
-  await expect(page).toHaveURL(/\/pay\/stories\/PAY-2\?epic=[0-9a-f-]{36}$/);
+  await breakdown
+    .getByRole("link", { name: "Define cancellation API" })
+    .click();
+  await expect(page).toHaveURL(/\/pay\/items\/PAY-2\?epic=[0-9a-f-]{36}$/);
   await expect(
     page.getByRole("navigation", { name: "Breadcrumb" }),
   ).toContainText("Partial cancellation");
@@ -726,11 +738,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   expect(epicFilter).toMatch(/^[0-9a-f-]{36}$/);
   await page.getByRole("link", { name: "Handle provider callback" }).click();
   await expect(page).toHaveURL(
-    new RegExp(`/pay/stories/PAY-3\\?epic=${epicFilter}$`),
+    new RegExp(`/pay/items/PAY-3\\?epic=${epicFilter}$`),
   );
   await page.getByRole("link", { name: "Define cancellation API" }).click();
   await expect(page).toHaveURL(
-    new RegExp(`/pay/stories/PAY-2\\?epic=${epicFilter}$`),
+    new RegExp(`/pay/items/PAY-2\\?epic=${epicFilter}$`),
   );
 
   // 5. Inline status/priority/owner.
@@ -846,7 +858,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(rileyDisciplines).toHaveAttribute("aria-pressed", "true");
 
   // 6. Request Engineering review from the story page.
-  const storyUrl = `/${orgSlug}/pay/stories/PAY-2`;
+  const storyUrl = `/${orgSlug}/pay/items/PAY-2`;
   await page.goto(storyUrl);
   await page.getByRole("button", { name: "Request review" }).click();
   await expect(
@@ -864,12 +876,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeVisible();
 
   // 18. Reviewer uses Needs my review; row shows the request.
-  await reviewer.goto(storyUrl.replace(/\/stories\/PAY-2$/, "/reviews"));
+  await reviewer.goto(storyUrl.replace(/\/items\/PAY-2$/, "/reviews"));
   await expect(
     reviewer.getByRole("link", { name: "Define cancellation API" }),
   ).toBeVisible();
   await reviewer.getByRole("link", { name: "Define cancellation API" }).click();
-  await expect(reviewer).toHaveURL(/\/stories\/PAY-2$/);
+  await expect(reviewer).toHaveURL(/\/items\/PAY-2(\?.*)?$/);
 
   // Presence: both are on PAY-2, so each sees the other. A newly connected
   // viewer may wait for the next 20-second heartbeat from the existing viewer.
@@ -921,7 +933,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // Inbox updates: the owner hears about the blocking discussion; the
   // reviewer about the review request and the mention (not also a reply).
-  const orgPath = storyUrl.replace(/\/pay\/stories\/PAY-2$/, "");
+  const orgPath = storyUrl.replace(/\/pay\/items\/PAY-2$/, "");
   const ownerInbox = await page.context().newPage();
   await ownerInbox.goto(`${orgPath}/inbox`);
   await expect(
@@ -1185,7 +1197,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeVisible();
   await expect(
     page.getByText(
-      "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work.",
+      "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work.",
     ),
   ).toBeVisible();
 
@@ -1247,14 +1259,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   const lifecycle = page.getByRole("navigation", {
     name: "Specification lifecycle",
   });
-  await lifecycle.getByRole("link", { name: /Ready for selection/ }).click();
+  await lifecycle.getByRole("link", { name: /Ready for delivery/ }).click();
   await expect(page).toHaveURL(/stage=ready/);
   await expect(
     page.getByRole("link", { name: /Define cancellation API/ }),
   ).toBeVisible();
   await reloadWhenSaved(page);
   await expect(
-    lifecycle.getByRole("link", { name: /Ready for selection/ }),
+    lifecycle.getByRole("link", { name: /Ready for delivery/ }),
   ).toHaveAttribute("aria-current", "page");
   await page.screenshot({ path: "/tmp/lictory-refinement-lifecycle.png" });
 
@@ -1263,7 +1275,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page.getByRole("link", { name: "Define cancellation API" }).hover();
   await page.keyboard.press("j");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/stories\/PAY-(2|3)$/);
+  await expect(page).toHaveURL(/\/items\/PAY-(2|3)(\?.*)?$/);
   // URL-persisted filters: filter by label, reload, filter still applied.
   await page.goto(storyUrl.replace(/\/PAY-2$/, "?label=") + "");
   await page.getByRole("button", { name: "Filters" }).click();
@@ -1285,12 +1297,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("link", { name: "Define cancellation API" }),
   ).toBeVisible();
   // Cross-project identifier route.
-  await page.goto(storyUrl.replace(/\/pay\/stories\/PAY-2$/, "/items/PAY-1"));
-  await expect(page).toHaveURL(/\/pay\/epics\/PAY-1$/);
+  await page.goto(storyUrl.replace(/\/pay\/items\/PAY-2$/, "/items/PAY-1"));
+  await expect(page).toHaveURL(/\/pay\/items\/PAY-1(\?.*)?$/);
   await page.keyboard.press("Meta+k");
   await page.getByRole("textbox", { name: "Search" }).fill("PAY-1");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/epics\/PAY-1$/);
+  await expect(page).toHaveURL(/\/items\/PAY-1(\?.*)?$/);
   await expect(page.getByText("1/2 ready")).toBeVisible();
 
   // 19. A change made while the connection is down survives a reload and is
@@ -1397,6 +1409,8 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     planning: "manual",
   });
 
+  // The catalog can create any enabled type; proposal capture stays focused on specifications.
+  await page.getByRole("link", { name: "All items", exact: true }).click();
   // A Task (plain work) and a Story (specification) through quick create.
   for (const [type, title] of [
     ["Task", "Add payment method column"],
@@ -1410,7 +1424,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     await page.getByRole("option", { name: new RegExp(`^${type}`) }).click();
     await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
     await page
-      .getByRole("button", { name: `Create ${type}`, exact: true })
+      .getByRole("button", { name: "Create another", exact: true })
       .click();
     await expect(page.getByText(`${type} “${title}” created`)).toBeVisible();
     await page.keyboard.press("Escape");
@@ -1538,7 +1552,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   // the status, explains why in a toast, and leaves the item usable.
   await storyCard.click();
   await storyPreview.getByRole("link", { name: "Open", exact: true }).click();
-  await expect(page).toHaveURL(/\/stories\/CHK-2$/);
+  await expect(page).toHaveURL(/\/items\/CHK-2(\?.*)?$/);
   const detailProperties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
@@ -1655,6 +1669,7 @@ test("native delivery preserves accepted scope through an amendment, completion 
     key: "SCP",
     planning: "manual",
   });
+  await page.getByRole("link", { name: "All items", exact: true }).click();
   await page.keyboard.press("c");
   const create = page.getByRole("dialog", { name: /^Create/ });
   await create.getByRole("button", { name: /^Type:/ }).click();
@@ -1665,16 +1680,24 @@ test("native delivery preserves accepted scope through an amendment, completion 
   await create
     .getByRole("button", { name: "Create & open", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/stories\/SCP-1$/);
+  await expect(page).toHaveURL(/\/items\/SCP-1(\?.*)?$/);
   const scope = page.getByRole("region", {
     name: "Delivery scope",
     exact: true,
   });
-  await expect(scope).toContainText("No scope accepted yet");
-  await scope
-    .getByRole("button", { name: "Accept scope · revision 1", exact: true })
-    .click();
-  await expect(scope).toContainText("Accepted for delivery: revision 1");
+  // Plain work records its scope when it starts; there is nothing to accept
+  // before then.
+  await expect(scope).toHaveCount(0);
+  const properties = page
+    .getByRole("heading", { name: "Properties", exact: true })
+    .locator("..");
+  await properties.getByRole("button", { name: /^Status:/ }).click();
+  await page.getByRole("option", { name: /^In Progress/ }).click();
+  const workflow = page.getByRole("region", {
+    name: "Item workflow",
+    exact: true,
+  });
+  await expect(workflow).toContainText("Accepted revision 1");
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Specification", exact: true })
@@ -1683,10 +1706,13 @@ test("native delivery preserves accepted scope through an amendment, completion 
     );
   await page.getByRole("button", { name: /^Save revision 2/ }).click();
   await expect(scope).toContainText(
-    "Revision 2 changes the agreed specification",
+    "Revision 2 changes the accepted specification",
   );
   await scope
-    .getByRole("button", { name: "Compare with accepted scope", exact: true })
+    .getByRole("button", {
+      name: "Compare with accepted revision",
+      exact: true,
+    })
     .click();
   await expect(
     page
@@ -1698,16 +1724,13 @@ test("native delivery preserves accepted scope through an amendment, completion 
   await page
     .getByRole("button", { name: "Close comparison", exact: true })
     .click();
-  const properties = page
-    .getByRole("heading", { name: "Properties", exact: true })
-    .locator("..");
   await properties
-    .getByRole("button", { name: "Status: Todo", exact: true })
+    .getByRole("button", { name: "Status: In Progress", exact: true })
     .click();
   await page.getByRole("option", { name: /^Done/ }).click();
   await expect(scope).toContainText("Delivered: revision 1");
   await expect(
-    scope.getByRole("button", { name: /^Accept updated scope/ }),
+    scope.getByRole("button", { name: /^Accept revision/ }),
   ).toHaveCount(0);
   await reloadWhenSaved(page);
   await expect(scope).toContainText("Delivered: revision 1");
@@ -1717,17 +1740,17 @@ test("native delivery preserves accepted scope through an amendment, completion 
   await page.getByRole("option", { name: /^Todo/ }).click();
   await scope
     .getByRole("button", {
-      name: "Accept updated scope · revision 2",
+      name: "Accept revision 2 for delivery",
       exact: true,
     })
     .click();
-  await expect(scope).toContainText("Accepted for delivery: revision 2");
-  await expect(scope).toContainText("Delivered: revision 1");
+  await expect(workflow).toContainText("Accepted revision 2");
+  await expect(workflow).toContainText("Delivered revision 1");
   await properties
     .getByRole("button", { name: "Status: Todo", exact: true })
     .click();
   await page.getByRole("option", { name: /^Done/ }).click();
-  await expect(scope).toContainText("Delivered: revision 2");
+  await expect(workflow).toContainText("Delivered revision 2");
   await reloadWhenSaved(page);
-  await expect(scope).toContainText("Delivered: revision 2");
+  await expect(workflow).toContainText("Delivered revision 2");
 });

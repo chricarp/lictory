@@ -14,14 +14,15 @@ import {
   enabledTypes,
   isTopLevel,
   projectTeams,
-  segmentOf,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 
 export type QuickCreateOptions = {
-  // Where creation starts: an Epic list suggests a top-level type.
+  // A proposal starts refinement; work defaults to a lightweight delivery type.
+  intent?: "proposal" | "work";
+  // Legacy list context remains compatible with existing links.
   kind?: "epic" | "story";
   typeId?: string;
   parentId?: string | null;
@@ -58,18 +59,27 @@ export function QuickCreate({
   const team = activeTeams.find((t) => t.id === teamId);
   // Spec-backed types need specification authoring; plain work only needs
   // property changes.
-  const types = enabledTypes(delivery, projectId).filter((t) =>
+  const availableTypes = enabledTypes(delivery, projectId).filter((t) =>
     t.hasSpecification
       ? capabilities.editSpecifications
       : capabilities.editSpecifications || capabilities.changeProperties,
   );
+  const types = availableTypes.filter(
+    (t) => options.intent !== "proposal" || t.hasSpecification,
+  );
   const [typeId, setTypeId] = useState(options.typeId);
   const type =
     types.find((t) => t.id === typeId) ??
-    (options.kind === "epic"
-      ? types.find(isTopLevel)
-      : (types.find((t) => t.level === 1 && t.hasSpecification) ??
-        types.find((t) => t.level === 1))) ??
+    (options.intent === "work"
+      ? (types.find((t) => !t.hasSpecification && t.level === 1) ??
+        types.find((t) => !t.hasSpecification) ??
+        // Without plain types, create work the board and backlog show.
+        types.find((t) => !isTopLevel(t)))
+      : options.kind === "epic"
+        ? types.find(isTopLevel)
+        : (types.find((t) => t.level === 1 && t.hasSpecification) ??
+          types.find((t) => t.level === 1))) ??
+    types.find((t) => !isTopLevel(t)) ??
     types[0];
   const [parentId, setParentId] = useState<string | null>(
     options.parentId ?? null,
@@ -77,6 +87,7 @@ export function QuickCreate({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string>();
+  const [pending, setPending] = useState(false);
   const [created, setCreated] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -91,16 +102,16 @@ export function QuickCreate({
       !item.archivedAt,
   );
   const name = type?.name ?? "item";
+  const hasParentTypes = Boolean(
+    type && enabledTypes(delivery, projectId).some((t) => t.level > type.level),
+  );
   const submit = async (open: boolean) => {
     const trimmed = title.trim();
-    if (!trimmed || !project || !type) return;
+    if (!trimmed || !project || !type || pending) return;
     const workItemId = crypto.randomUUID();
     const submittedDescription = description.trim();
     setError(undefined);
-    if (!open) {
-      setTitle("");
-      setDescription("");
-    }
+    setPending(true);
     try {
       await mutate({
         type: "createWorkItem",
@@ -108,7 +119,9 @@ export function QuickCreate({
         workItemId,
         typeId: type.id,
         teamId: team?.id ?? null,
-        parentId: parent?.id ?? null,
+        // The parent may have been found in a paginated server search rather
+        // than the local list. The server validates its project and hierarchy.
+        parentId,
         title: trimmed,
         description: submittedDescription || undefined,
         // Status and iteration only apply in the project they came from.
@@ -125,13 +138,10 @@ export function QuickCreate({
       setDescription(submittedDescription);
       setError(e instanceof Error ? e.message : "Could not create the item.");
       return;
+    } finally {
+      setPending(false);
     }
-    const href = paths.item(
-      organization.slug,
-      project.key,
-      segmentOf(type),
-      workItemId,
-    );
+    const href = paths.item(organization.slug, project.key, workItemId);
     if (open) {
       router.push(href);
       onClose();
@@ -142,6 +152,8 @@ export function QuickCreate({
       href,
     });
     setCreated((c) => c + 1);
+    setTitle("");
+    setDescription("");
     inputRef.current?.focus();
   };
   return createPortal(
@@ -158,14 +170,35 @@ export function QuickCreate({
       />
       <form
         role="dialog"
+        aria-modal="true"
         aria-label={`Create ${name.toLowerCase()}`}
         className="relative flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
         onSubmit={(e) => {
           e.preventDefault();
-          void submit(false);
+          void submit(true);
         }}
       >
-        <div className="flex shrink-0 items-center gap-1.5 border-b px-3 py-2">
+        <div className="flex shrink-0 items-start gap-3 px-4 pt-4 pb-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold">
+              {options.intent === "proposal" ? "New proposal" : "New work item"}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {options.intent === "proposal"
+                ? "Capture the idea. Refine and review it with your team next."
+                : "Start with a title. Add the details as you go."}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-4 pb-3">
           {type && (
             <Popover
               width={220}
@@ -190,7 +223,10 @@ export function QuickCreate({
                   hint: t.hasSpecification ? "Specification" : undefined,
                 }))}
                 value={type.id}
-                onSelect={setTypeId}
+                onSelect={(id) => {
+                  setTypeId(id);
+                  setParentId(null);
+                }}
               />
             </Popover>
           )}
@@ -250,16 +286,8 @@ export function QuickCreate({
               />
             </Popover>
           )}
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted"
-          >
-            <X className="size-4" />
-          </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <input
             ref={inputRef}
             value={title}
@@ -268,18 +296,26 @@ export function QuickCreate({
             aria-label="Title"
             className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
           />
-          {type?.level === 1 && projectId && (
+          {type && hasParentTypes && projectId && (
             <div className="space-y-1.5 pt-1">
-              <p className="text-xs font-medium">Epic</p>
+              <p className="text-xs font-medium">
+                Parent{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </p>
               <EpicPicker
+                key={`${projectId}:${type.id}`}
                 parentId={parentId}
                 projectId={projectId}
+                childTypeId={type.id}
                 projectKey={project?.key}
                 selected={
                   parent
                     ? {
                         id: parent.id,
                         projectId: parent.projectId,
+                        typeId: parent.typeId,
                         number: parent.number,
                         title: parent.title,
                       }
@@ -288,7 +324,7 @@ export function QuickCreate({
                 onChange={setParentId}
               />
               <p className="text-[11px] text-muted-foreground">
-                Optional. Link this {name.toLowerCase()} to the epic it
+                Link this {name.toLowerCase()} to the larger piece of work it
                 contributes to.
               </p>
             </div>
@@ -318,13 +354,13 @@ export function QuickCreate({
           <p className="text-xs text-muted-foreground">
             {type?.hasSpecification
               ? "Capture a proposal now and refine it with the team. Creating it does not commit it to delivery."
-              : "Plain work has a revisioned description and can be delivered without specification reviews."}
+              : "This item goes to delivery. If it has a parent specification, that specification’s readiness still applies."}
           </p>
           {!type && project && (
             <p className="text-xs text-muted-foreground">
-              Your disciplines in {project.name} cannot create work items. Ask a
-              project administrator for a discipline that edits specifications
-              or changes properties.
+              {options.intent === "proposal" && availableTypes.length
+                ? "No specification types are enabled for your disciplines in this project. Choose a project with a specification type to create a proposal."
+                : `Your disciplines in ${project.name} cannot create work items. Ask a project administrator for a discipline that edits specifications or changes properties.`}
             </p>
           )}
           {error && (
@@ -335,20 +371,25 @@ export function QuickCreate({
         </div>
         <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
           {created > 0 && <span>{created} created</span>}
-          <span className="ml-auto flex items-center gap-1">
-            <Kbd>↵</Kbd> create
-          </span>
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            disabled={!title.trim() || !type}
-            onClick={() => void submit(true)}
+            className="ml-auto"
+            disabled={!title.trim() || !type || pending}
+            onClick={() => void submit(false)}
           >
-            Create & open
+            Create another
           </Button>
-          <Button type="submit" size="sm" disabled={!title.trim() || !type}>
-            Create {name}
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!title.trim() || !type || pending}
+          >
+            {pending ? "Creating…" : "Create & open"}{" "}
+            <span aria-hidden="true">
+              <Kbd>↵</Kbd>
+            </span>
           </Button>
         </div>
       </form>

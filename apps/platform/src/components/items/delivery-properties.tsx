@@ -8,7 +8,6 @@ import {
   enabledTypes,
   identifier,
   projectTeams,
-  segmentOf,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import {
@@ -385,7 +384,6 @@ export function Relations({
                           href={paths.item(
                             organization.slug,
                             project.key,
-                            segmentOf(typeOf(delivery, other!)),
                             identifier(project, other!.number),
                           )}
                           className="min-w-0 flex-1 truncate after:absolute after:inset-0"

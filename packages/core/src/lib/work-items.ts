@@ -96,13 +96,10 @@ export function statusOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
 export function categoryOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
   return d.statuses.get(item.statusId)?.category;
 }
-// Top-level types (Epic by default) group specification work; their pages
-// live under /epics, everything else under /stories.
+// Higher-level types (Epic by default) group implementation work: boards and
+// backlogs show their children instead.
 export const isTopLevel = (type: Pick<WorkItemType, "level">) =>
   type.level >= 2;
-export function segmentOf(type: Pick<WorkItemType, "level">) {
-  return isTopLevel(type) ? "epics" : "stories";
-}
 // The project's workflow, in order. Every item of a project uses it.
 export function projectStatuses(d: Delivery, projectId: string | undefined) {
   return [...d.statuses.values()]
@@ -237,9 +234,9 @@ export const views: { id: ViewId; label: string; description: string }[] = [
   },
   {
     id: "ready",
-    label: "Ready for selection",
+    label: "Ready for delivery",
     description:
-      "Agreed specifications available for the team to select for delivery.",
+      "Agreed specifications whose checks pass, not yet accepted for delivery.",
   },
   {
     id: "drafts",

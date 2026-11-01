@@ -250,7 +250,7 @@ export function CreateProject({
           onDone?.();
           router.push(
             destination?.(submittedKey) ??
-              paths.list(organization.slug, submittedKey, "epics"),
+              paths.proposals(organization.slug, submittedKey),
           );
         } catch (err) {
           setError(

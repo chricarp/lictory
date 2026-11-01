@@ -211,18 +211,18 @@ test("project administrators edit the Definition of Ready per type, review its i
   ).toBeVisible();
 
   // PAY-1 was ready, so it keeps the rules it met.
-  await page.goto(`/${slug}/pay/stories/PAY-1`);
+  await page.goto(`/${slug}/pay/items/PAY-1`);
   await expect(
     page.getByText(/Kept on Definition of Ready version 1/),
   ).toBeVisible();
   await expect(
     page.getByText(
-      "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work.",
+      "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work.",
     ),
   ).toBeVisible();
 
   // PAY-2 follows the new rules: only the sign-off is missing.
-  await page.goto(`/${slug}/pay/stories/PAY-2`);
+  await page.goto(`/${slug}/pay/items/PAY-2`);
   await expect(page.getByText("3 / 4 checks")).toBeVisible();
   await expect(
     page.getByText("It has a non-empty “Acceptance criteria” section"),
@@ -231,7 +231,7 @@ test("project administrators edit the Definition of Ready per type, review its i
   await expect(page.getByText(/Signed off by Ada Admin/)).toBeVisible();
   await expect(
     page.getByText(
-      "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work.",
+      "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work.",
     ),
   ).toBeVisible();
   await page.screenshot({ path: "/tmp/lictory-readiness-item.png" });

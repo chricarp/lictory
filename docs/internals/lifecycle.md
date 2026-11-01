@@ -97,3 +97,45 @@ core lifecycle operations are available through the capability registry.
 
 Protocol 14 ensures clients understand reviewed breakdowns before submitting
 commands; older clients must reload before approving the new result shape.
+
+## Workspace navigation
+
+Project navigation follows the purpose of the work, independently of item type:
+
+- **Proposals** holds incomplete specifications that have not started refinement.
+- **Refinement** holds specifications being clarified, reviewed or ready for
+  delivery, including amendments to an already accepted or handed-off revision.
+  Its Ready for delivery queue is eligibility, not commitment. An amendment does
+  not reset the original delivery state or replace its recorded scope.
+- **Delivery** uses the project's native board/backlog or external hand-off.
+- **All items** is the catalog across every configured type and lifecycle stage,
+  including completed, canceled and optionally archived work.
+
+Refinement is a project's home when it enables specification-backed types;
+projects of plain work open their board (native) or catalog (external).
+
+Types are filters and creation choices, never mandatory sidebar destinations.
+The organization owns types; each project enables the ones it uses. No type
+named Epic or Story is required. Parent selection follows hierarchy levels,
+including custom levels, rather than assuming all parents are epics.
+
+Every item has one type-neutral address, `/{organization}/{project}/items/{KEY-n}`.
+An item opened from Proposals, Refinement or Reviews carries that queue in
+`?from=` so the sidebar, breadcrumb and the list beside it stay in place. The
+earlier `/epics` and `/stories` addresses redirect, including links already
+published to delivery tools.
+
+The same words describe the same facts everywhere: **Ready for delivery** means
+the checks pass for the current revision; **Accept for delivery** is the
+accountable decision recording that revision; **Accepted for delivery** and
+**Delivered** name the recorded revisions. Specifications are accepted from the
+item once ready. Plain work records its scope when it starts. Higher-level items
+(Epic by default) are delivered through their children, which boards and
+backlogs show.
+
+Creation from Proposals or Refinement offers specification-backed types.
+Creation from delivery defaults to plain work, then to the lowest-level type,
+so new work appears where it was created; a specification-backed type still
+requires refinement according to project policy. The primary create action
+opens the item so the next step is visible; Create another supports batch
+capture.

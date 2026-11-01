@@ -4,6 +4,7 @@ import {
   deliveryCategory,
   externalLinksByItem,
   lifecycleStage,
+  refinementQueueStage,
   nextRefinementAction,
   readyForSelection,
   type ExternalLink,
@@ -237,5 +238,57 @@ void test("next concern names the required responsibility and prioritizes blocke
       reviews: [{ ...item.reviews[0]!, status: "changes_requested" }],
     }),
     /Address changes requested by QA/,
+  );
+});
+
+void test("later amendments stay in refinement while the accepted revision remains delivered", () => {
+  const delivered = {
+    ...ready,
+    statusId: "done",
+    committedRevisionId: "accepted",
+    revisionId: "accepted",
+    revisionNumber: 1,
+  };
+  assert.equal(refinementQueueStage(delivered, native, delivery), undefined);
+  const amendment = {
+    ...delivered,
+    revisionId: "amendment",
+    revisionNumber: 2,
+    refinementState: "in_review" as const,
+  };
+  assert.equal(refinementQueueStage(amendment, native, delivery), "review");
+  assert.equal(lifecycleStage(amendment, native, delivery), "completed");
+  assert.equal(
+    refinementQueueStage(
+      { ...amendment, archivedAt: "2026-10-31" },
+      native,
+      delivery,
+    ),
+    undefined,
+  );
+  const externalAmendment = { ...amendment, committedRevisionId: null };
+  assert.equal(
+    refinementQueueStage(externalAmendment, external, delivery, {
+      ...link,
+      externalStatusCategory: "done",
+    }),
+    "review",
+  );
+  assert.equal(
+    refinementQueueStage(
+      { ...externalAmendment, refinementState: "ready" },
+      external,
+      delivery,
+      link,
+    ),
+    "ready",
+  );
+  assert.equal(
+    refinementQueueStage(
+      { ...delivered, refinementState: null },
+      native,
+      delivery,
+    ),
+    undefined,
   );
 });

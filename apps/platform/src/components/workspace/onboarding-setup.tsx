@@ -244,7 +244,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     // organization home from redirecting first.
     void navigator
       .navigate({
-        href: paths.list(organization.slug, key, "epics"),
+        href: paths.proposals(organization.slug, key),
         replace: true,
       })
       .finally(finishSetup);

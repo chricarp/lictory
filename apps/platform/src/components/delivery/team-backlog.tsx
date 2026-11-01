@@ -19,7 +19,6 @@ import {
   identifier,
   isClosedCategory,
   isTopLevel,
-  segmentOf,
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
@@ -153,12 +152,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
     onOpen: peek.onLinkClick,
   });
   const hrefOf = (item: WorkItem) =>
-    paths.item(
-      org,
-      project.key,
-      segmentOf(typeOf(delivery, item)),
-      identifier(project, item.number),
-    );
+    paths.item(org, project.key, identifier(project, item.number));
   const update = (
     item: WorkItem,
     patch: { teamId?: string | null; iterationId?: string | null },

@@ -16,7 +16,6 @@ import {
   isTopLevel,
   parseIdentifier,
   refinementMeta,
-  segmentOf,
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
@@ -233,7 +232,7 @@ function PeekContent({
   const id = identifier(project, item.number);
   const canChange = capabilitiesIn(project.id).changeProperties;
   const native = project.deliveryMode === "native";
-  const href = paths.item(organization.slug, project.key, segmentOf(type), id);
+  const href = paths.item(organization.slug, project.key, id);
   const parent = item.parentId
     ? items.find((i) => i.id === item.parentId)
     : undefined;
@@ -482,7 +481,7 @@ function PeekLink({
     owner.id === project.id && !isTopLevel(type) && !item.archivedAt;
   return (
     <Link
-      href={paths.item(organization.slug, owner.key, segmentOf(type), id)}
+      href={paths.item(organization.slug, owner.key, id)}
       onClick={previewable ? (e) => peek.onLinkClick(e, id) : undefined}
       className={className}
     >

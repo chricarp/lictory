@@ -39,18 +39,18 @@ export const lifecycleStages: {
   },
   {
     id: "review",
-    label: "Awaiting agreement",
+    label: "In review",
     description: "Review the current revision and resolve concerns.",
   },
   {
     id: "ready",
-    label: "Ready for selection",
-    description: "Evidence passes; the team has not committed yet.",
+    label: "Ready for delivery",
+    description: "The checks pass; not yet accepted for delivery.",
   },
   {
     id: "committed",
-    label: "Committed",
-    description: "An agreed scope has been selected for delivery.",
+    label: "Accepted for delivery",
+    description: "The team accepted an agreed revision for delivery.",
   },
   {
     id: "underway",
@@ -161,6 +161,53 @@ export function readyForSelection(
   );
 }
 
+// The current specification moved past the revision accepted for native
+// delivery or published to the delivery tool.
+export function isAmended(
+  item: Pick<WorkItem, "revisionId" | "revisionNumber"> & {
+    committedRevisionId?: string | null;
+  },
+  project: Pick<Project, "deliveryMode">,
+  link?: ExternalLink,
+) {
+  return project.deliveryMode === "native"
+    ? Boolean(
+        item.committedRevisionId &&
+        item.committedRevisionId !== item.revisionId,
+      )
+    : Boolean(
+        link?.externalKey &&
+        link.publishedRevisionNumber != null &&
+        link.publishedRevisionNumber < item.revisionNumber,
+      );
+}
+
+// A later specification can need agreement while an earlier revision is
+// already being delivered. Keep that amendment discoverable without resetting
+// or inventing a delivery status for the existing agreement.
+export function refinementQueueStage(
+  item: LifecycleItem & Pick<WorkItem, "revisionId" | "revisionNumber">,
+  project: Pick<Project, "deliveryMode">,
+  delivery: Delivery,
+  link?: ExternalLink,
+): "proposal" | "refinement" | "review" | "ready" | undefined {
+  if (item.archivedAt || item.refinementState === null) return undefined;
+  const stage = lifecycleStage(item, project, delivery, link);
+  if (
+    stage === "proposal" ||
+    stage === "refinement" ||
+    stage === "review" ||
+    stage === "ready"
+  )
+    return stage;
+  if (!isAmended(item, project, link)) return undefined;
+  return item.refinementState === "ready"
+    ? "ready"
+    : item.refinementState === "in_review"
+      ? "review"
+      : "refinement";
+}
+
 export function nextRefinementAction(
   item: Pick<
     WorkItem,
@@ -182,7 +229,7 @@ export function nextRefinementAction(
   if (pending.length)
     return `Waiting on ${pending.map((r) => r.responsibility).join(", ")} to approve this revision.`;
   if (item.refinementState === "ready")
-    return "Select this agreed scope for delivery when it becomes a priority.";
+    return "Accept this revision for delivery when the team is ready to build it.";
   if (!item.reviews.some((r) => r.required && r.status !== "cancelled"))
     return "Clarify the expected behavior, then request the required reviews.";
   return `${item.readinessTotal - item.readinessPassed} readiness check${item.readinessTotal - item.readinessPassed === 1 ? "" : "s"} still need evidence.`;

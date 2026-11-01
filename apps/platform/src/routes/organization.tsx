@@ -12,6 +12,7 @@ import { Outlet } from "@tanstack/react-router";
 import { FileQuestion, Search } from "lucide-react";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
+import { enabledTypes, type Project } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { DocumentSkeleton } from "@lictory/ui/skeleton";
 import { MissingState } from "@lictory/ui/status-page";
@@ -240,13 +241,28 @@ export function NotificationsRedirect() {
   return null;
 }
 
+// Refinement is home when the project reviews specifications; projects of
+// plain delivery work open where that work happens.
+function projectHome(
+  org: string,
+  project: Project,
+  delivery: Parameters<typeof enabledTypes>[0],
+) {
+  if (enabledTypes(delivery, project.id).some((t) => t.hasSpecification))
+    return paths.refinement(org, project.key);
+  return project.deliveryMode === "native"
+    ? paths.board(org, project.key)
+    : paths.items(org, project.key);
+}
+
 export function ProjectIndexRedirect() {
-  const { organization } = useWorkspace();
+  const { organization, delivery } = useWorkspace();
   const project = useProject();
   const router = useRouter();
+  const home = projectHome(organization.slug, project, delivery);
   useEffect(() => {
-    router.replace(paths.list(organization.slug, project.key, "epics"));
-  }, [router, organization.slug, project.key]);
+    router.replace(home);
+  }, [router, home]);
   return null;
 }
 
@@ -260,10 +276,10 @@ export function UnknownProjectRoute() {
       title="This page does not exist"
       action={
         <Link
-          href={paths.list(organization.slug, project.key, "epics")}
+          href={paths.project(organization.slug, project.key)}
           className="contents"
         >
-          <Button variant="secondary">Back to Epics</Button>
+          <Button variant="secondary">Back to {project.name}</Button>
         </Link>
       }
     >

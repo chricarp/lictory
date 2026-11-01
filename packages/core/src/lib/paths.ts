@@ -22,24 +22,24 @@ export const paths = {
   account: (returnTo?: string) =>
     returnTo ? `/account?returnTo=${encodeURIComponent(returnTo)}` : "/account",
   project: (org: string, project: string) => `/${org}/${project.toLowerCase()}`,
-  list: (
-    org: string,
-    project: string,
-    kind: "epics" | "stories",
-    searchParams?: SearchParams,
-  ) =>
-    withSearchParams(`/${org}/${project.toLowerCase()}/${kind}`, searchParams),
+  // Every item, whatever its type, lives at one address. Legacy /epics and
+  // /stories addresses redirect here.
   item: (
     org: string,
     project: string,
-    kind: "epics" | "stories",
     id: string,
     searchParams?: SearchParams,
   ) =>
     withSearchParams(
-      `/${org}/${project.toLowerCase()}/${kind}/${id}`,
+      `/${org}/${project.toLowerCase()}/items/${id}`,
       searchParams,
     ),
+  proposals: (org: string, project: string) =>
+    `/${org}/${project.toLowerCase()}/proposals`,
+  refinement: (org: string, project: string) =>
+    `/${org}/${project.toLowerCase()}/refinement`,
+  items: (org: string, project: string, searchParams?: SearchParams) =>
+    withSearchParams(`/${org}/${project.toLowerCase()}/items`, searchParams),
   reviews: (org: string, project: string) =>
     `/${org}/${project.toLowerCase()}/reviews`,
   view: (org: string, project: string, view: string) =>

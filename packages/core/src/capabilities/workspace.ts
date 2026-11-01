@@ -661,8 +661,9 @@ const searchMembersCapability = defineCapability({
 
 const searchEpicsCapability = defineCapability({
   name: "searchEpics",
-  title: "Search epics",
-  description: "Find parent-level work items in a project by title or key.",
+  title: "Search parent items",
+  description:
+    "Find parent work items in a project by title or key. Pass childTypeId to search every type strictly above the child's hierarchy level; without it, search top-level types.",
   kind: "query",
   surfaces: everywhere,
   input: epicSearchSchema,
@@ -675,6 +676,7 @@ const searchEpicsCapability = defineCapability({
       q.q,
       q.offset,
       q.limit,
+      q.childTypeId,
     ),
 });
 
@@ -746,7 +748,7 @@ const listWorkItems = defineCapability({
   name: "listWorkItems",
   title: "List work items",
   description:
-    "List work item summaries with review, readiness, child counts and lifecycle stage. Filter by project, team, type, local status/assignee, refinement state, lifecycle stage or title/key. lifecycle=ready means ready for selection and excludes commitments, active delivery and completed work. External delivery facts come from the provider link; use lifecycle for cross-mode progress.",
+    "List work item summaries with review, readiness, child counts and lifecycle stage. Filter by project, team, type, local status/assignee, refinement state, lifecycle stage or title/key. lifecycle=ready means ready for delivery (checks pass) and excludes accepted, active and completed work, active delivery and completed work. External delivery facts come from the provider link; use lifecycle for cross-mode progress.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({

@@ -684,6 +684,7 @@ export type MemberPage = z.infer<typeof memberPageSchema>;
 export const epicSummarySchema = z.object({
   id,
   projectId: id,
+  typeId: id.optional(),
   number: z.number().int().positive(),
   title: z.string(),
 });
@@ -691,6 +692,9 @@ export type EpicSummary = z.infer<typeof epicSummarySchema>;
 export const epicSearchSchema = z.object({
   organizationId: id,
   projectId: id,
+  // Omitted by legacy callers searching top-level work. New parent pickers
+  // pass the child type so every strictly higher level is eligible.
+  childTypeId: id.optional(),
   q: z.string().max(120).optional().default(""),
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(50).default(20),

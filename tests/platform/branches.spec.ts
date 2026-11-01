@@ -118,7 +118,7 @@ test.beforeAll(async () => {
       title: "Retry policy",
       description: initial,
     });
-    itemUrl = `/${slug}/brn/stories/BRN-1`;
+    itemUrl = `/${slug}/brn/items/BRN-1`;
   } finally {
     await client.end();
   }

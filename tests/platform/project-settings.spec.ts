@@ -272,7 +272,7 @@ test("project administrators configure teams, disciplines and delivery; capabili
     await expect(
       engineer.getByRole("button", { name: "Add team" }),
     ).toHaveCount(0);
-    await engineer.goto(paths.list(slug, "JIRA", "stories"));
+    await engineer.goto(paths.items(slug, "JIRA"));
     await expect(engineer.getByText("Virtualize board columns")).toBeVisible();
     await expect(
       engineer.getByRole("button", { name: /^Status:/ }).first(),

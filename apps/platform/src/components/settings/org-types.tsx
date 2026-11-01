@@ -37,7 +37,7 @@ const icons: WorkItemType["icon"][] = [
 const levelLabel = [
   "Subtask level",
   "Work level",
-  "Epic level",
+  "Group level",
   "Initiative level",
 ];
 

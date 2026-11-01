@@ -10,8 +10,10 @@ import { categoryOf } from "@lictory/core/lib/work-items";
 // to deliver it. Later amendments never silently replace that agreement.
 export function DeliveryScope({
   onCompare,
+  embedded = false,
 }: {
   onCompare: (from: string, to: string) => void;
+  embedded?: boolean;
 }) {
   const {
     item,
@@ -51,7 +53,7 @@ export function DeliveryScope({
       setError(
         cause instanceof Error
           ? cause.message
-          : "The delivery scope was not accepted.",
+          : "The revision was not accepted for delivery.",
       );
     } finally {
       setPending(false);
@@ -59,8 +61,14 @@ export function DeliveryScope({
   };
   return (
     <section className="space-y-2" aria-label="Delivery scope">
-      <SectionLabel>Delivery scope</SectionLabel>
-      <div className="space-y-2 rounded-lg border bg-card p-3 text-[13px]">
+      {!embedded && <SectionLabel>Delivery scope</SectionLabel>}
+      <div
+        className={
+          embedded
+            ? "space-y-2 text-[13px]"
+            : "space-y-2 rounded-lg border bg-card p-3 text-[13px]"
+        }
+      >
         {item.committedRevisionId ? (
           <p>
             Accepted for delivery:{" "}
@@ -70,7 +78,7 @@ export function DeliveryScope({
           <p className="text-muted-foreground">
             {closed
               ? "No delivery scope was recorded for this historical item."
-              : "No scope accepted yet. Planning an iteration alone is tentative."}
+              : "Not accepted for delivery yet. Planning an iteration alone is tentative."}
           </p>
         )}
         {item.deliveredRevisionId && (
@@ -82,10 +90,10 @@ export function DeliveryScope({
         {changed && (
           <div className="space-y-1.5 border-t pt-2">
             <p className="text-warning">
-              Revision {current.number} changes the agreed specification.
+              Revision {current.number} changes the accepted specification.
               {closed
                 ? " A new amendment does not change what was delivered."
-                : " Accept it explicitly to change the delivery scope."}
+                : " Accept it to change what the team delivers."}
             </p>
             <Button
               size="sm"
@@ -93,7 +101,7 @@ export function DeliveryScope({
               onClick={() => onCompare(item.committedRevisionId!, current.id)}
             >
               <GitCompareArrows className="size-3.5" /> Compare with accepted
-              scope
+              revision
             </Button>
           </div>
         )}
@@ -107,12 +115,12 @@ export function DeliveryScope({
             >
               {pending
                 ? "Accepting…"
-                : `${changed ? "Accept updated" : "Accept"} scope · revision ${current.number}`}
+                : `Accept revision ${current.number} for delivery`}
             </Button>
             {early && (
               <p className="text-xs text-muted-foreground">
                 {blocked
-                  ? "Complete the readiness checks before accepting this scope."
+                  ? "Complete the readiness checks before accepting this revision."
                   : "Readiness checks are incomplete. Accepting records this exception under the project's readiness policy."}
               </p>
             )}

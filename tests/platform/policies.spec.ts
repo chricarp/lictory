@@ -106,9 +106,11 @@ test("an externally delivered project hands off instead of offering a board or b
   });
   await seedItem(seeded, { title: "Invoice exports" });
   await signIn(page, seeded.owner.email);
-  await page.goto(seeded.projectPath("/stories"));
+  await page.goto(seeded.projectPath("/items"));
   const rail = page.getByRole("navigation", { name: "Workspace" });
-  await expect(rail.getByRole("link", { name: "Epics" })).toBeVisible();
+  await expect(
+    rail.getByRole("link", { name: "Proposals", exact: true }),
+  ).toBeVisible();
   await expect(rail.getByRole("link", { name: "Board" })).toHaveCount(0);
   await expect(rail.getByRole("link", { name: /^Backlog/ })).toHaveCount(0);
   await expect(rail.getByRole("link", { name: "Hand-off" })).toBeVisible();

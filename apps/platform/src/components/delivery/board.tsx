@@ -61,7 +61,7 @@ type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
   none: "No swimlanes",
   assignee: "Assignee",
-  parent: "Epic",
+  parent: "Parent",
   priority: "Priority",
 };
 // Closed work drops off the board after two weeks; history stays in lists.
@@ -220,7 +220,7 @@ function ProjectBoard({ project }: { project: Project }) {
         .filter((i) => {
           if (i.projectId !== project.id || i.archivedAt) return false;
           if (!teamFilter.matches(i.teamId)) return false;
-          // Epics are containers; the board shows the work inside them.
+          // Higher-level types group delivery work; plan their children here.
           if (isTopLevel(typeOf(delivery, i))) return false;
           if (iterationId && i.iterationId !== iterationId) return false;
           const category = delivery.statuses.get(i.statusId)?.category;
@@ -266,8 +266,8 @@ function ProjectBoard({ project }: { project: Project }) {
             : memberName(key)
           : lane === "parent"
             ? key === "none"
-              ? "No epic"
-              : (items.find((i) => i.id === key)?.title ?? "Epic")
+              ? "No parent"
+              : (items.find((i) => i.id === key)?.title ?? "Parent")
             : priorityMeta[key as WorkItemPriority].label,
       items: scoped.filter((i) => keyOf(i) === key),
     }));
@@ -617,6 +617,7 @@ function ProjectBoard({ project }: { project: Project }) {
                               canCreate
                                 ? () =>
                                     openCreate({
+                                      intent: "work",
                                       projectId: project.id,
                                       teamId: createTeamId,
                                       statusId: status.id,
@@ -682,7 +683,7 @@ function ProjectBoard({ project }: { project: Project }) {
             >
               {filtered
                 ? "Adjust the filters to see more work."
-                : "Create a work item, or plan work in the backlog to get started."}
+                : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
             </EmptyState>
           )}
         </div>

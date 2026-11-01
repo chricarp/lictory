@@ -496,12 +496,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       const payload = {
         lictoryItemId: item.id,
         lictoryKey: key,
-        lictoryUrl: `${appUrl()}${paths.item(
-          slug,
-          projectRow.key,
-          type.level >= 2 ? "epics" : "stories",
-          item.id,
-        )}`,
+        lictoryUrl: `${appUrl()}${paths.item(slug, projectRow.key, item.id)}`,
         revisionNumber: revision?.number ?? 0,
         title: item.title,
         content: revision?.content ?? "",

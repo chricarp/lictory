@@ -19,7 +19,6 @@ import {
   statusOf,
   needsMyReview,
   relativeTime,
-  segmentOf,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
@@ -146,7 +145,7 @@ export function useAttention() {
       else if (mine(item) && readyForSelection(item, project, delivery, link))
         list.push({
           item,
-          reason: "Ready for selection",
+          reason: "Ready for delivery",
           detail: `${item.readinessPassed}/${item.readinessTotal} checks pass`,
           icon: <CircleCheckBig className="size-4 text-success" />,
           weight: 3,
@@ -199,7 +198,6 @@ export function AttentionList({ entries }: { entries: Entry[] }) {
                     href={paths.item(
                       organization.slug,
                       project?.key ?? "",
-                      segmentOf(typeOf(delivery, item)),
                       identifier(project, item.number),
                     )}
                     className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"

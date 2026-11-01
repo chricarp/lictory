@@ -142,9 +142,9 @@ export async function seedWorkspace(options: {
       typeId,
       roster,
       command,
-      // `/{org}/{key}/{stories|epics}/KEY-n`
-      itemPath: (number: number, list = "stories") =>
-        `/${slug}/${options.key.toLowerCase()}/${list}/${options.key}-${number}`,
+      // `/{org}/{key}/items/KEY-n`
+      itemPath: (number: number) =>
+        `/${slug}/${options.key.toLowerCase()}/items/${options.key}-${number}`,
       projectPath: (rest = "") =>
         `/${slug}/${options.key.toLowerCase()}${rest}`,
     };

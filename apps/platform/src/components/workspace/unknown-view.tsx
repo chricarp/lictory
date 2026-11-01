@@ -17,10 +17,10 @@ export function UnknownView() {
       title="This view was not found"
       action={
         <Link
-          href={paths.list(organization.slug, project.key, "epics")}
+          href={paths.project(organization.slug, project.key)}
           className="contents"
         >
-          <Button variant="secondary">Back to Epics</Button>
+          <Button variant="secondary">Back to {project.name}</Button>
         </Link>
       }
     >
