@@ -136,7 +136,10 @@ test("legal notices have their own previews and breadcrumbs", async ({
     "content",
     "Privacy Notice · Lictory",
   );
-  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    "#08090b",
+  );
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
   const { "@graph": graph } = JSON.parse(
     (await page.locator('script[type="application/ld+json"]').textContent()) ??

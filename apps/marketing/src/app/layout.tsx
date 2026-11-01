@@ -38,12 +38,9 @@ export const metadata: Metadata = {
   robots: indexableRobots,
 };
 
-// Browser chrome follows the system appearance, like the app's default theme.
+// The public website uses a consistent ink palette.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fcfcfd" },
-    { media: "(prefers-color-scheme: dark)", color: siteThemeColor },
-  ],
+  themeColor: siteThemeColor,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -57,7 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Applies the saved light/dark preference before first paint. */}
         <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
       </head>
-      <body className="min-h-full">
+      <body className="marketing-site min-h-full">
         <ConsentProvider privacyHref="/privacy">{children}</ConsentProvider>
       </body>
     </html>

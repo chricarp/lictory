@@ -3,19 +3,20 @@ import { ArrowRight, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 
-import {
-  MarketingFooter,
-  MarketingHeader,
-} from "@lictory/marketing/components/marketing/chrome";
+import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome";
+import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
 import { StartCta } from "@lictory/marketing/components/marketing/account-cta";
 import { cn } from "@lictory/core/lib/utils";
 
-/** Dark marketing frame for public guides and comparisons. */
+/** Shared marketing frame for public guides and comparisons. */
 export function MarketingPage({ children }: { children: ReactNode }) {
   return (
-    <div className="dark min-h-dvh bg-[oklch(0.135_0.005_270)] text-foreground">
+    <div className="marketing-site min-h-dvh bg-background text-foreground">
       <MarketingHeader sections="/" />
-      <main className="px-5 pt-28 pb-16 sm:px-8 sm:pt-36 sm:pb-24">
+      <main
+        id="main-content"
+        className="marketing-article px-5 py-16 sm:px-8 sm:py-24"
+      >
         <div className="mx-auto max-w-3xl">{children}</div>
       </main>
       <MarketingFooter sections="/" />
@@ -64,7 +65,7 @@ export function PageHeading({
 }) {
   return (
     <header className="mt-6">
-      <h1 className="text-4xl leading-[1.05] font-semibold tracking-[-0.045em] text-balance sm:text-6xl">
+      <h1 className="text-4xl leading-[1.05] font-semibold tracking-[-0.03em] text-balance sm:text-6xl">
         {title}
       </h1>
       <p className="mt-5 text-base leading-7 text-balance text-muted-foreground sm:text-lg sm:leading-8">
@@ -141,7 +142,7 @@ export function Prose({
         "[&_li]:pl-1 [&_ol]:mt-5 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5 [&_p]:mt-5 [&_ul]:mt-5 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5",
         "[&_strong]:font-medium [&_strong]:text-foreground",
         "[&_a]:text-foreground [&_a]:underline [&_a]:decoration-white/25 [&_a]:underline-offset-4 [&_a:hover]:decoration-foreground",
-        "[&_blockquote]:mt-6 [&_blockquote]:border-l-2 [&_blockquote]:border-violet-300/50 [&_blockquote]:pl-5 [&_blockquote]:text-foreground/90",
+        "[&_blockquote]:mt-6 [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-5 [&_blockquote]:text-foreground/90",
         className,
       )}
     >
@@ -158,7 +159,7 @@ export function TryLictory({
   children?: ReactNode;
 }) {
   return (
-    <aside className="mt-16 flex flex-col gap-4 rounded-2xl bg-[linear-gradient(120deg,oklch(0.6_0.18_285/0.12),oklch(0.6_0.18_285/0.03))] p-5 shadow-[inset_0_0_0_1px_oklch(0.7_0.15_285/0.18)] sm:flex-row sm:items-center sm:justify-between sm:p-7">
+    <aside className="mt-16 flex flex-col gap-6 rounded-xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
       <div>
         <p className="text-[15px] font-medium">{title}</p>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -182,7 +183,7 @@ export function LinkCard({
   return (
     <Link
       href={href}
-      className="group block rounded-xl bg-white/2.5 p-5 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)] transition-colors hover:bg-white/4"
+      className="group block rounded-xl border border-border bg-card p-5 transition-colors hover:bg-muted"
     >
       <span className="flex items-center justify-between gap-3 text-[15px] font-medium text-foreground">
         {title}

@@ -1,6 +1,7 @@
 // Public facts about the website shared by metadata, structured data, robots,
 // the sitemap and llms.txt, so search engines and AI assistants read one story.
 
+import { openSource } from "@lictory/marketing/lib/open-source";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
 import { configuredOrigin } from "@lictory/marketing/lib/platform";
@@ -24,18 +25,19 @@ export function absoluteUrl(path: string) {
 }
 
 export const siteName = "Lictory";
-export const siteTitle = "Lictory: requirements, reviewed like code";
+export const siteTitle = "Lictory: build the right thing, then build it fast";
 export const siteTagline = "Requirements, reviewed like code.";
 
 export const siteDescription =
-  "Lictory turns rough product intent into approved, implementation-ready specifications, then delivers the work natively or publishes it to Jira.";
+  "Refine requirements before development. People and agents collaborate on specification branches, review changes and agree on what to build. Deliver in Lictory or Jira. Open source.";
 
 /** A self-contained summary that still makes sense when quoted on its own. */
 export const siteSummary =
-  "Lictory is a work-management platform for software teams built around collaborative, review-driven requirements refinement. Product, engineering and QA review specifications the way developers review code: with immutable revisions, diffs, anchored discussion threads, actionable suggestions, approvals bound to a specific revision and evidence-based readiness checks. Approved work is then delivered natively in Lictory (boards, backlog, sprints and cycles) or published to Jira, with Linear support coming.";
+  "Lictory is a work-management platform for software teams focused on what happens before development. People and agents refine requirements concurrently on specification branches and bring proposed changes together through pull requests, diffs, anchored discussions, revision-bound approvals and readiness checks. Teams can work in the UI, delegate to the built-in assistant Litto, or connect their own agents through MCP. Human decisions remain authoritative. Agreed specifications become delivery work, managed natively in Lictory or published to Jira, with Linear support coming. " +
+  openSource.summary;
 
 /** Browser chrome and installed-app colors, matching the dark landing page. */
-export const siteThemeColor = "#101114";
+export const siteThemeColor = "#08090b";
 
 /** Search snippet policy for every indexable page. */
 export const indexableRobots = {

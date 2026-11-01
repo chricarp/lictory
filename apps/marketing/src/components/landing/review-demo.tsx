@@ -7,13 +7,9 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import {
-  Check,
-  CheckCircle2,
-  MessageSquareText,
-  Pause,
-  Play,
-} from "lucide-react";
+import { Check, CheckCircle2, Pause, Play } from "lucide-react";
+import { RevisionDiff } from "@lictory/ui/diff";
+import { Avatar } from "@lictory/ui/primitives";
 import { cn } from "@lictory/core/lib/utils";
 
 const steps = ["Review", "Revise", "Ready"] as const;
@@ -76,16 +72,17 @@ export function ReviewDemo() {
         if (!event.currentTarget.contains(event.relatedTarget))
           setFocused(false);
       }}
-      className="overflow-hidden rounded-xl bg-card/90 text-left shadow-[inset_0_0_0_1px_oklch(1_0_0/0.1),0_24px_80px_-30px_oklch(0.58_0.2_265/0.35)]"
+      className="review-demo app-preview dark overflow-hidden rounded-lg border border-border bg-background text-left"
+      data-theme="lictory"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-2">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
         <div className="flex items-center gap-1">
           {reducedMotion ? null : (
             <button
               type="button"
               onClick={() => setStopped((value) => !value)}
               aria-label={playing ? "Pause example" : "Play example"}
-              className="-ml-2 grid size-11 place-items-center rounded-md text-muted-foreground outline-none hover:bg-white/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="-ml-2 grid size-11 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               {playing ? (
                 <Pause aria-hidden className="size-3.5" />
@@ -96,7 +93,7 @@ export function ReviewDemo() {
           )}
           <span
             className={cn(
-              "text-[11px] text-muted-foreground",
+              "text-xs text-muted-foreground",
               !reducedMotion && "hidden sm:inline",
             )}
           >
@@ -118,8 +115,8 @@ export function ReviewDemo() {
               className={cn(
                 "relative min-h-11 overflow-hidden rounded-md px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3",
                 step === index
-                  ? "bg-white/10 text-foreground"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               {label}
@@ -132,7 +129,7 @@ export function ReviewDemo() {
                     animationDuration: `${stepDurationMs[index]}ms`,
                     animationPlayState: running ? "running" : "paused",
                   }}
-                  className="absolute inset-x-2 bottom-1.5 h-0.5 origin-left rounded-full bg-violet-300/80 [animation-fill-mode:both] [animation-name:demo-progress] [animation-timing-function:linear]"
+                  className="absolute inset-x-2 bottom-1.5 h-0.5 origin-left rounded-full bg-primary [animation-fill-mode:both] [animation-name:demo-progress] [animation-timing-function:linear]"
                 />
               ) : null}
             </button>
@@ -150,36 +147,26 @@ export function ReviewDemo() {
           <span className="font-medium text-foreground/90">
             Retry failed payments
           </span>
-          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-            Rev {revised ? "13" : "12"}
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+            Revision {revised ? "13" : "12"}
           </span>
         </div>
         <div className="grid gap-3 p-4 sm:grid-cols-2 sm:gap-6 sm:p-6">
           <div className="min-h-15 text-sm leading-6 sm:min-h-30 sm:text-base sm:leading-7">
-            <p className="mb-2 hidden text-[10px] font-medium tracking-wider text-muted-foreground uppercase sm:block">
+            <p className="mb-2 hidden text-xs font-medium text-muted-foreground sm:block">
               Specification
             </p>
             {revised ? (
-              <p
-                key={step === 1 ? "revised" : "ready"}
-                className={cn(step === 1 && "demo-step-in")}
-              >
-                Retry failed payments{" "}
-                <del className="rounded bg-red-400/10 px-1 text-red-300">
-                  as needed
-                </del>{" "}
-                <ins className="rounded bg-emerald-400/10 px-1 text-emerald-300 no-underline">
-                  up to 3 times
-                </ins>
-                .
-                <span className="block text-foreground/85">
-                  Reuse the transaction ID.
-                </span>
-              </p>
+              <RevisionDiff
+                before="Retry failed payments as needed."
+                after={
+                  "Retry failed payments up to 3 times.\nReuse the transaction ID."
+                }
+              />
             ) : (
               <p key="original" className="demo-step-in">
                 Retry failed payments{" "}
-                <mark className="rounded bg-amber-300/15 px-1 text-amber-200 underline decoration-amber-300/60 decoration-dotted underline-offset-4">
+                <mark className="rounded bg-destructive/15 px-1 text-foreground underline decoration-destructive/60 decoration-dotted underline-offset-4">
                   as needed
                 </mark>
                 .
@@ -189,14 +176,14 @@ export function ReviewDemo() {
           <div
             className={cn(
               "min-h-24 rounded-lg p-3 text-xs leading-5 transition-colors duration-300",
-              ready ? "bg-emerald-400/6" : "bg-white/3",
+              "border border-border bg-card",
             )}
           >
             {ready ? (
               <div key="ready" className="demo-step-in">
                 <p className="flex items-center gap-2 font-medium text-emerald-300">
                   <CheckCircle2 aria-hidden className="size-3.5" />3 of 3
-                  approvals · rev 13
+                  approvals · revision 13
                 </p>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-foreground/80">
                   {["Product", "Engineering", "QA"].map((role) => (
@@ -216,14 +203,11 @@ export function ReviewDemo() {
                 className="demo-step-in"
               >
                 <p className="flex items-center gap-2 font-medium">
-                  <MessageSquareText
-                    aria-hidden
-                    className="size-3.5 text-sky-300"
-                  />
+                  <Avatar name="Marta" size="xs" />
                   Marta · Engineering
                   <span
                     className={cn(
-                      "ml-auto text-[10px]",
+                      "ml-auto text-xs",
                       revised ? "text-emerald-300" : "text-amber-300",
                     )}
                   >
@@ -239,7 +223,7 @@ export function ReviewDemo() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 border-t border-white/6 px-4 py-3 text-xs sm:px-6">
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-xs sm:px-6">
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full transition-colors duration-300",

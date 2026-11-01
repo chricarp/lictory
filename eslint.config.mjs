@@ -21,6 +21,8 @@ const scoped = (configs, files) =>
 
 export default defineConfig([
   globalIgnores([
+    // Upstream skill examples and tools are vendored, not application source.
+    ".agents/skills/stageshow/**",
     "**/.next/**",
     "**/.open-next/**",
     "**/.wrangler/**",

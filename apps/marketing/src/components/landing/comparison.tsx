@@ -22,7 +22,7 @@ function CellValue({ value, highlight }: { value: Cell; highlight?: boolean }) {
         aria-label={cellText.yes}
         className={cn(
           "size-4",
-          highlight ? "text-violet-300" : "text-foreground/70",
+          highlight ? "text-primary" : "text-foreground/70",
         )}
       />
     );
@@ -31,7 +31,7 @@ function CellValue({ value, highlight }: { value: Cell; highlight?: boolean }) {
       <Minus
         role="img"
         aria-label={cellText.no}
-        className="size-4 text-white/25"
+        className="size-4 text-muted-foreground"
       />
     );
   return (
@@ -52,13 +52,13 @@ export function ComparisonTable() {
   return (
     <div id={listId} className="mt-7 max-w-4xl sm:mt-10">
       {/* Tablet and desktop: a compact table. */}
-      <div className="hidden overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)] sm:block">
+      <div className="hidden overflow-hidden rounded-xl border border-border sm:block">
         <table className="w-full text-sm">
           <caption className="sr-only">
             Lictory compared with Jira and Linear
           </caption>
           <thead>
-            <tr className="border-b border-white/6 text-[13px]">
+            <tr className="border-b border-border text-[13px]">
               <th
                 scope="col"
                 className="px-5 py-4 text-left font-medium text-muted-foreground"
@@ -72,7 +72,7 @@ export function ComparisonTable() {
                   className={cn(
                     "w-28 px-3 py-4 font-medium lg:w-32",
                     key === "lictory"
-                      ? "bg-violet-400/6 text-foreground"
+                      ? "bg-primary/5 text-foreground"
                       : "text-muted-foreground",
                   )}
                 >
@@ -81,7 +81,7 @@ export function ComparisonTable() {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-border">
             {rows.map((row) => (
               <tr key={row.feature} hidden={collapsed(row)}>
                 <th
@@ -95,7 +95,7 @@ export function ComparisonTable() {
                     key={key}
                     className={cn(
                       "px-3 py-3.5",
-                      key === "lictory" && "bg-violet-400/6",
+                      key === "lictory" && "bg-primary/5",
                     )}
                   >
                     <span className="flex justify-center">
@@ -121,7 +121,7 @@ export function ComparisonTable() {
           <li
             key={row.feature}
             hidden={collapsed(row)}
-            className="rounded-xl bg-white/2.5 p-4 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]"
+            className="rounded-xl border border-border bg-card p-4"
           >
             <p className="text-sm font-medium text-foreground/90">
               {row.feature}
@@ -132,14 +132,14 @@ export function ComparisonTable() {
                   key={key}
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-lg py-2",
-                    key === "lictory" ? "bg-violet-400/8" : "bg-white/3",
+                    key === "lictory" ? "bg-primary/5" : "bg-muted",
                   )}
                 >
                   <dt
                     className={cn(
-                      "text-[11px]",
+                      "text-xs",
                       key === "lictory"
-                        ? "text-violet-200"
+                        ? "text-primary"
                         : "text-muted-foreground",
                     )}
                   >
