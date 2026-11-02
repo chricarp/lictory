@@ -30,12 +30,10 @@ export async function ogCard({
         flexDirection: "column",
         width: "100%",
         height: "100%",
-        background: "#101114",
-        color: "#fafafa",
+        background: "#08090b",
+        color: "#f1f1f3",
         padding: "60px 72px",
         fontFamily: "sans-serif",
-        backgroundImage:
-          "radial-gradient(ellipse at top right, #303345 0%, #101114 65%)",
       }}
     >
       <div
@@ -58,8 +56,8 @@ export async function ogCard({
           display: "flex",
           marginTop: 64,
           fontSize: 18,
-          color: "#b8b9c6",
-          letterSpacing: 3,
+          color: "#999ba7",
+          letterSpacing: 0,
         }}
       >
         {eyebrow}
@@ -68,7 +66,7 @@ export async function ogCard({
         style={{
           display: "flex",
           fontSize: titleSize,
-          fontWeight: 700,
+          fontWeight: 500,
           lineHeight: 1.08,
           letterSpacing: -3,
           maxWidth: 930,
@@ -81,7 +79,7 @@ export async function ogCard({
         style={{
           display: "flex",
           fontSize: 25,
-          color: "#b8b9c6",
+          color: "#999ba7",
           marginTop: 26,
           maxWidth: 850,
           lineHeight: 1.4,
@@ -94,10 +92,10 @@ export async function ogCard({
           display: "flex",
           marginTop: "auto",
           paddingTop: 24,
-          borderTop: "1px solid #34353e",
+          borderTop: "1px solid #28292f",
           justifyContent: "space-between",
           fontSize: 19,
-          color: "#d5d5df",
+          color: "#999ba7",
         }}
       >
         <span>{footer[0]}</span>

@@ -68,7 +68,7 @@ services:
     restart: unless-stopped
     networks: [internal]
     shm_size: 256m
-    mem_limit: ${POSTGRES_MEM_LIMIT:-3g}
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1536m}
     stop_grace_period: 60s
     environment:
       POSTGRES_USER: postgres
@@ -82,8 +82,9 @@ services:
       LICTORY_APP_PASSWORD: ${LICTORY_APP_PASSWORD:?}
       ZERO_DB_PASSWORD: ${ZERO_DB_PASSWORD:?}
       LICTORY_OPS_PASSWORD: ${LICTORY_OPS_PASSWORD:?}
-    # Sized for an 8 GB server (raise shared_buffers/effective_cache_size with
-    # POSTGRES_SHARED_BUFFERS / POSTGRES_EFFECTIVE_CACHE_SIZE on larger hosts).
+    # Sized for the measured production footprint (~1 GB across all services) on
+    # a host shared with other workloads; raise POSTGRES_MEM_LIMIT together with
+    # POSTGRES_SHARED_BUFFERS / POSTGRES_EFFECTIVE_CACHE_SIZE as data grows.
     # Connections: API pool + worker + Zero (CVR 8, upstream 4, replication,
     # change streamer, initial sync) + migrations, backups, monitoring.
     command:
@@ -91,9 +92,9 @@ services:
       - -c
       - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
       - -c
-      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-1GB}
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-512MB}
       - -c
-      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-3GB}
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
       - -c
       - work_mem=${POSTGRES_WORK_MEM:-8MB}
       - -c
@@ -172,7 +173,7 @@ services:
     <<: *hardening
     restart: unless-stopped
     networks: [internal]
-    mem_limit: ${ZERO_MEM_LIMIT:-2g}
+    mem_limit: ${ZERO_MEM_LIMIT:-1g}
     # Lets zero-cache finish cleanup and drain WebSockets during deploys.
     stop_grace_period: 5m
     environment:
@@ -233,12 +234,12 @@ services:
     init: true
     cap_drop: [ALL]
     networks: [internal, egress]
-    mem_limit: ${API_MEM_LIMIT:-1g}
+    mem_limit: ${API_MEM_LIMIT:-768m}
     stop_grace_period: 30s
     environment:
       <<: *server-environment
       PORT: "3002"
-      NODE_OPTIONS: --max-old-space-size=${API_HEAP_MB:-768}
+      NODE_OPTIONS: --max-old-space-size=${API_HEAP_MB:-512}
     depends_on:
       postgres:
         condition: service_healthy
@@ -252,13 +253,13 @@ services:
     init: true
     cap_drop: [ALL]
     networks: [internal, egress]
-    mem_limit: ${WORKER_MEM_LIMIT:-768m}
+    mem_limit: ${WORKER_MEM_LIMIT:-512m}
     # Lets an in-flight job finish; leases make interrupted work resumable.
     stop_grace_period: 60s
     command: ["node", "--enable-source-maps", "apps/worker/dist/index.js"]
     environment:
       <<: *server-environment
-      NODE_OPTIONS: --max-old-space-size=${WORKER_HEAP_MB:-512}
+      NODE_OPTIONS: --max-old-space-size=${WORKER_HEAP_MB:-384}
     # Loopback-only status endpoint: unhealthy when a job run is stuck or the
     # worker is shutting down (failing jobs are reported by deploy/monitor).
     healthcheck:

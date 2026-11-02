@@ -25,7 +25,7 @@ export function HeaderAccountLinks() {
       <CtaLink
         href={platformHref("/sign-in")}
         variant="ghost"
-        className="h-9 px-3.5 hover:bg-white/[0.07]"
+        className="h-9 px-3.5"
       >
         Log in
       </CtaLink>

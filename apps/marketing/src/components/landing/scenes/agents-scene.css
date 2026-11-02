@@ -1,0 +1,348 @@
+/* The agents scene, on the ink band. Three windows at one height and one
+   gap, the history card straddling their foot as the one satellite: the
+   place where all three arrive. Compact stacks the terminal over the
+   history. */
+
+.ag .ss-stage {
+  overflow: hidden;
+}
+
+.ag-win {
+  position: absolute;
+  top: 24px;
+  width: 360px;
+  /* Down to where the history card overlaps, no further */
+  height: 254px;
+}
+
+.ag-win--app {
+  left: 28px;
+}
+
+.ag-win--litto {
+  left: 412px;
+}
+
+.ag-win--term {
+  left: 796px;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-win--term {
+  top: 16px;
+  left: 16px;
+  width: 358px;
+  height: 214px;
+}
+
+/* ---- In the app ---- */
+
+.ag-app {
+  display: grid;
+  gap: 2px;
+  height: 100%;
+  padding: 14px 18px;
+  background: var(--ss-surface);
+}
+
+.ag-field {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  height: 32px;
+  color: var(--ss-text);
+  font-size: 12.5px;
+}
+
+.ag-value {
+  display: flex;
+  align-items: center;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+}
+
+.ag-mono {
+  font-family: var(--ss-mono);
+  font-size: 12px;
+}
+
+.ag-app-action {
+  margin-top: 10px;
+}
+
+.ag-app {
+  align-content: start;
+}
+
+.ag-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--ss-radius-md);
+  background: var(--ss-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 0.2s ease,
+    transform 0.12s ease;
+}
+
+.ag-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ag-button[data-hover] {
+  background: color-mix(in srgb, var(--ss-accent) 88%, #000);
+}
+
+.ag-button[data-pressed] {
+  transform: scale(0.97);
+}
+
+.ag-button[data-done] {
+  background: var(--ss-success-soft);
+  color: var(--ss-success-text);
+}
+
+/* ---- Litto ---- */
+
+.ag-chat {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  height: 100%;
+  padding: 16px 18px;
+  background: var(--ss-surface);
+}
+
+.ag-ask {
+  justify-self: end;
+  max-width: 250px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--ss-raised);
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ag-answer {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ag-answer p {
+  margin: 2px 0 0;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ag-litto-mark,
+.ag-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+}
+
+.ag-litto-mark,
+.ag-mark--litto {
+  background: var(--lx-litto);
+}
+
+.ag-mark--ana {
+  background: var(--lx-ana);
+}
+
+.ag-litto-mark svg,
+.ag-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Over MCP ---- */
+
+.ag-term {
+  padding: 4px 18px 0;
+  font-family: var(--ss-mono);
+  font-size: 12.5px;
+  line-height: 22px;
+  white-space: pre;
+}
+
+.ag-term-line {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.ag-term-line[data-on] {
+  opacity: 1;
+}
+
+/* ---- The history every call lands in ---- */
+
+.ag-history {
+  position: absolute;
+  top: 236px;
+  left: 232px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 720px;
+  /* A fixed size: the newest entry arrives at the top and the oldest leave
+     through a soft foot, so the card never grows on the stage */
+  height: 256px;
+  padding: 6px 18px 8px;
+  border-radius: var(--ss-radius-lg);
+  background: var(--ss-raised);
+  box-shadow: var(--ss-shadow-satellite);
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-history {
+  /* Ends a gutter above the stage's foot; older entries leave through the
+     track's soft foot as on the wide card */
+  height: 314px;
+  /* Stacked: 12px under the terminal */
+  top: 242px;
+  left: 16px;
+  width: 358px;
+  padding-inline: 14px;
+}
+
+.ag-track {
+  flex: 1;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 40px),
+    transparent
+  );
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+
+.ag-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ag-history-key {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.ag-row {
+  display: grid;
+  /* Fixed tracks, so the capabilities line up as one column */
+  grid-template-columns: 24px minmax(0, 1fr) 196px 52px;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  border-top: 1px solid var(--ss-line);
+  font-size: 13px;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-row {
+  grid-template-columns: 24px minmax(0, 1fr) 48px;
+  row-gap: 2px;
+  height: auto;
+  padding-block: 9px;
+  line-height: 1.35;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-row-text {
+  white-space: normal;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-capability {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-from {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-row > :first-child {
+  grid-row: 1 / span 2;
+}
+
+.ag-row-text {
+  overflow: hidden;
+  color: var(--ss-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-row-text strong {
+  color: var(--ss-text-strong);
+  font-weight: 500;
+}
+
+.ag-capability {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+}
+
+.ag-from {
+  justify-self: end;
+  padding: 2px 8px;
+  border-radius: var(--ss-radius-pill);
+  background: var(--ss-ink-2);
+  color: var(--ss-text-strong);
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.ag-row--old {
+  opacity: 0.8;
+}
+
+.ag-rest {
+  position: absolute;
+  top: 200px;
+  left: 200px;
+  width: 20px;
+  height: 20px;
+}
+
+/* The phone has no app window to press in: the cursor stays out of shot */
+.ag .ss-stage[data-layout="compact"] .ag-rest {
+  top: auto;
+  bottom: -60px;
+}
+
+.ag-call {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  gap: 6px;
+  margin-left: 34px;
+  padding: 0 10px;
+  border-radius: var(--ss-radius-pill);
+  background: var(--ss-success-soft);
+  color: var(--ss-success-text);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+}
+
+.ag-call svg {
+  width: 12px;
+  height: 12px;
+}

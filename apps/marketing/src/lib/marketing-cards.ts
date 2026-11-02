@@ -10,7 +10,7 @@ const host = new URL(siteUrl).host;
 export function guideCard(slug: string) {
   const guide = findGuide(slug)!;
   return ogCard({
-    eyebrow: "LICTORY GUIDE",
+    eyebrow: "Lictory guide",
     title: guide.headline,
     titleSize: guide.headline.length > 48 ? 60 : 68,
     subtitle:
@@ -22,7 +22,7 @@ export function guideCard(slug: string) {
 export function comparisonCard(slug: string) {
   const item = findComparison(slug)!;
   return ogCard({
-    eyebrow: "COMPARISON",
+    eyebrow: "Comparison",
     title: item.headline,
     titleSize: 84,
     subtitle: item.verdict.lictory,
