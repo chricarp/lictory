@@ -4212,9 +4212,9 @@ export async function applyMutation(
     }
     // Lictory Actions: tell the people driving a pull request when the last
     // merge requirement is met. Only a notification; merging stays theirs.
-    const openPullRequests = after.some(
-      (e) => e.type === "pullRequest" && e.status !== "merged",
-    );
+    const openPullRequests =
+      after.some((e) => e.type === "pullRequest" && e.status !== "merged") &&
+      project().mergeReadyNotice;
     for (const pr of !openPullRequests
       ? []
       : becameMergeable(before, after, {

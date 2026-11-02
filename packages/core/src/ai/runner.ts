@@ -252,6 +252,7 @@ async function notifyMergeable(
 ) {
   const roster = await organizationDirectory(tx, scope.organizationId);
   const project = roster.projects.find((p) => p.id === scope.projectId);
+  if (!project?.mergeReadyNotice) return false;
   const ready = becameMergeable(before, after, {
     disciplines: roster.disciplines.filter(
       (d) => d.projectId === scope.projectId,

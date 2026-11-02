@@ -169,6 +169,13 @@
       "when": 1793401171633,
       "tag": "0023_misty_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793596631571,
+      "tag": "0024_merge_ready_notice",
+      "breakpoints": true
     }
   ]
 }

@@ -5062,6 +5062,16 @@ void test("the last met merge requirement notifies the pull request author once"
   // The author resolved it: the author is never told about their own action.
   sent = await mergeable();
   assert.equal(sent.length, 1);
+  // With the project's action turned off, the same transition stays quiet.
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    mergeReadyNotice: false,
+  });
+  await decide("revoke");
+  await decide("approve");
+  assert.equal((await readyEvents()).length, 2);
+  assert.equal((await mergeable()).length, 1);
   // Merging is still a person's decision.
   h = await heads();
   assert.ok(

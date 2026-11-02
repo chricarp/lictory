@@ -151,6 +151,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     iterationStartDay: z.number().int(),
     upcomingIterations: z.number().int(),
     aiActionPolicy: z.enum(aiActionPolicies),
+    mergeReadyNotice: z.boolean().default(true),
     archivedAt: z.string().nullable(),
   }),
   z.object({
@@ -926,6 +927,7 @@ export const projectSettingsSchema = z.object({
   iterationStartDay: z.number().int().min(0).max(6),
   upcomingIterations: z.number().int().min(0).max(6),
   aiActionPolicy: z.enum(aiActionPolicies),
+  mergeReadyNotice: z.boolean(),
 });
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 export const onboardingSetupSchema = z

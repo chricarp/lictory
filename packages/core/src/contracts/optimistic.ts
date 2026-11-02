@@ -52,6 +52,7 @@ export function optimistic(
           iterationStartDay: c.setup?.iterationStartDay ?? 1,
           upcomingIterations: 2,
           aiActionPolicy: "advisory",
+          mergeReadyNotice: true,
           archivedAt: null,
         };
         break;

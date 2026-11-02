@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
-import { Check, Sparkles, Truck } from "lucide-react";
+import { Check, GitPullRequestArrow, Sparkles, Truck } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
@@ -59,6 +59,7 @@ export function ProjectDelivery({
       {project.deliveryMode === "external" && (
         <ProjectHandoffTarget project={project} canEdit={canEdit} />
       )}
+      <PullRequestActions project={project} canEdit={canEdit} />
       <ReviewActions project={project} canEdit={canEdit} />
     </>
   );
@@ -197,6 +198,55 @@ function DeliveryModeSection({
             )}
           </div>
         )}
+        <InlineError>{error}</InlineError>
+      </SettingsBody>
+    </SettingsSection>
+  );
+}
+
+// Deterministic Lictory Actions on pull requests; they work without AI.
+function PullRequestActions({
+  project,
+  canEdit,
+}: {
+  project: Project;
+  canEdit: boolean;
+}) {
+  const { run, error } = useCommand();
+  return (
+    <SettingsSection
+      id="pull-request-actions"
+      icon={<GitPullRequestArrow />}
+      title="Pull request actions"
+      description="What Lictory does on its own when a specification pull request changes. Actions only notify; people still review and merge."
+    >
+      <SettingsBody>
+        <Choice
+          label="Ready to merge notice"
+          columns={2}
+          value={project.mergeReadyNotice ? "on" : "off"}
+          disabled={!canEdit}
+          onChange={(value) =>
+            void run({
+              type: "updateProject",
+              projectId: project.id,
+              mergeReadyNotice: value === "on",
+            })
+          }
+          options={[
+            {
+              value: "on",
+              label: "Notify when ready to merge",
+              description:
+                "The author and branch collaborators hear when the last merge requirement is met.",
+            },
+            {
+              value: "off",
+              label: "Off",
+              description: "People check the merge box themselves.",
+            },
+          ]}
+        />
         <InlineError>{error}</InlineError>
       </SettingsBody>
     </SettingsSection>

@@ -160,8 +160,12 @@ approve, merge, accept scope or publish. Two exist:
   branch collaborators. It fires on the transition, inside the transaction of
   the change that caused it (a person's command or a finished review action
   run), so it happens once per transition and never for a change that rolled
-  back. Becoming blocked and clear again notifies again. People opt out with
-  notification preferences; there is no project toggle. The rules are
+  back. Becoming blocked and clear again notifies again. Each project turns
+  it on or off (`mergeReadyNotice`, on by default, in the project's delivery
+  settings); people also choose channels with notification preferences.
+  Delivery uses the notification pipeline: the in-app notification commits
+  with the change, and email goes through the `notification_email` outbox
+  that the worker sends under a lease with a stable idempotency key. The rules are
   `mergeBlockers` in `src/contracts/merge-readiness.ts` and match the merge
   command.
 - The **Lictory Intelligence review**, shown in the Actions tab like a CI

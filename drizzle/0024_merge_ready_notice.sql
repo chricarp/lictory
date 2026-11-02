@@ -1,0 +1,1 @@
+ALTER TABLE "project" ADD COLUMN "merge_ready_notice" boolean DEFAULT true NOT NULL;

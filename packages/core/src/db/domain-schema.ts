@@ -180,6 +180,9 @@ export const project = pgTable(
     aiActionPolicy: aiActionPolicy("ai_action_policy")
       .default("advisory")
       .notNull(),
+    // Lictory Action: notify a pull request's author when it becomes ready
+    // to merge.
+    mergeReadyNotice: boolean("merge_ready_notice").default(true).notNull(),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
