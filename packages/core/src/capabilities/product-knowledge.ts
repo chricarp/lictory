@@ -10,7 +10,7 @@ import {
   CapabilityError,
 } from "@lictory/core/capabilities/core";
 
-const searchProductKnowledge = defineCapability({
+export const searchProductKnowledge = defineCapability({
   name: "searchProductKnowledge",
   title: "Find product agreements",
   description:

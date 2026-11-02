@@ -12,6 +12,7 @@ import {
 } from "@lictory/core/capabilities/core";
 import { deliveryCapabilities } from "@lictory/core/capabilities/delivery";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
+import { intakeCapabilities } from "@lictory/core/capabilities/intake";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
@@ -27,6 +28,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...brandingCapabilities,
   ...accessTokenCapabilities,
   ...productKnowledgeCapabilities,
+  ...intakeCapabilities,
 ];
 
 const byName = new Map<string, AnyCapability>();

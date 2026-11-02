@@ -58,7 +58,7 @@ export async function setAiPolicy(
       set: { enabled, updatedById: userId, updatedAt: new Date() },
     });
 }
-function requireAi(ai: Directory["ai"]) {
+export function requireAi(ai: Directory["ai"]) {
   if (!ai.available)
     throw new DomainError(
       "unavailable",

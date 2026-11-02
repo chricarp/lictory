@@ -3,6 +3,7 @@ import type * as s from "@lictory/core/db/schema";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DeliveryProviders } from "@lictory/core/delivery/registry";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
+import type { ProposalDrafter } from "@lictory/core/ai/intake";
 
 // The shared application layer.
 //
@@ -70,6 +71,9 @@ export type CapabilityContext = {
   storage?: () => ObjectStorage;
   // Delivery adapters; defaults to the configured providers.
   deliveryProviders?: DeliveryProviders;
+  // Lictory Intelligence adapter for proposal intake; defaults to the
+  // configured provider. Tests substitute their own.
+  proposalDrafter?: ProposalDrafter;
 };
 
 export const errorCategories = [
