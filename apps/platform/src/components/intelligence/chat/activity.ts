@@ -111,6 +111,7 @@ const phrases: Record<
   publishDelivery: ["Exporting to delivery tool", "Exported to delivery tool"],
   syncRead: ["Synchronizing workspace", "Synchronized workspace", "read"],
   getInsights: ["Gathering insights", "Gathered insights", "read"],
+  draftProposals: ["Drafting proposals", "Drafted proposals", "read"],
 };
 
 // "createWorkItem" -> "Create work item".

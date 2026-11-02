@@ -17,6 +17,7 @@ import {
   humanOnlyRefusal,
 } from "@lictory/core/capabilities/human-only";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
+import { intakeCapabilities } from "@lictory/core/capabilities/intake";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";

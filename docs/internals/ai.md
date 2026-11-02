@@ -186,6 +186,41 @@ tools and approvals as the Litto page, without the history list.
   opens them on the Litto page, which lists them.
 - The dock is absent when Lictory Intelligence is off or unavailable.
 
+## Proposal intake
+
+People hand rough material (meeting notes, customer requests, support tickets,
+documents) to Litto or an MCP client and get **proposed** proposals back
+(`draftProposals`). Each draft has a title, the problem and expected outcome as
+the sources state them, open questions, suggested reviewer disciplines and
+related product knowledge. Nothing is created: the person chooses which
+drafts become proposals, and they are created with the ordinary
+`createWorkItem` path.
+
+- **Evidence is checked, not trusted.** Every draft cites excerpts of the
+  sources. An excerpt is kept only if it appears verbatim in the source it
+  names (whitespace and typographic quotes aside); a draft with no verifiable
+  excerpt is dropped. Reviewers must be active disciplines of the project, and
+  knowledge or context references must be entries the model was given. What
+  was removed is counted in the result (`filtered`), never silently hidden.
+- **Stated and inferred stay apart.** The model lists what it inferred rather
+  than read. The draft's description, which becomes the proposal's first revision,
+  is assembled by the server: problem, outcome, open questions, related
+  knowledge, quoted source excerpts with their labels and the inferences under
+  their own heading. It never fabricates sections a readiness policy
+  checks, such as acceptance criteria.
+- **Same gate as reviews.** The organization must enable Lictory Intelligence,
+  and the person must be able to edit specifications in the project. Both are
+  checked before any document is converted or anything is sent.
+- **Not stored.** The material is sent to the provider for one synchronous
+  request (outside any transaction) and not kept by Lictory; only what the
+  person turns into a proposal is saved. Documents are converted locally as
+  for context; images are not supported yet. At most 60,000 characters across
+  ten sources are analysed, and the result reports truncation.
+- **Grounding.** Related knowledge comes from the project's recent recorded
+  decisions and approved or delivered revisions (the `searchProductKnowledge`
+  results), and the organization and project Lictory Intelligence Context
+  applies as for reviews.
+
 ## Lictory Actions
 
 Lictory Actions are the automated checks of a pull request, shown in its
@@ -248,6 +283,10 @@ The following content is sent: specifications of the analysed items (truncated
 when long), their first open discussion messages, statuses, estimates and
 relations, the changed lines of the pull request, and the applicable Lictory
 Intelligence Context.
+
+Proposal intake sends the material the person provided, the project's
+discipline names and descriptions, excerpts of recent product knowledge and the
+applicable Lictory Intelligence Context.
 
 Conversations send the person's messages, including the page context of dock
 messages (with any text they selected), and the tool results the assistant

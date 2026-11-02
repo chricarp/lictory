@@ -1670,3 +1670,154 @@ void test("projections equal a rebuild from the domain", async () => {
     drift.push(...(await projectionDrift(db, id)));
   assert.deepEqual(drift, []);
 });
+
+void test("proposal intake drafts proposals without creating work, within AI policy and permissions", async () => {
+  const f = await fixture();
+  const contexts: IntakeContext[] = [];
+  const proposalDrafter: ProposalDrafter = {
+    model: "fake",
+    async draft(context) {
+      contexts.push(context);
+      return {
+        drafts: [
+          {
+            title: "Faster refunds",
+            problem: "Refunds take too long.",
+            outcome: null,
+            citations: [
+              { source: "S1", quote: "Refunds take three days." },
+              { source: "S1", quote: "Not in the notes." },
+            ],
+            inferences: [],
+            openQuestions: ["What is the target time?"],
+            reviewers: [
+              { discipline: "Product", reason: "Customer outcome." },
+              { discipline: "Legal", reason: "No such discipline." },
+            ],
+            relatedKnowledge: [],
+            contextRefs: [],
+          },
+        ],
+        notes: null,
+      };
+    },
+  };
+  const as = (principal: Principal): CapabilityContext => ({
+    ...context(principal),
+    proposalDrafter,
+  });
+  const input = {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    sources: [
+      { label: "Call notes", text: "Acme: Refunds take three days. Ugh." },
+    ],
+  };
+  const previousKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  try {
+    // Lictory Intelligence is off by default: nothing reaches the provider.
+    await rejected(
+      invoke(
+        as({ userId: f.ownerId, surface: "web" }),
+        "draftProposals",
+        input,
+      ),
+      "forbidden",
+    );
+    assert.equal(contexts.length, 0);
+    await invoke(f.web, "setAiPolicy", {
+      organizationId: f.organizationId,
+      mutationId: crypto.randomUUID(),
+      enabled: true,
+    });
+    // A project member without a specification-editing discipline cannot
+    // spend analysis on proposals they could not create; outsiders see nothing.
+    await rejected(
+      invoke(
+        as({ userId: f.memberId, surface: "agent" }),
+        "draftProposals",
+        input,
+      ),
+      "forbidden",
+    );
+    await rejected(
+      invoke(
+        as({ userId: f.outsiderId, surface: "mcp" }),
+        "draftProposals",
+        input,
+      ),
+      "forbidden",
+    );
+    assert.equal(contexts.length, 0);
+
+    const before = await db
+      .select({ id: s.workItem.id })
+      .from(s.workItem)
+      .where(eq(s.workItem.organizationId, f.organizationId));
+    const result = (await invoke(
+      as({ userId: f.ownerId, surface: "mcp", access: "read" }),
+      "draftProposals",
+      { ...input, organizationId: f.organizationId },
+    )) as {
+      drafts: {
+        title: string;
+        citations: { quote: string; label: string }[];
+        reviewers: { name: string }[];
+        description: string;
+      }[];
+      filtered: { citations: number; reviewers: number };
+    };
+    assert.equal(contexts.length, 1);
+    assert.deepEqual(
+      contexts[0]!.sources.map((s) => [s.ref, s.label]),
+      [["S1", "Call notes"]],
+    );
+    assert.ok(contexts[0]!.disciplines.some((d) => d.name === "Product"));
+    assert.equal(result.drafts.length, 1);
+    assert.deepEqual(result.drafts[0]!.citations, [
+      { source: "S1", label: "Call notes", quote: "Refunds take three days." },
+    ]);
+    assert.deepEqual(
+      result.drafts[0]!.reviewers.map((r) => r.name),
+      ["Product"],
+    );
+    assert.equal(result.filtered.citations, 1);
+    assert.equal(result.filtered.reviewers, 1);
+    // Proposed, never created.
+    const after = await db
+      .select({ id: s.workItem.id })
+      .from(s.workItem)
+      .where(eq(s.workItem.organizationId, f.organizationId));
+    assert.equal(after.length, before.length);
+
+    // A person then creates the chosen draft through the shared write path,
+    // keeping the cited source in its specification.
+    await invoke(f.web, "createWorkItem", {
+      organizationId: f.organizationId,
+      mutationId: crypto.randomUUID(),
+      projectId: f.projectId,
+      typeId: f.storyTypeId,
+      parentId: null,
+      title: result.drafts[0]!.title,
+      description: result.drafts[0]!.description,
+    });
+    const [created] = await db
+      .select({ content: s.specificationRevision.content })
+      .from(s.specificationRevision)
+      .innerJoin(
+        s.workItem,
+        eq(s.workItem.id, s.specificationRevision.workItemId),
+      )
+      .where(
+        and(
+          eq(s.workItem.organizationId, f.organizationId),
+          eq(s.workItem.title, "Faster refunds"),
+        ),
+      );
+    assert.match(created!.content, /> Refunds take three days\./);
+  } finally {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousKey;
+  }
+});

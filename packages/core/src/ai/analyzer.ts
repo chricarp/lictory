@@ -112,31 +112,13 @@ export function createAnalyzer(
   const model =
     options.model ??
     createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
-  async function run<T>(
+  const run = <T>(
     schema: z.ZodType<T>,
     name: string,
     system: string,
     prompt: string,
     call: AnalyzerCall = {},
-  ): Promise<T> {
-    try {
-      const { output } = await generateText({
-        model,
-        system,
-        prompt,
-        output: Output.object({ schema, name }),
-        maxRetries: 2,
-        // Covers every retry; well below the run lease in the runner.
-        timeout: { totalMs: 240_000 },
-        abortSignal: call.abortSignal,
-        // Customer content is not retained by the provider for later use.
-        providerOptions: { openai: { store: false } },
-      });
-      return output;
-    } catch (error) {
-      throw new AnalyzerError(describe(error));
-    }
-  }
+  ) => generateStructured(model, { schema, name, system, prompt }, call);
   return {
     model: modelId,
     reviewItem: (context, call) =>
@@ -158,8 +140,42 @@ export function createAnalyzer(
   };
 }
 
+// One structured model call with Lictory's provider settings. Shared by the
+// review analyzer and proposal intake so both keep the same deadline, retry
+// and retention behaviour. `again` completes failure messages ("Run the
+// review again").
+export async function generateStructured<T>(
+  model: LanguageModel,
+  request: {
+    schema: z.ZodType<T>;
+    name: string;
+    system: string;
+    prompt: string;
+  },
+  call: AnalyzerCall = {},
+  again = "Run the review again",
+): Promise<T> {
+  try {
+    const { output } = await generateText({
+      model,
+      system: request.system,
+      prompt: request.prompt,
+      output: Output.object({ schema: request.schema, name: request.name }),
+      maxRetries: 2,
+      // Covers every retry; well below the run lease in the runner.
+      timeout: { totalMs: 240_000 },
+      abortSignal: call.abortSignal,
+      // Customer content is not retained by the provider for later use.
+      providerOptions: { openai: { store: false } },
+    });
+    return output;
+  } catch (error) {
+    throw new AnalyzerError(describe(error, again));
+  }
+}
+
 // Actionable, secret-free messages; raw provider bodies never reach users.
-function describe(error: unknown) {
+function describe(error: unknown, again: string) {
   const e = error as {
     name?: string;
     statusCode?: number;
@@ -170,10 +186,10 @@ function describe(error: unknown) {
   if (e?.statusCode === 404)
     return "The configured AI model is unavailable. Ask an administrator to check LICTORY_AI_MODEL.";
   if (e?.statusCode === 429)
-    return "The AI provider is rate limiting requests. Run the review again in a few minutes.";
+    return `The AI provider is rate limiting requests. ${again} in a few minutes.`;
   if (e?.name?.includes("NoObjectGenerated") || e?.name?.includes("NoOutput"))
-    return "The model did not return a valid review. Run the review again.";
+    return `The model did not return a valid result. ${again}.`;
   if (e?.name?.includes("Timeout") || e?.name === "AbortError")
-    return "The AI provider did not answer in time. Run the review again.";
-  return "The AI provider could not complete the review. Run it again shortly.";
+    return `The AI provider did not answer in time. ${again}.`;
+  return `The AI provider could not complete the request. ${again} shortly.`;
 }
