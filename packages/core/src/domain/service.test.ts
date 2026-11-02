@@ -4962,9 +4962,10 @@ void test("archiving a decision requires a current project capability, authorshi
       },
       actor,
     );
-  const archivedAt = async (id: string) =>
-    (await f.entities()).find((e) => e.type === "decision" && e.id === id)
-      ?.archivedAt;
+  const archivedAt = async (id: string) => {
+    const entity = (await f.entities()).find((e) => e.id === id);
+    return entity?.type === "decision" ? entity.archivedAt : undefined;
+  };
   // A reviewer records a conclusion and may curate their own decision, but
   // not one recorded by someone else: reviewing does not edit specifications.
   await record(decisionId, f.reviewerId);
