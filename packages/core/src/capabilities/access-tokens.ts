@@ -82,6 +82,10 @@ const listAccessTokens = defineCapability({
   description: "Your personal access tokens for agents.",
   kind: "query",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Account settings → Integrations → AI agents (MCP)",
+  },
   input: z.object({}),
   async run(ctx) {
     const rows = await ctx.db
@@ -100,6 +104,10 @@ const createAccessToken = defineCapability({
     "Create a personal access token for an agent. The secret is returned once.",
   kind: "command",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Account settings → Integrations → AI agents (MCP)",
+  },
   input: z.object({
     name: z.string().trim().min(1, "Name the token.").max(80),
     access: z.enum(tokenAccess),
@@ -149,6 +157,10 @@ const revokeAccessToken = defineCapability({
   description: "Revoke a personal access token immediately.",
   kind: "command",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Account settings → Integrations → AI agents (MCP)",
+  },
   destructive: true,
   idempotent: true,
   input: z.object({ tokenId: id }),

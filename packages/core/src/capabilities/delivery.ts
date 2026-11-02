@@ -57,6 +57,10 @@ const connectDelivery = defineCapability({
     "Organization administrators: connect a Jira site with an API token. Projects then choose a Jira project on this connection to hand work off to.",
   kind: "command",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Organization settings → Integrations",
+  },
   external: true,
   input: z.object({
     organizationId,

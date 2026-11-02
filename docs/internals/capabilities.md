@@ -47,6 +47,36 @@ Surfaces only narrow what is available:
   the browser. Presence heartbeats and appearance are browser concerns, not
   actions.
 
+## What stays human-only
+
+Everything else is available to agents. The exceptions are product policy,
+recorded as data in `human-only.ts` rather than in this document:
+
+- a capability that leaves out the `mcp` or `agent` surface must declare
+  `humanOnly` (a reason and where the person does it); the registry refuses to
+  load otherwise;
+- browser operations that are not capabilities (the Better Auth flows above,
+  Litto conversations, appearance, presence) are listed with the same
+  metadata, together with the Better Auth calls and API routes they cover.
+
+Reasons are fixed: `credentials` (secrets never pass through an agent's
+transcript, and agents cannot mint credentials), `account` (identity and
+security belong to the person), `membership` (people decide who belongs and
+who administers), `conversation` (Litto chats are managed where they happen)
+and `browser` (browser state; agents read the same facts another way).
+
+`listHumanOnlyOperations` returns the combined list on every surface, and the
+MCP instructions and Litto's prompt point to it, so an agent can say "this
+needs you in the browser, in Account settings → Sessions" instead of looking
+for a missing tool. Calling a human-only operation by name answers with a
+`forbidden` error of kind `human_only` carrying the same explanation.
+
+`apps/api/src/surface-coverage.test.ts` keeps the list honest: every API route
+must invoke a capability or be listed as a browser operation or transport
+route, and every Better Auth call in the browser must belong to a listed
+operation. A new browser-only action therefore fails the check until someone
+decides it is a capability or records why it is not.
+
 ## Human decisions
 
 Capabilities that record a human decision (accepting delivery scope, recording or
