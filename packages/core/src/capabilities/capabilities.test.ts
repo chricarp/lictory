@@ -119,6 +119,7 @@ async function fixture() {
     userId: token.userId,
     surface: "mcp",
     tokenId: token.tokenId,
+    agentName: token.name,
     access: token.access,
   });
   return {
@@ -235,6 +236,100 @@ void test("agents create work through the shared write path, idempotently", asyn
   // Replaying create after a later edit must return the revision it created,
   // not whichever revision happens to be current at response time.
   assert.deepEqual(await invoke(f.mcp, "createWorkItem", input), first);
+});
+
+void test("each access token is a named agent acting for its person", async () => {
+  const f = await fixture();
+  // Active agents of one person need distinct names to be told apart.
+  await rejected(
+    invoke(f.web, "createAccessToken", {
+      name: " claude ",
+      access: "write",
+      expiresInDays: null,
+    }),
+    "validation",
+  );
+  const second = (await invoke(f.web, "createAccessToken", {
+    name: "Spec reviewer",
+    access: "write",
+    expiresInDays: null,
+  })) as { secret: string; token: { id: string } };
+  const token = (await authenticateAccessToken(db, second.secret))!;
+  assert.equal(token.name, "Spec reviewer");
+  const reviewer = context({
+    userId: token.userId,
+    surface: "mcp",
+    tokenId: token.tokenId,
+    agentName: token.name,
+    access: token.access,
+    client: "claude-code/2.0",
+  });
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    mutationId: crypto.randomUUID(),
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Safe retries",
+    description: "Avoid duplicate payments after a timeout.",
+  })) as { workItemId: string; revisionId: string };
+  await invoke(reviewer, "updateSpecification", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+    title: "Safe retries",
+    content: "Retries reuse the original transaction ID.",
+  });
+  await invoke(f.web, "updateSpecification", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: (
+      (await invoke(f.web, "getWorkItem", {
+        organizationId: f.organizationId,
+        workItemId: created.workItemId,
+      })) as { specification: { revisionId: string } }
+    ).specification.revisionId,
+    title: "Safe retries",
+    content: "Retries reuse the original transaction ID for 24 hours.",
+  });
+  const item = (await invoke(f.web, "getWorkItem", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+  })) as {
+    activity: {
+      actorId: string;
+      action: string;
+      detail: Record<string, unknown> | null;
+    }[];
+  };
+  const byAgent = (name: string | undefined) =>
+    item.activity.filter((a) => a.detail?.agentName === name);
+  const first = byAgent("Claude");
+  const later = byAgent("Spec reviewer");
+  assert.ok(first.length && later.length);
+  // History names the executing agent; authority stays the person's.
+  for (const entry of first) {
+    assert.equal(entry.actorId, f.ownerId);
+    assert.equal(entry.detail!.agentId, f.tokenId);
+    assert.equal(entry.detail!.performedVia, "mcp");
+  }
+  for (const entry of later) {
+    assert.equal(entry.actorId, f.ownerId);
+    assert.equal(entry.detail!.agentId, second.token.id);
+    assert.equal(entry.detail!.agentClient, "claude-code/2.0");
+  }
+  // The person's own browser actions carry no agent.
+  const own = item.activity.filter((a) => a.detail?.performedVia === undefined);
+  assert.ok(own.length);
+  assert.ok(own.every((a) => a.detail?.agentId === undefined));
+
+  // Revoking frees the name for a replacement agent.
+  await invoke(f.web, "revokeAccessToken", { tokenId: f.tokenId });
+  await invoke(f.web, "createAccessToken", {
+    name: "Claude",
+    access: "read",
+    expiresInDays: null,
+  });
 });
 
 void test("agents hold exactly the person's permissions and tenant boundary", async () => {

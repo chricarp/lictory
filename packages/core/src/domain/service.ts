@@ -1741,7 +1741,24 @@ export type Actor = {
   userId: string;
   surface?: "web" | "mcp" | "agent";
   client?: string | null;
+  // The named agent executing for the person: the access token for MCP
+  // (`agentId` is its id), Litto for the embedded agent. Agents are
+  // delegations, not principals: authority and authorship stay the person's.
+  agentId?: string | null;
+  agentName?: string | null;
 };
+
+// Activity detail that identifies delegated execution, so history shows which
+// of a person's agents produced a change. Empty for the person's own actions.
+function delegation(actor: Actor): Record<string, string | null> {
+  if (!actor.surface || actor.surface === "web") return {};
+  return {
+    performedVia: actor.surface,
+    agentId: actor.agentId ?? null,
+    agentName: actor.agentName?.slice(0, 80) ?? null,
+    agentClient: actor.client?.slice(0, 200) ?? null,
+  };
+}
 export type MutationResult = {
   protocol: typeof PROTOCOL;
   mutationId: string;
@@ -1987,11 +2004,7 @@ export async function applyMutation(
         action,
         detail:
           actor.surface && actor.surface !== "web"
-            ? {
-                ...detail,
-                performedVia: actor.surface,
-                agentClient: actor.client?.slice(0, 200) ?? null,
-              }
+            ? { ...detail, ...delegation(actor) }
             : detail,
       });
     // Lictory Intelligence runs owned by other items (an Epic review
@@ -2384,12 +2397,7 @@ export async function applyMutation(
                 parentId: workItemId!,
                 pullRequestId:
                   c.type === "mergePullRequest" ? c.pullRequestId : undefined,
-                ...(actor.surface && actor.surface !== "web"
-                  ? {
-                      performedVia: actor.surface,
-                      agentClient: actor.client?.slice(0, 200) ?? null,
-                    }
-                  : {}),
+                ...delegation(actor),
               },
               createdAt: now,
             });

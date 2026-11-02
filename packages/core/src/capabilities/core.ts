@@ -35,6 +35,9 @@ export type Principal = {
   access?: "read" | "write";
   // Client name reported by the agent, for the audit trail.
   client?: string | null;
+  // The agent's name: the access token's name for MCP, Litto for the
+  // embedded agent. Each token is one named agent acting for its person.
+  agentName?: string | null;
 };
 
 // Process-level side effects owned by the hosting runtime (API, tests,
