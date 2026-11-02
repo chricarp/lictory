@@ -223,9 +223,28 @@ drafts become proposals, and they are created with the ordinary
 
 ## Lictory Actions
 
-Lictory Actions are the automated checks of a pull request, shown in its
-Actions tab like CI checks. Each action has its own runs and its own project
-policy. The **Lictory Intelligence review** is the only action today.
+Lictory Actions are what happens automatically on a pull request, like CI on
+code. They only produce checks, discussions and notifications: they never
+approve, merge, accept scope or publish. Two exist:
+
+- **Ready to merge** (deterministic, works without AI). When a change clears
+  the last merge requirement of an open pull request (required approvals of
+  the exact merge result, no changes requested, no blocking discussions, no
+  conflicts, and the required review action on the current head), Lictory
+  records `pull_request_ready_to_merge` and notifies the author and the source
+  branch collaborators. It fires on the transition, inside the transaction of
+  the change that caused it (a person's command or a finished review action
+  run), so it happens once per transition and never for a change that rolled
+  back. Becoming blocked and clear again notifies again. Each project turns
+  it on or off (`mergeReadyNotice`, on by default, in the project's delivery
+  settings); people also choose channels with notification preferences.
+  Delivery uses the notification pipeline: the in-app notification commits
+  with the change, and email goes through the `notification_email` outbox
+  that the worker sends under a lease with a stable idempotency key. The rules are
+  `mergeBlockers` in `src/contracts/merge-readiness.ts` and match the merge
+  command.
+- The **Lictory Intelligence review**, shown in the Actions tab like a CI
+  check, with its own runs and project policy:
 
 The Lictory Intelligence review runs when a pull request is ready for review
 and on every new commit to its source branch. Drafts wait. A new head supersedes pending runs.

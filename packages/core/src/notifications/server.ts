@@ -142,7 +142,8 @@ type ItemContext = {
   projectKey: string;
   workItemId: string;
   actorId: string;
-  command: Command;
+  // Absent for automatic follow-ups that no person's command caused.
+  command?: Command;
   activities: { action: string; detail?: Record<string, unknown> }[];
   after: Entity[];
   roster: Directory;
@@ -260,7 +261,7 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
   };
 
   // Messages have no activity entry; the command tells us what was said.
-  if (c.type === "replyToThread") {
+  if (c?.type === "replyToThread") {
     const thread = threads.find((t) => t.id === c.threadId);
     mentions(c.body, c.threadId);
     add(threadParticipants(c.threadId), "thread_reply", {
@@ -431,6 +432,24 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
               pullRequestTitle: pr.title,
               decision: detail.decision,
               responsibility: detail.discipline ?? detail.role,
+            },
+          );
+        break;
+      }
+      case "pull_request_ready_to_merge": {
+        const pr = pullRequests.find((p) => p.id === detail.pullRequestId);
+        if (pr?.status === "open")
+          add(
+            [
+              pr.authorId,
+              ...(branches.find((b) => b.id === pr.sourceId)?.collaboratorIds ??
+                []),
+            ],
+            "pull_request_mergeable",
+            {
+              pullRequestId: pr.id,
+              pullRequestTitle: pr.title,
+              target: branches.find((b) => b.id === pr.targetId)?.name ?? null,
             },
           );
         break;

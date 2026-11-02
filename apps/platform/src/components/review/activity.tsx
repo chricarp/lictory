@@ -95,7 +95,9 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   const d = entry.detail ?? {};
   const auto = d.automatic === true;
   const actor =
-    entry.action === "branch_deleted" && auto
+    (entry.action === "branch_deleted" ||
+      entry.action === "pull_request_ready_to_merge") &&
+    auto
       ? "Lictory"
       : memberName(entry.actorId);
   let body: ReactNode;
@@ -592,6 +594,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         <>
           opened {d.draft ? "draft " : ""}pull request <b>{str(d.title)}</b> ·{" "}
           {str(d.source)} → {str(d.target)}
+        </>
+      );
+      break;
+    case "pull_request_ready_to_merge":
+      body = (
+        <>
+          found <b>{str(d.title)}</b> ready to merge: every merge requirement is
+          met
         </>
       );
       break;

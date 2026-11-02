@@ -69,6 +69,7 @@ const directory: Directory = {
       iterationStartDay: 1,
       upcomingIterations: 2,
       aiActionPolicy: "advisory",
+      mergeReadyNotice: true,
       archivedAt: null,
     },
   ],

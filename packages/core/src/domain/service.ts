@@ -81,7 +81,9 @@ import {
   branchCommands,
   recordMain,
   pullRequestResultHash,
+  resultHash,
 } from "@lictory/core/domain/branches";
+import { becameMergeable } from "@lictory/core/contracts/merge-readiness";
 import { notifyItemActivity } from "@lictory/core/notifications/server";
 import {
   actionCheckProblem,
@@ -4453,6 +4455,29 @@ export async function applyMutation(
           });
       }
     }
+    // Lictory Actions: tell the people driving a pull request when the last
+    // merge requirement is met. Only a notification; merging stays theirs.
+    const openPullRequests =
+      after.some((e) => e.type === "pullRequest" && e.status !== "merged") &&
+      project().mergeReadyNotice;
+    for (const pr of !openPullRequests
+      ? []
+      : becameMergeable(before, after, {
+          disciplines: roster.disciplines.filter(
+            (d) => d.projectId === projectId,
+          ),
+          memberIds: roster.members.map((m) => m.id),
+          actionRequired:
+            roster.ai.enabled &&
+            roster.ai.available &&
+            project().aiActionPolicy === "required",
+          hash: resultHash,
+        }))
+      log("pull_request_ready_to_merge", {
+        pullRequestId: pr.id,
+        title: pr.title,
+        automatic: true,
+      });
     // Readiness drives `ready` automatically in both directions while the
     // item is still owned by refinement. Later statuses are never touched.
     let readinessState = after.find((e) => e.type === "readiness");

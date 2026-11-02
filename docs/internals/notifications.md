@@ -23,6 +23,9 @@ kinds, their category and their default channels. Defaults follow one rule:
 - **Asks something of you** (review requested, mentioned, blocking discussion,
   approval went stale, assigned, suggestion to review, export failed): in the
   app and by email.
+  A pull request becoming ready to merge also asks something of its author:
+  it is derived from the merge requirements, not from one person's action
+  (see Lictory Actions in [Lictory Intelligence](ai.md)).
 - **Informs you** (status changed, reply, discussion resolved, iteration
   started…): in the app only.
 - **Noisy** (every specification revision): off until someone opts in.

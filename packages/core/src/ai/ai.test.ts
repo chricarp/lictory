@@ -824,3 +824,97 @@ void test("projections equal a rebuild from the domain", async () => {
     drift.push(...(await projectionDrift(db, id)));
   assert.deepEqual(drift, []);
 });
+
+void test("a required review action that passes last makes the pull request ready to merge", async () => {
+  const f = await fixture();
+  await f.command({ type: "setAiPolicy", enabled: true });
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    aiActionPolicy: "required",
+  });
+  const main = await f.latest(f.storyId);
+  const branchId = crypto.randomUUID(),
+    pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.storyId,
+    baseRevisionId: main.id,
+    branchId,
+    name: "bounded",
+  });
+  const heads = async () => {
+    const branches = f.of(await f.entities(f.storyId), "specBranch");
+    return {
+      sourceHeadId: branches.find((b) => b.id === branchId)!.headId,
+      targetHeadId: branches.find((b) => b.name === "main")!.headId,
+      mainId: branches.find((b) => b.name === "main")!.id,
+    };
+  };
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.storyId,
+    branchId,
+    baseCommitId: (await heads()).sourceHeadId,
+    title: "Retry after timeout",
+    content: "Retry twice with the same key.",
+    message: "Bound retries",
+  });
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.storyId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: (await heads()).mainId,
+    title: "Bound retries",
+    description: "",
+    draft: false,
+  });
+  await f.command({
+    type: "requestPullRequestReview",
+    workItemId: f.storyId,
+    pullRequestId,
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  const reviewId = f
+    .of(await f.entities(f.storyId), "prReview")
+    .find((r) => r.pullRequestId === pullRequestId)!.id;
+  const { sourceHeadId, targetHeadId } = await heads();
+  await f.command(
+    {
+      type: "decidePullRequest",
+      workItemId: f.storyId,
+      pullRequestId,
+      reviewId,
+      decision: "approve",
+      sourceHeadId,
+      targetHeadId,
+    },
+    f.reviewerId,
+  );
+  const ready = async () =>
+    f
+      .of(await f.entities(f.storyId), "activity")
+      .filter((a) => a.action === "pull_request_ready_to_merge");
+  assert.equal((await ready()).length, 0, "the action is still pending");
+  await processAiRuns(db, { analyzer: fakeAnalyzer() });
+  const events = await ready();
+  assert.equal(events.length, 1);
+  assert.equal(events[0]!.actorId, AI_ACTOR_ID);
+  assert.equal(events[0]!.detail?.pullRequestId, pullRequestId);
+  const notified = await db
+    .select()
+    .from(s.notification)
+    .where(
+      and(
+        eq(s.notification.organizationId, f.organizationId),
+        eq(s.notification.kind, "pull_request_mergeable"),
+      ),
+    );
+  assert.deepEqual(
+    notified.map((n) => n.userId),
+    [f.userId],
+  );
+});

@@ -116,6 +116,7 @@ const safeFields = [
   "estimateScale",
   "iterationMode",
   "aiActionPolicy",
+  "mergeReadyNotice",
   "role",
   "hasSpecification",
   "level",
