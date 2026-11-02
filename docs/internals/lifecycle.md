@@ -76,8 +76,17 @@ Product knowledge search returns recorded conclusions, current ready revisions
 with review approval, and recorded delivered revisions. Each result identifies
 its evidence kind and exact revision. A conclusion is not automatically
 delivered behavior, and approval establishes intended behavior. Archived
-decisions and archived projects are excluded; finished item history stays
-searchable. Search is organization-scoped and available to the UI, MCP and Litto.
+decisions, archived work items and archived projects are excluded: archiving
+withdraws an item from active product knowledge together with the decisions
+recorded on it, and restoring it brings them back. Nothing is deleted. Done and
+canceled items are not archived, so finished item history stays searchable.
+Search is organization-scoped, reads the reader's access and the results from
+one snapshot, and is available to the UI, MCP and Litto.
+
+Each work item contributes at most two candidate revisions (its recorded
+delivered revision and its current approved ready revision), so specification
+search scales with the number of items rather than with revision history.
+Decisions are matched through trigram indexes (`pg_trgm`).
 External Done status remains a provider fact, rather than an attestation that a
 particular revision was implemented; it does not create delivered knowledge.
 

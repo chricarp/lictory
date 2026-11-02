@@ -11,6 +11,7 @@ import { refreshDirectories } from "@lictory/core/domain/projections";
 import * as s from "@lictory/core/db/schema";
 import { handleMcp } from "@lictory/core/mcp/server";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { directory } from "@lictory/core/domain/service";
 import { commandSchema } from "@lictory/core/contracts/protocol";
 import { authenticateAccessToken } from "@lictory/core/capabilities/access-tokens";
 import {
@@ -1568,6 +1569,97 @@ void test("product knowledge preserves delivered scope after a newer draft", asy
     lifecycle: "completed",
   })) as { items: { id: string }[] };
   assert.ok(completed.items.some((i) => i.id === created.workItemId));
+});
+
+void test("product knowledge returns approved revisions and withdraws archived items", async () => {
+  const f = await fixture();
+  const engineering = (
+    await directory(db, f.ownerId, f.organizationId)
+  ).disciplines.find(
+    (d) => d.projectId === f.projectId && d.name === "Engineering",
+  )!.id;
+  await invoke(f.web, "setDisciplineMember", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    disciplineId: engineering,
+    userId: f.memberId,
+    member: true,
+  });
+  const created = (await invoke(f.web, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Settlement cutoff",
+    description:
+      "# Intent\n\nSettlement cutoff applies at 17:00.\n\n## Acceptance criteria\n\n- [ ] Late payments settle next day",
+  })) as { workItemId: string; revisionId: string };
+  const item = {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+  };
+  const reviewId = crypto.randomUUID();
+  await invoke(f.web, "requestReview", {
+    ...item,
+    baseRevisionId: created.revisionId,
+    reviewId,
+    disciplineId: engineering,
+    userId: f.memberId,
+    required: true,
+  });
+  await invoke(
+    context({ userId: f.memberId, surface: "web" }),
+    "decideReview",
+    {
+      ...item,
+      baseRevisionId: created.revisionId,
+      reviewId,
+      decision: "approve",
+    },
+  );
+  const decision = (await invoke(f.web, "recordDecision", {
+    ...item,
+    baseRevisionId: created.revisionId,
+    mutationId: crypto.randomUUID(),
+    title: "Settlement cutoff is fixed",
+    body: "The settlement cutoff is not configurable per merchant.",
+  })) as { decisionId: string };
+  const search = async (query = "settlement cutoff") =>
+    (
+      (await invoke(f.web, "searchProductKnowledge", {
+        organizationId: f.organizationId,
+        query,
+      })) as {
+        results: { id: string; kind: string; revisionNumber: number }[];
+      }
+    ).results.map((r) => [r.kind, r.id, r.revisionNumber]);
+  const both = [
+    ["decision", decision.decisionId, 1],
+    ["approved", created.revisionId, 1],
+  ];
+  assert.deepEqual(await search(), both);
+  // Substring semantics, case-insensitive, with LIKE wildcards taken literally.
+  assert.deepEqual(await search("CUTOFF APPLIES"), [both[1]]);
+  assert.deepEqual(await search("cutoff_applies"), []);
+
+  await invoke(f.web, "archiveWorkItem", { ...item, archived: true });
+  assert.deepEqual(await search(), []);
+  await invoke(f.web, "archiveWorkItem", { ...item, archived: false });
+  assert.deepEqual(await search(), both);
+
+  // Revoking the approval withdraws the agreed intent; the decision remains.
+  await invoke(
+    context({ userId: f.memberId, surface: "web" }),
+    "decideReview",
+    {
+      ...item,
+      baseRevisionId: created.revisionId,
+      reviewId,
+      decision: "revoke",
+    },
+  );
+  assert.deepEqual(await search(), [both[0]]);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
 
 void test("projections equal a rebuild from the domain", async () => {
