@@ -298,283 +298,13 @@ html {
   font-size: 15px;
 }
 
-/* The branch graph */
-.spec-graph {
+/* Illustrated scenes (Stageshow). The stage is the shot and the page is its
+   ground; the host only places it and offers Replay. */
+.scene {
   position: relative;
-  margin-top: 64px;
+  margin: 0;
 }
-.sg-window {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--card);
-  box-shadow: var(--window-shadow);
-}
-.sg-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 52px;
-  padding-inline: 20px;
-  border-bottom: 1px solid var(--hairline);
-  font-size: 13px;
-}
-.sg-key {
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.sg-title {
-  font-weight: 500;
-}
-.sg-tabs {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-  color: var(--muted-foreground);
-}
-.sg-tabs > span {
-  padding: 6px 10px;
-  border-radius: 8px;
-}
-.sg-tabs > [data-active] {
-  color: var(--foreground);
-  background: var(--muted);
-}
-.sg-body {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 288px;
-}
-.sg-lanes {
-  padding-block: 32px;
-  border-right: 1px solid var(--hairline);
-}
-.sg-lanes li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 64px;
-  padding-inline: 20px;
-  font-size: 13px;
-  line-height: 18px;
-}
-.sg-lanes li > span:last-child {
-  display: grid;
-  min-width: 0;
-}
-.sg-lanes strong {
-  font-weight: 500;
-}
-.sg-lanes small {
-  overflow: hidden;
-  color: var(--muted-foreground);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sg-person {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  border-radius: 50%;
-  color: var(--lane);
-  background: color-mix(in srgb, var(--lane) 12%, var(--card));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lane) 28%, transparent);
-  font-size: 11px;
-  font-weight: 600;
-}
-.sg-person svg {
-  width: 15px !important;
-  height: 15px !important;
-}
-[data-lane="main"] {
-  --lane: var(--lane-main);
-}
-[data-lane="eng"] {
-  --lane: var(--lane-eng);
-}
-[data-lane="ai"] {
-  --lane: var(--lane-ai);
-}
-[data-lane="mcp"] {
-  --lane: var(--lane-mcp);
-}
-.sg-track {
-  position: relative;
-  height: 256px;
-  margin: 32px 40px 32px 32px;
-}
-.sg-curves {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-/* Curves draw at the same pace as the lanes. The dash exists only while the
-   animation runs, so every browser rests on a solid line. */
-.sg-curves path {
-  fill: none;
-  stroke: var(--lane);
-  stroke-width: 1.5;
-  animation: sg-draw var(--dur) linear backwards;
-  animation-delay: var(--d);
-}
-.sg-segment {
-  position: absolute;
-  height: 1.5px;
-  margin-top: -0.75px;
-  background: var(--lane);
-  transform-origin: left center;
-  animation: sg-grow var(--dur) linear both;
-  animation-delay: var(--d);
-}
-.sg-dot {
-  position: absolute;
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
-  border-radius: 50%;
-  border: 1.5px solid var(--lane);
-  background: var(--card);
-  animation: sg-pop 360ms var(--ease) both;
-  animation-delay: var(--d);
-}
-.sg-dot[data-kind="merge"] {
-  background: var(--lane);
-}
-.sg-dot[data-kind="revision"] {
-  width: 15px;
-  height: 15px;
-  margin: -7.5px 0 0 -7.5px;
-  border-width: 2px;
-}
-.sg-label {
-  position: absolute;
-  margin: -26px 0 0 -4px;
-  white-space: nowrap;
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--secondary-text);
-  animation: sg-fade 400ms var(--ease) both;
-  animation-delay: var(--d);
-}
-.sg-label[data-revision] {
-  color: var(--foreground);
-  font-weight: 500;
-}
-/* Right-aligned on its dot. `translate` composes with the fade's transform. */
-.sg-label[data-revision="end"] {
-  margin-left: 4px;
-  translate: -100% 0;
-}
-.sg-pr {
-  padding: 28px 20px 24px;
-  border-left: 1px solid var(--hairline);
-  background: color-mix(in srgb, var(--muted) 40%, var(--card));
-  font-size: 13px;
-}
-.sg-pr-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.sg-pr-head > svg {
-  color: var(--muted-foreground);
-}
-.sg-pr-head strong {
-  font-weight: 500;
-}
-.sg-state {
-  display: grid;
-  margin-left: auto;
-  font-size: 12px;
-}
-.sg-state > span {
-  grid-area: 1 / 1;
-  padding: 2px 8px;
-  border-radius: 6px;
-}
-.sg-state-open {
-  color: var(--positive);
-  background: color-mix(in srgb, var(--positive) 12%, transparent);
-}
-.sg-state-merged {
-  color: var(--lane-eng);
-  background: color-mix(in srgb, var(--lane-eng) 12%, transparent);
-  animation: sg-fade 400ms var(--ease) both;
-  animation-delay: var(--d);
-}
-.sg-pr-refs {
-  margin-top: 8px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-.sg-pr-refs code {
-  color: var(--secondary-text);
-}
-.sg-pr-heading {
-  margin: 20px 0 4px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-.sg-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  white-space: nowrap;
-}
-.sg-check small {
-  margin-left: auto;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  animation: sg-fade 300ms var(--ease) both;
-  animation-delay: var(--d);
-}
-.sg-check-icon {
-  display: grid;
-}
-.sg-check-icon > svg {
-  grid-area: 1 / 1;
-}
-.sg-pending {
-  color: var(--muted-foreground);
-}
-.sg-done {
-  color: var(--positive);
-  stroke-width: 2 !important;
-  animation: sg-pop 300ms var(--ease) both;
-  animation-delay: var(--d);
-}
-.sg-merge {
-  display: grid;
-  margin-top: 20px;
-}
-.sg-merge > span {
-  grid-area: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 36px;
-  border-radius: 10px;
-  font-weight: 500;
-}
-.sg-merge-button {
-  color: var(--background);
-  background: var(--foreground);
-}
-.sg-merged {
-  color: var(--lane-eng);
-  background: color-mix(in srgb, var(--lane-eng) 10%, transparent);
-  animation: sg-fade 400ms var(--ease) both;
-  animation-delay: var(--d);
-}
-.sg-replay {
+.scene-replay {
   position: absolute;
   right: 0;
   bottom: -44px;
@@ -588,55 +318,15 @@ html {
   font-size: 13px;
   transition: color 150ms var(--ease);
 }
-.sg-replay:hover {
+.scene-replay:hover {
   color: var(--foreground);
 }
-.sg-replay svg {
+.scene-replay svg {
   width: 14px !important;
   height: 14px !important;
 }
-@keyframes sg-grow {
-  from {
-    transform: scaleX(0);
-  }
-}
-@keyframes sg-draw {
-  from {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes sg-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.4);
-  }
-}
-@keyframes sg-fade {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-/* The state before a change: shown from the start, gone at its moment. The
-   resting style is hidden, so a still frame shows only the result. */
-@keyframes sg-hold-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.sg-state-open,
-.sg-pending,
-.sg-merge-button {
-  opacity: 0;
-  animation: sg-hold-out var(--d) linear backwards;
+.hero-scene {
+  margin-top: 56px;
 }
 
 /* Sections */
@@ -835,9 +525,6 @@ html {
   font-size: 15px;
   line-height: 24px;
 }
-.review-demo {
-  box-shadow: var(--window-shadow);
-}
 .review-tools {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -863,143 +550,8 @@ html {
   padding-block: 128px;
   scroll-margin-top: 0;
 }
-.agent-surfaces {
-  margin-top: 64px;
-}
-.as-panes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-.as-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.as-pane-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--secondary-text);
-  font-size: 13px;
-}
-.as-pane-label svg {
-  color: var(--muted-foreground);
-}
-.as-prompt {
-  color: var(--muted-foreground);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 12px;
-}
-.as-card {
-  flex: 1;
-  min-height: 188px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--card);
-  font-size: 13px;
-}
-.as-field-label {
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-.as-field {
-  margin-top: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--input);
-  border-radius: 8px;
-  background: var(--background);
-}
-.as-refs {
-  margin-top: 12px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-.as-refs code {
-  color: var(--secondary-text);
-}
-.as-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 20px;
-  height: 36px;
-  padding-inline: 14px;
-  border-radius: 8px;
-  color: var(--background);
-  background: var(--foreground);
-  font-weight: 500;
-}
-.as-chat {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.as-bubble {
-  align-self: flex-end;
-  max-width: 92%;
-  margin-bottom: 8px;
-  padding: 10px 12px;
-  border-radius: 12px 12px 4px 12px;
-  background: var(--muted);
-  line-height: 20px;
-}
-.as-activity {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--secondary-text);
-}
-.as-activity svg {
-  color: var(--positive);
-}
-.as-code {
-  margin: 0;
-  overflow-x: auto;
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 12.5px;
-  line-height: 22px;
-  white-space: pre;
-}
-.as-dim {
-  color: var(--muted-foreground);
-}
-.as-ok {
-  color: var(--positive);
-}
-.as-join {
-  display: block;
-  width: 100%;
-  height: 48px;
-}
-.as-join path {
-  fill: none;
-  stroke: var(--border);
-  stroke-width: 1.5;
-}
-.as-capability {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--card);
-  font-size: 14px;
-}
-.as-capability > span {
-  display: grid;
-  gap: 4px;
-  padding: 16px 20px;
-}
-.as-capability > span + span {
-  border-left: 1px solid var(--hairline);
-}
-.as-capability small {
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-.as-capability code {
-  color: var(--primary);
+.agents-scene {
+  margin-top: 56px;
 }
 .agent-facts {
   display: grid;
@@ -1060,20 +612,12 @@ html {
 .delivery-options h3 {
   font-size: 18px;
 }
-.delivery-flow {
-  display: flex;
-  gap: 8px;
-  margin-top: 24px;
-  font-size: 12px;
-}
-.delivery-flow li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  border-radius: 6px;
+.delivery-still {
+  overflow: hidden;
+  margin: -32px -32px 28px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 15px 15px 0 0;
   background: var(--muted);
-  color: var(--secondary-text);
 }
 .delivery-meta {
   color: var(--muted-foreground) !important;
@@ -1240,12 +784,6 @@ html {
 }
 
 @media (max-width: 1100px) {
-  .sg-body {
-    grid-template-columns: 184px minmax(0, 1fr) 256px;
-  }
-  .sg-label:not([data-revision]) {
-    display: none;
-  }
   .shift,
   .workflow {
     gap: 56px;
@@ -1366,14 +904,6 @@ html {
   .hero-copy h1 {
     max-width: 14ch;
   }
-  .sg-body {
-    grid-template-columns: 168px minmax(0, 1fr);
-  }
-  .sg-pr {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--hairline);
-    border-left: 0;
-  }
   .shift,
   .workflow,
   .split,
@@ -1411,33 +941,18 @@ html {
   .hero-actions > a {
     flex: 1 1 auto;
   }
-  .spec-graph {
-    margin-top: 40px;
+  /* Scenes design their own phone gutter: they span the viewport */
+  .hero-scene,
+  .review-scene,
+  .agents-scene {
+    margin-inline: -16px;
   }
-  .sg-bar {
-    padding-inline: 16px;
+  .hero-scene {
+    margin-top: 32px;
   }
-  .sg-tabs {
-    display: none;
-  }
-  .sg-body {
-    grid-template-columns: 56px minmax(0, 1fr);
-  }
-  .sg-lanes li {
-    padding-inline: 14px;
-  }
-  .sg-lanes li > span:last-child {
-    display: none;
-  }
-  .sg-track {
-    margin-inline: 20px 24px;
-  }
-  .sg-pr {
-    padding: 20px 16px;
-  }
-  .sg-replay {
+  .scene-replay {
     position: static;
-    margin: 8px 0 0 auto;
+    margin: 8px 16px 0 auto;
     display: flex;
   }
   .section {
@@ -1488,26 +1003,8 @@ html {
     margin-top: 96px;
     padding-block: 96px;
   }
-  .agent-surfaces {
-    margin-top: 40px;
-  }
-  .as-panes {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-  }
-  .as-card {
-    min-height: 0;
-  }
-  .as-join {
-    display: none;
-  }
-  .as-capability {
-    margin-top: 24px;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .as-capability > span + span {
-    border-left: 0;
-    border-top: 1px solid var(--hairline);
+  .agents-scene {
+    margin-top: 32px;
   }
   .split {
     gap: 40px;
@@ -1526,6 +1023,9 @@ html {
   }
   .delivery-options article {
     padding: 24px;
+  }
+  .delivery-still {
+    margin: -24px -24px 24px;
   }
   .open-source {
     flex-direction: column;
@@ -1554,7 +1054,7 @@ html {
     transition: none !important;
     scroll-behavior: auto !important;
   }
-  .sg-replay {
+  .scene-replay {
     display: none !important;
   }
 }

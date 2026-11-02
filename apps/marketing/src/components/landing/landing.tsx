@@ -10,9 +10,13 @@ import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome"
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
 import { StartCta } from "@lictory/marketing/components/marketing/account-cta";
 import { CtaLink } from "@lictory/marketing/components/marketing/cta-link";
-import { ReviewDemo } from "@lictory/marketing/components/landing/review-demo";
-import { SpecGraph } from "@lictory/marketing/components/landing/spec-graph";
-import { AgentSurfaces } from "@lictory/marketing/components/landing/agent-surfaces";
+import { ReviewScene } from "@lictory/marketing/components/landing/scenes/review-scene";
+import { HeroScene } from "@lictory/marketing/components/landing/scenes/hero-scene";
+import { AgentsScene } from "@lictory/marketing/components/landing/scenes/agents-scene";
+import {
+  BoardStill,
+  PublishStill,
+} from "@lictory/marketing/components/landing/scenes/delivery-scenes";
 import { openSource } from "@lictory/marketing/lib/open-source";
 
 const startLabel = "Start for free";
@@ -58,7 +62,7 @@ function Hero() {
           </div>
         </div>
       </div>
-      <SpecGraph />
+      <HeroScene />
     </section>
   );
 }
@@ -272,7 +276,7 @@ function Workflow() {
             approvals that name the revision they cover.
           </p>
         </div>
-        <ReviewDemo />
+        <ReviewScene />
       </div>
 
       <dl className="review-tools" aria-label="Built into every specification">
@@ -300,7 +304,7 @@ function Agents() {
           Click it, ask Litto, or call it from your own agent over MCP. There
           are no human-only workflows and no agent-only shortcuts.
         </SectionHeading>
-        <AgentSurfaces />
+        <AgentsScene />
         <div className="agent-facts">
           <div>
             <h3>Same permissions</h3>
@@ -383,19 +387,16 @@ function Delivery() {
       </SectionHeading>
       <div className="delivery-options">
         <article>
+          <BoardStill />
           <h3>Deliver in Lictory</h3>
           <p>
             Boards, a ranked backlog, sprints or cycles, estimates, subtasks and
             relations. Starting work can wait until the specification passes its
             readiness checks.
           </p>
-          <ol className="delivery-flow" aria-label="Workflow status categories">
-            <li>Backlog</li>
-            <li>Started</li>
-            <li>Done</li>
-          </ol>
         </article>
         <article>
+          <PublishStill />
           <h3>Publish to Jira</h3>
           <p>
             Keep refinement in Lictory and execution in Jira. Approved delivery

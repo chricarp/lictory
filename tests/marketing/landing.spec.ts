@@ -29,40 +29,28 @@ for (const width of [320, 390]) {
       expect(signupBox!.height).toBeGreaterThanOrEqual(44);
     }).toPass({ timeout: 30_000 });
 
-    const demo = page.getByLabel("Interactive specification example");
-    // The hero shows people and agents converging on one reviewed revision.
+    // Each illustration is one described image. Under reduced motion it is a
+    // still of its result, with nothing to replay.
+    const heroScene = hero.getByRole("img", {
+      name: /parallel branches.*revision 13/,
+    });
+    await expect(heroScene).toBeVisible();
     await expect(
-      hero.getByRole("img", { name: /parallel branches.*revision 13/ }),
+      heroScene.getByText("Revision 13", { exact: true }),
     ).toBeVisible();
-    await expect(page.locator("#agents h2")).toBeVisible();
-    await expect(
-      demo.getByText("How many retries? Could we charge twice?"),
-    ).toBeVisible();
-    await demo.getByRole("button", { name: "Revise", exact: true }).click();
-    await expect(demo.getByText("Revision 13", { exact: true })).toBeVisible();
-    await expect(
-      demo.getByText("Retry failed payments up to 3 times.", { exact: true }),
-    ).toBeVisible();
-    await expect(demo.getByText("Resolved", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Replay" })).toHaveCount(0);
 
-    // The walkthrough works with a keyboard and keeps the example within the viewport.
-    await page.keyboard.press("Tab");
+    const review = page.getByRole("img", {
+      name: /blocking question.*revision 13/,
+    });
+    await review.scrollIntoViewIfNeeded();
     await expect(
-      demo.getByRole("button", { name: "Ready", exact: true }),
-    ).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(
-      demo.getByText("3 of 3 approvals · revision 13"),
+      review.getByText("Retries reuse the transaction ID."),
     ).toBeVisible();
-    await expect(
-      demo.getByText("Acceptance criteria checked. No blockers."),
-    ).toBeVisible();
-    const readyBox = await demo.boundingBox();
-    expect(readyBox!.x).toBeGreaterThanOrEqual(0);
-    expect(readyBox!.x + readyBox!.width).toBeLessThanOrEqual(width);
-    await demo.getByRole("button", { name: "Review", exact: true }).click();
-    await expect(demo.getByText("Revision 12", { exact: true })).toBeVisible();
-    await expect(demo.getByText("Blocking", { exact: true })).toBeVisible();
+    const reviewBox = await review.boundingBox();
+    expect(reviewBox!.x).toBeGreaterThanOrEqual(0);
+    expect(reviewBox!.x + reviewBox!.width).toBeLessThanOrEqual(width);
+    await expect(page.getByRole("img", { name: /same history/ })).toBeVisible();
 
     // The review tools are listed, not hidden behind a disclosure.
     await expect(
@@ -93,7 +81,7 @@ for (const width of [320, 390]) {
   });
 }
 
-test("desktop landing shows the comparison table and autoplays the example", async ({
+test("desktop landing shows the comparison table and plays the hero story", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -107,21 +95,20 @@ test("desktop landing shows the comparison table and autoplays the example", asy
     table.getByRole("rowheader", { name: "Durable decision records" }),
   ).toBeVisible();
 
-  // The example advances by itself, then stops once the visitor takes control.
-  const demo = page.getByLabel("Interactive specification example");
-  await demo.scrollIntoViewIfNeeded();
-  await expect(demo.getByText("Revision 12", { exact: true })).toBeVisible();
-  await page.mouse.move(0, 0);
-  await expect(demo.getByText("Revision 13", { exact: true })).toBeVisible({
-    timeout: 8000,
-  });
-  await demo.getByRole("button", { name: "Review", exact: true }).click();
-  await expect(
-    demo.getByRole("button", { name: "Play example" }),
-  ).toBeVisible();
-  await page.mouse.move(0, 0);
-  await page.waitForTimeout(5000);
-  await expect(demo.getByText("Revision 12", { exact: true })).toBeVisible();
+  // The hero plays its story once, ends on the merge, and Replay tells it again.
+  const heroScene = page.getByRole("img", { name: /parallel branches/ });
+  const state = (text: string) =>
+    heroScene.locator(".ss-states__item[data-on]", {
+      hasText: new RegExp(`^${text}$`),
+    });
+  await expect(state("Open")).toHaveCount(1);
+  await expect(state("Merged").first()).toBeVisible({ timeout: 20_000 });
+  await page
+    .locator(".hero-scene")
+    .getByRole("button", { name: "Replay" })
+    .click();
+  await expect(state("Open")).toHaveCount(1);
+  await expect(state("Merged").first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("/home permanently redirects to the landing page", async ({

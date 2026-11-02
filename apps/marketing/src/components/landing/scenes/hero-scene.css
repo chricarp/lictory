@@ -1,0 +1,494 @@
+/* The hero scene. Wide: the product window a gutter in from the column's
+   edges, fading out at its foot over the diff, so it dissolves into the page
+   instead of being cut by the stage. Compact: the same window, the graph
+   over the pull request, at the phone column's width. */
+
+.hs .ss-stage {
+  overflow: hidden;
+}
+
+.hs-window {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  width: 1136px;
+  height: 580px;
+  box-shadow: var(--ss-shadow-hero);
+  /* Runs 40px past the stage and has faded out before it gets there: only
+     diff lines and the panel's empty foot are under the fade */
+  -webkit-mask-image: linear-gradient(to bottom, #000 430px, transparent 540px);
+  mask-image: linear-gradient(to bottom, #000 430px, transparent 540px);
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-window {
+  top: 12px;
+  left: 16px;
+  width: 358px;
+  height: 400px;
+  /* Shows square: 358 by 358, fading out over the panel's empty foot */
+  -webkit-mask-image: linear-gradient(to bottom, #000 336px, transparent 358px);
+  mask-image: linear-gradient(to bottom, #000 336px, transparent 358px);
+}
+
+/* ---- The bar: the item, its tabs, the people on it ---- */
+
+.hs-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  /* PAY-142 starts on the lane names' edge below it */
+  margin-left: 4.6px;
+  font-size: 13px;
+}
+
+.hs-key {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 12px;
+}
+
+.hs-item {
+  color: var(--ss-text-strong);
+  font-weight: 600;
+}
+
+.hs-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 18px;
+  color: var(--ss-text);
+}
+
+.hs-tabs > span {
+  padding: 5px 10px;
+  border-radius: var(--ss-radius-sm);
+}
+
+.hs-tabs > [data-active] {
+  background: var(--ss-ink-2);
+  color: var(--ss-text-strong);
+  font-weight: 500;
+}
+
+/* ---- The body: the work on the left, the pull request on the right ---- */
+
+.hs-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  height: 100%;
+  background: var(--ss-surface);
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-body {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+}
+
+.hs-work {
+  padding: 22px 28px 0;
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-work {
+  padding: 14px 16px 6px;
+}
+
+/* ---- The graph ---- */
+
+.hs-graph {
+  display: flex;
+  gap: 0;
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-graph {
+  gap: 8px;
+}
+
+.hs-lanes {
+  width: 168px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-lanes {
+  width: 26px;
+}
+
+.hs-lanes li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--pitch);
+}
+
+.hs-lanes li:first-child {
+  margin-top: calc(var(--top) - var(--pitch) / 2);
+}
+
+.hs-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--lane);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.hs-mark[data-lane="main"] {
+  background: var(--ss-ink-2);
+  color: var(--ss-text-strong);
+}
+
+.hs-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.hs-who {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.hs-name {
+  overflow: hidden;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hs-branch {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+}
+
+.hs [data-lane="main"] {
+  --lane: var(--lx-main);
+}
+
+.hs [data-lane="theo"] {
+  --lane: var(--lx-theo);
+}
+
+.hs [data-lane="litto"] {
+  --lane: var(--lx-litto);
+}
+
+.hs [data-lane="ana"] {
+  --lane: var(--lx-ana);
+}
+
+.hs-track {
+  position: relative;
+  flex: none;
+}
+
+.hs-track svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.hs-track path {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.hs-main {
+  stroke: var(--lx-main);
+}
+
+/* Each line draws from its parent toward the commit it leads to */
+.hs-edge {
+  stroke: var(--lane);
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.45, 0, 0.1, 1);
+}
+
+/* Hidden until it draws: a round cap would otherwise leave a dot behind */
+.hs-edge:not([data-on]) {
+  opacity: 0;
+}
+
+.hs-edge[data-on] {
+  stroke-dashoffset: 0;
+}
+
+.hs-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--lane);
+  box-shadow: 0 0 0 2.5px var(--ss-surface);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.2s ease 0.45s,
+    transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) 0.45s;
+}
+
+.hs-dot[data-on] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.hs-dot[data-kind="merge"] {
+  background: var(--ss-surface);
+  box-shadow:
+    inset 0 0 0 2px var(--lane),
+    0 0 0 2.5px var(--ss-surface);
+}
+
+.hs-dot[data-kind="revision"] {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+}
+
+/* Revision 12 is there from the first frame */
+.hs-dot[data-instant],
+.hs-label[data-instant] {
+  transition: none;
+}
+
+.hs-label {
+  position: absolute;
+  color: var(--ss-text-strong);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  opacity: 0;
+  translate: 8px calc(-100% - 6px);
+  transition: opacity 0.4s ease 0.55s;
+}
+
+.hs-label[data-kind="revision"] {
+  font-weight: 600;
+}
+
+.hs-label[data-end] {
+  translate: calc(-100% - 8px) calc(-100% - 6px);
+}
+
+.hs-label[data-on] {
+  opacity: 1;
+}
+
+/* ---- The diff: filler under the window's fade ---- */
+
+.hs-changes {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ss-line);
+}
+
+.hs-changes .hs-section {
+  margin-top: 0;
+}
+
+.hs-diff {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+  margin: 0 -10px;
+  padding: 0 10px;
+  border-radius: var(--ss-radius-sm);
+  color: var(--ss-text-strong);
+  font-size: 13px;
+}
+
+.hs-diff[data-kind="add"] {
+  background: var(--lx-diff-add);
+}
+
+.hs-diff[data-kind="del"] {
+  background: var(--lx-diff-del);
+}
+
+.hs-sign {
+  width: 10px;
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+}
+
+/* ---- The pull request ---- */
+
+.hs-pr {
+  position: relative;
+  padding: 20px 22px;
+  border-left: 1px solid var(--ss-line);
+  background: var(--ss-canvas);
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-pr {
+  padding: 14px 16px;
+  border-top: 1px solid var(--ss-line);
+  border-left: 0;
+}
+
+.hs-pr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hs-pr-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ss-success-text);
+}
+
+.hs-pr-title {
+  flex: 1;
+  color: var(--ss-text-strong);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hs-merged-badge {
+  background: color-mix(in srgb, var(--lx-merged) 14%, transparent);
+  color: var(--lx-merged);
+}
+
+.hs-refs {
+  margin-top: 6px;
+  color: var(--ss-text-faint);
+  font-size: 12px;
+}
+
+.hs-refs span {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+}
+
+.hs-section {
+  margin: 18px 0 4px;
+  color: var(--ss-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-section {
+  margin-top: 12px;
+}
+
+.hs-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  font-size: 13px;
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-row {
+  height: 30px;
+}
+
+.hs-row-label {
+  color: var(--ss-text-strong);
+}
+
+.hs-row-detail,
+.hs-row-person {
+  color: var(--ss-text);
+  font-size: 12.5px;
+}
+
+.hs-row-person {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hs-merge {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ss-line);
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-merge {
+  margin-top: 10px;
+  padding-block: 12px 14px;
+}
+
+.hs .ss-stage[data-layout="compact"] .hs-pr-head {
+  margin-bottom: 6px;
+}
+
+.hs-merge-note {
+  color: var(--ss-text);
+  font-size: 12.5px;
+}
+
+.hs-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Even widths, so the glyph centers on whole pixels */
+  width: 168px;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--ss-radius-md);
+  background: var(--ss-ink-2);
+  color: var(--ss-text-faint);
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    transform 0.12s ease;
+}
+
+.hs-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.hs-button[data-ready] {
+  background: var(--ss-accent);
+  color: #fff;
+}
+
+.hs-button[data-ready][data-hover] {
+  background: color-mix(in srgb, var(--ss-accent) 88%, #000);
+}
+
+.hs-button[data-pressed] {
+  transform: scale(0.97);
+}
+
+/* Merged: the badge says it; the button steps back to the next action */
+.hs-button[data-done] {
+  width: 140px;
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+}
+
+.hs-rest {
+  position: absolute;
+  right: 48px;
+  bottom: 90px;
+  width: 40px;
+  height: 20px;
+}
