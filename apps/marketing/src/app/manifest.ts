@@ -5,7 +5,7 @@ export const dynamic = "force-static";
 import {
   siteDescription,
   siteName,
-  siteThemeColor,
+  siteThemeColors,
 } from "@lictory/marketing/lib/site";
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -16,8 +16,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: siteThemeColor,
-    theme_color: siteThemeColor,
+    background_color: siteThemeColors.light,
+    theme_color: siteThemeColors.light,
     categories: ["business", "productivity"],
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },

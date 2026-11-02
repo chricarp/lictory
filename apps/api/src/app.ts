@@ -87,6 +87,7 @@ export function createApp(options: { draining?: () => boolean } = {}) {
         userId: token.userId,
         surface: "mcp",
         tokenId: token.tokenId,
+        agentName: token.name,
         access: token.access,
         client: request.headers.get("user-agent"),
       },

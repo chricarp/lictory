@@ -132,6 +132,18 @@ export const readinessCheckSchema = z.object({
       signedOffAt: z.string().nullable(),
     })
     .optional(),
+  // Lictory Intelligence checks: the review the result comes from.
+  intelligence: z
+    .object({
+      runId: id.nullable(),
+      reviewedCurrent: z.boolean(),
+      findings: z.number().int(),
+      score: z.number().int().nullable(),
+      model: z.string().nullable(),
+      completedAt: z.string().nullable(),
+      overridden: z.boolean(),
+    })
+    .optional(),
 });
 export const entitySchema = z.discriminatedUnion("type", [
   z.object({
@@ -642,6 +654,24 @@ export function canReviewSuggestions(
       d.userIds.includes(userId) &&
       d.capabilities.editSpecifications &&
       d.capabilities.review,
+  );
+}
+// Recording a conclusion needs a discipline that edits specifications or
+// reviews in the project.
+export function canRecordDecisions(capabilities: Capabilities) {
+  return capabilities.editSpecifications || capabilities.review;
+}
+// Specification editors curate every decision of the project. An author may
+// also archive or restore their own decision while they can still record
+// decisions there: authorship adds to a current capability, never replaces it.
+export function canArchiveDecision(
+  capabilities: Capabilities,
+  decision: { authorId: string },
+  userId: string,
+) {
+  return (
+    capabilities.editSpecifications ||
+    (decision.authorId === userId && canRecordDecisions(capabilities))
   );
 }
 export function projectRoleOf(

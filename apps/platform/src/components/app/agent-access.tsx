@@ -119,7 +119,8 @@ export function AgentAccessSection() {
         <>
           Connect an AI agent that supports the Model Context Protocol. It acts
           as you, with exactly your permissions in each organization, and its
-          actions are recorded. Endpoint:{" "}
+          actions are recorded under the token&apos;s name. Create one token per
+          agent so history shows which agent did what. Endpoint:{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
             {endpoint}
           </code>
@@ -176,14 +177,14 @@ export function AgentAccessSection() {
         <SettingsBody>
           <form onSubmit={create} className="flex flex-wrap items-end gap-3">
             <label className="block min-w-48 flex-1 text-[13px] font-medium">
-              Name
+              Agent name
               <Input
                 autoFocus
                 required
                 maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Claude on my laptop"
+                placeholder="Claude spec reviewer"
                 className="mt-1.5 h-8 rounded-md text-sm"
               />
             </label>

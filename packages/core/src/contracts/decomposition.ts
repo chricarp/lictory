@@ -130,3 +130,19 @@ export function reviewResultValue(snapshot: {
       : [snapshot.title, snapshot.content],
   );
 }
+
+// A merge that changes only the breakdown leaves the specification text as it
+// was. Review decisions on that text carry to the new revision as new rows;
+// the previous approval ends with this reason so history shows where it went
+// and nobody is told their approval was invalidated.
+// A carried approval is in turn superseded when the merged pull request's
+// approval for the same responsibility is recorded on that revision.
+const carriedPrefix = "Carried to revision ";
+export const carriedApprovalReason = (revision: number) =>
+  `${carriedPrefix}${revision}: specification text unchanged`;
+export const supersededApprovalReason =
+  "Superseded by the merged pull request's approval";
+export const isCarriedApproval = (endReason: string | null | undefined) =>
+  !!endReason &&
+  (endReason.startsWith(carriedPrefix) ||
+    endReason === supersededApprovalReason);

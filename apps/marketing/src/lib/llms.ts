@@ -44,8 +44,8 @@ ${siteName}: ${siteTagline} It exists to close the gap between “Product wants 
 
 const concepts = `## How ${siteName} works
 
-1. **Draft.** Start from a problem statement, notes or an existing ticket. Proposals may begin incomplete. ${siteName} shapes them into objective, behavior and acceptance criteria and flags what is missing.
-2. **Review.** Threads attach to the exact text they discuss. Suggestions are real text changes that reviewers accept or reject; each accepted suggestion creates a new revision. Product, engineering, QA, security and operations review the same specification, each with the concerns they know best.
+1. **Draft and branch.** Start from a problem statement, notes or an existing ticket. Proposals may begin incomplete. Explore changes on specification branches so people and agents can contribute concurrently without silently overwriting the agreed specification.
+2. **Review.** Open a pull request to bring proposed changes back for review. Automated findings and human reviews retain their context. Threads attach to the exact text they discuss. Suggestions are real text changes that reviewers accept or reject; each accepted suggestion creates a new revision. Product, engineering, QA, security and operations review the same specification, each with the concerns they know best.
 3. **Readiness.** Readiness is evidence, not a status label: checks such as “acceptance criteria present”, “failure behavior addressed” and “no blocking threads” pass as answers arrive. Think of it as CI for requirements.
 4. **Approval.** Approvals belong to the revision that was reviewed. When approved content changes materially, the affected approvals go stale and need another review.
 5. **Delivery.** Each project chooses where delivery happens: natively in ${siteName} (configurable work item types, workflows, boards, backlog, sprints, cycles, estimates, burndown, velocity and relations) or by publishing approved work to Jira (Linear support is coming) with a link back to the revision it came from. Publishing is an explicit, permission-checked action.
@@ -60,6 +60,10 @@ const concepts = `## How ${siteName} works
 - **Approval**: a reviewer’s decision that a specific revision satisfies their responsibility.
 - **Check**: an automated readiness evaluation, informative or blocking according to project policy.
 - **Decision**: a durable record of a conclusion reached during refinement.
+
+## Agents and MCP
+
+Work in the UI, delegate to Litto, or connect your own agent through MCP. The same work item capabilities and server-side permissions apply across surfaces. Agents can propose changes on branches and open pull requests; human decisions require explicit authorization. Account security and credentials remain in the browser.
 
 ## Lictory Intelligence
 

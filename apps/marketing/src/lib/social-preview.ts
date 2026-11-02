@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import {
   marketingImage,
+  siteDescription,
   siteName,
   siteTitle,
 } from "@lictory/marketing/lib/site";
@@ -47,7 +48,7 @@ export function socialMetadata(kind: PreviewKind | "marketing"): Metadata {
   const marketing = kind === "marketing";
   const title = marketing ? siteTitle : `${previewLabels[kind]} in Lictory`;
   const description = marketing
-    ? "Turn rough product intent into agreed, implementation-ready specifications. Review together, then deliver in Lictory or publish to Jira."
+    ? siteDescription
     : "Open this link in Lictory. Sign in with an account that has access to see the details.";
   const images = [
     {

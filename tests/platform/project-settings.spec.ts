@@ -337,17 +337,20 @@ test("project administrators configure teams, disciplines and delivery; capabili
       .click();
     await expect(engineer).toHaveURL(/\/jira\/board\?team=/);
 
-    // Handing delivery off to Jira replaces the board with the hand-off view.
+    // Handing delivery off replaces the board with the hand-off view. No
+    // delivery tool is connected, so the copy names none.
     await lead.goto(paths.projectSettings(slug, "JIRA", "delivery"));
     await lead
       .getByRole("radiogroup", { name: "Delivery mode" })
-      .getByRole("radio", { name: /Hand off to Jira/ })
+      .getByRole("radio", { name: /Hand off to your delivery tool/ })
       .click();
-    await lead.getByRole("button", { name: "Hand off to Jira" }).click();
+    await lead
+      .getByRole("button", { name: "Hand off to your delivery tool" })
+      .click();
     await expect(
       lead
         .getByRole("radiogroup", { name: "Delivery mode" })
-        .getByRole("radio", { name: /Hand off to Jira/ }),
+        .getByRole("radio", { name: /Hand off to your delivery tool/ }),
     ).toHaveAttribute("aria-checked", "true");
     await reloadWhenSaved(lead);
     await expect(

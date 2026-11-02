@@ -49,6 +49,7 @@ export const IssueRow = memo(function IssueRow({
   onUpdate,
   onFocus,
   externalLink,
+  deliveryTool = "your delivery tool",
   hint,
 }: {
   item: WorkItem;
@@ -69,6 +70,8 @@ export const IssueRow = memo(function IssueRow({
   }) => void;
   onFocus: () => void;
   externalLink?: ExternalLink;
+  // Names the tool an external project delivers in, for row copy.
+  deliveryTool?: string;
   hint?: string;
 }) {
   const delivery = useDelivery();
@@ -99,8 +102,8 @@ export const IssueRow = memo(function IssueRow({
         <span
           title={
             externalLink?.externalKey
-              ? `${externalLink.externalStatus ?? "Status unavailable"} in Jira`
-              : "Not handed off to Jira"
+              ? `${externalLink.externalStatus ?? "Status unavailable"} in ${deliveryTool}`
+              : `Not handed off to ${deliveryTool}`
           }
         >
           <StatusIcon
@@ -187,12 +190,12 @@ export const IssueRow = memo(function IssueRow({
       {project?.deliveryMode === "external" ? (
         <span
           className="hidden max-w-28 truncate text-xs text-muted-foreground sm:block"
-          title="Assignee in Jira"
+          title={`Assignee in ${deliveryTool}`}
         >
           {externalLink?.externalKey
             ? externalLink.externalAssignee?.length
               ? externalLink.externalAssignee
-              : "Unassigned in Jira"
+              : `Unassigned in ${deliveryTool}`
             : "Not handed off"}
         </span>
       ) : !compact ? (

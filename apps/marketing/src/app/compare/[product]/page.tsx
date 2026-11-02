@@ -55,7 +55,7 @@ function Cell({
         aria-label={comparisonCellText.yes}
         className={cn(
           "size-4",
-          highlight ? "text-violet-300" : "text-foreground/70",
+          highlight ? "text-primary" : "text-foreground/70",
         )}
       />
     );
@@ -64,7 +64,7 @@ function Cell({
       <Minus
         role="img"
         aria-label={comparisonCellText.no}
-        className="size-4 text-white/25"
+        className="size-4 text-muted-foreground"
       />
     );
   return (
@@ -101,8 +101,8 @@ export default async function ComparisonPage({
           <div
             key={name}
             className={cn(
-              "rounded-xl p-5 shadow-[inset_0_0_0_1px_oklch(1_0_0/0.07)]",
-              highlight ? "bg-violet-400/6" : "bg-white/2.5",
+              "rounded-xl border border-border p-5",
+              highlight ? "bg-primary/5" : "bg-card",
             )}
           >
             <p className="text-[13px] font-medium text-muted-foreground">
@@ -122,13 +122,13 @@ export default async function ComparisonPage({
         >
           Capabilities at a glance
         </h2>
-        <div className="mt-6 overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08)]">
+        <div className="mt-6 overflow-hidden rounded-xl border border-border">
           <table className="w-full text-sm">
             <caption className="sr-only">
               Lictory compared with {item.competitor}
             </caption>
             <thead>
-              <tr className="border-b border-white/6 text-[13px]">
+              <tr className="border-b border-border text-[13px]">
                 <th
                   scope="col"
                   className="px-4 py-3.5 text-left font-medium text-muted-foreground sm:px-5"
@@ -137,7 +137,7 @@ export default async function ComparisonPage({
                 </th>
                 <th
                   scope="col"
-                  className="w-20 bg-violet-400/6 px-2 py-3.5 font-medium sm:w-28"
+                  className="w-20 bg-primary/5 px-2 py-3.5 font-medium sm:w-28"
                 >
                   Lictory
                 </th>
@@ -149,7 +149,7 @@ export default async function ComparisonPage({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border">
               {comparisonRows.map((row) => (
                 <tr key={row.feature}>
                   <th
@@ -158,7 +158,7 @@ export default async function ComparisonPage({
                   >
                     {row.feature}
                   </th>
-                  <td className="bg-violet-400/6 px-2 py-3">
+                  <td className="bg-primary/5 px-2 py-3">
                     <span className="flex justify-center">
                       <Cell value={row.lictory} highlight />
                     </span>
@@ -196,7 +196,7 @@ export default async function ComparisonPage({
         >
           Frequently asked questions
         </h2>
-        <div className="mt-6 divide-y divide-white/6 border-y border-white/6">
+        <div className="mt-6 divide-y divide-border border-y border-border">
           {item.faqs.map(({ question, answer }) => (
             <div key={question} className="py-5">
               <h3 className="text-[15px] font-medium">{question}</h3>

@@ -56,6 +56,7 @@ import {
   ItemPeek,
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
@@ -136,7 +137,7 @@ export function TeamFilterPicker({
   );
 }
 
-// External projects deliver in Jira: Lictory shows the hand-off instead of a
+// External projects deliver in another tool: Lictory shows the hand-off instead of a
 // board, backlog or iterations.
 export function ExternalProjectNotice({
   project,
@@ -145,12 +146,13 @@ export function ExternalProjectNotice({
   project: Project;
   surface: string;
 }) {
-  const { organization } = useWorkspace();
+  const { organization, directory } = useWorkspace();
+  const tool = projectDeliveryTool(directory, project.id);
   return (
     <MissingState
       illustration="planning"
       icon={Send}
-      title={`${project.name} delivers in Jira`}
+      title={`${project.name} delivers in ${tool.name}`}
       action={
         <Link
           href={paths.handoff(organization.slug, project.key)}
@@ -160,9 +162,9 @@ export function ExternalProjectNotice({
         </Link>
       }
     >
-      Statuses, sprints and estimates for this project are owned by Jira, so
-      there is no {surface} in Lictory. The hand-off shows what is ready, what
-      changed since it was handed off and what Jira reports back.
+      Statuses, sprints and estimates for this project are owned by {tool.name},
+      so there is no {surface} in Lictory. The hand-off shows what is ready,
+      what changed since it was handed off and what {tool.name} reports back.
     </MissingState>
   );
 }

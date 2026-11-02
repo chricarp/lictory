@@ -22,6 +22,17 @@ import { useItem } from "@lictory/platform/components/items/item-context";
 import { cn } from "@lictory/core/lib/utils";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+// Which of the person's agents executed a delegated change. The agent's name
+// is its access token's name; entries recorded before agents were named fall
+// back to the self-reported client.
+function agentLabel(d: Record<string, unknown>) {
+  if (d.performedVia === "agent") return "Litto";
+  const name = str(d.agentName);
+  if (name) return `${name} (MCP)`;
+  const client = str(d.agentClient);
+  return client ? `MCP (${client})` : "MCP";
+}
 const num = (v: unknown) => (typeof v === "number" ? v : undefined);
 
 // The story of how the requirement evolved: meaningful domain events only.
@@ -196,6 +207,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
               automatically
               {d.reason === "readiness_checks_published" &&
                 ` when Definition of Ready version ${num(d.readinessRevision)} was published`}
+              {d.reason === "intelligence_review_completed" &&
+                " when a Lictory Intelligence review completed"}
             </span>
           )}
         </>
@@ -205,7 +218,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "readiness_signed_off":
       body = (
         <>
-          signed off <b>{str(d.label)}</b> for revision {num(d.revision)}
+          {d.override ? "overrode" : "signed off"} <b>{str(d.label)}</b> for
+          revision {num(d.revision)}
         </>
       );
       break;
@@ -220,7 +234,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
           ) : (
             "the"
           )}{" "}
-          sign-off of <b>{str(d.label)}</b>
+          {d.override ? "override" : "sign-off"} of <b>{str(d.label)}</b>
         </>
       );
       break;
@@ -509,8 +523,10 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         ) : (
           <b>{key}</b>
         )
+      ) : d.outcome === "created" ? (
+        "the delivery tool"
       ) : (
-        "Jira"
+        "the external issue"
       );
       body = (
         <>
@@ -690,9 +706,13 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       <p className="min-w-0 flex-1">
         <span className="font-medium">{actor}</span> {body}
         {(d.performedVia === "agent" || d.performedVia === "mcp") && (
-          <span className="ml-1 text-xs text-muted-foreground">
-            via {d.performedVia === "agent" ? "Litto" : "MCP"}
-            {str(d.agentClient) ? ` (${str(d.agentClient)})` : ""}
+          <span
+            className="ml-1 text-xs text-muted-foreground"
+            title={
+              str(d.agentClient) ? `Client: ${str(d.agentClient)}` : undefined
+            }
+          >
+            via {agentLabel(d)}
           </span>
         )}
       </p>

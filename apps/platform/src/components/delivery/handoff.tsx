@@ -35,10 +35,11 @@ import {
   exportAvailability,
   type ExternalLink,
 } from "@lictory/platform/components/delivery/export";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 
-// External projects deliver in Jira. The hand-off replaces the board: what is
-// ready to hand off, what changed since, what Jira reports back and what needs
-// attention.
+// External projects deliver in another tool. The hand-off replaces the board:
+// what is ready to hand off, what changed since, what the delivery tool reports
+// back and what needs attention.
 export function Handoff() {
   const project = useProject();
   const { organization } = useWorkspace();
@@ -83,12 +84,13 @@ function ExternalHandoff({ project }: { project: Project }) {
     capabilitiesIn(project.id).publishDelivery,
   );
   const canHandOff = availability.configured && availability.allowed;
+  const tool = projectDeliveryTool(directory, project.id);
   const groups = useMemo(() => {
     const links = new Map<string, ExternalLink>();
     for (const e of Object.values(view.entities))
       if (e.type === "externalLink" && e.projectId === project.id) {
         const current = links.get(e.workItemId);
-        // The project's current Jira connection wins over older links.
+        // The project's current connection wins over older links.
         if (
           !current ||
           (e.connectionId === availability.connection?.id &&
@@ -97,7 +99,7 @@ function ExternalHandoff({ project }: { project: Project }) {
           links.set(e.workItemId, e);
       }
     const ready: (Row & { changed: boolean })[] = [];
-    const inJira: Row[] = [];
+    const delivered: Row[] = [];
     const attention: Row[] = [];
     const refining: WorkItem[] = [];
     for (const item of items) {
@@ -114,7 +116,7 @@ function ExternalHandoff({ project }: { project: Project }) {
         continue;
       }
       if (link && (link.externalKey || link.status === "pending"))
-        inJira.push({ item, link });
+        delivered.push({ item, link });
       if (!spec) continue;
       const changed = Boolean(
         link?.externalKey &&
@@ -130,7 +132,7 @@ function ExternalHandoff({ project }: { project: Project }) {
       b.item.updatedAt.localeCompare(a.item.updatedAt);
     return {
       ready: ready.sort(recent),
-      inJira: inJira.sort(
+      delivered: delivered.sort(
         (a, b) =>
           (b.link?.syncedAt ?? "").localeCompare(a.link?.syncedAt ?? "") ||
           recent(a, b),
@@ -158,11 +160,13 @@ function ExternalHandoff({ project }: { project: Project }) {
       });
       toast(
         result.failedConnections
-          ? `Jira could not be reached. ${result.refreshed} issue${result.refreshed === 1 ? "" : "s"} refreshed; check the Jira connection in organization settings.`
-          : `${result.refreshed} issue${result.refreshed === 1 ? "" : "s"} refreshed from Jira.`,
+          ? `${tool.Name} could not be reached. ${result.refreshed} issue${result.refreshed === 1 ? "" : "s"} refreshed; check the connection in organization settings.`
+          : `${result.refreshed} issue${result.refreshed === 1 ? "" : "s"} refreshed from ${tool.name}.`,
       );
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Jira could not be refreshed.");
+      toast(
+        e instanceof Error ? e.message : `${tool.Name} could not be refreshed.`,
+      );
     } finally {
       setRefreshing(false);
     }
@@ -171,7 +175,7 @@ function ExternalHandoff({ project }: { project: Project }) {
   const href = (item: WorkItem) =>
     paths.item(organization.slug, project.key, label(item));
   const loading = view.status === "hydrating" && items.length === 0;
-  const jiraKey = availability.target?.externalProjectKey;
+  const externalProjectKey = availability.target?.externalProjectKey;
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
@@ -179,9 +183,9 @@ function ExternalHandoff({ project }: { project: Project }) {
           <h1 className="text-lg font-semibold tracking-tight">
             {project.name} · Hand-off
           </h1>
-          {jiraKey && (
+          {externalProjectKey && (
             <span className="text-xs text-muted-foreground">
-              to {jiraKey}
+              to {externalProjectKey}
               {availability.connection && ` on ${availability.connection.name}`}
             </span>
           )}
@@ -192,12 +196,12 @@ function ExternalHandoff({ project }: { project: Project }) {
                 size="sm"
                 disabled={refreshing}
                 onClick={() => void refresh()}
-                title="Read the current status and assignee of every handed-off issue. Nothing is written to Jira."
+                title={`Read the current status and assignee of every handed-off issue. Nothing is written to ${tool.name}.`}
               >
                 <RefreshCw
                   className={cn("size-3.5", refreshing && "animate-spin")}
                 />
-                Refresh from Jira
+                Refresh from {tool.name}
               </Button>
             )}
             {canHandOff && (
@@ -215,8 +219,8 @@ function ExternalHandoff({ project }: { project: Project }) {
           </div>
         </header>
         <p className="text-[13px] text-muted-foreground">
-          Hand off an agreed specification, then follow its progress in Jira.
-          Jira owns delivery status and assignment.{" "}
+          Hand off an agreed specification, then follow its progress in{" "}
+          {tool.name}. {tool.Name} owns delivery status and assignment.{" "}
           <Link
             href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
             className="font-medium text-primary hover:underline"
@@ -226,7 +230,8 @@ function ExternalHandoff({ project }: { project: Project }) {
         </p>
         {!availability.target ? (
           <Notice tone="warning">
-            {project.name} has no Jira project to hand work off to yet.{" "}
+            {project.name} has no {tool.product ?? "external"} project to hand
+            work off to yet.{" "}
             {canManage(project.id) ? (
               <Link
                 className="underline"
@@ -236,7 +241,7 @@ function ExternalHandoff({ project }: { project: Project }) {
                   "delivery",
                 )}
               >
-                Choose a Jira project in delivery settings
+                Choose one in delivery settings
               </Link>
             ) : (
               "Ask a project administrator to choose one in the project's delivery settings"
@@ -245,8 +250,9 @@ function ExternalHandoff({ project }: { project: Project }) {
           </Notice>
         ) : !availability.connection ? (
           <Notice tone="warning">
-            The Jira connection of this project is unavailable. An organization
-            administrator can reconnect it in organization settings.
+            The {tool.product ?? "delivery"} connection of this project is
+            unavailable. An organization administrator can reconnect it in
+            organization settings.
           </Notice>
         ) : (
           availability.connection.status === "invalid" && (
@@ -284,17 +290,17 @@ function ExternalHandoff({ project }: { project: Project }) {
                     meta={
                       <>
                         {link?.status === "conflict" ? (
-                          <Badge tone="warning">Changed in Jira</Badge>
+                          <Badge tone="warning">Changed in {tool.name}</Badge>
                         ) : (
                           <Badge tone="danger">Failed</Badge>
                         )}
-                        {link && <JiraKey link={link} />}
+                        {link && <ExternalKey link={link} />}
                       </>
                     }
                     detail={
                       link?.lastError ??
                       (link?.status === "conflict"
-                        ? "Jira was edited since the last hand-off. Review and confirm overwriting to hand off again."
+                        ? `${tool.Name} was edited since the last hand-off. Review and confirm overwriting to hand off again.`
                         : undefined)
                     }
                     action={
@@ -343,7 +349,7 @@ function ExternalHandoff({ project }: { project: Project }) {
                       changed && link ? (
                         <>
                           <Badge tone="warning">Changed since hand-off</Badge>
-                          <JiraKey link={link} />
+                          <ExternalKey link={link} />
                         </>
                       ) : (
                         <Badge tone="info">Not handed off</Badge>
@@ -370,13 +376,13 @@ function ExternalHandoff({ project }: { project: Project }) {
                 ))
               )}
             </Group>
-            <Group title="In Jira" count={groups.inJira.length}>
-              {groups.inJira.length === 0 ? (
+            <Group title={`In ${tool.name}`} count={groups.delivered.length}>
+              {groups.delivered.length === 0 ? (
                 <p className="px-4 py-4 text-[13px] text-muted-foreground">
                   Nothing has been handed off yet.
                 </p>
               ) : (
-                groups.inJira.map(({ item, link }) => (
+                groups.delivered.map(({ item, link }) => (
                   <ItemRow
                     key={item.id}
                     item={item}
@@ -393,11 +399,11 @@ function ExternalHandoff({ project }: { project: Project }) {
                           ) : (
                             <ExternalStatusBadge link={link} />
                           )}
-                          <JiraKey link={link} />
+                          <ExternalKey link={link} />
                         </>
                       )
                     }
-                    detail={link && jiraDetail(link, item)}
+                    detail={link && deliveredDetail(link, item, tool.name)}
                   />
                 ))
               )}
@@ -433,7 +439,7 @@ function ExternalHandoff({ project }: { project: Project }) {
               </details>
             )}
             {!groups.ready.length &&
-              !groups.inJira.length &&
+              !groups.delivered.length &&
               !groups.attention.length &&
               !groups.refining.length && (
                 <EmptyState
@@ -449,7 +455,7 @@ function ExternalHandoff({ project }: { project: Project }) {
                   }
                 >
                   Capture a proposal in {project.name}, refine it with your
-                  team, then hand the agreed work off to Jira here.
+                  team, then hand the agreed work off to {tool.name} here.
                 </EmptyState>
               )}
           </>
@@ -468,12 +474,12 @@ function ExternalHandoff({ project }: { project: Project }) {
   );
 }
 
-function jiraDetail(link: ExternalLink, item: WorkItem) {
+function deliveredDetail(link: ExternalLink, item: WorkItem, tool: string) {
   const parts = [
     link.externalAssignee
       ? `Assignee ${link.externalAssignee}`
       : link.externalStatus
-        ? "Unassigned in Jira"
+        ? `Unassigned in ${tool}`
         : undefined,
     link.publishedRevisionNumber != null
       ? link.publishedRevisionNumber < item.revisionNumber
@@ -535,7 +541,7 @@ function Group({
   );
 }
 
-function JiraKey({ link }: { link: ExternalLink }) {
+function ExternalKey({ link }: { link: ExternalLink }) {
   if (!link.externalKey) return null;
   return link.externalUrl ? (
     <a

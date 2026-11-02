@@ -79,6 +79,7 @@ import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -953,12 +954,15 @@ function ProjectNav({
   project: Project;
   active: (href: string, exact?: boolean) => boolean;
 }) {
-  const { delivery, organization, userId } = useWorkspace();
+  const { delivery, directory, organization, userId } = useWorkspace();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const org = organization.slug;
   const key = project.key;
   const external = project.deliveryMode === "external";
+  const deliveryLabel = external
+    ? `Delivery · ${projectDeliveryTool(directory, project.id).product ?? "External"}`
+    : "Delivery";
   const teamParam = searchParams.get("team");
   // An opened item keeps the queue it came from highlighted.
   const origin = pathname.startsWith(`${paths.items(org, key)}/`)
@@ -1011,7 +1015,7 @@ function ProjectNav({
           Reviews
         </NavLink>
       </NavGroup>
-      <NavGroup label={external ? "Delivery · Jira" : "Delivery"}>
+      <NavGroup label={deliveryLabel}>
         {external ? (
           <NavLink
             href={paths.handoff(org, key)}
