@@ -1,6 +1,15 @@
 // Three-way line merging, shared by server validation and the conflict editor.
 // Bound the diff matrix; unusually large rewrites become explicit conflicts.
-export type Snapshot = { title: string; content: string };
+import {
+  sameProposedChildren,
+  type ProposedChild,
+} from "@lictory/core/contracts/decomposition";
+
+export type Snapshot = {
+  title: string;
+  content: string;
+  proposedChildren?: ProposedChild[];
+};
 export type MergeChunk =
   { lines: string[] } | { base: string[]; ours: string[]; theirs: string[] };
 type Edit = { start: number; end: number; lines: string[] };
@@ -123,15 +132,58 @@ export function mergeSnapshot(
     theirs.title !== base.title;
   const title = ours.title === base.title ? theirs.title : ours.title;
   const chunks = mergeText(base.content, ours.content, theirs.content);
+  const breakdown = mergeProposedChildren(
+    base.proposedChildren,
+    ours.proposedChildren,
+    theirs.proposedChildren,
+  );
   return {
     title,
     chunks,
-    conflicted: titleConflict || chunks.some((c) => !("lines" in c)),
+    conflicted:
+      titleConflict ||
+      breakdown.conflicted ||
+      chunks.some((c) => !("lines" in c)),
     titleConflict,
+    decompositionConflict: breakdown.conflicted,
+    proposedChildren: breakdown.children,
     content: chunks
       .flatMap((c) => ("lines" in c ? c.lines : c.ours))
       .join("\n"),
   };
+}
+
+// Independent additions combine. Changing or removing the same proposed child
+// in different ways requires explicit resolution rather than silently winning.
+function mergeProposedChildren(
+  base: ProposedChild[] = [],
+  ours: ProposedChild[] = [],
+  theirs: ProposedChild[] = [],
+) {
+  const maps = [base, ours, theirs].map(
+    (children) => new Map(children.map((child) => [child.workItemId, child])),
+  );
+  const ids = [
+    ...new Set([...ours, ...theirs, ...base].map((child) => child.workItemId)),
+  ];
+  let conflicted = false;
+  const children: ProposedChild[] = [];
+  for (const id of ids) {
+    const [original, own, other] = maps.map((map) => map.get(id));
+    const same = (
+      a: ProposedChild | undefined,
+      b: ProposedChild | undefined,
+    ) =>
+      a === undefined || b === undefined
+        ? a === b
+        : sameProposedChildren([a], [b]);
+    let chosen = own;
+    if (same(own, other) || same(other, original)) chosen = own;
+    else if (same(own, original)) chosen = other;
+    else conflicted = true;
+    if (chosen) children.push(chosen);
+  }
+  return { children, conflicted };
 }
 export function mergeBase<T extends { id: string; parentIds: string[] }>(
   commits: T[],

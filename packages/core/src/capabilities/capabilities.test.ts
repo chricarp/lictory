@@ -1133,6 +1133,175 @@ void test("attachment downloads honor inline MIME types and reject removed files
   assert.equal(downloads.length, 2);
 });
 
+void test("recorded decisions retain their source revision, replay once, and are tenant scoped", async () => {
+  const f = await fixture();
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Retries",
+    description: "Retries reuse a stable key.",
+  })) as { workItemId: string; revisionId: string };
+  const thread = (await invoke(f.web, "createThread", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+    section: "",
+    body: "Which key?",
+    blocking: false,
+  })) as { threadId: string };
+  const decision = {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+    title: "Reuse the transaction key",
+    body: "Retry attempts use the original transaction key.",
+    sourceThreadId: thread.threadId,
+    mutationId: crypto.randomUUID(),
+  };
+  await rejected(invoke(f.web, "recordDecision", decision), "conflict");
+  await invoke(f.web, "setThreadState", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    threadId: thread.threadId,
+    resolved: true,
+    blocking: false,
+  });
+  const revised = (await invoke(f.web, "updateSpecification", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+    title: "Retries",
+    content: "Retries reuse a stable key for 24 hours.",
+  })) as { revisionId: string };
+  const principal = context({
+    userId: f.ownerId,
+    surface: "mcp",
+    client: "Refinement agent",
+  });
+  const input = { ...decision, baseRevisionId: revised.revisionId };
+  const first = (await invoke(principal, "recordDecision", input)) as {
+    decisionId: string;
+  };
+  assert.deepEqual(await invoke(principal, "recordDecision", input), first);
+  const item = (await invoke(f.web, "getWorkItem", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+  })) as {
+    decisions: { id: string; revisionId: string }[];
+    activity: { action: string; detail: Record<string, unknown> }[];
+  };
+  assert.equal(item.decisions.length, 1);
+  assert.equal(item.decisions[0]!.revisionId, created.revisionId);
+  const activity = item.activity.find((a) => a.action === "decision_recorded")!;
+  assert.equal(activity.detail.performedVia, "mcp");
+  assert.equal(activity.detail.agentClient, "Refinement agent");
+  const search = () =>
+    invoke(f.web, "searchProductKnowledge", {
+      organizationId: f.organizationId,
+      query: "transaction key",
+    }) as Promise<{
+      results: { id: string; kind: string; revisionNumber: number }[];
+    }>;
+  assert.deepEqual(
+    (await search()).results.map((r) => [r.id, r.kind, r.revisionNumber]),
+    [[first.decisionId, "decision", 1]],
+  );
+  await invoke(f.web, "setDecisionArchived", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    decisionId: first.decisionId,
+    archived: true,
+  });
+  assert.equal((await search()).results.length, 0);
+  await invoke(f.web, "setDecisionArchived", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    decisionId: first.decisionId,
+    archived: false,
+  });
+  assert.equal((await search()).results.length, 1);
+  await rejected(
+    invoke(
+      context({ userId: f.memberId, surface: "agent" }),
+      "recordDecision",
+      { ...input, mutationId: crypto.randomUUID(), sourceThreadId: undefined },
+    ),
+    "forbidden",
+  );
+  await rejected(
+    invoke(
+      context({ userId: f.outsiderId, surface: "mcp" }),
+      "searchProductKnowledge",
+      { organizationId: f.organizationId },
+    ),
+    "forbidden",
+  );
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("product knowledge preserves delivered scope after a newer draft", async () => {
+  const f = await fixture();
+  const workspace = (await invoke(f.web, "getWorkspace", {
+    organizationId: f.organizationId,
+  })) as {
+    types: { id: string; name: string }[];
+    statuses: { id: string; projectId: string; category: string }[];
+  };
+  const created = (await invoke(f.web, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: workspace.types.find((t) => t.name === "Task")!.id,
+    parentId: null,
+    title: "Delivery evidence",
+    description: "The delivered retry behavior.",
+  })) as { workItemId: string; revisionId: string };
+  await invoke(f.web, "acceptDeliveryScope", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+  });
+  const committed = (await invoke(f.web, "listWorkItems", {
+    organizationId: f.organizationId,
+    lifecycle: "committed",
+  })) as { items: { id: string; lifecycle: string }[] };
+  assert.ok(
+    committed.items.some(
+      (i) => i.id === created.workItemId && i.lifecycle === "committed",
+    ),
+  );
+  await invoke(f.web, "updateWorkItem", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    statusId: workspace.statuses.find(
+      (st) => st.projectId === f.projectId && st.category === "done",
+    )!.id,
+  });
+  await invoke(f.web, "updateSpecification", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+    title: "Delivery evidence",
+    content: "A later proposal for different retry behavior.",
+  });
+  const found = (await invoke(f.web, "searchProductKnowledge", {
+    organizationId: f.organizationId,
+    query: "retry behavior",
+  })) as {
+    results: { kind: string; revisionNumber: number; excerpt: string }[];
+  };
+  assert.deepEqual(
+    found.results.map((r) => [r.kind, r.revisionNumber, r.excerpt]),
+    [["delivered", 1, "The delivered retry behavior."]],
+  );
+  const completed = (await invoke(f.web, "listWorkItems", {
+    organizationId: f.organizationId,
+    lifecycle: "completed",
+  })) as { items: { id: string }[] };
+  assert.ok(completed.items.some((i) => i.id === created.workItemId));
+});
+
 void test("projections equal a rebuild from the domain", async () => {
   const drift: string[] = [];
   for (const { id } of await db

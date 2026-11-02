@@ -20,7 +20,6 @@ import {
   byType,
   identifier,
   relativeTime,
-  segmentOf,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import {
@@ -230,7 +229,6 @@ export function AiReviewView({
     const href = paths.item(
       workspace.organization.slug,
       ctx.project.key,
-      segmentOf(typeOf(workspace.delivery, i)),
       identifier(ctx.project, i.number),
     );
     return pr ? `${href}?pr=${pr}` : href;

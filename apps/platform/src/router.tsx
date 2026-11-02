@@ -308,30 +308,59 @@ const projectIndexRoute = createRoute({
   path: "/",
   component: ProjectIndexRedirect,
 });
-const listRoutes = (["epics", "stories"] as const).map((kind) => {
+// Every item type shares one address. The list lives in the layout; the
+// index shows the catalog, `$id` the item beside its originating queue.
+const itemsRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: "/items",
+  component: () => (
+    <SplitView>
+      <Outlet />
+    </SplitView>
+  ),
+  pendingComponent: ListSkeleton,
+});
+const itemsIndexRoute = createRoute({
+  getParentRoute: () => itemsRoute,
+  path: "/",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/items"),
+    "AllItemsRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+const itemRoute = createRoute({
+  getParentRoute: () => itemsRoute,
+  path: "/$id",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/items"),
+    "ItemRoute",
+  ),
+  pendingComponent: ItemSkeleton,
+});
+// Earlier addresses (/epics, /stories) stay valid for existing links,
+// including those published to delivery tools.
+const legacyItemRoutes = (["epics", "stories"] as const).map((kind) => {
   const list = createRoute({
     getParentRoute: () => projectRoute,
     path: `/${kind}`,
-    component: () => (
-      <SplitView kind={kind}>
-        <Outlet />
-      </SplitView>
-    ),
+    component: Outlet,
   });
-  // The list lives in the layout; without a selected item there is nothing else.
   const index = createRoute({
     getParentRoute: () => list,
     path: "/",
-    component: () => null,
+    component: lazyRouteComponent(
+      () => import("@lictory/platform/routes/items"),
+      "LegacyItemsRoute",
+    ),
   });
   const item = createRoute({
     getParentRoute: () => list,
     path: "/$id",
     component: lazyRouteComponent(
       () => import("@lictory/platform/routes/items"),
-      "ItemRoute",
+      "LegacyItemsRoute",
     ),
-    pendingComponent: ItemSkeleton,
   });
   return list.addChildren([index, item]);
 });
@@ -364,6 +393,18 @@ const handoffRoute = projectPage(
   "/handoff",
   () => import("@lictory/platform/components/delivery/handoff"),
   "Handoff",
+);
+const proposalsRoute = projectPage(
+  "/proposals",
+  () => import("@lictory/platform/routes/items"),
+  "ProposalsRoute",
+  ListSkeleton,
+);
+const refinementRoute = projectPage(
+  "/refinement",
+  () => import("@lictory/platform/routes/items"),
+  "RefinementRoute",
+  ListSkeleton,
 );
 const reviewsRoute = projectPage(
   "/reviews",
@@ -452,10 +493,13 @@ const routeTree = rootRoute.addChildren([
       ]),
       projectRoute.addChildren([
         projectIndexRoute,
-        ...listRoutes,
+        itemsRoute.addChildren([itemsIndexRoute, itemRoute]),
+        ...legacyItemRoutes,
         boardRoute,
         backlogRoute,
         handoffRoute,
+        proposalsRoute,
+        refinementRoute,
         reviewsRoute,
         iterationRoute,
         teamRoute,

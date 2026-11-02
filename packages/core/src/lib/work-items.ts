@@ -96,13 +96,10 @@ export function statusOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
 export function categoryOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
   return d.statuses.get(item.statusId)?.category;
 }
-// Top-level types (Epic by default) group specification work; their pages
-// live under /epics, everything else under /stories.
+// Higher-level types (Epic by default) group implementation work: boards and
+// backlogs show their children instead.
 export const isTopLevel = (type: Pick<WorkItemType, "level">) =>
   type.level >= 2;
-export function segmentOf(type: Pick<WorkItemType, "level">) {
-  return isTopLevel(type) ? "epics" : "stories";
-}
 // The project's workflow, in order. Every item of a project uses it.
 export function projectStatuses(d: Delivery, projectId: string | undefined) {
   return [...d.statuses.values()]
@@ -214,6 +211,12 @@ export type ViewId =
   | "updated";
 export const views: { id: ViewId; label: string; description: string }[] = [
   {
+    id: "all",
+    label: "Refinement",
+    description:
+      "From rough proposal to an agreed scope, delivery and retained product knowledge.",
+  },
+  {
     id: "needs-my-review",
     label: "Needs my review",
     description:
@@ -231,13 +234,14 @@ export const views: { id: ViewId; label: string; description: string }[] = [
   },
   {
     id: "ready",
-    label: "Ready for development",
-    description: "Specifications whose readiness checks all pass.",
+    label: "Ready for delivery",
+    description:
+      "Agreed specifications whose checks pass, not yet accepted for delivery.",
   },
   {
     id: "drafts",
-    label: "Drafts",
-    description: "Draft specifications without a review yet.",
+    label: "Proposals",
+    description: "Rough specifications waiting to be selected for refinement.",
   },
   {
     id: "updated",
@@ -293,11 +297,13 @@ export function applyFilters(
   filters: Filters,
   projects: Project[],
   delivery: Delivery,
+  categoryFor: (item: WorkItem) => StatusCategory | undefined = (item) =>
+    categoryOf(delivery, item),
 ) {
   const q = filters.search?.trim().toLowerCase();
   return items.filter((item) => {
     if (filters.status?.length) {
-      const category = categoryOf(delivery, item);
+      const category = categoryFor(item);
       if (!category || !filters.status.includes(category)) return false;
     }
     if (
@@ -348,11 +354,18 @@ export function applyFilters(
     return true;
   });
 }
-export function sortItems(items: WorkItem[], key: SortKey, delivery: Delivery) {
+export function sortItems(
+  items: WorkItem[],
+  key: SortKey,
+  delivery: Delivery,
+  categoryFor: (item: WorkItem) => StatusCategory | undefined = (item) =>
+    categoryOf(delivery, item),
+) {
   const statusRank = (item: WorkItem) => {
     const status = statusOf(delivery, item);
-    return status
-      ? categoryOrder.indexOf(status.category) * 1000 + status.position
+    const category = categoryFor(item);
+    return category
+      ? categoryOrder.indexOf(category) * 1000 + (status?.position ?? 0)
       : 99_999;
   };
   const sorted = [...items];

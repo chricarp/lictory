@@ -5,12 +5,7 @@ import { FileSearch } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { MissingState } from "@lictory/ui/status-page";
 import { paths } from "@lictory/core/lib/paths";
-import {
-  identifier,
-  parseIdentifier,
-  segmentOf,
-  typeOf,
-} from "@lictory/core/lib/work-items";
+import { identifier, parseIdentifier } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   SyncIssue,
@@ -18,7 +13,7 @@ import {
 } from "@lictory/platform/components/workspace/sync-issue";
 
 export function ItemRedirect({ identifier: raw }: { identifier: string }) {
-  const { items, projects, organization, view, delivery } = useWorkspace();
+  const { items, projects, organization, view } = useWorkspace();
   const router = useRouter();
   const searchParams = useSearchParams();
   const parsed = parseIdentifier(raw);
@@ -34,7 +29,6 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
     ? paths.item(
         organization.slug,
         projects.find((p) => p.id === item.projectId)?.key ?? "",
-        segmentOf(typeOf(delivery, item)),
         identifier(
           projects.find((p) => p.id === item.projectId),
           item.number,

@@ -32,6 +32,7 @@ import {
   FolderOpen,
   History,
   Inbox,
+  Lightbulb,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -52,6 +53,7 @@ import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { signOut } from "@lictory/platform/lib/account";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
+import { itemOrigin } from "@lictory/platform/components/items/queues";
 import { workspaceTitle } from "@lictory/platform/lib/document-title";
 import {
   rememberProject,
@@ -59,6 +61,7 @@ import {
 } from "@lictory/platform/lib/last-project";
 import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
 import {
+  enabledTypes,
   needsMyReview,
   projectTeams,
   views,
@@ -75,11 +78,7 @@ import type { QuickCreateOptions } from "@lictory/platform/components/workspace/
 import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
-import {
-  TypeIcon,
-  epicGlyph,
-  storyGlyph,
-} from "@lictory/platform/components/items/icons";
+import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -156,6 +155,7 @@ export function Shell({
     items,
     userId,
     disciplineIds,
+    delivery,
     directory,
     capabilitiesIn,
   } = useWorkspace();
@@ -270,12 +270,30 @@ export function Shell({
           : null;
       setCreate({
         kind: "story",
+        intent:
+          capabilitiesIn(projectId).editSpecifications &&
+          enabledTypes(delivery, projectId).some(
+            (type) => type.hasSpecification,
+          ) &&
+          /\/(proposals|refinement)$/.test(window.location.pathname)
+            ? "proposal"
+            : /\/(board|backlog|handoff)$/.test(window.location.pathname)
+              ? "work"
+              : undefined,
         ...options,
         projectId,
         teamId: options?.teamId ?? (team && team !== "none" ? team : null),
       });
     },
-    [project?.id, routeProject?.id, canCreateIn, toast, organization.id],
+    [
+      project?.id,
+      routeProject?.id,
+      canCreateIn,
+      capabilitiesIn,
+      delivery,
+      toast,
+      organization.id,
+    ],
   );
   const openPalette = useCallback(
     (query = "") => {
@@ -301,7 +319,7 @@ export function Shell({
       if (isTyping(event.target)) return;
       if (event.key === "c" && project) {
         event.preventDefault();
-        openCreate({ kind: pathname.includes("/epics") ? "epic" : "story" });
+        openCreate();
       } else if (event.key === "/") {
         event.preventDefault();
         openPalette("");
@@ -649,7 +667,7 @@ function Sidebar({
           <ProjectSwitcher
             project={project}
             projects={projects}
-            onSelect={(key) => router.push(paths.list(org, key, "epics"))}
+            onSelect={(key) => router.push(paths.project(org, key))}
           />
           {project ? (
             <ProjectNav project={project} active={active} />
@@ -942,6 +960,10 @@ function ProjectNav({
   const key = project.key;
   const external = project.deliveryMode === "external";
   const teamParam = searchParams.get("team");
+  // An opened item keeps the queue it came from highlighted.
+  const origin = pathname.startsWith(`${paths.items(org, key)}/`)
+    ? itemOrigin(searchParams)
+    : undefined;
   const [viewsOpen, toggleViews] = usePanelCollapsed(
     organization.id,
     "sidebar-views",
@@ -956,28 +978,34 @@ function ProjectNav({
     );
   const board = paths.board(org, key);
   const backlog = paths.backlog(org, key);
-  const stories = paths.list(org, key, "stories");
-  const viewActive = views.some((v) => active(paths.view(org, key, v.id)));
+  const catalog = paths.items(org, key);
+  const viewActive = views.some(
+    (v) => v.id !== "all" && active(paths.view(org, key, v.id)),
+  );
   return (
     <>
-      <NavGroup label="Work">
+      <NavGroup label="Prepare">
         <NavLink
-          href={paths.list(org, key, "epics")}
-          active={active(paths.list(org, key, "epics"))}
-          icon={<TypeIcon type={epicGlyph} />}
+          href={paths.proposals(org, key)}
+          active={active(paths.proposals(org, key)) || origin === "proposals"}
+          icon={<Lightbulb className="size-4" />}
         >
-          Epics
+          Proposals
         </NavLink>
         <NavLink
-          href={stories}
-          active={active(stories) && !teamParam}
-          icon={<TypeIcon type={storyGlyph} />}
+          href={paths.refinement(org, key)}
+          active={
+            active(paths.refinement(org, key)) ||
+            active(paths.view(org, key, "all")) ||
+            origin === "refinement"
+          }
+          icon={<FilePenLine className="size-4" />}
         >
-          Work items
+          Refinement
         </NavLink>
         <NavLink
           href={paths.reviews(org, key)}
-          active={active(paths.reviews(org, key))}
+          active={active(paths.reviews(org, key)) || origin === "reviews"}
           icon={<BookOpenCheck className="size-4" />}
         >
           Reviews
@@ -1018,6 +1046,15 @@ function ProjectNav({
           </>
         )}
       </NavGroup>
+      <NavGroup label="Browse">
+        <NavLink
+          href={catalog}
+          active={active(catalog) && !origin}
+          icon={<TypeIcon type={storyGlyph} />}
+        >
+          All items
+        </NavLink>
+      </NavGroup>
       {teams.length > 0 && (
         <NavGroup label="Teams">
           {teams.map((t) => {
@@ -1047,7 +1084,13 @@ function ProjectNav({
         }}
       >
         {views
-          .filter((v) => v.id !== "needs-my-review")
+          .filter(
+            (v) =>
+              v.id !== "needs-my-review" &&
+              v.id !== "all" &&
+              v.id !== "drafts" &&
+              v.id !== "ready",
+          )
           .map((v) => (
             <NavLink
               key={v.id}

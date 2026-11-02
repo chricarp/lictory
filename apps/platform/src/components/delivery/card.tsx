@@ -5,7 +5,7 @@ import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
   identifier,
-  segmentOf,
+  refinementMeta,
   typeOf,
   type Delivery,
   type Project,
@@ -135,7 +135,7 @@ export const ItemCard = memo(function ItemCard({
       </div>
       {project && (
         <Link
-          href={paths.item(orgSlug, project.key, segmentOf(type), id)}
+          href={paths.item(orgSlug, project.key, id)}
           draggable={false}
           aria-current={selected ? true : undefined}
           onClick={onOpen ? (e) => onOpen(e, id) : undefined}
@@ -163,13 +163,15 @@ export const ItemCard = memo(function ItemCard({
               notReady && "text-amber-700 dark:text-amber-400",
             )}
             title={
-              notReady
+              item.refinementState !== "ready"
                 ? `Specification not ready: ${item.readinessPassed}/${item.readinessTotal} checks pass`
                 : "Specification ready"
             }
           >
             <RefinementIcon state={item.refinementState} />
-            {item.readinessPassed}/{item.readinessTotal}
+            {refinementMeta[item.refinementState].label}
+            {item.refinementState !== "ready" &&
+              ` · ${item.readinessPassed}/${item.readinessTotal}`}
           </span>
         )}
         {item.blockingThreads > 0 && (

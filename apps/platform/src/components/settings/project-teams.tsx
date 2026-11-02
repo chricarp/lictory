@@ -266,10 +266,9 @@ function TeamRow({
             </>
           )}
           <Link
-            href={paths.list(
+            href={paths.items(
               organization.slug,
               project.key,
-              "stories",
               new URLSearchParams({ team: t.id }),
             )}
             className={linkClass}

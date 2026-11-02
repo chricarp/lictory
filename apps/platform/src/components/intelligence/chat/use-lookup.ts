@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { paths } from "@lictory/core/lib/paths";
-import { identifier, segmentOf, typeOf } from "@lictory/core/lib/work-items";
+import { identifier } from "@lictory/core/lib/work-items";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
 import type {
   ItemRef,
@@ -56,12 +56,7 @@ export function useLookup(): Lookup {
           key: itemKey,
           title: item.title,
           href: project
-            ? paths.item(
-                organization.slug,
-                project.key,
-                segmentOf(typeOf(delivery, item)),
-                itemKey,
-              )
+            ? paths.item(organization.slug, project.key, itemKey)
             : undefined,
         };
       },

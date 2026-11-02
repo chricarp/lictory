@@ -11,10 +11,10 @@ void test("workspace paths live at the root of the app host", () => {
     "/account?returnTo=%2Facme%2Finbox",
   );
   assert.equal(paths.newOrganization, "/new-organization");
-  assert.equal(paths.list("acme", "PAY", "epics"), "/acme/pay/epics");
+  assert.equal(paths.items("acme", "PAY"), "/acme/pay/items");
   assert.equal(
-    paths.item("acme", "PAY", "stories", "PAY-12", new URLSearchParams("pr=1")),
-    "/acme/pay/stories/PAY-12?pr=1",
+    paths.item("acme", "PAY", "PAY-12", new URLSearchParams("pr=1")),
+    "/acme/pay/items/PAY-12?pr=1",
   );
   assert.equal(paths.board("acme", "PAY", "core"), "/acme/pay/board?team=core");
   assert.equal(

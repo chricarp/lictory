@@ -3,6 +3,11 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { committedEvents } from "@lictory/core/lib/analytics/events";
+import { deliveryIndex } from "@lictory/core/lib/work-items";
+import {
+  externalLinksByItem,
+  lifecycleStage,
+} from "@lictory/core/lib/lifecycle";
 import {
   computeInsights,
   insightTopics,
@@ -59,7 +64,11 @@ export async function executeMutation(
 ) {
   return executeDomainMutation(
     ctx.db,
-    { userId: ctx.principal.userId },
+    {
+      userId: ctx.principal.userId,
+      surface: ctx.principal.surface,
+      client: ctx.principal.client,
+    },
     mutation,
     {
       onCommitted: (outcome) =>
@@ -153,6 +162,24 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     description:
       "Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. An estimate must be one of the project's scale (Fibonacci, linear, or T-shirt points). Moving a ready item back is rejected while its readiness checks still pass. Never creates a revision or stales approvals. Requires change-properties in the item's project.",
   },
+  acceptDeliveryScope: {
+    title: "Accept delivery scope",
+    description:
+      "Accept the current specification revision for native delivery. Requires change-properties and the exact baseRevisionId. Records the agreed revision, applies the project's readiness policy and moves unselected backlog work to an unstarted status when available. Later revisions remain proposed delivery scope until explicitly accepted. External delivery scope is accepted by publishing instead.",
+    decision: true,
+  },
+  recordDecision: {
+    title: "Record refinement decision",
+    description:
+      "Record an agreed conclusion with title and body against a specification revision. Optionally cite a resolved specification discussion using sourceThreadId; its original revision is retained. Requires a discipline that edits specifications or reviews. This records a conclusion, never approves a specification or resolves a discussion.",
+    decision: true,
+  },
+  setDecisionArchived: {
+    title: "Archive or restore decision",
+    description:
+      "Archive or restore a recorded conclusion. Its author or a specification editor may do this. The original text, revision and history are retained.",
+    decision: true,
+  },
   rankWorkItem: {
     title: "Rank work item",
     description:
@@ -198,7 +225,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   updateSpecification: {
     title: "Revise specification",
     description:
-      "Save a new revision of an item's title and Markdown specification. `baseRevisionId` must be the current revision (getWorkItem); a stale base is rejected with the current revision id. Material changes can stale approvals. Requires edit-specifications. Prefer createSuggestion when others should review the change.",
+      "Save a new revision of an item's title and Markdown specification before main is protected. `baseRevisionId` must be current (getWorkItem); a stale base is rejected. Material changes stale approvals. Requires edit-specifications. Prefer createBranch, commitBranch and createPullRequest for reviewed changes; protected main always requires a pull request.",
   },
   createThread: {
     title: "Start discussion",
@@ -227,7 +254,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   commitBranch: {
     title: "Commit to branch",
     description:
-      "Commit a new title and Markdown content to a branch. `baseCommitId` must be the branch head.",
+      "Commit a title, Markdown content and optional proposedChildren to a branch. Proposed children (stable workItemId, typeId, title, description) become shared items only after reviewed merge into main. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Existing accepted children must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
   },
   syncBranch: {
     title: "Sync branch",
@@ -279,7 +306,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createSuggestion: {
     title: "Create suggestion",
     description:
-      "Propose replacement Markdown for the specification with a title and rationale. Anyone in the organization can suggest; `open: false` saves a draft.",
+      "Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use createBranch, commitBranch and createPullRequest instead. Anyone in the organization can suggest; `open: false` saves a draft.",
   },
   updateSuggestion: {
     title: "Update suggestion",
@@ -634,8 +661,9 @@ const searchMembersCapability = defineCapability({
 
 const searchEpicsCapability = defineCapability({
   name: "searchEpics",
-  title: "Search epics",
-  description: "Find parent-level work items in a project by title or key.",
+  title: "Search parent items",
+  description:
+    "Find parent work items in a project by title or key. Pass childTypeId to search every type strictly above the child's hierarchy level; without it, search top-level types.",
   kind: "query",
   surfaces: everywhere,
   input: epicSearchSchema,
@@ -648,6 +676,7 @@ const searchEpicsCapability = defineCapability({
       q.q,
       q.offset,
       q.limit,
+      q.childTypeId,
     ),
 });
 
@@ -719,7 +748,7 @@ const listWorkItems = defineCapability({
   name: "listWorkItems",
   title: "List work items",
   description:
-    "List work item summaries with derived review, thread, suggestion, readiness and child counts. Filter by project, team, type, status, assignee, refinement state or text in the title/key.",
+    "List work item summaries with review, readiness, child counts and lifecycle stage. Filter by project, team, type, local status/assignee, refinement state, lifecycle stage or title/key. lifecycle=ready means ready for delivery (checks pass) and excludes accepted, active and completed work, active delivery and completed work. External delivery facts come from the provider link; use lifecycle for cross-mode progress.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({
@@ -735,6 +764,18 @@ const listWorkItems = defineCapability({
     parentId: id.optional(),
     iterationId: id.optional(),
     refinementState: z.enum(refinementStates).optional(),
+    lifecycle: z
+      .enum([
+        "proposal",
+        "refinement",
+        "review",
+        "ready",
+        "committed",
+        "underway",
+        "completed",
+        "canceled",
+      ])
+      .optional(),
     query: z.string().max(120).optional(),
     includeArchived: z.boolean().default(false),
     offset: z.number().int().min(0).default(0),
@@ -746,6 +787,15 @@ const listWorkItems = defineCapability({
       projectId: q.projectId,
     });
     const text = q.query?.trim().toLowerCase();
+    const delivery = deliveryIndex(roster);
+    const links = externalLinksByItem(entities, roster.delivery.targets);
+    const stageOf = (item: WorkItem) =>
+      lifecycleStage(
+        item,
+        roster.projects.find((p) => p.id === item.projectId)!,
+        delivery,
+        links.get(item.id),
+      );
     const items = entities
       .filter((e): e is WorkItem => e.type === "workItem")
       .filter(
@@ -758,6 +808,7 @@ const listWorkItems = defineCapability({
           (!q.parentId || i.parentId === q.parentId) &&
           (!q.iterationId || i.iterationId === q.iterationId) &&
           (!q.refinementState || i.refinementState === q.refinementState) &&
+          (!q.lifecycle || stageOf(i) === q.lifecycle) &&
           (!text ||
             i.title.toLowerCase().includes(text) ||
             keyOf(i, roster.projects).toLowerCase() === text),
@@ -765,9 +816,12 @@ const listWorkItems = defineCapability({
       .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
     return {
       total: items.length,
-      items: items
-        .slice(q.offset, q.offset + q.limit)
-        .map((i) => ({ key: keyOf(i, roster.projects), ...i })),
+      items: items.slice(q.offset, q.offset + q.limit).map((i) => ({
+        key: keyOf(i, roster.projects),
+        ...i,
+        lifecycle: stageOf(i),
+        externalDelivery: links.get(i.id) ?? null,
+      })),
     };
   },
 });
@@ -889,6 +943,7 @@ const getWorkItem = defineCapability({
       reviews: of("review"),
       assignments: of("assignment"),
       approvals: of("approval"),
+      decisions: of("decision"),
       threads: of("thread").map((t) => ({
         ...t,
         messages: messages.filter((m) => m.threadId === t.id),

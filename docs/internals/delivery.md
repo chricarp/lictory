@@ -90,6 +90,52 @@ Item activity records automatic refinement changes caused by a publication.
 These changes do not send notifications; a bulk configuration change would
 otherwise notify everyone involved in every affected item.
 
+## Agreed and delivered scope
+
+Readiness qualifies a specification for selection; it is not a delivery
+commitment. Native projects accept the current revision explicitly with
+`acceptDeliveryScope`. Accepting from Backlog also moves the item to the first
+unstarted workflow status when available. Merely assigning an iteration or
+choosing an unstarted status remains tentative. Starting work records the
+current revision automatically when no agreement exists, preserving the normal
+board workflow. The project's readiness policy applies to this first commitment
+and every explicit scope amendment; exceptions retain their failed checks in
+activity. Independent plain work has no specification gate. Plain implementation
+items under a specification inherit their nearest specification ancestor's
+readiness, so decomposing unsettled behavior into Tasks cannot bypass the gate.
+
+An accepted agreement keeps covering its work while a later amendment is
+refined: when the current revision differs from the accepted one, losing
+readiness on the amendment does not stop the item or its implementation
+children from starting. Missing evidence on the accepted revision itself, such
+as a new blocking discussion, still applies the policy.
+
+Agents never make that first commitment implicitly. Starting or completing a
+specification-backed item without an accepted revision through MCP or Litto is
+refused; the agent asks the person to accept the scope with the confirmable
+`acceptDeliveryScope` decision. Plain work keeps its fast path. Workflow
+configuration that moves items into started or Done categories (archiving a
+status, changing a status's category) records the same agreement and delivered
+revision as moving each item by hand.
+
+The accepted revision is stored separately from the current specification.
+Merging an amendment never silently advances the delivery agreement. The item
+shows the changed scope, offers a comparison, and asks an authorized person to
+accept the current revision. Acceptance targets the exact inspected revision and
+is available through UI, MCP and Litto, with the same decision controls.
+
+Moving to Done records the accepted revision as delivered. A later amendment or
+reopen leaves that record intact; closed work must be reopened before a new
+scope can be accepted. Completing the reopened work records its new accepted
+scope, while activity retains every earlier agreement and completion. Historical
+items without a recorded baseline are identified as such rather than inferring
+an agreement retrospectively.
+
+External projects use the published revision as their scope boundary. Jira owns
+delivery status and assignee; local commands cannot change these fields. A
+new Lictory revision is explicitly handed off as an update, never substituted
+for the last published revision merely because it became ready.
+
 ## Iterations
 
 Sprints and cycles are one concept, `iteration`, with a project-level mode:

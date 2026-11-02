@@ -18,6 +18,7 @@ import {
 
 import type { OnboardingSetup } from "@lictory/core/contracts/protocol";
 import type { ReadinessRules } from "@lictory/core/contracts/readiness";
+import type { ProposedChild } from "@lictory/core/contracts/decomposition";
 import type { AiFinding } from "@lictory/core/contracts/ai";
 import type { IntelligenceContextUse } from "@lictory/core/intelligence/shared";
 import { organization, user } from "@lictory/core/db/auth-schema";
@@ -591,6 +592,10 @@ export const workItem = pgTable(
     rank: text("rank").notNull(),
     // Revision of the parent specification this item was decomposed from.
     sourceRevisionId: text("source_revision_id"),
+    // Native delivery scope. These reference this item's immutable revisions;
+    // changes to main never advance either baseline implicitly.
+    committedRevisionId: text("committed_revision_id"),
+    deliveredRevisionId: text("delivered_revision_id"),
     // Readiness checks revision the item stays evaluated under because it was
     // ready or done when newer checks were published. Null follows the latest.
     readinessRevisionId: text("readiness_revision_id"),
@@ -845,6 +850,10 @@ export const specificationCommit = pgTable(
     workItemId: text("work_item_id").notNull(),
     title: text("title").notNull(),
     content: text("content").notNull(),
+    proposedChildren: jsonb("proposed_children")
+      .$type<ProposedChild[]>()
+      .notNull()
+      .default([]),
     parentIds: jsonb("parent_ids").$type<string[]>().notNull().default([]),
     message: text("message").notNull(),
     authorId: actor("author_id"),

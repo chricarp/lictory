@@ -34,11 +34,13 @@ export async function searchEpics(
   offset: number,
   limit = 20,
   signal?: AbortSignal,
+  childTypeId?: string,
 ) {
   signal?.throwIfAborted();
   const page = await callCapability("searchEpics", {
     organizationId,
     projectId,
+    childTypeId,
     q: query,
     offset,
     limit,

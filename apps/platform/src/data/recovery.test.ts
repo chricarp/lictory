@@ -182,3 +182,55 @@ void test("signing out removes a person's kept text and branch drafts only", () 
     "lictory:recovery:u2:o1",
   ]);
 });
+
+void test("a rejected breakdown proposal stays recoverable until its exact scope is synchronized", () => {
+  const proposedChildren = [
+    {
+      workItemId: "00000000-0000-4000-8000-000000000042",
+      typeId: "task",
+      title: "Safe retries",
+      description: "Keep transaction IDs.",
+    },
+  ];
+  const command: Command = {
+    type: "commitBranch",
+    workItemId: "item",
+    branchId: "branch",
+    baseCommitId: "old",
+    title: "Retries",
+    content: "Behavior",
+    message: "Propose tasks",
+    proposedChildren,
+  };
+  const commit = {
+    type: "specCommit",
+    id: "commit",
+    organizationId: "org",
+    workItemId: "item",
+    title: "Retries",
+    content: "Behavior",
+    message: "Propose tasks",
+    proposedChildren: [],
+    parentIds: ["old"],
+    authorId: "user",
+    revisionId: null,
+    createdAt: "2026-01-01",
+  } as const;
+  assert.match(recoveryText(command), /Keep transaction IDs/);
+  assert.equal(
+    effectPresent(command, {
+      "specCommit:commit": {
+        ...commit,
+        parentIds: ["old"],
+        proposedChildren: [],
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    effectPresent(command, {
+      "specCommit:commit": { ...commit, parentIds: ["old"], proposedChildren },
+    }),
+    true,
+  );
+});

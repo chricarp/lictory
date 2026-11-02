@@ -114,7 +114,7 @@ for (const mode of ["native", "external"] as const)
     await page
       .getByRole("button", { name: "Invite 1 and finish", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/pay\/epics$/);
+    await expect(page).toHaveURL(/\/pay\/proposals$/);
     expect(interrupted).toBe(true);
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
     const db = drizzle(client);
@@ -191,7 +191,7 @@ test("organizations choose and change URL handles with server validation and adm
     project: "Payments",
     key: "PAY",
   });
-  await expect(page).toHaveURL(new RegExp(`/${handle}/pay/epics$`));
+  await expect(page).toHaveURL(new RegExp(`/${handle}/pay/proposals$`));
 
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
@@ -354,8 +354,8 @@ test("organizations choose and change URL handles with server validation and adm
       page.getByLabel("Organization handle", { exact: true }),
     ).toHaveValue(nextHandle);
     await expect(
-      page.getByRole("link", { name: "Epics", exact: true }),
-    ).toHaveAttribute("href", paths.list(nextHandle, "PAY", "epics"));
+      page.getByRole("link", { name: "Proposals", exact: true }),
+    ).toHaveAttribute("href", paths.proposals(nextHandle, "PAY"));
     await expect(
       memberPage.getByRole("link", { name: "General", exact: true }),
     ).toHaveAttribute("href", paths.settings(nextHandle, "general"));
@@ -508,7 +508,7 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
   await page
     .getByRole("button", { name: "Skip and finish", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/pay\/epics$/);
+  await expect(page).toHaveURL(/\/pay\/proposals$/);
   const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);

@@ -70,10 +70,10 @@ test("empty states load compact static artwork and remain actionable", async ({
     planning: "manual",
   });
   const projectUrl = page.url();
-  const workspace = projectUrl.replace(/\/art\/epics$/, "");
+  const workspace = projectUrl.replace(/\/art\/proposals$/, "");
   const artwork = page.locator('img[src^="/illustrations/"]');
   await expect(
-    page.getByRole("heading", { name: "No epics yet" }),
+    page.getByRole("heading", { name: "Start with a proposal" }),
   ).toBeVisible();
   await expect(artwork).toHaveAttribute("src", illustrationAssets.proposal);
   await expect(artwork).toHaveAttribute("alt", "");
@@ -95,8 +95,8 @@ test("empty states load compact static artwork and remain actionable", async ({
   for (const [view, label, kind] of [
     ["needs-review", "Needs review", "teamReview"],
     ["blocked", "Blocked", "blocked"],
-    ["ready", "Ready for development", "ready"],
-    ["drafts", "Drafts", "drafts"],
+    ["ready", "Ready for delivery", "ready"],
+    ["drafts", "Proposals", "drafts"],
     ["updated", "Recently updated", "updated"],
   ] as const) {
     await page.goto(`${workspace}/art/views/${view}`);
@@ -151,7 +151,7 @@ test("empty states load compact static artwork and remain actionable", async ({
   await page
     .getByRole("textbox", { name: "Filter by title or identifier" })
     .fill("");
-  await page.getByRole("button", { name: "Create an Epic C" }).click();
+  await page.getByRole("button", { name: "Create a proposal C" }).click();
   await page
     .getByRole("textbox", { name: "Title", exact: true })
     .fill("First proposal");
@@ -162,7 +162,7 @@ test("empty states load compact static artwork and remain actionable", async ({
   await expect(
     page.locator(`img[src="${illustrationAssets.proposal}"]`),
   ).toHaveCount(0);
-  await page.goto(`${workspace}/art/epics/ART-999999`);
+  await page.goto(`${workspace}/art/items/ART-999999`);
   await expect(page.getByRole("heading", { name: /not found/i })).toBeVisible();
   await expect(artwork).toHaveAttribute("src", illustrationAssets.search);
   expect(optimizedRequests).toEqual([]);

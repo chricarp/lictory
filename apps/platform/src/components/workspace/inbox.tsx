@@ -16,14 +16,18 @@ import { EmptyState } from "@lictory/ui/primitives";
 import { paths } from "@lictory/core/lib/paths";
 import {
   identifier,
-  categoryOf,
   statusOf,
   needsMyReview,
   relativeTime,
-  segmentOf,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
+import {
+  deliveryCategory,
+  externalLinksByItem,
+  lifecycleStage,
+  readyForSelection,
+} from "@lictory/core/lib/lifecycle";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import { StatusIcon } from "@lictory/platform/components/items/status";
@@ -42,13 +46,22 @@ type Entry = {
 // on my items, items of mine that became ready. An entry disappears when the
 // underlying state resolves, unlike notifications, which record events.
 export function useAttention() {
-  const { items, userId, disciplineIds, delivery } = useWorkspace();
+  const { items, userId, disciplineIds, delivery, projects, directory, view } =
+    useWorkspace();
   return useMemo<Entry[]>(() => {
     const mine = (i: WorkItem) =>
       i.assigneeId === userId || i.createdById === userId;
     const list: Entry[] = [];
+    const links = externalLinksByItem(
+      Object.values(view.entities),
+      directory.delivery.targets,
+    );
     for (const item of items) {
       if (item.archivedAt) continue;
+      const project = projects.find((p) => p.id === item.projectId);
+      if (!project) continue;
+      const link = links.get(item.id);
+      const stage = lifecycleStage(item, project, delivery, link);
       if (needsMyReview(item, userId, disciplineIds)) {
         const pending = item.reviews.filter(
           (r) =>
@@ -96,14 +109,43 @@ export function useAttention() {
         });
       else if (
         mine(item) &&
-        item.refinementState === "ready" &&
-        !["started", "done", "canceled"].includes(
-          categoryOf(delivery, item) ?? "",
-        )
+        stage !== "completed" &&
+        stage !== "canceled" &&
+        (project.deliveryMode === "external"
+          ? Boolean(
+              link?.publishedRevisionId &&
+              link.publishedRevisionId !== item.revisionId,
+            )
+          : Boolean(
+              item.committedRevisionId &&
+              item.committedRevisionId !== item.revisionId,
+            ))
       )
         list.push({
           item,
-          reason: "Ready for development",
+          reason: "Scope changed after commitment",
+          detail:
+            "Review the current specification against the scope selected for delivery.",
+          icon: <MessageSquareWarning className="size-4 text-warning" />,
+          weight: 2,
+        });
+      else if (
+        mine(item) &&
+        stage === "underway" &&
+        item.refinementState &&
+        item.refinementState !== "ready"
+      )
+        list.push({
+          item,
+          reason: "Requirements need attention",
+          detail: `Delivery is underway; ${item.readinessPassed}/${item.readinessTotal} readiness checks pass.`,
+          icon: <CircleAlert className="size-4 text-warning" />,
+          weight: 2,
+        });
+      else if (mine(item) && readyForSelection(item, project, delivery, link))
+        list.push({
+          item,
+          reason: "Ready for delivery",
           detail: `${item.readinessPassed}/${item.readinessTotal} checks pass`,
           icon: <CircleCheckBig className="size-4 text-success" />,
           weight: 3,
@@ -113,11 +155,27 @@ export function useAttention() {
       (a, b) =>
         a.weight - b.weight || b.item.updatedAt.localeCompare(a.item.updatedAt),
     );
-  }, [items, userId, disciplineIds, delivery]);
+  }, [
+    items,
+    userId,
+    disciplineIds,
+    delivery,
+    projects,
+    directory.delivery.targets,
+    view.entities,
+  ]);
 }
 
 export function AttentionList({ entries }: { entries: Entry[] }) {
-  const { projects, organization, delivery } = useWorkspace();
+  const { projects, organization, delivery, directory, view } = useWorkspace();
+  const links = useMemo(
+    () =>
+      externalLinksByItem(
+        Object.values(view.entities),
+        directory.delivery.targets,
+      ),
+    [view.entities, directory.delivery.targets],
+  );
   // Rendered incrementally: very large organizations can have thousands of
   // items, but attention is scarce; the first page is what matters.
   const PAGE = 50;
@@ -140,7 +198,6 @@ export function AttentionList({ entries }: { entries: Entry[] }) {
                     href={paths.item(
                       organization.slug,
                       project?.key ?? "",
-                      segmentOf(typeOf(delivery, item)),
                       identifier(project, item.number),
                     )}
                     className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"
@@ -156,8 +213,21 @@ export function AttentionList({ entries }: { entries: Entry[] }) {
                       </div>
                       <div className="mt-0.5 flex items-center gap-2 text-[13px]">
                         <StatusIcon
-                          category={categoryOf(delivery, item)}
-                          color={statusOf(delivery, item)?.color}
+                          category={
+                            project
+                              ? deliveryCategory(
+                                  item,
+                                  project,
+                                  delivery,
+                                  links.get(item.id),
+                                )
+                              : undefined
+                          }
+                          color={
+                            project?.deliveryMode === "external"
+                              ? undefined
+                              : statusOf(delivery, item)?.color
+                          }
                         />
                         <TypeIcon type={typeOf(delivery, item)} />
                         <IssueIdentifier

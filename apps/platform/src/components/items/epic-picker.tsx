@@ -6,7 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { TypeIcon, epicGlyph } from "@lictory/platform/components/items/icons";
+import { TypeIcon } from "@lictory/platform/components/items/icons";
+import { Layers } from "lucide-react";
 import { Picker, Popover, type PickerOption } from "@lictory/ui/popover";
 import { useDebouncedCallback } from "@lictory/ui/use-debounced-callback";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -17,13 +18,14 @@ import type { EpicSummary } from "@lictory/core/contracts/protocol";
 const PAGE_SIZE = 20;
 const noEpicOption: PickerOption<string> = {
   value: "none",
-  label: "No epic",
+  label: "No parent",
 };
 
 export function EpicPicker({
   parentId,
   projectId,
   projectKey,
+  childTypeId,
   selected,
   onChange,
   className,
@@ -31,6 +33,7 @@ export function EpicPicker({
   parentId: string | null;
   projectId: string;
   projectKey?: string;
+  childTypeId?: string;
   selected?: EpicSummary;
   onChange: (parentId: string | null) => void;
   className?: string;
@@ -99,12 +102,12 @@ export function EpicPicker({
           }}
         >
           <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
-            <TypeIcon type={epicGlyph} />
+            <ParentTypeIcon typeId={current?.typeId} />
           </span>
           <input
             ref={inputRef}
             role="combobox"
-            aria-label={`Epic: ${name ?? "None"}`}
+            aria-label={`Parent: ${name ?? "None"}`}
             aria-expanded={open}
             aria-haspopup="listbox"
             aria-controls={listId}
@@ -115,7 +118,7 @@ export function EpicPicker({
                 : undefined
             }
             value={open ? query : (name ?? "")}
-            placeholder="Search for an epic…"
+            placeholder="Search for a parent…"
             autoComplete="off"
             spellCheck={false}
             className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
@@ -145,6 +148,7 @@ export function EpicPicker({
                 if (option) choose(option.value);
               } else if (event.key === "Escape") {
                 event.preventDefault();
+                event.stopPropagation();
                 close();
                 inputRef.current?.blur();
               }
@@ -159,7 +163,9 @@ export function EpicPicker({
       )}
     >
       <EpicOptions
+        key={`${projectId}:${childTypeId ?? "top"}`}
         projectId={projectId}
+        childTypeId={childTypeId}
         projectKey={projectKey}
         query={query}
         value={parentId ?? "none"}
@@ -178,6 +184,7 @@ export function EpicPicker({
 function EpicOptions({
   projectId,
   projectKey,
+  childTypeId,
   query,
   value,
   selected,
@@ -190,6 +197,7 @@ function EpicOptions({
 }: {
   projectId: string;
   projectKey?: string;
+  childTypeId?: string;
   query: string;
   value: string;
   selected?: EpicSummary;
@@ -201,23 +209,21 @@ function EpicOptions({
   onSelect: (value: string) => void;
 }) {
   const { organization } = useWorkspace();
-  const { epics, loading, hasMore, loadMore, search } = useEpicSearch(
-    organization.id,
-    projectId,
-  );
+  const { epics, loading, hasMore, loadMore, search, error, retry } =
+    useEpicSearch(organization.id, projectId, childTypeId);
   const options = useMemo(() => {
     const loadedIds = new Set(epics.map((epic) => epic.id));
     const pinned =
       !query && selected && !loadedIds.has(selected.id) ? [selected] : [];
     return [
-      ...(!query || "no epic".includes(query.trim().toLowerCase())
+      ...(!query || "no parent".includes(query.trim().toLowerCase())
         ? [noEpicOption]
         : []),
       ...pinned.concat(epics).map((epic) => ({
         value: epic.id,
         label: epic.title,
         hint: `${projectKey ? `${projectKey}-` : ""}${epic.number}`,
-        icon: <TypeIcon type={epicGlyph} />,
+        icon: <ParentTypeIcon typeId={epic.typeId} />,
       })),
     ];
   }, [epics, projectKey, query, selected]);
@@ -229,27 +235,43 @@ function EpicOptions({
     search(query);
   }, [query, search]);
   return (
-    <Picker
-      options={options}
-      value={value}
-      onSelect={onSelect}
-      emptyText="No epics match."
-      searchable
-      hideSearch
-      loading={loading}
-      hasMore={hasMore}
-      activeIndex={activeIndex}
-      onActiveIndexChange={onActiveIndexChange}
-      listboxId={listboxId}
-      onEndReached={loadMore}
-    />
+    <>
+      <Picker
+        options={options}
+        value={value}
+        onSelect={onSelect}
+        emptyText={error ?? "No parent items match."}
+        searchable
+        hideSearch
+        loading={loading}
+        hasMore={hasMore}
+        activeIndex={activeIndex}
+        onActiveIndexChange={onActiveIndexChange}
+        listboxId={listboxId}
+        onEndReached={loadMore}
+      />
+      {error && (
+        <button
+          type="button"
+          onClick={retry}
+          className="w-full border-t px-3 py-2 text-left text-xs text-primary hover:bg-muted"
+        >
+          Retry loading parents
+        </button>
+      )}
+    </>
   );
 }
 
-function useEpicSearch(organizationId: string, projectId: string) {
+function useEpicSearch(
+  organizationId: string,
+  projectId: string,
+  childTypeId?: string,
+) {
   const [epics, setEpics] = useState<EpicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
+  const [error, setError] = useState<string>();
   const offsetRef = useRef(0);
   const queryRef = useRef("");
   const requestRef = useRef(0);
@@ -263,6 +285,7 @@ function useEpicSearch(organizationId: string, projectId: string) {
       const request = ++requestRef.current;
       loadingRef.current = true;
       setLoading(true);
+      setError(undefined);
       const offset = reset ? 0 : offsetRef.current;
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -275,6 +298,7 @@ function useEpicSearch(organizationId: string, projectId: string) {
           offset,
           PAGE_SIZE,
           controller.signal,
+          childTypeId,
         );
         if (request !== requestRef.current) return;
         offsetRef.current = offset + page.epics.length;
@@ -286,6 +310,7 @@ function useEpicSearch(organizationId: string, projectId: string) {
       } catch (error) {
         if (request !== requestRef.current) return;
         if (error instanceof Error && error.name === "AbortError") return;
+        setError("Parent items could not be loaded.");
         hasMoreRef.current = false;
         setHasMore(false);
         if (reset) setEpics([]);
@@ -296,7 +321,7 @@ function useEpicSearch(organizationId: string, projectId: string) {
         }
       }
     },
-    [organizationId, projectId],
+    [organizationId, projectId, childTypeId],
   );
   const searchNow = useCallback(
     (value: string) => {
@@ -310,10 +335,24 @@ function useEpicSearch(organizationId: string, projectId: string) {
     void load(false);
   }, [load]);
   useEffect(() => () => abortRef.current?.abort(), []);
-  return { epics, loading, hasMore, loadMore, search };
+  return {
+    epics,
+    loading,
+    hasMore,
+    loadMore,
+    search,
+    error,
+    retry: () => void load(true),
+  };
 }
 
 function mergeEpics(current: EpicSummary[], next: EpicSummary[]) {
   const seen = new Set(current.map((epic) => epic.id));
   return [...current, ...next.filter((epic) => !seen.has(epic.id))];
+}
+
+function ParentTypeIcon({ typeId }: { typeId?: string }) {
+  const { delivery } = useWorkspace();
+  const type = typeId ? delivery.types.get(typeId) : undefined;
+  return type ? <TypeIcon type={type} /> : <Layers className="size-3.5" />;
 }

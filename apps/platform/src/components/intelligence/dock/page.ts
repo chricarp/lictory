@@ -27,8 +27,8 @@ const labels: Record<PageKind, string> = {
   settings: "Organization settings",
   account: "Account settings",
   project: "Project",
-  epics: "Epics",
-  items: "Work items",
+  epics: "All items",
+  items: "All items",
   item: "Work item",
   board: "Board",
   backlog: "Backlog",
@@ -62,6 +62,7 @@ export function pageOf(pathname: string): { kind: PageKind; label: string } {
         return "project";
       case "epics":
         return third ? "item" : "epics";
+      case "items":
       case "stories":
         return third ? "item" : "items";
       case "board":
@@ -73,6 +74,8 @@ export function pageOf(pathname: string): { kind: PageKind; label: string } {
         return "iteration";
       case "teams":
         return "team";
+      case "proposals":
+      case "refinement":
       case "views":
         return "view";
       case "settings":
@@ -81,7 +84,15 @@ export function pageOf(pathname: string): { kind: PageKind; label: string } {
         return "project";
     }
   })();
-  return { kind, label: labels[kind] };
+  return {
+    kind,
+    label:
+      second === "proposals"
+        ? "Proposals"
+        : second === "refinement"
+          ? "Refinement"
+          : labels[kind],
+  };
 }
 
 export type Suggestion = { label: string; prompt: string };

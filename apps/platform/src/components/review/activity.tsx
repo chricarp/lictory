@@ -102,6 +102,40 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    case "delivery_scope_committed":
+      body = (
+        <>
+          accepted <b>revision {num(d.revision)}</b> for delivery
+          {Array.isArray(d.failingChecks) && d.failingChecks.length > 0 && (
+            <span className="text-warning">
+              {" "}
+              before all readiness checks passed
+            </span>
+          )}
+        </>
+      );
+      break;
+    case "delivery_scope_completed":
+      body = (
+        <>
+          recorded <b>revision {num(d.revision)}</b> as delivered
+        </>
+      );
+      break;
+    case "decision_recorded":
+      body = (
+        <>
+          recorded decision <b>{str(d.title)}</b>
+        </>
+      );
+      break;
+    case "decision_archive_changed":
+      body = (
+        <>
+          {d.archived ? "archived" : "restored"} decision <b>{str(d.title)}</b>
+        </>
+      );
+      break;
     // Status names are recorded at the time of the change, so history keeps
     // reading correctly after a team renames or archives a status.
     case "status_changed": {
@@ -293,8 +327,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       body = (
         <>
           {str(d.to)
-            ? "moved this into another epic"
-            : "removed this from its epic"}
+            ? "moved this under another parent"
+            : "removed this from its parent"}
         </>
       );
       break;
@@ -655,6 +689,12 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       />
       <p className="min-w-0 flex-1">
         <span className="font-medium">{actor}</span> {body}
+        {(d.performedVia === "agent" || d.performedVia === "mcp") && (
+          <span className="ml-1 text-xs text-muted-foreground">
+            via {d.performedVia === "agent" ? "Litto" : "MCP"}
+            {str(d.agentClient) ? ` (${str(d.agentClient)})` : ""}
+          </span>
+        )}
       </p>
       <time
         className="shrink-0 text-xs text-muted-foreground"

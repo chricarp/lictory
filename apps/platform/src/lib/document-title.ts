@@ -45,15 +45,23 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
     default: {
       // Project-scoped surfaces.
       if (second === undefined) parts.push(context);
-      else if (second === "epics" || second === "stories") {
-        if (third === undefined)
-          parts.push(second === "epics" ? "Epics" : "Work items", context);
+      else if (
+        second === "epics" ||
+        second === "stories" ||
+        second === "items"
+      ) {
+        if (third === undefined) parts.push("All items", context);
         else {
           const title = itemTitle(third, ctx);
           if (title) parts.push(title);
           parts.push(context);
         }
-      } else if (second === "reviews") parts.push("Needs my review", context);
+      } else if (second === "proposals") parts.push("Proposals", context);
+      else if (second === "refinement") parts.push("Refinement", context);
+      else if (second === "board") parts.push("Board", context);
+      else if (second === "backlog") parts.push("Backlog", context);
+      else if (second === "handoff") parts.push("Hand-off", context);
+      else if (second === "reviews") parts.push("Needs my review", context);
       else if (second === "views" && third) {
         const view = views.find((v) => v.id === third);
         parts.push(view?.label ?? "View", context);

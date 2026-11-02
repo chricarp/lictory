@@ -8,6 +8,7 @@ import {
 } from "@lictory/core/contracts/ai";
 import { intelligenceContextUseSchema } from "@lictory/core/intelligence/shared";
 import { readinessRulesSchema } from "@lictory/core/contracts/readiness";
+import { proposedChildrenSchema } from "@lictory/core/contracts/decomposition";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -192,6 +193,10 @@ export const entitySchema = z.discriminatedUnion("type", [
     position: z.number().int(),
     rank: z.string(),
     sourceRevisionId: id.nullable(),
+    committedRevisionId: id.nullable().optional(),
+    committedRevisionNumber: z.number().int().nullable().optional(),
+    deliveredRevisionId: id.nullable().optional(),
+    deliveredRevisionNumber: z.number().int().nullable().optional(),
     createdById: id,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -243,6 +248,7 @@ export const entitySchema = z.discriminatedUnion("type", [
     workItemId: id,
     title: z.string(),
     content: z.string(),
+    proposedChildren: proposedChildrenSchema.default([]),
     parentIds: z.array(id),
     message: z.string(),
     authorId: id,
@@ -460,6 +466,20 @@ export const entitySchema = z.discriminatedUnion("type", [
     detail: z.record(z.string(), z.unknown()).nullable(),
     createdAt: z.string(),
   }),
+  z.object({
+    ...base,
+    type: z.literal("decision"),
+    projectId: id,
+    workItemId: id,
+    revisionId: id,
+    sourceThreadId: id.nullable(),
+    title: z.string(),
+    body: z.string(),
+    authorId: id,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    archivedAt: z.string().nullable(),
+  }),
 ]);
 export type Entity = z.infer<typeof entitySchema>;
 export type EntityType = Entity["type"];
@@ -664,6 +684,7 @@ export type MemberPage = z.infer<typeof memberPageSchema>;
 export const epicSummarySchema = z.object({
   id,
   projectId: id,
+  typeId: id.optional(),
   number: z.number().int().positive(),
   title: z.string(),
 });
@@ -671,6 +692,9 @@ export type EpicSummary = z.infer<typeof epicSummarySchema>;
 export const epicSearchSchema = z.object({
   organizationId: id,
   projectId: id,
+  // Omitted by legacy callers searching top-level work. New parent pickers
+  // pass the child type so every strictly higher level is eligible.
+  childTypeId: id.optional(),
   q: z.string().max(120).optional().default(""),
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -877,7 +901,7 @@ export const directorySchema = z.object({
     .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 13 as const;
+export const PROTOCOL = 14 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -1029,6 +1053,10 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   // Backlog/board order: place between two neighbours (null = open end).
   z.object({
+    type: z.literal("acceptDeliveryScope"),
+    ...revisionCommand,
+  }),
+  z.object({
     type: z.literal("rankWorkItem"),
     ...itemCommand,
     afterId: id.nullable(),
@@ -1086,6 +1114,20 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("archiveWorkItem"),
     ...itemCommand,
+    archived: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("recordDecision"),
+    ...revisionCommand,
+    decisionId: z.uuid(),
+    title: text.max(240),
+    body: text.max(20_000),
+    sourceThreadId: id.optional(),
+  }),
+  z.object({
+    type: z.literal("setDecisionArchived"),
+    ...itemCommand,
+    decisionId: id,
     archived: z.boolean(),
   }),
   z.object({
@@ -1162,6 +1204,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     baseCommitId: id,
     title: text.max(240),
     content: document,
+    proposedChildren: proposedChildrenSchema.optional(),
     message: text.max(500),
     // A conflict resolution may only replace the exact head shown to the user.
     expectedHeadId: id.optional(),
@@ -1175,6 +1218,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     targetHeadId: id,
     title: text.max(240).optional(),
     content: document.optional(),
+    proposedChildren: proposedChildrenSchema.optional(),
   }),
   z.object({ type: z.literal("deleteBranch"), ...itemCommand, branchId: id }),
   z.object({

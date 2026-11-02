@@ -9,6 +9,7 @@ import {
   DomainError,
   advanceSchedules,
   directory,
+  executeMutation,
   iterationReport,
   readinessHistory,
   readinessPreview,
@@ -204,6 +205,486 @@ async function fixture() {
     current,
   };
 }
+void test("delivery agreements and completion retain the revision accepted instead of following main", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Todo,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, null);
+  const mutationId = crypto.randomUUID();
+  const accept: Command = {
+    type: "acceptDeliveryScope",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+  };
+  await f.command(accept, f.userId, mutationId);
+  await f.command(accept, f.userId, mutationId);
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, first.id);
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionNumber, 1);
+  assert.equal(
+    (await f.entities()).filter(
+      (e) => e.type === "activity" && e.action === "delivery_scope_committed",
+    ).length,
+    1,
+  );
+  // The warning policy permits this agreement and preserves its missing checks.
+  const agreement = (await f.entities()).find(
+    (e) => e.type === "activity" && e.action === "delivery_scope_committed",
+  );
+  assert.ok(
+    agreement?.type === "activity" &&
+      Array.isArray(agreement.detail?.failingChecks) &&
+      agreement.detail.failingChecks.length > 0,
+  );
+  await f.command({
+    type: "updateSpecification",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+    title: first.title,
+    content: "A revised scope that has not been accepted.",
+  });
+  const second = await f.current();
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, first.id);
+  await assert.rejects(f.command(accept), /specification changed/i);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Done,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionId, first.id);
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionNumber, 1);
+  await assert.rejects(
+    f.command({ ...accept, baseRevisionId: second.id }),
+    /Reopen/,
+  );
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses["In Progress"],
+  });
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionId, first.id);
+  await f.command({ ...accept, baseRevisionId: second.id });
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, second.id);
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionId, first.id);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Done,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionId, second.id);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("first native start records scope while explicit commitment obeys readiness and authorization", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  const accept: Command = {
+    type: "acceptDeliveryScope",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+  };
+  await assert.rejects(
+    f.command(accept, f.reviewerId),
+    /change item properties/i,
+  );
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    readinessPolicy: "block",
+  });
+  await assert.rejects(f.command(accept), /not ready to commit/i);
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, null);
+  await f.command({
+    type: "publishReadinessChecks",
+    projectId: f.projectId,
+    baseRevisionId: null,
+    rules: {
+      [f.types.Story]: [{ id: "specification", kind: "specification" }],
+    },
+  });
+  await f.command(accept);
+  const agreed = await itemOf(f, f.proposalId);
+  assert.equal(agreed.statusId, f.statuses.Todo);
+  assert.equal(agreed.committedRevisionId, first.id);
+
+  const taskId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: taskId,
+    typeId: f.types.Task,
+    parentId: null,
+    title: "Small operational task",
+  });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  const task = await itemOf(f, taskId);
+  assert.equal(task.committedRevisionId, task.revisionId);
+  assert.equal(task.committedRevisionNumber, 1);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("plain implementation work inherits parent readiness without gating independent tasks", async () => {
+  const f = await fixture();
+  const epicId = crypto.randomUUID();
+  const taskId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: epicId,
+    typeId: f.types.Epic,
+    parentId: null,
+    title: "Payment behavior",
+    description: "Define stable payment behavior.",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: taskId,
+    typeId: f.types.Task,
+    parentId: epicId,
+    title: "Implement payment behavior",
+  });
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    readinessPolicy: "block",
+  });
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: taskId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /Parent specification PAY-2 is not ready/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "acceptDeliveryScope",
+      workItemId: taskId,
+      baseRevisionId: (await itemOf(f, taskId)).revisionId,
+    }),
+    /Parent specification PAY-2 is not ready/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Task,
+      parentId: epicId,
+      title: "Cannot bypass gate at creation",
+      statusId: f.statuses.Done,
+    }),
+    /Parent specification PAY-2 is not ready/,
+  );
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    readinessPolicy: "warn",
+  });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  const rows = await db
+    .select()
+    .from(s.activity)
+    .where(
+      and(
+        eq(s.activity.organizationId, f.organizationId),
+        eq(s.activity.workItemId, taskId),
+      ),
+    );
+  assert.ok(
+    rows.some(
+      (a) =>
+        a.action === "delivery_scope_committed" &&
+        Array.isArray(a.detail?.failingChecks) &&
+        a.detail.failingChecks.some(
+          (c) => typeof c === "string" && c.includes("PAY-2"),
+        ),
+    ),
+  );
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: taskId,
+    statusId: f.statuses.Todo,
+  });
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    readinessPolicy: "block",
+  });
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: taskId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /Parent specification PAY-2 is not ready/,
+  );
+  await f.command({
+    type: "publishReadinessChecks",
+    projectId: f.projectId,
+    baseRevisionId: null,
+    rules: { [f.types.Epic]: [{ id: "specification", kind: "specification" }] },
+  });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  assert.equal((await itemOf(f, taskId)).statusId, f.statuses["In Progress"]);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("an accepted parent scope keeps covering its work while the parent is amended", async () => {
+  const f = await fixture();
+  const epic = async (title: string) => {
+    const epicId = crypto.randomUUID();
+    const taskId = crypto.randomUUID();
+    await f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: epicId,
+      typeId: f.types.Epic,
+      parentId: null,
+      title,
+      description: "Define stable payment behavior.",
+    });
+    await f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: taskId,
+      typeId: f.types.Task,
+      parentId: epicId,
+      title: `Implement ${title}`,
+    });
+    // The warning policy records this agreement with its missing evidence.
+    await f.command({
+      type: "acceptDeliveryScope",
+      workItemId: epicId,
+      baseRevisionId: (await itemOf(f, epicId)).revisionId,
+    });
+    return { epicId, taskId };
+  };
+  const amended = await epic("Amended behavior");
+  const agreed = (await itemOf(f, amended.epicId)).revisionId;
+  await f.command({
+    type: "updateSpecification",
+    workItemId: amended.epicId,
+    baseRevisionId: agreed,
+    title: "Amended behavior",
+    content: "Define stable payment behavior, including cancellation.",
+  });
+  const unchanged = await epic("Unchanged behavior");
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    readinessPolicy: "block",
+  });
+  // The amendment awaits agreement; the accepted revision keeps going.
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: amended.taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: amended.epicId,
+    statusId: f.statuses["In Progress"],
+  });
+  assert.equal((await itemOf(f, amended.epicId)).committedRevisionId, agreed);
+  // Missing evidence on the agreed revision itself still blocks new work.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: unchanged.taskId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /Parent specification PAY-\d+ is not ready/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: unchanged.epicId,
+      statusId: f.statuses["In Progress"],
+    }),
+    /is not ready to start/,
+  );
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("agents accept specification scope explicitly instead of implicitly by moving status", async () => {
+  const f = await fixture();
+  const agent = { userId: f.userId, surface: "mcp" as const, client: "test" };
+  const run = (command: Command) =>
+    executeMutation(db, agent, {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      command,
+    });
+  for (const statusId of [f.statuses["In Progress"], f.statuses.Done])
+    await assert.rejects(
+      run({ type: "updateWorkItem", workItemId: f.proposalId, statusId }),
+      /acceptDeliveryScope/,
+    );
+  await assert.rejects(
+    run({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Story,
+      parentId: null,
+      title: "Started by an agent",
+      statusId: f.statuses["In Progress"],
+    }),
+    /acceptDeliveryScope/,
+  );
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, null);
+  // Lightweight plain work keeps its fast path for agents.
+  const taskId = crypto.randomUUID();
+  await run({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: taskId,
+    typeId: f.types.Task,
+    parentId: null,
+    title: "Agent task",
+  });
+  await run({
+    type: "updateWorkItem",
+    workItemId: taskId,
+    statusId: f.statuses["In Progress"],
+  });
+  const first = await f.current();
+  await run({
+    type: "acceptDeliveryScope",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+  });
+  await run({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    statusId: f.statuses.Done,
+  });
+  assert.equal((await itemOf(f, f.proposalId)).deliveredRevisionId, first.id);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("workflow configuration that moves items records their delivery scope", async () => {
+  const f = await fixture();
+  const archivedId = crypto.randomUUID();
+  const recategorizedId = crypto.randomUUID();
+  const triage = crypto.randomUUID();
+  await f.command({
+    type: "createStatus",
+    projectId: f.projectId,
+    statusId: triage,
+    name: "Triage",
+    color: "gray",
+    category: "unstarted",
+  });
+  for (const [workItemId, statusId] of [
+    [archivedId, f.statuses.Todo],
+    [recategorizedId, triage],
+  ] as const)
+    await f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId,
+      typeId: f.types.Task,
+      parentId: null,
+      title: "Configured work",
+      statusId,
+    });
+  await f.command({
+    type: "archiveStatus",
+    projectId: f.projectId,
+    statusId: f.statuses.Todo,
+    replacementId: f.statuses.Done,
+  });
+  const archived = await itemOf(f, archivedId);
+  assert.equal(archived.committedRevisionId, archived.revisionId);
+  assert.equal(archived.deliveredRevisionId, archived.revisionId);
+  await f.command({
+    type: "updateStatus",
+    projectId: f.projectId,
+    statusId: triage,
+    category: "started",
+  });
+  const recategorized = await itemOf(f, recategorizedId);
+  assert.equal(recategorized.committedRevisionId, recategorized.revisionId);
+  assert.equal(recategorized.deliveredRevisionId, null);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("external delivery keeps status and assignee authoritative in the external tool", async () => {
+  const f = await fixture();
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    deliveryMode: "external",
+  });
+  for (const extra of [
+    { statusId: f.statuses["In Progress"] },
+    { assigneeId: f.userId },
+  ]) {
+    await assert.rejects(
+      f.command({
+        type: "createWorkItem",
+        projectId: f.projectId,
+        workItemId: crypto.randomUUID(),
+        typeId: f.types.Task,
+        parentId: null,
+        title: "External work",
+        ...extra,
+      }),
+      /managed in the delivery tool/,
+    );
+  }
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      statusId: f.statuses.Done,
+    }),
+    /managed in the delivery tool/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      assigneeId: f.userId,
+    }),
+    /managed in the delivery tool/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "acceptDeliveryScope",
+      workItemId: f.proposalId,
+      baseRevisionId: (await f.current()).id,
+    }),
+    /External delivery scope/,
+  );
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: f.proposalId,
+    priority: "high",
+  });
+  assert.equal((await itemOf(f, f.proposalId)).priority, "high");
+  assert.equal((await itemOf(f, f.proposalId)).committedRevisionId, null);
+});
+
 void test("domain workflow converges in the projections, retains history, and deduplicates retries", async () => {
   const f = await fixture();
   const initial = await f.read();
@@ -1133,6 +1614,81 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
   assert.deepEqual(
     identified.epics.map((epic) => epic.number),
     [2],
+  );
+
+  // Parent eligibility follows configured hierarchy, including types above
+  // Epic and ordinary work that can parent a Subtask.
+  const outcomeTypeId = crypto.randomUUID();
+  const outcomeId = crypto.randomUUID();
+  await db.insert(s.workItemType).values({
+    id: outcomeTypeId,
+    organizationId: f.organizationId,
+    name: "Outcome",
+    icon: "flag",
+    level: 3,
+    hasSpecification: true,
+  });
+  await db.insert(s.workItem).values({
+    id: outcomeId,
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: outcomeTypeId,
+    statusId: f.statuses.Backlog,
+    rank: "z2",
+    number: 28,
+    title: "Customer outcome",
+    createdById: f.userId,
+  });
+  const epicParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    f.types.Epic,
+  );
+  assert.deepEqual(
+    epicParents.epics.map((item) => item.id),
+    [outcomeId],
+  );
+  assert.equal(epicParents.epics[0]?.typeId, outcomeTypeId);
+  const taskParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    f.types.Subtask,
+  );
+  assert.ok(taskParents.epics.some((item) => item.id === f.proposalId));
+  const topParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    outcomeTypeId,
+  );
+  assert.deepEqual(topParents.epics, []);
+  await assert.rejects(
+    () =>
+      searchEpics(
+        db,
+        f.userId,
+        f.organizationId,
+        f.projectId,
+        "",
+        0,
+        50,
+        crypto.randomUUID(),
+      ),
+    /unavailable/,
   );
 
   const outsider = crypto.randomUUID();

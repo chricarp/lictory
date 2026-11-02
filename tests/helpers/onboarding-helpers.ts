@@ -31,10 +31,12 @@ export async function createWorkspace(
     await page
       .getByRole("button", { name: "Skip and finish", exact: true })
       .click();
-    await expect(page).toHaveURL(new RegExp(`/${key.toLowerCase()}/epics$`));
+    await expect(page).toHaveURL(
+      new RegExp(`/${key.toLowerCase()}/proposals$`),
+    );
     // The URL changes before the onboarding-to-workspace render finishes.
     await expect(
-      page.getByRole("heading", { name: "Epics", exact: true }),
+      page.getByRole("heading", { name: "Proposals", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "New item C", exact: true }),

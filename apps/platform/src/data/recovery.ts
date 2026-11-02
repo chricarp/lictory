@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Entities } from "@lictory/core/contracts/optimistic";
 import { commandSchema, type Command } from "@lictory/core/contracts/protocol";
+import { sameProposedChildren } from "@lictory/core/contracts/decomposition";
 
 // Text people wrote is kept in this browser until the server has accepted the
 // command that carries it. A rejected command (or a tab closed before the
@@ -34,6 +35,11 @@ export function authoredText(command: Command): AuthoredField[] {
             text: command.description,
           },
         ];
+      case "recordDecision":
+        return [
+          { label: "Conclusion", text: command.title },
+          { label: "Details", text: command.body },
+        ];
       case "updateSpecification":
         return [
           { label: "Title", text: command.title },
@@ -48,14 +54,23 @@ export function authoredText(command: Command): AuthoredField[] {
           { label: "Title", text: command.title },
           { label: "Specification", text: command.content },
           { label: "Commit message", text: command.message },
+          command.proposedChildren !== undefined && {
+            label: "Proposed breakdown",
+            text: JSON.stringify(command.proposedChildren, null, 2),
+          },
         ];
       case "syncBranch":
-        return command.content === undefined
-          ? []
-          : [
-              !!command.title && { label: "Title", text: command.title },
-              { label: "Specification", text: command.content },
-            ];
+        return [
+          !!command.title && { label: "Title", text: command.title },
+          command.content !== undefined && {
+            label: "Specification",
+            text: command.content,
+          },
+          command.proposedChildren !== undefined && {
+            label: "Proposed breakdown",
+            text: JSON.stringify(command.proposedChildren, null, 2),
+          },
+        ];
       case "createPullRequest":
         return [
           { label: "Title", text: command.title },
@@ -99,6 +114,8 @@ export function effectPresent(command: Command, entities: Entities): boolean {
   switch (command.type) {
     case "createProject":
       return !!entities[`project:${command.projectId}`];
+    case "recordDecision":
+      return !!entities[`decision:${command.decisionId}`];
     case "createWorkItem":
       return !!entities[`workItem:${command.workItemId}`];
     case "createThread":
@@ -132,6 +149,12 @@ export function effectPresent(command: Command, entities: Entities): boolean {
           e.type === "specCommit" &&
           e.workItemId === command.workItemId &&
           same(e.content, command.content) &&
+          same(e.title, command.title) &&
+          (command.proposedChildren === undefined ||
+            sameProposedChildren(
+              e.proposedChildren,
+              command.proposedChildren,
+            )) &&
           same(e.message, command.message),
       );
     case "syncBranch":
@@ -139,7 +162,10 @@ export function effectPresent(command: Command, entities: Entities): boolean {
         (e) =>
           e.type === "specCommit" &&
           e.workItemId === command.workItemId &&
-          same(e.content, command.content),
+          same(e.content, command.content) &&
+          (command.title === undefined || same(e.title, command.title)) &&
+          (command.proposedChildren === undefined ||
+            sameProposedChildren(e.proposedChildren, command.proposedChildren)),
       );
     default:
       return false;
