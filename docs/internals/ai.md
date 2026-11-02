@@ -29,6 +29,46 @@ assistant name does not change stored identifiers, routes or authorization.
   `OPENAI_API_KEY`. Turning it off fails queued runs before any content is
   sent.
 
+## What an AI approval means
+
+"Reviewed by AIs and humans" has three possible meanings. Lictory supports
+two, and deliberately not the third:
+
+1. **Automated check (supported).** A project's Definition of Ready can require
+   a Lictory Intelligence check: the latest item review analysed the item's
+   current revision and found no blocker (or no blocker or major finding)
+   about it. It is shown as a readiness check that names the run, model and
+   score, never as a discipline's approval, and it never satisfies
+   `reviews_approved` or `discipline_approval`. See
+   [the Definition of Ready](delivery.md#definition-of-ready).
+2. **Delegated decision (supported).** Litto or an MCP agent records a
+   person's approval on that person's explicit instruction, with their
+   authority. The approval belongs to the person and the revision; activity
+   records the surface it was made through (`performedVia`).
+3. **Policy-authorized endorsement (not supported).** An AI reviewer counting
+   toward a required discipline review. An approval states that an accountable
+   person accepted a revision for their discipline; a model run cannot be
+   accountable, and several agents behind one identity are not independent
+   reviewers. Teams that want AI evidence to gate work use the automated check,
+   which keeps the human decision visible beside it.
+
+Guarantees of the automated check:
+
+- **Belongs to a revision.** Only a review of the current revision counts; a
+  new revision needs a new review, like an approval.
+- **Never alone.** A type that requires it must also require a person's
+  decision (required reviews approved, a discipline's approval or a sign-off),
+  so Lictory Intelligence alone never makes a specification Ready.
+- **Humans stay authoritative.** Anyone holding a discipline in the project can
+  override the check for one revision (recorded like a sign-off, with activity
+  saying "overrode"), and withdraw the override. False positives and a
+  disabled or unconfigured Lictory Intelligence therefore never trap work, and
+  turning Lictory Intelligence off never passes the check silently.
+- **Moves readiness when it completes.** The worker writes the run and
+  re-evaluates the item's readiness in the same transaction, so a clean review
+  can make the item Ready and a later review with a blocker takes Ready away.
+  Activity records the change as automatic, caused by the completed review.
+
 ## Runs
 
 A run (`ai_run`) is one execution: an **item review** or a run of the

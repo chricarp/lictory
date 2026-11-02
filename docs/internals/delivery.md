@@ -63,6 +63,12 @@ type added later, needs no configuration. Kinds of checks:
   anyone holding a discipline in the project). A sign-off belongs to the
   specification revision it was given on, so a new revision needs a new one;
   withdrawing keeps the record.
+- Lictory Intelligence check (at most once per type): the latest Lictory
+  Intelligence review of the item analysed the current revision and found no
+  blocker (or no blocker or major finding) about it. It is an automated check,
+  not an approval: it can only be required beside a person's decision, and
+  anyone holding a discipline can override it for one revision. See
+  [what an AI approval means](ai.md#what-an-ai-approval-means).
 
 Labels are derived from what a check verifies, so a name never claims more
 than the check does; only sign-offs are named by people.

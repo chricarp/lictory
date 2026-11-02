@@ -132,6 +132,18 @@ export const readinessCheckSchema = z.object({
       signedOffAt: z.string().nullable(),
     })
     .optional(),
+  // Lictory Intelligence checks: the review the result comes from.
+  intelligence: z
+    .object({
+      runId: id.nullable(),
+      reviewedCurrent: z.boolean(),
+      findings: z.number().int(),
+      score: z.number().int().nullable(),
+      model: z.string().nullable(),
+      completedAt: z.string().nullable(),
+      overridden: z.boolean(),
+    })
+    .optional(),
 });
 export const entitySchema = z.discriminatedUnion("type", [
   z.object({
