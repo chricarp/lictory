@@ -6,7 +6,11 @@ import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor"
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { callCapability } from "@lictory/core/capabilities/client";
-import type { EntityOf } from "@lictory/core/contracts/protocol";
+import {
+  canArchiveDecision,
+  canRecordDecisions,
+  type EntityOf,
+} from "@lictory/core/contracts/protocol";
 import { Link } from "@lictory/platform/lib/navigation";
 
 type KnowledgeResult = {
@@ -42,8 +46,7 @@ export function Decisions() {
   const [sourceThreadId, setSourceThreadId] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  const canRecord =
-    !readOnly && (capabilities.editSpecifications || capabilities.review);
+  const canRecord = !readOnly && canRecordDecisions(capabilities);
   const sources = entities.filter(
     (e) =>
       e.type === "thread" &&
@@ -100,29 +103,28 @@ export function Decisions() {
                   </span>
                 )}
               </h3>
-              {!readOnly &&
-                (d.authorId === userId || capabilities.editSpecifications) && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    disabled={pending}
-                    aria-label={`${d.archivedAt ? "Restore" : "Archive"} decision: ${d.title}`}
-                    onClick={() =>
-                      void run({
-                        type: "setDecisionArchived",
-                        workItemId: item.id,
-                        decisionId: d.id,
-                        archived: !d.archivedAt,
-                      })
-                    }
-                  >
-                    {d.archivedAt ? (
-                      <ArchiveRestore className="size-3.5" />
-                    ) : (
-                      <Archive className="size-3.5" />
-                    )}
-                  </Button>
-                )}
+              {!readOnly && canArchiveDecision(capabilities, d, userId) && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={pending}
+                  aria-label={`${d.archivedAt ? "Restore" : "Archive"} decision: ${d.title}`}
+                  onClick={() =>
+                    void run({
+                      type: "setDecisionArchived",
+                      workItemId: item.id,
+                      decisionId: d.id,
+                      archived: !d.archivedAt,
+                    })
+                  }
+                >
+                  {d.archivedAt ? (
+                    <ArchiveRestore className="size-3.5" />
+                  ) : (
+                    <Archive className="size-3.5" />
+                  )}
+                </Button>
+              )}
             </div>
             <Markdown source={d.body} />
             <p className="text-xs text-muted-foreground">

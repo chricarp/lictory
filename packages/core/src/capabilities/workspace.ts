@@ -68,6 +68,8 @@ export async function executeMutation(
       userId: ctx.principal.userId,
       surface: ctx.principal.surface,
       client: ctx.principal.client,
+      agentId: ctx.principal.tokenId ?? null,
+      agentName: ctx.principal.agentName ?? null,
     },
     mutation,
     {
@@ -122,7 +124,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   publishReadinessChecks: {
     title: "Publish Definition of Ready",
     description:
-      "Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from getWorkspace (null while the project uses the defaults). Use previewReadinessChecks first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.",
+      "Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision), intelligence_review (an automated check, never an approval: the latest Lictory Intelligence review of the item analysed its current revision and found no finding at or above `severity`, `blocker` or `major`; at most once per type and only beside reviews_approved, discipline_approval or manual; a person can override it per revision with signOffReadinessCheck) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from getWorkspace (null while the project uses the defaults). Use previewReadinessChecks first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.",
     decision: true,
   },
 
@@ -177,7 +179,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   setDecisionArchived: {
     title: "Archive or restore decision",
     description:
-      "Archive or restore a recorded conclusion. Its author or a specification editor may do this. The original text, revision and history are retained.",
+      "Archive or restore a recorded conclusion. Requires edit-specifications in the project, or, for your own decision, a discipline that edits specifications or reviews; authorship alone grants nothing. The original text, revision and history are retained.",
     decision: true,
   },
   rankWorkItem: {
@@ -254,7 +256,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   commitBranch: {
     title: "Commit to branch",
     description:
-      "Commit a title, Markdown content and optional proposedChildren to a branch. Proposed children (stable workItemId, typeId, title, description) become shared items only after reviewed merge into main. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Existing accepted children must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
+      "Commit a title, Markdown content and optional proposedChildren to a branch. Each entry is a new child (stable workItemId, typeId, title, description) or a change to an existing direct child (changeId, workItemId, base {revisionId, title} read from the child, then title/description for children without a specification, parentId to move it (null detaches), or archive: true). Entries apply only after reviewed merge into main; a change applies only while the child still has its base revision and is not accepted, underway or handed off. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Entries already accepted in main must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
   },
   syncBranch: {
     title: "Sync branch",
@@ -353,7 +355,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   signOffReadinessCheck: {
     title: "Sign off readiness check",
     description:
-      "Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in getWorkItem readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off.",
+      "Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in getWorkItem readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off. On a Lictory Intelligence check (intelligence_review) signing off overrides the automated result for that revision; anyone holding a discipline in the project may do so, only on the person's explicit instruction.",
     decision: true,
   },
   setAiPolicy: {
@@ -539,6 +541,11 @@ const syncDirectory = defineCapability({
   description: "The synchronized client's directory projection.",
   kind: "query",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "browser",
+    where: "Loaded automatically by the signed-in browser",
+    alternative: "listOrganizations and getWorkspace",
+  },
   input: z.object({ organizationId: id.optional() }),
   run: (ctx, { organizationId }) =>
     directory(ctx.db, ctx.principal.userId, organizationId),

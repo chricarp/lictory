@@ -593,12 +593,13 @@ export function ItemDetail({
                 disabled={item.refinementState !== "ready"}
                 title={
                   item.refinementState === "ready"
-                    ? `Export to ${exportAvailability.connection?.name ?? "Jira"}`
+                    ? `Export to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
                     : "Only ready items can be exported."
                 }
                 onClick={() => setExporting(true)}
               >
-                <Upload className="size-3.5" /> Export to Jira
+                <Upload className="size-3.5" /> Export to{" "}
+                {exportAvailability.tool.name}
               </Button>
             )}
             {!pendingCreate && (
@@ -656,7 +657,7 @@ export function ItemDetail({
                       }}
                     >
                       <Upload className="size-3.5 text-muted-foreground" />
-                      Export to Jira…
+                      Export to {exportAvailability.tool.name}…
                     </button>
                   )}
                   <button

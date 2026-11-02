@@ -41,9 +41,19 @@ objects. Same-name uploads receive separate IDs and keys.
 
 Markdown stores stable `/api/files/{id}` links. Each read checks current Better
 Auth organization membership and redirects to a one-minute signed GET URL.
-Removing an attachment hides it from the item's attachment list but retains
-its object and metadata because immutable revisions or comments can still refer
-to it. A later reference-aware retention job may delete unreferenced objects.
+Signed GET URLs are bearer links bound to an object key: storage cannot revoke
+one, and it keeps working until it expires whatever the database says. Removing
+an attachment therefore happens in two steps. The metadata is marked removed
+first, so no new link is issued and `/api/files/{id}` references in revisions
+and comments return not found. The object is then copied to
+`organizations/{org}/removed-files/{id}`, the original key is deleted, and the
+metadata records the new key, so links issued before the removal stop working
+at once instead of up to a minute later. The bytes and metadata are retained
+privately rather than destroyed, which keeps the removal reversible by an
+operator and leaves deletion to a later reference-aware retention job. If
+storage fails part-way, the removal is still recorded and the caller gets a
+retryable error; repeating the removal finishes the move (and reports
+`removed: false`, since the attachment was already removed).
 Files are online-only and are not persisted in the workspace's offline mutation
 queue; the attachment list is a membership-checked live query. Files inherit the
 current organization-wide work item visibility policy. If private projects are

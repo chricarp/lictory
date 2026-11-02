@@ -24,8 +24,33 @@ export type Database = PostgresJsDatabase<typeof s>;
 export const surfaces = ["web", "mcp", "agent"] as const;
 export type Surface = (typeof surfaces)[number];
 export const everywhere: readonly Surface[] = surfaces;
-// Personal credentials and secrets stay with the signed-in person.
+// Personal credentials and secrets stay with the signed-in person. A web-only
+// capability must say why (`humanOnly`) so agents can explain the boundary.
 export const webOnly: readonly Surface[] = ["web"];
+
+// Why an operation stays with the person in the browser. Agents read these
+// through listHumanOnlyOperations; see human-only.ts.
+export const humanOnlyReasons = {
+  credentials:
+    "Credentials and secrets never pass through an agent's transcript, and agents cannot mint credentials for themselves.",
+  account:
+    "Account identity and security (sign-in, password, email, sessions, connected accounts, handle, profile) belong to the signed-in person.",
+  membership:
+    "People decide who belongs to an organization and who administers it.",
+  conversation:
+    "Litto conversations are managed in the chat where they happen; external agents keep their own conversation.",
+  browser:
+    "Browser state rather than a business operation; agents have their own way to read the same facts.",
+} as const;
+export type HumanOnlyReason = keyof typeof humanOnlyReasons;
+
+export type HumanOnly = {
+  reason: HumanOnlyReason;
+  // Where the person does it, in the browser's words.
+  where: string;
+  // What an agent can call instead, when something comparable exists.
+  alternative?: string;
+};
 
 export type Principal = {
   userId: string;
@@ -36,6 +61,9 @@ export type Principal = {
   access?: "read" | "write";
   // Client name reported by the agent, for the audit trail.
   client?: string | null;
+  // The agent's name: the access token's name for MCP, Litto for the
+  // embedded agent. Each token is one named agent acting for its person.
+  agentName?: string | null;
 };
 
 // Process-level side effects owned by the hosting runtime (API, tests,
@@ -154,6 +182,9 @@ export type Capability<I extends z.ZodType = z.ZodType, O = unknown> = {
   // only invoke it when the person explicitly asked; the embedded agent asks
   // for confirmation first.
   decision?: boolean;
+  // Required when an agent surface (mcp, agent) is excluded: why the operation
+  // stays with the person and where they do it.
+  humanOnly?: HumanOnly;
   run(ctx: CapabilityContext, input: z.output<I>): Promise<O>;
 };
 

@@ -1,11 +1,17 @@
+import { openSource } from "@lictory/marketing/lib/open-source";
+
 // Landing copy that is also published as structured data and in llms.txt, so the
 // visible page, search-result rich snippets and AI assistants never disagree.
 
 export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
+    question: "Is Lictory open source?",
+    answer: `${openSource.summary} ${openSource.detail}`,
+  },
+  {
     question: "What is Lictory?",
     answer:
-      "Lictory is a work-management platform for software teams that reviews requirements like code. Product, engineering and QA refine a rough proposal into an approved specification through revisions, anchored discussions, suggestions, revision-bound approvals and readiness checks, then deliver the work in Lictory or publish it to Jira.",
+      "Lictory is a work-management platform focused on what happens before development. People and agents refine requirements on branches, review proposed changes through pull requests, and reach an agreed specification before delivering in Lictory or publishing to Jira.",
   },
   {
     question: "Who is Lictory for?",
@@ -20,22 +26,27 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "Is this just a document editor with comments?",
     answer:
-      "No. Specifications have immutable revisions, diffs, anchored threads, actionable suggestions, per-revision approvals and readiness checks. The review workflow is the product.",
+      "Specifications have branches, pull requests, immutable revisions, diffs, anchored discussions, actionable suggestions, revision-bound approvals and readiness checks. Parallel contributions lead to one reviewable result, with a history of how the team reached agreement.",
   },
   {
     question: "Do product people need to understand Git?",
     answer:
-      "Not at all. The behavior is inspired by pull requests, but the language is about proposals, revisions, reviews and approvals.",
+      "No. A branch is a place to explore a proposed change without altering the agreed specification. A pull request brings that change back for review. You work with requirements, discussions and approvals, not a code repository.",
   },
   {
-    question: "What happens if Lictory Intelligence is disabled?",
+    question: "What can Litto and MCP agents do?",
     answer:
-      "Everything core keeps working. Lictory Intelligence only adds findings and proposals; humans stay authoritative over every change, resolution and approval.",
+      "Delegate refinement work to Litto, the built-in assistant, or connect your own agent through MCP. Agents can inspect context, propose specification changes on branches and open pull requests using the same work item capabilities and permissions as the UI. Human decisions require explicit authorization; account security and credentials stay in the browser.",
   },
   {
     question: "What happens to approvals when the spec changes?",
     answer:
       "Approvals reference the revision that was reviewed. Material changes mark relevant approvals as stale, so reviewers see exactly what changed since they approved.",
+  },
+  {
+    question: "Can we use Lictory without AI?",
+    answer:
+      "Yes. Branches, reviews, discussions, approvals and delivery work without AI. Litto and automated findings assist refinement when Lictory Intelligence is enabled; they never silently rewrite, resolve, approve or publish your work.",
   },
   {
     question: "How long does setup take?",

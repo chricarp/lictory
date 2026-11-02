@@ -31,6 +31,7 @@ import type { Command, EntityOf } from "@lictory/core/contracts/protocol";
 import {
   proposedChildrenSchema,
   reviewResultValue,
+  pendingEntries,
   sameProposedChildren,
 } from "@lictory/core/contracts/decomposition";
 import { BreakdownProposal } from "@lictory/platform/components/review/breakdown-proposal";
@@ -787,6 +788,7 @@ function BranchEditorBody({
   ]);
   const history = ancestry(commits, head.id);
   const main = branches.find(isMain);
+  const mainHead = commits.find((c) => c.id === main?.headId);
   const pr = activePrFor(prs, branch.id);
   const prTarget = branches.find((b) => b.id === pr?.targetId);
   const ahead = aheadOf(commits, head.id, (prTarget ?? main)?.headId).length;
@@ -1032,6 +1034,7 @@ function BranchEditorBody({
                   />
                   <BreakdownProposal
                     proposals={draft.proposedChildren ?? []}
+                    accepted={mainHead?.proposedChildren}
                     onChange={(proposedChildren) => edit({ proposedChildren })}
                   />
                 </>
@@ -1039,7 +1042,10 @@ function BranchEditorBody({
                 <>
                   <h2 className="text-xl font-semibold">{head.title}</h2>
                   <Markdown source={head.content} />
-                  <BreakdownProposal proposals={head.proposedChildren} />
+                  <BreakdownProposal
+                    proposals={head.proposedChildren}
+                    accepted={mainHead?.proposedChildren}
+                  />
                 </>
               )}
               {canEdit && !resolving && (
@@ -1465,12 +1471,9 @@ function CreatePR({
                   />
                   <BreakdownProposal
                     includeApplied
-                    proposals={(preview.proposedChildren ?? []).filter(
-                      (child) =>
-                        !theirs.proposedChildren?.some(
-                          (existing) =>
-                            existing.workItemId === child.workItemId,
-                        ),
+                    proposals={pendingEntries(
+                      preview.proposedChildren,
+                      theirs.proposedChildren,
                     )}
                   />
                 </div>
@@ -2292,12 +2295,9 @@ function PullRequestView({
                   />
                   <BreakdownProposal
                     includeApplied
-                    proposals={(display.proposedChildren ?? []).filter(
-                      (child) =>
-                        !before.proposedChildren?.some(
-                          (existing) =>
-                            existing.workItemId === child.workItemId,
-                        ),
+                    proposals={pendingEntries(
+                      display.proposedChildren,
+                      before.proposedChildren,
                     )}
                   />
                   <details className="rounded-md border p-3">
@@ -2332,12 +2332,9 @@ function PullRequestView({
                 {display && (
                   <BreakdownProposal
                     includeApplied
-                    proposals={(display.proposedChildren ?? []).filter(
-                      (child) =>
-                        !before?.proposedChildren?.some(
-                          (existing) =>
-                            existing.workItemId === child.workItemId,
-                        ),
+                    proposals={pendingEntries(
+                      display.proposedChildren,
+                      before?.proposedChildren,
                     )}
                   />
                 )}

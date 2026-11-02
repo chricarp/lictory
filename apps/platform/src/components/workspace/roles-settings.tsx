@@ -41,7 +41,7 @@ export const capabilityMeta: Record<
   publishDelivery: {
     label: "Hand off",
     description:
-      "Export ready work to the project's Jira project and link existing issues.",
+      "Export ready work to the project's delivery tool and link existing issues.",
   },
 };
 

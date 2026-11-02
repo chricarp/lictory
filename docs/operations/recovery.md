@@ -159,8 +159,8 @@ reports work stuck past its expected time. Inspect with
 ## File storage
 
 Attachment bytes are in the R2 files bucket, not in database backups.
-Deletes are rare by design (attachments are retained because revisions may
-reference them), so the main risks are a mistaken bulk delete or a leaked
+Deletes are rare by design (removed attachments are moved to a
+`removed-files/` prefix and retained, not deleted), so the main risks are a mistaken bulk delete or a leaked
 token. Use object versioning where the provider offers it; otherwise copy the
 bucket daily to a second private bucket with its own read-only source token
 (for example `rclone copy`, never `sync`, so deletions do not propagate). Do

@@ -1,3 +1,4 @@
+import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
 import type {
   Command,
   Entity,
@@ -262,6 +263,7 @@ export function committedEvents(
     (entity) =>
       entity.type === "approval" &&
       entity.status === "stale" &&
+      !isCarriedApproval(entity.endReason) &&
       oldApprovals.get(entity.id)?.status === "granted",
   ).length;
   if (staleCount)

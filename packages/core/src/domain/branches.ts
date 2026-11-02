@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type {
   Command,
@@ -15,8 +15,14 @@ import {
 import type { Tx } from "@lictory/core/domain/service";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
+  entryKey,
+  isChildChange,
+  isNewChild,
   reviewResultValue,
   sameProposedChildren,
+  supersededApprovalReason,
+  type ChildChange,
+  type NewChild,
   type ProposedChild,
 } from "@lictory/core/contracts/decomposition";
 
@@ -166,8 +172,19 @@ export async function applyBranchCommand(
       proposedChildren?: ProposedChild[],
     ) => Promise<string>;
     materializeChildren: (
-      children: ProposedChild[],
+      children: NewChild[],
       sourceRevisionId: string,
+    ) => Promise<void>;
+    // Validates a proposed change to an existing child against its current state.
+    inspectChildChange: (
+      change: ChildChange,
+      newChildren: NewChild[],
+    ) => Promise<void>;
+    applyChildChanges: (
+      changes: ChildChange[],
+      newChildren: NewChild[],
+      sourceRevisionId: string,
+      pullRequestId: string,
     ) => Promise<void>;
     log: (action: string, detail?: Record<string, unknown>) => void;
     // Project policy gate for the Lictory Intelligence review action; returns the
@@ -277,7 +294,13 @@ export async function applyBranchCommand(
     log("branch_committed", { branch: b.name, message, commitId: id });
     return id;
   };
-  const validateBreakdown = async (children: ProposedChild[]) => {
+  // `previous` is the branch head's breakdown: unchanged pending changes to
+  // existing children are rechecked at merge rather than on every commit, so
+  // work on a child never blocks unrelated edits to this branch.
+  const validateBreakdown = async (
+    entries: ProposedChild[],
+    previous?: ProposedChild[],
+  ) => {
     const [parent] = await tx
       .select({ typeId: s.workItem.typeId })
       .from(s.workItem)
@@ -289,21 +312,49 @@ export async function applyBranchCommand(
       );
     const parentType = roster.types.find((type) => type.id === parent?.typeId);
     const applied = new Map(
-      commit(main.headId).proposedChildren.map((child) => [
-        child.workItemId,
-        child,
+      commit(main.headId).proposedChildren.map((entry) => [
+        entryKey(entry),
+        entry,
       ]),
     );
-    for (const child of children) {
-      const accepted = applied.get(child.workItemId);
+    const earlier = new Map(
+      (previous ?? []).map((entry) => [entryKey(entry), entry]),
+    );
+    const children: NewChild[] = [];
+    const changed = new Set<string>();
+    for (const entry of entries) {
+      const accepted = applied.get(entryKey(entry));
       if (accepted) {
-        if (!sameProposedChildren([accepted], [child]))
+        if (!sameProposedChildren([accepted], [entry]))
           throw new DomainError(
             "conflict",
             "An accepted child cannot be rewritten through a breakdown proposal. Propose changes on that child instead.",
           );
         continue;
       }
+      if (isChildChange(entry)) {
+        if (changed.has(entry.workItemId))
+          throw new DomainError(
+            "validation",
+            "Propose one pending change per existing child.",
+          );
+        changed.add(entry.workItemId);
+        continue;
+      }
+      children.push(entry);
+    }
+    for (const entry of entries)
+      if (
+        isChildChange(entry) &&
+        !applied.has(entry.changeId) &&
+        !(
+          previous &&
+          earlier.has(entry.changeId) &&
+          sameProposedChildren([earlier.get(entry.changeId)!], [entry])
+        )
+      )
+        await ctx.inspectChildChange(entry, entries.filter(isNewChild));
+    for (const child of children) {
       const type = roster.types.find((type) => type.id === child.typeId);
       if (
         !type ||
@@ -420,7 +471,7 @@ export async function applyBranchCommand(
             content: result.content,
             proposedChildren: result.proposedChildren,
           };
-      await validateBreakdown(snapshot.proposedChildren);
+      await validateBreakdown(snapshot.proposedChildren, head.proposedChildren);
       if (
         snapshot.title === head.title &&
         snapshot.content === head.content &&
@@ -466,8 +517,8 @@ export async function applyBranchCommand(
           "conflict",
           "The branches propose competing child changes. Choose the complete breakdown explicitly before syncing.",
         );
-      await validateBreakdown(snapshot.proposedChildren);
       const head = commit(b.headId);
+      await validateBreakdown(snapshot.proposedChildren, head.proposedChildren);
       // Identical text is only a no-op when the target is already in our
       // history. Otherwise record the merge parent so later syncs use it.
       if (
@@ -873,21 +924,24 @@ export async function applyBranchCommand(
           .where(eq(s.specificationBranch.id, main.id));
         mergedId = newMain!.headId;
         const appliedIds = new Set(
-          commit(target.headId).proposedChildren.map(
-            (child) => child.workItemId,
-          ),
+          commit(target.headId).proposedChildren.map(entryKey),
         );
-        await ctx.materializeChildren(
-          result.proposedChildren.filter(
-            (child) => !appliedIds.has(child.workItemId),
-          ),
+        const pending = result.proposedChildren.filter(
+          (entry) => !appliedIds.has(entryKey(entry)),
+        );
+        // New children first: a change may move an existing child under one.
+        await ctx.materializeChildren(pending.filter(isNewChild), revisionId);
+        await ctx.applyChildChanges(
+          pending.filter(isChildChange),
+          result.proposedChildren.filter(isNewChild),
           revisionId,
+          p.id,
         );
         // Main approvals refer to the exact reviewed merge result. Supersede
         // pending carried reviews for the same responsibilities with PR evidence.
         for (const r of reviews.filter(valid)) {
           const role = disciplines.find((role) => role.id === r.disciplineId)!;
-          await tx
+          const superseded = await tx
             .update(s.review)
             .set({ status: "cancelled" })
             .where(
@@ -897,7 +951,30 @@ export async function applyBranchCommand(
                 eq(s.review.revisionId, revisionId),
                 eq(s.review.responsibility, role.name),
               ),
-            );
+            )
+            .returning({ id: s.review.id });
+          // A breakdown-only merge carries approvals of the unchanged text.
+          // The pull request approval replaces them for this responsibility.
+          if (superseded.length)
+            await tx
+              .update(s.approval)
+              .set({
+                status: "stale",
+                endedAt: new Date(),
+                endedById: userId,
+                endReason: supersededApprovalReason,
+              })
+              .where(
+                and(
+                  eq(s.approval.organizationId, organizationId),
+                  eq(s.approval.revisionId, revisionId),
+                  inArray(
+                    s.approval.reviewId,
+                    superseded.map((x) => x.id),
+                  ),
+                  eq(s.approval.status, "granted"),
+                ),
+              );
           const id = crypto.randomUUID();
           await tx.insert(s.review).values({
             id,

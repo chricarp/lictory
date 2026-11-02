@@ -18,21 +18,22 @@ export function LegalDocument({
   sections: LegalSection[];
 }) {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="marketing-site min-h-dvh bg-background text-foreground">
       <header className="border-b border-border px-5 py-5 sm:px-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
           <Logo />
           <AccountTextLink className="rounded text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" />
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
+      <main
+        id="main-content"
+        className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16"
+      >
         <div className="max-w-3xl">
-          <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
+          <p className="mb-3 text-xs font-medium text-muted-foreground">
             Lictory · Legal
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            {title}
-          </h1>
+          <h1 className="text-3xl font-medium sm:text-4xl">{title}</h1>
           <p className="mt-4 text-sm text-muted-foreground">
             Version:{" "}
             <time dateTime={legalVersion.date}>{legalVersion.label}</time>
@@ -61,7 +62,7 @@ export function LegalDocument({
           <article className="min-w-0 space-y-10">
             {sections.map((section, index) => (
               <section key={section.id} id={section.id} className="scroll-mt-8">
-                <h2 className="mb-4 text-lg font-semibold tracking-tight">
+                <h2 className="mb-4 text-lg font-medium">
                   {index + 1}. {section.title}
                 </h2>
                 <div className="space-y-4 text-sm leading-7 text-muted-foreground [&_a]:rounded [&_a]:text-foreground [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-4 [&_a]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-ring [&_a:hover]:decoration-foreground [&_li]:pl-1 [&_strong]:font-medium [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">

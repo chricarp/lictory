@@ -11,6 +11,7 @@ import { refreshDirectories } from "@lictory/core/domain/projections";
 import * as s from "@lictory/core/db/schema";
 import { handleMcp } from "@lictory/core/mcp/server";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { directory } from "@lictory/core/domain/service";
 import { commandSchema } from "@lictory/core/contracts/protocol";
 import { authenticateAccessToken } from "@lictory/core/capabilities/access-tokens";
 import {
@@ -21,7 +22,7 @@ import {
 } from "@lictory/core/capabilities/core";
 import { invoke, listCapabilities } from "@lictory/core/capabilities/registry";
 import { assistantTools } from "@lictory/core/intelligence/chat/assistant";
-import type { IntakeContext, ProposalDrafter } from "@lictory/core/ai/intake";
+import type { ObjectStorage } from "@lictory/core/storage/s3";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -120,6 +121,7 @@ async function fixture() {
     userId: token.userId,
     surface: "mcp",
     tokenId: token.tokenId,
+    agentName: token.name,
     access: token.access,
   });
   return {
@@ -236,6 +238,100 @@ void test("agents create work through the shared write path, idempotently", asyn
   // Replaying create after a later edit must return the revision it created,
   // not whichever revision happens to be current at response time.
   assert.deepEqual(await invoke(f.mcp, "createWorkItem", input), first);
+});
+
+void test("each access token is a named agent acting for its person", async () => {
+  const f = await fixture();
+  // Active agents of one person need distinct names to be told apart.
+  await rejected(
+    invoke(f.web, "createAccessToken", {
+      name: " claude ",
+      access: "write",
+      expiresInDays: null,
+    }),
+    "validation",
+  );
+  const second = (await invoke(f.web, "createAccessToken", {
+    name: "Spec reviewer",
+    access: "write",
+    expiresInDays: null,
+  })) as { secret: string; token: { id: string } };
+  const token = (await authenticateAccessToken(db, second.secret))!;
+  assert.equal(token.name, "Spec reviewer");
+  const reviewer = context({
+    userId: token.userId,
+    surface: "mcp",
+    tokenId: token.tokenId,
+    agentName: token.name,
+    access: token.access,
+    client: "claude-code/2.0",
+  });
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    mutationId: crypto.randomUUID(),
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Safe retries",
+    description: "Avoid duplicate payments after a timeout.",
+  })) as { workItemId: string; revisionId: string };
+  await invoke(reviewer, "updateSpecification", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: created.revisionId,
+    title: "Safe retries",
+    content: "Retries reuse the original transaction ID.",
+  });
+  await invoke(f.web, "updateSpecification", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    baseRevisionId: (
+      (await invoke(f.web, "getWorkItem", {
+        organizationId: f.organizationId,
+        workItemId: created.workItemId,
+      })) as { specification: { revisionId: string } }
+    ).specification.revisionId,
+    title: "Safe retries",
+    content: "Retries reuse the original transaction ID for 24 hours.",
+  });
+  const item = (await invoke(f.web, "getWorkItem", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+  })) as {
+    activity: {
+      actorId: string;
+      action: string;
+      detail: Record<string, unknown> | null;
+    }[];
+  };
+  const byAgent = (name: string | undefined) =>
+    item.activity.filter((a) => a.detail?.agentName === name);
+  const first = byAgent("Claude");
+  const later = byAgent("Spec reviewer");
+  assert.ok(first.length && later.length);
+  // History names the executing agent; authority stays the person's.
+  for (const entry of first) {
+    assert.equal(entry.actorId, f.ownerId);
+    assert.equal(entry.detail!.agentId, f.tokenId);
+    assert.equal(entry.detail!.performedVia, "mcp");
+  }
+  for (const entry of later) {
+    assert.equal(entry.actorId, f.ownerId);
+    assert.equal(entry.detail!.agentId, second.token.id);
+    assert.equal(entry.detail!.agentClient, "claude-code/2.0");
+  }
+  // The person's own browser actions carry no agent.
+  const own = item.activity.filter((a) => a.detail?.performedVia === undefined);
+  assert.ok(own.length);
+  assert.ok(own.every((a) => a.detail?.agentId === undefined));
+
+  // Revoking frees the name for a replacement agent.
+  await invoke(f.web, "revokeAccessToken", { tokenId: f.tokenId });
+  await invoke(f.web, "createAccessToken", {
+    name: "Claude",
+    access: "read",
+    expiresInDays: null,
+  });
 });
 
 void test("agents hold exactly the person's permissions and tenant boundary", async () => {
@@ -785,11 +881,43 @@ void test("MCP server lists typed tools and reports failures as tool results", a
     error: { category: string };
   };
   assert.equal(failure.error.category, "not_found");
-  const unknown = (await handleMcp(f.mcp, {
+  // Human-only operations explain where the person does them.
+  const humanOnly = (await handleMcp(f.mcp, {
     jsonrpc: "2.0",
     id: 4,
     method: "tools/call",
     params: { name: "createAccessToken", arguments: {} },
+  })) as typeof call;
+  assert.equal(humanOnly.result.isError, true);
+  const refusal = JSON.parse(humanOnly.result.content[0]!.text) as {
+    error: { category: string; kind: string; message: string };
+  };
+  assert.equal(refusal.error.category, "forbidden");
+  assert.equal(refusal.error.kind, "human_only");
+  assert.match(refusal.error.message, /Account settings → Integrations/);
+  const browserOnly = (await handleMcp(f.mcp, {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "tools/call",
+    params: { name: "changePassword", arguments: {} },
+  })) as typeof call;
+  assert.match(
+    browserOnly.result.content[0]!.text,
+    /needs the person in the browser/,
+  );
+  const policy = (await invoke(f.mcp, "listHumanOnlyOperations", {})) as {
+    operations: { name: string; reason: string }[];
+  };
+  assert.ok(
+    policy.operations.some(
+      (o) => o.name === "connectDelivery" && o.reason === "credentials",
+    ),
+  );
+  const unknown = (await handleMcp(f.mcp, {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "tools/call",
+    params: { name: "noSuchTool", arguments: {} },
   })) as { error: { code: number } };
   assert.equal(unknown.error.code, -32602);
 
@@ -1095,6 +1223,7 @@ void test("attachment downloads honor inline MIME types and reject removed files
         return Promise.resolve("https://storage.example.test/download");
       },
       stat: () => Promise.resolve({ size: 3, contentType: "application/pdf" }),
+      copy: () => Promise.resolve(),
       delete: () => Promise.resolve(),
     }),
   };
@@ -1132,6 +1261,145 @@ void test("attachment downloads honor inline MIME types and reject removed files
     "not_found",
   );
   assert.equal(downloads.length, 2);
+});
+
+// A bucket where a signed download link names an object key, like S3/R2: the
+// link works for as long as an object exists at that key.
+function memoryBucket() {
+  const objects = new Map<string, { size: number; contentType: string }>();
+  const failures = { copy: 0, delete: 0 };
+  const storage: ObjectStorage = {
+    presignUpload: (key, contentType, size) => {
+      objects.set(key, { size, contentType });
+      return Promise.resolve(`https://storage.example.test/put/${key}`);
+    },
+    presignDownload: (key) =>
+      Promise.resolve(`https://storage.example.test/get/${key}`),
+    stat: (key) => {
+      const object = objects.get(key);
+      return object
+        ? Promise.resolve(object)
+        : Promise.reject(new Error("NotFound"));
+    },
+    copy: (source, destination) => {
+      const object = objects.get(source);
+      if (failures.copy-- > 0 || !object)
+        return Promise.reject(new Error("copy failed"));
+      objects.set(destination, object);
+      return Promise.resolve();
+    },
+    delete: (key) => {
+      if (failures.delete-- > 0)
+        return Promise.reject(new Error("delete failed"));
+      objects.delete(key);
+      return Promise.resolve();
+    },
+  };
+  const fetchLink = (url: string) =>
+    objects.has(url.replace("https://storage.example.test/get/", ""))
+      ? 200
+      : 404;
+  return { storage, objects, failures, fetchLink };
+}
+
+async function uploadedAttachment(f: Awaited<ReturnType<typeof fixture>>) {
+  const created = (await invoke(f.mcp, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "With attachment",
+  })) as { workItemId: string };
+  const bucket = memoryBucket();
+  const ctx: CapabilityContext = { ...f.mcp, storage: () => bucket.storage };
+  const upload = (await invoke(ctx, "startAttachmentUpload", {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+    filename: "spec.pdf",
+    mimeType: "application/pdf",
+    size: 3,
+  })) as { id: string };
+  await invoke(ctx, "finishAttachmentUpload", {
+    organizationId: f.organizationId,
+    id: upload.id,
+  });
+  return { ctx, bucket, fileId: upload.id };
+}
+
+void test("removing an attachment revokes download links issued before the removal", async () => {
+  const f = await fixture();
+  const { ctx, bucket, fileId } = await uploadedAttachment(f);
+  const { url } = (await invoke(ctx, "getAttachmentDownloadUrl", {
+    fileId,
+    inline: true,
+  })) as { url: string };
+  assert.equal(bucket.fetchLink(url), 200);
+
+  assert.deepEqual(
+    await invoke(ctx, "removeAttachment", {
+      organizationId: f.organizationId,
+      id: fileId,
+    }),
+    { removed: true },
+  );
+  assert.equal(bucket.fetchLink(url), 404);
+  await rejected(
+    invoke(ctx, "getAttachmentDownloadUrl", { fileId }),
+    "not_found",
+  );
+  // The bytes are retained under a key no issued link names.
+  const retained = `organizations/${f.organizationId}/removed-files/${fileId}`;
+  assert.deepEqual([...bucket.objects.keys()], [retained]);
+  const [row] = await db
+    .select({ objectKey: s.fileObject.objectKey })
+    .from(s.fileObject)
+    .where(eq(s.fileObject.id, fileId));
+  assert.equal(row?.objectKey, retained);
+
+  assert.deepEqual(
+    await invoke(ctx, "removeAttachment", {
+      organizationId: f.organizationId,
+      id: fileId,
+    }),
+    { removed: false },
+  );
+  assert.deepEqual([...bucket.objects.keys()], [retained]);
+});
+
+void test("an interrupted attachment removal reports it and finishes on retry", async () => {
+  const f = await fixture();
+  const { ctx, bucket, fileId } = await uploadedAttachment(f);
+  const { url } = (await invoke(ctx, "getAttachmentDownloadUrl", {
+    fileId,
+  })) as { url: string };
+  // The copy lands but deleting the original fails.
+  bucket.failures.delete = 1;
+  await rejected(
+    invoke(ctx, "removeAttachment", {
+      organizationId: f.organizationId,
+      id: fileId,
+    }),
+    "external",
+  );
+  // The removal itself is recorded: no new links are issued.
+  await rejected(
+    invoke(ctx, "getAttachmentDownloadUrl", { fileId }),
+    "not_found",
+  );
+  assert.equal(bucket.fetchLink(url), 200);
+
+  assert.deepEqual(
+    await invoke(ctx, "removeAttachment", {
+      organizationId: f.organizationId,
+      id: fileId,
+    }),
+    { removed: false },
+  );
+  assert.equal(bucket.fetchLink(url), 404);
+  assert.deepEqual(
+    [...bucket.objects.keys()],
+    [`organizations/${f.organizationId}/removed-files/${fileId}`],
+  );
 });
 
 void test("recorded decisions retain their source revision, replay once, and are tenant scoped", async () => {
@@ -1301,6 +1569,97 @@ void test("product knowledge preserves delivered scope after a newer draft", asy
     lifecycle: "completed",
   })) as { items: { id: string }[] };
   assert.ok(completed.items.some((i) => i.id === created.workItemId));
+});
+
+void test("product knowledge returns approved revisions and withdraws archived items", async () => {
+  const f = await fixture();
+  const engineering = (
+    await directory(db, f.ownerId, f.organizationId)
+  ).disciplines.find(
+    (d) => d.projectId === f.projectId && d.name === "Engineering",
+  )!.id;
+  await invoke(f.web, "setDisciplineMember", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    disciplineId: engineering,
+    userId: f.memberId,
+    member: true,
+  });
+  const created = (await invoke(f.web, "createWorkItem", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: f.storyTypeId,
+    parentId: null,
+    title: "Settlement cutoff",
+    description:
+      "# Intent\n\nSettlement cutoff applies at 17:00.\n\n## Acceptance criteria\n\n- [ ] Late payments settle next day",
+  })) as { workItemId: string; revisionId: string };
+  const item = {
+    organizationId: f.organizationId,
+    workItemId: created.workItemId,
+  };
+  const reviewId = crypto.randomUUID();
+  await invoke(f.web, "requestReview", {
+    ...item,
+    baseRevisionId: created.revisionId,
+    reviewId,
+    disciplineId: engineering,
+    userId: f.memberId,
+    required: true,
+  });
+  await invoke(
+    context({ userId: f.memberId, surface: "web" }),
+    "decideReview",
+    {
+      ...item,
+      baseRevisionId: created.revisionId,
+      reviewId,
+      decision: "approve",
+    },
+  );
+  const decision = (await invoke(f.web, "recordDecision", {
+    ...item,
+    baseRevisionId: created.revisionId,
+    mutationId: crypto.randomUUID(),
+    title: "Settlement cutoff is fixed",
+    body: "The settlement cutoff is not configurable per merchant.",
+  })) as { decisionId: string };
+  const search = async (query = "settlement cutoff") =>
+    (
+      (await invoke(f.web, "searchProductKnowledge", {
+        organizationId: f.organizationId,
+        query,
+      })) as {
+        results: { id: string; kind: string; revisionNumber: number }[];
+      }
+    ).results.map((r) => [r.kind, r.id, r.revisionNumber]);
+  const both = [
+    ["decision", decision.decisionId, 1],
+    ["approved", created.revisionId, 1],
+  ];
+  assert.deepEqual(await search(), both);
+  // Substring semantics, case-insensitive, with LIKE wildcards taken literally.
+  assert.deepEqual(await search("CUTOFF APPLIES"), [both[1]]);
+  assert.deepEqual(await search("cutoff_applies"), []);
+
+  await invoke(f.web, "archiveWorkItem", { ...item, archived: true });
+  assert.deepEqual(await search(), []);
+  await invoke(f.web, "archiveWorkItem", { ...item, archived: false });
+  assert.deepEqual(await search(), both);
+
+  // Revoking the approval withdraws the agreed intent; the decision remains.
+  await invoke(
+    context({ userId: f.memberId, surface: "web" }),
+    "decideReview",
+    {
+      ...item,
+      baseRevisionId: created.revisionId,
+      reviewId,
+      decision: "revoke",
+    },
+  );
+  assert.deepEqual(await search(), [both[0]]);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
 
 void test("projections equal a rebuild from the domain", async () => {

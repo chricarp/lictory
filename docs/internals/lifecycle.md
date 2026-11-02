@@ -49,9 +49,23 @@ require fresh review even when the parent's text stays the same.
 No shared children exist until merge into main. Merge creates them atomically,
 recording the resulting parent revision as their source. Accepted proposal IDs
 stay in commit history so later branches cannot create the same children again.
-Existing children cannot be silently changed or removed through a breakdown.
-This is an additive proposal model, not branching of arbitrary workspace state.
-Ownership, ranking, iterations and existing work remain explicit shared actions.
+A breakdown can also propose changes to existing direct children: move one
+under another item (or a child proposed in the same breakdown), detach it,
+archive it, or rename and redescribe work without a specification. The
+reviewed unit is the parent's pull request; the change is part of its merge
+result and approval fingerprint. Text of a specification-backed child stays an
+amendment on that child's own specification, where its reviewers approve it.
+
+The child remains authoritative. Each change records the child revision it was
+proposed against. Merge applies it only while the child still has that
+revision, is still this item's child and has not been accepted for delivery,
+started, finished, canceled or handed off; otherwise merge refuses and names
+the child, so nothing changed meanwhile is overwritten. The branch shows a
+stale change before merge. Applied changes stay in commit history (like
+accepted proposal IDs) so they apply once, and the child's activity records the
+pull request. Archiving is reversible and refused while the child has active
+children. Changing a child's type and relations between children stay explicit
+shared actions, as do ownership, ranking and iterations.
 
 ## Completion and subsequent change
 
@@ -76,8 +90,17 @@ Product knowledge search returns recorded conclusions, current ready revisions
 with review approval, and recorded delivered revisions. Each result identifies
 its evidence kind and exact revision. A conclusion is not automatically
 delivered behavior, and approval establishes intended behavior. Archived
-decisions and archived projects are excluded; finished item history stays
-searchable. Search is organization-scoped and available to the UI, MCP and Litto.
+decisions, archived work items and archived projects are excluded: archiving
+withdraws an item from active product knowledge together with the decisions
+recorded on it, and restoring it brings them back. Nothing is deleted. Done and
+canceled items are not archived, so finished item history stays searchable.
+Search is organization-scoped, reads the reader's access and the results from
+one snapshot, and is available to the UI, MCP and Litto.
+
+Each work item contributes at most two candidate revisions (its recorded
+delivered revision and its current approved ready revision), so specification
+search scales with the number of items rather than with revision history.
+Decisions are matched through trigram indexes (`pg_trgm`).
 External Done status remains a provider fact, rather than an attestation that a
 particular revision was implemented; it does not create delivered knowledge.
 
@@ -87,7 +110,19 @@ New proposed amendments use the same branches and PRs for people, Litto and MCP.
 Legacy suggestions remain readable and operable for compatibility, but Litto
 does not initiate that separate workflow. Durable activity identifies delegated
 MCP and Litto execution while retaining the person's authority and authorship.
-MCP client names are self-reported provenance, not independent identities.
+
+Agents are named delegations, not principals. Each personal access token is one
+agent: its owner names it, and every activity it produces records the token id
+and name (`agentId`, `agentName`) beside the person who is the actor. Litto is
+recorded by name. A person's active tokens must have distinct names, so history
+answers which of their agents produced a commit, finding or breakdown. Agents
+hold no capabilities of their own: authorization is the person's, and a revoked
+token stops its agent immediately while its history remains. MCP client names
+stay self-reported provenance, not identities.
+
+History therefore shows the requester and accountable person (the actor), the
+executing agent (the delegation), and, for a later decision such as a merge or
+scope acceptance, the person who recorded that decision.
 
 Multiple agents acting as one person do not become independent reviewers.
 Automated Intelligence reviews remain checks. Approval, merge, scope acceptance,
@@ -95,8 +130,9 @@ recording conclusions and publishing remain explicit accountable decisions.
 Credential bootstrap and account security retain their existing browser boundary;
 core lifecycle operations are available through the capability registry.
 
-Protocol 14 ensures clients understand reviewed breakdowns before submitting
-commands; older clients must reload before approving the new result shape.
+Protocol 15 ensures clients understand reviewed breakdowns, including changes
+to existing children, before submitting commands; older clients must reload
+before approving the new result shape.
 
 ## Workspace navigation
 

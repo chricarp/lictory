@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { S3Client } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { s3Storage } from "@lictory/core/storage/s3";
 
 void test("signed writes are scoped, short-lived, and create-only", async () => {
@@ -48,4 +48,25 @@ void test("signed writes are scoped, short-lived, and create-only", async () => 
     read.searchParams.get("response-content-disposition") ?? "",
     /inline/,
   );
+});
+
+void test("copies stay inside the bucket", async () => {
+  const sent: unknown[] = [];
+  const client = {
+    send: (command: unknown) => {
+      sent.push(command);
+      return Promise.resolve({});
+    },
+  } as unknown as S3Client;
+  await s3Storage(client, "private-files").copy(
+    "organizations/org/files/one",
+    "organizations/org/removed-files/one",
+  );
+  const [command] = sent;
+  assert.ok(command instanceof CopyObjectCommand);
+  assert.deepEqual(command.input, {
+    Bucket: "private-files",
+    Key: "organizations/org/removed-files/one",
+    CopySource: "private-files/organizations/org/files/one",
+  });
 });

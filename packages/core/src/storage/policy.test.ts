@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   objectKey,
+  removedObjectKey,
   validateFile,
   MAX_FILE_SIZE,
 } from "@lictory/core/storage/policy";
@@ -28,5 +29,12 @@ void describe("file uploads", () => {
     assert.throws(() =>
       objectKey("../org", "af3a6b13-3f90-40ac-b762-6f092b8ee921"),
     );
+  });
+  void it("removed files move to a key outside the live prefix", () => {
+    const fileId = "af3a6b13-3f90-40ac-b762-6f092b8ee921";
+    const removed = removedObjectKey("org-1", fileId);
+    assert.notEqual(removed, objectKey("org-1", fileId));
+    assert.ok(!removed.startsWith("organizations/org-1/files/"));
+    assert.throws(() => removedObjectKey("../org", fileId));
   });
 });
