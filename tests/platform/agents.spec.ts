@@ -83,7 +83,9 @@ test("a person connects an MCP agent that works with their permissions", async (
   await page.goto("/account#agents");
   const section = page.locator("#agents");
   await section.getByRole("button", { name: "New token" }).click();
-  await section.getByLabel("Name", { exact: true }).fill("Playwright agent");
+  await section
+    .getByLabel("Agent name", { exact: true })
+    .fill("Playwright agent");
   await section.getByRole("button", { name: "Create token" }).click();
   const secret = (
     await page.getByTestId("access-token-secret").textContent()
