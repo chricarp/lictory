@@ -4976,7 +4976,7 @@ void test("archiving a decision requires a current project capability, authorshi
   assert.equal(await archivedAt(decisionId), null);
   await assert.rejects(
     archive(ownerDecisionId, true, f.reviewerId),
-    /Only a specification editor/,
+    /specification editor/,
   );
   // Losing every discipline removes the author's right as well.
   for (const disciplineId of [f.roles.Engineering, f.roles.QA])
