@@ -1,3 +1,4 @@
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { readinessHistory } from "@lictory/platform/data/lookups";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -830,6 +831,7 @@ function StartingPolicy({
   canEdit: boolean;
 }) {
   const { run, error } = useCommand();
+  const { directory } = useWorkspace();
   const external = project.deliveryMode === "external";
   return (
     <div className="space-y-2 border-t px-5 py-3">
@@ -837,7 +839,8 @@ function StartingPolicy({
         When work starts before it’s ready
         {external && (
           <span className="ml-1 font-normal text-muted-foreground">
-            · only ready work is handed off to Jira
+            · only ready work is handed off to{" "}
+            {projectDeliveryTool(directory, project.id).name}
           </span>
         )}
       </p>
