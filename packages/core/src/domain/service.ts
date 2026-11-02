@@ -794,14 +794,15 @@ type SignOffRow = Omit<ReadinessSignOff, "createdAt"> & {
 
 // Everything a list, inbox or readiness evaluation needs about a set of items.
 // Lists and readiness need only each item's current revision; the full history
-// (with its content) is loaded only for `historyFor`, the item being opened.
+// (with its content) is loaded only for `historyFor`, the items being opened.
 async function loadItemContext(
   tx: Tx,
   organizationId: string,
   items: ItemRow[],
-  historyFor?: string,
+  historyFor: string[] = [],
 ) {
   const ids = items.map((i) => i.id);
+  const historyIds = historyFor.filter((id) => ids.includes(id));
   const baselineIds = [
     ...new Set(
       items.flatMap((item) =>
@@ -913,14 +914,14 @@ async function loadItemContext(
         s.specificationRevision.workItemId,
         desc(s.specificationRevision.number),
       ),
-    historyFor && ids.includes(historyFor)
+    historyIds.length
       ? tx
           .select(revisionColumns)
           .from(s.specificationRevision)
           .where(
             and(
               eq(s.specificationRevision.organizationId, organizationId),
-              eq(s.specificationRevision.workItemId, historyFor),
+              inArray(s.specificationRevision.workItemId, historyIds),
             ),
           )
           .orderBy(desc(s.specificationRevision.number))
@@ -974,7 +975,8 @@ async function loadItemContext(
   ]);
   const revisions = new Map<string, RevisionRow[]>();
   for (const r of currentRevisions) revisions.set(r.workItemId, [r]);
-  if (history.length) revisions.set(historyFor!, history);
+  for (const [workItemId, rows] of groupBy(history, (r) => r.workItemId))
+    revisions.set(workItemId, rows);
   return indexItemContext({
     ...configuration,
     revisions,
@@ -1269,8 +1271,18 @@ function readinessEntity(
   };
 }
 
-export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
-  const { organizationId, projectId, workItemId } = scope;
+export function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
+  return snapshotItems(tx, scope, scope.workItemId ? [scope.workItemId] : []);
+}
+
+// A project snapshot with the item-scope detail of several items, read once.
+// Batch writers (an accepted breakdown) use it instead of one snapshot per item.
+async function snapshotItems(
+  tx: Tx,
+  scope: Pick<Scope, "organizationId" | "projectId">,
+  workItemIds: string[],
+): Promise<Entity[]> {
+  const { organizationId, projectId } = scope;
   const projectFilter = <
     T extends { organizationId: AnyPgColumn; projectId: AnyPgColumn },
   >(
@@ -1359,7 +1371,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
   ];
   const [ctx, prBranches, prCommits, disciplineMemberships] = await Promise.all(
     [
-      loadItemContext(tx, organizationId, items, workItemId),
+      loadItemContext(tx, organizationId, items, workItemIds),
       openPrItemIds.length
         ? tx
             .select()
@@ -1445,15 +1457,19 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ),
     ...links,
   ];
-  if (!workItemId) return entities;
-  const item = requireValue(items.find((p) => p.id === workItemId));
-  const revisions = ctx.revisions.get(workItemId) ?? [];
-  const activePrIds = new Set(
-    pullRequests.filter((p) => p.workItemId === workItemId).map((p) => p.id),
+  if (!workItemIds.length) return entities;
+  const detailItems = workItemIds.map((id) =>
+    requireValue(items.find((p) => p.id === id)),
   );
+  const inDetail = new Set(workItemIds);
+  const revisions = workItemIds.flatMap((id) => ctx.revisions.get(id) ?? []);
+  const itemPullRequests = pullRequests.filter((p) =>
+    inDetail.has(p.workItemId),
+  );
+  const activePrIds = new Set(itemPullRequests.map((p) => p.id));
   const threads = ctx.threads.filter(
     (t) =>
-      t.workItemId === workItemId &&
+      inDetail.has(t.workItemId) &&
       (!t.pullRequestId || activePrIds.has(t.pullRequestId)),
   );
   const [branchRows, commitRows, messages, activity, runs, decisions] =
@@ -1464,7 +1480,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .where(
           and(
             eq(s.specificationBranch.organizationId, organizationId),
-            eq(s.specificationBranch.workItemId, workItemId),
+            inArray(s.specificationBranch.workItemId, workItemIds),
             isNull(s.specificationBranch.deletedAt),
           ),
         ),
@@ -1474,7 +1490,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .where(
           and(
             eq(s.specificationCommit.organizationId, organizationId),
-            eq(s.specificationCommit.workItemId, workItemId),
+            inArray(s.specificationCommit.workItemId, workItemIds),
           ),
         ),
       threads.length
@@ -1498,40 +1514,42 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .where(
           and(
             eq(s.activity.organizationId, organizationId),
-            eq(s.activity.workItemId, workItemId),
+            inArray(s.activity.workItemId, workItemIds),
           ),
         )
         .orderBy(asc(s.activity.createdAt)),
-      aiRunEntities(tx, organizationId, workItemId),
+      Promise.all(
+        workItemIds.map((id) => aiRunEntities(tx, organizationId, id)),
+      ).then((perItem) => perItem.flat()),
       tx
         .select()
         .from(s.decision)
         .where(
           and(
             eq(s.decision.organizationId, organizationId),
-            eq(s.decision.workItemId, workItemId),
+            inArray(s.decision.workItemId, workItemIds),
           ),
         )
         .orderBy(asc(s.decision.createdAt)),
     ]);
-  const reviews = ctx.reviews.filter((r) => r.workItemId === workItemId);
+  const reviews = ctx.reviews.filter((r) => inDetail.has(r.workItemId));
   const reviewIds = new Set(reviews.map((r) => r.id));
   for (const [type, rows] of [
     ["revision", revisions],
     ["specBranch", branchRows],
     ["specCommit", commitRows],
-    ["pullRequest", pullRequests.filter((p) => p.workItemId === workItemId)],
+    ["pullRequest", itemPullRequests],
     ["prReview", prReviews.filter((r) => activePrIds.has(r.pullRequestId))],
     ["review", reviews],
     ["thread", threads],
-    ["approval", ctx.approvals.filter((a) => a.workItemId === workItemId)],
+    ["approval", ctx.approvals.filter((a) => inDetail.has(a.workItemId))],
     [
       "suggestionReviewer",
-      ctx.suggestionReviewers.filter((r) => r.workItemId === workItemId),
+      ctx.suggestionReviewers.filter((r) => inDetail.has(r.workItemId)),
     ],
     [
       "suggestionDecision",
-      ctx.suggestionDecisions.filter((d) => d.workItemId === workItemId),
+      ctx.suggestionDecisions.filter((d) => inDetail.has(d.workItemId)),
     ],
     ["assignment", ctx.assignments.filter((a) => reviewIds.has(a.reviewId))],
     ["message", messages],
@@ -1541,10 +1559,12 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     entities.push(...rows.map((row) => serialize(type, row)));
   entities.push(
     ...ctx.suggestions
-      .filter((x) => x.workItemId === workItemId)
+      .filter((x) => inDetail.has(x.workItemId))
       .map(serializeSuggestion),
   );
-  entities.push(readinessEntity(item, items, ctx));
+  entities.push(
+    ...detailItems.map((item) => readinessEntity(item, items, ctx)),
+  );
   entities.push(...runs);
   return entities;
 }
@@ -2327,9 +2347,11 @@ export async function applyMutation(
                 eq(s.workItem.projectId, projectId),
               ),
             );
-          let number = Number(tail!.number),
-            rank = tail!.rank;
-          for (const [index, child] of children.entries()) {
+          // Validate every child before writing any of them, then write the
+          // breakdown in one statement per table and project it from a single
+          // snapshot: the organization lock is held for one read, not one per
+          // child.
+          const childTypes = children.map((child) => {
             const childType = typeOf(child.typeId);
             if (
               childType.archivedAt ||
@@ -2344,24 +2366,41 @@ export async function applyMutation(
                 "validation",
                 `“${child.title}” needs an enabled child type below the parent.`,
               );
+            return childType;
+          });
+          let rank = tail!.rank;
+          const numbered = children.map((child, index) => {
             rank = rankBetween(rank, null);
-            await tx.insert(s.workItem).values({
+            return {
+              child,
+              childType: childTypes[index]!,
+              number: Number(tail!.number) + index + 1,
+              rank,
+              position: Number(tail!.position) + (index + 1) * 1024,
+            };
+          });
+          await tx.insert(s.workItem).values(
+            numbered.map(({ child, childType, number, rank, position }) => ({
               id: child.workItemId,
               organizationId,
               projectId,
               typeId: child.typeId,
               parentId: workItemId!,
               teamId: item!.teamId,
-              number: ++number,
+              number,
               title: child.title,
               statusId: status.id,
-              refinementState: childType.hasSpecification ? "draft" : null,
+              refinementState: childType.hasSpecification
+                ? ("draft" as const)
+                : null,
               rank,
-              position: Number(tail!.position) + (index + 1) * 1024,
+              position,
               sourceRevisionId,
               createdById: userId,
-            });
-            await tx.insert(s.specificationRevision).values({
+            })),
+          );
+          await tx.insert(s.specificationRevision).values(
+            children.map((child) => ({
               organizationId,
               workItemId: child.workItemId,
               number: 1,
@@ -2369,8 +2408,10 @@ export async function applyMutation(
               content: child.description,
               changeSummary: "Accepted delivery breakdown",
               authorId: userId,
-            });
-            await tx.insert(s.activity).values({
+            })),
+          );
+          await tx.insert(s.activity).values(
+            numbered.map(({ child, childType, number }) => ({
               id: crypto.randomUUID(),
               organizationId,
               projectId,
@@ -2392,28 +2433,29 @@ export async function applyMutation(
                   : {}),
               },
               createdAt: now,
-            });
-            const entities = await snapshot(tx, {
-              organizationId,
-              projectId,
-              workItemId: child.workItemId,
-            });
-            await writeEntities(
-              tx,
-              organizationId,
-              entities
-                .filter((entity) =>
-                  entity.type === "workItem"
-                    ? entity.id === child.workItemId
-                    : "workItemId" in entity &&
-                      entity.workItemId === child.workItemId,
-                )
-                .map((entity) => ({
-                  entity,
-                  scope: { projectId, workItemId: child.workItemId },
-                })),
-            );
-          }
+            })),
+          );
+          const childIds = new Set(children.map((child) => child.workItemId));
+          const entities = await snapshotItems(
+            tx,
+            { organizationId, projectId },
+            [...childIds],
+          );
+          await writeEntities(
+            tx,
+            organizationId,
+            entities.flatMap((entity) => {
+              const childId =
+                entity.type === "workItem"
+                  ? entity.id
+                  : "workItemId" in entity
+                    ? entity.workItemId
+                    : undefined;
+              return childId && childIds.has(childId)
+                ? [{ entity, scope: { projectId, workItemId: childId } }]
+                : [];
+            }),
+          );
           log("delivery_breakdown_accepted", {
             count: children.length,
             childIds: children.map((child) => child.workItemId),

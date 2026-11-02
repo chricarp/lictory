@@ -300,6 +300,81 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
   assert.equal(revision!.content, child.description);
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
+void test("a multi-child breakdown materializes every child in order with its own projections", async () => {
+  const f = await fixture(),
+    branchId = await f.branch("engineering/multi-child-breakdown");
+  const children: ProposedChild[] = Array.from({ length: 20 }, (_, i) => ({
+    workItemId: crypto.randomUUID(),
+    typeId: f.task.id,
+    title: `Delivery step ${i + 1}`,
+    description: `Step ${i + 1} keeps the original transaction ID.`,
+  }));
+  await f.commit(branchId, children);
+  const pullRequestId = await f.pr(branchId);
+  await f.approve(pullRequestId);
+  await f.merge(pullRequestId);
+  const rows = await db
+    .select()
+    .from(s.workItem)
+    .where(
+      and(
+        eq(s.workItem.organizationId, f.organizationId),
+        eq(s.workItem.parentId, f.workItemId),
+      ),
+    );
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const ordered = children.map((child) => byId.get(child.workItemId)!);
+  assert.equal(rows.length, children.length);
+  // Numbers continue after the parent (PAY-1) in breakdown order, and ranks
+  // keep that order on the backlog.
+  assert.deepEqual(
+    ordered.map((row) => row.number),
+    children.map((_, i) => i + 2),
+  );
+  for (let i = 1; i < ordered.length; i++) {
+    assert.ok(ordered[i - 1]!.rank < ordered[i]!.rank);
+    assert.ok(ordered[i - 1]!.position < ordered[i]!.position);
+  }
+  const revisions = await db
+    .select()
+    .from(s.specificationRevision)
+    .where(eq(s.specificationRevision.organizationId, f.organizationId));
+  for (const child of children) {
+    const own = revisions.filter((r) => r.workItemId === child.workItemId);
+    assert.equal(own.length, 1);
+    assert.equal(own[0]!.content, child.description);
+  }
+  const created = await db
+    .select()
+    .from(s.activity)
+    .where(
+      and(
+        eq(s.activity.organizationId, f.organizationId),
+        eq(s.activity.action, "created"),
+      ),
+    );
+  assert.equal(
+    created.filter((a) => children.some((c) => c.workItemId === a.workItemId))
+      .length,
+    children.length,
+  );
+  // Each child's item-scope projections (revision, activity, readiness) were
+  // written from the one batched snapshot and match a fresh per-item read.
+  const last = children.at(-1)!;
+  const detail = await db.transaction((tx) =>
+    snapshot(tx, {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      workItemId: last.workItemId,
+    }),
+  );
+  assert.ok(
+    detail.some(
+      (e) => e.type === "readiness" && e.workItemId === last.workItemId,
+    ),
+  );
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
 void test("a sibling PR carrying an accepted breakdown never duplicates the child", async () => {
   const f = await fixture(),
     first = await f.branch("first");
