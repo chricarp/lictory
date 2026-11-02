@@ -1,6 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
-import type { Capabilities, Command } from "@lictory/core/contracts/protocol";
+import {
+  canArchiveDecision,
+  canRecordDecisions,
+  type Capabilities,
+  type Command,
+} from "@lictory/core/contracts/protocol";
 import { DomainError } from "@lictory/core/domain/errors";
 import type { Tx } from "@lictory/core/domain/service";
 
@@ -17,7 +22,7 @@ export async function applyDecisionCommand(
 ) {
   const { organizationId, projectId, userId, capabilities, log } = ctx;
   if (command.type === "recordDecision") {
-    if (!capabilities.editSpecifications && !capabilities.review)
+    if (!canRecordDecisions(capabilities))
       throw new DomainError(
         "forbidden",
         "Recording a conclusion requires a discipline that edits specifications or reviews.",
@@ -77,10 +82,12 @@ export async function applyDecisionCommand(
     );
   if (!decision)
     throw new DomainError("not_found", "This decision is unavailable.");
-  if (decision.authorId !== userId && !capabilities.editSpecifications)
+  if (!canArchiveDecision(capabilities, decision, userId))
     throw new DomainError(
       "forbidden",
-      "Only the author or a specification editor may archive or restore this decision.",
+      decision.authorId === userId
+        ? "Archiving or restoring your decision requires a discipline that edits specifications or reviews in this project."
+        : "Only a specification editor, or the author while they can still record decisions, may archive or restore this decision.",
     );
   if (Boolean(decision.archivedAt) === command.archived) return;
   await tx

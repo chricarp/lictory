@@ -644,6 +644,24 @@ export function canReviewSuggestions(
       d.capabilities.review,
   );
 }
+// Recording a conclusion needs a discipline that edits specifications or
+// reviews in the project.
+export function canRecordDecisions(capabilities: Capabilities) {
+  return capabilities.editSpecifications || capabilities.review;
+}
+// Specification editors curate every decision of the project. An author may
+// also archive or restore their own decision while they can still record
+// decisions there: authorship adds to a current capability, never replaces it.
+export function canArchiveDecision(
+  capabilities: Capabilities,
+  decision: { authorId: string },
+  userId: string,
+) {
+  return (
+    capabilities.editSpecifications ||
+    (decision.authorId === userId && canRecordDecisions(capabilities))
+  );
+}
 export function projectRoleOf(
   members: ProjectMember[],
   userId: string,
