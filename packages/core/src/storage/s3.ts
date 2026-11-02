@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -20,6 +21,8 @@ export interface ObjectStorage {
     inline: boolean,
   ): Promise<string>;
   stat(key: string): Promise<{ size: number; contentType?: string }>;
+  // Server-side copy within the bucket, keeping content type and metadata.
+  copy(sourceKey: string, destinationKey: string): Promise<void>;
   delete(key: string): Promise<void>;
 }
 
@@ -56,6 +59,15 @@ export function s3Storage(client: S3Client, bucket: string): ObjectStorage {
         size: result.ContentLength ?? 0,
         contentType: result.ContentType,
       };
+    },
+    copy: async (sourceKey, Key) => {
+      await client.send(
+        new CopyObjectCommand({
+          Bucket: bucket,
+          Key,
+          CopySource: `${bucket}/${sourceKey.split("/").map(encodeURIComponent).join("/")}`,
+        }),
+      );
     },
     delete: async (Key) => {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key }));
