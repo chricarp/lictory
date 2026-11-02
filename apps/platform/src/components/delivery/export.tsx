@@ -23,9 +23,15 @@ import { Button } from "@lictory/ui/button";
 import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
+import {
+  deliveryToolOf,
+  projectDeliveryTool,
+  type DeliveryTool,
+} from "@lictory/platform/components/delivery/provider-name";
 
-// Export to Jira: a preview that says exactly what each item would do, an
-// explicit per-item confirmation before overwriting changes made in Jira,
+// Export to the project's delivery tool: a preview that says exactly what each
+// item would do, an explicit per-item confirmation before overwriting changes
+// made there,
 // and per-item results. All authority is on the server (/api/delivery).
 
 export type ExternalLink = EntityOf<"externalLink">;
@@ -99,8 +105,9 @@ export function useExternalLinks(workItemId: string) {
   );
 }
 
-// Whether this item's project hands work off to Jira, has a Jira target, and
-// whether I may hand off in it. Only external projects export.
+// Whether this item's project hands work off to a delivery tool, has a
+// target there, and whether I may hand off in it. Only external projects
+// export. `tool` names the provider for copy.
 export function useExportAvailability(item: Pick<WorkItem, "projectId">) {
   const { directory, projects, capabilitiesIn } = useWorkspace();
   return exportAvailability(
@@ -124,13 +131,14 @@ export function exportAvailability(
   return {
     configured: Boolean(external && target && connection),
     connection,
+    tool: projectDeliveryTool(directory, project?.id),
     target,
     allowed,
     external,
   };
 }
 
-// Jira's own status category, read back by the status sync.
+// The delivery tool's own status category, read back by the status sync.
 export const externalCategoryMeta: Record<
   ExternalStatusCategory,
   { label: string; tone: "neutral" | "info" | "good" }
@@ -140,7 +148,11 @@ export const externalCategoryMeta: Record<
   done: { label: "Done", tone: "good" },
 };
 export function ExternalStatusBadge({ link }: { link: ExternalLink }) {
+  const { directory } = useWorkspace();
   if (!link.externalStatus) return null;
+  const tool = deliveryToolOf(
+    directory.delivery.connections.find((c) => c.id === link.connectionId),
+  );
   const meta = link.externalStatusCategory
     ? externalCategoryMeta[link.externalStatusCategory]
     : undefined;
@@ -148,7 +160,7 @@ export function ExternalStatusBadge({ link }: { link: ExternalLink }) {
     <Badge tone={meta?.tone ?? "neutral"} className="max-w-40">
       <span
         className="truncate"
-        title={meta ? `Jira category: ${meta.label}` : undefined}
+        title={meta ? `${tool.Name} category: ${meta.label}` : undefined}
       >
         {link.externalStatus}
       </span>
@@ -173,7 +185,11 @@ export function ExportDialog({
   itemIds?: string[];
   onClose: () => void;
 }) {
-  const { organization } = useWorkspace();
+  const { organization, directory, items } = useWorkspace();
+  const projectId = (
+    item ?? items.find((candidate) => candidate.id === itemIds?.[0])
+  )?.projectId;
+  const tool = projectDeliveryTool(directory, projectId);
   const [plan, setPlan] = useState<Plan>();
   const [error, setError] = useState<string>();
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
@@ -181,7 +197,7 @@ export function ExportDialog({
   const [busy, setBusy] = useState(false);
   const scope = item ? { rootId: item.id } : { itemIds: itemIds ?? [] };
   const scopeKey = item ? item.id : (itemIds ?? []).join(",");
-  // The preview reads Jira (external edits), so it is fetched on open.
+  // The preview reads the delivery tool (external edits), so it is fetched on open.
   useEffect(() => {
     let live = true;
     deliveryRequest<Plan>({
@@ -243,24 +259,24 @@ export function ExportDialog({
       <div
         role="dialog"
         aria-modal
-        aria-label="Export to Jira"
+        aria-label={`Export to ${tool.name}`}
         className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
       >
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
-            {publication ? "Export results" : "Export to Jira"}
+            {publication ? "Export results" : `Export to ${tool.name}`}
           </h2>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             {publication
               ? summary(publication)
-              : "Only ready items are exported. Summary, description (latest revision with acceptance criteria) and labels are written to Jira; status, assignee and sprint stay Jira’s."}
+              : `Only ready items are exported. Summary, description (latest revision with acceptance criteria) and labels are written to ${tool.name}; status, assignee and sprint stay owned by ${tool.name}.`}
           </p>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {!plan && !error && (
             <p className="flex items-center gap-2 px-4 py-6 text-[13px] text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Checking what would
-              change in Jira…
+              change in {tool.name}…
             </p>
           )}
           {plan && (
@@ -321,8 +337,8 @@ export function ExportDialog({
                           {entry.conflict?.includes("linked")
                             ? `Overwrite ${entry.externalKey ?? "the linked issue"} with this specification`
                             : entry.conflict?.length
-                              ? `Changed in Jira since the last export (${entry.conflict.map((c) => fieldLabel[c]).join(", ")}). Overwrite Jira’s changes`
-                              : "Overwrite Jira’s changes"}
+                              ? `Changed in ${tool.name} since the last export (${entry.conflict.map((c) => fieldLabel[c]).join(", ")}). Overwrite those changes`
+                              : `Overwrite the changes made in ${tool.name}`}
                           {entry.externalUrl && (
                             <a
                               href={entry.externalUrl}
@@ -330,7 +346,8 @@ export function ExportDialog({
                               rel="noreferrer"
                               className="inline-flex items-center gap-0.5 underline-offset-2 hover:underline"
                             >
-                              Review in Jira <ArrowUpRight className="size-3" />
+                              Review in {tool.name}{" "}
+                              <ArrowUpRight className="size-3" />
                             </a>
                           )}
                         </label>
@@ -378,7 +395,7 @@ export function ExportDialog({
                 disabled={busy || !plan || exportable.length === 0}
                 title={
                   blockedByConflict.length
-                    ? `${blockedByConflict.length} item(s) changed in Jira will be skipped unless you confirm overwriting.`
+                    ? `${blockedByConflict.length} item(s) changed in ${tool.name} will be skipped unless you confirm overwriting.`
                     : undefined
                 }
                 onClick={() => void run()}
@@ -389,7 +406,7 @@ export function ExportDialog({
                   <Upload className="size-3.5" />
                 )}
                 {exportable.every((e) => e.action === "unchanged")
-                  ? "Refresh Jira status"
+                  ? `Refresh ${tool.product ?? "external"} status`
                   : `Export ${exportable.length} ${exportable.length === 1 ? "item" : "items"}`}
               </Button>
             )}
@@ -491,9 +508,10 @@ function OutcomeBadge({
   return <Badge tone={tone}>{label.trim()}</Badge>;
 }
 
-// Sidebar section: where this item lives in Jira and how current it is.
+// Sidebar section: where this item lives in the delivery tool and how
+// current it is.
 export function ExternalDelivery({ item }: { item: WorkItem }) {
-  const { organization } = useWorkspace();
+  const { organization, directory } = useWorkspace();
   const links = useExternalLinks(item.id);
   const availability = useExportAvailability(item);
   const [exporting, setExporting] = useState(false);
@@ -522,9 +540,15 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
     }
   };
   const ready = item.refinementState === "ready";
+  // A link names the tool it lives in; otherwise the project's target does.
+  const tool = link
+    ? deliveryToolOf(
+        directory.delivery.connections.find((c) => c.id === link.connectionId),
+      )
+    : availability.tool;
   return (
     <section>
-      <SectionLabel className="mb-2">Jira</SectionLabel>
+      <SectionLabel className="mb-2">{tool.product ?? "Delivery"}</SectionLabel>
       {link?.externalKey ? (
         <div className="space-y-1.5 rounded-lg border bg-card px-3 py-2 text-[13px]">
           <div className="flex items-center gap-2">
@@ -538,12 +562,12 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             </a>
             <ExternalStatusBadge link={link} />
             <span className="ml-auto">
-              <LinkStatus link={link} stale={stale} />
+              <LinkStatus link={link} stale={stale} tool={tool} />
             </span>
           </div>
           {link.externalAssignee !== null && (
             <p className="text-xs text-muted-foreground">
-              Assignee in Jira:{" "}
+              Assignee in {tool.name}:{" "}
               <span className="text-foreground">
                 {link.externalAssignee || "Unassigned"}
               </span>
@@ -567,7 +591,7 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
       ) : (
         <p className="text-[13px] text-muted-foreground">
           {!availability.configured
-            ? "This project has no Jira project to hand off to yet."
+            ? `This project has no hand-off target in ${tool.name} yet.`
             : ready
               ? "Not exported yet."
               : "Exportable once the specification is ready."}
@@ -583,14 +607,14 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             onClick={() => setExporting(true)}
           >
             <Upload className="size-3.5" />
-            {link?.externalKey ? "Export changes" : "Export to Jira"}
+            {link?.externalKey ? "Export changes" : `Export to ${tool.name}`}
           </Button>
           {link?.externalKey ? (
             <Button
               size="sm"
               variant="ghost"
               disabled={busy}
-              title="Remove the link. The Jira issue is not changed."
+              title={`Remove the link. The issue in ${tool.name} is not changed.`}
               onClick={() =>
                 void act({
                   action: "unlink",
@@ -628,8 +652,8 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             autoFocus
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="Jira key, e.g. PAY-12"
-            aria-label="Jira issue key"
+            placeholder="Issue key, e.g. PAY-12"
+            aria-label={`${tool.Name} issue key`}
             className="h-7 min-w-0 flex-1 rounded-md border bg-card px-2 text-[13px] outline-none focus:border-primary/60 touch:text-base"
           />
           <Button size="sm" type="submit" disabled={busy || !key.trim()}>
@@ -645,10 +669,18 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
   );
 }
 
-function LinkStatus({ link, stale }: { link: ExternalLink; stale: boolean }) {
+function LinkStatus({
+  link,
+  stale,
+  tool,
+}: {
+  link: ExternalLink;
+  stale: boolean;
+  tool: DeliveryTool;
+}) {
   if (link.status === "pending") return <Badge>Exporting…</Badge>;
   if (link.status === "conflict")
-    return <Badge tone="warning">Changed in Jira</Badge>;
+    return <Badge tone="warning">Changed in {tool.name}</Badge>;
   if (link.status === "failed") return <Badge tone="danger">Failed</Badge>;
   if (stale) return <Badge tone="warning">Out of date</Badge>;
   return (

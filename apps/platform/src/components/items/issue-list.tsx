@@ -62,6 +62,7 @@ import type { IllustrationKind } from "@lictory/ui/state-illustration";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { IssueRow } from "@lictory/platform/components/items/issue-row";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import {
   RefinementIcon,
   StatusIcon,
@@ -857,7 +858,7 @@ export function IssueList({
                         )}
                         className="mt-3 block text-primary hover:underline"
                       >
-                        Choose a Jira project to hand ready work off to →
+                        Choose where to hand ready work off to →
                       </Link>
                     )}
                   {canManage(project.id) && (
@@ -894,6 +895,9 @@ export function IssueList({
                       item={item}
                       project={projectById.get(item.projectId)}
                       externalLink={links.get(item.id)}
+                      deliveryTool={
+                        projectDeliveryTool(directory, item.projectId).name
+                      }
                       hint={itemHint?.(item)}
                       parent={
                         item.parentId

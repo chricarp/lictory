@@ -1,3 +1,4 @@
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { useState } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -187,7 +188,10 @@ function ProjectRow({
           <Badge
             tone={project.deliveryMode === "external" ? "info" : "neutral"}
           >
-            {project.deliveryMode === "external" ? "Jira" : "Lictory"}
+            {project.deliveryMode === "external"
+              ? (projectDeliveryTool(directory, project.id).product ??
+                "External")
+              : "Lictory"}
           </Badge>
           {archived && <Badge>Archived</Badge>}
         </div>

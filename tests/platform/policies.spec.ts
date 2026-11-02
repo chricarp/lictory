@@ -118,7 +118,9 @@ test("an externally delivered project hands off instead of offering a board or b
   for (const surface of ["board", "backlog"]) {
     await page.goto(seeded.projectPath(`/${surface}`));
     await expect(
-      page.getByRole("heading", { name: "Jira Shop project delivers in Jira" }),
+      page.getByRole("heading", {
+        name: "Jira Shop project delivers in your delivery tool",
+      }),
     ).toBeVisible();
   }
   await page.getByRole("button", { name: "Open hand-off" }).click();

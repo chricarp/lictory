@@ -509,8 +509,10 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         ) : (
           <b>{key}</b>
         )
+      ) : d.outcome === "created" ? (
+        "the delivery tool"
       ) : (
-        "Jira"
+        "the external issue"
       );
       body = (
         <>

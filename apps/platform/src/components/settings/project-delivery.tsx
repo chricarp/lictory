@@ -14,16 +14,24 @@ import {
 } from "@lictory/platform/components/workspace/settings-section";
 import { ProjectHandoffTarget } from "@lictory/platform/components/delivery/delivery-settings";
 import {
+  projectDeliveryTool,
+  type DeliveryTool,
+} from "@lictory/platform/components/delivery/provider-name";
+import {
   Choice,
   useCommand,
 } from "@lictory/platform/components/settings/project-shared";
 
-const modes: {
+// The external mode names the tool the project hands off to (see
+// provider-name.ts), so the choice never promises a vendor it isn't using.
+const modesFor = (
+  tool: DeliveryTool,
+): {
   value: DeliveryMode;
   title: string;
   summary: string;
   points: string[];
-}[] = [
+}[] => [
   {
     value: "native",
     title: "Deliver in Lictory",
@@ -36,12 +44,12 @@ const modes: {
   },
   {
     value: "external",
-    title: "Hand off to Jira",
-    summary: "Refine and approve here; Jira runs delivery.",
+    title: `Hand off to ${tool.name}`,
+    summary: `Refine and approve here; ${tool.name} runs delivery.`,
     points: [
-      "Ready work is exported to one Jira project",
-      "Jira status and assignee are read back",
-      "Iterations and estimates are planned in Jira",
+      `Ready work is exported to one project in ${tool.name}`,
+      `Status and assignee are read back from ${tool.name}`,
+      `Iterations and estimates are planned in ${tool.name}`,
     ],
   },
 ];
@@ -72,6 +80,8 @@ function DeliveryModeSection({
   canEdit: boolean;
 }) {
   const { directory, organization } = useWorkspace();
+  const tool = projectDeliveryTool(directory, project.id);
+  const modes = modesFor(tool);
   const { run, error } = useCommand();
   const [confirming, setConfirming] = useState<DeliveryMode>();
   const activeIteration = directory.iterations.find(
@@ -148,8 +158,9 @@ function DeliveryModeSection({
             {activeIteration ? (
               <>
                 <p>
-                  Complete the active iteration before handing delivery off to
-                  Jira, so its report is frozen and unfinished work has a home.
+                  Complete the active iteration before handing delivery off to{" "}
+                  {tool.name}, so its report is frozen and unfinished work has a
+                  home.
                 </p>
                 <div className="flex gap-2">
                   <Link
@@ -177,13 +188,13 @@ function DeliveryModeSection({
               <>
                 <p>
                   Iterations and estimates will be turned off for this project;
-                  Jira plans them from now on. Boards and backlogs are replaced
-                  by the hand-off view. Existing items, specifications and
-                  history are kept, and you can switch back later.
+                  {tool.Name} plans them from now on. Boards and backlogs are
+                  replaced by the hand-off view. Existing items, specifications
+                  and history are kept, and you can switch back later.
                 </p>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => void switchTo("external")}>
-                    Hand off to Jira
+                    Hand off to {tool.name}
                   </Button>
                   <Button
                     size="sm"
