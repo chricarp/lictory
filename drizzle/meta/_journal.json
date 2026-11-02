@@ -162,6 +162,13 @@
       "when": 1793234960471,
       "tag": "0022_mutation_result_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793401171633,
+      "tag": "0023_misty_tusk",
+      "breakpoints": true
     }
   ]
 }

@@ -42,6 +42,12 @@ import {
   type Project,
   type SortKey,
 } from "@lictory/core/lib/work-items";
+import {
+  deliveryCategory,
+  externalLinksByItem,
+  lifecycleStage,
+  lifecycleStages,
+} from "@lictory/core/lib/lifecycle";
 import type {
   StatusCategory,
   Team,
@@ -79,6 +85,10 @@ export function IssueList({
   showArchivedToggle = true,
   allowEpicFilter = true,
   header,
+  summary,
+  groupBy = "status",
+  itemHint,
+  createLabel,
 }: {
   items: WorkItem[];
   project: Project | undefined;
@@ -94,6 +104,10 @@ export function IssueList({
   showArchivedToggle?: boolean;
   allowEpicFilter?: boolean;
   header?: ReactNode;
+  summary?: ReactNode;
+  groupBy?: "status" | "refinement" | "lifecycle";
+  itemHint?: (item: WorkItem) => string;
+  createLabel?: string;
 }) {
   const {
     items: allItems,
@@ -186,28 +200,110 @@ export function IssueList({
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [focus, setFocus] = useState<string | undefined>(selectedId);
   const listRef = useRef<HTMLUListElement>(null);
+  const links = useMemo(
+    () =>
+      externalLinksByItem(
+        Object.values(view.entities),
+        directory.delivery.targets,
+      ),
+    [view.entities, directory.delivery.targets],
+  );
+  const projectById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p])),
+    [projects],
+  );
+  const categoryFor = useCallback(
+    (item: WorkItem) => {
+      const owner = projectById.get(item.projectId);
+      return owner
+        ? deliveryCategory(item, owner, delivery, links.get(item.id))
+        : categoryOf(delivery, item);
+    },
+    [projectById, delivery, links],
+  );
   const visible = useMemo(() => {
     const scoped = items.filter((i) => showArchived || !i.archivedAt);
     return sortItems(
-      applyFilters(scoped, { ...filters, search }, projects, delivery),
+      applyFilters(
+        scoped,
+        { ...filters, search },
+        projects,
+        delivery,
+        categoryFor,
+      ),
       sort,
       delivery,
+      categoryFor,
     );
-  }, [items, filters, search, sort, projects, showArchived, delivery]);
-  // Grouping uses status categories: items of several teams share them even
-  // when their workflows differ.
-  const groups = useMemo(() => {
-    if (!group)
+  }, [
+    items,
+    filters,
+    search,
+    sort,
+    projects,
+    showArchived,
+    delivery,
+    categoryFor,
+  ]);
+  const groups = useMemo<
+    {
+      key: string;
+      label?: string;
+      status?: StatusCategory;
+      items: WorkItem[];
+    }[]
+  >(() => {
+    if (!group) return [{ key: "all", items: visible }];
+    if (groupBy === "lifecycle" && project)
+      return lifecycleStages
+        .map((stage) => ({
+          key: stage.id,
+          label: stage.label,
+          items: visible.filter(
+            (item) =>
+              lifecycleStage(item, project, delivery, links.get(item.id)) ===
+              stage.id,
+          ),
+        }))
+        .filter((g) => g.items.length);
+    if (groupBy === "refinement") {
+      const refinementGroups = refinementOrder
+        .map((state) => ({
+          key: state,
+          label: refinementMeta[state].label,
+          items: visible.filter((item) => item.refinementState === state),
+        }))
+        .filter((g) => g.items.length);
+      const plain = visible.filter((item) => item.refinementState === null);
       return [
-        { status: undefined as StatusCategory | undefined, items: visible },
+        ...refinementGroups,
+        ...(plain.length
+          ? [{ key: "plain", label: "Plain work", items: plain }]
+          : []),
       ];
-    return categoryOrder
+    }
+    const statusGroups = categoryOrder
       .map((status) => ({
+        key: status,
+        label: categoryMeta[status].label,
         status,
-        items: visible.filter((i) => categoryOf(delivery, i) === status),
+        items: visible.filter((item) => categoryFor(item) === status),
       }))
       .filter((g) => g.items.length);
-  }, [group, visible, delivery]);
+    const unknown = visible.filter((item) => !categoryFor(item));
+    return [
+      ...statusGroups,
+      ...(unknown.length
+        ? [
+            {
+              key: "not-handed-off",
+              label: "No reported delivery status",
+              items: unknown,
+            },
+          ]
+        : []),
+    ];
+  }, [group, groupBy, visible, delivery, project, links, categoryFor]);
   const order = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const [lastSelected, setLastSelected] = useState(selectedId);
   if (lastSelected !== selectedId) {
@@ -383,7 +479,12 @@ export function IssueList({
                   checked={group}
                   onChange={(e) => setGroup(e.target.checked)}
                 />{" "}
-                Group by status
+                Group by{" "}
+                {groupBy === "lifecycle"
+                  ? "lifecycle"
+                  : groupBy === "refinement"
+                    ? "refinement"
+                    : "status"}
               </label>
               {showArchivedToggle && (
                 <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
@@ -403,10 +504,12 @@ export function IssueList({
               onClick={() =>
                 openCreate({ kind: createKind, projectId: project.id })
               }
-              aria-label={`New ${createKind}`}
+              aria-label={createLabel ?? `New ${createKind}`}
             >
               <Plus className="size-3.5" />
-              {!compact && (createKind === "epic" ? "New Epic" : "New item")}
+              {!compact &&
+                (createLabel ??
+                  (createKind === "epic" ? "New Epic" : "New item"))}
             </Button>
           )}
         </div>
@@ -416,6 +519,7 @@ export function IssueList({
           {description}
         </p>
       )}
+      {summary}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-1 border-b px-3 py-1.5 text-xs">
           {filters.status?.map((s) => (
@@ -667,11 +771,11 @@ export function IssueList({
         ) : (
           <ul ref={listRef}>
             {groups.map((g) => (
-              <li key={g.status ?? "all"}>
-                {g.status && (
+              <li key={g.key}>
+                {g.label && (
                   <div className="sticky top-0 z-1 flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs font-medium backdrop-blur">
-                    <StatusIcon category={g.status} />
-                    {categoryMeta[g.status].label}
+                    {g.status && <StatusIcon category={g.status} />}
+                    {g.label}
                     <span className="text-muted-foreground tabular-nums">
                       {g.items.length}
                     </span>
@@ -682,7 +786,9 @@ export function IssueList({
                     <IssueRow
                       key={item.id}
                       item={item}
-                      project={project}
+                      project={projectById.get(item.projectId)}
+                      externalLink={links.get(item.id)}
+                      hint={itemHint?.(item)}
                       parent={
                         item.parentId
                           ? allItems.find((i) => i.id === item.parentId)

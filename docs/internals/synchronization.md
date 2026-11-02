@@ -310,9 +310,12 @@ It does not restore delivery status, ownership or iteration properties.
 
 ## Branches and pull requests
 
-Branches belong to one specification-backed work item. They version its title and
-Markdown content (including acceptance criteria), while delivery properties stay
-shared. `main` is the default target and represents the canonical specification;
+Branches belong to one specification-backed work item. They version its title,
+Markdown content (including acceptance criteria) and additive proposed child
+items, while delivery properties stay shared. Proposed children participate in
+the reviewed result and become shared work atomically on merge into main; see
+[the lifecycle model](lifecycle.md#specification-agreement-and-delivery-preparation).
+`main` is the default target and represents the canonical specification;
 branches can also start from and target other branches. Anyone with organization
 membership can create a branch, but only its author and explicitly invited
 collaborators can commit. Only its author manages collaborators. All branches and

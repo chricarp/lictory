@@ -957,10 +957,19 @@ function ProjectNav({
   const board = paths.board(org, key);
   const backlog = paths.backlog(org, key);
   const stories = paths.list(org, key, "stories");
-  const viewActive = views.some((v) => active(paths.view(org, key, v.id)));
+  const viewActive = views.some(
+    (v) => v.id !== "all" && active(paths.view(org, key, v.id)),
+  );
   return (
     <>
       <NavGroup label="Work">
+        <NavLink
+          href={paths.view(org, key, "all")}
+          active={active(paths.view(org, key, "all"))}
+          icon={<FilePenLine className="size-4" />}
+        >
+          Refinement
+        </NavLink>
         <NavLink
           href={paths.list(org, key, "epics")}
           active={active(paths.list(org, key, "epics"))}
@@ -1047,7 +1056,7 @@ function ProjectNav({
         }}
       >
         {views
-          .filter((v) => v.id !== "needs-my-review")
+          .filter((v) => v.id !== "needs-my-review" && v.id !== "all")
           .map((v) => (
             <NavLink
               key={v.id}

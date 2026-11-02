@@ -20,6 +20,8 @@ adding domain writes or synchronized entities.
   delivery modes
 - [Workspace synchronization and review invariants](./internals/synchronization.md)
 - [Delivery model](./internals/delivery.md)
+- [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
+  reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
 - [Database model](./internals/database-model.md)
 - [Lictory Intelligence](./internals/ai.md)

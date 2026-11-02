@@ -29,6 +29,12 @@ import {
 } from "@lictory/core/lib/branch-name";
 import type { Command, EntityOf } from "@lictory/core/contracts/protocol";
 import {
+  proposedChildrenSchema,
+  reviewResultValue,
+  sameProposedChildren,
+} from "@lictory/core/contracts/decomposition";
+import { BreakdownProposal } from "@lictory/platform/components/review/breakdown-proposal";
+import {
   mergeBase,
   mergeSnapshot,
   type Snapshot,
@@ -670,11 +676,17 @@ function BranchEditorBody({
           typeof raw.baseCommitId === "string" &&
           typeof raw.message === "string"
         )
-          return raw;
+          return {
+            ...raw,
+            proposedChildren: proposedChildrenSchema.parse(
+              raw.proposedChildren ?? head.proposedChildren,
+            ),
+          };
       } catch {}
     return {
       title: head.title,
       content: head.content,
+      proposedChildren: head.proposedChildren,
       baseCommitId: head.id,
       message: "",
     };
@@ -695,7 +707,9 @@ function BranchEditorBody({
     [start, draft, head],
   );
   const changed =
-    draft.title !== start.title || draft.content !== start.content;
+    draft.title !== start.title ||
+    draft.content !== start.content ||
+    !sameProposedChildren(draft.proposedChildren, start.proposedChildren);
   const edit = (patch: Partial<Draft>) => {
     setCommitted(null);
     setDraft((d) => ({ ...d, ...patch }));
@@ -704,6 +718,7 @@ function BranchEditorBody({
     setDraft({
       title: head.title,
       content: head.content,
+      proposedChildren: head.proposedChildren,
       baseCommitId: head.id,
       message: "",
     });
@@ -727,7 +742,11 @@ function BranchEditorBody({
         localStorage.removeItem(key);
         setDraft({
           ...(!resolve
-            ? { title: result.title, content: result.content }
+            ? {
+                title: result.title,
+                content: result.content,
+                proposedChildren: result.proposedChildren,
+              }
             : snapshot),
           baseCommitId: head.id,
           message: "",
@@ -744,7 +763,9 @@ function BranchEditorBody({
     if (
       head.id !== draft.baseCommitId &&
       (!changed ||
-        (head.title === draft.title && head.content === draft.content))
+        (head.title === draft.title &&
+          head.content === draft.content &&
+          sameProposedChildren(head.proposedChildren, draft.proposedChildren)))
     ) {
       // Reconcile a confirmed commit (or an idle editor) with the durable head.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -752,10 +773,18 @@ function BranchEditorBody({
         ...d,
         title: head.title,
         content: head.content,
+        proposedChildren: head.proposedChildren,
         baseCommitId: head.id,
       }));
     }
-  }, [head, changed, draft.title, draft.content, draft.baseCommitId]);
+  }, [
+    head,
+    changed,
+    draft.title,
+    draft.content,
+    draft.proposedChildren,
+    draft.baseCommitId,
+  ]);
   const history = ancestry(commits, head.id);
   const main = branches.find(isMain);
   const pr = activePrFor(prs, branch.id);
@@ -1001,11 +1030,16 @@ function BranchEditorBody({
                     className="min-h-100 px-4 pt-4 font-mono"
                     previewClassName="min-h-[400px] px-4 pt-4"
                   />
+                  <BreakdownProposal
+                    proposals={draft.proposedChildren ?? []}
+                    onChange={(proposedChildren) => edit({ proposedChildren })}
+                  />
                 </>
               ) : (
                 <>
                   <h2 className="text-xl font-semibold">{head.title}</h2>
                   <Markdown source={head.content} />
+                  <BreakdownProposal proposals={head.proposedChildren} />
                 </>
               )}
               {canEdit && !resolving && (
@@ -1294,7 +1328,8 @@ function CreatePR({
     preview &&
     !preview.conflicted &&
     preview.title === theirs?.title &&
-    preview.content === theirs?.content;
+    preview.content === theirs?.content &&
+    sameProposedChildren(preview.proposedChildren, theirs?.proposedChildren);
   const submit = (draft: boolean) => {
     const id = crypto.randomUUID();
     void run(
@@ -1428,6 +1463,16 @@ function CreatePR({
                     before={theirs.content}
                     after={preview.content}
                   />
+                  <BreakdownProposal
+                    includeApplied
+                    proposals={(preview.proposedChildren ?? []).filter(
+                      (child) =>
+                        !theirs.proposedChildren?.some(
+                          (existing) =>
+                            existing.workItemId === child.workItemId,
+                        ),
+                    )}
+                  />
                 </div>
               </details>
             )}
@@ -1504,12 +1549,16 @@ export function ConflictResolver({
     [base, ours, theirs],
   );
   const [title, setTitle] = useState(result.title);
+  const [breakdownSide, setBreakdownSide] = useState<"ours" | "theirs" | null>(
+    null,
+  );
   const [choices, setChoices] = useState<Record<number, string[]>>({});
   const conflicts = result.chunks.flatMap((chunk, i) =>
     "lines" in chunk ? [] : [{ chunk, i }],
   );
   const complete =
     conflicts.every(({ i }) => choices[i] !== undefined) &&
+    (!result.decompositionConflict || breakdownSide !== null) &&
     title.trim().length > 0;
   return (
     <section className="space-y-4 rounded-lg border border-amber-500/40 bg-card p-4">
@@ -1550,6 +1599,35 @@ export function ConflictResolver({
           onChange={(value) => setChoices((c) => ({ ...c, [i]: value }))}
         />
       ))}
+      {result.decompositionConflict && (
+        <div className="space-y-2 rounded-md border p-3">
+          <p className="text-sm font-medium">
+            Both sides changed the proposed breakdown. Choose the complete
+            breakdown to keep.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant={breakdownSide === "ours" ? "primary" : "secondary"}
+              onClick={() => setBreakdownSide("ours")}
+            >
+              Keep {oursLabel.toLowerCase()}
+            </Button>
+            <Button
+              variant={breakdownSide === "theirs" ? "primary" : "secondary"}
+              onClick={() => setBreakdownSide("theirs")}
+            >
+              Keep {theirsLabel.toLowerCase()}
+            </Button>
+          </div>
+          <BreakdownProposal
+            proposals={
+              (breakdownSide === "theirs"
+                ? theirs.proposedChildren
+                : ours.proposedChildren) ?? []
+            }
+          />
+        </div>
+      )}
       {!conflicts.length && (
         <RevisionDiff before={ours.content} after={result.content} />
       )}
@@ -1561,7 +1639,11 @@ export function ConflictResolver({
           variant="secondary"
           disabled={pending}
           onClick={() =>
-            onResolve({ title: theirs.title, content: theirs.content })
+            onResolve({
+              title: theirs.title,
+              content: theirs.content,
+              proposedChildren: theirs.proposedChildren ?? [],
+            })
           }
         >
           Discard my changes
@@ -1570,7 +1652,11 @@ export function ConflictResolver({
           variant="secondary"
           disabled={pending}
           onClick={() =>
-            onResolve({ title: ours.title, content: ours.content })
+            onResolve({
+              title: ours.title,
+              content: ours.content,
+              proposedChildren: ours.proposedChildren ?? [],
+            })
           }
         >
           Keep all my changes
@@ -1580,6 +1666,11 @@ export function ConflictResolver({
           onClick={() =>
             onResolve({
               title,
+              proposedChildren: result.decompositionConflict
+                ? ((breakdownSide === "theirs"
+                    ? theirs.proposedChildren
+                    : ours.proposedChildren) ?? [])
+                : result.proposedChildren,
               content: result.chunks
                 .flatMap((c, i) => ("lines" in c ? c.lines : choices[i]!))
                 .join("\n"),
@@ -1764,9 +1855,7 @@ function SyncBranch({
 }
 
 function useMergeHash(snapshot: Snapshot | undefined) {
-  const serialized = snapshot
-    ? JSON.stringify([snapshot.title, snapshot.content])
-    : "";
+  const serialized = snapshot ? reviewResultValue(snapshot) : "";
   const [value, setValue] = useState({ serialized: "", hash: "" });
   useEffect(() => {
     let active = true;
@@ -1910,7 +1999,8 @@ function PullRequestView({
     result &&
     !result.conflicted &&
     result.title === theirs?.title &&
-    result.content === theirs?.content;
+    result.content === theirs?.content &&
+    sameProposedChildren(result.proposedChildren, theirs?.proposedChildren);
   const changesRequested = reviews.some(
     (r) => r.decision === "changes_requested" && r.resultHash === hash,
   );
@@ -2200,6 +2290,16 @@ function PullRequestView({
                     before={before.content}
                     after={display.content}
                   />
+                  <BreakdownProposal
+                    includeApplied
+                    proposals={(display.proposedChildren ?? []).filter(
+                      (child) =>
+                        !before.proposedChildren?.some(
+                          (existing) =>
+                            existing.workItemId === child.workItemId,
+                        ),
+                    )}
+                  />
                   <details className="rounded-md border p-3">
                     <summary className="cursor-pointer text-sm">
                       Read the complete merge result
@@ -2229,6 +2329,18 @@ function PullRequestView({
                     <Markdown source={p.description} />
                   </div>
                 </article>
+                {display && (
+                  <BreakdownProposal
+                    includeApplied
+                    proposals={(display.proposedChildren ?? []).filter(
+                      (child) =>
+                        !before?.proposedChildren?.some(
+                          (existing) =>
+                            existing.workItemId === child.workItemId,
+                        ),
+                    )}
+                  />
+                )}
                 <section className="space-y-3">
                   <div className="flex items-center gap-2">
                     <SectionLabel>Discussions</SectionLabel>

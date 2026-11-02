@@ -95,8 +95,8 @@ test("empty states load compact static artwork and remain actionable", async ({
   for (const [view, label, kind] of [
     ["needs-review", "Needs review", "teamReview"],
     ["blocked", "Blocked", "blocked"],
-    ["ready", "Ready for development", "ready"],
-    ["drafts", "Drafts", "drafts"],
+    ["ready", "Ready for selection", "ready"],
+    ["drafts", "Proposals", "drafts"],
     ["updated", "Recently updated", "updated"],
   ] as const) {
     await page.goto(`${workspace}/art/views/${view}`);

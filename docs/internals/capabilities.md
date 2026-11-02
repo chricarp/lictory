@@ -49,7 +49,8 @@ Surfaces only narrow what is available:
 
 ## Human decisions
 
-Capabilities that record a human decision (approving or requesting changes on
+Capabilities that record a human decision (accepting delivery scope, recording or
+archiving a durable conclusion, approving or requesting changes on
 reviews, suggestions and pull requests; merging; resolving threads; the Lictory
 Intelligence policy; exporting to delivery tools) are marked `decision`. MCP tells agents to
 call them only when the person explicitly asked; the embedded agent requires the
@@ -127,7 +128,10 @@ before execution. MCP references accept ids or slugs; embedded-agent references
 use canonical ids. Unknown, inaccessible or ambiguous references leave the
 organization empty while preserving the attempt and its original outcome.
 Domain changes are attributed to the person in activity history as before; the
-mutation id joins the two.
+mutation id joins the two. Workspace activity also records delegated execution
+through MCP or Litto and a reported MCP client name, without treating clients
+sharing one person's identity as independent reviewers. See the
+[lifecycle model](lifecycle.md) for proposal, commitment and knowledge semantics.
 
 ## Adding a capability
 

@@ -51,9 +51,15 @@ export function Readiness() {
       )}
       <p className="mt-2 text-[11px] text-muted-foreground">
         {item.refinementState === "ready"
-          ? "All checks pass; this specification is ready for development."
+          ? "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
+      {checks.find((check) => !check.passed && !check.signOff)?.detail && (
+        <p className="mt-2 rounded-md bg-muted/60 px-2 py-1.5 text-xs leading-relaxed">
+          <span className="font-medium">Next concern:</span>{" "}
+          {checks.find((check) => !check.passed && !check.signOff)?.detail}
+        </p>
+      )}
       {readiness?.pinned && latest && (
         <p className="mt-1 text-[11px] text-muted-foreground">
           Kept on Definition of Ready{" "}

@@ -2,6 +2,8 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { GripVertical, Plus } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { externalLinksByItem } from "@lictory/core/lib/lifecycle";
+import { ExternalStatusBadge } from "@lictory/platform/components/delivery/export";
 import { paths } from "@lictory/core/lib/paths";
 import {
   byPosition,
@@ -27,12 +29,26 @@ import { useItem } from "@lictory/platform/components/items/item-context";
 // editable in place, and creatable without leaving the parent. Order is manual:
 // drag the handle, or use Alt+↑/↓ on a focused row. Decomposing a
 // specification records the revision each child was derived from.
-export function EpicStories() {
-  const { item, project, canEdit, canChangeProperties } = useItem();
-  const { items, organization, mutate, delivery } = useWorkspace();
+export function EpicStories({ onPropose }: { onPropose?: () => void }) {
+  const { item, project, readOnly, capabilities, canChangeProperties } =
+    useItem();
+  const { items, organization, mutate, delivery, view, directory } =
+    useWorkspace();
+  const externalLinks = useMemo(
+    () =>
+      externalLinksByItem(
+        Object.values(view.entities),
+        directory.delivery.targets,
+      ),
+    [view.entities, directory.delivery.targets],
+  );
   const parentType = typeOf(delivery, item);
   const childTypes = enabledTypes(delivery, item.projectId).filter(
-    (t) => t.level < parentType.level,
+    (t) =>
+      t.level < parentType.level &&
+      (t.hasSpecification
+        ? capabilities.editSpecifications
+        : capabilities.editSpecifications || capabilities.changeProperties),
   );
   // Default to the richest child type one level down (Story under Epic).
   const [childTypeId, setChildTypeId] = useState<string>();
@@ -97,7 +113,12 @@ export function EpicStories() {
       title: trimmed,
     });
   };
-  if (!childTypes.length && stories.length === 0) return null;
+  if (
+    !childTypes.length &&
+    stories.length === 0 &&
+    !(parentType.hasSpecification && onPropose)
+  )
+    return null;
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
@@ -117,7 +138,17 @@ export function EpicStories() {
             {stale} from an earlier revision
           </span>
         )}
-        {canEdit && !composing && childType && (
+        {!readOnly && parentType.hasSpecification && onPropose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
+            onClick={onPropose}
+          >
+            Propose breakdown
+          </Button>
+        )}
+        {!readOnly && !composing && childType && (
           <Button
             variant="ghost"
             size="sm"
@@ -128,6 +159,14 @@ export function EpicStories() {
           </Button>
         )}
       </div>
+      {parentType.hasSpecification && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Reviews approve this specification. Child readiness shows whether its
+          delivery breakdown is prepared.
+          {item.mainProtected &&
+            " The approved specification stays protected while you prepare its children."}
+        </p>
+      )}
       <div className="overflow-hidden rounded-md border">
         {stories.length === 0 && !composing && (
           <p className="px-3 py-4 text-[13px] text-muted-foreground">
@@ -213,21 +252,31 @@ export function EpicStories() {
                 </button>
               )}
               <span className="relative z-10">
-                <IssueStatus
-                  projectId={story.projectId}
-                  statusId={story.statusId}
-                  compact
-                  onChange={
-                    canChangeProperties
-                      ? (statusId) =>
-                          void mutate({
-                            type: "updateWorkItem",
-                            workItemId: story.id,
-                            statusId,
-                          })
-                      : undefined
-                  }
-                />
+                {project.deliveryMode === "external" ? (
+                  externalLinks.get(story.id)?.externalKey ? (
+                    <ExternalStatusBadge link={externalLinks.get(story.id)!} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Not handed off
+                    </span>
+                  )
+                ) : (
+                  <IssueStatus
+                    projectId={story.projectId}
+                    statusId={story.statusId}
+                    compact
+                    onChange={
+                      canChangeProperties && project.deliveryMode === "native"
+                        ? (statusId) =>
+                            void mutate({
+                              type: "updateWorkItem",
+                              workItemId: story.id,
+                              statusId,
+                            })
+                        : undefined
+                    }
+                  />
+                )}
               </span>
               <TypeIcon type={typeOf(delivery, story)} />
               <IssueIdentifier
@@ -249,20 +298,29 @@ export function EpicStories() {
               </Link>
               <ReviewSignal item={story} />
               <span className="relative z-10">
-                <AssigneePicker
-                  assigneeId={story.assigneeId}
-                  compact
-                  onChange={
-                    canChangeProperties
-                      ? (assigneeId) =>
-                          void mutate({
-                            type: "updateWorkItem",
-                            workItemId: story.id,
-                            assigneeId,
-                          })
-                      : undefined
-                  }
-                />
+                {project.deliveryMode === "external" ? (
+                  <span className="text-xs text-muted-foreground">
+                    {externalLinks.get(story.id)?.externalAssignee?.trim()
+                      .length
+                      ? externalLinks.get(story.id)?.externalAssignee
+                      : "Unassigned in delivery"}
+                  </span>
+                ) : (
+                  <AssigneePicker
+                    assigneeId={story.assigneeId}
+                    compact
+                    onChange={
+                      canChangeProperties && project.deliveryMode === "native"
+                        ? (assigneeId) =>
+                            void mutate({
+                              type: "updateWorkItem",
+                              workItemId: story.id,
+                              assigneeId,
+                            })
+                        : undefined
+                    }
+                  />
+                )}
               </span>
             </li>
           ))}
