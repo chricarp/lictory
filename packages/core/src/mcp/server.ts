@@ -7,6 +7,7 @@ import {
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
 import {
   getCapability,
+  humanOnlyError,
   invoke,
   listCapabilities,
 } from "@lictory/core/capabilities/registry";
@@ -31,6 +32,7 @@ organizationId accepts either an exact organization id or slug from listOrganiza
 Specifications are Markdown revisions. Propose reviewed changes through createBranch → commitBranch → createPullRequest, reading the current item and branch heads first; propose child work in a commit's proposedChildren so people review the breakdown before it becomes shared work. Use updateSpecification only for an explicitly requested direct edit to an unprotected draft. Legacy suggestion tools exist for historical records; use branches for new proposals.
 Ready means the project's evidence checks pass; it does not mean scheduled or started. Native delivery records the agreed revision with acceptDeliveryScope; starting or completing a specification without one is refused for agents. In external projects the delivery tool owns status and assignee.
 Before inferring established product behavior, use searchProductKnowledge and cite the exact revision.
+Some operations stay with the person in the browser by policy: credentials and access tokens, account security, organization membership and administrator roles. Call listHumanOnlyOperations to tell the person where to do them instead of searching for a tool.
 Humans decide: do not approve, merge, accept delivery scope, resolve discussions, record decisions or export to delivery tools unless the person explicitly asked you to. Several agents using one person's token are not independent reviewers.
 Commands accept an optional mutationId; reuse it when retrying so nothing is applied twice.`;
 
@@ -103,7 +105,8 @@ async function callTool(ctx: CapabilityContext, params: unknown) {
       arguments: z.record(z.string(), z.unknown()).optional(),
     })
     .parse(params);
-  if (!getCapability(name, ctx.principal.surface))
+  // Human-only operations answer with a tool result the model can relay.
+  if (!getCapability(name, ctx.principal.surface) && !humanOnlyError(name))
     throw new RpcError(-32602, `Unknown tool: ${name}`);
   try {
     const output = await invoke(ctx, name, args ?? {});

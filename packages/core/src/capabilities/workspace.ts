@@ -541,6 +541,11 @@ const syncDirectory = defineCapability({
   description: "The synchronized client's directory projection.",
   kind: "query",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "browser",
+    where: "Loaded automatically by the signed-in browser",
+    alternative: "listOrganizations and getWorkspace",
+  },
   input: z.object({ organizationId: id.optional() }),
   run: (ctx, { organizationId }) =>
     directory(ctx.db, ctx.principal.userId, organizationId),

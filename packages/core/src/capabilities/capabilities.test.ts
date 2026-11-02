@@ -880,11 +880,43 @@ void test("MCP server lists typed tools and reports failures as tool results", a
     error: { category: string };
   };
   assert.equal(failure.error.category, "not_found");
-  const unknown = (await handleMcp(f.mcp, {
+  // Human-only operations explain where the person does them.
+  const humanOnly = (await handleMcp(f.mcp, {
     jsonrpc: "2.0",
     id: 4,
     method: "tools/call",
     params: { name: "createAccessToken", arguments: {} },
+  })) as typeof call;
+  assert.equal(humanOnly.result.isError, true);
+  const refusal = JSON.parse(humanOnly.result.content[0]!.text) as {
+    error: { category: string; kind: string; message: string };
+  };
+  assert.equal(refusal.error.category, "forbidden");
+  assert.equal(refusal.error.kind, "human_only");
+  assert.match(refusal.error.message, /Account settings → Integrations/);
+  const browserOnly = (await handleMcp(f.mcp, {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "tools/call",
+    params: { name: "changePassword", arguments: {} },
+  })) as typeof call;
+  assert.match(
+    browserOnly.result.content[0]!.text,
+    /needs the person in the browser/,
+  );
+  const policy = (await invoke(f.mcp, "listHumanOnlyOperations", {})) as {
+    operations: { name: string; reason: string }[];
+  };
+  assert.ok(
+    policy.operations.some(
+      (o) => o.name === "connectDelivery" && o.reason === "credentials",
+    ),
+  );
+  const unknown = (await handleMcp(f.mcp, {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "tools/call",
+    params: { name: "noSuchTool", arguments: {} },
   })) as { error: { code: number } };
   assert.equal(unknown.error.code, -32602);
 
