@@ -122,7 +122,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   publishReadinessChecks: {
     title: "Publish Definition of Ready",
     description:
-      "Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from getWorkspace (null while the project uses the defaults). Use previewReadinessChecks first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.",
+      "Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision), intelligence_review (an automated check, never an approval: the latest Lictory Intelligence review of the item analysed its current revision and found no finding at or above `severity`, `blocker` or `major`; at most once per type and only beside reviews_approved, discipline_approval or manual; a person can override it per revision with signOffReadinessCheck) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from getWorkspace (null while the project uses the defaults). Use previewReadinessChecks first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.",
     decision: true,
   },
 
@@ -353,7 +353,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   signOffReadinessCheck: {
     title: "Sign off readiness check",
     description:
-      "Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in getWorkItem readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off.",
+      "Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in getWorkItem readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off. On a Lictory Intelligence check (intelligence_review) signing off overrides the automated result for that revision; anyone holding a discipline in the project may do so, only on the person's explicit instruction.",
     decision: true,
   },
   setAiPolicy: {

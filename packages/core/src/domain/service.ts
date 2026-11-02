@@ -52,6 +52,7 @@ import {
   type ReadinessImpact,
   type ReadinessRules,
   type ReadinessSignOff,
+  type IntelligenceReviewEvidence,
   sameReadinessChecks,
 } from "@lictory/core/contracts/readiness";
 import {
@@ -791,6 +792,15 @@ type SignOffRow = Omit<ReadinessSignOff, "createdAt"> & {
   workItemId: string;
   createdAt: Date;
 };
+type IntelligenceReviewRow = {
+  id: string;
+  workItemId: string;
+  revisionId: string | null;
+  severities: string[];
+  score: number | null;
+  model: string | null;
+  completedAt: Date | null;
+};
 
 // Everything a list, inbox or readiness evaluation needs about a set of items.
 // Lists and readiness need only each item's current revision; the full history
@@ -879,6 +889,7 @@ async function loadItemContext(
       approvals: [] as ApprovalRow[],
       labels: [] as (typeof s.workItemLabel.$inferSelect)[],
       signOffs: [] as SignOffRow[],
+      intelligenceReviews: [] as IntelligenceReviewRow[],
     });
   const where = (t: { organizationId: AnyPgColumn; workItemId: AnyPgColumn }) =>
     and(eq(t.organizationId, organizationId), inArray(t.workItemId, ids));
@@ -905,6 +916,7 @@ async function loadItemContext(
     approvals,
     labels,
     signOffs,
+    intelligenceReviews,
   ] = await Promise.all([
     tx
       .selectDistinctOn([s.specificationRevision.workItemId], revisionColumns)
@@ -972,6 +984,34 @@ async function loadItemContext(
         and(where(s.readinessSignOff), isNull(s.readinessSignOff.withdrawnAt)),
       )
       .orderBy(asc(s.readinessSignOff.createdAt)),
+    // The latest completed Lictory Intelligence review of each item: only the
+    // revision it analysed and the severities of its findings about the item,
+    // never the findings themselves.
+    tx
+      .selectDistinctOn([s.aiRun.workItemId], {
+        id: s.aiRun.id,
+        workItemId: s.aiRun.workItemId,
+        revisionId: sql<
+          string | null
+        >`${s.aiRun.contextRevisions} ->> ${s.aiRun.workItemId}`,
+        severities: sql<string[]>`coalesce((
+          select jsonb_agg(f ->> 'severity')
+          from jsonb_array_elements(${s.aiRun.findings}) f
+          where f ->> 'workItemId' = ${s.aiRun.workItemId}
+        ), '[]'::jsonb)`,
+        score: s.aiRun.score,
+        model: s.aiRun.model,
+        completedAt: s.aiRun.completedAt,
+      })
+      .from(s.aiRun)
+      .where(
+        and(
+          where(s.aiRun),
+          eq(s.aiRun.kind, "item_review"),
+          eq(s.aiRun.status, "completed"),
+        ),
+      )
+      .orderBy(s.aiRun.workItemId, desc(s.aiRun.createdAt)),
   ]);
   const revisions = new Map<string, RevisionRow[]>();
   for (const r of currentRevisions) revisions.set(r.workItemId, [r]);
@@ -989,6 +1029,7 @@ async function loadItemContext(
     approvals,
     labels,
     signOffs,
+    intelligenceReviews,
   });
 }
 function groupBy<T>(rows: T[], key: (row: T) => string) {
@@ -1013,6 +1054,7 @@ function indexItemContext<
     approvals: ApprovalRow[];
     labels: (typeof s.workItemLabel.$inferSelect)[];
     signOffs: SignOffRow[];
+    intelligenceReviews: IntelligenceReviewRow[];
   },
 >(ctx: T) {
   // Latest active sign-off of each manual check, per item.
@@ -1032,6 +1074,9 @@ function indexItemContext<
   return {
     ...ctx,
     signOffsByItem,
+    intelligenceReviewByItem: new Map(
+      ctx.intelligenceReviews.map((r) => [r.workItemId, r]),
+    ),
     threadsByItem: groupBy(ctx.threads, (t) => t.workItemId),
     suggestionsByItem: groupBy(ctx.suggestions, (x) => x.workItemId),
     reviewersBySuggestion: groupBy(
@@ -1250,7 +1295,24 @@ function readiness(
     ).length,
     signOffs:
       ctx.signOffsByItem.get(item.id) ?? new Map<string, ReadinessSignOff>(),
+    intelligenceReview: intelligenceEvidence(
+      ctx.intelligenceReviewByItem.get(item.id),
+    ),
   });
+}
+
+function intelligenceEvidence(
+  row: IntelligenceReviewRow | undefined,
+): IntelligenceReviewEvidence | null {
+  if (!row) return null;
+  return {
+    runId: row.id,
+    revisionId: row.revisionId,
+    severities: row.severities,
+    score: row.score,
+    model: row.model,
+    completedAt: row.completedAt?.toISOString() ?? null,
+  };
 }
 
 function readinessEntity(
@@ -1642,7 +1704,7 @@ const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
 
 // Readiness projections, including empty plain-work results whose policy
 // metadata must stay consistent when the project's checks change.
-async function projectReadiness(
+export async function projectReadiness(
   tx: Tx,
   organizationId: string,
   projectId: string,
@@ -1664,12 +1726,17 @@ async function projectReadiness(
 // their evidence: those that now pass become ready, those that no longer pass
 // leave ready. A child's readiness feeds its parent's, so this repeats until
 // nothing moves. Returns the item-scope changes to emit.
-async function followReadinessChecks(
+export async function followReadinessChecks(
   tx: Tx,
   organizationId: string,
   projectId: string,
   userId: string,
   before: Map<string, EntityOf<"readiness">>,
+  // What changed the evidence, and which items it may move (all by default).
+  cause: {
+    reason: string;
+    itemIds?: Set<string>;
+  } = { reason: "readiness_checks_published" },
 ) {
   const rows = await tx
     .select()
@@ -1690,6 +1757,7 @@ async function followReadinessChecks(
     for (const row of rows) {
       const state = row.refinementState;
       if (row.archivedAt || !state || !isSpecBacked(row, ctx)) continue;
+      if (cause.itemIds && !cause.itemIds.has(row.id)) continue;
       const checks = readiness(row, rows, ctx);
       const ready = checks.length > 0 && checks.every((check) => check.passed);
       const next: RefinementState | undefined =
@@ -1734,7 +1802,7 @@ async function followReadinessChecks(
         from,
         to,
         automatic: true,
-        reason: "readiness_checks_published",
+        reason: cause.reason,
         readinessRevision: revision,
       },
       createdAt: now,
@@ -4151,10 +4219,13 @@ export async function applyMutation(
               isNull(s.readinessSignOff.withdrawnAt),
             ),
           );
+        // On a Lictory Intelligence check this is a person overriding the
+        // automated result for this revision, recorded as their decision.
         const detail = {
           checkId: c.checkId,
           label: check.label,
           revision: latest!.number,
+          ...(check.intelligence ? { override: true } : {}),
         };
         if (c.signedOff) {
           if (existing)

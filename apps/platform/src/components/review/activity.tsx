@@ -196,6 +196,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
               automatically
               {d.reason === "readiness_checks_published" &&
                 ` when Definition of Ready version ${num(d.readinessRevision)} was published`}
+              {d.reason === "intelligence_review_completed" &&
+                " when a Lictory Intelligence review completed"}
             </span>
           )}
         </>
@@ -205,7 +207,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "readiness_signed_off":
       body = (
         <>
-          signed off <b>{str(d.label)}</b> for revision {num(d.revision)}
+          {d.override ? "overrode" : "signed off"} <b>{str(d.label)}</b> for
+          revision {num(d.revision)}
         </>
       );
       break;
@@ -220,7 +223,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
           ) : (
             "the"
           )}{" "}
-          sign-off of <b>{str(d.label)}</b>
+          {d.override ? "override" : "sign-off"} of <b>{str(d.label)}</b>
         </>
       );
       break;
