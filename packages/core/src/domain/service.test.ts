@@ -4934,3 +4934,149 @@ void test("projections written by every command above equal a rebuild from the d
   });
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
+
+void test("the last met merge requirement notifies the pull request author once", async () => {
+  const f = await fixture(),
+    original = await f.current(),
+    branchId = crypto.randomUUID(),
+    pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.proposalId,
+    baseRevisionId: original.id,
+    branchId,
+    name: "ready-to-merge",
+  });
+  const heads = async () => {
+    const all = await f.entities();
+    const head = (
+      match: (b: Extract<Entity, { type: "specBranch" }>) => boolean,
+    ) =>
+      all.find(
+        (e): e is Extract<Entity, { type: "specBranch" }> =>
+          e.type === "specBranch" && match(e),
+      )!.headId;
+    return {
+      all,
+      sourceHeadId: head((b) => b.id === branchId),
+      targetHeadId: head((b) => b.name === "main"),
+    };
+  };
+  await f.command({
+    type: "commitBranch",
+    workItemId: f.proposalId,
+    branchId,
+    baseCommitId: (await heads()).sourceHeadId,
+    title: original.title,
+    content: `${original.content}\n\nRetries reuse the original key.`,
+    message: "Define retries",
+  });
+  const main = (await heads()).all.find(
+    (e) => e.type === "specBranch" && e.name === "main",
+  )!;
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: main.id,
+    title: "Define retries",
+    description: "",
+    draft: false,
+  });
+  await f.command({
+    type: "requestPullRequestReview",
+    workItemId: f.proposalId,
+    pullRequestId,
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  const readyEvents = async () =>
+    (await f.entities()).filter(
+      (e) =>
+        e.type === "activity" && e.action === "pull_request_ready_to_merge",
+    );
+  const mergeable = () =>
+    db
+      .select()
+      .from(s.notification)
+      .where(
+        and(
+          eq(s.notification.organizationId, f.organizationId),
+          eq(s.notification.kind, "pull_request_mergeable"),
+        ),
+      );
+  assert.equal((await readyEvents()).length, 0);
+  let h = await heads();
+  const review = h.all.find(
+    (e): e is Extract<Entity, { type: "prReview" }> =>
+      e.type === "prReview" && e.pullRequestId === pullRequestId,
+  )!;
+  const decide = (decision: "approve" | "revoke") =>
+    f.command(
+      {
+        type: "decidePullRequest",
+        workItemId: f.proposalId,
+        pullRequestId,
+        reviewId: review.id,
+        sourceHeadId: h.sourceHeadId,
+        targetHeadId: h.targetHeadId,
+        decision,
+      },
+      f.reviewerId,
+    );
+  await decide("approve");
+  assert.equal((await readyEvents()).length, 1);
+  let sent = await mergeable();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.userId, f.userId);
+  assert.equal(sent[0]!.detail?.pullRequestId, pullRequestId);
+  // A blocking discussion takes the pull request out of mergeable; resolving
+  // it makes it mergeable again, which is a new transition.
+  const threadId = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createThread",
+      workItemId: f.proposalId,
+      threadId,
+      messageId: crypto.randomUUID(),
+      baseRevisionId: original.id,
+      pullRequestId,
+      commitId: h.sourceHeadId,
+      body: "What happens after the client timeout?",
+      blocking: true,
+      section: "",
+    },
+    f.reviewerId,
+  );
+  assert.equal((await readyEvents()).length, 1);
+  await f.command({
+    type: "setThreadState",
+    workItemId: f.proposalId,
+    threadId,
+    resolved: true,
+    blocking: true,
+  });
+  assert.equal((await readyEvents()).length, 2);
+  // The author resolved it: the author is never told about their own action.
+  sent = await mergeable();
+  assert.equal(sent.length, 1);
+  // Merging is still a person's decision.
+  h = await heads();
+  assert.ok(
+    h.all.some(
+      (e) =>
+        e.type === "pullRequest" &&
+        e.id === pullRequestId &&
+        e.status === "open",
+    ),
+  );
+  await f.command({
+    type: "mergePullRequest",
+    workItemId: f.proposalId,
+    pullRequestId,
+    sourceHeadId: h.sourceHeadId,
+    targetHeadId: h.targetHeadId,
+  });
+});

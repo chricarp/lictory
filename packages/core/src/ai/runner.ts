@@ -9,8 +9,13 @@ import {
   type AiFinding,
 } from "@lictory/core/contracts/ai";
 import { aiPolicy, aiRunEntity } from "@lictory/core/domain/ai";
+import { resultHash } from "@lictory/core/domain/branches";
+import { becameMergeable } from "@lictory/core/contracts/merge-readiness";
+import { notifyItemActivity } from "@lictory/core/notifications/server";
+import type { Entity } from "@lictory/core/contracts/protocol";
 import {
   lock,
+  organizationDirectory,
   snapshot,
   type Database,
   type Tx,
@@ -226,9 +231,65 @@ async function finish(
     };
     const before = await snapshot(tx, scope);
     await write(tx, current);
-    const after = await snapshot(tx, scope);
+    let after = await snapshot(tx, scope);
+    if (
+      run.kind === "pr_action" &&
+      (await notifyMergeable(tx, scope, before, after))
+    )
+      after = await snapshot(tx, scope);
     await writeProjections(tx, run.organizationId, before, after, scope);
   });
+}
+
+// A required review action is often the last merge requirement to clear.
+// When this run's outcome made a pull request mergeable, record it and tell
+// the people driving it, exactly as a person's change would.
+async function notifyMergeable(
+  tx: Tx,
+  scope: { organizationId: string; projectId: string; workItemId: string },
+  before: Entity[],
+  after: Entity[],
+) {
+  const roster = await organizationDirectory(tx, scope.organizationId);
+  const project = roster.projects.find((p) => p.id === scope.projectId);
+  const ready = becameMergeable(before, after, {
+    disciplines: roster.disciplines.filter(
+      (d) => d.projectId === scope.projectId,
+    ),
+    memberIds: roster.members.map((m) => m.id),
+    actionRequired:
+      roster.ai.enabled &&
+      roster.ai.available &&
+      project?.aiActionPolicy === "required",
+    hash: resultHash,
+  });
+  if (!ready.length || !project) return false;
+  const activities = ready.map((pr) => ({
+    action: "pull_request_ready_to_merge",
+    detail: { pullRequestId: pr.id, title: pr.title, automatic: true },
+  }));
+  const now = Date.now();
+  await tx.insert(s.activity).values(
+    activities.map((a, index) => ({
+      id: crypto.randomUUID(),
+      organizationId: scope.organizationId,
+      projectId: scope.projectId,
+      workItemId: scope.workItemId,
+      actorId: AI_ACTOR_ID,
+      action: a.action,
+      detail: a.detail,
+      createdAt: new Date(now + index),
+    })),
+  );
+  await notifyItemActivity(tx, {
+    ...scope,
+    projectKey: project.key,
+    actorId: AI_ACTOR_ID,
+    activities,
+    after,
+    roster: { organizations: [], ...roster },
+  });
+  return true;
 }
 
 async function activity(

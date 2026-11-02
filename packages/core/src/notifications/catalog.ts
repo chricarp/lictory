@@ -136,6 +136,14 @@ export const notificationKinds = {
     inApp: true,
     email: true,
   },
+  pull_request_mergeable: {
+    category: "suggestions",
+    label: "Pull request ready to merge",
+    description:
+      "Every merge requirement of your pull request is met: required approvals, no blocking discussions, no conflicts and passing actions.",
+    inApp: true,
+    email: true,
+  },
   pull_request_merged: {
     category: "suggestions",
     label: "Pull request merged",

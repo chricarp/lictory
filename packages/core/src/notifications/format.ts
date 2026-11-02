@@ -106,6 +106,13 @@ export function describeNotification(
         headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
         body: responsibility,
       };
+    case "pull_request_mergeable":
+      return {
+        headline: `Pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item} is ready to merge`,
+        body: str(d.target)
+          ? `Every requirement to merge into ${str(d.target)} is met.`
+          : "Every merge requirement is met.",
+      };
     case "pull_request_merged":
       return {
         headline: `${actor} merged pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
