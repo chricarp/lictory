@@ -4,6 +4,7 @@ import {
   asc,
   desc,
   eq,
+  gt,
   ilike,
   inArray,
   isNull,
@@ -676,6 +677,7 @@ export async function searchEpics(
   query = "",
   offset = 0,
   limit = 20,
+  childTypeId?: string,
 ) {
   const membership = await db
     .select({ id: s.member.id })
@@ -705,6 +707,21 @@ export async function searchEpics(
         )
     )[0],
   );
+  const childType = childTypeId
+    ? requireValue(
+        (
+          await db
+            .select({ level: s.workItemType.level })
+            .from(s.workItemType)
+            .where(
+              and(
+                eq(s.workItemType.organizationId, organizationId),
+                eq(s.workItemType.id, childTypeId),
+              ),
+            )
+        )[0],
+      )
+    : undefined;
   const term = query.trim().replace(/[%_]/g, "");
   const numberText = /(?:^|-)(\d+)$/.exec(term)?.[1];
   const candidateNumber = numberText ? Number(numberText) : undefined;
@@ -721,6 +738,7 @@ export async function searchEpics(
       projectId: s.workItem.projectId,
       number: s.workItem.number,
       title: s.workItem.title,
+      typeId: s.workItem.typeId,
     })
     .from(s.workItem)
     .where(
@@ -735,7 +753,7 @@ export async function searchEpics(
             .where(
               and(
                 eq(s.workItemType.organizationId, organizationId),
-                eq(s.workItemType.level, 2),
+                gt(s.workItemType.level, childType?.level ?? 1),
               ),
             ),
         ),

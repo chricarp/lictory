@@ -327,8 +327,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       body = (
         <>
           {str(d.to)
-            ? "moved this into another epic"
-            : "removed this from its epic"}
+            ? "moved this under another parent"
+            : "removed this from its parent"}
         </>
       );
       break;

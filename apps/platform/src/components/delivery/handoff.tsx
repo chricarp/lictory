@@ -16,7 +16,6 @@ import { paths } from "@lictory/core/lib/paths";
 import {
   identifier,
   relativeTime,
-  segmentOf,
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
@@ -170,12 +169,7 @@ function ExternalHandoff({ project }: { project: Project }) {
   };
   const label = (item: WorkItem) => identifier(project, item.number);
   const href = (item: WorkItem) =>
-    paths.item(
-      organization.slug,
-      project.key,
-      segmentOf(typeOf(delivery, item)),
-      label(item),
-    );
+    paths.item(organization.slug, project.key, label(item));
   const loading = view.status === "hydrating" && items.length === 0;
   const jiraKey = availability.target?.externalProjectKey;
   return (
@@ -220,6 +214,16 @@ function ExternalHandoff({ project }: { project: Project }) {
             )}
           </div>
         </header>
+        <p className="text-[13px] text-muted-foreground">
+          Hand off an agreed specification, then follow its progress in Jira.
+          Jira owns delivery status and assignment.{" "}
+          <Link
+            href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
+            className="font-medium text-primary hover:underline"
+          >
+            Review ready work →
+          </Link>
+        </p>
         {!availability.target ? (
           <Notice tone="warning">
             {project.name} has no Jira project to hand work off to yet.{" "}
@@ -435,9 +439,17 @@ function ExternalHandoff({ project }: { project: Project }) {
                 <EmptyState
                   illustration="planning"
                   title="No specifications yet"
+                  action={
+                    <Link
+                      href={paths.proposals(organization.slug, project.key)}
+                      className="contents"
+                    >
+                      <Button variant="secondary">Start with a proposal</Button>
+                    </Link>
+                  }
                 >
-                  Create Epics and Stories in {project.name}; once they are
-                  reviewed and ready they can be handed off to Jira from here.
+                  Capture a proposal in {project.name}, refine it with your
+                  team, then hand the agreed work off to Jira here.
                 </EmptyState>
               )}
           </>

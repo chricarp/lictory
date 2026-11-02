@@ -11,7 +11,6 @@ import {
   identifier,
   isClosedCategory,
   categoryOf,
-  segmentOf,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import { Popover, Picker } from "@lictory/ui/popover";
@@ -288,7 +287,6 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
                 href={paths.item(
                   organization.slug,
                   project.key,
-                  segmentOf(typeOf(delivery, story)),
                   identifier(project, story.number),
                   new URLSearchParams({ epic: item.id }),
                 )}

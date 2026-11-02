@@ -434,8 +434,8 @@ function Reviewers({
             {(close) =>
               eligible.length === 0 ? (
                 <p className="p-3 text-xs text-muted-foreground">
-                  Nobody else is eligible. Reviewers need a role that can both
-                  edit Epics and Stories and be asked to review.
+                  Nobody else is eligible. Reviewers need a discipline that can
+                  both edit specifications and be asked to review.
                 </p>
               ) : (
                 <Picker
@@ -473,7 +473,7 @@ function Reviewers({
       {state.reviewers.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
           {isAuthor
-            ? "Nobody has been asked yet. Add a reviewer who can edit Epics and Stories; their approval lets them merge this into the specification."
+            ? "Nobody has been asked yet. Add a reviewer who can edit specifications; their approval lets them merge this into the specification."
             : "No reviewer assigned yet. Only an assigned reviewer can approve and merge this suggestion."}
         </p>
       ) : (

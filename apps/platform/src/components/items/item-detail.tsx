@@ -20,9 +20,8 @@ import { paths } from "@lictory/core/lib/paths";
 import { track } from "@lictory/core/lib/analytics/client";
 import {
   identifier,
-  isTopLevel,
+  enabledTypes,
   refinementMeta,
-  segmentOf,
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
@@ -82,6 +81,12 @@ import { DockItemSource } from "@lictory/platform/components/intelligence/dock/i
 import { Activity } from "@lictory/platform/components/review/activity";
 import { Decisions } from "@lictory/platform/components/review/decisions";
 import { DeliveryScope } from "@lictory/platform/components/items/delivery-scope";
+import { ItemWorkflow } from "@lictory/platform/components/items/item-workflow";
+import {
+  itemOrigin,
+  originLink,
+  originParams,
+} from "@lictory/platform/components/items/queues";
 import {
   RevisionPanel,
   CompareRevisions,
@@ -300,10 +305,10 @@ export function ItemDetail({
   const parent = item.parentId
     ? workspace.items.find((i) => i.id === item.parentId)
     : undefined;
-  const listHref = paths.list(
+  const origin = originLink(
     workspace.organization.slug,
     project.key,
-    segmentOf(type),
+    itemOrigin(searchParams),
     searchParams,
   );
   const update = (
@@ -418,12 +423,16 @@ export function ItemDetail({
           />
         </Property>
       )}
-      {type.level === 1 && (
-        <Property label="Epic">
+      {(Boolean(parent) ||
+        enabledTypes(workspace.delivery, item.projectId).some(
+          (candidate) => candidate.level > type.level,
+        )) && (
+        <Property label="Parent">
           {canChange ? (
             <ParentPicker
               parentId={item.parentId}
               projectId={item.projectId}
+              childTypeId={item.typeId}
               project={project}
               onChange={(parentId) => update({ parentId })}
             />
@@ -431,7 +440,7 @@ export function ItemDetail({
             <span className="truncate px-1.5 text-[13px]">
               {parent
                 ? `${identifier(project, parent.number)} ${parent.title}`
-                : "No epic"}
+                : "No parent"}
             </span>
           )}
         </Property>
@@ -468,20 +477,29 @@ export function ItemDetail({
       </Property>
     </div>
   );
+  // The workflow card names accepted and delivered revisions; the scope
+  // panel appears when there is a decision to make: accepting a ready
+  // revision, or an amendment of the accepted one.
+  const scopeInDocument =
+    native &&
+    (item.committedRevisionId
+      ? item.committedRevisionId !== item.revisionId
+      : item.refinementState === "ready");
   const panel = (
     <div className="space-y-6 p-4">
+      {ctx.reviewable && (
+        <div data-review-panel className="scroll-mt-4 space-y-6">
+          <ReviewPanel />
+          <Readiness />
+        </div>
+      )}
+      <ExternalDelivery item={item} />
       <section>
         <SectionLabel className="mb-2">Properties</SectionLabel>
         {properties}
       </section>
-      <ExternalDelivery item={item} />
-      <DeliveryScope
-        onCompare={(from, to) => setMode({ kind: "compare", from, to })}
-      />
       {ctx.reviewable ? (
         <>
-          <ReviewPanel />
-          <Readiness />
           <RevisionPanel
             onCompare={(from, to) => setMode({ kind: "compare", from, to })}
           />
@@ -509,8 +527,8 @@ export function ItemDetail({
             aria-label="Breadcrumb"
             className="flex min-w-0 items-center gap-1 text-muted-foreground"
           >
-            <Link href={listHref} className="shrink-0 hover:text-foreground">
-              {isTopLevel(type) ? "Epics" : "Work items"}
+            <Link href={origin.href} className="shrink-0 hover:text-foreground">
+              {origin.label}
             </Link>
             {parent && (
               <>
@@ -519,8 +537,8 @@ export function ItemDetail({
                   href={paths.item(
                     workspace.organization.slug,
                     project.key,
-                    segmentOf(typeOf(workspace.delivery, parent)),
                     identifier(project, parent.number),
+                    originParams(searchParams),
                   )}
                   className="flex min-w-0 items-center gap-1 hover:text-foreground"
                   title={parent.title}
@@ -721,22 +739,37 @@ export function ItemDetail({
                 </div>
               )}
               {!focusScreen && <InlineTitle />}
-              {!focusScreen && item.refinementState === "draft" && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    A proposal captures intent. Start refinement to clarify the
-                    behavior with the team.
-                  </span>
-                  {canChange && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => update({ refinementState: "refinement" })}
-                    >
-                      Start refinement
-                    </Button>
+              {!focusScreen && (
+                <ItemWorkflow
+                  onStartRefinement={
+                    canChange
+                      ? () => update({ refinementState: "refinement" })
+                      : undefined
+                  }
+                  onReview={() => {
+                    if (window.innerWidth < 1280) setPanelOpen(true);
+                    else
+                      document
+                        .querySelector(
+                          "[data-desktop-item-panel] [data-review-panel]",
+                        )
+                        ?.scrollIntoView({ block: "start" });
+                  }}
+                  onBreakdown={() =>
+                    document
+                      .querySelector("[data-item-breakdown]")
+                      ?.scrollIntoView({ block: "start" })
+                  }
+                >
+                  {scopeInDocument && (
+                    <DeliveryScope
+                      embedded
+                      onCompare={(from, to) =>
+                        setMode({ kind: "compare", from, to })
+                      }
+                    />
                   )}
-                </div>
+                </ItemWorkflow>
               )}
               {!focusScreen && (
                 <>
@@ -810,7 +843,11 @@ export function ItemDetail({
               )}
               {!focusScreen && (
                 <>
-                  <section className="mt-10">
+                  <section
+                    data-item-breakdown
+                    aria-label="Breakdown"
+                    className="mt-10 scroll-mt-4"
+                  >
                     <EpicStories
                       onPropose={() => setMode({ kind: "branches" })}
                     />
@@ -842,7 +879,10 @@ export function ItemDetail({
             </div>
           </div>
           {!branchScreen && (
-            <aside className="hidden w-75 shrink-0 overflow-y-auto border-l bg-muted/20 xl:block">
+            <aside
+              data-desktop-item-panel
+              className="hidden w-75 shrink-0 overflow-y-auto border-l bg-muted/20 xl:block"
+            >
               {panel}
             </aside>
           )}

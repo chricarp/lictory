@@ -226,7 +226,7 @@ test("a saved photo appears in the workspace and online collaborators refresh it
   try {
     await signIn(reviewer, colleague.email);
     await reviewer.goto(
-      workspaceUrl.replace(/\/pht\/epics$/, "/settings/members"),
+      workspaceUrl.replace(/\/pht\/proposals$/, "/settings/members"),
     );
     // Keep a separate signed-in workspace view open while personal settings change.
     await page.goto("/account");

@@ -5,7 +5,6 @@ export { AssigneePicker } from "@lictory/platform/components/ui/people-picker";
 import { cn } from "@lictory/core/lib/utils";
 import {
   type Project,
-  isTopLevel,
   priorityMeta,
   priorityOrder,
   typeOf,
@@ -72,26 +71,31 @@ export function IssuePriority({
 export function ParentPicker({
   parentId,
   projectId,
+  childTypeId,
   onChange,
   project,
 }: {
   parentId: string | null;
   projectId: string;
+  childTypeId: string;
   project?: Project;
   onChange: (parentId: string | null) => void;
 }) {
   const { items, delivery } = useWorkspace();
-  const epics = items.filter(
+  const childType = delivery.types.get(childTypeId);
+  const parents = items.filter(
     (i) =>
-      isTopLevel(typeOf(delivery, i)) &&
+      childType &&
+      typeOf(delivery, i).level > childType.level &&
       i.projectId === projectId &&
       !i.archivedAt,
   );
-  const parent = epics.find((e) => e.id === parentId);
+  const parent = parents.find((e) => e.id === parentId);
   return (
     <EpicPicker
       parentId={parentId}
       projectId={projectId}
+      childTypeId={childTypeId}
       projectKey={project?.key}
       selected={
         parent
@@ -100,6 +104,7 @@ export function ParentPicker({
               projectId: parent.projectId,
               number: parent.number,
               title: parent.title,
+              typeId: parent.typeId,
             }
           : undefined
       }

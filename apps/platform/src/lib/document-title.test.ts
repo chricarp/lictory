@@ -27,13 +27,13 @@ void test("project surfaces name the project", () => {
   assert.equal(title("/northstar/pay", { project }), "Payments · Lictory");
   assert.equal(
     title("/northstar/pay/epics", { project }),
-    "Epics · Payments · Lictory",
+    "All items · Payments · Lictory",
   );
   assert.equal(
     title("/northstar/pay/stories?status=draft".split("?")[0]!, {
       project,
     }),
-    "Work items · Payments · Lictory",
+    "All items · Payments · Lictory",
   );
   assert.equal(
     title("/northstar/pay/reviews", { project }),

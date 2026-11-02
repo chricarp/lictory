@@ -26,19 +26,14 @@ import { paths } from "@lictory/core/lib/paths";
 import {
   activeStatuses,
   identifier,
-  isTopLevel,
+  enabledTypes,
   parseIdentifier,
-  segmentOf,
   typeOf,
   views,
 } from "@lictory/core/lib/work-items";
 import { Kbd } from "@lictory/ui/primitives";
 import { StatusIcon } from "@lictory/platform/components/items/status";
-import {
-  TypeIcon,
-  epicGlyph,
-  storyGlyph,
-} from "@lictory/platform/components/items/icons";
+import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
@@ -107,7 +102,11 @@ export function CommandPalette({
   const commands = useMemo<Item[]>(() => {
     const list: Item[] = [];
     const capabilities = capabilitiesIn(currentProject?.id);
-    if (currentItem && currentProject && capabilities.changeProperties) {
+    if (
+      currentItem &&
+      currentProject?.deliveryMode === "native" &&
+      capabilities.changeProperties
+    ) {
       const id = identifier(currentProject, currentItem.number);
       if (currentItem.assigneeId !== userId)
         list.push({
@@ -144,35 +143,48 @@ export function CommandPalette({
             },
           });
     }
-    if (capabilities.editSpecifications)
+    // Outside a project the dialog chooses the project and its types.
+    if (!currentProject)
       list.push({
-        id: "create-epic",
-        label: "Create Epic",
-        group: "Create",
-        icon: <TypeIcon type={epicGlyph} />,
-        run: () => {
-          onClose();
-          openCreate({ kind: "epic", projectId: currentProject?.id });
-        },
-      });
-    if (capabilities.editSpecifications || capabilities.changeProperties)
-      list.push({
-        id: "create-story",
-        label: "Create work item",
+        id: "create-item",
+        label: "Create item",
         group: "Create",
         icon: <TypeIcon type={storyGlyph} />,
+        keywords: "new item proposal task",
+        run: () => {
+          onClose();
+          openCreate({});
+        },
+      });
+    for (const type of currentProject
+      ? enabledTypes(delivery, currentProject.id)
+      : []) {
+      if (
+        type.hasSpecification
+          ? !capabilities.editSpecifications
+          : !(capabilities.editSpecifications || capabilities.changeProperties)
+      )
+        continue;
+      list.push({
+        id: `create-${type.id}`,
+        label: `Create ${type.name}`,
+        group: "Create",
+        icon: <TypeIcon type={type} />,
+        keywords: "new item proposal task",
         run: () => {
           onClose();
           openCreate({
-            kind: "story",
+            intent: type.hasSpecification ? "proposal" : "work",
+            typeId: type.id,
             projectId: currentProject?.id,
             parentId:
-              currentItem && isTopLevel(typeOf(delivery, currentItem))
+              currentItem && typeOf(delivery, currentItem).level > type.level
                 ? currentItem.id
                 : null,
           });
         },
       });
+    }
     list.push(
       {
         id: "intelligence",
@@ -263,19 +275,26 @@ export function CommandPalette({
     for (const p of projects) {
       list.push(
         {
-          id: `epics-${p.id}`,
-          label: `${p.name} · Epics`,
-          group: "Navigate",
-          icon: <TypeIcon type={epicGlyph} />,
-          keywords: "open project",
-          run: () => go(paths.list(org, p.key, "epics")),
-        },
-        {
-          id: `stories-${p.id}`,
-          label: `${p.name} · Work items`,
+          id: `proposals-${p.id}`,
+          label: `${p.name} · Proposals`,
           group: "Navigate",
           icon: <TypeIcon type={storyGlyph} />,
-          run: () => go(paths.list(org, p.key, "stories")),
+          keywords: "open project ideas capture",
+          run: () => go(paths.proposals(org, p.key)),
+        },
+        {
+          id: `refinement-${p.id}`,
+          label: `${p.name} · Refinement`,
+          group: "Navigate",
+          icon: <BookOpenCheck className="size-4" />,
+          run: () => go(paths.refinement(org, p.key)),
+        },
+        {
+          id: `items-${p.id}`,
+          label: `${p.name} · All items`,
+          group: "Navigate",
+          icon: <TypeIcon type={storyGlyph} />,
+          run: () => go(paths.items(org, p.key)),
         },
         {
           id: `reviews-${p.id}`,
@@ -286,7 +305,7 @@ export function CommandPalette({
         },
       );
       for (const v of views)
-        if (v.id !== "needs-my-review")
+        if (!["needs-my-review", "all", "drafts", "ready"].includes(v.id))
           list.push({
             id: `view-${p.id}-${v.id}`,
             label: `${p.name} · ${v.label}`,
@@ -336,7 +355,6 @@ export function CommandPalette({
             paths.item(
               org,
               project?.key ?? "",
-              segmentOf(typeOf(delivery, item)),
               identifier(project, item.number),
             ),
           ),

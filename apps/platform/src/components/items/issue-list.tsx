@@ -9,6 +9,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -18,7 +19,7 @@ import {
   readListState,
   writeListState,
 } from "@lictory/platform/lib/list-params";
-import { ArrowUpDown, Filter, Plus, X } from "lucide-react";
+import { ArrowUpDown, Filter, Plus, Search, X } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { track } from "@lictory/core/lib/analytics/client";
 import {
@@ -33,11 +34,10 @@ import {
   categoryMeta,
   categoryOrder,
   categoryOf,
-  isTopLevel,
+  enabledTypes,
   projectTeams,
   refinementMeta,
   refinementOrder,
-  typeOf,
   type Filters,
   type Project,
   type SortKey,
@@ -89,6 +89,7 @@ export function IssueList({
   groupBy = "status",
   itemHint,
   createLabel,
+  createIntent,
 }: {
   items: WorkItem[];
   project: Project | undefined;
@@ -108,6 +109,7 @@ export function IssueList({
   groupBy?: "status" | "refinement" | "lifecycle";
   itemHint?: (item: WorkItem) => string;
   createLabel?: string;
+  createIntent?: "proposal" | "work";
 }) {
   const {
     items: allItems,
@@ -185,6 +187,17 @@ export function IssueList({
   const setShowArchived = (value: boolean) => commit({ archived: value });
   // Search is typed locally and written to the URL after a short pause.
   const [search, setSearch] = useState(filters.search ?? "");
+  const [searchExpanded, setSearchExpanded] = useState(Boolean(filters.search));
+  const searchOpen = searchExpanded || Boolean(search);
+  const searchInputId = useId();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const closeSearch = () => {
+    setSearchExpanded(false);
+    setSearch("");
+    if (filters.search) setFilters((f) => ({ ...f, search: undefined }));
+    searchButtonRef.current?.focus();
+  };
   const [urlSearch, setUrlSearch] = useState(filters.search ?? "");
   if (urlSearch !== (filters.search ?? "")) {
     setUrlSearch(filters.search ?? "");
@@ -322,6 +335,14 @@ export function IssueList({
         return;
       if (document.querySelector('[role="dialog"]')) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // Enter activates the focused control (search toggle, menus, links).
+      if (
+        event.key === "Enter" &&
+        target?.closest(
+          "button, a, select, summary, [role='button'], [role='menuitem'], [role='option'], [role='tab']",
+        )
+      )
+        return;
       const index = order.findIndex((i) => i.id === focus);
       if (event.key === "j" || event.key === "ArrowDown") {
         event.preventDefault();
@@ -365,37 +386,114 @@ export function IssueList({
     (filters.milestone?.length ? 1 : 0) +
     (filters.blocked ? 1 : 0) +
     (filters.needsReview ? 1 : 0);
+  const parentIds = new Set(allItems.map((item) => item.parentId));
   const epics = allItems.filter(
-    (i) =>
-      isTopLevel(typeOf(delivery, i)) &&
-      i.projectId === project?.id &&
-      !i.archivedAt,
+    (i) => parentIds.has(i.id) && i.projectId === project?.id && !i.archivedAt,
   );
-  const types = [...delivery.types.values()].filter(
-    (t) => !t.archivedAt && items.some((i) => i.typeId === t.id),
-  );
+  const types = enabledTypes(delivery, project?.id);
   const teams = projectTeams(delivery, project?.id)
     .filter((t) => !t.archivedAt || filters.team?.includes(t.id))
     .sort((a, b) => a.name.localeCompare(b.name));
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-        <h1 className="truncate text-sm font-semibold">{title}</h1>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {visible.length}
-        </span>
-        {header}
-        <div className="ml-auto flex items-center gap-1">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter…"
-            aria-label="Filter by title or identifier"
+      <header
+        className={cn(
+          "flex min-h-11 shrink-0 items-center gap-2 border-b px-3 py-2",
+          !compact && "flex-wrap",
+        )}
+      >
+        <div className={cn("min-w-0", compact && "relative h-7 flex-1")}>
+          <div
+            aria-hidden={compact && searchOpen ? true : undefined}
+            inert={compact && searchOpen}
             className={cn(
-              "h-7 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted touch:text-base",
-              compact ? "w-24" : "w-32",
+              "flex min-w-0 items-center gap-2",
+              compact &&
+                "h-7 transition-opacity duration-150 ease-out motion-reduce:transition-none",
+              compact && searchOpen && "pointer-events-none opacity-0",
             )}
-          />
+          >
+            <h1 className="truncate text-sm font-semibold">{title}</h1>
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              {visible.length}
+            </span>
+            {header}
+          </div>
+          {compact && (
+            <div
+              aria-hidden={!searchOpen}
+              inert={!searchOpen}
+              className={cn(
+                "absolute inset-0 transition-[clip-path,opacity] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+                searchOpen
+                  ? "opacity-100 [clip-path:inset(0)]"
+                  : "pointer-events-none opacity-0 [clip-path:inset(0_0_0_100%)]",
+              )}
+            >
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                ref={searchInputRef}
+                id={searchInputId}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onBlur={(e) => {
+                  if (!search && e.relatedTarget !== searchButtonRef.current)
+                    setSearchExpanded(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Escape") return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeSearch();
+                }}
+                placeholder="Search items…"
+                aria-label="Filter by title or identifier"
+                className="h-7 w-full min-w-0 rounded-md bg-muted/70 pr-2 pl-7 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset forced-colors:focus-visible:outline-2 forced-colors:focus-visible:-outline-offset-2 forced-colors:focus-visible:outline-solid touch:text-base"
+              />
+            </div>
+          )}
+        </div>
+        <div
+          className={cn(
+            "ml-auto flex min-w-0 items-center gap-1",
+            compact && "shrink-0",
+          )}
+        >
+          {compact ? (
+            <button
+              ref={searchButtonRef}
+              type="button"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-100 ease-out hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+              aria-label={searchOpen ? "Close item search" : "Search items"}
+              title={searchOpen ? "Close search (Esc)" : "Search items"}
+              aria-expanded={searchOpen}
+              aria-controls={searchInputId}
+              onClick={() => {
+                if (searchOpen) closeSearch();
+                else {
+                  setSearchExpanded(true);
+                  requestAnimationFrame(() => searchInputRef.current?.focus());
+                }
+              }}
+            >
+              {searchOpen ? (
+                <X className="size-3.5" />
+              ) : (
+                <Search className="size-3.5" />
+              )}
+            </button>
+          ) : (
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter…"
+              aria-label="Filter by title or identifier"
+              className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted touch:text-base"
+            />
+          )}
           <Popover
             width={280}
             align="end"
@@ -502,14 +600,16 @@ export function IssueList({
             <Button
               size="sm"
               onClick={() =>
-                openCreate({ kind: createKind, projectId: project.id })
+                openCreate({
+                  kind: createKind,
+                  intent: createIntent,
+                  projectId: project.id,
+                })
               }
               aria-label={createLabel ?? `New ${createKind}`}
             >
               <Plus className="size-3.5" />
-              {!compact &&
-                (createLabel ??
-                  (createKind === "epic" ? "New Epic" : "New item"))}
+              {!compact && (createLabel ?? "New item")}
             </Button>
           )}
         </div>
@@ -613,7 +713,7 @@ export function IssueList({
               }
             >
               {p === "none"
-                ? "No epic"
+                ? "No parent"
                 : identifier(
                     project,
                     epics.find((e) => e.id === p)?.number ?? 0,
@@ -696,11 +796,17 @@ export function IssueList({
                 <Button
                   variant="secondary"
                   onClick={() =>
-                    openCreate({ kind: createKind, projectId: project.id })
+                    openCreate({
+                      kind: createKind,
+                      intent: createIntent,
+                      projectId: project.id,
+                    })
                   }
                 >
-                  <Plus className="size-3.5" /> Create{" "}
-                  {createKind === "epic" ? "an Epic" : "a work item"}{" "}
+                  <Plus className="size-3.5" />{" "}
+                  {createIntent === "proposal"
+                    ? "Create a proposal"
+                    : "Create an item"}{" "}
                   <Kbd>C</Kbd>
                 </Button>
               ) : undefined
@@ -712,7 +818,7 @@ export function IssueList({
             {!activeFilterCount &&
               !filters.search &&
               !compact &&
-              createKind === "epic" &&
+              createIntent === "proposal" &&
               project &&
               !allItems.some((i) => i.projectId === project.id) &&
               isAdmin && (
@@ -967,9 +1073,9 @@ function FilterPanel({
     return (
       <Picker
         multiple
-        title="Epic"
+        title="Parent"
         options={[
-          { value: "none", label: "No epic" },
+          { value: "none", label: "No parent" },
           ...epics.map((e) => ({
             value: e.id,
             label: e.title,
@@ -1019,7 +1125,7 @@ function FilterPanel({
     team: "Team",
     priority: "Priority",
     assignee: "Assignee",
-    parent: "Epic",
+    parent: "Parent",
     label: "Labels",
     milestone: "Milestone",
   };

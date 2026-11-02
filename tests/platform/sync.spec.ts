@@ -103,20 +103,22 @@ test("two people see each other's work live; concurrent specification edits neve
   try {
     await signIn(ada.page, seeded.users[0]!.email);
     await signIn(ben.page, seeded.users[1]!.email);
-    await ben.page.goto(seeded.projectPath("/stories"));
+    await ben.page.goto(seeded.projectPath("/items"));
     await expect(
       ben.page.getByRole("link", { name: "Settlement retries" }),
     ).toBeVisible();
 
     // A new item appears in the other person's list.
-    await ada.page.goto(seeded.projectPath("/stories"));
-    await ada.page.getByRole("button", { name: "New story" }).click();
+    await ada.page.goto(seeded.projectPath("/items"));
+    await ada.page
+      .getByRole("button", { name: "New item", exact: true })
+      .click();
     await ada.page
       .getByRole("textbox", { name: "Title", exact: true })
       .fill("Chargeback notices");
     await ada.page
       .getByRole("dialog", { name: "Create story" })
-      .getByRole("button", { name: "Create Story", exact: true })
+      .getByRole("button", { name: "Create another", exact: true })
       .click();
     await expect(
       ben.page.getByRole("link", { name: "Chargeback notices" }),

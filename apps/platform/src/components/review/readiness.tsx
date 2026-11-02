@@ -51,7 +51,7 @@ export function Readiness() {
       )}
       <p className="mt-2 text-[11px] text-muted-foreground">
         {item.refinementState === "ready"
-          ? "All checks pass for this revision. The specification is eligible for delivery selection; readiness does not schedule or start work."
+          ? "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
       {checks.find((check) => !check.passed && !check.signOff)?.detail && (

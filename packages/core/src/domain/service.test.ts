@@ -1616,6 +1616,81 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     [2],
   );
 
+  // Parent eligibility follows configured hierarchy, including types above
+  // Epic and ordinary work that can parent a Subtask.
+  const outcomeTypeId = crypto.randomUUID();
+  const outcomeId = crypto.randomUUID();
+  await db.insert(s.workItemType).values({
+    id: outcomeTypeId,
+    organizationId: f.organizationId,
+    name: "Outcome",
+    icon: "flag",
+    level: 3,
+    hasSpecification: true,
+  });
+  await db.insert(s.workItem).values({
+    id: outcomeId,
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    typeId: outcomeTypeId,
+    statusId: f.statuses.Backlog,
+    rank: "z2",
+    number: 28,
+    title: "Customer outcome",
+    createdById: f.userId,
+  });
+  const epicParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    f.types.Epic,
+  );
+  assert.deepEqual(
+    epicParents.epics.map((item) => item.id),
+    [outcomeId],
+  );
+  assert.equal(epicParents.epics[0]?.typeId, outcomeTypeId);
+  const taskParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    f.types.Subtask,
+  );
+  assert.ok(taskParents.epics.some((item) => item.id === f.proposalId));
+  const topParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    outcomeTypeId,
+  );
+  assert.deepEqual(topParents.epics, []);
+  await assert.rejects(
+    () =>
+      searchEpics(
+        db,
+        f.userId,
+        f.organizationId,
+        f.projectId,
+        "",
+        0,
+        50,
+        crypto.randomUUID(),
+      ),
+    /unavailable/,
+  );
+
   const outsider = crypto.randomUUID();
   await db.insert(s.user).values({
     id: outsider,

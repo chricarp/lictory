@@ -10,7 +10,7 @@ import {
   identifier,
   isClosedCategory,
   isTopLevel,
-  segmentOf,
+  refinementMeta,
   typeOf,
   type Project,
 } from "@lictory/core/lib/work-items";
@@ -117,7 +117,7 @@ function ProjectBacklog({ project }: { project: Project }) {
   const teamItems = useMemo(
     () =>
       items
-        // Epics group work across iterations; they are planned via children.
+        // Higher-level types group work across iterations; plan their children.
         .filter(
           (i) =>
             i.projectId === project.id &&
@@ -230,7 +230,6 @@ function ProjectBacklog({ project }: { project: Project }) {
                 href={paths.item(
                   organization.slug,
                   project.key,
-                  segmentOf(typeOf(delivery, item)),
                   identifier(project, item.number),
                 )}
                 teamName={
@@ -300,6 +299,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 size="sm"
                 onClick={() =>
                   openCreate({
+                    intent: "work",
                     projectId: project.id,
                     teamId:
                       teamFilter.value && teamFilter.value !== "none"
@@ -314,6 +314,16 @@ function ProjectBacklog({ project }: { project: Project }) {
             )}
           </div>
         </header>
+        <p className="text-[13px] text-muted-foreground">
+          Rank work and plan when to take it on. Iteration planning stays
+          tentative until the delivery scope is accepted.{" "}
+          <Link
+            href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
+            className="font-medium text-primary hover:underline"
+          >
+            Choose ready work →
+          </Link>
+        </p>
         {project.iterationMode === "off" && (
           <p className="text-[13px] text-muted-foreground">
             {project.name} works without iterations. Rank the backlog by
@@ -756,8 +766,14 @@ export function BacklogRow({
         </span>
       )}
       {item.refinementState && item.refinementState !== "ready" && (
-        <span title="Specification not ready">
+        <span
+          title="Specification not ready"
+          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+        >
           <RefinementIcon state={item.refinementState} />
+          <span className="hidden sm:inline">
+            {refinementMeta[item.refinementState].label}
+          </span>
         </span>
       )}
       <StatusIcon category={status?.category} color={status?.color} />
