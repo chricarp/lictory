@@ -33,6 +33,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...brandingCapabilities,
   ...accessTokenCapabilities,
   ...productKnowledgeCapabilities,
+  ...intakeCapabilities,
   humanOnlyCapability(() => capabilities),
 ];
 assertHumanOnlyMetadata(capabilities);

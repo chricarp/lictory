@@ -22,6 +22,7 @@ import {
 } from "@lictory/core/capabilities/core";
 import { invoke, listCapabilities } from "@lictory/core/capabilities/registry";
 import { assistantTools } from "@lictory/core/intelligence/chat/assistant";
+import type { IntakeContext, ProposalDrafter } from "@lictory/core/ai/intake";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
 
 const adminUrl =
