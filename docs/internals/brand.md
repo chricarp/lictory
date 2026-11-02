@@ -15,3 +15,17 @@ icon is a 180px raster export of that icon. Email headers use a dark (`#18181B`)
 PNG export of the combined logo because email clients do not consistently support
 SVGs or CSS masks. Regenerate these derived assets when replacing the definitive
 artwork.
+
+## The public website
+
+The website reads like the specifications it is about: paper and ink. Warm
+neutral surfaces, the product's cobalt as the only accent, Geist for the
+interface and a serif (Newsreader) for headlines only. It follows the visitor's
+light or dark preference; one ink band marks the agent section.
+
+Color and motion belong to the product illustrations, not the chrome. Each
+contributor in the hero's branch graph keeps one color wherever it appears. The
+graph's commit dot is the site's one recurring mark: section labels, the current
+navigation item and the workflow steps. Illustrations are drawn in code from
+real product concepts and capability names. They play once, end on their
+result and show that result as a still frame when motion is reduced.

@@ -18,7 +18,7 @@ for (const width of [320, 390]) {
     await page.goto("/");
 
     const hero = page.getByRole("region", {
-      name: /Build the right thing\.\s*Then build it fast\./,
+      name: "Agree on what to build before anyone builds it",
     });
     const signup = hero.getByRole("link", { name: "Start for free" });
     // Geometry snapshots can race with rendering, even after a visibility check.
@@ -30,10 +30,9 @@ for (const width of [320, 390]) {
     }).toPass({ timeout: 30_000 });
 
     const demo = page.getByLabel("Interactive specification example");
+    // The hero shows people and agents converging on one reviewed revision.
     await expect(
-      page.getByLabel(
-        "People and agents refining a payment specification through branches and review",
-      ),
+      hero.getByRole("img", { name: /parallel branches.*revision 13/ }),
     ).toBeVisible();
     await expect(page.locator("#agents h2")).toBeVisible();
     await expect(
@@ -65,16 +64,10 @@ for (const width of [320, 390]) {
     await expect(demo.getByText("Revision 12", { exact: true })).toBeVisible();
     await expect(demo.getByText("Blocking", { exact: true })).toBeVisible();
 
-    const tools = page.getByText(/^Explore the review tools/);
-    await tools.focus();
-    await page.keyboard.press("Enter");
+    // The review tools are listed, not hidden behind a disclosure.
     await expect(
-      page.getByRole("heading", { name: "Revision-bound approvals" }),
+      page.getByRole("term").filter({ hasText: "Revision-bound approvals" }),
     ).toBeVisible();
-    await page.keyboard.press("Enter");
-    await expect(
-      page.getByRole("heading", { name: "Revision-bound approvals" }),
-    ).toBeHidden();
 
     // Key differences are visible without interaction; phones get cards, not a wide table.
     const comparison = page.getByRole("list", {
@@ -299,8 +292,15 @@ test("mobile navigation dismisses outside, stays closed after resizing and respe
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(toggle).toBeFocused();
+  // Closing the menu returns to the page in reading order.
   await page.keyboard.press("Tab");
-  await expect(page.locator(".hero-announcement")).toBeFocused();
+  await expect(
+    page
+      .getByRole("region", {
+        name: "Agree on what to build before anyone builds it",
+      })
+      .getByRole("link", { name: "Start for free" }),
+  ).toBeFocused();
 
   await toggle.click();
   await page.mouse.click(4, 400);
@@ -331,7 +331,11 @@ test("the open-source link describes the project directly and leads to its code"
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.locator(".hero-announcement").click();
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page
+    .getByRole("navigation", { name: "Mobile sections" })
+    .getByRole("link", { name: "Open source", exact: true })
+    .click();
   await expect(page).toHaveURL(/#open-source$/);
   const section = page.getByRole("region", {
     name: "Open source. Yours to shape.",

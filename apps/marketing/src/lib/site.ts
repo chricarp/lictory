@@ -25,7 +25,7 @@ export function absoluteUrl(path: string) {
 }
 
 export const siteName = "Lictory";
-export const siteTitle = "Lictory: build the right thing, then build it fast";
+export const siteTitle = "Lictory: requirements, reviewed like code";
 export const siteTagline = "Requirements, reviewed like code.";
 
 export const siteDescription =
@@ -36,8 +36,8 @@ export const siteSummary =
   "Lictory is a work-management platform for software teams focused on what happens before development. People and agents refine requirements concurrently on specification branches and bring proposed changes together through pull requests, diffs, anchored discussions, revision-bound approvals and readiness checks. Teams can work in the UI, delegate to the built-in assistant Litto, or connect their own agents through MCP. Human decisions remain authoritative. Agreed specifications become delivery work, managed natively in Lictory or published to Jira, with Linear support coming. " +
   openSource.summary;
 
-/** Browser chrome and installed-app colors, matching the dark landing page. */
-export const siteThemeColor = "#08090b";
+/** Browser chrome colors: the page's paper and ink backgrounds. */
+export const siteThemeColors = { light: "#f6f4ef", dark: "#141311" } as const;
 
 /** Search snippet policy for every indexable page. */
 export const indexableRobots = {

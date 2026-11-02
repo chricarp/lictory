@@ -20,17 +20,14 @@ export async function GET(
       ? "Before the first line of code"
       : "Shared work · Private details",
     title: marketing
-      ? "Build the right thing. Then build it fast."
+      ? "Agree on what to build before anyone builds it"
       : `${previewLabels[kind as keyof typeof previewLabels]} in Lictory`,
     titleSize: marketing ? 68 : 72,
     subtitle: marketing
-      ? "People and agents. Parallel branches. One agreed specification."
+      ? "People and agents refine one specification on parallel branches."
       : "Sign in with an account that has access to see the details.",
     footer: marketing
-      ? [
-          "Propose → Branch → Refine → Review → Deliver",
-          "Open-source work management",
-        ]
+      ? ["Branch → Review → Merge → Deliver", "Open-source work management"]
       : ["Requirements, reviewed like code.", "Access stays with your team."],
     headers: {
       "Cache-Control": "public, max-age=86400",

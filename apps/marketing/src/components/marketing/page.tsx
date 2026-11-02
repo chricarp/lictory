@@ -141,7 +141,7 @@ export function Prose({
         "text-[15px] leading-7 text-foreground/80 sm:text-base sm:leading-8",
         "[&_li]:pl-1 [&_ol]:mt-5 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5 [&_p]:mt-5 [&_ul]:mt-5 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5",
         "[&_strong]:font-medium [&_strong]:text-foreground",
-        "[&_a]:text-foreground [&_a]:underline [&_a]:decoration-white/25 [&_a]:underline-offset-4 [&_a:hover]:decoration-foreground",
+        "[&_a]:text-foreground [&_a]:underline [&_a]:decoration-foreground/25 [&_a]:underline-offset-4 [&_a:hover]:decoration-foreground",
         "[&_blockquote]:mt-6 [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-5 [&_blockquote]:text-foreground/90",
         className,
       )}

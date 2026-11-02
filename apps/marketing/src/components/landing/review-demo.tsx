@@ -72,8 +72,7 @@ export function ReviewDemo() {
         if (!event.currentTarget.contains(event.relatedTarget))
           setFocused(false);
       }}
-      className="review-demo app-preview dark overflow-hidden rounded-lg border border-border bg-background text-left"
-      data-theme="lictory"
+      className="review-demo overflow-hidden rounded-2xl border border-border bg-card text-left"
     >
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
         <div className="flex items-center gap-1">
@@ -166,7 +165,7 @@ export function ReviewDemo() {
             ) : (
               <p key="original" className="demo-step-in">
                 Retry failed payments{" "}
-                <mark className="rounded bg-destructive/15 px-1 text-foreground underline decoration-destructive/60 decoration-dotted underline-offset-4">
+                <mark className="rounded bg-(--caution)/12 px-1 text-foreground underline decoration-(--caution) decoration-dotted underline-offset-4">
                   as needed
                 </mark>
                 .
@@ -176,12 +175,12 @@ export function ReviewDemo() {
           <div
             className={cn(
               "min-h-24 rounded-lg p-3 text-xs leading-5 transition-colors duration-300",
-              "border border-border bg-card",
+              "border border-border bg-background",
             )}
           >
             {ready ? (
               <div key="ready" className="demo-step-in">
-                <p className="flex items-center gap-2 font-medium text-emerald-300">
+                <p className="flex items-center gap-2 font-medium text-(--positive)">
                   <CheckCircle2 aria-hidden className="size-3.5" />3 of 3
                   approvals · revision 13
                 </p>
@@ -208,7 +207,7 @@ export function ReviewDemo() {
                   <span
                     className={cn(
                       "ml-auto text-xs",
-                      revised ? "text-emerald-300" : "text-amber-300",
+                      revised ? "text-(--positive)" : "text-(--caution)",
                     )}
                   >
                     {revised ? "Resolved" : "Blocking"}
@@ -227,14 +226,14 @@ export function ReviewDemo() {
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full transition-colors duration-300",
-              ready ? "bg-emerald-400" : "bg-amber-300",
+              ready ? "bg-(--positive)" : "bg-(--caution)",
             )}
           />
           <span
             key={step}
             className={cn(
               "demo-step-in",
-              ready ? "text-emerald-300" : "text-muted-foreground",
+              ready ? "text-(--positive)" : "text-muted-foreground",
             )}
           >
             {ready

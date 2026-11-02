@@ -35,6 +35,6 @@ test("social preview images exist for every public page category", async ({
   );
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
     "content",
-    "Lictory: build the right thing, then build it fast",
+    "Lictory: requirements, reviewed like code",
   );
 });

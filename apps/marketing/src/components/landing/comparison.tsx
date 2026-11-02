@@ -50,7 +50,7 @@ export function ComparisonTable() {
     !expanded && !row.differentiator;
 
   return (
-    <div id={listId} className="mt-7 max-w-4xl sm:mt-10">
+    <div id={listId} className="mt-8 sm:mt-14">
       {/* Tablet and desktop: a compact table. */}
       <div className="hidden overflow-hidden rounded-xl border border-border sm:block">
         <table className="w-full text-sm">

@@ -1,14 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import {
-  ArrowRight,
-  GitBranch,
-  GitPullRequest,
-  MessageSquareText,
-  Code2,
-  ArrowUpRight,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { ComparisonTable } from "@lictory/marketing/components/landing/comparison";
 import { comparisons } from "@lictory/marketing/content/comparisons";
@@ -19,10 +11,8 @@ import { MarketingHeader } from "@lictory/marketing/components/marketing/header"
 import { StartCta } from "@lictory/marketing/components/marketing/account-cta";
 import { CtaLink } from "@lictory/marketing/components/marketing/cta-link";
 import { ReviewDemo } from "@lictory/marketing/components/landing/review-demo";
-import {
-  AgentPreview,
-  ProductShowcase,
-} from "@lictory/marketing/components/landing/product-showcase";
+import { SpecGraph } from "@lictory/marketing/components/landing/spec-graph";
+import { AgentSurfaces } from "@lictory/marketing/components/landing/agent-surfaces";
 import { openSource } from "@lictory/marketing/lib/open-source";
 
 const startLabel = "Start for free";
@@ -33,9 +23,9 @@ export function Landing() {
       <MarketingHeader />
       <main id="main-content">
         <Hero />
-        <Journey />
-        <Problem />
-        <Features />
+        <Shift />
+        <Workflow />
+        <Agents />
         <Disciplines />
         <Delivery />
         <Comparison />
@@ -51,381 +41,399 @@ export function Landing() {
 
 function Hero() {
   return (
-    <section aria-labelledby="hero-title" className="marketing-hero site-width">
+    <section aria-labelledby="hero-title" className="hero site-width">
       <div className="hero-copy">
-        <a href="#open-source" className="hero-announcement">
-          <Code2 aria-hidden />
-          <span>{openSource.label}</span>
-          <ArrowRight aria-hidden />
-        </a>
-        <h1 id="hero-title">
-          Build the right thing.
-          <br />
-          <span>Then build it fast.</span>
-        </h1>
-        <p className="hero-lead">
-          AI made writing code faster. Lictory helps your team decide what’s
-          worth building.
-        </p>
-        <div className="hero-actions">
-          <StartCta label={startLabel} />
-          <CtaLink href="#features" variant="secondary" size="lg">
-            Explore the workflow <ArrowRight aria-hidden />
-          </CtaLink>
+        <h1 id="hero-title">Agree on what to build before anyone builds it</h1>
+        <div className="hero-side">
+          <p className="hero-lead">
+            Lictory gives product requirements branches, pull requests and
+            checks. Product, engineering, QA and their agents refine the same
+            specification in parallel, then approve one reviewed result.
+          </p>
+          <div className="hero-actions">
+            <StartCta label={startLabel} />
+            <CtaLink href="#features" variant="secondary" size="lg">
+              See how it works
+            </CtaLink>
+          </div>
         </div>
       </div>
-      <div className="hero-product">
-        <ProductShowcase />
-      </div>
-      <p className="hero-caption">
-        People and agents. Parallel branches. One agreed specification.
-      </p>
+      <SpecGraph />
     </section>
   );
 }
 
-function Journey() {
+/** A section label: the graph's commit dot, then the name. */
+function Marker({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="site-width journey"
-      aria-label="The path from proposal to delivery"
-    >
-      <span className="text-foreground">The work before the work</span>
-      <ol>
-        {["Propose", "Branch", "Refine", "Review", "Deliver"].map((step, i) => (
-          <li key={step}>
-            <span className="font-mono text-xs text-muted-foreground">
-              0{i + 1}
-            </span>
-            {step}
-            {i < 4 && <ArrowRight aria-hidden />}
-          </li>
-        ))}
-      </ol>
-    </div>
+    <p className="marker">
+      <span aria-hidden />
+      {children}
+    </p>
   );
 }
 
-function Section({
+function SectionHeading({
   id,
   label,
   title,
   children,
-  intro,
 }: {
   id: string;
   label: string;
-  title: string;
-  intro?: string;
-  children: ReactNode;
+  title: ReactNode;
+  children?: ReactNode;
 }) {
   return (
-    <section
-      id={id}
-      aria-labelledby={`${id}-title`}
-      className="marketing-section site-width"
-    >
-      <div className="section-heading">
-        <p className="section-label">{label}</p>
-        <div>
-          <h2 id={`${id}-title`}>{title}</h2>
-          {intro && <p className="section-intro">{intro}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
+    <div className="section-heading">
+      <Marker>{label}</Marker>
+      <h2 id={`${id}-title`}>{title}</h2>
+      {children ? <p className="section-intro">{children}</p> : null}
+    </div>
   );
 }
 
-function Problem() {
+function Shift() {
   return (
-    <Section
+    <section
       id="why-lictory"
-      label="Why Lictory"
-      title="The bottleneck has moved"
-      intro="When implementation gets faster, deciding what to implement matters more. A well-organized backlog still needs a shared understanding behind it."
+      aria-labelledby="why-lictory-title"
+      className="section site-width"
     >
-      <div className="problem-statement">
-        <p>“Product wants to build this.”</p>
-        <div className="problem-bridge">
-          <GitBranch aria-hidden />
-          <span>Refinement is where the gap closes</span>
-        </div>
-        <p>“Engineering can commit to this.”</p>
+      <div className="shift">
+        <SectionHeading
+          id="why-lictory"
+          label="Why Lictory"
+          title="Coding agents moved the bottleneck upstream"
+        >
+          Trackers were built around the part of a work item’s life that took
+          longest: implementation. Agents now write much of that code. What
+          takes the time is deciding exactly what the code should do, and that
+          still happens in scattered documents, threads and meetings.
+        </SectionHeading>
+        <ShiftChart />
       </div>
-      <div className="editorial-columns">
+      <div className="principles">
         <div>
           <h3>Intent before assignment</h3>
           <p>
-            Agree on the problem, expected behavior and constraints before a
-            task lands with a developer.
+            Agree on the problem, the expected behavior and the constraints
+            before the item reaches a developer or an agent.
           </p>
         </div>
         <div>
           <h3>Questions before rework</h3>
           <p>
-            Surface failure cases, conflicting assumptions and missing criteria
-            while they are still easy to change.
+            Find failure cases, conflicting assumptions and missing criteria
+            while they cost a sentence to fix, not a sprint.
           </p>
         </div>
         <div>
-          <h3>Evidence before “ready”</h3>
+          <h3>Evidence before ready</h3>
           <p>
-            See the reviewed revision, open discussions and readiness checks
-            behind the decision to start.
+            Ready means the checks passed: the revision that was reviewed, its
+            approvals, and no open blockers.
           </p>
         </div>
       </div>
-    </Section>
+    </section>
   );
 }
 
-function Features() {
+function ShiftChart() {
+  const rows = [
+    {
+      era: "Before coding agents",
+      parts: [
+        ["Define", 22],
+        ["Build", 56],
+        ["Verify", 22],
+      ],
+      note: { part: 1, text: "What trackers were built for" },
+    },
+    {
+      era: "With coding agents",
+      parts: [
+        ["Define", 56],
+        ["Build", 22],
+        ["Verify", 22],
+      ],
+      note: { part: 0, text: "What Lictory is built for" },
+    },
+  ] as const;
   return (
-    <Section
+    <figure className="shift-chart">
+      <figcaption>
+        Where a work item spends its time{" "}
+        <span>Illustrative, not measured</span>
+      </figcaption>
+      {rows.map(({ era, parts, note }) => {
+        const offset = parts
+          .slice(0, note.part)
+          .reduce((sum, [, size]) => sum + size, 0);
+        return (
+          <div key={era} className="shift-row">
+            <p>{era}</p>
+            <div className="shift-bar">
+              {parts.map(([name, size], index) => (
+                <span
+                  key={name}
+                  data-part={name.toLowerCase()}
+                  data-noted={index === note.part || undefined}
+                  style={{ width: `${size}%` }}
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+            <p
+              className="shift-note"
+              style={{
+                marginLeft: `${offset}%`,
+                width: `${parts[note.part][1]}%`,
+              }}
+            >
+              {note.text}
+            </p>
+          </div>
+        );
+      })}
+    </figure>
+  );
+}
+
+const steps = [
+  {
+    name: "Main holds the agreement",
+    body: "Every specification has a main line. Each material change to it creates an immutable revision, so you can always return to exactly what was approved.",
+  },
+  {
+    name: "Branch to explore",
+    body: "Anyone can branch a specification to try a change. Collaborators and agents commit to it. Independent edits combine on their own; overlapping ones ask a person to choose.",
+  },
+  {
+    name: "Review the pull request",
+    body: "Reviewers from each discipline read the diff and discuss the exact sentence. Lictory Actions can check every new commit, like CI for requirements.",
+  },
+  {
+    name: "Merge one result",
+    body: "Approvals record the exact content they covered, so a later change makes them stale. A merge needs every required approval, no blocking discussion and no conflict.",
+  },
+] as const;
+
+const reviewTools = [
+  [
+    "Immutable revisions",
+    "Return to the exact specification that was reviewed.",
+  ],
+  ["Readable diffs", "See what changed before making a decision."],
+  ["Anchored threads", "Discussions stay attached to the text they are about."],
+  ["Actionable suggestions", "Inspect a proposed change before accepting it."],
+  ["Revision-bound approvals", "Know which version each reviewer approved."],
+  ["Durable decisions", "Keep the conclusion long after the discussion ends."],
+] as const;
+
+function Workflow() {
+  return (
+    <section
       id="features"
-      label="The refinement workflow"
-      title="Parallel thinking. One agreed result."
-      intro="Bring the collaboration model behind code review to the requirements themselves. People and agents can explore changes concurrently without silently overwriting the agreed specification."
+      aria-labelledby="features-title"
+      className="section site-width"
     >
-      <div className="workflow-grid">
-        <article className="workflow-primary">
-          <div className="feature-number">
-            01 <GitBranch aria-hidden />
-          </div>
-          <h3>Give every idea a branch</h3>
-          <p>
-            Start with a rough proposal. Explore a change on a specification
-            branch, invite collaborators and open a pull request when it is
-            ready for review.
-          </p>
-          <div className="branch-example">
-            <div>
-              <span className="branch-node" />
-              <span>Agreed specification</span>
-              <code>main</code>
-            </div>
-            <div>
-              <span className="branch-node" />
-              <span>Engineering explores retries</span>
-              <code>retry-policy</code>
-            </div>
-            <div>
-              <span className="branch-node" />
-              <span>Litto proposes missing scenarios</span>
-              <code>failure-cases</code>
-            </div>
-            <div>
-              <span className="branch-node" />
-              <span>QA adds boundary conditions</span>
-              <code>qa-scenarios</code>
-            </div>
-          </div>
-        </article>
-        <div className="workflow-secondary">
-          <article>
-            <div className="feature-number">
-              02 <GitPullRequest aria-hidden />
-            </div>
-            <h3>Review the change, in context</h3>
-            <p>
-              Read the diff. Discuss the exact sentence. Accept or reject a
-              suggestion. Human reviews and automated findings meet in the same
-              pull request, with their context intact.
-            </p>
-          </article>
-          <article id="readiness">
-            <div className="feature-number">
-              03 <ShieldCheck aria-hidden />
-            </div>
-            <h3>Make agreement inspectable</h3>
-            <p>
-              Approvals identify what was reviewed. Readiness checks expose
-              missing evidence and unresolved blockers. Your team decides what
-              merges and when work can begin.
-            </p>
-          </article>
-        </div>
+      <div className="workflow">
+        <SectionHeading
+          id="features"
+          label="How it works"
+          title="Requirements get branches, pull requests and checks"
+        >
+          The model that lets many engineers change one codebase safely, applied
+          to the specification. Nobody overwrites the agreed version, and
+          nothing merges without review.
+        </SectionHeading>
+        <ol className="steps">
+          {steps.map(({ name, body }) => (
+            <li key={name}>
+              <h3>{name}</h3>
+              <p>{body}</p>
+            </li>
+          ))}
+        </ol>
       </div>
+
       <div className="review-stage">
         <div className="review-stage-copy">
-          <p className="section-label">From ambiguity to agreement</p>
           <h3>
             See what changed.
             <br />
             Know what you’re approving.
           </h3>
           <p>
-            Discuss the exact sentence. Propose a revision. Bring the team to an
-            agreed specification, with the history intact.
+            A blocking question on one sentence, a revision that answers it, and
+            approvals that name the revision they cover.
           </p>
         </div>
         <ReviewDemo />
       </div>
-      <details className="review-tools">
-        <summary>
-          Explore the review tools <span aria-hidden>+</span>
-        </summary>
-        <div className="editorial-columns">
-          {[
-            [
-              "Immutable revisions",
-              "Return to the exact specification that was reviewed.",
-            ],
-            ["Readable diffs", "See what changed before making a decision."],
-            [
-              "Anchored threads",
-              "Keep discussions attached to their original context.",
-            ],
-            [
-              "Actionable suggestions",
-              "Inspect a proposed text change before accepting it.",
-            ],
-            [
-              "Revision-bound approvals",
-              "Know which version each reviewer approved.",
-            ],
-            [
-              "Durable decisions",
-              "Keep the conclusion long after the discussion ends.",
-            ],
-          ].map(([title, body]) => (
-            <div key={title}>
-              <h3>{title}</h3>
-              <p>{body}</p>
-            </div>
-          ))}
-        </div>
-      </details>
-      <AgentSection />
-    </Section>
+
+      <dl className="review-tools" aria-label="Built into every specification">
+        {reviewTools.map(([title, body]) => (
+          <div key={title}>
+            <dt>{title}</dt>
+            <dd>{body}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
-function AgentSection() {
+function Agents() {
   return (
-    <div id="agents" className="agent-section">
-      <div>
-        <p className="section-label">Agent access is part of the design</p>
-        <h2>
-          Your UI. Your agent.
-          <br />
-          Your choice.
-        </h2>
-        <p className="section-intro">
-          Refinement should not depend on who is clicking. Work directly in
-          Lictory, ask Litto, or connect your own agent through MCP.
-        </p>
-        <p className="mt-6 text-sm leading-7 text-muted-foreground">
-          The same work item capabilities and permissions sit behind all three.
-          Agents contribute changes and findings; decisions stay with the people
-          responsible for the work.
-        </p>
+    <section id="agents" aria-labelledby="agents-title" className="agents ink">
+      <div className="site-width">
+        <SectionHeading
+          id="agents"
+          label="Agents"
+          title="Anything you can do in Lictory, an agent can do for you"
+        >
+          Every workspace action is a capability with one permission check.
+          Click it, ask Litto, or call it from your own agent over MCP. There
+          are no human-only workflows and no agent-only shortcuts.
+        </SectionHeading>
+        <AgentSurfaces />
+        <div className="agent-facts">
+          <div>
+            <h3>Same permissions</h3>
+            <p>
+              An agent can never do what its person could not do in the browser.
+              Credentials and account security stay with the person.
+            </p>
+          </div>
+          <div>
+            <h3>Decisions stay human</h3>
+            <p>
+              Approvals and merges are decisions. Litto asks before making one,
+              and Lictory Intelligence never approves, resolves or merges.
+            </p>
+          </div>
+          <div>
+            <h3>Every call on the record</h3>
+            <p>
+              History shows who changed what, on which revision. Calls made by
+              agents are audited too.
+            </p>
+          </div>
+        </div>
       </div>
-      <AgentPreview />
-    </div>
+    </section>
   );
 }
+
+const disciplines = [
+  ["Product", "What outcome should the customer see?"],
+  ["Engineering", "What happens if the provider times out?"],
+  ["QA", "How do we prove a retry never charges twice?"],
+  ["Security", "Who is allowed to trigger another attempt?"],
+  ["Operations", "How will we know retries are failing?"],
+] as const;
 
 function Disciplines() {
   return (
-    <Section
+    <section
       id="collaboration"
-      label="A shared specification"
-      title="Every perspective, before the sprint"
-      intro="Product, engineering, QA, security and operations contribute to the same requirement. Asynchronously, with the context that makes each question useful."
+      aria-labelledby="collaboration-title"
+      className="section site-width split"
     >
-      <div className="discipline-list">
-        {[
-          ["Product", "What outcome should the customer see?"],
-          ["Engineering", "What happens if the provider times out?"],
-          ["QA", "How do we prove a retry never charges twice?"],
-          ["Security", "Who is allowed to trigger another attempt?"],
-          ["Operations", "How will we know retries are failing?"],
-        ].map(([who, question]) => (
-          <div key={who}>
+      <SectionHeading
+        id="collaboration"
+        label="Disciplines"
+        title="Every perspective, before the sprint"
+      >
+        Product, engineering, QA, security and operations review the same
+        specification, each from their own angle. Questions attach to the text
+        they are about, so nobody has to ask what a comment meant.
+      </SectionHeading>
+      <ul className="discipline-list">
+        {disciplines.map(([who, question]) => (
+          <li key={who}>
             <span>{who}</span>
             <p>{question}</p>
-            <MessageSquareText aria-hidden />
-          </div>
+          </li>
         ))}
-      </div>
-    </Section>
+      </ul>
+    </section>
   );
 }
 
 function Delivery() {
   return (
-    <Section
+    <section
       id="delivery"
-      label="From agreement to delivery"
-      title="Keep the context. Choose where to ship."
-      intro="Once the specification is agreed, decompose it into implementation work. Each project chooses one system to own delivery."
+      aria-labelledby="delivery-title"
+      className="section site-width"
     >
+      <SectionHeading
+        id="delivery"
+        label="Delivery"
+        title="Agreed. Now ship it where your team works"
+      >
+        Break the approved specification into stories and tasks that remember
+        the revision they came from. Each project picks one system to own
+        delivery, so nothing is tracked twice.
+      </SectionHeading>
       <div className="delivery-options">
         <article>
-          <span className="font-mono text-xs text-muted-foreground">
-            In Lictory
-          </span>
-          <h3>Refine and deliver in one place</h3>
+          <h3>Deliver in Lictory</h3>
           <p>
-            Run boards, a ranked backlog, sprints or cycles. Track estimates,
-            subtasks and dependencies without losing the specification behind
-            the work.
+            Boards, a ranked backlog, sprints or cycles, estimates, subtasks and
+            relations. Starting work can wait until the specification passes its
+            readiness checks.
           </p>
-          <div className="delivery-statuses">
-            <span>Backlog</span>
-            <ArrowRight aria-hidden />
-            <span>In progress</span>
-            <ArrowRight aria-hidden />
-            <span>Done</span>
-          </div>
+          <ol className="delivery-flow" aria-label="Workflow status categories">
+            <li>Backlog</li>
+            <li>Started</li>
+            <li>Done</li>
+          </ol>
         </article>
         <article>
-          <span className="font-mono text-xs text-muted-foreground">
-            In your existing tracker
-          </span>
-          <h3>Better inputs for Jira</h3>
+          <h3>Publish to Jira</h3>
           <p>
-            Publish approved delivery items to Jira, linked to the revision they
-            came from. Keep refinement in Lictory and execution in your team’s
-            delivery system.
+            Keep refinement in Lictory and execution in Jira. Approved delivery
+            items are published with a link to the revision they came from.
+            Publishing is an explicit, permission-checked action.
           </p>
-          <p className="mt-6 text-xs text-muted-foreground">
-            Jira available · Linear support is coming
-          </p>
+          <p className="delivery-meta">Jira today · Linear is coming</p>
         </article>
       </div>
-      <p className="mt-6 flex items-start gap-2 text-sm text-muted-foreground">
-        <ShieldCheck aria-hidden className="shrink-0" />
-        Publishing is an explicit, permission-checked action
-      </p>
-    </Section>
+    </section>
   );
 }
 
 function Comparison() {
   return (
-    <Section
+    <section
       id="compare"
-      label="A different starting point"
-      title="Your tracker starts with a task. Start with agreement."
-      intro="Boards and sprints still matter. Lictory puts the same care into the work that makes an item ready for them."
+      aria-labelledby="compare-title"
+      className="section site-width"
     >
+      <SectionHeading
+        id="compare"
+        label="Compared"
+        title="Your tracker starts with a task. Lictory starts with agreement"
+      >
+        Boards and sprints still matter, and Lictory has them. It puts the same
+        care into the work that makes an item ready for them.
+      </SectionHeading>
       <ComparisonTable />
-      <div className="mt-8 flex flex-wrap gap-6 text-sm text-muted-foreground">
+      <div className="compare-links">
         {comparisons.map((item) => (
-          <Link
-            key={item.slug}
-            href={`/compare/${item.slug}`}
-            className="inline-flex items-center gap-2 hover:text-foreground"
-          >
+          <Link key={item.slug} href={`/compare/${item.slug}`}>
             Lictory vs {item.competitor}
             <ArrowRight aria-hidden />
           </Link>
         ))}
       </div>
-    </Section>
+    </section>
   );
 }
 
@@ -434,7 +442,7 @@ function OpenSource() {
     <section
       id="open-source"
       aria-labelledby="open-source-title"
-      className="open-source-section site-width"
+      className="open-source site-width"
     >
       <div>
         <h2 id="open-source-title">Open source. Yours to shape.</h2>
@@ -451,19 +459,24 @@ function OpenSource() {
 
 function Faq() {
   return (
-    <Section id="faq" label="A few useful answers" title="Before you begin">
+    <section
+      id="faq"
+      aria-labelledby="faq-title"
+      className="section site-width split"
+    >
+      <SectionHeading id="faq" label="Questions" title="Before you begin" />
       <div className="faq-list">
         {faqs.map(({ question, answer }) => (
           <details key={question}>
             <summary>
               <h3 className="faq-question">{question}</h3>
-              <span aria-hidden>+</span>
+              <span aria-hidden />
             </summary>
             <p>{answer}</p>
           </details>
         ))}
       </div>
-    </Section>
+    </section>
   );
 }
 
@@ -471,14 +484,11 @@ function FinalCta() {
   return (
     <section aria-labelledby="start-title" className="final-cta site-width">
       <div>
-        <p className="section-label">
-          <span className="branch-tick" aria-hidden />A better place to start
+        <h2 id="start-title">Bring one rough idea</h2>
+        <p>
+          Invite the people who need to agree on it. Their agents are welcome
+          too.
         </p>
-        <h2 id="start-title">
-          Your next feature deserves
-          <br />a shared understanding
-        </h2>
-        <p>Bring the rough idea. Invite your team. Refine it together.</p>
       </div>
       <StartCta label={startLabel} />
     </section>
