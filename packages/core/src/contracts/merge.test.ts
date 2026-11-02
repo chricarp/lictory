@@ -5,6 +5,7 @@ import {
   mergeSnapshot,
   mergeBase,
 } from "@lictory/core/contracts/merge";
+import { reviewResultValue } from "@lictory/core/contracts/decomposition";
 const merged = (base: string, ours: string, theirs: string) =>
   mergeText(base, ours, theirs)
     .flatMap((c) => ("lines" in c ? c.lines : c.ours))
@@ -118,5 +119,45 @@ void test("independent breakdown additions combine and competing child edits con
       },
     ).conflicted,
     false,
+  );
+});
+
+void test("changes to existing children merge by change identity", () => {
+  const change = {
+    changeId: "c1",
+    workItemId: "child",
+    base: { revisionId: "r1", title: "Retries" },
+    parentId: null,
+  };
+  const other = { ...change, changeId: "c2", workItemId: "sibling" };
+  const base = { title: "Behavior", content: "Retries", proposedChildren: [] };
+  const combined = mergeSnapshot(
+    base,
+    { ...base, proposedChildren: [change] },
+    { ...base, proposedChildren: [other] },
+  );
+  assert.equal(combined.conflicted, false);
+  assert.deepEqual(combined.proposedChildren, [change, other]);
+  const original = { ...base, proposedChildren: [change] };
+  assert.equal(
+    mergeSnapshot(
+      original,
+      { ...original, proposedChildren: [{ ...change, parentId: "epic" }] },
+      {
+        ...original,
+        proposedChildren: [{ ...change, archive: true as const }],
+      },
+    ).decompositionConflict,
+    true,
+  );
+  // Detaching and keeping the parent fingerprint differently.
+  assert.notEqual(
+    reviewResultValue({ ...base, proposedChildren: [change] }),
+    reviewResultValue({
+      ...base,
+      proposedChildren: [
+        { ...change, parentId: undefined, archive: true as const },
+      ],
+    }),
   );
 });

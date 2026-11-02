@@ -2,6 +2,11 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { diffLines } from "@lictory/core/contracts/diff";
 import { mergeBase } from "@lictory/core/contracts/merge";
+import {
+  isChildChange,
+  isNewChild,
+  pendingEntries,
+} from "@lictory/core/contracts/decomposition";
 import type { Tx } from "@lictory/core/domain/service";
 import {
   composeIntelligenceContext,
@@ -346,18 +351,29 @@ export async function pullRequestContext(
     proposed: {
       title: head.title,
       content: clip(head.content),
-      children: head.proposedChildren
-        .filter(
-          (child) =>
-            !main.proposedChildren.some(
-              (accepted) => accepted.workItemId === child.workItemId,
-            ),
-        )
+      children: pendingEntries(head.proposedChildren, main.proposedChildren)
+        .filter(isNewChild)
         .slice(0, MAX_ITEMS)
         .map((child) => ({
           title: child.title,
           typeId: child.typeId,
           description: clip(child.description, 1000),
+        })),
+      // Proposed changes to existing children, against the child's base.
+      childChanges: pendingEntries(head.proposedChildren, main.proposedChildren)
+        .filter(isChildChange)
+        .slice(0, MAX_ITEMS)
+        .map((change) => ({
+          workItemId: change.workItemId,
+          currentTitle: change.base.title,
+          ...(change.title !== undefined ? { title: change.title } : {}),
+          ...(change.description !== undefined
+            ? { description: clip(change.description, 1000) }
+            : {}),
+          ...(change.parentId !== undefined
+            ? { parentId: change.parentId }
+            : {}),
+          ...(change.archive ? { archive: true } : {}),
         })),
       childrenTruncated: head.proposedChildren.length > MAX_ITEMS,
     },

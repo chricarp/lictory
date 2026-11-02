@@ -931,7 +931,7 @@ export const directorySchema = z.object({
     .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
-export const PROTOCOL = 14 as const;
+export const PROTOCOL = 15 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),

@@ -48,6 +48,10 @@ import {
   type ProposedChild,
 } from "@lictory/core/contracts/decomposition";
 import {
+  applyChildChange,
+  inspectChildChange,
+} from "@lictory/core/domain/breakdown-changes";
+import {
   checksFor,
   evaluateReadiness,
   sectionContent,
@@ -2436,6 +2440,13 @@ export async function applyMutation(
       log("refinement_changed", { from, to: state, automatic });
     };
     if (branchCommands.has(c.type)) {
+      const breakdownScope = () => ({
+        organizationId,
+        projectId,
+        projectKey: projectRow!.key,
+        parentId: workItemId!,
+        roster,
+      });
       await applyBranchCommand(tx, c, {
         organizationId,
         projectId,
@@ -2582,6 +2593,72 @@ export async function applyMutation(
           log("delivery_breakdown_accepted", {
             count: children.length,
             childIds: children.map((child) => child.workItemId),
+            sourceRevisionId,
+          });
+        },
+        inspectChildChange: async (change, newChildren) => {
+          await inspectChildChange(tx, breakdownScope(), change, newChildren);
+        },
+        applyChildChanges: async (
+          changes,
+          newChildren,
+          sourceRevisionId,
+          pullRequestId,
+        ) => {
+          if (!changes.length) return;
+          requireCapability(capabilities, "editSpecifications");
+          if (
+            changes.some(
+              (change) => change.parentId !== undefined || change.archive,
+            )
+          )
+            requireCapability(capabilities, "changeProperties");
+          const touched = new Set<string>();
+          for (const change of changes)
+            for (const id of await applyChildChange(
+              tx,
+              { ...breakdownScope(), userId, now },
+              change,
+              newChildren,
+              {
+                sourceRevisionId,
+                pullRequestId,
+                ...(actor.surface && actor.surface !== "web"
+                  ? {
+                      performedVia: actor.surface,
+                      agentClient: actor.client?.slice(0, 200) ?? null,
+                    }
+                  : {}),
+              },
+            ))
+              touched.add(id);
+          // Each touched item's own scope (revisions, activity, readiness);
+          // work item rows are project-wide and follow the command's diff.
+          for (const id of touched) {
+            const entities = await snapshot(tx, {
+              organizationId,
+              projectId,
+              workItemId: id,
+            });
+            await writeEntities(
+              tx,
+              organizationId,
+              entities
+                .filter(
+                  (entity) =>
+                    entity.type !== "workItem" &&
+                    "workItemId" in entity &&
+                    entity.workItemId === id,
+                )
+                .map((entity) => ({
+                  entity,
+                  scope: { projectId, workItemId: id },
+                })),
+            );
+          }
+          log("delivery_breakdown_changes_accepted", {
+            count: changes.length,
+            childIds: changes.map((change) => change.workItemId),
             sourceRevisionId,
           });
         },
