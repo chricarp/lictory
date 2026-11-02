@@ -1,6 +1,7 @@
 // Three-way line merging, shared by server validation and the conflict editor.
 // Bound the diff matrix; unusually large rewrites become explicit conflicts.
 import {
+  entryKey,
   sameProposedChildren,
   type ProposedChild,
 } from "@lictory/core/contracts/decomposition";
@@ -161,11 +162,9 @@ function mergeProposedChildren(
   theirs: ProposedChild[] = [],
 ) {
   const maps = [base, ours, theirs].map(
-    (children) => new Map(children.map((child) => [child.workItemId, child])),
+    (children) => new Map(children.map((child) => [entryKey(child), child])),
   );
-  const ids = [
-    ...new Set([...ours, ...theirs, ...base].map((child) => child.workItemId)),
-  ];
+  const ids = [...new Set([...ours, ...theirs, ...base].map(entryKey))];
   let conflicted = false;
   const children: ProposedChild[] = [];
   for (const id of ids) {

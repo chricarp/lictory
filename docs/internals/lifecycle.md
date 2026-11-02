@@ -49,9 +49,23 @@ require fresh review even when the parent's text stays the same.
 No shared children exist until merge into main. Merge creates them atomically,
 recording the resulting parent revision as their source. Accepted proposal IDs
 stay in commit history so later branches cannot create the same children again.
-Existing children cannot be silently changed or removed through a breakdown.
-This is an additive proposal model, not branching of arbitrary workspace state.
-Ownership, ranking, iterations and existing work remain explicit shared actions.
+A breakdown can also propose changes to existing direct children: move one
+under another item (or a child proposed in the same breakdown), detach it,
+archive it, or rename and redescribe work without a specification. The
+reviewed unit is the parent's pull request; the change is part of its merge
+result and approval fingerprint. Text of a specification-backed child stays an
+amendment on that child's own specification, where its reviewers approve it.
+
+The child remains authoritative. Each change records the child revision it was
+proposed against. Merge applies it only while the child still has that
+revision, is still this item's child and has not been accepted for delivery,
+started, finished, canceled or handed off; otherwise merge refuses and names
+the child, so nothing changed meanwhile is overwritten. The branch shows a
+stale change before merge. Applied changes stay in commit history (like
+accepted proposal IDs) so they apply once, and the child's activity records the
+pull request. Archiving is reversible and refused while the child has active
+children. Changing a child's type and relations between children stay explicit
+shared actions, as do ownership, ranking and iterations.
 
 ## Completion and subsequent change
 
@@ -95,8 +109,9 @@ recording conclusions and publishing remain explicit accountable decisions.
 Credential bootstrap and account security retain their existing browser boundary;
 core lifecycle operations are available through the capability registry.
 
-Protocol 14 ensures clients understand reviewed breakdowns before submitting
-commands; older clients must reload before approving the new result shape.
+Protocol 15 ensures clients understand reviewed breakdowns, including changes
+to existing children, before submitting commands; older clients must reload
+before approving the new result shape.
 
 ## Workspace navigation
 

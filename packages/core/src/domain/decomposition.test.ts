@@ -6,7 +6,10 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
-import type { ProposedChild } from "@lictory/core/contracts/decomposition";
+import type {
+  ChildChange,
+  ProposedChild,
+} from "@lictory/core/contracts/decomposition";
 import {
   directory,
   executeMutation,
@@ -90,7 +93,8 @@ async function fixture() {
     member: true,
   });
   const epic = roster.types.find((type) => type.name === "Epic")!,
-    task = roster.types.find((type) => type.name === "Task")!;
+    task = roster.types.find((type) => type.name === "Task")!,
+    story = roster.types.find((type) => type.name === "Story")!;
   await command({
     type: "createWorkItem",
     projectId,
@@ -212,6 +216,7 @@ async function fixture() {
     reviewerId,
     task,
     epic,
+    story,
     command,
     read,
     branch,
@@ -428,4 +433,208 @@ void test("resolving a branch conflict without choosing children keeps the curre
     commit!.proposedChildren.map((c) => c.workItemId),
     [child.workItemId],
   );
+});
+
+async function existingChild(
+  f: Awaited<ReturnType<typeof fixture>>,
+  title: string,
+  typeId = f.task.id,
+  parentId: string | null = f.workItemId,
+) {
+  const id = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: id,
+    typeId,
+    parentId,
+    title,
+    description: `${title} description`,
+  });
+  return id;
+}
+const itemRow = async (id: string) =>
+  (await db.select().from(s.workItem).where(eq(s.workItem.id, id)))[0]!;
+async function changeOf(
+  f: Awaited<ReturnType<typeof fixture>>,
+  id: string,
+  change: Partial<ChildChange>,
+): Promise<ChildChange> {
+  const entity = (await f.read()).find(
+    (e) => e.type === "workItem" && e.id === id,
+  )!;
+  assert.equal(entity.type, "workItem");
+  return {
+    changeId: crypto.randomUUID(),
+    workItemId: id,
+    base: { revisionId: entity.revisionId, title: entity.title },
+    ...change,
+  };
+}
+
+void test("a reviewed breakdown renames, moves and archives existing children only on merge, once", async () => {
+  const f = await fixture();
+  const otherEpic = await existingChild(f, "Observability", f.epic.id, null);
+  const [renamed, moved, archived] = [
+    await existingChild(f, "Retry task"),
+    await existingChild(f, "Timeout task"),
+    await existingChild(f, "Obsolete task"),
+  ];
+  const branchId = await f.branch("agents/reorganize");
+  const fresh: ProposedChild = {
+    workItemId: crypto.randomUUID(),
+    typeId: f.task.id,
+    title: "Persist identifiers",
+    description: "",
+  };
+  const changes = [
+    await changeOf(f, renamed, {
+      title: "Reuse transaction identifiers",
+      description: "Persist before the first attempt.",
+    }),
+    await changeOf(f, moved, { parentId: otherEpic }),
+    await changeOf(f, archived, { archive: true }),
+  ];
+  await f.commit(branchId, [fresh, ...changes]);
+  // Proposing changes nothing shared.
+  assert.equal((await itemRow(renamed)).title, "Retry task");
+  assert.equal((await itemRow(moved)).parentId, f.workItemId);
+  assert.equal((await itemRow(archived)).archivedAt, null);
+  const pullRequestId = await f.pr(branchId);
+  await f.approve(pullRequestId);
+  // A breakdown-only change stales approval like any other result change.
+  await f.commit(branchId, [fresh, ...changes.slice(0, 2)]);
+  await assert.rejects(
+    f.merge(pullRequestId),
+    /approve the current merge result/,
+  );
+  await f.commit(branchId, [fresh, ...changes]);
+  // A sibling branch carrying the same changes must not apply them twice.
+  const later = await f.branch("later", branchId);
+  await f.commit(
+    later,
+    [fresh, ...changes],
+    "Retries reuse the original transaction ID.\nTimeouts keep it.",
+  );
+  const laterPR = await f.pr(later);
+  await f.approve(pullRequestId);
+  await f.merge(pullRequestId);
+
+  const renamedRow = await itemRow(renamed);
+  assert.equal(renamedRow.title, "Reuse transaction identifiers");
+  const revisions = await db
+    .select()
+    .from(s.specificationRevision)
+    .where(eq(s.specificationRevision.workItemId, renamed));
+  assert.deepEqual(revisions.map((r) => r.number).sort(), [1, 2]);
+  assert.equal(
+    revisions.find((r) => r.number === 2)!.content,
+    "Persist before the first attempt.",
+  );
+  assert.equal((await itemRow(moved)).parentId, otherEpic);
+  assert.ok((await itemRow(archived)).archivedAt);
+  assert.ok(await itemRow(fresh.workItemId));
+  const [activity] = await db
+    .select()
+    .from(s.activity)
+    .where(
+      and(
+        eq(s.activity.workItemId, moved),
+        eq(s.activity.action, "breakdown_change_accepted"),
+      ),
+    );
+  assert.equal(
+    (activity!.detail as { pullRequestId: string }).pullRequestId,
+    pullRequestId,
+  );
+
+  await f.approve(laterPR);
+  await f.merge(laterPR);
+  assert.equal(
+    (
+      await db
+        .select()
+        .from(s.specificationRevision)
+        .where(eq(s.specificationRevision.workItemId, renamed))
+    ).length,
+    2,
+  );
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("merge refuses a change to a child edited since it was proposed and applies nothing", async () => {
+  const f = await fixture();
+  const renamed = await existingChild(f, "Retry task"),
+    archived = await existingChild(f, "Obsolete task");
+  const branchId = await f.branch("stale");
+  await f.commit(branchId, [
+    await changeOf(f, archived, { archive: true }),
+    await changeOf(f, renamed, { title: "Reviewed title" }),
+  ]);
+  const pr = await f.pr(branchId);
+  await f.approve(pr);
+  const current = (await f.read()).find(
+    (e) => e.type === "workItem" && e.id === renamed,
+  )!;
+  assert.equal(current.type, "workItem");
+  await f.command({
+    type: "updateSpecification",
+    workItemId: renamed,
+    baseRevisionId: current.revisionId,
+    title: "Someone else's title",
+    content: "Edited directly",
+    summary: "Direct edit",
+  });
+  await assert.rejects(f.merge(pr), /PAY-\d+ changed since this change/);
+  assert.equal((await itemRow(renamed)).title, "Someone else's title");
+  assert.equal((await itemRow(archived)).archivedAt, null);
+  const parent = (await f.read()).find(
+    (e) => e.type === "workItem" && e.id === f.workItemId,
+  )!;
+  assert.equal(parent.type, "workItem");
+  assert.equal(parent.revisionNumber, 1);
+  // Unrelated commits on the branch are not blocked by the stale change.
+  const [branchHead] = await db
+    .select()
+    .from(s.specificationCommit)
+    .where(eq(s.specificationCommit.id, (await f.head(branchId)).headId));
+  await f.commit(
+    branchId,
+    branchHead!.proposedChildren,
+    "Retries reuse the original transaction ID.\nMore detail.",
+  );
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("breakdown changes cannot rewrite spec-backed text or work already underway", async () => {
+  const f = await fixture();
+  const story = await existingChild(f, "Retry story", f.story.id);
+  const branchId = await f.branch("guarded");
+  await assert.rejects(
+    f.commit(branchId, [await changeOf(f, story, { title: "Renamed" })]),
+    /own specification/,
+  );
+  const task = await existingChild(f, "Started task");
+  const roster = await directory(db, f.userId, f.organizationId);
+  const started = roster.statuses.find(
+    (x) => x.projectId === f.projectId && x.category === "started",
+  )!;
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: task,
+    statusId: started.id,
+  });
+  await assert.rejects(
+    f.commit(branchId, [await changeOf(f, task, { parentId: null })]),
+    /accepted, underway or handed off/,
+  );
+  await assert.rejects(
+    f.commit(branchId, [
+      await changeOf(f, story, { parentId: null }),
+      await changeOf(f, story, { archive: true }),
+    ]),
+    /one pending change per existing child/,
+  );
+  assert.equal((await itemRow(task)).parentId, f.workItemId);
+  assert.equal((await itemRow(story)).parentId, f.workItemId);
 });
