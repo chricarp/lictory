@@ -1,10 +1,11 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
 import {
   SUPPORTED_FILE_EXTENSIONS,
   objectKey,
+  removedObjectKey,
   validateFile,
 } from "@lictory/core/storage/policy";
 import {
@@ -20,7 +21,8 @@ import {
 
 // Attachments on work items. Bytes travel directly between the caller and
 // object storage through short-lived presigned URLs; Lictory stores metadata
-// under the organization lock after re-checking membership.
+// under the organization lock after re-checking membership. Removal marks the
+// row first (no new links) and then moves the bytes (old links stop working).
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -241,11 +243,55 @@ const finishAttachmentUpload = defineCapability({
   },
 });
 
+// Signed download URLs are bearer links to an object key and cannot be revoked.
+// Moving the bytes to a retained key makes every link issued before the removal
+// fail. Safe to repeat: a retry finishes a move that was interrupted.
+async function retireObject(
+  ctx: CapabilityContext,
+  file: typeof s.fileObject.$inferSelect,
+) {
+  const retired = removedObjectKey(file.organizationId, file.id);
+  if (file.objectKey === retired) return;
+  const store = storage(ctx);
+  try {
+    await store.copy(file.objectKey, retired).catch(async (error) => {
+      // An earlier attempt may have copied and deleted the source already.
+      if (
+        !(await store.stat(retired).then(
+          () => true,
+          () => false,
+        ))
+      )
+        throw error;
+    });
+    await store.delete(file.objectKey);
+  } catch {
+    throw new CapabilityError(
+      "external",
+      "The attachment was removed, but storage did not confirm that earlier download links were revoked. Those links expire within a minute; retry removeAttachment to finish.",
+      { retryable: true },
+    );
+  }
+  await ctx.db.transaction(async (tx) => {
+    await lockedMember(tx, file.organizationId, ctx.principal.userId);
+    await tx
+      .update(s.fileObject)
+      .set({ objectKey: retired })
+      .where(
+        and(
+          eq(s.fileObject.id, file.id),
+          eq(s.fileObject.organizationId, file.organizationId),
+          eq(s.fileObject.objectKey, file.objectKey),
+        ),
+      );
+  });
+}
+
 const removeAttachment = defineCapability({
   name: "removeAttachment",
   title: "Remove attachment",
   description:
-    "Uploader only: remove an attachment from the item. Bytes are retained for revisions and comments that reference it.",
+    "Uploader only: remove an attachment from the item. It can no longer be downloaded, including through links issued before the removal; the bytes are retained privately. Returns `removed: false` when it was already removed.",
   kind: "command",
   surfaces: everywhere,
   destructive: true,
@@ -260,27 +306,33 @@ const removeAttachment = defineCapability({
         "forbidden",
         "Only the uploader can remove this attachment.",
       );
-    await ctx.db.transaction(async (tx) => {
+    const removed = await ctx.db.transaction(async (tx) => {
       await lockedMember(tx, input.organizationId, userId);
-      await tx
+      const rows = await tx
         .update(s.fileObject)
         .set({ removedAt: new Date() })
         .where(
           and(
             eq(s.fileObject.id, file.id),
             eq(s.fileObject.organizationId, input.organizationId),
+            isNull(s.fileObject.removedAt),
           ),
-        );
+        )
+        .returning({ id: s.fileObject.id });
+      return rows.length > 0;
     });
-    ctx.effects.track(
-      "attachment_removed",
-      {
-        organization_id: input.organizationId,
-        work_item_id: file.workItemId,
-      },
-      `${file.id}:removed`,
-    );
-    return { removed: true };
+    if (removed)
+      ctx.effects.track(
+        "attachment_removed",
+        {
+          organization_id: input.organizationId,
+          work_item_id: file.workItemId,
+        },
+        `${file.id}:removed`,
+      );
+    // Download links are only ever issued for finished uploads.
+    if (file.readyAt) await retireObject(ctx, file);
+    return { removed };
   },
 });
 

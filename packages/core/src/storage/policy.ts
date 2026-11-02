@@ -44,11 +44,21 @@ export function validateFile(filename: string, mimeType: string, size: number) {
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_FILE_SIZE)
     throw new Error("Files must be between 1 byte and 25 MB.");
 }
-export function objectKey(organizationId: string, fileId: string) {
+function checkIdentity(organizationId: string, fileId: string) {
   if (
     !/^[a-zA-Z0-9_-]{1,128}$/.test(organizationId) ||
     !/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/.test(fileId)
   )
     throw new Error("Invalid object identity.");
+}
+export function objectKey(organizationId: string, fileId: string) {
+  checkIdentity(organizationId, fileId);
   return `organizations/${organizationId}/files/${fileId}`;
+}
+// Where a removed attachment's bytes are retained. Signed download URLs name
+// the object key, so moving the bytes is what makes links issued before the
+// removal stop working.
+export function removedObjectKey(organizationId: string, fileId: string) {
+  checkIdentity(organizationId, fileId);
+  return `organizations/${organizationId}/removed-files/${fileId}`;
 }
