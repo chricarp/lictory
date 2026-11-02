@@ -106,7 +106,11 @@ There is no generic workflow engine or preconfigured readiness policy.
 ## Decisions and delivery
 
 Decisions belong to a project, with optional proposal/revision/thread provenance.
-They can be archived without erasing the source discussion. Editable decisions
+They can be archived without erasing the source discussion. Archiving and
+restoring are project capabilities: specification editors curate every decision,
+and an author may curate their own only while a discipline still lets them
+record decisions (edit specifications or review). Authorship adds to a current
+capability and never replaces it. Editable decisions
 are not themselves versioned in this initial model.
 
 Delivery work is ordinary work items (see [delivery.md](delivery.md)); there is

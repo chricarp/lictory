@@ -179,7 +179,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   setDecisionArchived: {
     title: "Archive or restore decision",
     description:
-      "Archive or restore a recorded conclusion. Its author or a specification editor may do this. The original text, revision and history are retained.",
+      "Archive or restore a recorded conclusion. Requires edit-specifications in the project, or, for your own decision, a discipline that edits specifications or reviews; authorship alone grants nothing. The original text, revision and history are retained.",
     decision: true,
   },
   rankWorkItem: {
