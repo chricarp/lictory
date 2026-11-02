@@ -129,8 +129,10 @@ use canonical ids. Unknown, inaccessible or ambiguous references leave the
 organization empty while preserving the attempt and its original outcome.
 Domain changes are attributed to the person in activity history as before; the
 mutation id joins the two. Workspace activity also records delegated execution
-through MCP or Litto and a reported MCP client name, without treating clients
-sharing one person's identity as independent reviewers. See the
+through MCP or Litto: the executing agent (the access token's id and name, or
+Litto) and a reported MCP client name, without treating agents sharing one
+person's identity as independent reviewers. Each token is one named agent, and
+a person's active tokens have distinct names. See the
 [lifecycle model](lifecycle.md) for proposal, commitment and knowledge semantics.
 
 ## Adding a capability

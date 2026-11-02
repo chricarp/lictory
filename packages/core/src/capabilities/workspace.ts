@@ -68,6 +68,8 @@ export async function executeMutation(
       userId: ctx.principal.userId,
       surface: ctx.principal.surface,
       client: ctx.principal.client,
+      agentId: ctx.principal.tokenId ?? null,
+      agentName: ctx.principal.agentName ?? null,
     },
     mutation,
     {
