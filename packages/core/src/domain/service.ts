@@ -43,7 +43,10 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { commandSummary } from "@lictory/core/domain/mutation-summary";
 import { rankBetween } from "@lictory/core/contracts/rank";
-import type { ProposedChild } from "@lictory/core/contracts/decomposition";
+import {
+  carriedApprovalReason,
+  type ProposedChild,
+} from "@lictory/core/contracts/decomposition";
 import {
   checksFor,
   evaluateReadiness,
@@ -2156,13 +2159,20 @@ export async function applyMutation(
       ))
         if (run.workItemId !== workItemId) touchedRuns.add(run.id);
       if (previous) {
+        // A merge that changes only the breakdown keeps the reviewed text.
+        // Decisions on that text stay valid; the breakdown itself was
+        // approved by the pull request's required reviewers.
+        const textUnchanged =
+          previous.title === title && previous.content === content;
         await tx
           .update(s.approval)
           .set({
             status: "stale",
             endedAt: now,
             endedById: userId,
-            endReason: `Specification revised (revision ${number})`,
+            endReason: textUnchanged
+              ? carriedApprovalReason(number)
+              : `Specification revised (revision ${number})`,
           })
           .where(
             and(
@@ -2182,6 +2192,31 @@ export async function applyMutation(
         );
         for (const old of carried) {
           const reviewId = crypto.randomUUID();
+          // Approvals belong to revisions, so carried ones are new rows on
+          // the new revision, granted by the same people for the same text.
+          const approvers = textUnchanged
+            ? [
+                ...new Set(
+                  before
+                    .filter(
+                      (e): e is EntityOf<"approval"> =>
+                        e.type === "approval" &&
+                        e.reviewId === old.id &&
+                        e.status === "granted" &&
+                        roster.members.some((m) => m.id === e.reviewerId),
+                    )
+                    .map((a) => a.reviewerId),
+                ),
+              ]
+            : [];
+          const status =
+            old.status === "completed"
+              ? approvers.length
+                ? "completed"
+                : "requested"
+              : textUnchanged && old.status === "changes_requested"
+                ? "changes_requested"
+                : "requested";
           await tx.insert(s.review).values({
             id: reviewId,
             organizationId,
@@ -2190,7 +2225,19 @@ export async function applyMutation(
             responsibility: old.responsibility,
             required: old.required,
             requestedById: userId,
+            status,
+            completedAt: status === "completed" ? now : null,
           });
+          if (approvers.length)
+            await tx.insert(s.approval).values(
+              approvers.map((reviewerId) => ({
+                organizationId,
+                workItemId: workItemId!,
+                revisionId,
+                reviewId,
+                reviewerId,
+              })),
+            );
           const targets = before.filter(
             (e): e is EntityOf<"assignment"> =>
               e.type === "assignment" &&

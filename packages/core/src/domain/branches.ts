@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type {
   Command,
@@ -17,6 +17,7 @@ import { DomainError } from "@lictory/core/domain/errors";
 import {
   reviewResultValue,
   sameProposedChildren,
+  supersededApprovalReason,
   type ProposedChild,
 } from "@lictory/core/contracts/decomposition";
 
@@ -887,7 +888,7 @@ export async function applyBranchCommand(
         // pending carried reviews for the same responsibilities with PR evidence.
         for (const r of reviews.filter(valid)) {
           const role = disciplines.find((role) => role.id === r.disciplineId)!;
-          await tx
+          const superseded = await tx
             .update(s.review)
             .set({ status: "cancelled" })
             .where(
@@ -897,7 +898,30 @@ export async function applyBranchCommand(
                 eq(s.review.revisionId, revisionId),
                 eq(s.review.responsibility, role.name),
               ),
-            );
+            )
+            .returning({ id: s.review.id });
+          // A breakdown-only merge carries approvals of the unchanged text.
+          // The pull request approval replaces them for this responsibility.
+          if (superseded.length)
+            await tx
+              .update(s.approval)
+              .set({
+                status: "stale",
+                endedAt: new Date(),
+                endedById: userId,
+                endReason: supersededApprovalReason,
+              })
+              .where(
+                and(
+                  eq(s.approval.organizationId, organizationId),
+                  eq(s.approval.revisionId, revisionId),
+                  inArray(
+                    s.approval.reviewId,
+                    superseded.map((x) => x.id),
+                  ),
+                  eq(s.approval.status, "granted"),
+                ),
+              );
           const id = crypto.randomUUID();
           await tx.insert(s.review).values({
             id,

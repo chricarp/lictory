@@ -39,11 +39,13 @@ async function fixture() {
   const organizationId = crypto.randomUUID(),
     userId = crypto.randomUUID(),
     reviewerId = crypto.randomUUID(),
+    productId = crypto.randomUUID(),
     projectId = crypto.randomUUID(),
     workItemId = crypto.randomUUID();
   await db.insert(s.user).values([
     { id: userId, name: "Author", email: `${userId}@test.invalid` },
     { id: reviewerId, name: "Reviewer", email: `${reviewerId}@test.invalid` },
+    { id: productId, name: "Product", email: `${productId}@test.invalid` },
   ]);
   await db.insert(s.organization).values({
     id: organizationId,
@@ -52,7 +54,7 @@ async function fixture() {
     createdAt: new Date(),
   });
   await db.insert(s.member).values(
-    [userId, reviewerId].map((id, index) => ({
+    [userId, reviewerId, productId].map((id, index) => ({
       id: crypto.randomUUID(),
       organizationId,
       userId: id,
@@ -82,11 +84,22 @@ async function fixture() {
     (discipline) =>
       discipline.projectId === projectId && discipline.name === "QA",
   )!;
+  const product = roster.disciplines.find(
+    (discipline) =>
+      discipline.projectId === projectId && discipline.name === "Product",
+  )!;
   await command({
     type: "setDisciplineMember",
     projectId,
     disciplineId: qa.id,
     userId: reviewerId,
+    member: true,
+  });
+  await command({
+    type: "setDisciplineMember",
+    projectId,
+    disciplineId: product.id,
+    userId: productId,
     member: true,
   });
   const epic = roster.types.find((type) => type.name === "Epic")!,
@@ -204,12 +217,39 @@ async function fixture() {
       userId,
       mutationId,
     );
+  // A review of main's current revision, decided outside any pull request.
+  const approveMain = async (disciplineId: string, reviewer: string) => {
+    const latest = (await read())
+      .filter((entity) => entity.type === "revision")
+      .sort((a, b) => b.number - a.number)[0]!;
+    const base = { workItemId, baseRevisionId: latest.id },
+      reviewId = crypto.randomUUID();
+    await command({
+      type: "requestReview",
+      ...base,
+      reviewId,
+      disciplineId,
+      userId: reviewer,
+      required: true,
+    });
+    await command(
+      { type: "decideReview", ...base, reviewId, decision: "approve" },
+      reviewer,
+    );
+  };
+  const approvals = async () =>
+    (await read()).filter((entity) => entity.type === "approval");
   return {
     organizationId,
     projectId,
     workItemId,
     userId,
     reviewerId,
+    productId,
+    qa,
+    product,
+    approveMain,
+    approvals,
     task,
     epic,
     command,
@@ -503,4 +543,141 @@ void test("resolving a branch conflict without choosing children keeps the curre
     commit!.proposedChildren.map((c) => c.workItemId),
     [child.workItemId],
   );
+});
+
+const currentRevision = async (f: Awaited<ReturnType<typeof fixture>>) =>
+  (await f.read())
+    .filter((entity) => entity.type === "revision")
+    .sort((a, b) => b.number - a.number)[0]!;
+const reviewsApproved = async (f: Awaited<ReturnType<typeof fixture>>) => {
+  const readiness = (await f.read()).find(
+    (entity) =>
+      entity.type === "readiness" && entity.workItemId === f.workItemId,
+  );
+  assert.equal(readiness?.type, "readiness");
+  return readiness.checks.find((check) => check.key === "reviews_approved");
+};
+
+void test("a breakdown-only merge carries approvals of the unchanged specification text", async () => {
+  const f = await fixture();
+  const branchId = await f.branch("engineering/breakdown");
+  await f.commit(branchId, [
+    {
+      workItemId: crypto.randomUUID(),
+      typeId: f.task.id,
+      title: "Reuse transaction identifiers",
+      description: "Persist the identifier before the first attempt.",
+    },
+  ]);
+  const pullRequestId = await f.pr(branchId);
+  // Product approves main while Engineering's breakdown is in review; only
+  // QA is asked to review the breakdown itself.
+  await f.approveMain(f.product.id, f.productId);
+  const approved = await currentRevision(f);
+  await f.approve(pullRequestId);
+  await f.merge(pullRequestId);
+
+  const current = await currentRevision(f);
+  assert.equal(current.number, approved.number + 1);
+  const approvals = await f.approvals();
+  const granted = approvals.filter((a) => a.status === "granted");
+  // Product never reviewed the breakdown but approved this exact text.
+  assert.deepEqual(
+    granted.map((a) => [a.reviewerId, a.revisionId]).sort(),
+    [
+      [f.productId, current.id],
+      [f.reviewerId, current.id],
+    ].sort(),
+  );
+  // The approval of the earlier revision is history, not an invalidation.
+  const earlier = approvals.find((a) => a.revisionId === approved.id)!;
+  assert.equal(earlier.status, "stale");
+  assert.equal(
+    earlier.endReason,
+    `Carried to revision ${current.number}: specification text unchanged`,
+  );
+  const reviews = (await f.read()).filter(
+    (entity) =>
+      entity.type === "review" &&
+      entity.revisionId === current.id &&
+      entity.status !== "cancelled",
+  );
+  assert.deepEqual(
+    reviews
+      .map((r) => (r.type === "review" ? [r.responsibility, r.status] : []))
+      .sort(),
+    [
+      ["Product", "completed"],
+      ["QA", "completed"],
+    ],
+  );
+  assert.equal((await reviewsApproved(f))?.passed, true);
+  // Nobody is told an approval of unchanged text was invalidated.
+  const notified = await db
+    .select()
+    .from(s.notification)
+    .where(
+      and(
+        eq(s.notification.organizationId, f.organizationId),
+        eq(s.notification.kind, "approval_invalidated"),
+      ),
+    );
+  assert.equal(notified.length, 0);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("a merge that changes the text still stales every earlier approval", async () => {
+  const f = await fixture();
+  const branchId = await f.branch("engineering/timeouts");
+  await f.commit(
+    branchId,
+    [],
+    "Retries reuse the original transaction ID. Timeouts cancel the attempt.",
+  );
+  const pullRequestId = await f.pr(branchId);
+  await f.approveMain(f.product.id, f.productId);
+  const approved = await currentRevision(f);
+  await f.approve(pullRequestId);
+  await f.merge(pullRequestId);
+
+  const current = await currentRevision(f);
+  const approvals = await f.approvals();
+  const product = approvals.filter((a) => a.reviewerId === f.productId);
+  assert.equal(product.length, 1);
+  assert.equal(product[0]!.revisionId, approved.id);
+  assert.equal(product[0]!.status, "stale");
+  assert.equal(
+    product[0]!.endReason,
+    `Specification revised (revision ${current.number})`,
+  );
+  assert.equal((await reviewsApproved(f))?.passed, false);
+});
+
+void test("pull request approval supersedes a carried approval for the same responsibility", async () => {
+  const f = await fixture();
+  const branchId = await f.branch("engineering/breakdown");
+  await f.commit(branchId, [
+    {
+      workItemId: crypto.randomUUID(),
+      typeId: f.task.id,
+      title: "Reuse transaction identifiers",
+      description: "Persist the identifier before the first attempt.",
+    },
+  ]);
+  const pullRequestId = await f.pr(branchId);
+  await f.approveMain(f.qa.id, f.reviewerId);
+  await f.approve(pullRequestId);
+  await f.merge(pullRequestId);
+
+  const current = await currentRevision(f);
+  const onCurrent = (await f.approvals()).filter(
+    (a) => a.revisionId === current.id,
+  );
+  assert.equal(onCurrent.filter((a) => a.status === "granted").length, 1);
+  assert.deepEqual(
+    onCurrent.filter((a) => a.status !== "granted").map((a) => a.endReason),
+    ["Superseded by the merged pull request's approval"],
+  );
+  assert.equal((await reviewsApproved(f))?.passed, true);
+  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
