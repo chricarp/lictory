@@ -11,6 +11,11 @@ import {
   type Surface,
 } from "@lictory/core/capabilities/core";
 import { deliveryCapabilities } from "@lictory/core/capabilities/delivery";
+import {
+  assertHumanOnlyMetadata,
+  humanOnlyCapability,
+  humanOnlyRefusal,
+} from "@lictory/core/capabilities/human-only";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
@@ -27,7 +32,9 @@ export const capabilities: readonly AnyCapability[] = [
   ...brandingCapabilities,
   ...accessTokenCapabilities,
   ...productKnowledgeCapabilities,
+  humanOnlyCapability(() => capabilities),
 ];
+assertHumanOnlyMetadata(capabilities);
 
 const byName = new Map<string, AnyCapability>();
 for (const capability of capabilities) {
@@ -43,6 +50,12 @@ export function listCapabilities(surface: Surface) {
 export function getCapability(name: string, surface: Surface) {
   const capability = byName.get(name);
   return capability?.surfaces.includes(surface) ? capability : undefined;
+}
+
+// Agents calling an operation that deliberately stays in the browser get the
+// reason and where the person does it, rather than "unknown".
+export function humanOnlyError(name: string) {
+  return humanOnlyRefusal(capabilities, name);
 }
 
 function organizationOf(input: unknown): string | null {
@@ -182,7 +195,10 @@ export async function invoke(
   let outcome = "ok";
   try {
     if (!capability)
-      throw new CapabilityError("unavailable", `Unknown operation “${name}”.`);
+      throw (
+        humanOnlyError(name) ??
+        new CapabilityError("unavailable", `Unknown operation “${name}”.`)
+      );
     if (capability.kind === "command" && ctx.principal.access === "read")
       throw new CapabilityError(
         "forbidden",

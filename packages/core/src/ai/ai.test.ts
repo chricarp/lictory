@@ -700,6 +700,122 @@ void test("a run interrupted by shutdown goes back to the queue and completes on
   assert.equal((await run.completions()).length, 1);
 });
 
+void test("a Lictory Intelligence readiness check is an automated check that people can override", async () => {
+  const f = await fixture();
+  await f.command({ type: "setAiPolicy", enabled: true });
+  const storyType = (
+    await directory(db, f.userId, f.organizationId)
+  ).types.find((t) => t.name === "Story")!.id;
+  await f.command({
+    type: "publishReadinessChecks",
+    projectId: f.projectId,
+    baseRevisionId: null,
+    rules: {
+      [storyType]: [
+        { id: "specification", kind: "specification" },
+        {
+          id: "eng",
+          kind: "discipline_approval",
+          disciplineIds: [f.roles.Engineering],
+        },
+        { id: "ai", kind: "intelligence_review", severity: "blocker" },
+      ],
+    },
+  });
+  const readiness = async () =>
+    f.of(await f.entities(f.storyId), "readiness")[0]!;
+  const check = async () =>
+    (await readiness()).checks.find((c) => c.key === "ai")!;
+  const state = async () =>
+    f
+      .of(await f.entities(f.storyId), "workItem")
+      .find((i) => i.id === f.storyId)!.refinementState;
+  assert.equal((await check()).passed, false);
+  assert.match((await check()).detail!, /Ask Lictory Intelligence/);
+
+  // The human decision the check sits beside: Engineering approves.
+  const revision = await f.latest(f.storyId);
+  const reviewId = crypto.randomUUID();
+  await f.command({
+    type: "requestReview",
+    workItemId: f.storyId,
+    baseRevisionId: revision.id,
+    reviewId,
+    disciplineId: f.roles.Engineering,
+    userId: f.reviewerId,
+    required: true,
+  });
+  await f.command(
+    {
+      type: "decideReview",
+      workItemId: f.storyId,
+      baseRevisionId: revision.id,
+      reviewId,
+      decision: "approve",
+    },
+    f.reviewerId,
+  );
+  assert.notEqual(await state(), "ready");
+
+  // A clean review of the current revision passes the check, and completing
+  // it moves the item to Ready without another mutation.
+  const review = async (findings: ItemReviewOutput["findings"]) => {
+    await f.command({
+      type: "requestAiReview",
+      workItemId: f.storyId,
+      runId: crypto.randomUUID(),
+    });
+    await processAiRuns(db, { analyzer: fakeAnalyzer(findings) });
+  };
+  await review([finding("PAY-2", "major", "Retries are not bounded")]);
+  const passed = await check();
+  assert.equal(passed.passed, true);
+  assert.equal(passed.intelligence?.reviewedCurrent, true);
+  assert.equal(passed.intelligence?.model, "fake");
+  assert.equal(await state(), "ready");
+  const moved = f
+    .of(await f.entities(f.storyId), "activity")
+    .find((a) => a.action === "refinement_changed" && a.detail?.to === "ready");
+  assert.equal(moved?.actorId, AI_ACTOR_ID);
+  assert.equal(moved?.detail?.reason, "intelligence_review_completed");
+  // The check never counts as a discipline's approval.
+  assert.ok(
+    (await readiness()).checks
+      .filter((c) => c.key !== "ai")
+      .every((c) => !c.intelligence),
+  );
+
+  // A later review that finds a blocker takes readiness away.
+  await review([finding("PAY-2", "blocker", "Duplicate charges")]);
+  assert.equal((await check()).passed, false);
+  assert.match((await check()).detail!, /found 1 blocker in revision/);
+  assert.equal(await state(), "in_review");
+
+  // A person can override it for this revision, and withdraw the override.
+  const override = (signedOff: boolean) =>
+    f.command(
+      {
+        type: "signOffReadinessCheck",
+        workItemId: f.storyId,
+        baseRevisionId: revision.id,
+        checkId: "ai",
+        signedOff,
+      },
+      f.reviewerId,
+    );
+  await override(true);
+  assert.equal((await check()).intelligence?.overridden, true);
+  assert.equal((await check()).signOff?.signedOffBy, f.reviewerId);
+  assert.equal(await state(), "ready");
+  const recorded = f
+    .of(await f.entities(f.storyId), "activity")
+    .find((a) => a.action === "readiness_signed_off");
+  assert.equal(recorded?.actorId, f.reviewerId);
+  assert.equal(recorded?.detail?.override, true);
+  await override(false);
+  assert.equal(await state(), "in_review");
+});
+
 void test("projections equal a rebuild from the domain", async () => {
   const drift: string[] = [];
   for (const { id } of await db

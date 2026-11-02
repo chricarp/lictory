@@ -14,8 +14,10 @@ import { becameMergeable } from "@lictory/core/contracts/merge-readiness";
 import { notifyItemActivity } from "@lictory/core/notifications/server";
 import type { Entity } from "@lictory/core/contracts/protocol";
 import {
+  followReadinessChecks,
   lock,
   organizationDirectory,
+  projectReadiness,
   snapshot,
   type Database,
   type Tx,
@@ -229,8 +231,29 @@ async function finish(
       projectId: await projectOf(tx, run),
       workItemId: run.workItemId,
     };
+    // An item review is evidence for the item's Lictory Intelligence
+    // readiness check, so it can move the item to or from ready.
+    const readinessBefore =
+      run.kind === "item_review"
+        ? await projectReadiness(tx, run.organizationId, scope.projectId)
+        : undefined;
     const before = await snapshot(tx, scope);
     await write(tx, current);
+    const others = readinessBefore
+      ? (
+          await followReadinessChecks(
+            tx,
+            run.organizationId,
+            scope.projectId,
+            AI_ACTOR_ID,
+            readinessBefore,
+            {
+              reason: "intelligence_review_completed",
+              itemIds: new Set([run.workItemId]),
+            },
+          )
+        ).filter((change) => change.workItemId !== run.workItemId)
+      : [];
     let after = await snapshot(tx, scope);
     if (
       run.kind === "pr_action" &&
@@ -238,6 +261,15 @@ async function finish(
     )
       after = await snapshot(tx, scope);
     await writeProjections(tx, run.organizationId, before, after, scope);
+    // Parents' readiness (children ready) lives in their own scopes.
+    await writeEntities(
+      tx,
+      run.organizationId,
+      others.map(({ workItemId, entity }) => ({
+        entity,
+        scope: { projectId: scope.projectId, workItemId },
+      })),
+    );
   });
 }
 

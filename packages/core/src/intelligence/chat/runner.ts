@@ -125,6 +125,7 @@ export async function processChatRuns(
         userId: run.userId,
         surface: "agent",
         client: "Litto",
+        agentName: "Litto",
       }),
       db,
     };

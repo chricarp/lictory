@@ -1,3 +1,4 @@
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { Link } from "@lictory/platform/lib/navigation";
 import { CalendarRange } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
@@ -37,7 +38,7 @@ export function ProjectPlanning({
   project: Project;
   canEdit: boolean;
 }) {
-  const { organization } = useWorkspace();
+  const { organization, directory } = useWorkspace();
   const { run, error } = useCommand();
   const external = project.deliveryMode === "external";
   const editable = canEdit && !external;
@@ -53,8 +54,9 @@ export function ProjectPlanning({
       <SettingsBody className="space-y-5">
         {external && (
           <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-            This project hands work off to Jira, so iterations and estimates are
-            planned there.{" "}
+            This project hands work off to{" "}
+            {projectDeliveryTool(directory, project.id).name}, so iterations and
+            estimates are planned there.{" "}
             <Link
               href={paths.projectSettings(
                 organization.slug,

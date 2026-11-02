@@ -29,6 +29,7 @@ const evidence = (
   childSpecifications: 0,
   childSpecificationsNotReady: 0,
   signOffs: new Map(),
+  intelligenceReview: null,
   ...overrides,
 });
 
@@ -197,5 +198,110 @@ void test("rules are per type, compared by content and diffed by check", () => {
       { ...section, heading: "Failure behavior" },
     ]).map((c) => c.change),
     ["changed"],
+  );
+});
+
+void test("a Lictory Intelligence check is evidence about the current revision, never an approval", () => {
+  const checks: ReadinessCheckDefinition[] = [
+    { id: "ai", kind: "intelligence_review", severity: "blocker" },
+  ];
+  const review = {
+    runId: "run1",
+    revisionId: "r2",
+    severities: ["minor", "major"],
+    score: 87,
+    model: "model-x",
+    completedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const run = (overrides: Partial<ReadinessEvidence>, definitions = checks) =>
+    evaluateReadiness(definitions, evidence(overrides))[0]!;
+
+  const none = run({});
+  assert.equal(
+    none.label,
+    "Lictory Intelligence found no blocker in the current revision",
+  );
+  assert.equal(none.passed, false);
+  assert.equal(
+    none.detail,
+    "Ask Lictory Intelligence to review revision 2, or override this check.",
+  );
+
+  // Blockers only: minor and major findings do not fail it.
+  const clean = run({ intelligenceReview: review });
+  assert.equal(clean.passed, true);
+  assert.deepEqual(clean.intelligence, {
+    runId: "run1",
+    reviewedCurrent: true,
+    findings: 0,
+    score: 87,
+    model: "model-x",
+    completedAt: "2026-01-01T00:00:00.000Z",
+    overridden: false,
+  });
+  // Stricter checks also fail on major findings.
+  const strict = run({ intelligenceReview: review }, [
+    { id: "ai", kind: "intelligence_review", severity: "major" },
+  ]);
+  assert.equal(strict.passed, false);
+  assert.equal(
+    strict.detail,
+    "Lictory Intelligence found 1 blocker or major finding in revision 2. Address it and review again, or override this check.",
+  );
+
+  // A review of an earlier revision is not evidence for this one.
+  const earlier = run({ intelligenceReview: { ...review, revisionId: "r1" } });
+  assert.equal(earlier.passed, false);
+  assert.equal(earlier.intelligence?.reviewedCurrent, false);
+  assert.equal(earlier.intelligence?.score, null);
+
+  // A person's override passes it for one revision and stays visible.
+  const blocked = { ...review, severities: ["blocker", "blocker"] };
+  const override = {
+    checkId: "ai",
+    userId: "u1",
+    revisionId: "r2",
+    revisionNumber: 2,
+    createdAt: "2026-01-02T00:00:00.000Z",
+  };
+  assert.equal(
+    run({ intelligenceReview: blocked }).detail,
+    "Lictory Intelligence found 2 blockers in revision 2. Address them and review again, or override this check.",
+  );
+  const overridden = run({
+    intelligenceReview: blocked,
+    signOffs: new Map([["ai", override]]),
+  });
+  assert.equal(overridden.passed, true);
+  assert.equal(overridden.intelligence?.overridden, true);
+  assert.equal(overridden.signOff?.signedOffBy, "u1");
+  const old = run({
+    intelligenceReview: blocked,
+    signOffs: new Map([["ai", { ...override, revisionId: "r1" }]]),
+  });
+  assert.equal(old.passed, false);
+});
+
+void test("a Lictory Intelligence check needs a person's decision beside it", () => {
+  const ai: ReadinessCheckDefinition = {
+    id: "ai",
+    kind: "intelligence_review",
+    severity: "blocker",
+  };
+  const only = readinessChecksSchema.safeParse([
+    { id: "specification", kind: "specification" },
+    ai,
+  ]);
+  assert.equal(only.success, false);
+  assert.ok(
+    readinessChecksSchema.safeParse([...defaultReadinessChecks, ai]).success,
+  );
+  assert.equal(
+    readinessChecksSchema.safeParse([
+      ...defaultReadinessChecks,
+      ai,
+      { ...ai, id: "ai2" },
+    ]).success,
+    false,
   );
 });

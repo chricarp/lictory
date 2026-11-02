@@ -76,8 +76,17 @@ Product knowledge search returns recorded conclusions, current ready revisions
 with review approval, and recorded delivered revisions. Each result identifies
 its evidence kind and exact revision. A conclusion is not automatically
 delivered behavior, and approval establishes intended behavior. Archived
-decisions and archived projects are excluded; finished item history stays
-searchable. Search is organization-scoped and available to the UI, MCP and Litto.
+decisions, archived work items and archived projects are excluded: archiving
+withdraws an item from active product knowledge together with the decisions
+recorded on it, and restoring it brings them back. Nothing is deleted. Done and
+canceled items are not archived, so finished item history stays searchable.
+Search is organization-scoped, reads the reader's access and the results from
+one snapshot, and is available to the UI, MCP and Litto.
+
+Each work item contributes at most two candidate revisions (its recorded
+delivered revision and its current approved ready revision), so specification
+search scales with the number of items rather than with revision history.
+Decisions are matched through trigram indexes (`pg_trgm`).
 External Done status remains a provider fact, rather than an attestation that a
 particular revision was implemented; it does not create delivered knowledge.
 
@@ -87,7 +96,19 @@ New proposed amendments use the same branches and PRs for people, Litto and MCP.
 Legacy suggestions remain readable and operable for compatibility, but Litto
 does not initiate that separate workflow. Durable activity identifies delegated
 MCP and Litto execution while retaining the person's authority and authorship.
-MCP client names are self-reported provenance, not independent identities.
+
+Agents are named delegations, not principals. Each personal access token is one
+agent: its owner names it, and every activity it produces records the token id
+and name (`agentId`, `agentName`) beside the person who is the actor. Litto is
+recorded by name. A person's active tokens must have distinct names, so history
+answers which of their agents produced a commit, finding or breakdown. Agents
+hold no capabilities of their own: authorization is the person's, and a revoked
+token stops its agent immediately while its history remains. MCP client names
+stay self-reported provenance, not identities.
+
+History therefore shows the requester and accountable person (the actor), the
+executing agent (the delegation), and, for a later decision such as a merge or
+scope acceptance, the person who recorded that decision.
 
 Multiple agents acting as one person do not become independent reviewers.
 Automated Intelligence reviews remain checks. Approval, merge, scope acceptance,

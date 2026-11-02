@@ -1,0 +1,306 @@
+/* The review scene: the product window a gutter in from the top and sides,
+   fading at its foot over the rest of the document. */
+
+.rs .ss-stage {
+  overflow: hidden;
+}
+
+.rs-window {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  width: 632px;
+  height: 540px;
+  box-shadow: var(--ss-shadow-hero);
+  -webkit-mask-image: linear-gradient(to bottom, #000 400px, transparent 476px);
+  mask-image: linear-gradient(to bottom, #000 400px, transparent 476px);
+}
+
+.rs .ss-stage[data-layout="compact"] .rs-window {
+  top: 12px;
+  left: 16px;
+  width: 358px;
+  height: 400px;
+  /* Shows square, fading out over the rest of the document */
+  -webkit-mask-image: linear-gradient(to bottom, #000 330px, transparent 358px);
+  mask-image: linear-gradient(to bottom, #000 330px, transparent 358px);
+}
+
+.rs-lead {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  margin-left: 4px;
+  font-size: 13px;
+}
+
+.rs-key {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 12px;
+}
+
+.rs-item {
+  overflow: hidden;
+  color: var(--ss-text-strong);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rs .ss-stage[data-layout="compact"] .rs-key {
+  display: none;
+}
+
+.rs-revision {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--ss-radius-pill);
+  background: var(--ss-ink-2);
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.rs-revision[data-new] {
+  background: var(--ss-accent-soft);
+  color: var(--ss-accent-text);
+}
+
+.rs-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 216px;
+  height: 100%;
+  background: var(--ss-surface);
+}
+
+.rs .ss-stage[data-layout="compact"] .rs-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---- The document ---- */
+
+.rs-doc {
+  position: relative;
+  padding: 22px 24px 0;
+}
+
+.rs .ss-stage[data-layout="compact"] .rs-doc {
+  padding: 4px 16px 0;
+}
+
+.rs-heading {
+  color: var(--ss-text-strong);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rs-lines {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.rs-tail {
+  margin-top: 22px;
+}
+
+.rs-sentence {
+  margin: 14px 0 0;
+  color: var(--ss-text-strong);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.rs-sentence mark {
+  padding: 1px 0;
+  border-radius: 3px;
+  background: var(--ss-warning-soft);
+  color: inherit;
+  transition: background-color 0.4s ease;
+}
+
+.rs-sentence mark[data-resolved] {
+  background: transparent;
+}
+
+/* What the revision added, marked as a diff marks an insertion */
+.rs-added .ss-stream__w {
+  color: var(--ss-success-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ss-success) 45%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+/* ---- The discussion, anchored under its sentence ---- */
+
+.rs-thread {
+  margin-top: 16px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--ss-line);
+  border-left: 2px solid var(--ss-warning-text);
+  border-radius: var(--ss-radius-md);
+  background: var(--ss-canvas);
+  transition: border-color 0.3s ease;
+}
+
+.rs-thread[data-resolved] {
+  border-left-color: var(--ss-success);
+}
+
+.rs-msg {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.rs-thread .ss-collapse .rs-msg {
+  padding-top: 12px;
+}
+
+.rs-msg .ss-states {
+  margin-top: 1px;
+}
+
+.rs-who {
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rs-who span {
+  margin-left: 4px;
+  color: var(--ss-text);
+  font-weight: 400;
+}
+
+.rs-msg p {
+  margin: 3px 0 0;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.rs-thread-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+
+.rs-resolve {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--ss-radius-sm);
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  font-weight: 500;
+  /* A lasting layer: the reply opening above moves it, and its text
+     shouldn't hop between whole pixels as it lands */
+  will-change: transform;
+  transition:
+    background-color 0.2s ease,
+    transform 0.12s ease;
+}
+
+.rs-resolve[data-hover] {
+  background: var(--ss-ink-1);
+}
+
+.rs-resolve[data-pressed] {
+  transform: scale(0.97);
+}
+
+.rs-rest {
+  position: absolute;
+  top: 10px;
+  right: 24px;
+  width: 30px;
+  height: 20px;
+}
+
+/* ---- Reviews and readiness ---- */
+
+.rs-side {
+  padding: 20px 18px;
+  border-left: 1px solid var(--ss-line);
+  background: var(--ss-canvas);
+}
+
+.rs-section {
+  margin: 0 0 4px;
+  color: var(--ss-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rs-section ~ .rs-section {
+  margin-top: 20px;
+}
+
+.rs-review {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.rs-review-name {
+  color: var(--ss-text-strong);
+}
+
+.rs-review-state {
+  color: var(--ss-text);
+  font-size: 12px;
+}
+
+.rs-review-state [data-stale] {
+  color: var(--ss-warning-text);
+  font-weight: 500;
+}
+
+.rs-compact-reviews {
+  margin-top: 12px;
+}
+
+.rs-ready-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 30px;
+  color: var(--ss-text);
+  font-size: 12.5px;
+}
+
+.rs-ready-row .ss-states {
+  color: var(--ss-text-strong);
+  white-space: nowrap;
+}
+
+.rs-decision {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: var(--ss-radius-md);
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.rs-verdict {
+  margin-top: 16px;
+}

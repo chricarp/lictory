@@ -1507,6 +1507,12 @@ export const decision = pgTable(
       t.createdAt,
     ),
     index("decision_item_idx").on(t.organizationId, t.workItemId),
+    // Product knowledge search matches substrings (ILIKE '%term%') across
+    // every decision; trigram indexes serve it without changing semantics.
+    // Specification revisions are matched only after candidate selection
+    // (see capabilities/product-knowledge.ts), so they carry no such index.
+    index("decision_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
+    index("decision_body_trgm_idx").using("gin", t.body.op("gin_trgm_ops")),
   ],
 );
 

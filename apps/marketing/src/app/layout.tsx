@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 
 import "./styles.css";
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
@@ -8,7 +8,7 @@ import {
   indexableRobots,
   siteDescription,
   siteName,
-  siteThemeColor,
+  siteThemeColors,
   siteUrl,
 } from "@lictory/marketing/lib/site";
 
@@ -20,6 +20,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Headlines only: specifications are documents, and the page reads like one.
+const newsreader = Newsreader({
+  variable: "--font-display",
+  subsets: ["latin"],
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
@@ -38,11 +45,11 @@ export const metadata: Metadata = {
   robots: indexableRobots,
 };
 
-// Browser chrome follows the system appearance, like the app's default theme.
+// Paper by day, ink by night: the browser chrome follows the visitor's theme.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fcfcfd" },
-    { media: "(prefers-color-scheme: dark)", color: siteThemeColor },
+    { media: "(prefers-color-scheme: light)", color: siteThemeColors.light },
+    { media: "(prefers-color-scheme: dark)", color: siteThemeColors.dark },
   ],
 };
 
@@ -51,13 +58,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       suppressHydrationWarning
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
       <head>
         {/* Applies the saved light/dark preference before first paint. */}
         <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
       </head>
-      <body className="min-h-full">
+      <body className="marketing-site min-h-full">
         <ConsentProvider privacyHref="/privacy">{children}</ConsentProvider>
       </body>
     </html>

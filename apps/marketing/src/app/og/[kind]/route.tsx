@@ -17,17 +17,17 @@ export async function GET(
   const marketing = kind === "marketing";
   return ogCard({
     eyebrow: marketing
-      ? "LESS AMBIGUITY. MORE MOMENTUM."
-      : "SHARED WORK · PRIVATE DETAILS",
+      ? "Before the first line of code"
+      : "Shared work · Private details",
     title: marketing
-      ? "Requirements, reviewed like code."
+      ? "Agree on what to build before anyone builds it"
       : `${previewLabels[kind as keyof typeof previewLabels]} in Lictory`,
-    titleSize: marketing ? 76 : 72,
+    titleSize: marketing ? 68 : 72,
     subtitle: marketing
-      ? "Turn product intent into work your team can commit to."
+      ? "People and agents refine one specification on parallel branches."
       : "Sign in with an account that has access to see the details.",
     footer: marketing
-      ? ["Draft → Review → Refine → Deliver", "Built for agreement."]
+      ? ["Branch → Review → Merge → Deliver", "Open-source work management"]
       : ["Requirements, reviewed like code.", "Access stays with your team."],
     headers: {
       "Cache-Control": "public, max-age=86400",

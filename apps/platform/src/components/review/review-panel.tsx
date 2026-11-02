@@ -10,6 +10,7 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
+import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
 import { Button } from "@lictory/ui/button";
 import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
@@ -228,13 +229,17 @@ export function ReviewPanel() {
                     {review?.responsibility ?? "Review"} ·{" "}
                     {memberName(a.reviewerId)} approved revision{" "}
                     {revisionNumber(a.revisionId)} ·{" "}
-                    <span
-                      className={a.status === "stale" ? "text-warning" : ""}
-                    >
-                      {a.status === "stale"
-                        ? `outdated (${a.endReason ?? "specification revised"})`
-                        : "revoked"}
-                    </span>
+                    {isCarriedApproval(a.endReason) ? (
+                      <span>{a.endReason!.toLowerCase()}</span>
+                    ) : (
+                      <span
+                        className={a.status === "stale" ? "text-warning" : ""}
+                      >
+                        {a.status === "stale"
+                          ? `outdated (${a.endReason ?? "specification revised"})`
+                          : "revoked"}
+                      </span>
+                    )}
                   </li>
                 );
               })}

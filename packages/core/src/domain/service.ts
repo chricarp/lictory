@@ -43,7 +43,10 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { commandSummary } from "@lictory/core/domain/mutation-summary";
 import { rankBetween } from "@lictory/core/contracts/rank";
-import type { ProposedChild } from "@lictory/core/contracts/decomposition";
+import {
+  carriedApprovalReason,
+  type ProposedChild,
+} from "@lictory/core/contracts/decomposition";
 import {
   checksFor,
   evaluateReadiness,
@@ -52,6 +55,7 @@ import {
   type ReadinessImpact,
   type ReadinessRules,
   type ReadinessSignOff,
+  type IntelligenceReviewEvidence,
   sameReadinessChecks,
 } from "@lictory/core/contracts/readiness";
 import {
@@ -793,17 +797,27 @@ type SignOffRow = Omit<ReadinessSignOff, "createdAt"> & {
   workItemId: string;
   createdAt: Date;
 };
+type IntelligenceReviewRow = {
+  id: string;
+  workItemId: string;
+  revisionId: string | null;
+  severities: string[];
+  score: number | null;
+  model: string | null;
+  completedAt: Date | null;
+};
 
 // Everything a list, inbox or readiness evaluation needs about a set of items.
 // Lists and readiness need only each item's current revision; the full history
-// (with its content) is loaded only for `historyFor`, the item being opened.
+// (with its content) is loaded only for `historyFor`, the items being opened.
 async function loadItemContext(
   tx: Tx,
   organizationId: string,
   items: ItemRow[],
-  historyFor?: string,
+  historyFor: string[] = [],
 ) {
   const ids = items.map((i) => i.id);
+  const historyIds = historyFor.filter((id) => ids.includes(id));
   const baselineIds = [
     ...new Set(
       items.flatMap((item) =>
@@ -880,6 +894,7 @@ async function loadItemContext(
       approvals: [] as ApprovalRow[],
       labels: [] as (typeof s.workItemLabel.$inferSelect)[],
       signOffs: [] as SignOffRow[],
+      intelligenceReviews: [] as IntelligenceReviewRow[],
     });
   const where = (t: { organizationId: AnyPgColumn; workItemId: AnyPgColumn }) =>
     and(eq(t.organizationId, organizationId), inArray(t.workItemId, ids));
@@ -906,6 +921,7 @@ async function loadItemContext(
     approvals,
     labels,
     signOffs,
+    intelligenceReviews,
   ] = await Promise.all([
     tx
       .selectDistinctOn([s.specificationRevision.workItemId], revisionColumns)
@@ -915,14 +931,14 @@ async function loadItemContext(
         s.specificationRevision.workItemId,
         desc(s.specificationRevision.number),
       ),
-    historyFor && ids.includes(historyFor)
+    historyIds.length
       ? tx
           .select(revisionColumns)
           .from(s.specificationRevision)
           .where(
             and(
               eq(s.specificationRevision.organizationId, organizationId),
-              eq(s.specificationRevision.workItemId, historyFor),
+              inArray(s.specificationRevision.workItemId, historyIds),
             ),
           )
           .orderBy(desc(s.specificationRevision.number))
@@ -973,10 +989,39 @@ async function loadItemContext(
         and(where(s.readinessSignOff), isNull(s.readinessSignOff.withdrawnAt)),
       )
       .orderBy(asc(s.readinessSignOff.createdAt)),
+    // The latest completed Lictory Intelligence review of each item: only the
+    // revision it analysed and the severities of its findings about the item,
+    // never the findings themselves.
+    tx
+      .selectDistinctOn([s.aiRun.workItemId], {
+        id: s.aiRun.id,
+        workItemId: s.aiRun.workItemId,
+        revisionId: sql<
+          string | null
+        >`${s.aiRun.contextRevisions} ->> ${s.aiRun.workItemId}`,
+        severities: sql<string[]>`coalesce((
+          select jsonb_agg(f ->> 'severity')
+          from jsonb_array_elements(${s.aiRun.findings}) f
+          where f ->> 'workItemId' = ${s.aiRun.workItemId}
+        ), '[]'::jsonb)`,
+        score: s.aiRun.score,
+        model: s.aiRun.model,
+        completedAt: s.aiRun.completedAt,
+      })
+      .from(s.aiRun)
+      .where(
+        and(
+          where(s.aiRun),
+          eq(s.aiRun.kind, "item_review"),
+          eq(s.aiRun.status, "completed"),
+        ),
+      )
+      .orderBy(s.aiRun.workItemId, desc(s.aiRun.createdAt)),
   ]);
   const revisions = new Map<string, RevisionRow[]>();
   for (const r of currentRevisions) revisions.set(r.workItemId, [r]);
-  if (history.length) revisions.set(historyFor!, history);
+  for (const [workItemId, rows] of groupBy(history, (r) => r.workItemId))
+    revisions.set(workItemId, rows);
   return indexItemContext({
     ...configuration,
     revisions,
@@ -989,6 +1034,7 @@ async function loadItemContext(
     approvals,
     labels,
     signOffs,
+    intelligenceReviews,
   });
 }
 function groupBy<T>(rows: T[], key: (row: T) => string) {
@@ -1013,6 +1059,7 @@ function indexItemContext<
     approvals: ApprovalRow[];
     labels: (typeof s.workItemLabel.$inferSelect)[];
     signOffs: SignOffRow[];
+    intelligenceReviews: IntelligenceReviewRow[];
   },
 >(ctx: T) {
   // Latest active sign-off of each manual check, per item.
@@ -1032,6 +1079,9 @@ function indexItemContext<
   return {
     ...ctx,
     signOffsByItem,
+    intelligenceReviewByItem: new Map(
+      ctx.intelligenceReviews.map((r) => [r.workItemId, r]),
+    ),
     threadsByItem: groupBy(ctx.threads, (t) => t.workItemId),
     suggestionsByItem: groupBy(ctx.suggestions, (x) => x.workItemId),
     reviewersBySuggestion: groupBy(
@@ -1250,7 +1300,24 @@ function readiness(
     ).length,
     signOffs:
       ctx.signOffsByItem.get(item.id) ?? new Map<string, ReadinessSignOff>(),
+    intelligenceReview: intelligenceEvidence(
+      ctx.intelligenceReviewByItem.get(item.id),
+    ),
   });
+}
+
+function intelligenceEvidence(
+  row: IntelligenceReviewRow | undefined,
+): IntelligenceReviewEvidence | null {
+  if (!row) return null;
+  return {
+    runId: row.id,
+    revisionId: row.revisionId,
+    severities: row.severities,
+    score: row.score,
+    model: row.model,
+    completedAt: row.completedAt?.toISOString() ?? null,
+  };
 }
 
 function readinessEntity(
@@ -1271,8 +1338,18 @@ function readinessEntity(
   };
 }
 
-export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
-  const { organizationId, projectId, workItemId } = scope;
+export function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
+  return snapshotItems(tx, scope, scope.workItemId ? [scope.workItemId] : []);
+}
+
+// A project snapshot with the item-scope detail of several items, read once.
+// Batch writers (an accepted breakdown) use it instead of one snapshot per item.
+async function snapshotItems(
+  tx: Tx,
+  scope: Pick<Scope, "organizationId" | "projectId">,
+  workItemIds: string[],
+): Promise<Entity[]> {
+  const { organizationId, projectId } = scope;
   const projectFilter = <
     T extends { organizationId: AnyPgColumn; projectId: AnyPgColumn },
   >(
@@ -1361,7 +1438,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
   ];
   const [ctx, prBranches, prCommits, disciplineMemberships] = await Promise.all(
     [
-      loadItemContext(tx, organizationId, items, workItemId),
+      loadItemContext(tx, organizationId, items, workItemIds),
       openPrItemIds.length
         ? tx
             .select()
@@ -1447,15 +1524,19 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     ),
     ...links,
   ];
-  if (!workItemId) return entities;
-  const item = requireValue(items.find((p) => p.id === workItemId));
-  const revisions = ctx.revisions.get(workItemId) ?? [];
-  const activePrIds = new Set(
-    pullRequests.filter((p) => p.workItemId === workItemId).map((p) => p.id),
+  if (!workItemIds.length) return entities;
+  const detailItems = workItemIds.map((id) =>
+    requireValue(items.find((p) => p.id === id)),
   );
+  const inDetail = new Set(workItemIds);
+  const revisions = workItemIds.flatMap((id) => ctx.revisions.get(id) ?? []);
+  const itemPullRequests = pullRequests.filter((p) =>
+    inDetail.has(p.workItemId),
+  );
+  const activePrIds = new Set(itemPullRequests.map((p) => p.id));
   const threads = ctx.threads.filter(
     (t) =>
-      t.workItemId === workItemId &&
+      inDetail.has(t.workItemId) &&
       (!t.pullRequestId || activePrIds.has(t.pullRequestId)),
   );
   const [branchRows, commitRows, messages, activity, runs, decisions] =
@@ -1466,7 +1547,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .where(
           and(
             eq(s.specificationBranch.organizationId, organizationId),
-            eq(s.specificationBranch.workItemId, workItemId),
+            inArray(s.specificationBranch.workItemId, workItemIds),
             isNull(s.specificationBranch.deletedAt),
           ),
         ),
@@ -1476,7 +1557,7 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .where(
           and(
             eq(s.specificationCommit.organizationId, organizationId),
-            eq(s.specificationCommit.workItemId, workItemId),
+            inArray(s.specificationCommit.workItemId, workItemIds),
           ),
         ),
       threads.length
@@ -1500,40 +1581,42 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
         .where(
           and(
             eq(s.activity.organizationId, organizationId),
-            eq(s.activity.workItemId, workItemId),
+            inArray(s.activity.workItemId, workItemIds),
           ),
         )
         .orderBy(asc(s.activity.createdAt)),
-      aiRunEntities(tx, organizationId, workItemId),
+      Promise.all(
+        workItemIds.map((id) => aiRunEntities(tx, organizationId, id)),
+      ).then((perItem) => perItem.flat()),
       tx
         .select()
         .from(s.decision)
         .where(
           and(
             eq(s.decision.organizationId, organizationId),
-            eq(s.decision.workItemId, workItemId),
+            inArray(s.decision.workItemId, workItemIds),
           ),
         )
         .orderBy(asc(s.decision.createdAt)),
     ]);
-  const reviews = ctx.reviews.filter((r) => r.workItemId === workItemId);
+  const reviews = ctx.reviews.filter((r) => inDetail.has(r.workItemId));
   const reviewIds = new Set(reviews.map((r) => r.id));
   for (const [type, rows] of [
     ["revision", revisions],
     ["specBranch", branchRows],
     ["specCommit", commitRows],
-    ["pullRequest", pullRequests.filter((p) => p.workItemId === workItemId)],
+    ["pullRequest", itemPullRequests],
     ["prReview", prReviews.filter((r) => activePrIds.has(r.pullRequestId))],
     ["review", reviews],
     ["thread", threads],
-    ["approval", ctx.approvals.filter((a) => a.workItemId === workItemId)],
+    ["approval", ctx.approvals.filter((a) => inDetail.has(a.workItemId))],
     [
       "suggestionReviewer",
-      ctx.suggestionReviewers.filter((r) => r.workItemId === workItemId),
+      ctx.suggestionReviewers.filter((r) => inDetail.has(r.workItemId)),
     ],
     [
       "suggestionDecision",
-      ctx.suggestionDecisions.filter((d) => d.workItemId === workItemId),
+      ctx.suggestionDecisions.filter((d) => inDetail.has(d.workItemId)),
     ],
     ["assignment", ctx.assignments.filter((a) => reviewIds.has(a.reviewId))],
     ["message", messages],
@@ -1543,10 +1626,12 @@ export async function snapshot(tx: Tx, scope: Scope): Promise<Entity[]> {
     entities.push(...rows.map((row) => serialize(type, row)));
   entities.push(
     ...ctx.suggestions
-      .filter((x) => x.workItemId === workItemId)
+      .filter((x) => inDetail.has(x.workItemId))
       .map(serializeSuggestion),
   );
-  entities.push(readinessEntity(item, items, ctx));
+  entities.push(
+    ...detailItems.map((item) => readinessEntity(item, items, ctx)),
+  );
   entities.push(...runs);
   return entities;
 }
@@ -1624,7 +1709,7 @@ const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
 
 // Readiness projections, including empty plain-work results whose policy
 // metadata must stay consistent when the project's checks change.
-async function projectReadiness(
+export async function projectReadiness(
   tx: Tx,
   organizationId: string,
   projectId: string,
@@ -1646,12 +1731,17 @@ async function projectReadiness(
 // their evidence: those that now pass become ready, those that no longer pass
 // leave ready. A child's readiness feeds its parent's, so this repeats until
 // nothing moves. Returns the item-scope changes to emit.
-async function followReadinessChecks(
+export async function followReadinessChecks(
   tx: Tx,
   organizationId: string,
   projectId: string,
   userId: string,
   before: Map<string, EntityOf<"readiness">>,
+  // What changed the evidence, and which items it may move (all by default).
+  cause: {
+    reason: string;
+    itemIds?: Set<string>;
+  } = { reason: "readiness_checks_published" },
 ) {
   const rows = await tx
     .select()
@@ -1672,6 +1762,7 @@ async function followReadinessChecks(
     for (const row of rows) {
       const state = row.refinementState;
       if (row.archivedAt || !state || !isSpecBacked(row, ctx)) continue;
+      if (cause.itemIds && !cause.itemIds.has(row.id)) continue;
       const checks = readiness(row, rows, ctx);
       const ready = checks.length > 0 && checks.every((check) => check.passed);
       const next: RefinementState | undefined =
@@ -1716,7 +1807,7 @@ async function followReadinessChecks(
         from,
         to,
         automatic: true,
-        reason: "readiness_checks_published",
+        reason: cause.reason,
         readinessRevision: revision,
       },
       createdAt: now,
@@ -1743,7 +1834,24 @@ export type Actor = {
   userId: string;
   surface?: "web" | "mcp" | "agent";
   client?: string | null;
+  // The named agent executing for the person: the access token for MCP
+  // (`agentId` is its id), Litto for the embedded agent. Agents are
+  // delegations, not principals: authority and authorship stay the person's.
+  agentId?: string | null;
+  agentName?: string | null;
 };
+
+// Activity detail that identifies delegated execution, so history shows which
+// of a person's agents produced a change. Empty for the person's own actions.
+function delegation(actor: Actor): Record<string, string | null> {
+  if (!actor.surface || actor.surface === "web") return {};
+  return {
+    performedVia: actor.surface,
+    agentId: actor.agentId ?? null,
+    agentName: actor.agentName?.slice(0, 80) ?? null,
+    agentClient: actor.client?.slice(0, 200) ?? null,
+  };
+}
 export type MutationResult = {
   protocol: typeof PROTOCOL;
   mutationId: string;
@@ -1989,11 +2097,7 @@ export async function applyMutation(
         action,
         detail:
           actor.surface && actor.surface !== "web"
-            ? {
-                ...detail,
-                performedVia: actor.surface,
-                agentClient: actor.client?.slice(0, 200) ?? null,
-              }
+            ? { ...detail, ...delegation(actor) }
             : detail,
       });
     // Lictory Intelligence runs owned by other items (an Epic review
@@ -2057,13 +2161,20 @@ export async function applyMutation(
       ))
         if (run.workItemId !== workItemId) touchedRuns.add(run.id);
       if (previous) {
+        // A merge that changes only the breakdown keeps the reviewed text.
+        // Decisions on that text stay valid; the breakdown itself was
+        // approved by the pull request's required reviewers.
+        const textUnchanged =
+          previous.title === title && previous.content === content;
         await tx
           .update(s.approval)
           .set({
             status: "stale",
             endedAt: now,
             endedById: userId,
-            endReason: `Specification revised (revision ${number})`,
+            endReason: textUnchanged
+              ? carriedApprovalReason(number)
+              : `Specification revised (revision ${number})`,
           })
           .where(
             and(
@@ -2083,6 +2194,31 @@ export async function applyMutation(
         );
         for (const old of carried) {
           const reviewId = crypto.randomUUID();
+          // Approvals belong to revisions, so carried ones are new rows on
+          // the new revision, granted by the same people for the same text.
+          const approvers = textUnchanged
+            ? [
+                ...new Set(
+                  before
+                    .filter(
+                      (e): e is EntityOf<"approval"> =>
+                        e.type === "approval" &&
+                        e.reviewId === old.id &&
+                        e.status === "granted" &&
+                        roster.members.some((m) => m.id === e.reviewerId),
+                    )
+                    .map((a) => a.reviewerId),
+                ),
+              ]
+            : [];
+          const status =
+            old.status === "completed"
+              ? approvers.length
+                ? "completed"
+                : "requested"
+              : textUnchanged && old.status === "changes_requested"
+                ? "changes_requested"
+                : "requested";
           await tx.insert(s.review).values({
             id: reviewId,
             organizationId,
@@ -2091,7 +2227,19 @@ export async function applyMutation(
             responsibility: old.responsibility,
             required: old.required,
             requestedById: userId,
+            status,
+            completedAt: status === "completed" ? now : null,
           });
+          if (approvers.length)
+            await tx.insert(s.approval).values(
+              approvers.map((reviewerId) => ({
+                organizationId,
+                workItemId: workItemId!,
+                revisionId,
+                reviewId,
+                reviewerId,
+              })),
+            );
           const targets = before.filter(
             (e): e is EntityOf<"assignment"> =>
               e.type === "assignment" &&
@@ -2329,9 +2477,11 @@ export async function applyMutation(
                 eq(s.workItem.projectId, projectId),
               ),
             );
-          let number = Number(tail!.number),
-            rank = tail!.rank;
-          for (const [index, child] of children.entries()) {
+          // Validate every child before writing any of them, then write the
+          // breakdown in one statement per table and project it from a single
+          // snapshot: the organization lock is held for one read, not one per
+          // child.
+          const childTypes = children.map((child) => {
             const childType = typeOf(child.typeId);
             if (
               childType.archivedAt ||
@@ -2346,24 +2496,41 @@ export async function applyMutation(
                 "validation",
                 `“${child.title}” needs an enabled child type below the parent.`,
               );
+            return childType;
+          });
+          let rank = tail!.rank;
+          const numbered = children.map((child, index) => {
             rank = rankBetween(rank, null);
-            await tx.insert(s.workItem).values({
+            return {
+              child,
+              childType: childTypes[index]!,
+              number: Number(tail!.number) + index + 1,
+              rank,
+              position: Number(tail!.position) + (index + 1) * 1024,
+            };
+          });
+          await tx.insert(s.workItem).values(
+            numbered.map(({ child, childType, number, rank, position }) => ({
               id: child.workItemId,
               organizationId,
               projectId,
               typeId: child.typeId,
               parentId: workItemId!,
               teamId: item!.teamId,
-              number: ++number,
+              number,
               title: child.title,
               statusId: status.id,
-              refinementState: childType.hasSpecification ? "draft" : null,
+              refinementState: childType.hasSpecification
+                ? ("draft" as const)
+                : null,
               rank,
-              position: Number(tail!.position) + (index + 1) * 1024,
+              position,
               sourceRevisionId,
               createdById: userId,
-            });
-            await tx.insert(s.specificationRevision).values({
+            })),
+          );
+          await tx.insert(s.specificationRevision).values(
+            children.map((child) => ({
               organizationId,
               workItemId: child.workItemId,
               number: 1,
@@ -2371,8 +2538,10 @@ export async function applyMutation(
               content: child.description,
               changeSummary: "Accepted delivery breakdown",
               authorId: userId,
-            });
-            await tx.insert(s.activity).values({
+            })),
+          );
+          await tx.insert(s.activity).values(
+            numbered.map(({ child, childType, number }) => ({
               id: crypto.randomUUID(),
               organizationId,
               projectId,
@@ -2386,36 +2555,32 @@ export async function applyMutation(
                 parentId: workItemId!,
                 pullRequestId:
                   c.type === "mergePullRequest" ? c.pullRequestId : undefined,
-                ...(actor.surface && actor.surface !== "web"
-                  ? {
-                      performedVia: actor.surface,
-                      agentClient: actor.client?.slice(0, 200) ?? null,
-                    }
-                  : {}),
+                ...delegation(actor),
               },
               createdAt: now,
-            });
-            const entities = await snapshot(tx, {
-              organizationId,
-              projectId,
-              workItemId: child.workItemId,
-            });
-            await writeEntities(
-              tx,
-              organizationId,
-              entities
-                .filter((entity) =>
-                  entity.type === "workItem"
-                    ? entity.id === child.workItemId
-                    : "workItemId" in entity &&
-                      entity.workItemId === child.workItemId,
-                )
-                .map((entity) => ({
-                  entity,
-                  scope: { projectId, workItemId: child.workItemId },
-                })),
-            );
-          }
+            })),
+          );
+          const childIds = new Set(children.map((child) => child.workItemId));
+          const entities = await snapshotItems(
+            tx,
+            { organizationId, projectId },
+            [...childIds],
+          );
+          await writeEntities(
+            tx,
+            organizationId,
+            entities.flatMap((entity) => {
+              const childId =
+                entity.type === "workItem"
+                  ? entity.id
+                  : "workItemId" in entity
+                    ? entity.workItemId
+                    : undefined;
+              return childId && childIds.has(childId)
+                ? [{ entity, scope: { projectId, workItemId: childId } }]
+                : [];
+            }),
+          );
           log("delivery_breakdown_accepted", {
             count: children.length,
             childIds: children.map((child) => child.workItemId),
@@ -4111,10 +4276,13 @@ export async function applyMutation(
               isNull(s.readinessSignOff.withdrawnAt),
             ),
           );
+        // On a Lictory Intelligence check this is a person overriding the
+        // automated result for this revision, recorded as their decision.
         const detail = {
           checkId: c.checkId,
           label: check.label,
           revision: latest!.number,
+          ...(check.intelligence ? { override: true } : {}),
         };
         if (c.signedOff) {
           if (existing)

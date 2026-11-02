@@ -1,3 +1,4 @@
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { readinessHistory } from "@lictory/platform/data/lookups";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -436,36 +437,48 @@ function TypeRules({
                 onUndo={() => add(check)}
               />
             ))}
-            {canEdit && group.id !== "decomposed" && (
-              <AddRule
-                group={group.id}
-                onAdd={(kind) =>
-                  add(
-                    kind === "section"
-                      ? {
-                          id: crypto.randomUUID(),
-                          kind,
-                          heading: "Acceptance criteria",
-                        }
-                      : kind === "discipline_approval"
-                        ? {
-                            id: crypto.randomUUID(),
-                            kind,
-                            disciplineIds: firstReviewer
-                              ? [firstReviewer.id]
-                              : [],
-                          }
-                        : {
-                            id: crypto.randomUUID(),
-                            kind: "manual",
-                            label: "Designs attached",
-                            description: null,
-                            disciplineIds: [],
-                          },
-                  )
-                }
-              />
-            )}
+            {group.id === "intelligence" &&
+              custom.length > 0 &&
+              !(directory.ai.enabled && directory.ai.available) && (
+                <p className="py-1 text-xs text-muted-foreground">
+                  Lictory Intelligence is off for this organization, so items
+                  pass this check only when a person overrides it.
+                </p>
+              )}
+            {canEdit &&
+              group.id !== "decomposed" &&
+              !(group.id === "intelligence" && custom.length > 0) && (
+                <AddRule
+                  group={group.id}
+                  onAdd={(kind) =>
+                    add(
+                      kind === "intelligence_review"
+                        ? { id: crypto.randomUUID(), kind, severity: "blocker" }
+                        : kind === "section"
+                          ? {
+                              id: crypto.randomUUID(),
+                              kind,
+                              heading: "Acceptance criteria",
+                            }
+                          : kind === "discipline_approval"
+                            ? {
+                                id: crypto.randomUUID(),
+                                kind,
+                                disciplineIds: firstReviewer
+                                  ? [firstReviewer.id]
+                                  : [],
+                              }
+                            : {
+                                id: crypto.randomUUID(),
+                                kind: "manual",
+                                label: "Designs attached",
+                                description: null,
+                                disciplineIds: [],
+                              },
+                    )
+                  }
+                />
+              )}
           </div>
         );
       })}
@@ -686,6 +699,40 @@ function CustomSentence({
           approved the current revision
         </span>
       );
+    case "intelligence_review":
+      return (
+        <span className="block leading-7">
+          Lictory Intelligence found no{" "}
+          {canEdit ? (
+            <select
+              value={check.severity}
+              aria-label="Findings that fail the check"
+              onChange={(e) =>
+                onChange({
+                  ...check,
+                  severity: e.target.value === "major" ? "major" : "blocker",
+                })
+              }
+              className={cn(chip, "outline-none touch:text-base")}
+            >
+              <option value="blocker">blocker</option>
+              <option value="major">blocker or major finding</option>
+            </select>
+          ) : (
+            <span className={chip}>
+              {check.severity === "major"
+                ? "blocker or major finding"
+                : "blocker"}
+            </span>
+          )}{" "}
+          in the current revision
+          <span className="block text-xs text-muted-foreground">
+            An automated check, never an approval. It needs a person’s decision
+            beside it, and anyone with a discipline can override it for one
+            revision.
+          </span>
+        </span>
+      );
     case "manual":
       return (
         <span className="block leading-7">
@@ -796,6 +843,9 @@ function DisciplineChip({
 const addLabels: Record<string, [ReadinessCheckKind, string][]> = {
   written: [["section", "Require a section"]],
   reviewed: [["discipline_approval", "Require a discipline’s approval"]],
+  intelligence: [
+    ["intelligence_review", "Require a Lictory Intelligence review"],
+  ],
   confirmed: [["manual", "Add a sign-off"]],
 };
 
@@ -830,6 +880,7 @@ function StartingPolicy({
   canEdit: boolean;
 }) {
   const { run, error } = useCommand();
+  const { directory } = useWorkspace();
   const external = project.deliveryMode === "external";
   return (
     <div className="space-y-2 border-t px-5 py-3">
@@ -837,7 +888,8 @@ function StartingPolicy({
         When work starts before it’s ready
         {external && (
           <span className="ml-1 font-normal text-muted-foreground">
-            · only ready work is handed off to Jira
+            · only ready work is handed off to{" "}
+            {projectDeliveryTool(directory, project.id).name}
           </span>
         )}
       </p>

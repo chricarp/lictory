@@ -1,5 +1,5 @@
 {
-  "id": "ebf95a4c-eb02-4bec-bc5c-8d445c102fe4",
+  "id": "0b6cf882-7653-4161-b86c-c9f1cdae8fe8",
   "prevId": "79906779-8a98-402e-abc5-cc873b4ad8b5",
   "version": "7",
   "dialect": "postgresql",
@@ -1236,6 +1236,38 @@
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
+          "with": {}
+        },
+        "decision_title_trgm_idx": {
+          "name": "decision_title_trgm_idx",
+          "columns": [
+            {
+              "expression": "title",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "decision_body_trgm_idx": {
+          "name": "decision_body_trgm_idx",
+          "columns": [
+            {
+              "expression": "body",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
           "with": {}
         }
       },
@@ -3353,13 +3385,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'advisory'"
-        },
-        "merge_ready_notice": {
-          "name": "merge_ready_notice",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         },
         "created_by_id": {
           "name": "created_by_id",

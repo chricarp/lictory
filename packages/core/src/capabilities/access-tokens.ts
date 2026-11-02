@@ -11,8 +11,9 @@ import {
   type Database,
 } from "@lictory/core/capabilities/core";
 
-// Personal access tokens for external agents (MCP clients). A token is a
-// bearer credential for its owner: it grants exactly the owner's current
+// Personal access tokens for external agents (MCP clients). A token is one
+// named agent acting for its owner: its name and id identify the agent in
+// activity history. It is a bearer credential for its owner: it grants exactly the owner's current
 // permissions, never more, and `read` tokens only reach queries. Tokens are
 // created, listed and revoked by the signed-in person in the browser; agents
 // cannot manage credentials.
@@ -27,6 +28,8 @@ const hash = (secret: string) =>
 export type AuthenticatedToken = {
   tokenId: string;
   userId: string;
+  // The agent this token identifies in activity history.
+  name: string;
   access: "read" | "write";
 };
 
@@ -58,6 +61,7 @@ export async function authenticateAccessToken(
   return {
     tokenId: row.id,
     userId: row.userId,
+    name: row.name,
     access: row.scope === "write" ? "write" : "read",
   };
 }
@@ -82,6 +86,10 @@ const listAccessTokens = defineCapability({
   description: "Your personal access tokens for agents.",
   kind: "query",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Account settings → Integrations → AI agents (MCP)",
+  },
   input: z.object({}),
   async run(ctx) {
     const rows = await ctx.db
@@ -100,6 +108,10 @@ const createAccessToken = defineCapability({
     "Create a personal access token for an agent. The secret is returned once.",
   kind: "command",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Account settings → Integrations → AI agents (MCP)",
+  },
   input: z.object({
     name: z.string().trim().min(1, "Name the token.").max(80),
     access: z.enum(tokenAccess),
@@ -118,6 +130,25 @@ const createAccessToken = defineCapability({
           isNull(s.accessToken.revokedAt),
           sql`(${s.accessToken.expiresAt} is null or ${s.accessToken.expiresAt} > now())`,
         ),
+      );
+    // A token is one named agent in activity history; two active agents of
+    // the same person with one name could not be told apart.
+    const [duplicate] = await ctx.db
+      .select({ id: s.accessToken.id })
+      .from(s.accessToken)
+      .where(
+        and(
+          eq(s.accessToken.userId, userId),
+          sql`lower(${s.accessToken.name}) = lower(${input.name})`,
+          isNull(s.accessToken.revokedAt),
+          sql`(${s.accessToken.expiresAt} is null or ${s.accessToken.expiresAt} > now())`,
+        ),
+      )
+      .limit(1);
+    if (duplicate)
+      throw new CapabilityError(
+        "validation",
+        `An active token is already named “${input.name}”. Give each agent its own name so its work can be told apart.`,
       );
     if ((count?.active ?? 0) >= MAX_ACTIVE_TOKENS)
       throw new CapabilityError(
@@ -149,6 +180,10 @@ const revokeAccessToken = defineCapability({
   description: "Revoke a personal access token immediately.",
   kind: "command",
   surfaces: webOnly,
+  humanOnly: {
+    reason: "credentials",
+    where: "Account settings → Integrations → AI agents (MCP)",
+  },
   destructive: true,
   idempotent: true,
   input: z.object({ tokenId: id }),

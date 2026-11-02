@@ -5090,3 +5090,67 @@ void test("the last met merge requirement notifies the pull request author once"
     targetHeadId: h.targetHeadId,
   });
 });
+
+void test("archiving a decision requires a current project capability, authorship only adds to it", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  const decisionId = crypto.randomUUID();
+  const ownerDecisionId = crypto.randomUUID();
+  const record = (id: string, actor: string) =>
+    f.command(
+      {
+        type: "recordDecision",
+        workItemId: f.proposalId,
+        decisionId: id,
+        baseRevisionId: first.id,
+        title: "Reuse the transaction key",
+        body: "Retries reuse the original transaction key.",
+      },
+      actor,
+    );
+  const archive = (id: string, archived: boolean, actor: string) =>
+    f.command(
+      {
+        type: "setDecisionArchived",
+        workItemId: f.proposalId,
+        decisionId: id,
+        archived,
+      },
+      actor,
+    );
+  const archivedAt = async (id: string) => {
+    const entity = (await f.entities()).find((e) => e.id === id);
+    return entity?.type === "decision" ? entity.archivedAt : undefined;
+  };
+  // A reviewer records a conclusion and may curate their own decision, but
+  // not one recorded by someone else: reviewing does not edit specifications.
+  await record(decisionId, f.reviewerId);
+  await record(ownerDecisionId, f.userId);
+  await archive(decisionId, true, f.reviewerId);
+  assert.ok(await archivedAt(decisionId));
+  await archive(decisionId, false, f.reviewerId);
+  assert.equal(await archivedAt(decisionId), null);
+  await assert.rejects(
+    archive(ownerDecisionId, true, f.reviewerId),
+    /specification editor/,
+  );
+  // Losing every discipline removes the author's right as well.
+  for (const disciplineId of [f.roles.Engineering, f.roles.QA])
+    await f.command({
+      type: "setDisciplineMember",
+      projectId: f.projectId,
+      disciplineId,
+      userId: f.reviewerId,
+      member: false,
+    });
+  await assert.rejects(
+    archive(decisionId, true, f.reviewerId),
+    /requires a discipline that edits specifications or reviews/,
+  );
+  assert.equal(await archivedAt(decisionId), null);
+  // A specification editor still curates every decision, reversibly.
+  await archive(decisionId, true, f.userId);
+  assert.ok(await archivedAt(decisionId));
+  await archive(decisionId, false, f.userId);
+  assert.equal(await archivedAt(decisionId), null);
+});

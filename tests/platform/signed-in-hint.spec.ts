@@ -55,7 +55,7 @@ test("the website offers the workspace to someone signed in to the application",
   await expect(banner.getByRole("link", { name: "Sign up" })).toHaveCount(0);
   await expect(banner.getByRole("link", { name: "Log in" })).toHaveCount(0);
   const hero = page.getByRole("region", {
-    name: /Better specs\.\s*Fewer meetings\./,
+    name: "Agree on what to build before anyone builds it",
   });
   await expect(
     hero.getByRole("link", { name: "Open workspace" }),

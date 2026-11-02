@@ -18,6 +18,10 @@ export function Readiness() {
   const checks = readiness?.checks ?? [];
   const passed = checks.filter((c) => c.passed).length;
   const latest = directory.readiness.find((r) => r.projectId === project.id);
+  // Sign-offs explain themselves in place; other failing checks need work.
+  const next = checks.find(
+    (check) => !check.passed && (!check.signOff || check.intelligence),
+  );
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
@@ -54,10 +58,9 @@ export function Readiness() {
           ? "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
-      {checks.find((check) => !check.passed && !check.signOff)?.detail && (
+      {next?.detail && (
         <p className="mt-2 rounded-md bg-muted/60 px-2 py-1.5 text-xs leading-relaxed">
-          <span className="font-medium">Next concern:</span>{" "}
-          {checks.find((check) => !check.passed && !check.signOff)?.detail}
+          <span className="font-medium">Next concern:</span> {next.detail}
         </p>
       )}
       {readiness?.pinned && latest && (
@@ -97,9 +100,25 @@ function CheckRow({ check }: { check: ReadinessCheck }) {
         {!check.passed && check.detail && (
           <p className="text-xs text-muted-foreground">{check.detail}</p>
         )}
+        {check.intelligence && <IntelligenceEvidence check={check} />}
         {check.signOff && <SignOff check={check} />}
       </div>
     </li>
+  );
+}
+
+// An automated check, not an approval: it names the review it relies on so
+// people can inspect it, and never reads as a discipline's decision.
+function IntelligenceEvidence({ check }: { check: ReadinessCheck }) {
+  const result = check.intelligence!;
+  if (!result.runId || !result.reviewedCurrent) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      Automated check · Lictory Intelligence review
+      {result.score !== null && ` scored ${result.score}`}
+      {result.model && ` · ${result.model}`}
+      {result.completedAt && ` · ${relativeTime(result.completedAt)}`}
+    </p>
   );
 }
 
@@ -119,6 +138,9 @@ function SignOff({ check }: { check: ReadinessCheck }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const signOff = check.signOff!;
+  // On an intelligence check a sign-off is a person overriding the automated
+  // result for this revision.
+  const override = Boolean(check.intelligence);
   const eligible = directory.disciplines.some(
     (d) =>
       d.projectId === item.projectId &&
@@ -150,24 +172,34 @@ function SignOff({ check }: { check: ReadinessCheck }) {
     <div className="mt-1 space-y-1">
       {signOff.signedOffBy ? (
         <p className="text-xs text-muted-foreground">
-          Signed off by {memberName(signOff.signedOffBy)}
+          {override ? "Overridden" : "Signed off"} by{" "}
+          {memberName(signOff.signedOffBy)}
           {signOff.signedOffAt && ` · ${relativeTime(signOff.signedOffAt)}`}
         </p>
       ) : (
-        !eligible && (
+        !eligible &&
+        !override && (
           <p className="text-xs text-muted-foreground">Signed off by {who}.</p>
         )
       )}
-      {eligible && !readOnly && (
-        <Button
-          size="sm"
-          variant={signOff.signedOffBy ? "ghost" : "outline"}
-          disabled={pending}
-          onClick={() => void run(!signOff.signedOffBy)}
-        >
-          {signOff.signedOffBy ? "Withdraw sign-off" : "Sign off"}
-        </Button>
-      )}
+      {eligible &&
+        !readOnly &&
+        (!override || Boolean(signOff.signedOffBy) || !check.passed) && (
+          <Button
+            size="sm"
+            variant={signOff.signedOffBy ? "ghost" : "outline"}
+            disabled={pending}
+            onClick={() => void run(!signOff.signedOffBy)}
+          >
+            {signOff.signedOffBy
+              ? override
+                ? "Withdraw override"
+                : "Withdraw sign-off"
+              : override
+                ? "Override for this revision"
+                : "Sign off"}
+          </Button>
+        )}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}

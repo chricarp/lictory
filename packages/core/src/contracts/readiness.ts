@@ -17,6 +17,7 @@ export const readinessCheckKinds = [
   ...builtInKinds,
   "section",
   "discipline_approval",
+  "intelligence_review",
   "manual",
 ] as const;
 export type ReadinessCheckKind = (typeof readinessCheckKinds)[number];
@@ -26,6 +27,19 @@ export function isBuiltInKind(
 ): kind is BuiltInReadinessKind {
   return (builtInKinds as readonly string[]).includes(kind);
 }
+
+// The finding severities an intelligence check can fail on: blockers only, or
+// blockers and major findings.
+export const intelligenceCheckSeverities = ["blocker", "major"] as const;
+export type IntelligenceCheckSeverity =
+  (typeof intelligenceCheckSeverities)[number];
+
+// Checks only a person's decision can pass.
+const humanDecisionKinds: ReadinessCheckKind[] = [
+  "reviews_approved",
+  "discipline_approval",
+  "manual",
+];
 
 // Stable across versions, so manual sign-offs survive edits of a check.
 const checkId = z
@@ -44,6 +58,14 @@ export const readinessCheckDefinitionSchema = z.discriminatedUnion("kind", [
     id: checkId,
     kind: z.literal("discipline_approval"),
     disciplineIds: z.array(id).min(1, "Choose who must approve.").max(20),
+  }),
+  // An automated check, never an approval: Lictory Intelligence reviewed the
+  // current revision and found nothing at or above `severity` about the item.
+  // A person can override it for one revision; nothing else makes it pass.
+  z.object({
+    id: checkId,
+    kind: z.literal("intelligence_review"),
+    severity: z.enum(intelligenceCheckSeverities),
   }),
   z.object({
     id: checkId,
@@ -65,10 +87,16 @@ export const readinessChecksSchema = z
   .superRefine((checks, ctx) => {
     const ids = new Set<string>();
     const kinds = new Set<string>();
+    let intelligence = 0;
     for (const check of checks) {
       if (ids.has(check.id))
         ctx.addIssue({ code: "custom", message: "Check ids must be unique." });
       ids.add(check.id);
+      if (check.kind === "intelligence_review" && ++intelligence === 2)
+        ctx.addIssue({
+          code: "custom",
+          message: "A type can require the Lictory Intelligence check once.",
+        });
       if (isBuiltInKind(check.kind)) {
         if (kinds.has(check.kind))
           ctx.addIssue({
@@ -78,6 +106,17 @@ export const readinessChecksSchema = z
         kinds.add(check.kind);
       }
     }
+    // An automated check adds evidence to people's decisions; it can never be
+    // the only thing between a specification and Ready.
+    if (
+      intelligence > 0 &&
+      !checks.some((c) => humanDecisionKinds.includes(c.kind))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "The Lictory Intelligence check needs a person’s decision beside it: also require approvals or a sign-off.",
+      });
   });
 // Checks per work item type id. A type without an entry uses the defaults.
 export const readinessRulesSchema = z
@@ -116,6 +155,11 @@ export const readinessGroups: {
       "no_blocking_threads",
     ],
   },
+  {
+    id: "intelligence",
+    title: "Checked by Lictory Intelligence",
+    kinds: ["intelligence_review"],
+  },
   { id: "confirmed", title: "Confirmed by people", kinds: ["manual"] },
   { id: "decomposed", title: "Decomposed", kinds: ["children_ready"] },
 ];
@@ -144,6 +188,10 @@ export function checkLabel(
       return `It has a non-empty “${check.heading}” section`;
     case "discipline_approval":
       return `${joinNames(check.disciplineIds.map(disciplineName))} approved the current revision`;
+    case "intelligence_review":
+      return check.severity === "major"
+        ? "Lictory Intelligence found no blocker or major finding in the current revision"
+        : "Lictory Intelligence found no blocker in the current revision";
     case "manual":
       return check.label;
     default:
@@ -251,6 +299,18 @@ export type ReadinessSignOff = {
   createdAt: string;
 };
 
+// The latest completed Lictory Intelligence review of the item itself.
+export type IntelligenceReviewEvidence = {
+  runId: string;
+  // The item's revision the review analysed.
+  revisionId: string | null;
+  // Severities of its findings about this item.
+  severities: string[];
+  score: number | null;
+  model: string | null;
+  completedAt: string | null;
+};
+
 // Everything the checks look at for one item, gathered by the server.
 export type ReadinessEvidence = {
   content: string;
@@ -266,8 +326,10 @@ export type ReadinessEvidence = {
   disciplineNames: Map<string, string>;
   childSpecifications: number;
   childSpecificationsNotReady: number;
-  // Latest active sign-off per manual check, on any revision.
+  // Latest active sign-off per manual check (or override of an intelligence
+  // check), on any revision.
   signOffs: Map<string, ReadinessSignOff>;
+  intelligenceReview: IntelligenceReviewEvidence | null;
 };
 
 export type EvaluatedCheck = {
@@ -279,6 +341,18 @@ export type EvaluatedCheck = {
     disciplineIds: string[];
     signedOffBy: string | null;
     signedOffAt: string | null;
+  };
+  // Intelligence checks: the review the result comes from, so the check stays
+  // inspectable and visibly AI-originated. `overridden` when a person's
+  // override, not the review, makes it pass.
+  intelligence?: {
+    runId: string | null;
+    reviewedCurrent: boolean;
+    findings: number;
+    score: number | null;
+    model: string | null;
+    completedAt: string | null;
+    overridden: boolean;
   };
 };
 
@@ -299,7 +373,7 @@ export function evaluateReadiness(
     definition: ReadinessCheckDefinition,
     passed: boolean,
     detail?: string,
-    extra?: Pick<EvaluatedCheck, "signOff">,
+    extra?: Pick<EvaluatedCheck, "signOff" | "intelligence">,
   ) =>
     checks.push({
       key: definition.id,
@@ -373,6 +447,57 @@ export function evaluateReadiness(
           definition,
           waiting.length === 0,
           `Waiting on ${joinNames(waiting)} to approve revision ${revision}.`,
+        );
+        break;
+      }
+      case "intelligence_review": {
+        const run = evidence.intelligenceReview;
+        const failing = new Set<string>(
+          definition.severity === "major" ? ["blocker", "major"] : ["blocker"],
+        );
+        const reviewedCurrent = Boolean(
+          run && evidence.revisionId && run.revisionId === evidence.revisionId,
+        );
+        const findings = reviewedCurrent
+          ? run!.severities.filter((x) => failing.has(x)).length
+          : 0;
+        const clean = reviewedCurrent && findings === 0;
+        const override = evidence.signOffs.get(definition.id);
+        const current =
+          override?.revisionId === evidence.revisionId ? override : undefined;
+        const what =
+          definition.severity === "major"
+            ? plural(
+                findings,
+                "blocker or major finding",
+                "blocker or major findings",
+              )
+            : plural(findings, "blocker");
+        add(
+          definition,
+          clean || Boolean(current),
+          !run
+            ? `Ask Lictory Intelligence to review revision ${revision}, or override this check.`
+            : !reviewedCurrent
+              ? `Lictory Intelligence reviewed an earlier revision. Ask it to review revision ${revision}, or override this check.`
+              : `Lictory Intelligence found ${what} in revision ${revision}. Address ${findings === 1 ? "it" : "them"} and review again, or override this check.`,
+          {
+            // Overrides are recorded like sign-offs: a person, a revision.
+            signOff: {
+              disciplineIds: [],
+              signedOffBy: current?.userId ?? null,
+              signedOffAt: current?.createdAt ?? null,
+            },
+            intelligence: {
+              runId: run?.runId ?? null,
+              reviewedCurrent,
+              findings,
+              score: reviewedCurrent ? (run?.score ?? null) : null,
+              model: run?.model ?? null,
+              completedAt: run?.completedAt ?? null,
+              overridden: !clean && Boolean(current),
+            },
+          },
         );
         break;
       }

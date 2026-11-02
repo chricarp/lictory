@@ -362,6 +362,17 @@ responsibilities, avoiding a second approval ceremony. Main's other readiness
 checks still apply, including existing blocking discussions and child readiness.
 Merging into another branch changes only that branch's pointer.
 
+A merge that changes only the proposed breakdown leaves the title and content
+unchanged. The new revision still exists (it records the accepted children), but
+review decisions on the unchanged text carry to it: each granted approval of the
+previous revision ends with the reason "Carried to revision N: specification
+text unchanged" and an identical approval by the same reviewer is recorded on
+the new revision, and a changes-requested review stays changes-requested. The
+breakdown itself is evidenced by the PR's required approvals, which supersede a
+carried approval of the same responsibility. Carried approvals are not
+invalidations: they notify nobody and are not counted as `approvals_invalidated`.
+Any change to title or content stales every approval as before.
+
 After a successful merge into main, Lictory automatically deletes the source
 branch in the same transaction and records a `branch_deleted` activity with
 `automatic: true` and the merged PR's ID. Activity identifies Lictory as the
