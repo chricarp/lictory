@@ -90,10 +90,10 @@ export function webRoutes() {
     // two-factor authentication (enforced by the server either way).
     const twoFactorRequiredBy = user
       ? await heldOrganizations(db, user.id)
-      : [];
+      : undefined;
     return c.json(
       {
-        twoFactorRequiredBy,
+        ...(twoFactorRequiredBy && { twoFactorRequiredBy }),
         user: user
           ? {
               id: user.id,
