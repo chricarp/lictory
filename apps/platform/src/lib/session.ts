@@ -21,14 +21,13 @@ const sessionSchema = z.object({
   providers: z
     .object({ google: z.boolean(), microsoft: z.boolean() })
     .default({ google: false, microsoft: false }),
+  // Whether the server has object storage for attachments.
+  attachments: z.boolean().default(true),
 });
 
 export type SessionUser = z.infer<typeof userSchema>;
 export type AuthProviders = z.infer<typeof sessionSchema>["providers"];
-export type Session = {
-  user: SessionUser | null;
-  providers: AuthProviders;
-};
+export type Session = z.infer<typeof sessionSchema>;
 
 type State =
   | { status: "loading"; session?: undefined; error?: undefined }
@@ -94,6 +93,7 @@ export function clearSession() {
         google: false,
         microsoft: false,
       },
+      attachments: state.session?.attachments ?? true,
     },
   });
 }
@@ -122,4 +122,9 @@ export function useAuthProviders(): AuthProviders {
   return (
     useSessionState().session?.providers ?? { google: false, microsoft: false }
   );
+}
+
+// False when the server has no file storage: uploads are not offered.
+export function useAttachmentsAvailable(): boolean {
+  return useSessionState().session?.attachments ?? true;
 }

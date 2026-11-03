@@ -9,6 +9,7 @@ import {
   type FileContext,
   type FileEntry,
 } from "@lictory/platform/components/items/file-upload";
+import { useAttachmentsAvailable } from "@lictory/platform/lib/session";
 
 // Last known list per item: a revisit renders it at once and refreshes after.
 const known = new Map<string, FileEntry[]>();
@@ -34,6 +35,7 @@ export function Attachments({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const available = useAttachmentsAvailable();
   useEffect(() => {
     const refresh = () => {
       void listFiles(context)
@@ -71,21 +73,23 @@ export function Attachments({
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
-        void add(e.dataTransfer.files);
+        if (available) void add(e.dataTransfer.files);
       }}
     >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Paperclip className="size-4" /> Attachments
         </h3>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => input.current?.click()}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-muted disabled:opacity-50"
-        >
-          <Upload className="size-3.5" /> {busy ? "Uploading…" : "Add files"}
-        </button>
+        {available && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => input.current?.click()}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-muted disabled:opacity-50"
+          >
+            <Upload className="size-3.5" /> {busy ? "Uploading…" : "Add files"}
+          </button>
+        )}
       </div>
       <input
         ref={input}
@@ -100,6 +104,12 @@ export function Attachments({
       {error && (
         <p role="alert" className="mb-2 text-xs text-destructive">
           {error}
+        </p>
+      )}
+      {!available && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Attachments are unavailable: this server has no file storage
+          configured. Ask an administrator to configure S3-compatible storage.
         </p>
       )}
       {files.length ? (
@@ -145,9 +155,11 @@ export function Attachments({
           ))}
         </ul>
       ) : (
-        <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-          Drop files here, or use Add files.
-        </p>
+        available && (
+          <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+            Drop files here, or use Add files.
+          </p>
+        )
       )}
     </section>
   );

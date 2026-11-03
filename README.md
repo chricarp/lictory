@@ -44,9 +44,9 @@ bun run dev            # SPA, API, worker and website
 - Website: http://localhost:3100
 - Mailpit inbox: http://localhost:8025
 
-Every optional integration (OAuth, Resend, R2, OpenAI, PostHog, Jira) stays
-disabled until its variables are set in `.env`; core refinement works without
-them. See [the development runbook](docs/operations/development.md) for daily
+Every optional integration (OAuth, Resend, S3-compatible file storage, OpenAI,
+PostHog, Jira) stays disabled until its variables are set in `.env`; core
+refinement works without them. See [the development runbook](docs/operations/development.md) for daily
 commands, tests and the full verification sequence.
 
 ## Transactional email

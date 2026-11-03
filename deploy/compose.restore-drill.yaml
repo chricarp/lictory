@@ -96,10 +96,7 @@ services:
       DELIVERY_CREDENTIALS_KEY: ${DRILL_APP_SECRET:?}
       ZERO_QUERY_API_KEY: ${DRILL_APP_SECRET:?}
       ZERO_MUTATE_API_KEY: ${DRILL_APP_SECRET:?}
-      R2_ACCOUNT_ID: restore-drill
-      R2_ACCESS_KEY_ID: restore-drill
-      R2_SECRET_ACCESS_KEY: restore-drill
-      R2_BUCKET_NAME: restore-drill
+      # No file storage: attachments are disabled in the drill.
     depends_on:
       postgres:
         condition: service_healthy

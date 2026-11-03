@@ -38,7 +38,7 @@ done <"$source_dir/env/$environment.env.example" >"$tmp"
 chmod 0600 "$tmp"
 mv "$tmp" "$target"
 echo "Created $target (mode 0600) with generated secrets."
-echo "Edit it now: hosts, ACME_EMAIL, R2_*, RESEND_*, BACKUP_* (dedicated bucket and token),"
+echo "Edit it now: hosts, ACME_EMAIL, R2_* or S3_* (file storage), RESEND_*, BACKUP_* (dedicated bucket and token),"
 echo "BACKUP_AGE_RECIPIENTS (public key of an offline age identity), ALERT_WEBHOOK_URL,"
 echo "MONITOR_PING_URL, BACKUP_PING_URL and LICTORY_IMAGE_REGISTRY."
 if grep -q '=generate$' "$target"; then

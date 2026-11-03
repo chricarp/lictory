@@ -19,17 +19,20 @@ This increases the process heap allowance without filtering or disabling checks.
 ```sh
 cp .env.example .env
 bun install
-docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit
+docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
 bun run dev            # SPA, API, worker and website on the host
 ```
 
 - App: http://localhost:3000 (API 3002, zero-cache 4848)
 - Website: http://localhost:3100
 - Mailpit (verification and reset emails): http://localhost:8025
+- MinIO console (attachment bucket, user `lictory`, password
+  `lictory-development`): http://127.0.0.1:9001
 
-Every optional integration (OAuth, Resend, R2, OpenAI, PostHog, Jira) stays
+Every optional integration (OAuth, Resend, OpenAI, PostHog, Jira) stays
 disabled until its variables are set in `.env`. Core refinement works without any
-of them.
+of them. Attachments use the MinIO service: `.env.example` already points
+`S3_*` at it; clear those values to run without file storage.
 
 `compose.yaml` holds every service the applications depend on, started in
 order:
@@ -48,6 +51,12 @@ order:
 4. `zero-cache`: starts only after migrations succeed; it calls the API on the
    host (port 3002) with the browser's forwarded session cookie.
 5. `mailpit`: captures every email.
+6. `minio` and `minio-setup`: S3-compatible storage for attachments, with the
+   `lictory-files` bucket created on start. The storage tests in
+   `packages/core/src/storage/minio.test.ts` run against it (and are skipped
+   when it is not running); point `S3_TEST_ENDPOINT`,
+   `S3_TEST_ACCESS_KEY_ID` and `S3_TEST_SECRET_ACCESS_KEY` elsewhere to use
+   another MinIO.
 
 `bun run dev` refuses to start until zero-cache answers on port 4848. After
 generating a migration, apply it with `bun run db:migrate` (or

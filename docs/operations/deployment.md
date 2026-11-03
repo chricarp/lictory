@@ -35,16 +35,16 @@ installed controllers, using the API digest for new releases. No marketing
 container is built, pulled or started. Cloudflare receives static frontend
 artifacts prepared from the selected source.
 
-Files bytes stay in private Cloudflare R2 (see
-[private file storage](../internals/file-storage.md)); email goes through Resend.
-OAuth and AI are optional.
+File bytes stay in a private S3-compatible bucket (Cloudflare R2 for
+lictory.com; see [private file storage](../internals/file-storage.md)); email
+goes through Resend. File storage, OAuth and AI are optional.
 
 ## Network boundaries
 
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
 worker and ops tooling also join an egress-only network for external
-APIs (R2, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
+APIs (object storage, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only.
 
 The proxy:
@@ -123,7 +123,7 @@ passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
 | `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
-| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
+| `R2_*` or `S3_*`                                           | Optional attachment bucket and object read/write credentials; one of the two, see file storage docs    |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                          |
 | `BACKUP_*`                                                 | Dedicated private backup bucket and its own token; `BACKUP_AGE_RECIPIENTS` is a public key             |
 | `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                              |
