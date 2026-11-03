@@ -269,6 +269,8 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
   assert.deepEqual(await (await m.app.request("/api/session")).json(), {
     user: null,
     providers: { google: false, microsoft: false },
+    // No S3_* or R2_* settings in tests: attachments are disabled.
+    attachments: false,
   });
   assert.equal((await m.app.request("/api/account")).status, 401);
   const account = await m.app.request("/api/account", {
