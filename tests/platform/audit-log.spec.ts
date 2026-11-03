@@ -15,11 +15,13 @@ const admin = {
   id: crypto.randomUUID(),
   name: "Audit Admin",
   email: `audit-admin-${run}@example.test`,
+  handle: `audit_admin_${run}`,
 };
 const teammate = {
   id: crypto.randomUUID(),
   name: "Audit Teammate",
   email: `audit-teammate-${run}@example.test`,
+  handle: `audit_teammate_${run}`,
 };
 const organizationId = crypto.randomUUID();
 const slug = `audit-${run}`;
@@ -133,7 +135,9 @@ test("with analytics disabled, role and token changes appear in the audit log", 
   await log.getByLabel("Activity").click();
   await page.getByRole("option", { name: "Access tokens" }).click();
   await expect(log.getByText(/Created write access token/)).toBeVisible();
-  await expect(log.getByText(/application role/)).toHaveCount(0);
+  await expect(
+    log.getByText(`Changed ${teammate.name}'s application role`),
+  ).toHaveCount(0);
 
   // The CSV export carries the same filtered entries and is recorded itself.
   const csvPath = `/api/organizations/${organizationId}/audit-log.csv`;
