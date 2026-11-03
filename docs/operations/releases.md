@@ -304,9 +304,10 @@ you may roll back to.
 
 GitHub's `queue: max` preserves up to 100 pending runs; avoid exceeding that
 platform limit and inspect canceled runs if it is reached. Actionlint 1.7.12
-does not yet recognize this documented GitHub property: validate with its exact
-`unexpected key "queue" for "concurrency" section` diagnostic suppressed, plus
-the repository's YAML queue/permission/source guardrail tests. All other
-actionlint diagnostics remain enabled. Real deployment credentials and DNS are
+does not yet recognize this documented GitHub property: the **Workflow lint**
+workflow runs actionlint on every `.github/` change with its exact
+`unexpected key "queue" for "concurrency" section` diagnostic suppressed, next
+to zizmor and the repository's YAML queue/permission/source guardrail tests.
+All other actionlint diagnostics remain enabled. Real deployment credentials and DNS are
 one-time operator configuration, not automatically provisioned by repository
 tests.

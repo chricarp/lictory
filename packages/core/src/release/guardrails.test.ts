@@ -366,11 +366,50 @@ void test("third-party actions are pinned to commits", () => {
     "migrate",
     "backfill",
     "pr-title",
+    "codeql",
+    "dependency-review",
+    "scorecard",
+    "workflow-lint",
+    "gitleaks",
   ])
     for (const job of Object.values(workflow(name).jobs))
       for (const step of job.steps ?? [])
         if (step.uses && !step.uses.startsWith("./"))
           assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);
+});
+
+void test("base images are pinned by digest", async () => {
+  const root = new URL("../../../../", import.meta.url);
+  const references: string[] = [];
+  const dockerfile = await readFile(new URL("Dockerfile", root), "utf8");
+  for (const [, image] of dockerfile.matchAll(
+    /^FROM\s+(?:--platform=\S+\s+)?(\S+)/gm,
+  ))
+    references.push(image!);
+  for (const file of [
+    "compose.yaml",
+    "deploy/compose.production.yaml",
+    "deploy/compose.restore-drill.yaml",
+  ]) {
+    const compose = await readFile(new URL(file, root), "utf8");
+    for (const [, image] of compose.matchAll(/^\s+image:\s*(\S+)/gm))
+      references.push(image!);
+  }
+  // Exempt: earlier stages, release images (deployed by digest) and the
+  // previous proxy image chosen by release automation.
+  const stages = new Set(
+    [...dockerfile.matchAll(/\sAS\s+(\S+)$/gm)].map(([, stage]) => stage!),
+  );
+  const external = references.filter(
+    (image) => !stages.has(image) && !/^\$\{[A-Z_]+(:\?)?\}$/.test(image),
+  );
+  assert.ok(external.length >= 8);
+  for (const image of external)
+    assert.match(
+      image,
+      /^(\$\{[A-Z_]+:-)?[\w./-]+:[\w.-]+@sha256:[a-f0-9]{64}\}?$/,
+      image,
+    );
 });
 
 void test("the minimal CI verification sequence and the released version display are preserved", async () => {
