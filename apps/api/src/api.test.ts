@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
+import { attachmentsAvailable } from "@lictory/core/storage";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import type * as Db from "@lictory/core/db";
 import type * as Service from "@lictory/core/domain/service";
@@ -269,8 +270,8 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
   assert.deepEqual(await (await m.app.request("/api/session")).json(), {
     user: null,
     providers: { google: false, microsoft: false },
-    // No S3_* or R2_* settings in tests: attachments are disabled.
-    attachments: false,
+    // Follows this environment's S3_*/R2_* settings (a developer .env may set them).
+    attachments: attachmentsAvailable(),
   });
   assert.equal((await m.app.request("/api/account")).status, 401);
   const account = await m.app.request("/api/account", {
