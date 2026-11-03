@@ -35,9 +35,9 @@ installed controllers, using the API digest for new releases. No marketing
 container is built, pulled or started. Cloudflare receives static frontend
 artifacts prepared from the selected source.
 
-Files bytes stay in private Cloudflare R2 (see
-[private file storage](../internals/file-storage.md)); email goes through Resend.
-OAuth and AI are optional.
+File bytes stay in a private S3-compatible bucket (Cloudflare R2 for
+lictory.com; see [private file storage](../internals/file-storage.md)); email
+goes through Resend. File storage, OAuth and AI are optional.
 
 ## Telemetry and privacy
 
@@ -49,7 +49,7 @@ else. Outbound connections happen only for what the operator configures:
 | `OPENAI_API_KEY`                              | Content sent to Lictory Intelligence (analysis, chat, transcription)    |
 | `POSTHOG_PROJECT_TOKEN` + `POSTHOG_HOST`      | Product analytics: browser events via `/relay`, server events, job logs |
 | `RESEND_*` or `SMTP_*`                        | Transactional and notification email                                    |
-| `R2_*` (S3-compatible storage)                | Uploaded files                                                          |
+| `S3_*` or `R2_*`                              | Uploaded files                                                          |
 | A project's delivery connection               | Published work items and status reads with that Jira site               |
 | `GOOGLE_*`, `MICROSOFT_*`, `OAUTH_PROXY_*`    | Sign-in through those identity providers                                |
 | `ACME_EMAIL`, `BACKUP_*`, alert and ping URLs | Certificate issuance, encrypted backups, alerts and monitoring pings    |
@@ -78,7 +78,7 @@ the maintainer's choice and may change.
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
 worker and ops tooling also join an egress-only network for external
-APIs (R2, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
+APIs (object storage, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only.
 
 The proxy:
@@ -184,7 +184,7 @@ or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRE
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                                                                                            |
 | `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                                                                                                 |
-| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                                                                                            |
+| `R2_*` or `S3_*`                                           | Optional attachment bucket and object read/write credentials; one of the two, see file storage docs                                                                            |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                                                                                                  |
 | `BACKUP_*`                                                 | `BACKUP_TARGET` (`s3`, `local`, `rclone`, `none`) and its storage with its own credentials; `BACKUP_AGE_RECIPIENTS` is a public key ([recovery](recovery.md#where-backups-go)) |
 | `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                                                                                                      |

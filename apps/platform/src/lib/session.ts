@@ -40,6 +40,8 @@ const sessionSchema = z.object({
   signIn: z
     .object({ password: z.boolean(), ssoName: z.string().nullable() })
     .default(defaultSignIn),
+  // Whether the server has object storage for attachments.
+  attachments: z.boolean().default(true),
 });
 
 export type SessionUser = z.infer<typeof userSchema>;
@@ -50,6 +52,7 @@ export type Session = {
   providers: AuthProviders;
   twoFactorRequiredBy: z.infer<typeof heldSchema>[];
   signIn: SignInOptions;
+  attachments: boolean;
 };
 
 type State =
@@ -115,6 +118,7 @@ export function clearSession() {
       providers: state.session?.providers ?? noProviders,
       signIn: state.session?.signIn ?? defaultSignIn,
       twoFactorRequiredBy: [],
+      attachments: state.session?.attachments ?? true,
     },
   });
 }
@@ -150,4 +154,9 @@ export function useSignInOptions(): SignInOptions {
 // Organizations holding the signed-in person until they turn on two-factor.
 export function useTwoFactorRequiredBy() {
   return useSessionState().session?.twoFactorRequiredBy ?? [];
+}
+
+// False when the server has no file storage: uploads are not offered.
+export function useAttachmentsAvailable(): boolean {
+  return useSessionState().session?.attachments ?? true;
 }

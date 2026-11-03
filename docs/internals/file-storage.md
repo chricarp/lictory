@@ -1,26 +1,74 @@
 # Private file storage
 
-The database holds file metadata only. Object bytes live in a private R2 bucket.
-The S3-compatible `ObjectStorage` boundary in `src/storage` signs PUT and GET
-requests, checks object metadata, and can delete objects. R2 endpoint and
-credentials are confined to its configuration function; another S3 provider
-can replace them without changing file routes or editors.
+The database holds file metadata only. Object bytes live in a private bucket on
+any S3-compatible service: Cloudflare R2 (lictory.com), AWS S3, MinIO, Garage,
+Ceph, Hetzner Object Storage, GCS interoperability and similar. The
+`ObjectStorage` boundary in `packages/core/src/storage` signs PUT and GET
+requests, checks object metadata, copies and deletes objects. Endpoint and
+credentials are confined to its configuration; file routes and editors do not
+know which provider is behind it.
 
-Set `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and
-`R2_BUCKET_NAME` in the API's server environment. Use a bucket-scoped R2 token
-with object read/write permission. If using a jurisdiction-specific R2 S3
-endpoint, set `R2_S3_ENDPOINT` to the account-level S3 host (without the
-bucket path). Keep the bucket private. A public/custom domain
-is inappropriate for these organization-scoped files, and R2 presigned URLs
-operate only on the S3 API endpoint.
+## Configuration
 
-Configure production bucket CORS for the supported app origins. Development and
-previews use separate buckets and their own origins:
+Storage is optional. Configure exactly one of the two sets below in the API's
+server environment (empty values count as unset):
+
+| Variable               | Generic S3 (`S3_*`)                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `S3_ENDPOINT`          | Service URL, `http(s)://host[:port]`, without the bucket. Leave empty for AWS S3.                                  |
+| `S3_REGION`            | Signing region. Required when `S3_ENDPOINT` is empty (the bucket's AWS region); defaults to `us-east-1` otherwise. |
+| `S3_BUCKET`            | Bucket name. Required.                                                                                             |
+| `S3_ACCESS_KEY_ID`     | Access key with object read/write on the bucket. Required.                                                         |
+| `S3_SECRET_ACCESS_KEY` | Its secret. Required.                                                                                              |
+| `S3_FORCE_PATH_STYLE`  | `true` puts the bucket in the path (`host/bucket/key`). Defaults to `true` with an endpoint and `false` for AWS.   |
+
+| Variable               | Cloudflare R2 preset (`R2_*`)                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `R2_ACCOUNT_ID`        | 32-character account ID. Required.                                                                |
+| `R2_ACCESS_KEY_ID`     | Bucket-scoped R2 API token with object read/write. Required.                                      |
+| `R2_SECRET_ACCESS_KEY` | Its secret. Required.                                                                             |
+| `R2_BUCKET_NAME`       | Bucket name. Required.                                                                            |
+| `R2_S3_ENDPOINT`       | Optional jurisdiction endpoint, `https://<account>.eu.r2.cloudflarestorage.com` (no bucket path). |
+
+The R2 preset is equivalent to `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`,
+`S3_REGION=auto` and path-style addressing; existing R2 deployments keep their
+variables. Resolution:
+
+- No `S3_*` and no `R2_*` value: attachments are disabled. The API and worker
+  start and log `attachments: disabled`; `/api/session` reports
+  `attachments: false`, so the editor offers no upload and the attachment
+  panel says that attachments are unavailable; upload and download requests
+  fail with `503` and that explanation, whatever client sends them.
+- Any `S3_*` value together with any `R2_*` value: rejected, because neither
+  can silently win.
+- A partial set (for example a bucket without credentials), an endpoint that
+  is not an absolute `http(s)` URL or carries credentials, a malformed R2
+  account ID or endpoint, or an `S3_FORCE_PATH_STYLE` other than true/false:
+  the API refuses to start and names the variables to fix.
+
+Presigned URLs carry the configured endpoint host, so `S3_ENDPOINT` must be
+reachable both from the API (finalization and removal call it) and from users'
+browsers (they upload and download directly). An internal-only hostname such
+as `http://minio:9000` therefore does not work for browsers; publish the
+service on a name both can resolve. Requests are signed without the SDK's
+optional CRC32 checksums, which several S3-compatible services reject.
+
+Keep the bucket private. A public bucket or custom public domain is
+inappropriate for these organization-scoped files, and presigned URLs operate
+only on the S3 API endpoint. Use credentials scoped to this one bucket.
+
+## Bucket CORS
+
+Browsers send the bytes straight to the bucket, so the bucket must allow a
+cross-origin `PUT` from every origin the app is served on (`PLATFORM_URL`;
+add preview or staging origins only to their own buckets). Downloads are plain
+redirects and need no CORS rule. For R2, AWS S3 and other services that
+support the S3 `PutBucketCors` API (or the R2 dashboard):
 
 ```json
 [
   {
-    "AllowedOrigins": ["https://app.lictory.com"],
+    "AllowedOrigins": ["https://app.example.com"],
     "AllowedMethods": ["PUT"],
     "AllowedHeaders": ["Content-Type", "Content-Length", "If-None-Match"],
     "MaxAgeSeconds": 300
@@ -28,15 +76,40 @@ previews use separate buckets and their own origins:
 ]
 ```
 
+With the AWS CLI against any such endpoint, wrap that list as
+`{"CORSRules": [...]}` and run
+`aws s3api put-bucket-cors --bucket <bucket> --cors-configuration file://cors.json --endpoint-url <endpoint>`.
+Wrangler offers `wrangler r2 bucket cors set <bucket> --file cors.json` for R2.
+
+MinIO does not implement per-bucket CORS: it answers preflights for every
+origin unless the server-wide `MINIO_API_CORS_ALLOW_ORIGIN` setting (default
+`*`) narrows them. In production set it to the app origins, for example
+`MINIO_API_CORS_ALLOW_ORIGIN=https://app.example.com`, or
+`mc admin config set <alias> api cors_allow_origin=https://app.example.com`.
+The development `compose.yaml` keeps the default, so `http://localhost:3000`
+works without setup. Check other services' documentation for the equivalent.
+
+## Development
+
+`docker compose up -d` starts MinIO on `http://127.0.0.1:9000` (console on
+port 9001) and creates the `lictory-files` bucket; `.env.example` points the
+`S3_*` settings at it. `packages/core/src/storage/minio.test.ts` exercises the
+real protocol against it (CORS preflight, create-only signed upload, length
+binding, download headers, copy and delete) and is skipped when no MinIO
+answers.
+
+## Lifecycle
+
 A member starts an upload against an existing, unarchived work item. The server
 validates the filename, extension/MIME pair and 25 MB limit, allocates a unique
 opaque key, and signs a five-minute PUT bound to the declared content
-length and MIME type. The conditional `If-None-Match: *` header prevents a
+length. The conditional `If-None-Match: *` header prevents a
 reused URL from overwriting an existing object. The browser sends the bytes directly to
-R2. Finalization HEAD-checks size and content type before making metadata
-visible. A failed or abandoned upload leaves pending metadata and possibly an
+the bucket with the declared MIME type. The signature does not cover the
+content type, so finalization HEAD-checks both size and content type before
+making metadata visible. A failed or abandoned upload leaves pending metadata and possibly an
 unreferenced object; run an authenticated cleanup job that checks pending metadata first. Do not
-expire the shared key prefix with an R2 lifecycle rule: it also contains ready
+expire the shared key prefix with a bucket lifecycle rule: it also contains ready
 objects. Same-name uploads receive separate IDs and keys.
 
 Markdown stores stable `/api/files/{id}` links. Each read checks current Better
@@ -63,4 +136,4 @@ The accepted list follows Jira's documented image, document, media and
 archive categories, with Markdown and WebP included for software teams. The 25 MB per-file cap matches Linear's
 documented email intake cap; Jira's web attachment limit is larger and
 configurable. This product limit should become a deliberate policy before
-raising it, including upload abuse controls and R2 cost limits.
+raising it, including upload abuse controls and storage cost limits.

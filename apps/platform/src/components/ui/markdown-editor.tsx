@@ -31,6 +31,7 @@ import {
   uploadFile,
   type FileContext,
 } from "@lictory/platform/components/items/file-upload";
+import { useAttachmentsAvailable } from "@lictory/platform/lib/session";
 import { Avatar } from "@lictory/ui/primitives";
 import { cn } from "@lictory/core/lib/utils";
 import { matchesPerson } from "@lictory/core/lib/handles";
@@ -76,7 +77,7 @@ export const MarkdownEditor = forwardRef<
     disabled,
     rows = 4,
     mentions,
-    fileContext,
+    fileContext: requestedFileContext,
     onBlur,
     onPaste,
     ...props
@@ -88,6 +89,10 @@ export const MarkdownEditor = forwardRef<
   useLayoutEffect(() => {
     valueRef.current = value;
   }, [value]);
+  // Files are offered only where the server can store them.
+  const fileContext = useAttachmentsAvailable()
+    ? requestedFileContext
+    : undefined;
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");

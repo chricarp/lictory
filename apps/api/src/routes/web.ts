@@ -28,6 +28,7 @@ import {
   claimHandle,
   suggestHandles,
 } from "@lictory/core/lib/handles-server";
+import { attachmentsAvailable } from "@lictory/core/storage";
 import { MAX_CONTEXT_DOCUMENT_SIZE } from "@lictory/core/intelligence/shared";
 import { PhotoError } from "@lictory/core/profile/image";
 import { MAX_PROFILE_PHOTO_SIZE } from "@lictory/core/profile/photo";
@@ -113,6 +114,8 @@ export function webRoutes() {
           : null,
         providers: authProviders,
         signIn: signInOptions,
+        // False when the server has no object storage: attachments disabled.
+        attachments: attachmentsAvailable(),
       },
       200,
       noStore,

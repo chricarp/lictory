@@ -63,6 +63,19 @@ const appEnv = {
   OAUTH_PROXY_TRUSTED_ORIGINS: "",
   RESEND_API_KEY: "",
   OPENAI_API_KEY: "",
+  // No file storage: the suite checks that attachments explain they are
+  // unavailable, even when a developer's .env points S3_* at MinIO.
+  S3_ENDPOINT: "",
+  S3_REGION: "",
+  S3_BUCKET: "",
+  S3_ACCESS_KEY_ID: "",
+  S3_SECRET_ACCESS_KEY: "",
+  S3_FORCE_PATH_STYLE: "",
+  R2_ACCOUNT_ID: "",
+  R2_ACCESS_KEY_ID: "",
+  R2_SECRET_ACCESS_KEY: "",
+  R2_BUCKET_NAME: "",
+  R2_S3_ENDPOINT: "",
   // Analytics stay off: no browser or server event leaves the test machine.
   POSTHOG_PROJECT_TOKEN: "",
   NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "",

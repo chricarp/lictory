@@ -44,10 +44,19 @@ x-server-environment: &server-environment
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:-}
-  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?}
-  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?}
-  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?}
-  R2_BUCKET_NAME: ${R2_BUCKET_NAME:?}
+  # Optional attachment storage: any S3-compatible service (S3_*) or the
+  # Cloudflare R2 preset (R2_*), not both. Without either, attachments are
+  # disabled. See docs/internals/file-storage.md.
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_REGION: ${S3_REGION:-}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}
+  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+  R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
   R2_S3_ENDPOINT: ${R2_S3_ENDPOINT:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   LICTORY_AI_MODEL: ${LICTORY_AI_MODEL:-}

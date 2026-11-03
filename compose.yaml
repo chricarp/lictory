@@ -2,7 +2,7 @@ name: lictory
 
 # Everything the applications need in development:
 #
-#   docker compose up -d     # PostgreSQL, migrations, zero-cache, Mailpit
+#   docker compose up -d     # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
 #   bun run dev              # the SPA, API, worker and website on the host
 #
 # Run `bun install` first: the migrations container uses this checkout's
@@ -147,7 +147,7 @@ services:
   # and docs/operations/sso.md.
   dex:
     profiles: [sso]
-    image: ghcr.io/dexidp/dex:v2.43.1
+    image: ghcr.io/dexidp/dex:v2.43.1@sha256:0881d3c9359b436d585b2061736ce271c100331e073be9178ef405ce5bf09557
     command: ["dex", "serve", "/etc/dex/config.yaml"]
     ports:
       - "127.0.0.1:5556:5556"
@@ -155,6 +155,41 @@ services:
       - ./deploy/dex/development.yaml:/etc/dex/config.yaml:ro
     restart: unless-stopped
 
+  # S3-compatible storage for attachments (community-maintained MinIO build;
+  # MinIO no longer publishes images). The API signs upload and download URLs
+  # for http://127.0.0.1:9000, so browsers on this machine reach it directly;
+  # MinIO allows any CORS origin by default. Console: http://127.0.0.1:9001.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: lictory
+      MINIO_ROOT_PASSWORD: lictory-development
+      MC_HOST_local: http://lictory:lictory-development@localhost:9000
+    ports:
+      - "${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:9000:9000"
+      - "${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  # Creates the attachment bucket (S3_BUCKET in .env.example) once MinIO is up.
+  minio-setup:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    entrypoint: ["mc", "mb", "--ignore-existing", "local/lictory-files"]
+    environment:
+      MC_HOST_local: http://lictory:lictory-development@minio:9000
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   postgres_data:
   zero_replica:
+  minio_data:

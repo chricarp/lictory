@@ -138,7 +138,7 @@ test("without an AI provider or file storage, refinement works and those feature
     users: ["Noor Plain"],
     disciplines: { 0: "Product" },
   });
-  await seedItem(seeded, {
+  const workItemId = await seedItem(seeded, {
     title: "Statement cut-off",
     description: "# Behavior\n\nStatements close at midnight.",
   });
@@ -168,25 +168,35 @@ test("without an AI provider or file storage, refinement works and those feature
       .getByText("Which time zone do merchants expect?"),
   ).toBeVisible();
 
-  // Attachments need object storage.
-  const chooser = page.waitForEvent("filechooser");
-  await page
-    .getByRole("button", { name: "Insert file or image" })
-    .first()
-    .click();
-  await (
-    await chooser
-  ).setFiles({
-    name: "cut-off.png",
-    mimeType: "image/png",
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-      "base64",
-    ),
-  });
+  // Attachments need object storage: no upload is offered, the attachment
+  // list says why, and the server refuses uploads from any client.
+  const unavailable =
+    "Attachments are unavailable: this server has no file storage configured. Ask an administrator to configure S3-compatible storage.";
   await expect(
-    page.getByText(
-      "File storage is not configured. Ask an administrator to add storage credentials.",
-    ),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Insert file or image" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add files" })).toHaveCount(0);
+  await expect(page.getByText(unavailable)).toBeVisible();
+  const refused = await page.evaluate(
+    async (body) => {
+      const response = await fetch("/api/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return {
+        status: response.status,
+        body: (await response.json()) as unknown,
+      };
+    },
+    {
+      action: "start",
+      organizationId: seeded.organizationId,
+      workItemId,
+      filename: "cut-off.png",
+      mimeType: "image/png",
+      size: 68,
+    },
+  );
+  expect(refused).toEqual({ status: 503, body: { error: unavailable } });
 });

@@ -33,6 +33,7 @@ const serverOnly = [
   /\bhashPassword\b/,
   /\bpg_notify\b/,
   /R2_SECRET_ACCESS_KEY/,
+  /S3_SECRET_ACCESS_KEY/,
   /ZERO_(QUERY|MUTATE)_API_KEY/,
   /DATABASE_URL/,
 ];
