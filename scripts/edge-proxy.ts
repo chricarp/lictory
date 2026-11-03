@@ -10,11 +10,12 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { createProxyServer } from "http-proxy-3";
+import { env, envInteger } from "@lictory/core/lib/env";
 
-const port = Number(process.env.EDGE_PORT ?? 3001);
-const dist = process.env.PLATFORM_DIST_DIR ?? "apps/platform/dist";
-const api = process.env.API_ORIGIN ?? "http://localhost:3002";
-const zero = process.env.ZERO_ORIGIN ?? "http://localhost:4848";
+const port = envInteger("EDGE_PORT") ?? 3001;
+const dist = env("PLATFORM_DIST_DIR") ?? "apps/platform/dist";
+const api = env("API_ORIGIN") ?? "http://localhost:3002";
+const zero = env("ZERO_ORIGIN") ?? "http://localhost:4848";
 
 const types: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",

@@ -2,11 +2,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import {
-  DEFAULT_AI_MODEL,
+  aiModelId,
   generateStructured,
   type AnalyzerCall,
 } from "@lictory/core/ai/analyzer";
 import { proposalIntakeSystem } from "@lictory/core/ai/prompts";
+import { env } from "@lictory/core/lib/env";
 
 // Proposal intake turns rough material (meeting notes, customer requests,
 // support tickets, documents) into *proposed* proposals. Nothing is created:
@@ -113,13 +114,9 @@ export type ProposalDrafter = {
 export function createProposalDrafter(
   options: { model?: LanguageModel; modelId?: string } = {},
 ): ProposalDrafter {
-  const modelId =
-    options.modelId ??
-    process.env.LICTORY_AI_MODEL?.trim().replace(/^$/, DEFAULT_AI_MODEL) ??
-    DEFAULT_AI_MODEL;
+  const modelId = options.modelId ?? aiModelId();
   const model =
-    options.model ??
-    createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
+    options.model ?? createOpenAI({ apiKey: env("OPENAI_API_KEY") })(modelId);
   return {
     model: modelId,
     draft: (context, call) =>

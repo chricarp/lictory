@@ -14,6 +14,7 @@ import { queries } from "@lictory/zero/queries";
 import { schema } from "@lictory/zero/schema";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
 import { mutationSchema } from "@lictory/core/contracts/protocol";
+import { env } from "@lictory/core/lib/env";
 import {
   applyMutation,
   type Database,
@@ -101,7 +102,7 @@ export function createZeroEndpoints(
   // Domain rejections are expected outcomes, not server problems; Zero's
   // per-mutation warnings would otherwise log each one with a stack.
   const logLevel =
-    (process.env.ZERO_SERVER_LOG_LEVEL as
+    (env("ZERO_SERVER_LOG_LEVEL") as
       "debug" | "info" | "warn" | "error" | undefined) ?? "error";
   return {
     query(request: Request, userID: string) {

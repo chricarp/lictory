@@ -17,15 +17,16 @@ import {
   resolveMigrationConnection,
   type RepositoryMigration,
 } from "@lictory/core/db/migration-safety";
+import { env, envInteger } from "@lictory/core/lib/env";
 
 const migrationsFolder = "drizzle";
 // Arbitrary fixed key shared by every runner of this application's migrations.
 const advisoryLockKey = 7_316_442_105_839_201n;
 
 const statusOnly = process.argv.includes("--status");
-const lockWaitSeconds = Number(process.env.MIGRATION_LOCK_WAIT_SECONDS ?? 300);
-const lockTimeout = process.env.MIGRATION_LOCK_TIMEOUT ?? "10s";
-const statementTimeout = process.env.MIGRATION_STATEMENT_TIMEOUT ?? "10min";
+const lockWaitSeconds = envInteger("MIGRATION_LOCK_WAIT_SECONDS") ?? 300;
+const lockTimeout = env("MIGRATION_LOCK_TIMEOUT") ?? "10s";
+const statementTimeout = env("MIGRATION_STATEMENT_TIMEOUT") ?? "10min";
 
 async function repositoryMigrations(): Promise<RepositoryMigration[]> {
   const journal = JSON.parse(

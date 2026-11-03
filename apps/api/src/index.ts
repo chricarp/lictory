@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { closeDatabase } from "@lictory/core/db";
 import { realtime } from "@lictory/core/domain/realtime";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
+import { env, envInteger } from "@lictory/core/lib/env";
 import { createApp } from "@lictory/api/app";
 import { closeEventStreams } from "@lictory/api/routes/events";
 
@@ -9,9 +10,9 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 // mutate endpoints, event streams and the SPA document. Background work runs
 // in the worker, never here.
 
-const port = Number(process.env.PORT ?? 3002);
-const hostname = process.env.HOST ?? "0.0.0.0";
-const DRAIN_MS = Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 25_000);
+const port = envInteger("PORT") ?? 3002;
+const hostname = env("HOST") ?? "0.0.0.0";
+const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
 
 let draining = false;
 let inflight = 0;

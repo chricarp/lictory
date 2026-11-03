@@ -11,6 +11,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 
 import { authSchemaOptions } from "@lictory/core/lib/auth-schema-options";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
+import { env } from "@lictory/core/lib/env";
 import { oauthProxyConfig } from "@lictory/core/lib/oauth-proxy";
 import {
   normalizeOrganizationHandle,
@@ -120,7 +121,7 @@ export const auth = betterAuth({
           microsoft: {
             clientId: process.env.MICROSOFT_CLIENT_ID!,
             clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
-            tenantId: process.env.MICROSOFT_TENANT_ID ?? "common",
+            tenantId: env("MICROSOFT_TENANT_ID") ?? "common",
             prompt: "select_account" as const,
             overrideUserInfoOnSignIn: false,
             ...microsoftEmailPolicy,

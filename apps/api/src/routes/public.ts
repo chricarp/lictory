@@ -6,6 +6,7 @@ import {
   relayTarget,
 } from "@lictory/core/lib/analytics/relay";
 import { siteUrl } from "@lictory/core/lib/auth-base-url";
+import { env } from "@lictory/core/lib/env";
 import { socialPreviewHead } from "@lictory/core/lib/social-preview-kind";
 
 // First-party relay for the PostHog browser SDK. It forwards only what PostHog
@@ -101,7 +102,7 @@ const placeholder = "<!--app-head-->";
 let template: Promise<string> | undefined;
 function documentTemplate() {
   const directory =
-    process.env.PLATFORM_DIST_DIR ??
+    env("PLATFORM_DIST_DIR") ??
     path.resolve(process.cwd(), "apps/platform/dist");
   template ??= readFile(path.join(directory, "index.html"), "utf8").catch(
     (error: unknown) => {
