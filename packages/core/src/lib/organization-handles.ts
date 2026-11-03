@@ -2,7 +2,7 @@
 // person handles. Existing generated slugs remain valid until changed.
 export const ORGANIZATION_HANDLE_MAX = 30;
 
-// Organizations are the first path segment of the app (app.lictory.com/acme),
+// Organizations are the first path segment of the app (app.example.com/acme),
 // so no organization may shadow a top-level app page, API or static asset path.
 const reserved = new Set([
   // App pages.

@@ -1,10 +1,11 @@
 # Product analytics
 
 PostHog tracks actions across refinement and both delivery modes. Set
-`VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` (platform build),
-`NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`/`NEXT_PUBLIC_POSTHOG_HOST` (website build) and
-`POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST` (API and worker) **before building**: the
-browser builds embed public variables into their bundles. Use the
+`POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST` in the application's environment: the API
+and worker read them at runtime, and the API writes them into the platform's
+SPA document (`packages/core/src/lib/public-config.ts`), so the platform build
+carries no analytics settings. The prerendered website embeds its own copies,
+`NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`/`NEXT_PUBLIC_POSTHOG_HOST`, at build time. Use the
 project's ingestion host; the example environment uses EU Cloud. Both browser and
 server tracking are disabled when either variable is absent. Analytics failures
 must never prevent signing in, reviewing, synchronizing or publishing.

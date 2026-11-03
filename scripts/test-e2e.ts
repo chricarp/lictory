@@ -51,8 +51,9 @@ const appEnv = {
   OAUTH_PROXY_TRUSTED_ORIGINS: "",
   RESEND_API_KEY: "",
   OPENAI_API_KEY: "",
+  // Analytics stay off: no browser or server event leaves the test machine.
+  POSTHOG_PROJECT_TOKEN: "",
   NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "",
-  VITE_POSTHOG_PROJECT_TOKEN: "",
   SMTP_HOST: process.env.SMTP_HOST ?? "localhost",
   SMTP_PORT: process.env.SMTP_PORT ?? "1025",
   GOOGLE_CLIENT_ID: "e2e-google-client-id",
@@ -183,7 +184,6 @@ try {
       ...appEnv,
       API_ORIGIN: `http://localhost:${ports.api}`,
       NODE_ENV: "production" as const,
-      VITE_SITE_URL: siteUrl,
       NEXT_PUBLIC_PLATFORM_URL: platformUrl,
       NEXT_TELEMETRY_DISABLED: "1",
     };

@@ -4,6 +4,10 @@ import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { appearanceBootScript } from "../../packages/core/src/lib/appearance";
+import {
+  analyticsSettings,
+  publicConfigTag,
+} from "../../packages/core/src/lib/public-config";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const workspace = (path: string) => `${root}${path}`;
@@ -48,6 +52,26 @@ function appearanceBoot(): Plugin {
   };
 }
 
+// The development server serves index.html itself, so it writes the runtime
+// configuration the API's document handler writes in production. Builds keep
+// the placeholder: nothing installation-specific is compiled into them.
+function developmentConfig(env: Record<string, string>): Plugin {
+  return {
+    name: "lictory-development-config",
+    apply: "serve",
+    transformIndexHtml(html) {
+      const site = env.SITE_URL?.trim();
+      return html.replace("<!--app-head-->", () =>
+        publicConfigTag({
+          // Empty: the browser falls back to the page's own origin.
+          siteUrl: site ? new URL(site).origin : "",
+          analytics: analyticsSettings(env),
+        }),
+      );
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, "");
   // Empty variables count as unset.
@@ -60,8 +84,6 @@ export default defineConfig(({ mode }) => {
       version: string;
     }
   ).version;
-  const posthogToken = env.VITE_POSTHOG_PROJECT_TOKEN ?? "";
-  const posthogHost = env.VITE_POSTHOG_HOST ?? "";
   // One origin in development and previews: the API, zero-cache and the
   // analytics relay sit behind the app's own server, as in production.
   const proxy: Record<string, ProxyOptions> = {
@@ -74,7 +96,13 @@ export default defineConfig(({ mode }) => {
     root: fileURLToPath(new URL(".", import.meta.url)),
     envDir: root,
     publicDir: workspace("packages/ui/public"),
-    plugins: [react(), tailwindcss(), appearanceBoot(), appStatic()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      appearanceBoot(),
+      appStatic(),
+      developmentConfig(env),
+    ],
     resolve: {
       alias: [
         {
@@ -89,12 +117,12 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       "import.meta.env.VITE_APP_VERSION": JSON.stringify(version),
-      // Shared browser modules read the build's public settings under their
-      // original names.
+      // Shared browser modules read build settings under the website's
+      // names. Analytics come from the runtime configuration instead
+      // (lib/public-config), so the build carries none.
       "process.env.NEXT_PUBLIC_APP_VERSION": JSON.stringify(version),
-      "process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN":
-        JSON.stringify(posthogToken),
-      "process.env.NEXT_PUBLIC_POSTHOG_HOST": JSON.stringify(posthogHost),
+      "process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN": JSON.stringify(""),
+      "process.env.NEXT_PUBLIC_POSTHOG_HOST": JSON.stringify(""),
     },
     server: { port, strictPort: true, proxy },
     preview: { port, strictPort: true, proxy },

@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 
 import { ConsentBanner, ConsentDialog } from "@lictory/ui/consent/consent-ui";
 import {
+  browserAnalyticsSettings,
   clearAnalyticsStorage,
   hasAnalyticsConsent,
   onMeasurementConsentGranted,
@@ -20,9 +21,6 @@ import {
   posthogHosts,
 } from "@lictory/core/lib/analytics/relay";
 
-const posthogToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-
 // PostHog always loads, through the first-party relay, in one of two modes:
 // - Analytics consent granted: normal capture with PostHog's first-party cookie,
 //   identified users and organization groups.
@@ -36,12 +34,13 @@ const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 // starts again in cookieless mode. Server-side events (posthog-node) are not
 // governed by this browser choice.
 function consentScripts() {
-  if (!posthogToken || !posthogHost) return [];
+  const analytics = browserAnalyticsSettings();
+  if (!analytics) return [];
   return [
     posthog({
-      id: posthogToken,
+      id: analytics.projectToken,
       apiHost: analyticsRelayPath,
-      uiHost: posthogHosts(posthogHost).ui,
+      uiHost: posthogHosts(analytics.host).ui,
       loadMode: "always",
       initOptions: {
         defaults: "2026-01-30",

@@ -77,14 +77,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
-      SITE_URL: ${{ vars.STAGING_SITE_URL }}
       PLATFORM_URL: ${{ vars.STAGING_PLATFORM_URL }}
-      POSTHOG_PROJECT_TOKEN: ${{ vars.STAGING_POSTHOG_PROJECT_TOKEN }}
-      POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-      LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
-      LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
-      LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
-      LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -141,14 +134,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
-      SITE_URL: ${{ vars.STAGING_SITE_URL }}
       PLATFORM_URL: ${{ vars.STAGING_PLATFORM_URL }}
-      POSTHOG_PROJECT_TOKEN: ${{ vars.STAGING_POSTHOG_PROJECT_TOKEN }}
-      POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-      LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
-      LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
-      LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
-      LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

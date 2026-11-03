@@ -2,10 +2,36 @@
 
 import type { AnalyticsProperties } from "@lictory/core/lib/analytics/events";
 
-export const analyticsConfigured = Boolean(
+export type BrowserAnalyticsSettings = {
+  projectToken: string;
+  host: string;
+} | null;
+
+// The website embeds its settings at build time. The platform replaces them
+// with the installation's runtime configuration (lib/public-config) before it
+// renders, through `configureAnalytics`.
+let settings: BrowserAnalyticsSettings =
   process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN &&
-  process.env.NEXT_PUBLIC_POSTHOG_HOST,
-);
+  process.env.NEXT_PUBLIC_POSTHOG_HOST
+    ? {
+        projectToken: process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
+        host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+      }
+    : null;
+
+/** Sets the browser analytics settings; call once, before the first render. */
+export function configureAnalytics(next: BrowserAnalyticsSettings) {
+  settings = next;
+}
+
+/** The PostHog project and ingestion host, or null when analytics are off. */
+export function browserAnalyticsSettings(): BrowserAnalyticsSettings {
+  return settings;
+}
+
+export function analyticsConfigured() {
+  return settings !== null;
+}
 
 // The consent provider always loads PostHog. Without Analytics consent it runs
 // cookieless and anonymous: events are captured, but nobody is identified,
@@ -29,7 +55,7 @@ type PostHogClient = {
 };
 
 function loadedPostHog(): PostHogClient | null {
-  if (!analyticsConfigured || typeof window === "undefined") return null;
+  if (!analyticsConfigured() || typeof window === "undefined") return null;
   const client = (window as unknown as { posthog?: PostHogClient }).posthog;
   return client?.__loaded ? client : null;
 }

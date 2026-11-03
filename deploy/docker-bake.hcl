@@ -1,20 +1,22 @@
 # Builds every Lictory production image from one source checkout.
 #
 #   REGISTRY=ghcr.io/acme VERSION=1.5.0 GIT_SHA=$(git rev-parse HEAD) \
-#   SITE_URL=https://lictory.com PLATFORM_URL=https://app.lictory.com \
 #   docker buildx bake -f deploy/docker-bake.hcl --push --metadata-file build.json
 #
-# Browser and website bundles embed public origins at build time, so nightly
-# (staging) and stable (production) images are separate builds of the same
-# verified commit. Tags: <version> and sha-<git sha>-<channel>; deploy by digest.
+# The default images carry no domain or analytics settings: the API reads them
+# from its environment at runtime, so the same image runs on any hostname.
+# Only the optional marketing website (`marketing` target) embeds its origins:
+# set SITE_URL and PLATFORM_URL to build it. Tags: <version> and
+# sha-<git sha>-<channel>; deploy by digest.
 
 variable "REGISTRY" { default = "ghcr.io/lictory" }
 variable "VERSION" { default = "0.0.0" }
 variable "GIT_SHA" { default = "unknown" }
 variable "CHANNEL" { default = "local" }
 variable "SOURCE_URL" { default = "" }
-variable "SITE_URL" { default = "https://lictory.com" }
-variable "PLATFORM_URL" { default = "https://app.lictory.com" }
+# Website-only build settings (the `marketing` target).
+variable "SITE_URL" { default = "" }
+variable "PLATFORM_URL" { default = "" }
 variable "POSTHOG_PROJECT_TOKEN" { default = "" }
 variable "POSTHOG_HOST" { default = "" }
 variable "LICTORY_LEGAL_NAME" { default = "" }
@@ -37,19 +39,8 @@ target "_common" {
   dockerfile = "Dockerfile"
   platforms  = split(",", PLATFORMS)
   args = {
-    APP_VERSION                       = VERSION
-    VITE_SITE_URL                     = SITE_URL
-    VITE_POSTHOG_PROJECT_TOKEN        = POSTHOG_PROJECT_TOKEN
-    VITE_POSTHOG_HOST                 = POSTHOG_HOST
-    SITE_URL                          = SITE_URL
-    NEXT_PUBLIC_PLATFORM_URL          = PLATFORM_URL
-    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN = POSTHOG_PROJECT_TOKEN
-    NEXT_PUBLIC_POSTHOG_HOST          = POSTHOG_HOST
-    LICTORY_LEGAL_NAME                = LICTORY_LEGAL_NAME
-    LICTORY_LEGAL_ADDRESS             = LICTORY_LEGAL_ADDRESS
-    LICTORY_LEGAL_EMAIL               = LICTORY_LEGAL_EMAIL
-    LICTORY_LEGAL_REGISTRATION        = LICTORY_LEGAL_REGISTRATION
-    PREVIOUS_PROXY_IMAGE              = PREVIOUS_PROXY_IMAGE
+    APP_VERSION          = VERSION
+    PREVIOUS_PROXY_IMAGE = PREVIOUS_PROXY_IMAGE
   }
   labels = {
     "org.opencontainers.image.version"  = VERSION
@@ -88,6 +79,16 @@ target "api" {
 target "marketing" {
   inherits = ["_common"]
   target   = "marketing"
+  args = {
+    SITE_URL                          = SITE_URL
+    NEXT_PUBLIC_PLATFORM_URL          = PLATFORM_URL
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN = POSTHOG_PROJECT_TOKEN
+    NEXT_PUBLIC_POSTHOG_HOST          = POSTHOG_HOST
+    LICTORY_LEGAL_NAME                = LICTORY_LEGAL_NAME
+    LICTORY_LEGAL_ADDRESS             = LICTORY_LEGAL_ADDRESS
+    LICTORY_LEGAL_EMAIL               = LICTORY_LEGAL_EMAIL
+    LICTORY_LEGAL_REGISTRATION        = LICTORY_LEGAL_REGISTRATION
+  }
   tags     = tags("marketing")
   cache-from = cache_from("marketing")
   cache-to   = cache_to("marketing")

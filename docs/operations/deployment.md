@@ -133,8 +133,16 @@ passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 Each service receives only the variables it needs (see
 `deploy/compose.production.yaml`). Secrets are visible to anyone who can run
 Docker on the server, which is why only the administrator and `deploy` can log
-in. Browser bundles receive public origins and PostHog tokens at build time
-from GitHub variables, not from `.env`.
+in.
+
+Images carry no domain or analytics settings, so the same image runs on any
+hostname. The API writes the platform's public runtime configuration (the
+website origin from `SITE_URL` and the browser analytics settings from
+`POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST`) into each SPA document it serves; the
+browser reads it there instead of from the bundle. Change `.env` and restart
+the API to change them. When Cloudflare serves the platform SPA (lictory.com),
+its Worker writes the same configuration from its own variables
+([websites on Cloudflare](cloudflare-marketing.md)).
 
 ## Database roles
 
@@ -169,8 +177,8 @@ the API/worker, proxy, migration and operations images. Actions builds only
 `linux/arm64` on a native runner for Hetzner. Every target uses the selected checkout, so the API's
 `index.html` and the proxy's assets come from the same SPA build. Tags are the
 release version and `sha-<commit>-<channel>`; deployments always pin digests.
-The browser and website bundles embed their public origins, so a stable build
-of a commit differs from its nightly build. Registry layer caches default to
+The images embed no public origins; only the marketing website, which is not
+part of the release images, is built for one domain. Registry layer caches default to
 `IMAGE_REGISTRY/lictory-cache`; set `IMAGE_CACHE_REGISTRY` to use another
 namespace. Cache tags are isolated by image, release channel and architecture.
 The marketing Docker target is excluded from releases: both public frontends

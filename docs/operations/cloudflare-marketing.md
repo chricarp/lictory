@@ -8,7 +8,11 @@ The marketing build uses Next.js static export. Its metadata, social images and
 Markdown documents are generated at build time; no Next.js server or R2 cache is
 needed. A small Cloudflare Worker preserves canonical redirects and Markdown
 media types. `www` redirects permanently to the same path and query on the apex.
-The platform uses Vite's static output with an SPA fallback.
+The platform uses Vite's static output with an SPA fallback. Its bundle carries
+no installation settings: the Worker writes the platform's public runtime
+configuration into each document, like the API does on a self-hosted server,
+from `SITE_URL` in `apps/platform/wrangler.jsonc` and the `POSTHOG_PROJECT_TOKEN`
+and `POSTHOG_HOST` variables the deployment passes with `wrangler deploy --var`.
 
 Both frontends forward their `/relay` requests to the backend. The platform also
 forwards `/api` and `/zero`, including WebSocket upgrades and streaming responses.

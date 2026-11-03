@@ -1,3 +1,7 @@
+import {
+  analyticsSettings,
+  publicConfigTag,
+} from "../../../packages/core/src/lib/public-config";
 import { socialPreviewHead } from "../../../packages/core/src/lib/social-preview-kind";
 
 interface Environment {
@@ -6,6 +10,9 @@ interface Environment {
   SITE_URL: string;
   PLATFORM_URL: string;
   BACKEND_ORIGIN: string;
+  /** Browser analytics for the platform document; unset disables them. */
+  POSTHOG_PROJECT_TOKEN?: string;
+  POSTHOG_HOST?: string;
 }
 
 const accountPages = new Set([
@@ -57,7 +64,7 @@ export default {
     const path = url.pathname;
     if (env.SITE_KIND === "marketing") {
       let destination: URL | undefined;
-      if (url.hostname === "www.lictory.com") {
+      if (url.hostname === `www.${new URL(env.SITE_URL).hostname}`) {
         destination = destinationUrl(env.SITE_URL, path, url.search);
       } else if (path === "/home") {
         destination = destinationUrl(env.SITE_URL, "/", url.search);
@@ -134,7 +141,12 @@ export default {
           ? null
           : (await asset.text()).replace(
               "<!--app-head-->",
-              socialPreviewHead(path, env.SITE_URL),
+              () =>
+                socialPreviewHead(path, env.SITE_URL) +
+                publicConfigTag({
+                  siteUrl: new URL(env.SITE_URL).origin,
+                  analytics: analyticsSettings(env),
+                }),
             );
       return new Response(html, { status: asset.status, headers });
     }

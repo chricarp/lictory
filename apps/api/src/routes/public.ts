@@ -6,6 +6,10 @@ import {
   relayTarget,
 } from "@lictory/core/lib/analytics/relay";
 import { siteUrl } from "@lictory/core/lib/auth-base-url";
+import {
+  analyticsSettings,
+  publicConfigTag,
+} from "@lictory/core/lib/public-config";
 import { socialPreviewHead } from "@lictory/core/lib/social-preview-kind";
 
 // First-party relay for the PostHog browser SDK. It forwards only what PostHog
@@ -95,8 +99,10 @@ export function relayRoutes() {
 
 // The SPA document. The reverse proxy serves hashed assets itself and sends
 // every other page request here; the response is the built index.html with
-// path-derived social preview tags. Path only: no session or database reads,
-// so the document never reveals workspace data and is never cached.
+// path-derived social preview tags and this installation's public runtime
+// configuration (lib/public-config), so one build serves any domain. Path
+// and environment only: no session or database reads, so the document never
+// reveals workspace data and is never cached.
 const placeholder = "<!--app-head-->";
 let template: Promise<string> | undefined;
 function documentTemplate() {
@@ -124,8 +130,18 @@ export function documentRoutes() {
       });
     }
     const url = new URL(c.req.url);
+    const site = siteUrl();
+    const head =
+      socialPreviewHead(url.pathname, site) +
+      publicConfigTag({
+        siteUrl: site,
+        analytics: analyticsSettings({
+          POSTHOG_PROJECT_TOKEN: process.env.POSTHOG_PROJECT_TOKEN,
+          POSTHOG_HOST: process.env.POSTHOG_HOST,
+        }),
+      });
     return c.html(
-      html.replace(placeholder, socialPreviewHead(url.pathname, siteUrl())),
+      html.replace(placeholder, () => head),
       200,
       {
         "Cache-Control": "no-store",
