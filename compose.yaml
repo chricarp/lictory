@@ -8,6 +8,10 @@ name: lictory
 # Run `bun install` first: the migrations container uses this checkout's
 # node_modules. Production uses deploy/compose.production.yaml; see
 # docs/operations/development.md.
+#
+# Published ports listen on 127.0.0.1 only: these services use well-known
+# development credentials. For remote development, set
+# LICTORY_DEV_BIND_ADDRESS (in the shell or .env) to the interface to expose.
 services:
   # Zero needs PostgreSQL 15+ with logical decoding, enough WAL senders and
   # replication slots, and a superuser connection so it can install the event
@@ -32,7 +36,7 @@ services:
       - -c
       - max_slot_wal_keep_size=2GB
     ports:
-      - "5432:5432"
+      - "${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -109,7 +113,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "4848:4848"
+      - "${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:4848:4848"
     volumes:
       - zero_replica:/data
     healthcheck:
@@ -134,8 +138,8 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:1025:1025"
+      - "${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:8025:8025"
     restart: unless-stopped
 
 volumes:
