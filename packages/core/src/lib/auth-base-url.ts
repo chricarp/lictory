@@ -1,6 +1,6 @@
 type Environment = Readonly<Record<string, string | undefined>>;
 
-// The platform's one public origin (https://app.lictory.com): Better Auth's
+// The platform's one public origin (PLATFORM_URL): Better Auth's
 // base URL, links in email, Jira backlinks and the exact-origin check for
 // cookie-authenticated writes. Client headers never add origins. Outside
 // production, BETTER_AUTH_URL and then the local dev origin are fallbacks.
@@ -30,7 +30,8 @@ export function platformUrl(env: Environment = process.env): string {
   return url.origin;
 }
 
-// The marketing site (https://lictory.com): legal pages and other public links.
+// The public website (SITE_URL): legal pages and other public links. Without
+// one, the platform origin.
 export function siteUrl(env: Environment = process.env): string {
   return new URL(setting(env.SITE_URL) ?? platformUrl(env)).origin;
 }

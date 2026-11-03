@@ -187,7 +187,7 @@ export function WorkspaceProvider({
   const zero = useZero();
   const lastOrganization = useRef<string | null>(null);
   useEffect(() => {
-    if (!analyticsConfigured) return;
+    if (!analyticsConfigured()) return;
     identifyUser(userId);
     setAnalyticsOrganization(membership.id);
     if (lastOrganization.current !== membership.id) {

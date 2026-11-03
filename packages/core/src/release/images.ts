@@ -116,15 +116,7 @@ export function releaseFile(manifest: Manifest, images: Images): string {
 
 export type BuildConfiguration = {
   registry: string;
-  /** Public origins compiled into browser and website bundles. */
-  siteUrl: string;
-  platformUrl: string;
   sourceUrl: string;
-  posthogProjectToken?: string;
-  posthogHost?: string;
-  legal?: Partial<
-    Record<"name" | "address" | "email" | "registration", string>
-  >;
   /** Proxy image of the release being replaced; keeps its hashed assets. */
   previousProxyImage?: string;
   /** Registry namespace for BuildKit layer caches (one cache image per target). */
@@ -155,12 +147,6 @@ export function bakeEnvironment(
   config: BuildConfiguration,
 ): Record<string, string> {
   assertRegistry(config.registry);
-  for (const origin of [config.siteUrl, config.platformUrl])
-    if (
-      new URL(origin).protocol !== "https:" ||
-      new URL(origin).origin !== origin
-    )
-      throw new Error("Build origins must be bare https:// origins.");
   if (config.previousProxyImage)
     assertImage("proxy", config.previousProxyImage, config.registry);
   return {
@@ -169,14 +155,6 @@ export function bakeEnvironment(
     GIT_SHA: manifest.sha,
     CHANNEL: manifest.channel,
     SOURCE_URL: config.sourceUrl,
-    SITE_URL: config.siteUrl,
-    PLATFORM_URL: config.platformUrl,
-    POSTHOG_PROJECT_TOKEN: config.posthogProjectToken ?? "",
-    POSTHOG_HOST: config.posthogHost ?? "",
-    LICTORY_LEGAL_NAME: config.legal?.name ?? "",
-    LICTORY_LEGAL_ADDRESS: config.legal?.address ?? "",
-    LICTORY_LEGAL_EMAIL: config.legal?.email ?? "",
-    LICTORY_LEGAL_REGISTRATION: config.legal?.registration ?? "",
     PREVIOUS_PROXY_IMAGE: config.previousProxyImage ?? "no-previous-assets",
     CACHE_REGISTRY: config.cacheRegistry ?? `${config.registry}/lictory-cache`,
     CACHE_SCOPE: `${manifest.channel}-${config.architecture ?? "multi"}`,
