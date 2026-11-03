@@ -131,6 +131,7 @@ export function ProjectMembers({
               {role ? (
                 <>
                   <div
+                    role="group"
                     className="flex flex-wrap gap-1"
                     aria-label={`Disciplines of ${m.name}`}
                   >

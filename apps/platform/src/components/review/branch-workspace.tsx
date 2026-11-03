@@ -1830,6 +1830,7 @@ function SyncBranch({
         Compare & update branch
       </Button>
       {resolving && ours && theirs && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape bubbles from the dialog's controls to close it.
         <div
           role="dialog"
           aria-modal="true"

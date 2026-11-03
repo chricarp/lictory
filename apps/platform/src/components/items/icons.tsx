@@ -53,6 +53,7 @@ export function TypeIcon({
   const { icon: Glyph, filled } = typeGlyph[type.icon] ?? typeGlyph.task;
   return (
     <span
+      role="img"
       aria-label={type.name}
       title={type.name}
       className={cn(

@@ -245,6 +245,7 @@ export function ExportDialog({
       )
     : [];
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape bubbles from the dialog's controls; the backdrop is not a control.
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[10vh] pb-4"
       onKeyDown={(e) => {

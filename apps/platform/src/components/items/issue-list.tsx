@@ -499,13 +499,26 @@ export function IssueList({
             width={280}
             align="end"
             trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm" aria-label="Filters">
+              <Button
+                {...props}
+                variant="ghost"
+                size="sm"
+                aria-label={
+                  activeFilterCount > 0
+                    ? `Filters, ${activeFilterCount} active`
+                    : "Filters"
+                }
+              >
                 <Filter className="size-3.5" />
-                {!compact && "Filter"}
+                {!compact && "Filters"}
                 {activeFilterCount > 0 && (
-                  <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
-                    {activeFilterCount}
-                  </span>
+                  // The count is in the button's name; drawn so the visible
+                  // label stays a part of that name (WCAG 2.5.3).
+                  <span
+                    aria-hidden
+                    data-count={activeFilterCount}
+                    className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary before:content-[attr(data-count)]"
+                  />
                 )}
               </Button>
             )}
