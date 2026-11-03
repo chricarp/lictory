@@ -88,6 +88,7 @@ Production images and the single-server stack are described in
 | `bun test src/<area>` | Focused domain tests while you work                |
 | `bun run test:sync`   | Synchronization invariants against PostgreSQL      |
 | `bun run test:e2e`    | Production build plus browser workflows            |
+| `bun run test:smoke`  | Production build plus the `@smoke` workflows only  |
 | `bun run db:generate` | Committed SQL migration after a schema change      |
 | `bun run db:check`    | Fail when the schema has no matching migration     |
 
@@ -120,13 +121,53 @@ identity provider and is skipped without one. To run it, start the local Dex
 `E2E_OIDC_ISSUER=http://127.0.0.1:5556/dex` for `bun run test:e2e`; see
 [single sign-on](./sso.md).
 
+### Test tiers
+
+The suite is layered so that a regression in what teams rely on fails fast,
+while the code stays cheap to change. Pick the lowest tier that proves a
+behavior.
+
+| Tier              | Proves                                                            | Command              | Runs on pull requests               |
+| ----------------- | ----------------------------------------------------------------- | -------------------- | ----------------------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`      | Always                              |
+| Domain            | Invariants and contracts against real PostgreSQL                  | `bun test src`       | Unless the change is prose          |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke` | When applications or tests change   |
+| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`   | Manual (`CI` → Run workflow → full) |
+
+`.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
+for paths it does not recognise. The required `Verify` check passes only when
+every selected job passed.
+
+What earns a test, while the product is young:
+
+- A domain invariant (approvals belong to revisions, revisions are immutable,
+  tenant isolation, server-side authorization, readiness evidence): a domain
+  test at the boundary that enforces it, not a browser workflow.
+- A bug fix: a regression test at the lowest tier that reproduces the bug.
+- A journey whose breakage would stop a team working: a browser workflow. Tag
+  it `@smoke` (in the title) only if it is one of the few journeys every
+  release must keep. The smoke tier stays around a dozen tests and under five
+  minutes in CI; adding one means retiring or merging another. A smoke test
+  must pass on its own: it creates its own people and organizations instead of
+  relying on what an earlier test left behind.
+
+What does not: markup snapshots, component internals, mocks of our own
+modules, copy assertions unless the wording is the behavior, and browser tests
+that repeat a domain test. A test that breaks whenever the implementation
+changes without the behavior changing should be rewritten or deleted.
+
+CI retries a failed browser test once and reports it as flaky. A flaky test is
+fixed promptly or marked `test.fixme` with a linked issue; it never gets more
+retries. `scripts/test-e2e.ts` stops the run as soon as a service it started
+exits, and an interrupted run (Ctrl-C, a cancelled job) still stops its
+services and drops its database.
+
 ## Full verification before a pull request
 
-GitHub Actions CI is deliberately minimal to save minutes: it runs only
-`bun run typecheck` and `bun run db:check`. Everything else (audit, lint,
-format, knip, domain tests and browser workflows) runs only locally, so run the
-complete sequence below before opening or updating a pull request, in order and
-against a disposable database, never your development database:
+Pull request CI runs the [test tiers](#test-tiers) the change needs, but it
+does not replace this sequence. Run
+the complete sequence below before opening or updating a pull request, in order
+and against a disposable database, never your development database:
 
 ```sh
 docker compose up -d postgres mailpit

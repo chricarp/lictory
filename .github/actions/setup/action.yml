@@ -1,0 +1,31 @@
+name: Set up Lictory
+description: >-
+  Bun from package.json, the optional release version embedded in the checkout,
+  and a frozen-lockfile install. Runs after actions/checkout.
+
+inputs:
+  release-version:
+    description: Release version to embed (release candidates only)
+    default: ""
+  bun-cache:
+    description: Restore the Bun binary from the tool cache (release builds disable it)
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      with:
+        bun-version-file: package.json
+        no-cache: ${{ inputs.bun-cache != 'true' }}
+    - name: Embed the selected release version
+      if: inputs.release-version != ''
+      shell: bash
+      env:
+        RELEASE_VERSION: ${{ inputs.release-version }}
+      run: bun scripts/inject-release-version.ts "$RELEASE_VERSION"
+    # No download cache: a fresh frozen-lockfile install measured faster than
+    # restoring and saving Bun's cache.
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile

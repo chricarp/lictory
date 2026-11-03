@@ -559,8 +559,9 @@ reachable on the website. Google's authorized redirect URI is likewise
 
 ## Verification and CI
 
-GitHub Actions CI runs only `bun run typecheck` and `bun run db:check`; the
-full verification sequence runs locally ([development](development.md)).
+Pull request CI runs the [test tiers](development.md#test-tiers) a change
+needs; the full verification sequence runs locally
+([development](development.md)).
 Release workflows build images on hosted runners and need no database
 credentials: databases are reachable only on their server.
 

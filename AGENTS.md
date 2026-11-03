@@ -1143,10 +1143,11 @@ request, run the complete local verification sequence below against the final
 working tree. This is mandatory for AI agents, including documentation-only
 changes. Targeted tests during implementation do not replace this final step.
 
-GitHub Actions CI ([the CI workflow](.github/workflows/ci.yml)) is deliberately
-minimal to save Actions minutes: it only runs `bun run typecheck` and
-`bun run db:check`. Audit, lint, format, knip, domain tests and browser
-workflows run only here, locally, so this sequence is the real quality gate.
+GitHub Actions CI ([the CI workflow](.github/workflows/ci.yml)) runs on every
+pull request behind the required `Verify` check: static checks always, domain
+tests and the `@smoke` browser workflows when the changed paths need them. CI
+is a safety net, not a substitute: this local sequence remains the complete
+gate.
 Execute every command in this order with the same arguments, running the
 browser suite unsharded:
 
@@ -1206,7 +1207,9 @@ Examples:
 
 Do not write tests that merely mirror implementation details.
 
-Test observable behavior and invariants.
+Test observable behavior and invariants. Pick the lowest tier that proves the
+behavior (domain test before browser workflow) and keep the `@smoke` tier
+small; see [test tiers](docs/operations/development.md#test-tiers).
 
 ---
 

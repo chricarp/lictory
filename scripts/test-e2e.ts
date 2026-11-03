@@ -19,6 +19,7 @@ const offset = Number(process.env.E2E_PORT_OFFSET ?? 0);
 const ports = {
   edge: 3001 + offset,
   api: 3002 + offset,
+  workerHealth: 3003 + offset,
   marketing: 3101 + offset,
   zero: 4858 + offset * 10,
   zeroChangeStreamer: 4859 + offset * 10,
@@ -94,9 +95,39 @@ const appEnv = {
   ZERO_MUTATE_API_KEY: "e2e-zero-mutate-key",
 };
 
+// The build or Playwright process in the foreground, stopped on interruption.
+let foreground: ChildProcess | undefined;
+let interrupted: NodeJS.Signals | undefined;
+// Services that exited while they were needed: every later result is invalid.
+const crashed: string[] = [];
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.on(signal, () => {
+    if (interrupted) return;
+    interrupted = signal;
+    console.error(`${signal}: stopping the services and dropping ${name}.`);
+    stopForeground();
+  });
+
+// Foreground processes get their own process group (like services), so
+// stopping one also stops what its package-manager wrapper spawned.
+function stopForeground() {
+  try {
+    if (foreground?.pid) process.kill(-foreground.pid, "SIGTERM");
+  } catch {
+    // Already gone.
+  }
+}
+
 function run(command: string, args: string[], env: NodeJS.ProcessEnv = appEnv) {
+  if (interrupted)
+    return Promise.reject(new Error(`Interrupted (${interrupted}).`));
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "inherit", env });
+    const child = spawn(command, args, {
+      stdio: "inherit",
+      env,
+      detached: true,
+    });
+    foreground = child;
     child.on("exit", (code) =>
       code === 0
         ? resolve()
@@ -132,7 +163,11 @@ function start(
   );
   child.stderr?.on("data", (c: Buffer) => console.error(prefix(c)));
   child.on("exit", (code, signal) => {
-    if (!stopping) console.error(`[${label}] exited (${code ?? signal})`);
+    if (stopping) return;
+    console.error(`[${label}] exited (${code ?? signal})`);
+    // Fail fast instead of letting every remaining test time out against it.
+    crashed.push(label);
+    stopForeground();
   });
   children.push({ name: label, child });
   return child;
@@ -141,6 +176,11 @@ function start(
 async function waitFor(label: string, check: string, timeoutMs = 180_000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (interrupted) throw new Error(`Interrupted (${interrupted}).`);
+    if (crashed.length)
+      throw new Error(
+        `${crashed.join(", ")} exited before ${label} was ready.`,
+      );
     try {
       const response = await fetch(check);
       if (response.ok) return;
@@ -245,7 +285,10 @@ try {
     PLATFORM_DIST_DIR: "apps/platform/dist",
   });
   if (workerAvailable)
-    start("worker", "node", ["apps/worker/dist/index.js"], appEnv);
+    start("worker", "node", ["apps/worker/dist/index.js"], {
+      ...appEnv,
+      WORKER_HEALTH_PORT: String(ports.workerHealth),
+    });
   start("zero", "node_modules/.bin/zero-cache", [], {
     ...process.env,
     ZERO_UPSTREAM_DB: url,
@@ -299,6 +342,7 @@ try {
     ["playwright", "test", ...process.argv.slice(2)],
     {
       stdio: "inherit",
+      detached: true,
       env: {
         ...process.env,
         DATABASE_URL: url,
@@ -307,10 +351,18 @@ try {
       },
     },
   );
+  foreground = child;
   process.exitCode = await new Promise<number>((resolve) =>
     child.on("exit", (code) => resolve(code ?? 1)),
   );
+  if (crashed.length) {
+    console.error(
+      `${crashed.join(", ")} exited during the run; the results are invalid.`,
+    );
+    process.exitCode = 1;
+  }
 } finally {
+  if (interrupted) process.exitCode = 130;
   await stopAll();
   // zero-cache holds a logical replication slot in the test database; it must
   // go before the database can be dropped.

@@ -23,7 +23,7 @@ test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.170" });
 });
 
-test("the server refuses to start a not-ready specification even from an outdated view", async ({
+test("the server refuses to start a not-ready specification even from an outdated view @smoke", async ({
   page,
 }) => {
   const seeded = await seedWorkspace({
@@ -94,7 +94,7 @@ test("the server refuses to start a not-ready specification even from an outdate
   ).toContainText("Complete the required reviews and readiness checks first.");
 });
 
-test("an externally delivered project hands off instead of offering a board or backlog", async ({
+test("an externally delivered project hands off instead of offering a board or backlog @smoke", async ({
   page,
 }) => {
   const seeded: Seeded = await seedWorkspace({

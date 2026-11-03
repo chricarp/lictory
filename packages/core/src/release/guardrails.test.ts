@@ -256,6 +256,8 @@ type Workflow = {
   jobs: Record<
     string,
     {
+      name?: string;
+      if?: string;
       needs?: string[];
       uses?: string;
       with?: Record<string, string>;
@@ -267,10 +269,15 @@ type Workflow = {
   >;
 };
 function workflow(name: string): Workflow {
-  const path = new URL(
-    `../../../../.github/workflows/${name}.yml`,
-    import.meta.url,
-  ).pathname;
+  return yaml(`.github/workflows/${name}.yml`) as Workflow;
+}
+function compositeAction(name: string): { runs: { steps: Step[] } } {
+  return yaml(`.github/actions/${name}/action.yml`) as {
+    runs: { steps: Step[] };
+  };
+}
+function yaml(file: string): unknown {
+  const path = new URL(`../../../../${file}`, import.meta.url).pathname;
   // Bun's built-in parser avoids a new YAML dependency in the application.
   return JSON.parse(
     execFileSync(
@@ -282,7 +289,7 @@ function workflow(name: string): Workflow {
       ],
       { encoding: "utf8" },
     ),
-  ) as Workflow;
+  ) as unknown;
 }
 
 void test("workflow channels, source checkout, secrets, and retained queues remain separated", () => {
@@ -376,6 +383,10 @@ void test("third-party actions are pinned to commits", () => {
       for (const step of job.steps ?? [])
         if (step.uses && !step.uses.startsWith("./"))
           assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);
+  for (const name of ["setup", "services"])
+    for (const step of compositeAction(name).runs.steps)
+      if (step.uses)
+        assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);
 });
 
 void test("base images are pinned by digest", async () => {
@@ -412,18 +423,91 @@ void test("base images are pinned by digest", async () => {
     );
 });
 
-void test("the minimal CI verification sequence and the released version display are preserved", async () => {
-  const jobs = workflow("ci").jobs;
-  assert.deepEqual(Object.keys(jobs), ["verify"]);
-  const runs = jobs.verify!.steps!.flatMap((step) =>
-    step.run ? [step.run] : [],
-  );
-  assert.match(runs[0]!, /inject-release-version/);
-  assert.deepEqual(runs.slice(1), [
-    "bun install --frozen-lockfile",
-    "bun run typecheck",
-    "bun run db:check",
+void test("pull requests get layered checks behind one required Verify gate", () => {
+  const ci = workflow("ci");
+  const jobs = ci.jobs;
+  assert.deepEqual(Object.keys(jobs), [
+    "changes",
+    "static",
+    "domain",
+    "browser",
+    "verify",
   ]);
+  const runs = (job: string) =>
+    jobs[job]!.steps!.flatMap((step) => (step.run ? [step.run] : []));
+  assert.ok(runs("static").includes("bun run check"));
+  assert.ok(runs("static").includes("bun run db:check"));
+  assert.ok(runs("domain").includes("bun run db:migrate"));
+  assert.ok(runs("domain").includes("bun test src"));
+  assert.ok(runs("browser").some((run) => run.includes("--grep @smoke")));
+  // Static checks are never skipped; the gate waits for every job and
+  // accepts only success or a deliberate skip.
+  assert.equal(jobs.static!.if, undefined);
+  assert.deepEqual(jobs.verify!.needs, [
+    "changes",
+    "static",
+    "domain",
+    "browser",
+  ]);
+  assert.equal(jobs.verify!.if, "always()");
+  assert.equal(
+    jobs.verify!.name,
+    "Verify",
+    "branch protection requires the Verify check",
+  );
+  // Release candidates embed their version in every job that builds.
+  for (const job of ["static", "domain", "browser"])
+    assert.ok(
+      jobs[job]!.steps!.some(
+        (step) =>
+          step.uses === "./.github/actions/setup" &&
+          step.with?.["release-version"] === "${{ inputs.release_version }}",
+      ),
+      job,
+    );
+  assert.match(
+    JSON.stringify(compositeAction("setup")),
+    /inject-release-version/,
+  );
+  // CI never holds credentials beyond its read-only token.
+  assert.ok(!JSON.stringify(ci).includes("secrets."));
+  assert.equal(ci.permissions.contents, "read");
+});
+
+void test("pull request suite selection fails open", () => {
+  const select = (...paths: string[]) =>
+    Object.fromEntries(
+      execFileSync("bash", [".github/scripts/ci-changes.sh"], {
+        cwd: new URL("../../../../", import.meta.url).pathname,
+        input: paths.join("\n"),
+        encoding: "utf8",
+      })
+        .trim()
+        .split("\n")
+        .map((line) => line.split("=")),
+    ) as Record<string, string>;
+  const none = { unit: "false", e2e: "false", audit: "false" };
+  assert.deepEqual(select("README.md", "docs/operations/releases.md"), none);
+  assert.deepEqual(select("apps/docs/content/docs/index.mdx"), none);
+  assert.deepEqual(select("deploy/deploy.sh"), { ...none, unit: "true" });
+  for (const path of [
+    "apps/platform/src/main.tsx",
+    "apps/marketing/src/content/guide.md",
+    "packages/core/src/domain/approval.ts",
+    "tests/platform/sync.spec.ts",
+    "drizzle/0042_change.sql",
+    ".github/workflows/ci.yml",
+    "an/unknown/path",
+  ])
+    assert.deepEqual(
+      select("README.md", path),
+      { ...none, unit: "true", e2e: "true" },
+      path,
+    );
+  assert.equal(select("bun.lock").audit, "true");
+});
+
+void test("the released version display is preserved", async () => {
   // The SPA account menu and the website show the release version.
   const root = new URL("../../../../", import.meta.url);
   const dockerfile = await readFile(new URL("Dockerfile", root), "utf8");
