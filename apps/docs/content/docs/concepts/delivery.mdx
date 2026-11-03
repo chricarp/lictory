@@ -1,0 +1,53 @@
+---
+title: Delivery
+description: Delivery items, native delivery with types, workflows, boards and iterations, and external delivery in Jira. One system owns delivery for each project.
+---
+
+Delivery mode is a per-project setting (**Project settings → Delivery**). The
+refinement workflow is identical in both modes; for the same piece of work,
+exactly one system owns delivery state.
+
+## Delivery items
+
+An approved specification is decomposed into child work items (Stories,
+Tasks, Subtasks), proposed as a [breakdown](/concepts/specifications#main-branches-and-pull-requests)
+and reviewed with the specification. Each child records the revision it was
+derived from. Plain implementation items under a specification inherit its
+readiness, so splitting unsettled behavior into Tasks cannot bypass the gate.
+
+## Native delivery
+
+- **Types** are an organization-wide registry that projects opt into. A type
+  has a hierarchy level (Epic above Story, Task and Bug, above Subtask) and
+  says whether it carries a specification.
+- **Workflows** are per project: statuses you name, each in a fixed category
+  (`backlog`, `unstarted`, `started`, `done`, `canceled`). Any transition is
+  allowed; there are no transition rules to configure.
+- **Board and backlog** show the project's work in rank order, and can be
+  narrowed to a team. Each team also has a backlog of its unplanned work.
+- **Iterations** are sprints (created, started and completed by hand) or
+  cycles (scheduled automatically from a length and start weekday). One
+  iteration per project is active at a time. Unfinished work rolls over.
+- **Estimates and reports**: integer estimates (T-shirt sizes map to points),
+  burndown, scope change and velocity from recorded events. A completed
+  iteration's report is frozen.
+- **Relations**: _blocks_, _relates to_ and _duplicates_, across projects and
+  teams of the organization.
+
+### Accepting scope
+
+Ready means a specification can be selected, not that the team committed to
+it. Accepting a revision for delivery (**Accept revision N for delivery**)
+records the team's agreement; starting work records it automatically when
+none exists. When the specification changes later, the accepted revision
+stays the agreement and the item shows the difference until someone accepts
+the new one. Moving to Done records the accepted revision as delivered.
+
+## External delivery (Jira)
+
+Lictory refines, reviews and approves; Jira delivers. Iterations and
+estimates are Jira's, so they are turned off in Lictory. The project's
+**Hand-off** view replaces the board: what is ready to hand off, what changed
+since it was handed off, what Jira reports back and what needs attention.
+The published revision is the scope boundary; a later revision is handed off
+explicitly as an update. See [Jira](/integrations/jira).

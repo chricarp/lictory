@@ -1,0 +1,29 @@
+---
+title: Privacy and telemetry
+description: A self-hosted installation sends no telemetry. Data leaves the server only for the services you configure.
+---
+
+A self-hosted Lictory sends no telemetry to the Lictory project or anyone
+else. zero-cache's anonymous usage telemetry is disabled, and zero-cache has
+no route to the internet. Outbound connections happen only for what you
+configure:
+
+| Setting                                       | What leaves the server                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `OPENAI_API_KEY`                              | Content sent to Lictory Intelligence (analysis, chat, transcription)     |
+| `POSTHOG_PROJECT_TOKEN` + `POSTHOG_HOST`      | Product analytics: browser events via your `/relay` route, server events |
+| `RESEND_*` or `SMTP_*`                        | Transactional and notification email                                     |
+| `S3_*` or `R2_*`                              | Uploaded files                                                           |
+| A project's Jira connection                   | Handed-off work items and status reads with that Jira site               |
+| `GOOGLE_*`, `MICROSOFT_*`, `OIDC_*`           | Sign-in through those identity providers                                 |
+| `ACME_EMAIL`, `BACKUP_*`, alert and ping URLs | Certificate issuance, encrypted backups, alerts and monitoring pings     |
+
+Uploaded documents are converted to text on your server; scanned PDFs are
+rejected rather than sent to a hosted OCR service. Lictory Intelligence runs
+only when the server has an AI key **and** an organization administrator has
+enabled it; turning it off fails queued runs before any content is sent.
+
+Analytics are off unless configured, and then follow the consent mode you
+choose ([analytics](/self-hosting/configuration#analytics)).
+
+This documentation site itself loads no analytics or third-party scripts.

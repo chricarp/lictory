@@ -3,9 +3,11 @@ import { consentStatePath } from "./tests/consent-setup";
 
 // Browser workflows run against production builds started by
 // scripts/test-e2e.ts: the platform behind a local stand-in for the production
-// edge proxy (SPA assets, API, Zero) and the marketing site on its own origin.
+// edge proxy (SPA assets, API, Zero), the marketing site on its own origin and
+// the documentation's static export behind its Cloudflare Worker.
 const platformURL = process.env.E2E_PLATFORM_URL ?? "http://localhost:3001";
 const marketingURL = process.env.E2E_MARKETING_URL ?? "http://localhost:3101";
+const docsURL = process.env.E2E_DOCS_URL ?? "http://localhost:3201";
 
 export default defineConfig({
   globalSetup: "./tests/consent-setup.ts",
@@ -38,6 +40,11 @@ export default defineConfig({
       name: "marketing",
       testDir: "./tests/marketing",
       use: { baseURL: marketingURL },
+    },
+    {
+      name: "docs",
+      testDir: "./tests/docs",
+      use: { baseURL: docsURL },
     },
   ],
 });

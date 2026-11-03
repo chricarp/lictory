@@ -3,6 +3,11 @@
 Product principles, the glossary and engineering conventions live in
 [`AGENTS.md`](../AGENTS.md). Read it first; these documents build on it.
 
+User documentation (concepts, a team guide, self-hosting and integrations) is
+the documentation site in [`apps/docs`](../apps/docs/content/docs), published at
+[docs.lictory.com](https://docs.lictory.com). The documents below are for
+people working on Lictory and operating lictory.com.
+
 ## Working on Lictory
 
 - [Development runbook](./operations/development.md): setup, daily commands,

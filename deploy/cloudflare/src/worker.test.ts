@@ -119,3 +119,40 @@ void test("SPA documents preserve private social previews without echoing worksp
   assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow");
   assert.equal(response.headers.get("ETag"), null);
 });
+
+void test("the documentation serves only its static files, with the website's security headers", async () => {
+  const docs = {
+    ...env,
+    SITE_KIND: "docs" as const,
+    SITE_URL: "https://docs.lictory.com",
+    ASSETS: {
+      fetch: (request: Request) =>
+        Promise.resolve(
+          new Response(`asset ${new URL(request.url).pathname}`, {
+            headers: { "Content-Type": "text/html" },
+          }),
+        ),
+    },
+  };
+  // No backend behind the documentation, and no website redirects.
+  for (const path of ["/api/search", "/zero/sync", "/relay/e/", "/sign-in"]) {
+    const response = await worker.fetch(
+      new Request(`https://docs.lictory.com${path}`),
+      docs,
+    );
+    assert.equal(response.status, 200, path);
+    assert.equal(await response.text(), `asset ${path}`);
+  }
+  const page = await worker.fetch(
+    new Request("https://docs.lictory.com/self-hosting/install"),
+    docs,
+  );
+  assert.equal(page.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(page.headers.get("X-Frame-Options"), "SAMEORIGIN");
+  assert.equal(
+    page.headers.get("Strict-Transport-Security"),
+    "max-age=63072000; includeSubDomains",
+  );
+  assert.equal(page.headers.get("X-Robots-Tag"), null);
+  assert.equal(page.headers.get("Cache-Control"), null);
+});

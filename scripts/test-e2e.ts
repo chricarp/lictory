@@ -1,6 +1,8 @@
 // Browser workflows against production builds and an isolated, migrated
 // database. Starts the API, worker, zero-cache, the edge proxy (platform
-// origin) and the marketing server, runs Playwright, then stops everything
+// origin), the marketing server and the documentation (its static export
+// behind the production Cloudflare Worker, in wrangler's local runtime), runs
+// Playwright, then stops everything
 // and drops the database and its replication slots, also on failure.
 // Usage: bun run test:e2e [playwright args]   (E2E_SKIP_BUILD=1 reuses builds)
 import { spawn, type ChildProcess } from "node:child_process";
@@ -21,11 +23,14 @@ const ports = {
   api: 3002 + offset,
   workerHealth: 3003 + offset,
   marketing: 3101 + offset,
+  docs: 3201 + offset,
+  docsInspector: 9301 + offset,
   zero: 4858 + offset * 10,
   zeroChangeStreamer: 4859 + offset * 10,
 };
 const platformUrl = `http://localhost:${ports.edge}`;
 const siteUrl = `http://localhost:${ports.marketing}`;
+const docsUrl = `http://localhost:${ports.docs}`;
 
 const name = `lictory_e2e_${crypto.randomUUID().replaceAll("-", "")}`;
 const databaseUrl = new URL(adminUrl);
@@ -277,6 +282,10 @@ try {
       NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
       NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
     });
+    await run("bun", ["run", "--filter", "@lictory/docs", "build"], {
+      ...buildEnv,
+      SITE_URL: docsUrl,
+    });
   }
 
   start("api", "node", ["apps/api/dist/index.js"], {
@@ -332,10 +341,31 @@ try {
     },
   );
 
+  start(
+    "docs",
+    "node_modules/.bin/wrangler",
+    [
+      "dev",
+      "--config",
+      "apps/docs/wrangler.jsonc",
+      "--ip",
+      "127.0.0.1",
+      "--port",
+      String(ports.docs),
+      "--inspector-port",
+      String(ports.docsInspector),
+      "--show-interactive-dev-session=false",
+      "--log-level",
+      "warn",
+    ],
+    { ...process.env, WRANGLER_SEND_METRICS: "false" },
+  );
+
   await waitFor("api", `http://localhost:${ports.api}/readyz`);
   await waitFor("zero-cache", `http://localhost:${ports.zero}/keepalive`);
   await waitFor("edge", `${platformUrl}/sign-in`);
   await waitFor("marketing", `${siteUrl}/`);
+  await waitFor("docs", `${docsUrl}/`);
 
   const child = spawn(
     "bunx",
@@ -348,6 +378,7 @@ try {
         DATABASE_URL: url,
         E2E_PLATFORM_URL: platformUrl,
         E2E_MARKETING_URL: siteUrl,
+        E2E_DOCS_URL: docsUrl,
       },
     },
   );

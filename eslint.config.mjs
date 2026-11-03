@@ -7,11 +7,13 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 
 const react = [
   "apps/marketing/**/*.{ts,tsx,mjs}",
+  "apps/docs/**/*.{ts,tsx,mjs}",
   "apps/platform/**/*.{ts,tsx}",
   "packages/**/*.{ts,tsx}",
 ];
 // React, hooks, accessibility and import rules apply to all React code; the
-// Next.js-specific rules are switched off outside the marketing application.
+// Next.js-specific rules are switched off outside the Next.js applications
+// (the website and the documentation).
 /** @param {import("eslint").Linter.Config[]} configs @param {string[]} files */
 const scoped = (configs, files) =>
   configs.map((config) =>
@@ -63,7 +65,7 @@ export default defineConfig([
     },
   },
   {
-    settings: { next: { rootDir: "apps/marketing/" } },
+    settings: { next: { rootDir: ["apps/marketing/", "apps/docs/"] } },
   },
   {
     files: ["apps/platform/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],

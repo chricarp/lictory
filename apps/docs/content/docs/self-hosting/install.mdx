@@ -1,0 +1,54 @@
+---
+title: Install
+description: Install Lictory on a server with the lictory command, then check that sign-in, email and realtime updates work.
+---
+
+<CliNotice />
+
+## Before you start
+
+1. Provision a server that meets the [requirements](/self-hosting#requirements)
+   and harden it to your own standard.
+2. Create DNS records for your Lictory host (for example
+   `lictory.example.com`) pointing at the server. If certificates come from
+   Let's Encrypt, a `CAA` record must allow `letsencrypt.org`. Lower the TTL
+   to 300 seconds a day before moving existing traffic.
+3. Prepare the settings the installation will ask for: the host name, an
+   email address for certificate notices, your email service, and any
+   optional integration ([configuration](/self-hosting/configuration)).
+
+## Install
+
+Install the `lictory` command, then run the installer as root:
+
+<Cli command={["bootstrap", "install"]} />
+
+`lictory install` asks for the settings it needs, or takes them as flags for
+unattended installs. Settings and generated secrets are written to the
+environment's `.env` file (by default `/srv/lictory/production/.env`, mode
+`0600`): database passwords, `BETTER_AUTH_SECRET`,
+`DELIVERY_CREDENTIALS_KEY` and the Zero keys are generated for you.
+
+<Callout type="warn" title="Keep a copy of .env">
+  Store the `.env` file in your password manager. Two values matter in a
+  recovery: `BETTER_AUTH_SECRET` keeps sessions valid, and
+  `DELIVERY_CREDENTIALS_KEY` keeps stored Jira credentials readable. Never
+  rotate `DELIVERY_CREDENTIALS_KEY` once Jira is connected.
+</Callout>
+
+On an empty database the first release does everything in order: PostgreSQL
+creates its roles and databases, the migrations run, zero-cache performs its
+initial sync, then the proxy, API and worker start.
+
+## Check the installation
+
+<Cli command={["status", "doctor"]} />
+
+Then, in a browser:
+
+- sign up, verify your email address and reset a password;
+- create an organization;
+- open the same specification in two browsers and check that a change in one
+  appears in the other (the realtime connection);
+- upload and download an attachment, if file storage is configured;
+- run a first [backup](/self-hosting/backups) and a restore drill.

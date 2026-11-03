@@ -1,0 +1,4 @@
+# Copied from packages/ui/public by scripts/copy-shared-assets.mjs
+/public/brand/
+# Build cache of the fumadocs-mdx macro
+/.source/

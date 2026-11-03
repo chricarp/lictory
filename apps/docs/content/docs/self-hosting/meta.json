@@ -1,0 +1,13 @@
+{
+  "title": "Self-hosting",
+  "pages": [
+    "index",
+    "install",
+    "configuration",
+    "reverse-proxy",
+    "backups",
+    "upgrades",
+    "monitoring",
+    "privacy"
+  ]
+}

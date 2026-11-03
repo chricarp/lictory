@@ -25,6 +25,8 @@ bun run dev            # SPA, API, worker and website on the host
 
 - App: http://localhost:3000 (API 3002, zero-cache 4848)
 - Website: http://localhost:3100
+- Documentation (not started by `bun run dev`):
+  `bun run --cwd apps/docs dev`, http://localhost:3200
 - Mailpit (verification and reset emails): http://localhost:8025
 - MinIO console (attachment bucket, user `lictory`, password
   `lictory-development`): http://127.0.0.1:9001
@@ -106,13 +108,15 @@ Domain tests are colocated as `*/src/**/*.test.ts` in every workspace and run wi
 that need PostgreSQL create their own database from `SCHEMA_TEST_DATABASE_URL`
 (the admin `postgres` database), so they never touch your development data.
 
-Browser tests in `tests/platform` and `tests/marketing` run against production
-builds: `scripts/test-e2e.ts` migrates an isolated database, starts the API,
-worker, zero-cache, the website (port 3101) and `scripts/edge-proxy.ts` (the
-platform origin, port 3001, routed like production), then drops the database
-and its replication slot. PostgreSQL must run with `wal_level=logical`
-(`compose.yaml` does). `E2E_PORT_OFFSET` lets several checkouts run side by
-side; `E2E_SKIP_BUILD=1` reuses builds when only tests changed. Failure
+Browser tests in `tests/platform`, `tests/marketing` and `tests/docs` run
+against production builds: `scripts/test-e2e.ts` migrates an isolated database,
+starts the API, worker, zero-cache, the website (port 3101), the documentation's
+static export behind its Cloudflare Worker in `wrangler dev` (port 3201) and
+`scripts/edge-proxy.ts` (the platform origin, port 3001, routed like
+production), then drops the database and its replication slot. PostgreSQL must
+run with `wal_level=logical` (`compose.yaml` does). `E2E_PORT_OFFSET` lets
+several checkouts run side by side; `E2E_SKIP_BUILD=1` reuses builds when only
+tests changed. Failure
 screenshots land in `/tmp/lictory-playwright-results`.
 
 The single sign-on workflow (`tests/platform/sso.spec.ts`) needs a real

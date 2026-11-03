@@ -6,7 +6,9 @@ import { socialPreviewHead } from "../../../packages/core/src/lib/social-preview
 
 interface Environment {
   ASSETS: { fetch(request: Request): Promise<Response> };
-  SITE_KIND: "marketing" | "platform";
+  /** marketing (lictory.com), platform (app.lictory.com) or docs
+   * (docs.lictory.com: static files and headers only, no backend). */
+  SITE_KIND: "marketing" | "platform" | "docs";
   SITE_URL: string;
   PLATFORM_URL: string;
   BACKEND_ORIGIN: string;
@@ -100,9 +102,10 @@ export default {
         return new Response(asset.body, { status: asset.status, headers });
       }
     } else if (
-      /^\/(api|zero|relay)(\/|$)/.test(path) ||
-      path === "/healthz" ||
-      path === "/readyz"
+      env.SITE_KIND === "platform" &&
+      (/^\/(api|zero|relay)(\/|$)/.test(path) ||
+        path === "/healthz" ||
+        path === "/readyz")
     ) {
       return backend(request, env);
     }

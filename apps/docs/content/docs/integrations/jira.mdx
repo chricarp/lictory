@@ -1,0 +1,69 @@
+---
+title: Jira
+description: Refine and approve in Lictory, deliver in Jira Cloud. Hand-off is explicit, gated by readiness, idempotent, and reads Jira's status back without overwriting it.
+---
+
+In a project whose delivery happens **in Jira**, Lictory owns refinement
+(specifications, reviews, approvals, readiness) and Jira owns delivery
+(status, assignee, sprints, comments). Nothing is tracked twice.
+
+## Connect
+
+1. An organization administrator connects a Jira Cloud site in
+   **Organization settings → Integrations** with the site URL, the email of
+   the Jira account to act as, and an
+   [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+   for it. The token is encrypted at rest and never reaches browsers.
+2. A project administrator chooses the delivery mode _In Jira_, the Jira
+   project, and how each work item type maps to a Jira issue type
+   (**Project settings → Delivery**).
+3. People who hand off work need a discipline with the **Hand off**
+   capability in the project.
+
+Only Jira Cloud sites are accepted (`<site>.atlassian.net`, or a legacy
+`<site>.jira.com`, over HTTPS). Lictory never follows redirects from Jira.
+Self-managed Jira Data Center is not supported yet.
+
+## Hand off
+
+The project's **Hand-off** view lists what is ready to hand off, what changed
+since it was handed off, what Jira reports back and what needs attention.
+
+- Only **ready** specifications are handed off. Handing off an item with its
+  children skips children that are not ready (and everything under them).
+  Plain items such as Tasks go along under a handed-off parent.
+- Parents are created first; a failed parent skips its subtree.
+- Each hand-off records a result per item. When some items fail, the others
+  stay handed off and the failed ones can be retried by themselves.
+- A later revision is not substituted automatically: hand it off as an update
+  (**Hand off changes**).
+
+## Who owns which field
+
+| Field                                                                 | Owner   | Synchronization                                  |
+| --------------------------------------------------------------------- | ------- | ------------------------------------------------ |
+| Summary, description (latest revision, including acceptance criteria) | Lictory | Pushed to Jira on each hand-off                  |
+| Labels                                                                | Lictory | Pushed; labels added in Jira are kept            |
+| Status, status category, assignee                                     | Jira    | Read back on each hand-off and every ten minutes |
+| Sprint, comments                                                      | Jira    | Not synchronized                                 |
+
+Reading back never writes Jira and never changes Lictory's fields. A refresh
+can also be started on demand.
+
+## Safety
+
+- **No duplicates.** Links are reserved before the first call, every create
+  attempt is recorded before it is made, and a hidden issue property
+  (`lictory.item`) lets an interrupted create be found and adopted instead
+  of repeated.
+- **No silent overwrites.** An item whose Lictory-owned fields were edited in
+  Jira since the last hand-off, or one linked to an existing issue that was
+  never handed off, is held as a conflict until the person handing off
+  confirms overwriting that item.
+- **Nothing unnecessary.** Unchanged items are not written again.
+- **Actionable errors.** Jira's rejections are reported per item, for
+  example an API token that is no longer valid or an account without
+  permission for the action.
+
+Hand-off runs in the background worker: you can leave the page and follow
+its progress later.

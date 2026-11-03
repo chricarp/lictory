@@ -1,0 +1,60 @@
+---
+title: Reviews, discussions and approvals
+description: How disciplines review a specification, how discussions stay anchored to their context, and why every approval belongs to one revision.
+---
+
+## Reviews
+
+A **review** asks a discipline of the project (Product, Engineering, QA,
+Security…) to evaluate the specification, optionally naming one person in
+it. The discipline's name is the review responsibility. Only an assigned
+person, or a current member of the assigned discipline, can decide the
+review: **Approve** or **Request changes**. Holding a discipline never
+approves anything by itself.
+
+Requesting a review moves a draft or refining specification to _in review_. Requests and decisions show up in the reviewer's inbox and
+notifications.
+
+## Discussions
+
+A **thread** is a discussion attached to its context: a quoted range of the
+specification, a revision, or a pull request commit. The quote is read
+against the revision the thread was started on, and Lictory tells you when
+that text no longer appears, so nobody has to ask what a comment referred to.
+
+Threads are **blocking** or **non-blocking**. An open blocking thread keeps
+a specification from becoming ready and a pull request from merging.
+Resolving and reopening never delete messages; the activity keeps every
+step. When a thread reaches an important conclusion, record it as a
+[decision](/concepts/specifications#decisions).
+
+## Approvals belong to revisions
+
+An **approval** states that a reviewer accepted one specific revision for
+their discipline. It is never a permanent flag on the item:
+
+- A material change creates a new revision and makes the earlier approvals
+  **stale**, recording who caused it, when and why. Every active review is
+  requested again on the new revision with the same assignments; the old
+  decisions stay in history.
+- The item shows the difference plainly, for example _Engineering approved
+  revision 12; the current revision is 14; Engineering's approval requires
+  review._
+- On a pull request, approvals record a fingerprint of the complete result
+  of the merge. Any change to the source or target that alters that result
+  makes them stale; changes that leave it identical keep them. Contributors
+  cannot approve their own changes.
+
+A pull request merges only when every required review approves its current
+result, nobody currently requests changes, no blocking thread is open and no
+conflict remains.
+
+## Lictory Intelligence is a check, not an approval
+
+Lictory Intelligence raises findings and questions and can propose changes on
+its own branches. A project can require a clean Lictory Intelligence review as
+a [readiness check](/concepts/readiness#definition-of-ready), but it never
+counts as a discipline's approval and is always required beside a person's
+decision. Anyone holding a discipline can override the check for one
+revision. Litto or an MCP agent can record an approval only on a person's
+explicit instruction, and the approval is that person's.
