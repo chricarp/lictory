@@ -49,6 +49,16 @@ order:
    host (port 3002) with the browser's forwarded session cookie.
 5. `mailpit`: captures every email.
 
+These services use well-known development credentials (`lictory/lictory`, the
+zero-cache admin password `development`), so `compose.yaml` publishes their
+ports (5432, 4848, 1025 and 8025) on `127.0.0.1` only. Docker writes its own
+firewall rules, so a host firewall such as ufw would not protect a port
+published on every interface. To reach them from another machine during remote development, set
+`LICTORY_DEV_BIND_ADDRESS` (in the shell or `.env`) to the interface to listen
+on, for example a private VPN address, and prefer an SSH tunnel
+(`ssh -L 5432:localhost:5432 …`) over `0.0.0.0` on any machine with a public
+address. `docker compose config` shows the resulting `host_ip`.
+
 `bun run dev` refuses to start until zero-cache answers on port 4848. After
 generating a migration, apply it with `bun run db:migrate` (or
 `docker compose run --rm migrate`); zero-cache picks schema changes up through
