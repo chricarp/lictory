@@ -14,7 +14,7 @@ services:
   # triggers that replicate schema changes incrementally (without them, every
   # migration resets all synced state).
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     environment:
       POSTGRES_DB: lictory
       POSTGRES_USER: lictory
@@ -46,7 +46,7 @@ services:
   # its own (as in production), separate from the application's data. Created
   # here rather than by an init script so existing volumes get it too.
   postgres-setup:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     environment:
       PGHOST: postgres
       PGUSER: lictory
@@ -68,7 +68,7 @@ services:
   # zero-cache replicates) before zero-cache starts. Re-run after generating a
   # migration with `docker compose run --rm migrate` or `bun run db:migrate`.
   migrate:
-    image: oven/bun:1.4.2-alpine
+    image: oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f
     working_dir: /app
     command: ["bun", "scripts/migrate.ts"]
     environment:
@@ -87,7 +87,7 @@ services:
   # Calls the API running on the host (`bun run dev`, port 3002) for synced
   # queries and mutations, forwarding the browser's session cookie.
   zero-cache:
-    image: rocicorp/zero:1.11.2
+    image: rocicorp/zero:1.11.2@sha256:a76d2247c7030793e849f82a5e762616e91e648212e5e064a326870cabe3c4f1
     environment:
       # Direct connection (never through a pooler): it holds the replication slot.
       ZERO_UPSTREAM_DB: postgresql://lictory:lictory@postgres:5432/lictory
@@ -129,7 +129,7 @@ services:
     restart: unless-stopped
 
   mailpit:
-    image: axllent/mailpit:v1.27
+    image: axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"

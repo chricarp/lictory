@@ -1,0 +1,35 @@
+name: Dependency review
+
+# Fails a pull request that adds a dependency (npm, GitHub Actions, images)
+# with a known high or critical vulnerability. The dependency review API needs
+# GitHub Code Security on a private repository, so the job is skipped unless the
+# repository is public; see docs/operations/open-source.md ("Security scanning").
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/package.json"
+      - bun.lock
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - "**/Dockerfile"
+      - "**/compose*.yaml"
+
+permissions: {}
+
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review dependency changes
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
