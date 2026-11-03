@@ -1,6 +1,7 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
-import { organization } from "better-auth/plugins";
+import { organization, twoFactor } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 
 import { db } from "@lictory/core/db";
 import { eq } from "drizzle-orm";
@@ -188,7 +189,11 @@ export const auth = betterAuth({
                   ? "email"
                   : ctx?.path === "/verify-email"
                     ? "verification"
-                    : "social",
+                    : ctx?.path?.startsWith("/two-factor/")
+                      ? "two_factor"
+                      : ctx?.path === "/passkey/verify-authentication"
+                        ? "passkey"
+                        : "social",
             },
             ctx?.headers,
             `session:${session.id}`,
@@ -220,6 +225,11 @@ export const auth = betterAuth({
         "/organization/update-member-role": "application_role_changed",
         "/organization/remove-member": "organization_member_removed",
         "/organization/cancel-invitation": "invitation_cancelled",
+        "/two-factor/disable": "two_factor_disabled",
+        "/two-factor/generate-backup-codes":
+          "two_factor_backup_codes_regenerated",
+        "/passkey/verify-registration": "passkey_added",
+        "/passkey/delete-passkey": "passkey_removed",
       };
       const event = events[ctx.path];
       const userId = ctx.context.session?.user.id;
@@ -286,6 +296,24 @@ export const auth = betterAuth({
   },
   plugins: [
     ...oauthProxy.plugins,
+    // Same schema as `authSchemaOptions`. Authenticator apps (TOTP) with
+    // backup codes; email codes stay off. Enabling requires verifying a code
+    // first, and only password sign-ins ask for the second factor (social
+    // providers apply their own). See docs/internals/two-factor-authentication.md.
+    twoFactor({
+      issuer: "Lictory",
+      // People who sign in only with Google or Microsoft can still enroll
+      // (and meet an organization's requirement); accounts with a password
+      // always confirm it.
+      allowPasswordless: true,
+    }),
+    // WebAuthn is bound to the platform's one public origin, never to the
+    // request's Host or Origin headers.
+    passkey({
+      rpID: new URL(platformUrl()).hostname,
+      rpName: "Lictory",
+      origin: platformUrl(),
+    }),
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
       sendInvitationEmail: async ({

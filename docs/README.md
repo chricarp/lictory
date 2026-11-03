@@ -28,6 +28,8 @@ adding domain writes or synchronized entities.
 - [Notifications](./internals/notifications.md)
 - [Account and workspace onboarding](./internals/onboarding.md): including
   sign-in methods and account linking
+- [Two-factor authentication and passkeys](./internals/two-factor-authentication.md):
+  factors, the organization requirement and recovery
 - [Private file storage](./internals/file-storage.md)
 - [Profile photos](./internals/profile-photos.md)
 - [Social link previews](./internals/social-previews.md)

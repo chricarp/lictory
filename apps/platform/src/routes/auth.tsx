@@ -12,6 +12,7 @@ import {
 import { ForgotPasswordForm } from "@lictory/platform/components/auth/forgot-password-form";
 import { HandleForm } from "@lictory/platform/components/auth/handle-form";
 import { AccountLegalNotice } from "@lictory/platform/components/auth/legal-notice";
+import { PasskeySignIn } from "@lictory/platform/components/auth/passkey-sign-in";
 import { ResetPasswordForm } from "@lictory/platform/components/auth/reset-password-form";
 import { SignInForm } from "@lictory/platform/components/auth/sign-in-form";
 import { SignUpForm } from "@lictory/platform/components/auth/sign-up-form";
@@ -44,6 +45,7 @@ export function SignInPage() {
         errorCallbackURL={here}
         error={params.get("error") ?? undefined}
       />
+      <PasskeySignIn callbackURL={callbackURL} />
       <SignInForm callbackURL={callbackURL} />
       <AuthFooter>
         New to Lictory?{" "}

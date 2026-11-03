@@ -21,6 +21,7 @@ const accountSchema = z.object({
     email: z.string(),
     emailVerified: z.boolean(),
     handle: z.string().nullable().optional(),
+    twoFactorEnabled: z.boolean().default(false),
   }),
   providers: z.object({ google: z.boolean(), microsoft: z.boolean() }),
   accounts: z.array(z.object({ id: z.string(), providerId: z.string() })),
@@ -133,6 +134,7 @@ export function AccountPage({
           email: account.user.email,
           emailVerified: account.user.emailVerified,
           handle: account.user.handle ?? "",
+          twoFactorEnabled: account.user.twoFactorEnabled,
         }}
         providers={account.providers}
         accounts={account.accounts}

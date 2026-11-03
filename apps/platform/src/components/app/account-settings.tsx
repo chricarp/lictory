@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 
 import { AgentAccessSection } from "@lictory/platform/components/app/agent-access";
+import {
+  PasskeysSection,
+  TwoFactorSection,
+} from "@lictory/platform/components/app/security-settings";
 import { ProfilePhoto } from "@lictory/platform/components/app/profile-photo";
 import { useAppearance } from "@lictory/platform/components/app/appearance-provider";
 import { HandleForm } from "@lictory/platform/components/auth/handle-form";
@@ -57,6 +61,7 @@ type AccountSettingsProps = {
     email: string;
     emailVerified: boolean;
     handle: string;
+    twoFactorEnabled: boolean;
   };
   providers: Record<SocialProvider, boolean>;
   // Sign-in methods on this account: "credential" (password) or a provider.
@@ -81,6 +86,8 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "email", label: "Email" },
     { id: "appearance", label: "Appearance" },
     { id: "password", label: "Password" },
+    { id: "two-factor", label: "Two-factor" },
+    { id: "passkeys", label: "Passkeys" },
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
     { id: "agents", label: "AI agents" },
@@ -133,6 +140,12 @@ export function AccountSettings(props: AccountSettingsProps) {
           ) : (
             <SetPasswordSection email={props.user.email} />
           )}
+          <TwoFactorSection
+            enabled={props.user.twoFactorEnabled}
+            hasPassword={hasPassword}
+            onChanged={() => void accountChanged()}
+          />
+          <PasskeysSection />
           <ConnectionsSection
             providers={props.providers}
             accounts={props.accounts}

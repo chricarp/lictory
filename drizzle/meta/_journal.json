@@ -183,6 +183,13 @@
       "when": 1793648256402,
       "tag": "0025_merge_ready_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793682979485,
+      "tag": "0026_two_factor_and_passkeys",
+      "breakpoints": true
     }
   ]
 }

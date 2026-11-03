@@ -17,9 +17,11 @@ import {
   humanOnlyRefusal,
 } from "@lictory/core/capabilities/human-only";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
+import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
 import { intakeCapabilities } from "@lictory/core/capabilities/intake";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
+import { securityCapabilities } from "@lictory/core/capabilities/security";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
@@ -32,6 +34,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...attachmentCapabilities,
   ...brandingCapabilities,
   ...accessTokenCapabilities,
+  ...securityCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
   humanOnlyCapability(() => capabilities),
@@ -212,6 +215,15 @@ export async function invoke(
         ? await resolveMcpOrganization(ctx, parsed)
         : parsed;
     organizationId = organizationOf(input);
+    // An organization that requires two-factor holds members without it,
+    // on every surface, before any capability runs (domain services check
+    // again through `authorize`).
+    if (organizationId)
+      await assertTwoFactorSatisfied(
+        ctx.db,
+        ctx.principal.userId,
+        organizationId,
+      );
     const output = await capability.run(ctx, input);
     if (output && typeof output === "object" && "mutationId" in output)
       mutationId = String(output.mutationId);
