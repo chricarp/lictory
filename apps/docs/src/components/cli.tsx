@@ -24,13 +24,13 @@ export function CliNotice() {
   return (
     <Callout title="The lictory CLI">
       Commands marked <em>lictory CLI</em> belong to the <code>lictory</code>{" "}
-      command, which installs and operates a server. It is new: if your server
-      does not have it yet, the{" "}
-      <a href="https://github.com/chricarp/lictory/blob/main/docs/operations/deployment.md">
-        deployment runbook
-      </a>{" "}
-      describes the equivalent scripts (<code>install.sh</code>,{" "}
-      <code>deploy.sh</code>, the backup and monitoring tools).
+      command, which installs and operates a server. Every command takes{" "}
+      <code>--env</code> for a second environment on the same server; run{" "}
+      <code>lictory help</code> for the flags, or read the{" "}
+      <a href="https://github.com/chricarp/lictory/blob/main/docs/operations/self-hosting.md">
+        self-hosting runbook
+      </a>
+      .
     </Callout>
   );
 }

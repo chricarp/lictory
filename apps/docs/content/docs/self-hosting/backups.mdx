@@ -32,8 +32,8 @@ Take one now:
 
 | `BACKUP_TARGET` | Where backups go                                                             |
 | --------------- | ---------------------------------------------------------------------------- |
-| `s3` (default)  | Any S3-compatible storage: `BACKUP_BUCKET`, `BACKUP_S3_*`                    |
-| `local`         | `BACKUP_LOCAL_PATH`, such as a NAS mount or a second disk                    |
+| `s3`            | Any S3-compatible storage: `BACKUP_BUCKET`, `BACKUP_S3_*`                    |
+| `local`         | `BACKUP_LOCAL_PATH`, such as a NAS mount or a second disk (install default)  |
 | `rclone`        | `BACKUP_RCLONE_REMOTE`: SFTP, WebDAV, SMB, Azure Blob, Google Cloud Storage… |
 | `none`          | Disabled; back up PostgreSQL with your own tooling                           |
 
@@ -53,7 +53,7 @@ and starts the release's API against the restored data. It never touches the
 live database.
 
 ```sh
-/srv/lictory/bin/lictory-restore-drill production /path/to/age-identity.txt latest
+sudo lictory restore /path/to/age-identity.txt latest --drill
 ```
 
 ## Restore

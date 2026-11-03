@@ -31,7 +31,9 @@ x-server-environment: &server-environment
   # The public origin users open (scheme included): set PLATFORM_URL behind
   # another proxy or on plain HTTP; https://<public app host> otherwise.
   PLATFORM_URL: ${PLATFORM_URL:-https://${PUBLIC_APP_HOST:-${APP_HOST:?}}}
-  SITE_URL: https://${SITE_HOST:?}
+  # The public website (legal pages, product home). Optional: without
+  # SITE_HOST (self-hosted installations) the API uses PLATFORM_URL.
+  SITE_URL: ${SITE_HOST:+https://${SITE_HOST}}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
   DELIVERY_CREDENTIALS_KEY: ${DELIVERY_CREDENTIALS_KEY:?}
   # zero-cache presents this key to /api/zero/{query,mutate}.

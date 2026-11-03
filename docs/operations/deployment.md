@@ -170,9 +170,12 @@ Each server has `<root>/<environment>/` (`/srv/lictory/<environment>/` by defaul
 | `deploy.log`          | Deployment log                                                                      |
 
 `<root>/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
-environment), `lictory-remote` (the CI key's forced command), and the backup,
-monitor and restore-drill wrappers. A newly activated release installs its
-versions of these tools.
+environment), `lictory-remote` (the CI key's forced command), the backup,
+monitor and restore-drill wrappers and the `lictory` operator command
+(linked as `/usr/local/bin/lictory`; [self-hosting](self-hosting.md)). A
+newly activated release installs its versions of these tools. The ops image
+of every release carries this bundle, including `provision/` and the `.env`
+templates, under `/opt/lictory/deploy`.
 
 ## Secrets and settings
 
@@ -183,7 +186,7 @@ or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRE
 
 | Setting                                                    | Notes                                                                                                                                                                          |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                                                                                            |
+| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically. `SITE_HOST` (the marketing site) is optional: without it, website links use `PLATFORM_URL`                                |
 | `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                                                                                                 |
 | `R2_*` or `S3_*`                                           | Optional attachment bucket and object read/write credentials; one of the two, see file storage docs                                                                            |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                                                                                                  |
@@ -274,6 +277,13 @@ bundles (`sharp`, `@firecrawl/anydoc`, `postgres` and any other bare import)
 are installed for the target platform at the lockfile's versions.
 
 ## Provisioning a server
+
+**Self-hosting your own installation?** Use `deploy/get.sh` and the `lictory`
+command instead of the steps below: they install the same tooling from a
+published release, ask for the settings and pull releases from GitHub
+Releases instead of receiving them over SSH. See
+[self-hosting](self-hosting.md). This section describes the release-automation
+servers (lictory.com production and staging).
 
 Any Linux host with Docker Engine and the Docker Compose v2 plugin can run
 Lictory; it also needs `bash`, `curl`, `jq`, `openssl` and `flock`

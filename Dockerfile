@@ -229,7 +229,10 @@ COPY deploy/monitor/*.sql /opt/lictory/sql/
 COPY deploy/compose.production.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
 COPY deploy/postgres /opt/lictory/deploy/postgres
 COPY deploy/bin deploy/deploy.sh /opt/lictory/deploy/bin/
-RUN chmod 0555 /opt/lictory/*.sh /opt/lictory/deploy/bin/* /opt/lictory/deploy/postgres/*.sh
+# Host installation (lictory CLI, deploy/get.sh): install.sh, timers, templates.
+COPY deploy/provision /opt/lictory/deploy/provision
+COPY deploy/env /opt/lictory/deploy/env
+RUN chmod 0555 /opt/lictory/*.sh /opt/lictory/deploy/bin/* /opt/lictory/deploy/postgres/*.sh /opt/lictory/deploy/provision/*.sh
 ENV PATH=/opt/lictory:$PATH
 USER postgres
 WORKDIR /tmp

@@ -23,8 +23,14 @@ Install the `lictory` command, then run the installer as root:
 
 <Cli command={["bootstrap", "install"]} />
 
-`lictory install` asks for the settings it needs, or takes them as flags for
-unattended installs. Settings and generated secrets are written to the
+`lictory install` first checks the server (Docker and Compose versions,
+memory, disk, free ports, DNS), then asks for the settings it needs. For an
+unattended install, pass them as flags with `--yes`, or as `LICTORY_<FLAG>`
+environment variables to keep secrets out of the shell history (for example
+`LICTORY_SMTP_PASSWORD`). The bootstrap installs the newest stable release;
+set `LICTORY_CHANNEL=nightly` or `LICTORY_VERSION=<version>` before it to
+choose another. It verifies the release's image digests before pulling
+anything. Settings and generated secrets are written to the
 environment's `.env` file (by default `/srv/lictory/production/.env`, mode
 `0600`): database passwords, `BETTER_AUTH_SECRET`,
 `DELIVERY_CREDENTIALS_KEY` and the Zero keys are generated for you.
@@ -34,6 +40,14 @@ environment's `.env` file (by default `/srv/lictory/production/.env`, mode
   recovery: `BETTER_AUTH_SECRET` keeps sessions valid, and
   `DELIVERY_CREDENTIALS_KEY` keeps stored Jira credentials readable. Never
   rotate `DELIVERY_CREDENTIALS_KEY` once Jira is connected.
+</Callout>
+
+<Callout type="warn" title="Sign-up is open">
+  Anyone who can reach the address can create an account and an organization.
+  Until sign-up can be restricted, keep the server on your company network or
+  behind your VPN, or use [single
+  sign-on](/self-hosting/configuration#sign-in-and-single-sign-on) with password
+  sign-in turned off.
 </Callout>
 
 On an empty database the first release does everything in order: PostgreSQL

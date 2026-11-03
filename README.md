@@ -28,6 +28,18 @@ projections in the same transaction; Zero replicates only those projections
 [synchronization](docs/internals/synchronization.md) and
 [deployment](docs/operations/deployment.md) (single-server Docker Compose).
 
+## Self-hosting
+
+Run Lictory on your own Linux server with Docker:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh | sudo sh
+sudo lictory install
+```
+
+`lictory upgrade`, `backup`, `restore`, `status`, `doctor` and `logs` operate
+it afterwards. See [self-hosting](docs/operations/self-hosting.md).
+
 ## Getting started
 
 Requirements: Bun (version in `packageManager`), Node.js 24 LTS, Docker and Git.
