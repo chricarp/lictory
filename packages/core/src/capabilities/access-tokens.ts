@@ -10,6 +10,7 @@ import {
   type AnyCapability,
   type Database,
 } from "@lictory/core/capabilities/core";
+import { recordAccountAuditEvent } from "@lictory/core/domain/audit";
 
 // Personal access tokens for external agents (MCP clients). A token is one
 // named agent acting for its owner: its name and id identify the agent in
@@ -79,6 +80,12 @@ function summary(row: typeof s.accessToken.$inferSelect) {
   };
 }
 export type AccessTokenSummary = ReturnType<typeof summary>;
+
+const tokenTarget = (row: typeof s.accessToken.$inferSelect) => ({
+  type: "access_token",
+  id: row.id,
+  label: row.name,
+});
 
 const listAccessTokens = defineCapability({
   name: "listAccessTokens",
@@ -156,19 +163,34 @@ const createAccessToken = defineCapability({
         `You can have at most ${MAX_ACTIVE_TOKENS} active tokens. Revoke one you no longer use.`,
       );
     const secret = PREFIX + randomBytes(32).toString("base64url");
-    const [row] = await ctx.db
-      .insert(s.accessToken)
-      .values({
-        userId,
-        name: input.name,
-        scope: input.access,
-        prefix: secret.slice(0, PREFIX.length + 6),
-        tokenHash: hash(secret),
-        expiresAt: input.expiresInDays
-          ? new Date(Date.now() + input.expiresInDays * 86_400_000)
-          : null,
-      })
-      .returning();
+    // A token can act in every organization its owner belongs to, so each of
+    // them records it, in the same transaction as the token.
+    const row = await ctx.db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(s.accessToken)
+        .values({
+          userId,
+          name: input.name,
+          scope: input.access,
+          prefix: secret.slice(0, PREFIX.length + 6),
+          tokenHash: hash(secret),
+          expiresAt: input.expiresInDays
+            ? new Date(Date.now() + input.expiresInDays * 86_400_000)
+            : null,
+        })
+        .returning();
+      await recordAccountAuditEvent(tx, userId, {
+        actor: { id: userId },
+        action: "access_token.created",
+        target: tokenTarget(created!),
+        detail: {
+          access: created!.scope,
+          prefix: created!.prefix,
+          expiresAt: created!.expiresAt?.toISOString() ?? null,
+        },
+      });
+      return created;
+    });
     ctx.effects.track("access_token_created", { access: input.access });
     return { token: summary(row!), secret };
   },
@@ -188,16 +210,28 @@ const revokeAccessToken = defineCapability({
   idempotent: true,
   input: z.object({ tokenId: id }),
   async run(ctx, input) {
-    const [row] = await ctx.db
-      .update(s.accessToken)
-      .set({ revokedAt: sql`coalesce(${s.accessToken.revokedAt}, now())` })
-      .where(
-        and(
-          eq(s.accessToken.id, input.tokenId),
-          eq(s.accessToken.userId, ctx.principal.userId),
-        ),
-      )
-      .returning();
+    const userId = ctx.principal.userId;
+    const owned = and(
+      eq(s.accessToken.id, input.tokenId),
+      eq(s.accessToken.userId, userId),
+    );
+    const row = await ctx.db.transaction(async (tx) => {
+      const [revoked] = await tx
+        .update(s.accessToken)
+        .set({ revokedAt: sql`now()` })
+        .where(and(owned, isNull(s.accessToken.revokedAt)))
+        .returning();
+      // Revoking again changes nothing and records nothing.
+      if (!revoked)
+        return (await tx.select().from(s.accessToken).where(owned))[0];
+      await recordAccountAuditEvent(tx, userId, {
+        actor: { id: userId },
+        action: "access_token.revoked",
+        target: tokenTarget(revoked),
+        detail: { access: revoked.scope, prefix: revoked.prefix },
+      });
+      return revoked;
+    });
     if (!row)
       throw new CapabilityError("not_found", "This token does not exist.");
     ctx.effects.track("access_token_revoked", {});

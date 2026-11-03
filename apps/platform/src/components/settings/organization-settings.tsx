@@ -13,11 +13,13 @@ import { OrganizationGeneral } from "@lictory/platform/components/settings/org-g
 import { OrganizationProjects } from "@lictory/platform/components/settings/org-projects";
 import { OrganizationTypes } from "@lictory/platform/components/settings/org-types";
 import { OrganizationIntelligence } from "@lictory/platform/components/settings/org-intelligence";
+import { OrganizationAudit } from "@lictory/platform/components/settings/org-audit";
 
 const sections = [
   { id: "general", label: "General", group: "Organization" },
   { id: "members", label: "Members", group: "Organization" },
   { id: "projects", label: "Projects", group: "Organization" },
+  { id: "audit", label: "Audit log", group: "Organization" },
   { id: "types", label: "Work item types", group: "Shared" },
   { id: "integrations", label: "Integrations", group: "Shared" },
   { id: "intelligence", label: "Lictory Intelligence", group: "Shared" },
@@ -78,6 +80,7 @@ export function OrganizationSettingsSection({ section }: { section: string }) {
       {active === "general" && <OrganizationGeneral />}
       {active === "members" && <People />}
       {active === "projects" && <OrganizationProjects />}
+      {active === "audit" && <OrganizationAudit />}
       {active === "types" && <OrganizationTypes />}
       {active === "integrations" && <Integrations />}
       {active === "intelligence" && <OrganizationIntelligence />}

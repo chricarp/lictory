@@ -13,6 +13,9 @@ import { db } from "@lictory/core/db";
 import * as s from "@lictory/core/db/schema";
 import { isLogoKind, MAX_LOGO_SIZE } from "@lictory/core/branding/logo";
 import { LogoError, readLogo } from "@lictory/core/branding/server";
+import { auditLogFilterInput } from "@lictory/core/capabilities/audit";
+import { recordAuditEvent } from "@lictory/core/domain/audit";
+import { auditLogCsv } from "@lictory/core/domain/audit-log";
 import { authorize } from "@lictory/core/domain/service";
 import { trackServer } from "@lictory/core/lib/analytics/server";
 import { APPEARANCES, THEMES } from "@lictory/core/lib/appearance";
@@ -382,6 +385,60 @@ export function webRoutes() {
         },
         502,
       );
+    }
+  });
+
+  // The audit log as CSV for organization administrators, streamed page by
+  // page. Exporting is itself recorded.
+  app.get("/api/organizations/:id/audit-log.csv", async (c) => {
+    try {
+      const user = await currentUser(c.req.raw);
+      if (!user)
+        throw new CapabilityError("unauthorized", "Sign in again to continue.");
+      // Absent and empty parameters both mean "no filter".
+      const filters = auditLogFilterInput.safeParse(
+        Object.fromEntries(
+          ["category", "actorId", "from", "to"]
+            .map((name) => [name, c.req.query(name)] as const)
+            .filter(([, value]) => Boolean(value)),
+        ),
+      );
+      if (!filters.success)
+        throw new CapabilityError("validation", "Invalid audit log filters.");
+      const organizationId = c.req.param("id");
+      const lines = await auditLogCsv(
+        db,
+        user.id,
+        organizationId,
+        filters.data,
+      );
+      await recordAuditEvent(db, {
+        organizationId,
+        actor: { id: user.id },
+        action: "audit_log.exported",
+        detail: { format: "csv", filters: filters.data },
+      });
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const next = await lines.next();
+          if (next.done) controller.close();
+          else controller.enqueue(encoder.encode(next.value));
+        },
+        async cancel() {
+          await lines.return(undefined);
+        },
+      });
+      const day = new Date().toISOString().slice(0, 10);
+      return new Response(body, {
+        headers: {
+          ...noStore,
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="lictory-audit-log-${day}.csv"`,
+        },
+      });
+    } catch (error) {
+      return errorResponse(error);
     }
   });
 

@@ -41,6 +41,8 @@ export const humanOnlyReasons = {
     "Litto conversations are managed in the chat where they happen; external agents keep their own conversation.",
   browser:
     "Browser state rather than a business operation; agents have their own way to read the same facts.",
+  audit:
+    "The audit log is reviewed by organization administrators themselves; agents acting for a person do not read or export security records.",
 } as const;
 export type HumanOnlyReason = keyof typeof humanOnlyReasons;
 

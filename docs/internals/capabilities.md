@@ -162,7 +162,9 @@ mutation id joins the two. Workspace activity also records delegated execution
 through MCP or Litto: the executing agent (the access token's id and name, or
 Litto) and a reported MCP client name, without treating agents sharing one
 person's identity as independent reviewers. Each token is one named agent, and
-a person's active tokens have distinct names. See the
+a person's active tokens have distinct names. Organization administrators
+read these records, with membership, role, token and configuration changes, in
+the [audit log](audit.md). See the
 [lifecycle model](lifecycle.md) for proposal, commitment and knowledge semantics.
 
 ## Adding a capability
