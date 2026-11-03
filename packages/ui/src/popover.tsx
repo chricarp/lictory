@@ -292,6 +292,7 @@ export function Picker<T extends string>({
     if (!multiple) popover?.close();
   };
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- arrow keys and Enter bubble from the search field (combobox pattern); the list wrapper is not a control.
     <div
       className="flex min-h-0 flex-col"
       onKeyDown={(event) => {

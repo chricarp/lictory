@@ -35,6 +35,8 @@ adding domain writes or synchronized entities.
 - [Product analytics](./internals/analytics.md)
 - [Brand identity](./internals/brand.md)
 - [State illustrations and design brief](./internals/illustrations.md)
+- [Accessibility](./internals/accessibility.md): the WCAG 2.2 AA target,
+  automated lint and browser checks, and known gaps
 
 ## Operations
 

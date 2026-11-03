@@ -722,6 +722,7 @@ function AppearanceSection() {
           <p id="appearance-mode-label" className="text-[13px] font-medium">
             Mode
           </p>
+          {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the radios (roving tabindex); the WAI-ARIA radio group itself is not a tab stop. */}
           <div
             role="radiogroup"
             aria-labelledby="appearance-mode-label"
@@ -764,6 +765,7 @@ function AppearanceSection() {
           <p id="appearance-theme-label" className="text-[13px] font-medium">
             Theme
           </p>
+          {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the radios (roving tabindex); the WAI-ARIA radio group itself is not a tab stop. */}
           <div
             role="radiogroup"
             aria-labelledby="appearance-theme-label"
