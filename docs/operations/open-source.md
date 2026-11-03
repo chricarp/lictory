@@ -244,7 +244,9 @@ The nightly workflow in this change skips forks. Fork operators who want their
 own release pipeline must adapt that repository guard and configure their own
 infrastructure. Node 24 is now documented alongside Bun; a bare Bun-only clean
 installation failed in Zero's native install, whereas the paired environment
-uses the supported Node ABI.
+uses the supported Node ABI. Both versions are pinned in `engines`, `.nvmrc`
+and `.tool-versions`, a dev container provides them, and Windows contributors
+use WSL2 (see the [development runbook](development.md#first-checkout)).
 
 Before changing visibility:
 
