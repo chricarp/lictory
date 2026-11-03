@@ -31,8 +31,10 @@ import {
 } from "@lictory/core/domain/service";
 import {
   decryptCredential,
+  derivedCredentialsKeyInProduction,
   encryptCredential,
 } from "@lictory/core/delivery/credentials";
+import type { Environment } from "@lictory/core/lib/env";
 import {
   DeliveryError,
   type DeliveryConnection,
@@ -116,6 +118,8 @@ type Options = {
   appUrl?: string;
   now?: () => Date;
   onPublicationCompleted?: (publication: Publication) => void;
+  /** Settings for the credentials key rule; tests override. */
+  environment?: Environment;
 };
 
 type ItemRow = typeof s.workItem.$inferSelect;
@@ -549,6 +553,22 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       await db.transaction(async (tx) => {
         await lock(tx, organizationId);
         await requireConnectionAdmin(tx, userId, organizationId);
+        if (
+          !derivedCredentialsKeyInProduction(options.environment ?? process.env)
+        )
+          return;
+        // Installation-wide on purpose: whether any credential (any
+        // organization, archived included) was ever stored with the derived
+        // key. Only existence is read, never another tenant's data.
+        const stored = await tx
+          .select({ id: s.deliveryConnection.id })
+          .from(s.deliveryConnection)
+          .limit(1);
+        if (stored.length === 0)
+          throw new DomainError(
+            "unavailable",
+            "Jira cannot be connected yet: this Lictory installation has no DELIVERY_CREDENTIALS_KEY. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
+          );
       });
       const provider = providers().jira_cloud;
       const baseUrl = provider.normalizeBaseUrl(input.baseUrl);

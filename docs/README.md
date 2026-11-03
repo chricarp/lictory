@@ -38,6 +38,8 @@ adding domain writes or synchronized entities.
 
 ## Operations
 
+- [Configuration reference](./operations/configuration.md): every environment
+  variable, which service reads it, defaults, secrets and startup validation
 - [Deployment and operations](./operations/deployment.md): single-server
   Docker Compose topology, Openship operations, worker scheduling, first launch and releases
 - [Websites on Cloudflare](./operations/cloudflare-marketing.md): public domains,

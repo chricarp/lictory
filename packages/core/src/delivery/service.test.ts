@@ -222,6 +222,66 @@ async function fixture(
   };
 }
 
+// First in this file: it needs an installation without stored credentials.
+void test("production refuses the first Jira connection until DELIVERY_CREDENTIALS_KEY is set; existing installations keep connecting", async () => {
+  const organizationId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  await db
+    .insert(s.user)
+    .values({ id: userId, name: "Owner", email: `${userId}@example.test` });
+  await db.insert(s.organization).values({
+    id: organizationId,
+    name: "Fresh",
+    slug: `fresh-${organizationId.slice(0, 8)}`,
+    createdAt: new Date(),
+  });
+  await db.insert(s.member).values({
+    id: crypto.randomUUID(),
+    organizationId,
+    userId,
+    role: "owner",
+    createdAt: new Date(),
+  });
+  await seedOrganization(db, organizationId);
+  const fake = createFakeProvider();
+  const service = (environment: Record<string, string>) =>
+    createDeliveryService(db, {
+      providers: { jira_cloud: fake.provider },
+      appUrl: "https://lictory.test",
+      environment,
+    });
+  const input = {
+    organizationId,
+    name: "Jira",
+    baseUrl: "https://fresh.atlassian.net",
+    email: "bot@fresh.test",
+    apiToken: "token",
+  };
+  const connections = () =>
+    db.select({ id: s.deliveryConnection.id }).from(s.deliveryConnection);
+  assert.deepEqual(await connections(), []);
+  await assert.rejects(
+    service({ NODE_ENV: "production", DELIVERY_CREDENTIALS_KEY: " " }).connect(
+      userId,
+      input,
+    ),
+    /no DELIVERY_CREDENTIALS_KEY/,
+  );
+  assert.deepEqual(await connections(), []);
+  // With the key, or outside production, connecting works.
+  await service({
+    NODE_ENV: "production",
+    DELIVERY_CREDENTIALS_KEY: "k".repeat(64),
+  }).connect(userId, input);
+  // Credentials are stored now: an existing installation without the key
+  // keeps working (it warns at startup instead).
+  await service({ NODE_ENV: "production" }).connect(userId, {
+    ...input,
+    baseUrl: "https://second.atlassian.net",
+  });
+  assert.equal((await connections()).length, 2);
+});
+
 void test("exporting an epic creates ready items parents-first and skips the rest", async () => {
   const f = await fixture();
   const preview = await f.service.preview(f.userId, {
