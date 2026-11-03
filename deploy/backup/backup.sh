@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Encrypted logical backup of one environment's application database.
+# Logical backup of one environment's application database, encrypted unless
+# BACKUP_AGE_RECIPIENTS=none.
 # Runs in the ops image: lictory-compose run --rm ops backup.sh [scheduled|pre-deploy|manual]
 #
 #   1. pg_dump (custom format, zstd) inside a REPEATABLE READ snapshot that also
 #      records exact row counts and the applied migrations (the manifest), so a
 #      restore can be verified against the same instant.
 #   2. Encrypt dump and manifest with age to BACKUP_AGE_RECIPIENTS (public keys
-#      only; the private identity never lives on the server).
-#   3. Upload to the dedicated backup bucket, apply retention, record success.
+#      only; the private identity never lives on the server). `none` stores
+#      them unencrypted, with a warning on every run.
+#   3. Store them at BACKUP_TARGET (backup-target.sh: s3, local or rclone),
+#      apply retention, record success. BACKUP_TARGET=none disables backups.
 #
 # Zero's schemas (zero, zero_*) are excluded: the replica, CVRs and change log
 # are rebuilt from PostgreSQL (docs/operations/recovery.md).
@@ -20,11 +23,18 @@ case "$label" in scheduled | pre-deploy | manual) ;; *)
   ;;
 esac
 
-: "${LICTORY_ENVIRONMENT:?}" "${PGDATABASE:?}" "${BACKUP_BUCKET:?}" "${BACKUP_AGE_RECIPIENTS:?}"
+: "${LICTORY_ENVIRONMENT:?}" "${PGDATABASE:?}"
+# shellcheck source=deploy/backup/backup-target.sh
+. "$(dirname "$0")/backup-target.sh"
+if [ "$backup_target" = none ]; then
+  echo "Backups are disabled for ${LICTORY_ENVIRONMENT} (BACKUP_TARGET=none); nothing was backed up." >&2
+  # A deliberate request must not look like success.
+  [ "$label" != manual ] || exit 1
+  exit 0
+fi
 started=$(date -u +%s)
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 name="lictory-${LICTORY_ENVIRONMENT}-${stamp}-${label}"
-remote="backup:${BACKUP_BUCKET}/${LICTORY_ENVIRONMENT}"
 work="/backups/work-${stamp}"
 mkdir -p "$work" /backups/latest
 umask 077
@@ -47,6 +57,24 @@ cleanup() { rm -rf "$work"; }
 trap 'status=$?; fail "step \"${BASH_COMMAND:0:160}\" (line $LINENO) exited with status $status"; cleanup' ERR
 trap cleanup EXIT
 ping /start "$name"
+
+# Configuration errors alert like any other failure.
+resolve_backup_target write 2>"$work/target-error" || { fail "$(cat "$work/target-error")"; exit 1; }
+remote="${backup_remote}/${LICTORY_ENVIRONMENT}"
+case "${BACKUP_AGE_RECIPIENTS:-}" in
+  "")
+    fail "BACKUP_AGE_RECIPIENTS is empty: set an age public key, or none to store unencrypted backups."
+    exit 1
+    ;;
+  none)
+    ext=""
+    warning="WARNING: backup ${name} is NOT encrypted (BACKUP_AGE_RECIPIENTS=none). Anyone who can read ${backup_target} storage can read every organization's data. Set an age recipient: docs/operations/recovery.md."
+    echo "$warning" >&2
+    ;;
+  *) ext=.age ;;
+esac
+[ "$backup_target" != local ] || [ -n "${BACKUP_LOCAL_PATH:-}" ] ||
+  echo "WARNING: BACKUP_TARGET=local without BACKUP_LOCAL_PATH keeps backups on this server's own disk; they do not survive losing it." >&2
 
 # --- 1. snapshot, manifest and dump ------------------------------------------
 coproc SNAPSHOT { psql -X -q -A -t -v ON_ERROR_STOP=1 2>&1; }
@@ -95,37 +123,48 @@ jq -n --argjson facts "$facts" \
     dump_bytes:$bytes,toc_entries:$entries} + $facts' >"$work/$name.manifest.json"
 
 # --- 2. encryption -----------------------------------------------------------
-recipients=()
-for key in ${BACKUP_AGE_RECIPIENTS//,/ }; do recipients+=(-r "$key"); done
-age "${recipients[@]}" -o "$work/$name.dump.age" "$work/$name.dump"
-age "${recipients[@]}" -o "$work/$name.manifest.json.age" "$work/$name.manifest.json"
-encrypted_sha=$(sha256sum "$work/$name.dump.age" | cut -d' ' -f1)
-encrypted_bytes=$(stat -c %s "$work/$name.dump.age")
-rm -f "$work/$name.dump"
+dump_file="$name.dump$ext"
+manifest_file="$name.manifest.json$ext"
+if [ -n "$ext" ]; then
+  recipients=()
+  for key in ${BACKUP_AGE_RECIPIENTS//,/ }; do recipients+=(-r "$key"); done
+  age "${recipients[@]}" -o "$work/$dump_file" "$work/$name.dump"
+  age "${recipients[@]}" -o "$work/$manifest_file" "$work/$name.manifest.json"
+  rm -f "$work/$name.dump"
+fi
+encrypted_sha=$(sha256sum "$work/$dump_file" | cut -d' ' -f1)
+encrypted_bytes=$(stat -c %s "$work/$dump_file")
 
 # --- 3. upload and retention -------------------------------------------------
 prefix=daily
 [ "$label" = scheduled ] || prefix="$label"
 rclone_flags=(--s3-no-check-bucket --retries 5 --low-level-retries 10 --contimeout 15s --timeout 5m --stats 0)
-for file in "$name.dump.age" "$name.manifest.json.age"; do
+for file in "$dump_file" "$manifest_file"; do
   rclone copyto "${rclone_flags[@]}" "$work/$file" "$remote/$prefix/$file"
 done
 # Integrity of the stored object, not just of the local file.
-remote_sha=$(rclone hashsum "${rclone_flags[@]}" sha256 --download "$remote/$prefix/$name.dump.age" | cut -d' ' -f1)
+remote_sha=$(rclone hashsum "${rclone_flags[@]}" sha256 --download "$remote/$prefix/$dump_file" | cut -d' ' -f1)
 [ "$remote_sha" = "$encrypted_sha" ] || { echo "Uploaded object checksum mismatch" >&2; false; }
 
 promote() { # promote <prefix>: server-side copy of today's backup
-  for file in "$name.dump.age" "$name.manifest.json.age"; do
+  for file in "$dump_file" "$manifest_file"; do
     rclone copyto "${rclone_flags[@]}" "$remote/daily/$file" "$remote/$1/$file"
   done
 }
-prune() { # prune <prefix> <keep>
-  local keep=$2 old
-  mapfile -t old < <(rclone lsf "${rclone_flags[@]}" --files-only --include '*.dump.age' "$remote/$1/" |
-    sort -r | tail -n +"$((keep + 1))")
+prune() { # prune <prefix> <keep>: encrypted and unencrypted backups alike
+  local keep=$2 listing old manifest
+  # Directory backends (local, SFTP…) have no empty prefixes; S3 needs none.
+  [ "$backup_target" = s3 ] || rclone mkdir -q "${rclone_flags[@]}" "$remote/$1"
+  # A failed listing fails the backup (not hidden in a process substitution).
+  listing=$(rclone lsf "${rclone_flags[@]}" --files-only --include '*.dump.age' --include '*.dump' "$remote/$1/")
+  mapfile -t old <<<"$(printf '%s\n' "$listing" | sed '/^$/d' | sort -r | tail -n +"$((keep + 1))")"
   for file in "${old[@]}"; do
+    [ -n "$file" ] || continue
     rclone deletefile "${rclone_flags[@]}" "$remote/$1/$file"
-    rclone deletefile "${rclone_flags[@]}" "$remote/$1/${file%.dump.age}.manifest.json.age" || true
+    manifest="${file%.dump.age}"
+    manifest="${manifest%.dump}.manifest.json"
+    [ "$file" = "${file%.age}" ] || manifest="$manifest.age"
+    rclone deletefile "${rclone_flags[@]}" "$remote/$1/$manifest" || true
   done
 }
 if [ "$prefix" = daily ]; then
@@ -139,16 +178,19 @@ else
 fi
 
 finished=$(date -u +%s)
-record=$(jq -cn --arg name "$name" --arg key "$LICTORY_ENVIRONMENT/$prefix/$name.dump.age" \
+# encrypted_sha256/bytes describe the stored file (kept for older restore tools).
+record=$(jq -cn --arg name "$name" --arg key "$LICTORY_ENVIRONMENT/$prefix/$dump_file" \
   --arg sha256 "$encrypted_sha" --argjson bytes "$encrypted_bytes" \
   --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson seconds "$((finished - started))" \
-  '{name:$name,key:$key,encrypted_sha256:$sha256,encrypted_bytes:$bytes,completed_at:$at,seconds:$seconds}')
+  --arg target "$backup_target" --argjson encrypted "$([ -n "$ext" ] && echo true || echo false)" \
+  '{name:$name,key:$key,encrypted_sha256:$sha256,encrypted_bytes:$bytes,completed_at:$at,seconds:$seconds,target:$target,encrypted:$encrypted}')
 echo "$record" >"$work/latest.json"
 rclone copyto "${rclone_flags[@]}" "$work/latest.json" "$remote/latest.json"
 
 # Keep the newest encrypted copy locally for a fast restore on the same host.
 rm -f /backups/latest/*
-mv "$work/$name.dump.age" "$work/$name.manifest.json.age" /backups/latest/
+mv "$work/$dump_file" "$work/$manifest_file" /backups/latest/
 echo "$record" >/backups/last-success.json
 ping "" "$record"
 echo "Backup complete: $record"
+[ -n "$ext" ] || echo "$warning" >&2

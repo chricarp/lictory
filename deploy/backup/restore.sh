@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Restores an encrypted backup into an EMPTY database. Never overwrites data.
-# Runs in the ops image (see drill.sh for the isolated restore drill):
+# Restores a backup into an EMPTY database. Never overwrites data.
+# Runs in the ops image (see lictory-restore-drill for the isolated drill):
 #
-#   restore.sh <latest | <environment>/<prefix>/<name>.dump.age | /path/to/file.dump.age>
+#   restore.sh <latest | <environment>/<prefix>/<name>.dump[.age] | /path/to/file.dump[.age]>
 #
 # Required environment:
-#   AGE_IDENTITY_FILE   private age identity (mounted read-only for the restore only)
+#   AGE_IDENTITY_FILE   private age identity (mounted read-only for the restore
+#                       only); not needed for unencrypted (.dump) backups
 #   RESTORE_PGHOST, RESTORE_PGPORT (5432), RESTORE_PGUSER (superuser),
 #   RESTORE_PGPASSWORD, RESTORE_DATABASE (created when missing)
-# Optional: BACKUP_BUCKET / rclone "backup" remote for remote keys.
+# Remote keys and latest are read from BACKUP_TARGET (backup-target.sh).
 #
 # The target cluster must already have the Lictory roles
 # (deploy/postgres/10-lictory-roles.sh). Zero's event triggers and internal
@@ -16,7 +17,7 @@
 set -Eeuo pipefail
 
 source="${1:?Usage: restore.sh <latest|key|file>}"
-: "${AGE_IDENTITY_FILE:?}" "${RESTORE_PGHOST:?}" "${RESTORE_PGUSER:?}" "${RESTORE_PGPASSWORD:?}" "${RESTORE_DATABASE:?}"
+: "${RESTORE_PGHOST:?}" "${RESTORE_PGUSER:?}" "${RESTORE_PGPASSWORD:?}" "${RESTORE_DATABASE:?}"
 export PGHOST="$RESTORE_PGHOST" PGPORT="${RESTORE_PGPORT:-5432}" PGUSER="$RESTORE_PGUSER" \
   PGPASSWORD="$RESTORE_PGPASSWORD" PGAPPNAME=lictory-restore
 unset PGDATABASE
@@ -26,11 +27,22 @@ umask 077
 trap 'rm -rf "$work"' EXIT
 rclone_flags=(--s3-no-check-bucket --retries 5 --low-level-retries 10 --contimeout 15s --timeout 5m --stats 0)
 
+# shellcheck source=deploy/backup/backup-target.sh
+. "$(dirname "$0")/backup-target.sh"
+manifest_name() { # <dump name> -> its manifest, encrypted alike
+  case "$1" in
+    *.dump.age) printf '%s.manifest.json.age' "${1%.dump.age}" ;;
+    *.dump) printf '%s.manifest.json' "${1%.dump}" ;;
+    *) return 1 ;;
+  esac
+}
 if [ -f "$source" ]; then
-  encrypted="$source"
-  manifest_encrypted="${source%.dump.age}.manifest.json.age"
+  stored="$source"
+  manifest_stored=$(manifest_name "$source") || { echo "Not a backup file: $source" >&2; exit 64; }
 else
-  remote="backup:${BACKUP_BUCKET:?}"
+  [ "$backup_target" != none ] || { echo "BACKUP_TARGET=none: pass a backup file instead." >&2; exit 64; }
+  resolve_backup_target read || exit 64
+  remote="$backup_remote"
   expected_sha=""
   if [ "$source" = latest ]; then
     : "${LICTORY_ENVIRONMENT:?}"
@@ -38,23 +50,33 @@ else
     source=$(jq -r .key "$work/latest.json")
     expected_sha=$(jq -r .encrypted_sha256 "$work/latest.json")
   fi
-  [[ "$source" =~ ^[a-z0-9_-]+/[a-z-]+/lictory-[A-Za-z0-9_-]+\.dump\.age$ ]] || {
+  [[ "$source" =~ ^[a-z0-9_-]+/[a-z-]+/lictory-[A-Za-z0-9_-]+\.dump(\.age)?$ ]] || {
     echo "Not a backup key: $source" >&2
     exit 64
   }
-  encrypted="$work/backup.dump.age"
-  manifest_encrypted="$work/backup.manifest.json.age"
-  rclone copyto "${rclone_flags[@]}" "$remote/$source" "$encrypted"
-  rclone copyto "${rclone_flags[@]}" "$remote/${source%.dump.age}.manifest.json.age" "$manifest_encrypted"
+  stored="$work/$(basename "$source")"
+  manifest_stored="$work/$(manifest_name "$(basename "$source")")"
+  rclone copyto "${rclone_flags[@]}" "$remote/$source" "$stored"
+  rclone copyto "${rclone_flags[@]}" "$remote/$(manifest_name "$source")" "$manifest_stored"
   if [ -n "$expected_sha" ]; then
-    actual=$(sha256sum "$encrypted" | cut -d' ' -f1)
+    actual=$(sha256sum "$stored" | cut -d' ' -f1)
     [ "$actual" = "$expected_sha" ] || { echo "Downloaded backup checksum mismatch" >&2; exit 1; }
   fi
 fi
 fetched=$(date -u +%s)
 
-age -d -i "$AGE_IDENTITY_FILE" -o "$work/backup.dump" "$encrypted"
-age -d -i "$AGE_IDENTITY_FILE" -o "$work/manifest.json" "$manifest_encrypted"
+case "$stored" in
+  *.age)
+    : "${AGE_IDENTITY_FILE:?This backup is encrypted: set AGE_IDENTITY_FILE to the private age identity.}"
+    age -d -i "$AGE_IDENTITY_FILE" -o "$work/backup.dump" "$stored"
+    age -d -i "$AGE_IDENTITY_FILE" -o "$work/manifest.json" "$manifest_stored"
+    ;;
+  *)
+    echo "Restoring an unencrypted backup." >&2
+    cp "$stored" "$work/backup.dump"
+    cp "$manifest_stored" "$work/manifest.json"
+    ;;
+esac
 [ "$(sha256sum "$work/backup.dump" | cut -d' ' -f1)" = "$(jq -r .dump_sha256 "$work/manifest.json")" ] || {
   echo "Decrypted dump does not match its manifest" >&2
   exit 1

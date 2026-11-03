@@ -238,7 +238,10 @@ migrate() {
     log "No pending migrations for $1."
     return 0
   fi
-  if [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ]; then
+  if [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ] &&
+    [ "$(setting BACKUP_TARGET)" = none ]; then
+    log "WARNING: no pre-deploy backup: backups are disabled (BACKUP_TARGET=none)."
+  elif [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ]; then
     log "Pre-deploy backup…"
     compose "$dir" run --rm --no-deps -T ops backup.sh pre-deploy >&2 ||
       die "Pre-deploy backup failed; nothing was migrated."

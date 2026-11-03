@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   cpSync,
+  symlinkSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -64,6 +65,7 @@ const adapted = { apps: { http: { servers: { srv0: {
 if (args[0] === "create") console.log("bundle-container");
 else if (args[0] === "cp") cpSync(${JSON.stringify(deploy)}, args.at(-1), { recursive: true });
 else if (args[0] === "run") process.stdout.write(JSON.stringify(adapted));
+else if (args[0] === "compose" && args.includes("--status")) console.log("Pending migrations: 1");
 else if (args[0] === "compose" && args.includes("config"))
   console.log(JSON.stringify({ services: { proxy: { image: "proxy", environment: { CADDY_TRUSTED_PROXIES: "" } } } }));
 `,
@@ -226,3 +228,28 @@ void test("new-environment.sh creates a qa environment under a custom root", (t)
   assert.equal(f.run("provision/new-environment.sh", ["test"]).status, 64);
   assert.ok(!existsSync(join(f.root, "test")));
 });
+
+for (const [target, backedUp] of [
+  ["", true],
+  ["s3", true],
+  ["none", false],
+] as const) {
+  void test(`pre-deploy backup with BACKUP_TARGET=${target || "unset"}: ${backedUp ? "taken" : "skipped with a warning"}`, (t) => {
+    const f = fixture(t);
+    if (target)
+      writeFileSync(join(f.root, "qa/.env"), `BACKUP_TARGET=${target}\n`, {
+        flag: "a",
+      });
+    assert.equal(
+      f.run("deploy.sh", ["qa", "prepare"], { input: release() }).status,
+      0,
+    );
+    symlinkSync("releases/3.0.0", join(f.root, "qa/current"));
+    const result = f.run("deploy.sh", ["qa", "migrate", "3.0.0"]);
+    assert.equal(result.status, 0, result.stderr);
+    const backup = result.calls.some((call) => call.includes("backup.sh"));
+    assert.equal(backup, backedUp);
+    if (!backedUp)
+      assert.match(result.stderr, /no pre-deploy backup: backups are disabled/);
+  });
+}

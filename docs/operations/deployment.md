@@ -140,16 +140,16 @@ versions of these tools.
 or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 `ZERO_ADMIN_PASSWORD`. Fill in the rest by hand:
 
-| Setting                                                    | Notes                                                                                                  |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
-| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
-| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                          |
-| `BACKUP_*`                                                 | Dedicated private backup bucket and its own token; `BACKUP_AGE_RECIPIENTS` is a public key             |
-| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                              |
-| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                               |
-| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` production, `nightly` staging) |
+| Setting                                                    | Notes                                                                                                                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                                                                                            |
+| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                                                                                                 |
+| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                                                                                            |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                                                                                                  |
+| `BACKUP_*`                                                 | `BACKUP_TARGET` (`s3`, `local`, `rclone`, `none`) and its storage with its own credentials; `BACKUP_AGE_RECIPIENTS` is a public key ([recovery](recovery.md#where-backups-go)) |
+| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                                                                                                      |
+| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                                                                                                       |
+| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` production, `nightly` staging)                                                                         |
 
 Each service receives only the variables it needs (see
 `deploy/compose.production.yaml`). Secrets are visible to anyone who can run
@@ -366,15 +366,26 @@ timeouts even when Caddy considers the configuration valid.
 | Zero diagnostics            | `lictory-compose <env> exec zero-cache sh -c 'curl -su "admin:$ZERO_ADMIN_PASSWORD" localhost:4848/statz'` (never public) |
 
 The Openship health job (or `lictory-monitor@<env>.timer` on a standalone host)
-runs every five minutes and alerts on public Cloudflare route failures, disk usage
+runs every five minutes and alerts on public route failures (the app's
+`/readyz`, and the marketing site when `SITE_HOST` is set), disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
 overdue notification email, partial, failed or stuck delivery exports,
-automatic cycles overdue by two hours, and a backup older than 30 hours. It
-posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
+automatic cycles overdue by two hours, and a backup older than 30 hours
+(not checked with `BACKUP_TARGET=none`). It checks only what is configured
+and needs nothing but Docker, `bash` and `curl` on the host. It posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
 problems changes, every six hours while it persists, and once on recovery, and
 pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
-a server that stopped reporting. Logs rotate at 5 × 20 MB per container.
+a server that stopped reporting; both are optional. Logs rotate at 5 × 20 MB
+per container.
+
+Existing monitoring can replace or complement it: point an uptime checker
+(Uptime Kuma, Pingdom, a load balancer health check) at
+`https://<app host>/readyz`, scrape container health with cAdvisor or the
+Docker engine metrics endpoint, and use `postgres_exporter` with Prometheus for
+replication slot lag and WAL size (the queries are in
+`deploy/monitor/checks.sql`). Without the timers, run
+`lictory-monitor <env>` from your scheduler or not at all.
 
 ## Openship production operations
 
