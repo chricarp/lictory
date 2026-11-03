@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   GitHubFixture,
@@ -16,6 +16,7 @@ import {
   imagesId,
   releaseFile,
 } from "@lictory/core/release/images";
+import { nightlyEvents } from "@lictory/core/release/plan";
 import {
   Server,
   sshRemote,
@@ -332,7 +333,7 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
   assert.ok(!Object.hasOwn(nightly.on, "pull_request"));
 });
 
-void test("pushes build nightlies without re-verifying; PR and manual CI remain available", () => {
+void test("nightlies are scheduled, fully verified before publication and built for both architectures", () => {
   const ci = workflow("ci");
   const nightly = workflow("nightly");
   const production = workflow("deploy-production");
@@ -341,15 +342,75 @@ void test("pushes build nightlies without re-verifying; PR and manual CI remain 
     "workflow_call",
     "workflow_dispatch",
   ]);
-  assert.deepEqual(nightly.on.push, { branches: ["main", "release/*"] });
-  assert.equal(nightly.jobs.verify, undefined);
-  assert.deepEqual(nightly.jobs.build!.needs, ["plan"]);
-  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan", "build"]);
+  assert.deepEqual(Object.keys(nightly.on).sort(), [
+    "push",
+    "repository_dispatch",
+    "schedule",
+    "workflow_dispatch",
+  ]);
+  // Every way a nightly starts is accepted as its provenance when it is
+  // published and later promoted.
+  for (const event of Object.keys(nightly.on))
+    assert.ok(nightlyEvents.includes(event), event);
+  // main gets one candidate a day; maintenance branches release every fix.
+  assert.deepEqual(nightly.on.push, { branches: ["release/*"] });
+  // Nothing is published unless every browser workflow passed on the exact
+  // candidate source with its embedded version.
+  const verify = nightly.jobs.verify!;
+  assert.equal(verify.uses, "./.github/workflows/ci.yml");
+  assert.equal(verify.with?.ref, "${{ needs.plan.outputs.sha }}");
+  assert.equal(
+    verify.with?.release_version,
+    "${{ needs.plan.outputs.version }}",
+  );
+  assert.equal(verify.with?.suite, "full");
+  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan", "verify", "build"]);
   assert.deepEqual(nightly.jobs.stage!.needs, ["plan", "deploy"]);
+  // Days without merges publish nothing.
+  for (const job of ["verify", "build"])
+    assert.equal(
+      nightly.jobs[job]!.if,
+      "needs.plan.outputs.due == 'true'",
+      job,
+    );
+  for (const flow of [nightly, production]) {
+    const matrix = (
+      flow.jobs.build as { strategy?: { matrix?: { include?: unknown[] } } }
+    ).strategy?.matrix?.include as { architecture: string }[];
+    assert.deepEqual(
+      matrix.map((entry) => entry.architecture),
+      ["amd64", "arm64"],
+    );
+  }
   assert.equal(
     production.jobs.verify!.with?.release_version,
     "${{ needs.plan.outputs.version }}",
   );
+});
+
+void test("only release managers can start a stable release", () => {
+  const production = workflow("deploy-production");
+  const authorize = production.jobs.authorize!;
+  assert.equal(production.jobs.plan!.needs, "authorize");
+  assert.deepEqual(authorize.permissions, {});
+  assert.equal(
+    authorize.env?.MANAGERS,
+    "${{ vars.RELEASE_MANAGERS || github.repository_owner }}",
+  );
+  // The person who clicked (also on a re-run), not the original dispatcher.
+  assert.equal(authorize.env?.ACTOR, "${{ github.triggering_actor }}");
+  const script = authorize.steps![0]!.run!;
+  assert.match(script, /refs\/heads\/main/);
+  assert.ok(!JSON.stringify(authorize).includes("secrets."));
+  // Every other job waits for the gate, directly or through its needs.
+  const needs = (name: string): string[] => {
+    const direct = production.jobs[name]!.needs ?? [];
+    const list = typeof direct === "string" ? [direct] : direct;
+    return [...list, ...list.flatMap(needs)];
+  };
+  for (const name of Object.keys(production.jobs))
+    if (name !== "authorize")
+      assert.ok(needs(name).includes("authorize"), name);
 });
 
 void test("PR title enforcement never checks out or runs untrusted PR code", () => {
@@ -365,20 +426,15 @@ void test("PR title enforcement never checks out or runs untrusted PR code", () 
   assert.equal(title.permissions["pull-requests"], "read");
 });
 
-void test("third-party actions are pinned to commits", () => {
-  for (const name of [
-    "ci",
-    "nightly",
-    "deploy-production",
-    "migrate",
-    "backfill",
-    "pr-title",
-    "codeql",
-    "dependency-review",
-    "scorecard",
-    "workflow-lint",
-    "gitleaks",
-  ])
+void test("third-party actions are pinned to commits", async () => {
+  // Every workflow, including ones added later.
+  const names = (
+    await readdir(new URL("../../../../.github/workflows/", import.meta.url))
+  )
+    .filter((file) => file.endsWith(".yml"))
+    .map((file) => file.slice(0, -4));
+  assert.ok(names.includes("nightly") && names.includes("ci"));
+  for (const name of names)
     for (const job of Object.values(workflow(name).jobs))
       for (const step of job.steps ?? [])
         if (step.uses && !step.uses.startsWith("./"))

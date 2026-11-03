@@ -1,5 +1,11 @@
 name: Release to Production
 
+# Promotes a published nightly (the newest eligible one, or the tag given) to
+# stable and activates it in production. Only release managers can start it:
+# the RELEASE_MANAGERS repository variable lists their GitHub logins
+# (comma-separated; the repository owner when unset), and the Production
+# environment can add required reviewers (people or a team). See
+# docs/operations/releases.md#who-can-release.
 on:
   workflow_dispatch:
     inputs:
@@ -21,8 +27,35 @@ concurrency:
   queue: max
 
 jobs:
+  # Runs before any build minutes or credentials are spent. Re-runs are
+  # checked again: a re-run by someone else is that person's release.
+  authorize:
+    name: Authorize the release manager
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    env:
+      ACTOR: ${{ github.triggering_actor }}
+      MANAGERS: ${{ vars.RELEASE_MANAGERS || github.repository_owner }}
+    steps:
+      - name: Require a release manager on protected main
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Stable releases are dispatched from main, not $GITHUB_REF."
+            exit 1
+          fi
+          for manager in ${MANAGERS//,/ }; do
+            if [ "${manager,,}" = "${ACTOR,,}" ]; then
+              echo "$ACTOR is a release manager."
+              exit 0
+            fi
+          done
+          echo "::error::$ACTOR is not a release manager. The repository owner adds logins to the RELEASE_MANAGERS variable (Settings → Secrets and variables → Actions)."
+          exit 1
+
   plan:
     name: Select verified nightly source
+    needs: authorize
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -68,9 +101,16 @@ jobs:
       release_version: ${{ needs.plan.outputs.version }}
 
   build:
-    name: Build native ARM64 backend images
+    name: Build native ${{ matrix.architecture }} backend images
     needs: [plan]
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     environment: Production
     permissions:
@@ -80,7 +120,7 @@ jobs:
       pull-requests: read
       actions: read
     env:
-      BUILD_ARCHITECTURE: arm64
+      BUILD_ARCHITECTURE: ${{ matrix.architecture }}
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
@@ -125,13 +165,13 @@ jobs:
         run: bash control/deploy/ci/ssh-setup.sh
       - name: Build the selected source on its native architecture
         env:
-          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/arm64.json
+          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/${{ matrix.architecture }}.json
         working-directory: control
         run: bun run release build "$RUNNER_TEMP/plan/release-plan.json" ../source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-arm64
-          path: ${{ runner.temp }}/arm64.json
+          name: native-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/${{ matrix.architecture }}.json
           retention-days: 2
           overwrite: true
 

@@ -2,7 +2,10 @@ import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
-import { mergeArchitectureBuilds } from "@lictory/core/release/parallel-images";
+import {
+  mergeArchitectureBuilds,
+  releaseArchitectures,
+} from "@lictory/core/release/parallel-images";
 import { resolve } from "node:path";
 import {
   GitHub,
@@ -15,6 +18,7 @@ import {
   buildImages,
   imageNames,
   imagesId,
+  releaseFile,
   type BuildConfiguration,
 } from "@lictory/core/release/images";
 import {
@@ -27,6 +31,8 @@ import {
 import { injectVersion } from "@lictory/core/release/build";
 import {
   assertRun,
+  nightlyDue,
+  nightlyEvents,
   planNightly,
   planProduction,
 } from "@lictory/core/release/plan";
@@ -190,7 +196,7 @@ async function deploy(
       const images = directory
         ? await mergeArchitectureBuilds(
             await Promise.all(
-              ["arm64"].map(
+              releaseArchitectures.map(
                 async (arch) =>
                   JSON.parse(
                     await readFile(resolve(directory, `${arch}.json`), "utf8"),
@@ -244,8 +250,14 @@ async function deploy(
       await production.prepare(manifest, build.images);
       await production.migrate(manifest);
     },
-    reserve: async () => {
+    reserve: async (build) => {
       await github.reserve(manifest);
+      // What self-hosted installations pull: the exact digests of this release.
+      await github.attach(
+        manifest,
+        "release.env",
+        releaseFile(manifest, build.images),
+      );
     },
     promote: async (build) => {
       if (!production)
@@ -296,16 +308,33 @@ try {
   );
   const runId = Number(required("GITHUB_RUN_ID"));
   if (command === "plan-nightly") {
-    const manifest = await planNightly(
+    const due = await nightlyDue(
       github,
-      graphRoot,
       required("GITHUB_SHA"),
       required("GITHUB_REF_NAME"),
       runId,
-      bootstrap(),
     );
-    await github.keepReleaseIntent(runId, manifest);
-    await savePlan(manifest, planPath);
+    if (process.env.GITHUB_OUTPUT)
+      await appendFile(process.env.GITHUB_OUTPUT, `due=${due}\n`);
+    if (!due) {
+      console.log("The newest nightly already ships this commit; skipping.");
+      if (process.env.GITHUB_STEP_SUMMARY)
+        await appendFile(
+          process.env.GITHUB_STEP_SUMMARY,
+          "No nightly: nothing merged since the newest nightly.\n",
+        );
+    } else {
+      const manifest = await planNightly(
+        github,
+        graphRoot,
+        required("GITHUB_SHA"),
+        required("GITHUB_REF_NAME"),
+        runId,
+        bootstrap(),
+      );
+      await github.keepReleaseIntent(runId, manifest);
+      await savePlan(manifest, planPath);
+    }
   } else if (command === "plan-production") {
     if (
       process.env.GITHUB_REF !== "refs/heads/main" ||
@@ -404,7 +433,7 @@ try {
         if (
           manifest.run.id !== runId ||
           run.head_sha !== manifest.sha ||
-          !["push", "repository_dispatch"].includes(run.event)
+          !nightlyEvents.includes(run.event)
         )
           throw new Error(
             "Nightly deployment does not belong to this exact triggering run.",

@@ -27,6 +27,15 @@ import {
 
 class IneligibleNightly extends Error {}
 
+// The daily schedule, a manual "Run workflow", a push to a maintenance branch
+// and the run that follows a stable publication.
+export const nightlyEvents = [
+  "schedule",
+  "workflow_dispatch",
+  "push",
+  "repository_dispatch",
+];
+
 export function assertRun(
   manifest: Manifest,
   run: ReturnType<typeof runSchema.parse>,
@@ -39,12 +48,43 @@ export function assertRun(
     run.head_branch !== manifest.sourceBranch ||
     run.created_at !== manifest.run.createdAt ||
     run.path.split("@")[0] !== ".github/workflows/nightly.yml" ||
-    !["push", "repository_dispatch"].includes(run.event) ||
+    !nightlyEvents.includes(run.event) ||
     (verified && run.conclusion !== "success")
   )
     throw new IneligibleNightly(
       "Nightly provenance does not match a successful trusted nightly workflow run.",
     );
+}
+
+/**
+ * Whether this run should produce a nightly: a retry of a run that already
+ * planned one always does; otherwise only when the newest published nightly of
+ * the branch shipped another commit. Days without merges publish nothing.
+ */
+export async function nightlyDue(
+  github: GitHub,
+  sha: string,
+  branch: string,
+  runId: number,
+): Promise<boolean> {
+  if (await github.releaseIntent("nightly", runId)) return true;
+  const nightlies = (await github.releases())
+    .filter(
+      (release) =>
+        !release.draft &&
+        release.prerelease &&
+        release.tag_name.includes("-nightly."),
+    )
+    .sort(
+      (a, b) =>
+        parseNightly(b.tag_name.slice(1)).runNumber -
+        parseNightly(a.tag_name.slice(1)).runNumber,
+    );
+  for (const release of nightlies) {
+    const manifest = await github.manifest(release);
+    if (manifest.sourceBranch === branch) return manifest.sha !== sha;
+  }
+  return true;
 }
 
 export async function planNightly(

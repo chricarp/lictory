@@ -234,8 +234,10 @@ C library upgrades.
 ## Images
 
 `Dockerfile` has one target per image; `deploy/docker-bake.hcl` builds all of
-the API/worker, proxy, migration and operations images. Actions builds only
-`linux/arm64` on a native runner for Hetzner. Every target uses the selected checkout, so the API's
+the API/worker, proxy, migration and operations images. Actions builds each
+release natively on `linux/amd64` and `linux/arm64` runners and publishes one
+multi-platform image per target, so any x86-64 or ARM server pulls the same
+digests. Every target uses the selected checkout, so the API's
 `index.html` and the proxy's assets come from the same SPA build. Tags are the
 release version and `sha-<commit>-<channel>`; deployments always pin digests.
 The images embed no public origins; only the marketing website, which is not

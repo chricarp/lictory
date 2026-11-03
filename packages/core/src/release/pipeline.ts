@@ -15,7 +15,8 @@ export type ReleasePorts = {
   ) => Promise<void>;
   /** Stable only: stores the images on the server and applies migrations. */
   migrate: (build: Build) => Promise<void>;
-  reserve: () => Promise<void>;
+  /** Tags the source and reserves its draft release with the build's assets. */
+  reserve: (build: Build) => Promise<void>;
   promote: (build: Build) => Promise<void>;
   publish: () => Promise<void>;
 };
@@ -32,7 +33,7 @@ export async function executeRelease(
   const active = await ports.active();
   if (active) {
     const record = await ports.record(active);
-    await ports.reserve();
+    await ports.reserve(active);
     await ports.status(record, "success", active);
     await ports.publish();
     return active;
@@ -45,7 +46,7 @@ export async function executeRelease(
     await ports.validate();
     // Reserve stable tags only after gates pass, so a failed migration does not
     // consume the version before a corrected candidate can be selected.
-    await ports.reserve();
+    await ports.reserve(build);
     // Nightly publication does not activate anything.
     if (manifest.channel === "nightly") await ports.publish();
     if (manifest.channel === "stable") await ports.promote(build);

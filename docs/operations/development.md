@@ -127,12 +127,12 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command              | Runs on pull requests               |
-| ----------------- | ----------------------------------------------------------------- | -------------------- | ----------------------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`      | Always                              |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun test src`       | Unless the change is prose          |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke` | When applications or tests change   |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`   | Manual (`CI` → Run workflow → full) |
+| Tier              | Proves                                                            | Command              | Runs on pull requests               | Nightly                |
+| ----------------- | ----------------------------------------------------------------- | -------------------- | ----------------------------------- | ---------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`      | Always                              | Yes                    |
+| Domain            | Invariants and contracts against real PostgreSQL                  | `bun test src`       | Unless the change is prose          | Yes                    |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke` | When applications or tests change   | Yes                    |
+| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`   | Manual (`CI` → Run workflow → full) | Yes, before publishing |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. The required `Verify` check passes only when
@@ -164,8 +164,9 @@ services and drops its database.
 
 ## Full verification before a pull request
 
-Pull request CI runs the [test tiers](#test-tiers) the change needs, but it
-does not replace this sequence. Run
+Pull request CI runs the [test tiers](#test-tiers) the change needs, and the
+nightly runs every tier before publishing, but neither replaces this sequence.
+Run
 the complete sequence below before opening or updating a pull request, in order
 and against a disposable database, never your development database:
 
@@ -205,9 +206,9 @@ a separate worktree and give each worktree its own disposable databases.
 
 ## Release performance
 
-Backend release builds run on native ARM64 runners for the Hetzner server. Production
-verification and Cloudflare frontend preparation also run in parallel with
-those builds. Assembly rejects missing ARM64 output, mismatched release plans
+Backend release builds run in parallel on native amd64 and arm64 runners.
+Verification and Cloudflare frontend preparation also run in parallel with
+those builds. Assembly rejects a missing or duplicate architecture, mismatched release plans
 and stale previous-proxy assets before publishing multi-platform indexes.
 Migration, Zero catch-up and healthy backend activation still precede frontend
 publication. The standalone website dispatch builds its selected stable tag.

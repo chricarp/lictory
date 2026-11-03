@@ -1145,9 +1145,9 @@ changes. Targeted tests during implementation do not replace this final step.
 
 GitHub Actions CI ([the CI workflow](.github/workflows/ci.yml)) runs on every
 pull request behind the required `Verify` check: static checks always, domain
-tests and the `@smoke` browser workflows when the changed paths need them. CI
-is a safety net, not a substitute: this local sequence remains the complete
-gate.
+tests and the `@smoke` browser workflows when the changed paths need them. The
+nightly runs every browser workflow before it publishes a candidate. CI is a
+safety net, not a substitute: this local sequence remains the complete gate.
 Execute every command in this order with the same arguments, running the
 browser suite unsharded:
 

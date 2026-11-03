@@ -115,8 +115,11 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 Conventional Commit PR titles determine semantic versions. GitHub Actions
 calculates versions, writes release notes from the merged PRs and publishes a
-nightly prerelease for every push to `main`; a stable release promotes the exact
-commit of a tested nightly. Nobody bumps versions, edits a changelog or pushes
+daily nightly prerelease when something merged, after every browser workflow
+passed on it; a stable release, which only release managers can start,
+promotes the exact commit of a tested nightly. Every release carries
+multi-architecture images (amd64 and arm64) and a `release.env` with their
+digests. Nobody bumps versions, edits a changelog or pushes
 tags by hand. See [the release runbook](docs/operations/releases.md) for
 versioning, hotfixes and deploying a release.
 

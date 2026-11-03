@@ -15,7 +15,10 @@ const architectureBuildSchema = z.object({
   images: imagesSchema,
 });
 
-/** Join only the native ARM64 build of this exact plan and previous asset set. */
+/** Every release image is a manifest list of these native builds. */
+export const releaseArchitectures = ["amd64", "arm64"] as const;
+
+/** Join one native build per release architecture of this exact plan and previous asset set. */
 export async function mergeArchitectureBuilds(
   metadata: unknown[],
   manifest: Manifest,
@@ -27,8 +30,12 @@ export async function mergeArchitectureBuilds(
 ): Promise<Images> {
   const builds = metadata.map((entry) => architectureBuildSchema.parse(entry));
   if (
-    builds.length !== 1 ||
-    builds[0]?.architecture !== "arm64" ||
+    builds.length !== releaseArchitectures.length ||
+    releaseArchitectures.some(
+      (architecture) =>
+        builds.filter((build) => build.architecture === architecture).length !==
+        1,
+    ) ||
     builds.some(
       (build) =>
         build.manifestHash !== fingerprint(manifest) ||

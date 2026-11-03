@@ -1,8 +1,19 @@
 name: Nightly
 
+# One verified candidate a day, the way T3 Code ships nightlies: the schedule
+# builds main when something merged since the newest nightly and publishes
+# nothing otherwise. "Run workflow" on main produces one now. Maintenance
+# branches release every fix, and a stable publication rebases main's next
+# candidate on the new baseline. A candidate is published only after every
+# browser workflow passed on its exact source; Release to Production promotes
+# a published nightly, never main HEAD.
 on:
+  schedule:
+    # 03:23 UTC, off the minute GitHub's scheduler is busiest.
+    - cron: "23 3 * * *"
+  workflow_dispatch:
   push:
-    branches: [main, "release/*"]
+    branches: ["release/*"]
   repository_dispatch:
     types: [stable-published]
 
@@ -32,6 +43,7 @@ jobs:
       actions: read
       deployments: write # Candidate journal only; no deployment credentials.
     outputs:
+      due: ${{ steps.plan.outputs.due }}
       sha: ${{ steps.plan.outputs.sha }}
       version: ${{ steps.plan.outputs.version }}
     env:
@@ -52,20 +64,42 @@ jobs:
       - id: plan
         run: bun run release plan-nightly "$RUNNER_TEMP/release-plan.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.plan.outputs.due == 'true'
         with:
           name: nightly-plan
           path: ${{ runner.temp }}/release-plan.json
           retention-days: 30
           overwrite: true
 
-  # No re-verification here: the merged PR already passed CI, and the
-  # production release verifies the exact candidate before activation.
+  # Every browser workflow, the domain suite and the static checks on the
+  # exact candidate with its embedded version, in parallel with the builds.
+  verify:
+    name: Verify the candidate
+    needs: plan
+    if: needs.plan.outputs.due == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      release_version: ${{ needs.plan.outputs.version }}
+      suite: full
+
   # Nightly images are built with the staging origins; they never reach
   # production, which rebuilds the same commit with production origins.
   build:
-    name: Build native ARM64 backend images
+    name: Build native ${{ matrix.architecture }} backend images
     needs: [plan]
-    runs-on: ubuntu-24.04-arm
+    if: needs.plan.outputs.due == 'true'
+    strategy:
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
       contents: read
@@ -74,7 +108,7 @@ jobs:
       pull-requests: read
       actions: read
     env:
-      BUILD_ARCHITECTURE: arm64
+      BUILD_ARCHITECTURE: ${{ matrix.architecture }}
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
@@ -111,19 +145,19 @@ jobs:
           password: ${{ github.token }}
       - name: Build the selected source on its native architecture
         env:
-          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/arm64.json
+          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/${{ matrix.architecture }}.json
         working-directory: control
         run: bun run release build "$RUNNER_TEMP/plan/release-plan.json" ../source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-arm64
-          path: ${{ runner.temp }}/arm64.json
+          name: native-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/${{ matrix.architecture }}.json
           retention-days: 2
           overwrite: true
 
   deploy:
     name: Assemble and publish nightly images
-    needs: [plan, build]
+    needs: [plan, verify, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
