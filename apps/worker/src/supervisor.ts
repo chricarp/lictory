@@ -26,6 +26,9 @@ export type Job = {
   // Work signal that wakes this job early.
   kind?: WorkKind;
   intervalMs: number;
+  // How long one run may take before the process reports itself stuck, when
+  // it legitimately runs longer than the supervisor's default.
+  stuckMs?: number;
   run(context: JobContext): Promise<JobResult>;
 };
 
@@ -197,7 +200,7 @@ export function createSupervisor(
       const now = Date.now();
       return loops.every((loop) =>
         loop.running
-          ? now - loop.startedAt! < stuckMs
+          ? now - loop.startedAt! < (loop.job.stuckMs ?? stuckMs)
           : loop.timer !== undefined,
       );
     },

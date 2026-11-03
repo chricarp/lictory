@@ -20,6 +20,10 @@ import {
   type MutationOutcome,
   type Tx,
 } from "@lictory/core/domain/service";
+import {
+  heldOrganizations,
+  twoFactorRequiredError,
+} from "@lictory/core/domain/two-factor-policy";
 
 // Zero's custom query and mutate endpoints. zero-cache calls them with the
 // browser's forwarded cookies; the host resolves the session and passes the
@@ -104,9 +108,20 @@ export function createZeroEndpoints(
     (process.env.ZERO_SERVER_LOG_LEVEL as
       "debug" | "info" | "warn" | "error" | undefined) ?? "error";
   return {
-    query(request: Request, userID: string) {
+    async query(request: Request, userID: string) {
+      // Organizations whose two-factor requirement this person does not
+      // meet yet: their data is not synchronized until they enroll.
+      const held = new Set(
+        (await heldOrganizations(db, userID)).map((o) => o.id),
+      );
       return handleQueryRequest({
         handler: (name, args) => {
+          const organizationId =
+            args && typeof args === "object" && "organizationId" in args
+              ? args.organizationId
+              : undefined;
+          if (typeof organizationId === "string" && held.has(organizationId))
+            throw applicationError(twoFactorRequiredError());
           const query = mustGetQuery(queries, name);
           const ctx: ZeroContext = { userID };
           return query.fn({ args, ctx });

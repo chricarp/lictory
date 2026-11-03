@@ -10,7 +10,9 @@
 :root,
 [data-theme] {
   color-scheme: light;
-  /* Status text/icon colors, tuned for >= 4.5:1 on background and card. */
+  /* Status text/icon colors, tuned for >= 4.5:1 on background and card.
+     Primary and destructive are dark enough for 4.5:1 with their foregrounds
+     and as text on their 10% tints (WCAG 2.2 AA; checked by the browser suite). */
   --success: oklch(0.508 0.118 165.612);
   --warning: oklch(0.555 0.163 48.998);
   --background: oklch(0.9946 0.0026 286.3519);
@@ -19,7 +21,7 @@
   --card-foreground: oklch(0.1615 0.0105 285.1663);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.1615 0.0105 285.1663);
-  --primary: oklch(0.5828 0.2188 258.8797);
+  --primary: oklch(0.53 0.2188 258.8797);
   --primary-foreground: oklch(0.967 0.0029 264.5419);
   --secondary: oklch(0.9518 0.0231 277.9569);
   --secondary-foreground: oklch(0.4446 0.0983 268.5283);
@@ -27,7 +29,7 @@
   --muted-foreground: oklch(0.5052 0.0379 284.964);
   --accent: oklch(0.9712 0.0136 258.3446);
   --accent-foreground: oklch(0.6081 0.2114 266.213);
-  --destructive: oklch(0.6368 0.2078 25.3313);
+  --destructive: oklch(0.55 0.2078 25.3313);
   --destructive-foreground: oklch(0.9842 0.0034 247.8575);
   --border: oklch(0.9163 0.0162 286.0759);
   --input: oklch(0.9163 0.0162 286.0759);
@@ -39,12 +41,12 @@
   --chart-5: oklch(0.6945 0.1422 167.0638);
   --sidebar: oklch(0.9946 0.0026 286.3519);
   --sidebar-foreground: oklch(0.1615 0.0105 285.1663);
-  --sidebar-primary: oklch(0.5828 0.2188 258.8797);
+  --sidebar-primary: oklch(0.53 0.2188 258.8797);
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.9634 0.0175 279.0619);
   --sidebar-accent-foreground: oklch(0.6256 0.2009 264.0684);
   --sidebar-border: oklch(0.9163 0.0162 286.0759);
-  --sidebar-ring: oklch(0.5828 0.2188 258.8797);
+  --sidebar-ring: oklch(0.53 0.2188 258.8797);
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-serif: "Merriweather", serif;
   --font-mono: Geist Mono, ui-monospace, monospace;

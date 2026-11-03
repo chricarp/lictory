@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 # docker compose for one Lictory environment on this server.
-#   lictory-compose <production|staging> <compose arguments...>
+#   lictory-compose <environment> <compose arguments...>
 #
 # Uses the active release (<home>/current -> releases/<version>): its compose
 # file and image digests (release.env), plus the environment's .env.
 # LICTORY_RELEASE_DIR selects another release (deploy.sh while rolling).
 set -euo pipefail
 
-environment="${1:?Usage: lictory-compose <production|staging> <compose arguments...>}"
+environment="${1:?Usage: lictory-compose <environment> <compose arguments...>}"
 shift
-case "$environment" in production | staging) ;; *)
+# Environment names become paths, Compose project names and migration
+# targets: lowercase letters, digits and hyphens. local, test and preview are
+# reserved by the migration runner (packages/core/src/db/migration-safety.ts).
+valid_environment() {
+  [[ "$1" =~ ^[a-z][a-z0-9-]{0,31}$ ]] && case "$1" in local | test | preview) false ;; esac
+}
+valid_environment "$environment" || {
   echo "Unknown environment: $environment" >&2
   exit 64
-  ;;
-esac
+}
 home="${LICTORY_ROOT:-/srv/lictory}/$environment"
 release="${LICTORY_RELEASE_DIR:-$home/current}"
 [ -f "$home/.env" ] || { echo "Missing $home/.env" >&2; exit 1; }

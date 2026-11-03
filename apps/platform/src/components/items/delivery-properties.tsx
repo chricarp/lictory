@@ -166,7 +166,11 @@ export function IterationPicker({
     <Popover
       width={240}
       trigger={(props) => (
-        <button {...props} aria-label="Iteration" className={trigger}>
+        <button
+          {...props}
+          aria-label={`Iteration: ${current ? iterationLabel(current) : "Backlog"}`}
+          className={trigger}
+        >
           {content}
         </button>
       )}

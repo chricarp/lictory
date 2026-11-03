@@ -58,6 +58,16 @@ order:
    `S3_TEST_ACCESS_KEY_ID` and `S3_TEST_SECRET_ACCESS_KEY` elsewhere to use
    another MinIO.
 
+These services use well-known development credentials (`lictory/lictory`, the
+zero-cache admin password `development`), so `compose.yaml` publishes their
+ports (5432, 4848, 1025 and 8025) on `127.0.0.1` only. Docker writes its own
+firewall rules, so a host firewall such as ufw would not protect a port
+published on every interface. To reach them from another machine during remote development, set
+`LICTORY_DEV_BIND_ADDRESS` (in the shell or `.env`) to the interface to listen
+on, for example a private VPN address, and prefer an SSH tunnel
+(`ssh -L 5432:localhost:5432 …`) over `0.0.0.0` on any machine with a public
+address. `docker compose config` shows the resulting `host_ip`.
+
 `bun run dev` refuses to start until zero-cache answers on port 4848. After
 generating a migration, apply it with `bun run db:migrate` (or
 `docker compose run --rm migrate`); zero-cache picks schema changes up through
@@ -103,6 +113,12 @@ and its replication slot. PostgreSQL must run with `wal_level=logical`
 (`compose.yaml` does). `E2E_PORT_OFFSET` lets several checkouts run side by
 side; `E2E_SKIP_BUILD=1` reuses builds when only tests changed. Failure
 screenshots land in `/tmp/lictory-playwright-results`.
+
+The single sign-on workflow (`tests/platform/sso.spec.ts`) needs a real
+identity provider and is skipped without one. To run it, start the local Dex
+(`docker compose --profile sso up -d dex`) and set
+`E2E_OIDC_ISSUER=http://127.0.0.1:5556/dex` for `bun run test:e2e`; see
+[single sign-on](./sso.md).
 
 ## Full verification before a pull request
 

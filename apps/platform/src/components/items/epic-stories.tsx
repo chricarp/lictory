@@ -175,6 +175,7 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
         )}
         <ul className="divide-y">
           {stories.map((story) => (
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- mouse drag target; the row's grip button offers the same reordering with Alt+Arrow keys.
             <li
               key={story.id}
               draggable={canChangeProperties}

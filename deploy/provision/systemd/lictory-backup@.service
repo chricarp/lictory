@@ -7,6 +7,7 @@ After=network-online.target docker.service
 Type=oneshot
 User=deploy
 Group=deploy
+Environment=LICTORY_ROOT=/srv/lictory
 ExecStart=/srv/lictory/bin/lictory-backup %i scheduled
 TimeoutStartSec=2h
 Nice=10

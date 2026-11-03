@@ -6,10 +6,13 @@ import { useState, type ReactNode } from "react";
 
 import { ConsentBanner, ConsentDialog } from "@lictory/ui/consent/consent-ui";
 import {
+  analyticsConfigured,
+  browserAnalyticsSettings,
   clearAnalyticsStorage,
   hasAnalyticsConsent,
   onMeasurementConsentGranted,
   onPostHogLoaded,
+  recordAnalyticsConsent,
 } from "@lictory/core/lib/analytics/client";
 import {
   minimizeAnonymousAnalyticsProperties,
@@ -20,32 +23,35 @@ import {
   posthogHosts,
 } from "@lictory/core/lib/analytics/relay";
 
-const posthogToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-
-// PostHog always loads, through the first-party relay, in one of two modes:
-// - Analytics consent granted: normal capture with PostHog's first-party cookie,
-//   identified users and organization groups.
-// - Not decided or rejected: c15t keeps PostHog opted out and `on_reject` switches
-//   it to cookieless capture. Nothing is stored on the device, events stay
-//   anonymous (no identify, groups or tracing headers), and PostHog derives a
-//   daily-rotating server-side hash from IP and user agent. This requires
-//   "Cookieless server hash mode" in the PostHog project settings; without it,
-//   PostHog discards these events.
-// Withdrawing consent clears PostHog storage and c15t reloads the page, which
-// starts again in cookieless mode. Server-side events (posthog-node) are not
-// governed by this browser choice.
+// Without analytics settings there is nothing to consent to: no banner, no
+// consent storage and no PostHog. With them, PostHog loads through the
+// first-party relay according to the consent mode (lib/analytics/consent):
+// - Default ("cookieless"): PostHog always loads.
+//   - Analytics consent granted: normal capture with PostHog's first-party
+//     cookie, identified users and organization groups.
+//   - Not decided or rejected: c15t keeps PostHog opted out and `on_reject`
+//     switches it to cookieless capture. Nothing is stored on the device,
+//     events stay anonymous (no identify, groups or tracing headers), and
+//     PostHog derives a daily-rotating server-side hash from IP and user agent.
+//     This requires "Cookieless server hash mode" in the PostHog project
+//     settings; without it, PostHog discards these events.
+//   Server-side events (posthog-node) are not governed by this browser choice.
+// - Strict (ANALYTICS_CONSENT=strict): PostHog loads only after Analytics
+//   consent, and server events are sent only for people who granted it.
+// Withdrawing consent clears PostHog storage and c15t reloads the page.
 function consentScripts() {
-  if (!posthogToken || !posthogHost) return [];
+  const analytics = browserAnalyticsSettings();
+  if (!analytics) return [];
+  const strict = analytics.consent === "strict";
   return [
     posthog({
-      id: posthogToken,
+      id: analytics.projectToken,
       apiHost: analyticsRelayPath,
-      uiHost: posthogHosts(posthogHost).ui,
-      loadMode: "always",
+      uiHost: posthogHosts(analytics.host).ui,
+      loadMode: strict ? "after-consent" : "always",
       initOptions: {
         defaults: "2026-01-30",
-        cookieless_mode: "on_reject",
+        ...(strict ? {} : { cookieless_mode: "on_reject" }),
         capture_pageview: "history_change",
         autocapture: false,
         // Both record DOM elements and text, like autocapture.
@@ -88,6 +94,7 @@ export function ConsentProvider({
   privacyHref?: string;
 }) {
   const [scripts] = useState(consentScripts);
+  if (!analyticsConfigured()) return children;
   return (
     <ConsentManagerProvider
       options={{
@@ -95,13 +102,20 @@ export function ConsentProvider({
         consentCategories: ["necessary", "measurement"],
         scripts,
         callbacks: {
+          // Also runs at startup with the stored choice.
+          onConsentSet: ({ preferences }) => {
+            recordAnalyticsConsent(preferences.measurement === true);
+          },
           onConsentChanged: ({ allowedCategories }) => {
             if (allowedCategories.includes("measurement")) {
               onMeasurementConsentGranted();
             }
           },
           onBeforeConsentRevocationReload: ({ preferences }) => {
-            if (!preferences.measurement) clearAnalyticsStorage();
+            if (!preferences.measurement) {
+              recordAnalyticsConsent(false);
+              clearAnalyticsStorage();
+            }
           },
         },
       }}

@@ -71,6 +71,9 @@ you observed. "Tests pass" alone is not evidence.
 - For UI changes, include before/after screenshots, and a short recording when
   timing or interaction matters. Upload them to the pull request; never commit
   them.
+- UI changes must keep WCAG 2.2 AA: they pass the accessibility lint rules and
+  the browser suite's axe checks, and work with a keyboard. See
+  [accessibility](docs/internals/accessibility.md).
 - Before requesting review, run the full verification sequence from
   [the runbook](docs/operations/development.md#full-verification-before-a-pull-request)
   and report the results. Say what you could not check.

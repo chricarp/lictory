@@ -269,7 +269,8 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
   assert.equal(body.user?.id, user.id);
   assert.deepEqual(await (await m.app.request("/api/session")).json(), {
     user: null,
-    providers: { google: false, microsoft: false },
+    providers: { google: false, microsoft: false, oidc: false },
+    signIn: { password: true, ssoName: null },
     // Follows this environment's S3_*/R2_* settings (a developer .env may set them).
     attachments: attachmentsAvailable(),
   });

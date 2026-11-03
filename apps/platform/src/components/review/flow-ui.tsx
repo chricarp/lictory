@@ -171,6 +171,7 @@ export function Tabs<T extends string>({
   tabs: TabSpec<T>[];
 }) {
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the tabs (roving tabindex); the WAI-ARIA tab list itself is not a tab stop.
     <div
       role="tablist"
       aria-label={label}
@@ -215,6 +216,7 @@ export function Tabs<T extends string>({
             )}
             {t.dot && (
               <span
+                role="img"
                 aria-label="has uncommitted edits"
                 className="size-1.5 rounded-full bg-amber-500"
               />

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,12 @@ import { test } from "node:test";
 void test("the release key accepts registry credentials only on stdin and only for GHCR", () => {
   const dir = mkdtempSync(join(tmpdir(), "lictory-registry-transport-"));
   try {
+    // A configured production environment without LICTORY_IMAGE_REGISTRY.
+    mkdirSync(join(dir, "production"));
+    writeFileSync(
+      join(dir, "production/.env"),
+      "LICTORY_RELEASE_CHANNEL=stable\n",
+    );
     writeFileSync(
       join(dir, "docker"),
       '#!/bin/sh\n[ "$1" = login ] || exit 80\n[ "$2" = ghcr.io ] || exit 81\n[ "$3" = --username ] || exit 82\n[ "$4" = chricarp ] || exit 83\n[ "$5" = --password-stdin ] || exit 84\nIFS= read -r password\n[ "$password" = test-only-token ] || exit 85\n',
@@ -19,6 +25,7 @@ void test("the release key accepts registry credentials only on stdin and only f
           ...process.env,
           PATH: `${dir}:${process.env.PATH}`,
           SSH_ORIGINAL_COMMAND: command,
+          LICTORY_ROOT: dir,
         },
         input,
         encoding: "utf8",

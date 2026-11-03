@@ -4,9 +4,14 @@
 #
 #   command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… github-actions
 #
+# With another root, set it in the forced command:
+#   command="LICTORY_ROOT=/opt/lictory /opt/lictory/bin/lictory-remote",restrict …
+#
 # Allowed: "<env> prepare" (release file on stdin), "<env> migrate <version>",
 # "<env> activate <version>", "<env> backfill <version> <name>",
-# "<env> rollback", "<env> status". No shell, no other commands.
+# "<env> rollback", "<env> status", "<env> registry-login" (user and token on
+# stdin) and "<env> registry-logout". <env> must be configured on this server.
+# No shell, no other commands.
 set -euo pipefail
 
 read -r -a words <<<"${SSH_ORIGINAL_COMMAND:-}"
@@ -15,23 +20,43 @@ action="${words[1]:-}"
 version="${words[2]:-}"
 name="${words[3]:-}"
 here="$(cd "$(dirname "$0")" && pwd)"
+root="${LICTORY_ROOT:-/srv/lictory}"
 
-case "$environment" in production | staging) ;; *)
+# Same names as deploy.sh; only environments with a .env on this server.
+if ! [[ "$environment" =~ ^[a-z][a-z0-9-]{0,31}$ ]] ||
+  case "$environment" in local | test | preview) true ;; *) false ;; esac ||
+  [ ! -f "$root/$environment/.env" ]; then
   echo "Refused: unknown environment." >&2
   exit 64
-  ;;
-esac
+fi
 [ "${#words[@]}" -le 4 ] || { echo "Refused: too many arguments." >&2; exit 64; }
+# The registry host of the environment's LICTORY_IMAGE_REGISTRY (for example
+# ghcr.io/acme or registry.example.com:5000/lictory); GHCR when unset.
+registry_host() {
+  local registry
+  registry=$(grep -E '^LICTORY_IMAGE_REGISTRY=' "$root/$environment/.env" | tail -n 1 | cut -d= -f2- || true)
+  registry="${registry#[\"\']}"
+  registry="${registry%[\"\']}"
+  registry="${registry%%/*}"
+  [ -n "$registry" ] || registry=ghcr.io
+  [[ "$registry" =~ ^[a-z0-9.-]+(:[0-9]+)?$ ]] || { echo "Refused: invalid LICTORY_IMAGE_REGISTRY." >&2; exit 64; }
+  printf '%s' "$registry"
+}
 case "$action" in
   registry-login)
     [ "${#words[@]}" -eq 2 ] || exit 64
     IFS= read -r registry_user || exit 64
-    [[ "$registry_user" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?$ ]] || exit 64
-    exec docker login ghcr.io --username "$registry_user" --password-stdin
+    # GitHub logins and bots, plus the robot/service account names of other
+    # registries (Harbor robot$x, GitLab deploy tokens, ECR AWS, user@domain).
+    user_pattern='^[A-Za-z0-9][A-Za-z0-9._@+$-]{0,127}(\[bot\])?$'
+    [[ "$registry_user" =~ $user_pattern ]] || exit 64
+    host=$(registry_host)
+    exec docker login "$host" --username "$registry_user" --password-stdin
     ;;
   registry-logout)
     [ "${#words[@]}" -eq 2 ] || exit 64
-    exec docker logout ghcr.io
+    host=$(registry_host)
+    exec docker logout "$host"
     ;;
 esac
 if [ -n "$name" ] && { [ "$action" != backfill ] || ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; }; then

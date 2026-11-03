@@ -1,7 +1,11 @@
 import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
-import { platformHref, platformUrl } from "./src/lib/platform";
+import {
+  configuredOrigin,
+  platformHref,
+  platformUrl,
+} from "./src/lib/platform";
 
 // The website imports sources from other workspaces (`@lictory/ui`,
 // `@lictory/core`), so bundling and file tracing start at the monorepo root.
@@ -49,11 +53,15 @@ const nextConfig: NextConfig = {
   // before the split keep working (the query string is preserved).
   async redirects() {
     if (staticExport) return [];
+    const siteOrigin = configuredOrigin(
+      process.env.SITE_URL,
+      "http://localhost:3100",
+    );
     return [
       {
         source: "/:path*",
-        has: [{ type: "host", value: "www.lictory.com" }],
-        destination: "https://lictory.com/:path*",
+        has: [{ type: "host", value: `www.${new URL(siteOrigin).hostname}` }],
+        destination: `${siteOrigin}/:path*`,
         permanent: true,
       },
       { source: "/home", destination: "/", permanent: true },

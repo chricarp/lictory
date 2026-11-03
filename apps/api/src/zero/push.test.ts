@@ -358,3 +358,53 @@ void test("retried mutations replay: a reused domain id applies once, a resent Z
   assert.equal(resent.error, "alreadyProcessed");
   assert.equal(await count(), 1);
 });
+
+void test("an organization requiring two-factor refuses a held member's synced queries and pushed commands", async () => {
+  const f = await fixture();
+  await db.insert(s.organizationSecurityPolicy).values({
+    organizationId: f.organizationId,
+    requireTwoFactor: true,
+  });
+  const transform = async (userID: string) => {
+    const request = new Request(
+      "http://api.test/api/zero/query?schema=zero_0&appID=zero",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify([
+          "transform",
+          [
+            {
+              id: "org",
+              name: "organization",
+              args: [{ organizationId: f.organizationId }],
+            },
+            { id: "mine", name: "memberships", args: [] },
+          ],
+        ]),
+      },
+    );
+    return (await zero.query(request, userID)) as {
+      queries: { id: string; error?: string; details?: { kind?: string } }[];
+    };
+  };
+  const held = await transform(f.memberId);
+  const organization = held.queries.find((q) => q.id === "org")!;
+  assert.equal(organization.error, "app");
+  assert.equal(organization.details?.kind, "two_factor_required");
+  // The organization still appears in the person's memberships.
+  assert.equal(held.queries.find((q) => q.id === "mine")!.error, undefined);
+  const result = await f.push(f.memberId, f.mutation(createProject()));
+  assert.equal(result.error, "app");
+  assert.equal(
+    (result.details as { kind?: string }).kind,
+    "two_factor_required",
+  );
+
+  await db
+    .update(s.user)
+    .set({ twoFactorEnabled: true })
+    .where(eq(s.user.id, f.memberId));
+  const enrolled = await transform(f.memberId);
+  assert.ok(enrolled.queries.every((q) => q.error === undefined));
+});

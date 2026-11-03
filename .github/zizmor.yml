@@ -1,0 +1,6 @@
+# zizmor configuration (found automatically; run by .github/workflows/workflow-lint.yml).
+rules:
+  # Suggests GitHub's newer `$/` syntax for reusable workflows in this
+  # repository. `./` is equivalent here and the release guardrail tests assert it.
+  self-repository:
+    disable: true

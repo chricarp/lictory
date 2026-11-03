@@ -31,6 +31,18 @@ void test("legacy account links and www retain the path and query on the canonic
   }
 });
 
+void test("www redirects to the configured website origin, whatever its domain", async () => {
+  const response = await worker.fetch(
+    new Request("https://www.example.org/guides?ref=shared"),
+    { ...env, SITE_URL: "https://example.org" },
+  );
+  assert.equal(response.status, 308);
+  assert.equal(
+    response.headers.get("Location"),
+    "https://example.org/guides?ref=shared",
+  );
+});
+
 void test("the platform edge hides internal mutations and rejects foreign WebSocket origins before fetching", async () => {
   for (const path of ["/api/zero", "/api/zero/query", "/api/zero/mutate"])
     assert.equal(
@@ -95,6 +107,12 @@ void test("SPA documents preserve private social previews without echoing worksp
   );
   const html = await response.text();
   assert.ok(html.includes("Work item in Lictory"));
+  // The bundle carries no installation settings; the Worker supplies them.
+  assert.ok(
+    html.includes(
+      '<script type="application/json" id="lictory-config">{"siteUrl":"https://lictory.com","analytics":null}</script>',
+    ),
+  );
   assert.ok(!html.includes("private-organization"));
   assert.ok(!html.includes("secret-item"));
   assert.equal(response.headers.get("Cache-Control"), "no-store");

@@ -16,12 +16,17 @@ import {
 } from "lucide-react";
 
 import { AgentAccessSection } from "@lictory/platform/components/app/agent-access";
+import {
+  PasskeysSection,
+  TwoFactorSection,
+} from "@lictory/platform/components/app/security-settings";
 import { ProfilePhoto } from "@lictory/platform/components/app/profile-photo";
 import { useAppearance } from "@lictory/platform/components/app/appearance-provider";
 import { HandleForm } from "@lictory/platform/components/auth/handle-form";
 import {
   ProviderIcon,
-  providerLabels,
+  isSocialProvider,
+  providerLabel,
   socialProviders,
   type SocialProvider,
 } from "@lictory/platform/components/auth/provider-icons";
@@ -57,8 +62,11 @@ type AccountSettingsProps = {
     email: string;
     emailVerified: boolean;
     handle: string;
+    twoFactorEnabled: boolean;
   };
   providers: Record<SocialProvider, boolean>;
+  // Password sign-in can be turned off by the operator (SSO-only).
+  signIn: { password: boolean; ssoName: string | null };
   // Sign-in methods on this account: "credential" (password) or a provider.
   accounts: { id: string; providerId: string }[];
   sessionCount: number;
@@ -80,7 +88,9 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "handle", label: "Handle" },
     { id: "email", label: "Email" },
     { id: "appearance", label: "Appearance" },
-    { id: "password", label: "Password" },
+    ...(props.signIn.password ? [{ id: "password", label: "Password" }] : []),
+    { id: "two-factor", label: "Two-factor" },
+    ...(props.signIn.password ? [{ id: "passkeys", label: "Passkeys" }] : []),
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
     { id: "agents", label: "AI agents" },
@@ -128,13 +138,20 @@ export function AccountSettings(props: AccountSettingsProps) {
           title="Sign-in & security"
           description="The ways you sign in and the devices currently signed in."
         >
-          {hasPassword ? (
+          {!props.signIn.password ? null : hasPassword ? (
             <PasswordSection />
           ) : (
             <SetPasswordSection email={props.user.email} />
           )}
+          <TwoFactorSection
+            enabled={props.user.twoFactorEnabled}
+            hasPassword={hasPassword}
+            onChanged={() => void accountChanged()}
+          />
+          {props.signIn.password && <PasskeysSection />}
           <ConnectionsSection
             providers={props.providers}
+            ssoName={props.signIn.ssoName}
             accounts={props.accounts}
             returnTo={props.returnTo}
             connected={props.connected}
@@ -490,6 +507,7 @@ const unlinkErrors: Record<string, string> = {
 
 function ConnectionsSection({
   providers,
+  ssoName,
   accounts,
   returnTo,
   connected,
@@ -497,7 +515,8 @@ function ConnectionsSection({
 }: Pick<
   AccountSettingsProps,
   "providers" | "accounts" | "returnTo" | "connected" | "connectionError"
->) {
+> & { ssoName: string | null }) {
+  const label = (provider: SocialProvider) => providerLabel(provider, ssoName);
   const router = useRouter();
   const [pending, setPending] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<{
@@ -506,10 +525,10 @@ function ConnectionsSection({
   } | null>(() => {
     const error = oauthErrorMessage(connectionError, "connect");
     if (error) return { tone: "error", text: error };
-    if (connected && connected in providerLabels)
+    if (connected && isSocialProvider(connected))
       return {
         tone: "success",
-        text: `${providerLabels[connected as SocialProvider]} connected. You can now sign in with it.`,
+        text: `${label(connected)} connected. You can now sign in with it.`,
       };
     return null;
   });
@@ -545,7 +564,7 @@ function ConnectionsSection({
         tone: "error",
         text:
           result.error.message ??
-          `We couldn't reach ${providerLabels[provider]}. Try again.`,
+          `We couldn't reach ${label(provider)}. Try again.`,
       });
       setPending(null);
     }
@@ -568,7 +587,7 @@ function ConnectionsSection({
     }
     setMessage({
       tone: "success",
-      text: `${providerLabels[provider]} disconnected. You can connect it again at any time.`,
+      text: `${label(provider)} disconnected. You can connect it again at any time.`,
     });
     void accountChanged();
   }
@@ -601,9 +620,7 @@ function ConnectionsSection({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">
-                    {providerLabels[provider]}
-                  </span>
+                  <span className="font-medium">{label(provider)}</span>
                   {account && <Badge tone="good">Connected</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -722,6 +739,7 @@ function AppearanceSection() {
           <p id="appearance-mode-label" className="text-[13px] font-medium">
             Mode
           </p>
+          {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the radios (roving tabindex); the WAI-ARIA radio group itself is not a tab stop. */}
           <div
             role="radiogroup"
             aria-labelledby="appearance-mode-label"
@@ -764,6 +782,7 @@ function AppearanceSection() {
           <p id="appearance-theme-label" className="text-[13px] font-medium">
             Theme
           </p>
+          {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the radios (roving tabindex); the WAI-ARIA radio group itself is not a tab stop. */}
           <div
             role="radiogroup"
             aria-labelledby="appearance-theme-label"

@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
+import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
 import {
   SUPPORTED_FILE_EXTENSIONS,
@@ -56,6 +57,7 @@ async function requireMember(
       "forbidden",
       "You are not a member of this organization.",
     );
+  await assertTwoFactorSatisfied(db, userId, organizationId);
 }
 async function fileOf(
   ctx: CapabilityContext,

@@ -153,9 +153,10 @@ CODEOWNERS, labels or the existing title check.
    review their behavior before enabling Actions on a fork.
 8. Enable dependency graph, Dependabot alerts/security updates, secret scanning
    and push protection where available; confirm scope/plan support. Dependabot
-   configuration alone does not enable every security feature. Consider CodeQL
-   or another SAST tool after validating monorepo coverage and noise. Minimal CI
-   currently checks only types and migrations; local evidence remains required.
+   configuration alone does not enable every security feature. Security
+   scanning workflows are already in the repository (see "Security scanning"
+   below). Minimal CI checks only types and migrations; local evidence remains
+   required.
    Revisit hosted domain/browser checks as external contribution volume grows.
 9. Enable private vulnerability reporting, verify who receives notifications,
    and give a backup maintainer access. Align `.github/SECURITY.md` with the
@@ -163,6 +164,30 @@ CODEOWNERS, labels or the existing title check.
 10. Before container/package distribution, inventory shipped licenses and plan
     SBOM/provenance generation tied to the exact artifact digest. Keep production
     promotion human-controlled. Do not describe unsigned artifacts as verified.
+
+### Security scanning
+
+| Workflow                                                           | Runs on                                           | Private repository |
+| ------------------------------------------------------------------ | ------------------------------------------------- | ------------------ |
+| `codeql.yml` (TypeScript and Actions, `security-extended`)         | PRs and pushes to `main`, except docs             | Skipped            |
+| `dependency-review.yml` (fails on high/critical advisories)        | PRs that change dependencies, workflows or images | Skipped            |
+| `scorecard.yml` (OpenSSF Scorecard, published)                     | Pushes to `main`, branch protection changes       | Skipped            |
+| `workflow-lint.yml` (actionlint and zizmor)                        | Changes under `.github/`                          | Runs               |
+| `gitleaks.yml` (commits a PR adds; full history when run manually) | PRs                                               | Runs               |
+
+Code scanning and dependency review need GitHub Code Security on a private
+repository, and Scorecard only publishes public repositories, so those jobs are
+skipped (not failed) unless `github.event.repository.visibility` is `public`.
+They activate by themselves when the repository becomes public; scheduled runs
+are avoided because scheduled events carry no repository visibility. Public
+repositories pay no Actions minutes for these jobs.
+
+zizmor reads `.github/zizmor.yml`; justify every suppression there or inline.
+Reviewed gitleaks false positives go in `.gitleaksignore` by fingerprint.
+Dependabot refreshes the digests of base images pinned as
+`image:tag@sha256:digest` in `Dockerfile` and the compose files. It may not
+recognize the `${VAR:-image}` defaults in `deploy/compose*.yaml`; when merging
+an image update, keep those equal to the matching images by hand.
 
 References: [Actions security](https://docs.github.com/en/actions/reference/security/secure-use),
 [private reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
@@ -250,10 +275,15 @@ Immediately after changing visibility:
    available secret scanning, push protection, Dependabot alerts and security
    updates. Confirm the dependency graph is populated. Public-repository features
    are not assumed enabled just because their configuration files exist.
-3. Enable **Private vulnerability reporting** there; verify notifications reach
+3. Activate the security scanning workflows: keep CodeQL **default setup** off
+   (the repository uses the advanced `codeql.yml` workflow; both cannot run),
+   then run **CodeQL** and **Scorecard** once from Actions so alerts appear in
+   the Security tab. Optionally require **Dependency review** and **Secret scan**
+   on `main` once they have run green.
+4. Enable **Private vulnerability reporting** there; verify notifications reach
    you. The endpoint returned 404 while private. SECURITY.md now provides
    `me@chricarp.com` as the private fallback, so reporters have a working channel.
-4. Check the repository signed out: license detection, README, issue forms,
+5. Check the repository signed out: license detection, README, issue forms,
    private security reporting, and contribution links. Use synthetic content for
    the product walkthrough and announce the documented support level.
 

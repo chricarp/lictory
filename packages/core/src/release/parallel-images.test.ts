@@ -25,8 +25,6 @@ const builds = () =>
 void test("native build caches and temporary tags are isolated by architecture and channel", () => {
   const config = {
     registry,
-    siteUrl: "https://lictory.com",
-    platformUrl: "https://app.lictory.com",
     sourceUrl: "https://github.com/test/lictory",
     architecture: "arm64" as const,
   };

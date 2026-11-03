@@ -3,21 +3,25 @@
 # verifies it (row counts and migration history against the backup manifest,
 # migration runner up to date, API ready). Never touches the live database.
 #
-#   lictory-restore-drill <production|staging> <age-identity-file> [latest|<key>]
+#   lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>]
 #
 # Run monthly and after changes to backups or migrations. The identity file is
-# the offline private key; delete any temporary copy afterwards.
+# the offline private key; delete any temporary copy afterwards. `none` drills
+# unencrypted backups (BACKUP_AGE_RECIPIENTS=none). The backup is read from the
+# environment's BACKUP_TARGET (s3, local or rclone).
 set -euo pipefail
 
-environment="${1:?Usage: lictory-restore-drill <production|staging> <age-identity-file> [latest|<key>]}"
-identity="${2:?Usage: lictory-restore-drill <production|staging> <age-identity-file> [latest|<key>]}"
+environment="${1:?Usage: lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>]}"
+identity="${2:?Usage: lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>]}"
 source="${3:-latest}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
 release="${LICTORY_RELEASE_DIR:-$home/current}"
 project="lictory-$environment-restore-drill"
-[ -r "$identity" ] || { echo "Cannot read $identity" >&2; exit 1; }
-identity="$(cd "$(dirname "$identity")" && pwd)/$(basename "$identity")"
+if [ "$identity" != none ]; then
+  [ -r "$identity" ] || { echo "Cannot read $identity" >&2; exit 1; }
+  identity="$(cd "$(dirname "$identity")" && pwd)/$(basename "$identity")"
+fi
 
 value() { grep -E "^$2=" "$1" | tail -n 1 | cut -d= -f2- | sed -e "s/^['\"]//" -e "s/['\"]\$//"; }
 secret() { openssl rand -hex 24; }
@@ -25,8 +29,21 @@ work=$(mktemp -d)
 chmod 700 "$work"
 drill_env="$work/drill.env"
 # Readable by the container's unprivileged user; the directory stays private.
-cp "$identity" "$work/age-identity"
+if [ "$identity" = none ]; then : >"$work/age-identity"; else cp "$identity" "$work/age-identity"; fi
 chmod 644 "$work/age-identity"
+# BACKUP_TARGET=local reads the live backup directory (read-only); other
+# targets get an empty placeholder.
+target=$(value "$home/.env" BACKUP_TARGET)
+backup_source="$work/no-local-backups"
+mkdir -p "$backup_source"
+if [ "$target" = local ]; then
+  backup_source=$(value "$home/.env" BACKUP_LOCAL_PATH)
+  case "$backup_source" in
+    "") backup_source=$(docker volume inspect --format '{{.Mountpoint}}' "lictory-${environment}_backups") ;;
+    /*) ;;
+    *) backup_source="$home/$backup_source" ;;
+  esac
+fi
 {
   echo "LICTORY_ENVIRONMENT=$environment"
   echo "DRILL_DB_NAME=$(value "$home/.env" LICTORY_DB_NAME)"
@@ -34,7 +51,8 @@ chmod 644 "$work/age-identity"
   echo "DRILL_APP_SECRET=$(secret)"
   echo "DRILL_ROLES_SCRIPT=$release/bundle/postgres/10-lictory-roles.sh"
   echo "AGE_IDENTITY_FILE=$work/age-identity"
-  for key in BACKUP_BUCKET BACKUP_S3_PROVIDER BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
+  echo "DRILL_BACKUP_SOURCE=$backup_source"
+  for key in BACKUP_TARGET BACKUP_RCLONE_REMOTE BACKUP_BUCKET BACKUP_S3_PROVIDER BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
     echo "$key=$(value "$home/.env" "$key")"
   done
   for key in OPS_IMAGE MIGRATE_IMAGE API_IMAGE; do echo "$key=$(value "$release/release.env" "$key")"; done

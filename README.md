@@ -16,7 +16,7 @@ One repository, Bun workspaces:
 | `apps/platform`  | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
 | `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery     |
 | `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles       |
-| `apps/marketing` | Next.js public website (`lictory.com`), server-rendered, no database                    |
+| `apps/marketing` | Next.js public website (`lictory.com`), static export, no database                      |
 | `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                         |
 | `packages/zero`  | Zero schema, server-defined queries and the mutator                                     |
 | `packages/ui`    | Shared React primitives, theme and consent UI                                           |
@@ -48,6 +48,27 @@ Every optional integration (OAuth, Resend, S3-compatible file storage, OpenAI,
 PostHog, Jira) stays disabled until its variables are set in `.env`; core
 refinement works without them. See [the development runbook](docs/operations/development.md) for daily
 commands, tests and the full verification sequence.
+
+## Telemetry and privacy
+
+Lictory sends no telemetry by default. Nothing leaves your installation unless
+you configure a service that needs it:
+
+- **AI** (`OPENAI_API_KEY`): content you ask Lictory Intelligence to analyze,
+  transcribe or discuss goes to OpenAI. Uploaded documents are converted to
+  text on your server.
+- **Product analytics** (`POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`): off without
+  both. When off, the app shows no consent banner and makes no analytics
+  requests. When on, browsers reach PostHog only through your own `/relay`
+  route; see the consent modes in
+  [product analytics](docs/internals/analytics.md#consent).
+- **Email** (Resend or your SMTP server), **file storage** (your S3-compatible
+  bucket), **delivery** (the Jira site a project connects to) and **sign-in
+  providers** (Google, Microsoft) when you enable them.
+
+The deployment's own operations (TLS certificates, backups, alerts and
+monitoring pings) contact only the services you configure for them; see
+[deployment](docs/operations/deployment.md#telemetry-and-privacy).
 
 ## Transactional email
 
@@ -92,10 +113,12 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 ## Versions and releases
 
-Conventional Commit PR titles determine semantic versions. Merges build nightly
-images for staging; **Release to Production** in GitHub Actions deploys a
-tested version to the production server after approval. See
-[the release runbook](docs/operations/releases.md).
+Conventional Commit PR titles determine semantic versions. GitHub Actions
+calculates versions, writes release notes from the merged PRs and publishes a
+nightly prerelease for every push to `main`; a stable release promotes the exact
+commit of a tested nightly. Nobody bumps versions, edits a changelog or pushes
+tags by hand. See [the release runbook](docs/operations/releases.md) for
+versioning, hotfixes and deploying a release.
 
 ## Scripts
 
