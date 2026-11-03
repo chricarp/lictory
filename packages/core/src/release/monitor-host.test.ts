@@ -104,6 +104,14 @@ void test("a configured site is still probed (unchanged default)", (t) => {
   ]);
 });
 
+void test("the app route follows PLATFORM_URL, scheme and port included", (t) => {
+  const result = fixture(
+    t,
+    "APP_HOST=lictory.lan\nPLATFORM_URL=http://lictory.lan:8080\n",
+  ).run();
+  assert.deepEqual(probed(result.recorded), ["http://lictory.lan:8080/readyz"]);
+});
+
 void test("alerts are valid JSON without python3 when the monitor cannot run", (t) => {
   const state = 'exited "137"\\back\tslash';
   const result = fixture(

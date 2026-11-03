@@ -44,7 +44,8 @@ done
 site=$(setting SITE_HOST)
 app=$(setting PUBLIC_APP_HOST)
 app="${app:-$(setting APP_HOST)}"
-urls=("https://$app/readyz")
+platform=$(setting PLATFORM_URL)
+urls=("${platform:-https://$app}/readyz")
 [ -z "$site" ] || urls=("https://$site/" "${urls[@]}")
 for url in "${urls[@]}"; do
   curl -fsS -m 15 -o /dev/null "$url" 2>/dev/null || report="${report}public route $url is not healthy

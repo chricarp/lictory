@@ -28,7 +28,9 @@ x-server-environment: &server-environment
   LICTORY_ENVIRONMENT: ${LICTORY_ENVIRONMENT:?}
   APP_VERSION: ${LICTORY_VERSION:?}
   DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
-  PLATFORM_URL: https://${PUBLIC_APP_HOST:-${APP_HOST:?}}
+  # The public origin users open (scheme included): set PLATFORM_URL behind
+  # another proxy or on plain HTTP; https://<public app host> otherwise.
+  PLATFORM_URL: ${PLATFORM_URL:-https://${PUBLIC_APP_HOST:-${APP_HOST:?}}}
   SITE_URL: https://${SITE_HOST:?}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
   DELIVERY_CREDENTIALS_KEY: ${DELIVERY_CREDENTIALS_KEY:?}
@@ -306,6 +308,8 @@ services:
     environment:
       APP_HOST: ${APP_HOST:?}
       PUBLIC_APP_HOST: ${PUBLIC_APP_HOST:-${APP_HOST:?}}
+      # Same expression as the server environment: WebSocket origins match it.
+      PLATFORM_URL: ${PLATFORM_URL:-https://${PUBLIC_APP_HOST:-${APP_HOST:?}}}
       PROXY_SCHEME: ${PROXY_SCHEME:-https}
       ACME_EMAIL: ${ACME_EMAIL:?}
       CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}

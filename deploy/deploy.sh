@@ -92,7 +92,12 @@ psql_admin() { # psql_admin <release-dir> <sql>
 # real proxy. Keep configuration and Caddy diagnostics private: both may contain
 # env values. No production networks, ports or volumes are used by validation.
 validate_proxy() ( # validate_proxy <release-dir>
-  local dir="$1" tmp image entry proxy_env=()
+  local dir="$1" tmp image entry proxy_env=() platform
+  # The API and the proxy's WebSocket origin check both use PLATFORM_URL
+  # verbatim as the browser's Origin: lowercase, no path or trailing slash.
+  platform=$(setting PLATFORM_URL)
+  [ -z "$platform" ] || [[ "$platform" =~ ^https?://([a-z0-9.-]+|\[[0-9a-f:]+\])(:[0-9]+)?$ ]] ||
+    die "PLATFORM_URL must be an origin such as https://lictory.example.com or http://10.0.0.5:8080 (lowercase, no path or trailing slash)."
   umask 077
   tmp=$(mktemp -d) || die "Could not create a private validation directory."
   trap 'rm -rf "$tmp"' EXIT
@@ -274,10 +279,12 @@ roll() { # roll <dir>
 }
 
 verify() { # verify <dir>
-  local dir="$1" app public_app scheme insecure=()
+  local dir="$1" app public_app origin scheme insecure=()
   app=$(setting APP_HOST)
   public_app=$(setting PUBLIC_APP_HOST)
   public_app="${public_app:-$app}"
+  origin=$(setting PLATFORM_URL)
+  origin="${origin:-https://$public_app}"
   scheme=$(setting PROXY_SCHEME)
   scheme="${scheme:-https}"
   case "$scheme" in http | https) ;; *) die "Unsupported PROXY_SCHEME." ;; esac
@@ -294,7 +301,7 @@ verify() { # verify <dir>
   done
   # Zero answers WebSocket upgrades only: 101 proves proxy -> zero-cache routing.
   code=$(curl -s "${insecure[@]+"${insecure[@]}"}" --http1.1 -m 3 -o /dev/null -w '%{http_code}' \
-    --resolve "$app:${port}:127.0.0.1" -H "Origin: https://$public_app" \
+    --resolve "$app:${port}:127.0.0.1" -H "Origin: $origin" \
     -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
     -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
     "$scheme://$app:$port/zero/sync/v1/connect" || true)

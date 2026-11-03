@@ -50,8 +50,10 @@ allows SSH (rate limited), HTTP and HTTPS only.
 The proxy:
 
 - sends `/zero/*` to zero-cache unchanged (Zero 1.11 serves the `/zero`
-  prefix itself) and refuses WebSocket upgrades whose `Origin` is not
-  `https://app.lictory.com` (cross-site WebSocket hijacking);
+  prefix itself) and refuses WebSocket upgrades whose `Origin` is not the
+  platform's public origin, `PLATFORM_URL` (default
+  `https://<PUBLIC_APP_HOST or APP_HOST>`, here `https://app.lictory.com`;
+  cross-site WebSocket hijacking);
 - answers `/api/zero/*` with 404: zero-cache calls those endpoints on the
   internal network with its API key and forwarded session cookies;
 - streams `/api/*` and `/relay/*` without buffering (server-sent events,
@@ -67,6 +69,10 @@ The proxy:
 
 `scripts/edge-proxy.ts` is the local stand-in for these routes; keep both in
 step.
+
+Behind an existing reverse proxy or ingress, with an internal CA, or on plain
+HTTP, see [existing reverse proxy, internal CA and plain HTTP](reverse-proxy.md).
+Lictory needs its own host name; subpath hosting is not supported.
 
 ### Client addresses and authentication rate limits
 

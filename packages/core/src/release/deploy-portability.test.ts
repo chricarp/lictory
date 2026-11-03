@@ -253,3 +253,27 @@ for (const [target, backedUp] of [
       assert.match(result.stderr, /no pre-deploy backup: backups are disabled/);
   });
 }
+
+void test("PLATFORM_URL must be an exact origin before the proxy is validated", (t) => {
+  const f = fixture(t);
+  const env = join(f.root, "qa/.env");
+  const base = readFileSync(env, "utf8");
+  for (const url of [
+    "https://lictory.example.test/",
+    "https://lictory.example.test/lictory",
+    "https://Lictory.example.test",
+    "lictory.example.test",
+  ]) {
+    writeFileSync(env, `${base}PLATFORM_URL=${url}\n`);
+    const result = f.run("deploy.sh", ["qa", "prepare"], { input: release() });
+    assert.notEqual(result.status, 0, url);
+    assert.match(result.stderr, /PLATFORM_URL must be an origin/);
+    assert.ok(!result.calls.some((call) => call[0] === "run"));
+  }
+  for (const url of ["http://10.0.0.5:8080", "https://lictory.example.test"]) {
+    writeFileSync(env, `${base}PLATFORM_URL=${url}\n`);
+    rmSync(join(f.root, "qa/releases"), { recursive: true, force: true });
+    const result = f.run("deploy.sh", ["qa", "prepare"], { input: release() });
+    assert.equal(result.status, 0, result.stderr);
+  }
+});
