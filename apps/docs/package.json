@@ -21,8 +21,8 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@types/mdx": "2.0.13",
-    "wrangler": "4.152.0"
+    "@types/mdx": "2.0.14",
+    "wrangler": "4.154.0"
   },
   "license": "MIT"
 }
