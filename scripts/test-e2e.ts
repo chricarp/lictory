@@ -65,7 +65,7 @@ const appEnv = {
   ZERO_MUTATE_API_KEY: "e2e-zero-mutate-key",
 };
 
-function run(command: string, args: string[], env = appEnv) {
+function run(command: string, args: string[], env: NodeJS.ProcessEnv = appEnv) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: "inherit", env });
     child.on("exit", (code) =>
@@ -199,11 +199,15 @@ try {
         ["run", "--filter", "@lictory/worker", "build"],
         buildEnv,
       );
-    await run(
-      "bun",
-      ["run", "--filter", "@lictory/marketing", "build"],
-      buildEnv,
-    );
+    // The website is built with a placeholder PostHog project so its consent
+    // banner can be tested; its relay path does not exist on the test server,
+    // so nothing loads or leaves the machine. The platform, API and worker
+    // run without analytics (tests/platform/analytics-off.spec.ts).
+    await run("bun", ["run", "--filter", "@lictory/marketing", "build"], {
+      ...buildEnv,
+      NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
+      NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
+    });
   }
 
   start("api", "node", ["apps/api/dist/index.js"], {
@@ -230,6 +234,7 @@ try {
     ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "10",
     ZERO_ADMIN_PASSWORD: "e2e-zero-admin",
     ZERO_LOG_LEVEL: "warn",
+    ZERO_ENABLE_TELEMETRY: "false",
   });
   start("edge", "bun", ["scripts/edge-proxy.ts"], {
     ...process.env,

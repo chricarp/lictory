@@ -1,10 +1,16 @@
 "use client";
 
 import type { AnalyticsProperties } from "@lictory/core/lib/analytics/events";
+import {
+  analyticsConsentCookie,
+  analyticsConsentMode,
+  type AnalyticsConsentMode,
+} from "@lictory/core/lib/analytics/consent";
 
 export type BrowserAnalyticsSettings = {
   projectToken: string;
   host: string;
+  consent: AnalyticsConsentMode;
 } | null;
 
 // The website embeds its settings at build time. The platform replaces them
@@ -16,6 +22,9 @@ let settings: BrowserAnalyticsSettings =
     ? {
         projectToken: process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
         host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+        consent: analyticsConsentMode(
+          process.env.NEXT_PUBLIC_ANALYTICS_CONSENT,
+        ),
       }
     : null;
 
@@ -31,6 +40,21 @@ export function browserAnalyticsSettings(): BrowserAnalyticsSettings {
 
 export function analyticsConfigured() {
   return settings !== null;
+}
+
+/**
+ * Mirrors the visitor's Analytics choice into the first-party consent record
+ * the server checks in strict mode (lib/analytics/consent).
+ */
+export function recordAnalyticsConsent(granted: boolean) {
+  try {
+    document.cookie = analyticsConsentCookie(
+      granted,
+      location.protocol === "https:",
+    );
+  } catch {
+    // Without the record, strict mode simply sends no server events.
+  }
 }
 
 // The consent provider always loads PostHog. Without Analytics consent it runs

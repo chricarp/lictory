@@ -123,6 +123,7 @@ export default defineConfig(({ mode }) => {
       "process.env.NEXT_PUBLIC_APP_VERSION": JSON.stringify(version),
       "process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN": JSON.stringify(""),
       "process.env.NEXT_PUBLIC_POSTHOG_HOST": JSON.stringify(""),
+      "process.env.NEXT_PUBLIC_ANALYTICS_CONSENT": JSON.stringify(""),
     },
     server: { port, strictPort: true, proxy },
     preview: { port, strictPort: true, proxy },

@@ -39,6 +39,40 @@ Files bytes stay in private Cloudflare R2 (see
 [private file storage](../internals/file-storage.md)); email goes through Resend.
 OAuth and AI are optional.
 
+## Telemetry and privacy
+
+A self-hosted installation sends no telemetry to the Lictory project or anyone
+else. Outbound connections happen only for what the operator configures:
+
+| Setting                                       | Leaves the server                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                              | Content sent to Lictory Intelligence (analysis, chat, transcription)    |
+| `POSTHOG_PROJECT_TOKEN` + `POSTHOG_HOST`      | Product analytics: browser events via `/relay`, server events, job logs |
+| `RESEND_*` or `SMTP_*`                        | Transactional and notification email                                    |
+| `R2_*` (S3-compatible storage)                | Uploaded files                                                          |
+| A project's delivery connection               | Published work items and status reads with that Jira site               |
+| `GOOGLE_*`, `MICROSOFT_*`, `OAUTH_PROXY_*`    | Sign-in through those identity providers                                |
+| `ACME_EMAIL`, `BACKUP_*`, alert and ping URLs | Certificate issuance, encrypted backups, alerts and monitoring pings    |
+
+Uploaded documents are converted to text on the server; scanned PDFs are
+rejected rather than sent to a hosted OCR service. zero-cache's anonymous usage
+telemetry is disabled (`ZERO_ENABLE_TELEMETRY=false`), and zero-cache has no
+route to the internet anyway.
+
+**Analytics consent.** Without PostHog settings the app shows no consent banner,
+stores no consent choice and loads no analytics code. With them,
+`ANALYTICS_CONSENT` selects how analytics follow each visitor's choice:
+
+- unset (default, the current behavior): PostHog loads before a choice in
+  cookieless, anonymous mode and switches to full tracking after consent;
+  server events are sent regardless of the browser choice.
+- `strict`: nothing loads until the visitor grants Analytics consent, and
+  server events are sent only for requests from a browser that granted it.
+  Events without a request (background jobs) are not sent.
+
+Which mode a deployment needs depends on its own privacy policy; the default is
+the maintainer's choice and may change.
+
 ## Network boundaries
 
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on

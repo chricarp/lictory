@@ -21,7 +21,11 @@ function documentWith(html: string) {
 void test("the browser reads back the configuration the server wrote", () => {
   const config: PublicConfig = {
     siteUrl: "https://www.example.org",
-    analytics: { projectToken: "phc_test", host: "https://eu.i.posthog.com" },
+    analytics: {
+      projectToken: "phc_test",
+      host: "https://eu.i.posthog.com",
+      consent: "strict",
+    },
   };
   assert.deepEqual(
     readPublicConfig(
@@ -38,6 +42,7 @@ void test("configuration values can never close the element or inject markup", (
     analytics: {
       projectToken: "</script><script>alert(1)</script>&",
       host: "https://posthog.example.org",
+      consent: "cookieless",
     },
   });
   assert.equal(tag.match(/<\/script>/g)?.length, 1);
@@ -85,6 +90,18 @@ void test("analytics are configured only when both settings are non-empty", () =
       POSTHOG_PROJECT_TOKEN: " phc ",
       POSTHOG_HOST: "https://eu.i.posthog.com",
     }),
-    { projectToken: "phc", host: "https://eu.i.posthog.com" },
+    {
+      projectToken: "phc",
+      host: "https://eu.i.posthog.com",
+      consent: "cookieless",
+    },
+  );
+  assert.equal(
+    analyticsSettings({
+      POSTHOG_PROJECT_TOKEN: "phc",
+      POSTHOG_HOST: "https://eu.i.posthog.com",
+      ANALYTICS_CONSENT: "strict",
+    })?.consent,
+    "strict",
   );
 });

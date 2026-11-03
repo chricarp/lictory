@@ -12,8 +12,28 @@ must never prevent signing in, reviewing, synchronizing or publishing.
 
 ## Consent
 
-Browser analytics runs in one of two modes, chosen by the visitor's **Analytics**
-(c15t `measurement`) consent. The open-source c15t consent manager runs in offline
+Without PostHog settings there is nothing to consent to: `ConsentProvider`
+renders no banner, stores no choice and loads no analytics code, and "Privacy
+preferences" buttons are hidden. A browser test asserts that the platform then
+makes no request to PostHog or the relay.
+
+`ANALYTICS_CONSENT` (and `NEXT_PUBLIC_ANALYTICS_CONSENT` for the website build)
+chooses how analytics follow the visitor's choice
+(`packages/core/src/lib/analytics/consent.ts`):
+
+- **Default (unset):** the behavior described below. PostHog loads before a
+  choice, cookieless and anonymous; server events ignore the browser choice.
+- **`strict`:** PostHog loads only after Analytics consent (`loadMode:
+"after-consent"`, no cookieless mode), and server events are sent only for
+  requests carrying the `lictory_analytics_consent=1` cookie, a first-party
+  record the browser keeps in step with the choice (granted, rejected or
+  withdrawn). Zero mutations carry it too, because zero-cache forwards cookies.
+  Events without a request, such as background jobs, are not sent.
+
+The default is the maintainer's choice, kept from before strict mode existed.
+
+In the default mode, browser analytics runs in one of two modes, chosen by the
+visitor's **Analytics** (c15t `measurement`) consent. The open-source c15t consent manager runs in offline
 mode: choices are stored only in the visitor's browser (cookie and localStorage),
 with no consent backend, audit trail or jurisdiction detection. The banner asks
 every visitor. "Privacy preferences" in the landing footer, auth pages and the

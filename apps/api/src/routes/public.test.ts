@@ -48,10 +48,15 @@ void test("the same build serves each installation its own origins and analytics
     SITE_URL: "https://first.example",
     POSTHOG_PROJECT_TOKEN: "phc_first",
     POSTHOG_HOST: "https://eu.i.posthog.com",
+    ANALYTICS_CONSENT: "strict",
   });
   assert.deepEqual(configOf(first), {
     siteUrl: "https://first.example",
-    analytics: { projectToken: "phc_first", host: "https://eu.i.posthog.com" },
+    analytics: {
+      projectToken: "phc_first",
+      host: "https://eu.i.posthog.com",
+      consent: "strict",
+    },
   });
   assert.match(first, /content="https:\/\/first\.example\/og\/item"/);
 

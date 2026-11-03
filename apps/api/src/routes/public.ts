@@ -138,6 +138,7 @@ export function documentRoutes() {
         analytics: analyticsSettings({
           POSTHOG_PROJECT_TOKEN: process.env.POSTHOG_PROJECT_TOKEN,
           POSTHOG_HOST: process.env.POSTHOG_HOST,
+          ANALYTICS_CONSENT: process.env.ANALYTICS_CONSENT,
         }),
       });
     return c.html(

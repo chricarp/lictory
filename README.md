@@ -49,6 +49,27 @@ disabled until its variables are set in `.env`; core refinement works without
 them. See [the development runbook](docs/operations/development.md) for daily
 commands, tests and the full verification sequence.
 
+## Telemetry and privacy
+
+Lictory sends no telemetry by default. Nothing leaves your installation unless
+you configure a service that needs it:
+
+- **AI** (`OPENAI_API_KEY`): content you ask Lictory Intelligence to analyze,
+  transcribe or discuss goes to OpenAI. Uploaded documents are converted to
+  text on your server.
+- **Product analytics** (`POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`): off without
+  both. When off, the app shows no consent banner and makes no analytics
+  requests. When on, browsers reach PostHog only through your own `/relay`
+  route; see the consent modes in
+  [product analytics](docs/internals/analytics.md#consent).
+- **Email** (Resend or your SMTP server), **file storage** (your S3-compatible
+  bucket), **delivery** (the Jira site a project connects to) and **sign-in
+  providers** (Google, Microsoft) when you enable them.
+
+The deployment's own operations (TLS certificates, backups, alerts and
+monitoring pings) contact only the services you configure for them; see
+[deployment](docs/operations/deployment.md#telemetry-and-privacy).
+
 ## Transactional email
 
 Authentication emails use typed React Email templates from

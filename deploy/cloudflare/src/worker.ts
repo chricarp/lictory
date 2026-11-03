@@ -13,6 +13,7 @@ interface Environment {
   /** Browser analytics for the platform document; unset disables them. */
   POSTHOG_PROJECT_TOKEN?: string;
   POSTHOG_HOST?: string;
+  ANALYTICS_CONSENT?: string;
 }
 
 const accountPages = new Set([

@@ -4,12 +4,23 @@
 // it) writes them into index.html, so one build runs on any domain and only
 // the environment changes. Nothing here is secret: it is visible to every
 // visitor, signed in or not.
+// Relative: the Cloudflare Worker and the Vite config bundle this file
+// without the workspace path aliases.
+import {
+  analyticsConsentMode,
+  type AnalyticsConsentMode,
+} from "./analytics/consent";
 
 export type PublicConfig = {
   /** Public website origin: legal pages and the home link. */
   siteUrl: string;
   /** Browser analytics, or null when analytics are not configured. */
-  analytics: { projectToken: string; host: string } | null;
+  analytics: {
+    projectToken: string;
+    host: string;
+    /** ANALYTICS_CONSENT; see lib/analytics/consent. */
+    consent: AnalyticsConsentMode;
+  } | null;
 };
 
 // Empty variables count as unset.
@@ -18,14 +29,24 @@ function setting(value: string | undefined) {
   return trimmed === "" ? undefined : trimmed;
 }
 
-/** Browser analytics settings from POSTHOG_PROJECT_TOKEN and POSTHOG_HOST. */
+/**
+ * Browser analytics settings from POSTHOG_PROJECT_TOKEN, POSTHOG_HOST and
+ * ANALYTICS_CONSENT. Without a token and host, analytics are off.
+ */
 export function analyticsSettings(env: {
   readonly POSTHOG_PROJECT_TOKEN?: string;
   readonly POSTHOG_HOST?: string;
+  readonly ANALYTICS_CONSENT?: string;
 }): PublicConfig["analytics"] {
   const projectToken = setting(env.POSTHOG_PROJECT_TOKEN);
   const host = setting(env.POSTHOG_HOST);
-  return projectToken && host ? { projectToken, host } : null;
+  return projectToken && host
+    ? {
+        projectToken,
+        host,
+        consent: analyticsConsentMode(env.ANALYTICS_CONSENT),
+      }
+    : null;
 }
 
 const elementId = "lictory-config";
@@ -84,6 +105,17 @@ export function readPublicConfig(
     : undefined;
   return {
     siteUrl: httpUrl(value.siteUrl)?.origin ?? pageOrigin,
-    analytics: projectToken && host ? { projectToken, host } : null,
+    analytics:
+      projectToken && host
+        ? {
+            projectToken,
+            host,
+            consent: analyticsConsentMode(
+              typeof analytics.consent === "string"
+                ? analytics.consent
+                : undefined,
+            ),
+          }
+        : null,
   };
 }
