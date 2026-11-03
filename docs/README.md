@@ -53,8 +53,9 @@ adding domain writes or synchronized entities.
 
 - [Deployment and operations](./operations/deployment.md): single-server
   Docker Compose topology, Openship operations, worker scheduling, first launch and releases
-- [Websites on Cloudflare](./operations/cloudflare-marketing.md): public domains,
-  static HTML, the platform SPA and manually selected stable deployments
+- [Websites on Cloudflare](./operations/websites.md): the marketing
+  website, the documentation and the platform SPA; the `websites` environment,
+  token scope, DNS, how deploys trigger and rollback
 - [Existing reverse proxy, internal CA and plain HTTP](./operations/reverse-proxy.md):
   nginx and Traefik in front of the gateway, WebSockets, streaming, client
   addresses, certificates and the limits of plain HTTP

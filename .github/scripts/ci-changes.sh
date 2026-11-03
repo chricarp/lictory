@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Decides which CI suites a pull request needs from its changed paths (one per
-# line on stdin) and prints `unit=`, `e2e=` and `audit=` lines for
+# line on stdin) and prints `unit=`, `e2e=`, `audit=` and `docs=` lines for
 # $GITHUB_OUTPUT. Static checks (types, lint, formatting, unused code,
 # migrations) always run. Anything not recognised runs everything: a skipped
 # suite must never be the reason a regression reaches main.
@@ -9,10 +9,16 @@ set -euo pipefail
 unit=false
 e2e=false
 audit=false
+docs=false
 while IFS= read -r path || [ -n "$path" ]; do
   [ -n "$path" ] || continue
   case "$path" in
     bun.lock | package.json | */package.json) audit=true ;;
+  esac
+  case "$path" in
+    # The documentation site is built (MDX compiled, pages exported) only when
+    # it or what it renders changes.
+    apps/docs/* | packages/ui/* | bun.lock) docs=true ;;
   esac
   case "$path" in
     # CI itself: prove the whole pipeline still works.
@@ -22,7 +28,7 @@ while IFS= read -r path || [ -n "$path" ]; do
     apps/marketing/* | apps/platform/* | packages/*)
       unit=true e2e=true ;;
     # Prose, licenses and repository metadata (formatting is still checked).
-    # The docs website has no browser workflows; its build is a static check.
+    # The docs website needs no smoke workflows: its build is a static check.
     *.md | docs/* | LICENSE | LICENSES/* | apps/docs/* | .github/ISSUE_TEMPLATE/* | \
       .github/CODEOWNERS | .github/labels.json | .github/dependabot.yml | .github/*.md) ;;
     # Release tooling, deployment scripts and the other workflows are guarded
@@ -32,4 +38,4 @@ while IFS= read -r path || [ -n "$path" ]; do
   esac
 done
 
-printf 'unit=%s\ne2e=%s\naudit=%s\n' "$unit" "$e2e" "$audit"
+printf 'unit=%s\ne2e=%s\naudit=%s\ndocs=%s\n' "$unit" "$e2e" "$audit" "$docs"

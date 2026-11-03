@@ -251,11 +251,11 @@ jobs:
             "$DEPLOY_SSH_TARGET" 'production registry-logout'
 
   websites-build:
-    name: Prepare Cloudflare websites
+    name: Prepare the platform SPA
     needs: plan
     permissions:
       contents: read
-    uses: ./.github/workflows/deploy-marketing.yml
+    uses: ./.github/workflows/deploy-platform.yml
     with:
       release_tag: ${{ format('v{0}', needs.plan.outputs.version) }}
       source_sha: ${{ needs.plan.outputs.sha }}
@@ -264,11 +264,11 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   websites:
-    name: Deploy Cloudflare websites
+    name: Deploy the platform SPA
     needs: [plan, deploy, websites-build]
     permissions:
       contents: read
-    uses: ./.github/workflows/deploy-marketing.yml
+    uses: ./.github/workflows/deploy-platform.yml
     with:
       prepared: true
       release_tag: ${{ format('v{0}', needs.plan.outputs.version) }}

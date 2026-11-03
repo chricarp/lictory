@@ -260,9 +260,10 @@ type Workflow = {
       name?: string;
       if?: string;
       needs?: string[];
+      if?: string;
       uses?: string;
       with?: Record<string, string>;
-      environment?: string;
+      environment?: string | { name: string; url?: string };
       permissions?: Record<string, string>;
       env?: Record<string, string>;
       steps?: Step[];
@@ -426,6 +427,58 @@ void test("PR title enforcement never checks out or runs untrusted PR code", () 
   assert.equal(title.permissions["pull-requests"], "read");
 });
 
+void test("website deployments stay on main, in their own environment, with the token in one step", () => {
+  for (const name of ["deploy-marketing", "deploy-docs"]) {
+    const flow = workflow(name);
+    assert.deepEqual(
+      Object.keys(flow.on).sort(),
+      ["push", "repository_dispatch", "workflow_dispatch"],
+      name,
+    );
+    assert.deepEqual((flow.on.push as { branches: string[] }).branches, [
+      "main",
+    ]);
+    assert.deepEqual(
+      (flow.on.repository_dispatch as { types: string[] }).types,
+      ["stable-published"],
+    );
+    assert.deepEqual(flow.permissions, { contents: "read" });
+    assert.equal(flow.concurrency?.["cancel-in-progress"], false);
+    const jobs = Object.values(flow.jobs);
+    assert.equal(jobs.length, 1, name);
+    const job = jobs[0]!;
+    assert.equal(job.if, "github.repository == 'chricarp/lictory'");
+    assert.equal(
+      typeof job.environment === "object" ? job.environment.name : null,
+      "websites",
+    );
+    assert.ok(!JSON.stringify(job.env ?? {}).includes("secrets."), name);
+    const withSecrets = job.steps!.filter((step) =>
+      JSON.stringify(step).includes("secrets."),
+    );
+    assert.equal(withSecrets.length, 1, name);
+    assert.deepEqual(Object.keys(withSecrets[0]!.env!).sort(), [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_TOKEN",
+    ]);
+    assert.equal(withSecrets[0], job.steps!.at(-1));
+    for (const step of job.steps!)
+      if (step.uses?.startsWith("actions/checkout@"))
+        assert.equal(String(step.with?.["persist-credentials"]), "false");
+  }
+  // The platform SPA still ships only with a stable release, from Production.
+  const production = workflow("deploy-production");
+  for (const job of ["websites-build", "websites"])
+    assert.equal(
+      production.jobs[job]!.uses,
+      "./.github/workflows/deploy-platform.yml",
+    );
+  assert.equal(
+    workflow("deploy-platform").jobs.deploy!.environment,
+    "Production",
+  );
+});
+
 void test("third-party actions are pinned to commits", async () => {
   // Every workflow, including ones added later.
   const names = (
@@ -542,9 +595,13 @@ void test("pull request suite selection fails open", () => {
         .split("\n")
         .map((line) => line.split("=")),
     ) as Record<string, string>;
-  const none = { unit: "false", e2e: "false", audit: "false" };
+  const none = { unit: "false", e2e: "false", audit: "false", docs: "false" };
   assert.deepEqual(select("README.md", "docs/operations/releases.md"), none);
-  assert.deepEqual(select("apps/docs/content/docs/index.mdx"), none);
+  // Documentation pages need their site built, not the application suites.
+  assert.deepEqual(select("apps/docs/content/docs/index.mdx"), {
+    ...none,
+    docs: "true",
+  });
   assert.deepEqual(select("deploy/deploy.sh"), { ...none, unit: "true" });
   for (const path of [
     "apps/platform/src/main.tsx",
@@ -561,6 +618,7 @@ void test("pull request suite selection fails open", () => {
       path,
     );
   assert.equal(select("bun.lock").audit, "true");
+  assert.equal(select("packages/ui/src/theme.css").docs, "true");
 });
 
 void test("the released version display is preserved", async () => {

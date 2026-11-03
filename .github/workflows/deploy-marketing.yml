@@ -1,82 +1,54 @@
-name: Deploy websites to Cloudflare
+name: Deploy marketing website
 
+# lictory.com is not part of the released product: it deploys only to the
+# maintainer's Cloudflare account, from main, whenever its sources change, and
+# again after each stable release so it shows the new version. Pull requests
+# only build it (bun run check, the browser suite); there are no previews.
+# Setup and rollback: docs/operations/websites.md.
 on:
-  workflow_call:
-    inputs:
-      release_tag:
-        description: Published stable release tag to deploy
-        required: true
-        type: string
-      prepare_only:
-        description: Build without publishing, in parallel with backend images
-        type: boolean
-        default: false
-      prepared:
-        description: Use frontend artifacts prepared by this workflow run
-        type: boolean
-        default: false
-      source_sha:
-        description: Exact selected source for preparation before stable publication
-        type: string
-        default: ""
-    secrets:
-      CLOUDFLARE_API_TOKEN:
-        required: true
+  push:
+    branches: [main]
+    paths:
+      - apps/marketing/**
+      - packages/ui/**
+      - packages/core/src/lib/**
+      - deploy/cloudflare/**
+      - bun.lock
+      - package.json
+      - .github/workflows/deploy-marketing.yml
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Published stable release tag to deploy (for example v0.13.0)"
-        required: true
-        type: string
+  repository_dispatch:
+    types: [stable-published]
 
 permissions:
   contents: read
 
+# One deployment at a time; a newer commit waits instead of cancelling it.
 concurrency:
-  group: lictory-marketing-${{ inputs.prepare_only && github.run_id || 'production' }}
+  group: website-marketing
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy ${{ matrix.site }}
-    strategy:
-      fail-fast: false
-      matrix:
-        site: [marketing, platform]
+    name: Build and deploy lictory.com
+    # Forks have no deployment environment; never try.
+    if: github.repository == 'chricarp/lictory'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment: Production
+    timeout-minutes: 20
+    environment:
+      name: websites
+      url: https://lictory.com
     env:
-      PREPARE_ONLY: ${{ inputs.prepare_only || false }}
-      RELEASE_TAG: ${{ inputs.release_tag }}
-      GH_TOKEN: ${{ github.token }}
       SITE_URL: https://lictory.com
       NEXT_PUBLIC_PLATFORM_URL: https://app.lictory.com
       NEXT_TELEMETRY_DISABLED: "1"
       WRANGLER_SEND_METRICS: "false"
-      NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
-      NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-      NEXT_PUBLIC_ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}
-      LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
-      LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
-      LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
-      LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
     steps:
-      - name: Require dispatch from main and a published stable release
-        run: |
-          test "$GITHUB_REF" = refs/heads/main
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          if [ "$PREPARE_ONLY" != true ]; then
-            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
-              --jq '(.draft == false) and (.prerelease == false)' | grep -qx true
-          fi
+      - name: Require main
+        run: test "$GITHUB_REF" = refs/heads/main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.prepare_only && inputs.source_sha || inputs.release_tag }}
-          fetch-depth: 0
           persist-credentials: false
-      - name: Require released source on main
-        run: git merge-base --is-ancestor HEAD origin/main
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24.22.1"
@@ -84,55 +56,57 @@ jobs:
         with:
           bun-version-file: package.json
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: ${{ !inputs.prepared && matrix.site == 'marketing' }}
         with:
           path: apps/marketing/.next/cache
           key: next-marketing-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
           restore-keys: next-marketing-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
       - run: bun install --frozen-lockfile
-      - name: Stamp the selected stable version
-        run: |
-          VERSION="${RELEASE_TAG#v}"
-          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "NEXT_PUBLIC_APP_VERSION=$VERSION" >> "$GITHUB_ENV"
-      - run: bun scripts/inject-release-version.ts "${RELEASE_TAG#v}"
-      - if: ${{ !inputs.prepared && matrix.site == 'marketing' }}
-        run: bun run --cwd apps/marketing build:cloudflare
-      - if: ${{ !inputs.prepared && matrix.site == 'platform' }}
-        run: bun run --cwd apps/platform build
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: inputs.prepare_only
-        with:
-          name: frontend-${{ matrix.site }}-${{ inputs.release_tag }}
-          path: ${{ matrix.site == 'marketing' && 'apps/marketing/out' || 'apps/platform/dist' }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 2
-          overwrite: true
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        if: inputs.prepared
-        with:
-          name: frontend-${{ matrix.site }}-${{ inputs.release_tag }}
-          path: ${{ matrix.site == 'marketing' && 'apps/marketing/out' || 'apps/platform/dist' }}
-      - name: Deploy the selected website
-        if: ${{ !inputs.prepare_only }}
+      # The release that triggered this run, otherwise the latest published
+      # stable GitHub Release. Before the first stable release the source
+      # version stays.
+      - name: Resolve the latest stable version
+        id: version
         env:
-          SITE: ${{ matrix.site }}
-          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-          ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHED_TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          if [ -n "$DISPATCHED_TAG" ]; then
+            tag="$DISPATCHED_TAG"
+          else
+            tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+          fi
+          if [ -z "$tag" ]; then
+            echo "No published stable release; keeping the source version."
+            exit 0
+          fi
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
+            --jq '(.draft == false) and (.prerelease == false)' | grep -qx true
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Stamp the version
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/inject-release-version.ts "$VERSION"
+      # Public build settings only: they are compiled into the pages.
+      - name: Build the static site
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          NEXT_PUBLIC_ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}
+          LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
+          LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
+          LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
+          LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
+        run: bun run --cwd apps/marketing build:cloudflare
+      # The only step that receives the Cloudflare token.
+      - name: Deploy to Cloudflare
+        env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_API_TOKEN"
-          if [ "$SITE" = marketing ]; then
-            bun run --cwd apps/marketing deploy:cloudflare
-          else
-            # The Worker writes the site URL (wrangler.jsonc) and these
-            # analytics settings into each platform document at runtime.
-            bunx wrangler deploy --config apps/platform/wrangler.jsonc \
-              --var "POSTHOG_PROJECT_TOKEN:$POSTHOG_PROJECT_TOKEN" \
-              --var "POSTHOG_HOST:$POSTHOG_HOST" \
-              --var "ANALYTICS_CONSENT:$ANALYTICS_CONSENT"
-          fi
+          bun run --cwd apps/marketing deploy:cloudflare

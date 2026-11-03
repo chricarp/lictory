@@ -57,6 +57,7 @@ jobs:
       unit: ${{ steps.detect.outputs.unit }}
       e2e: ${{ steps.detect.outputs.e2e }}
       audit: ${{ steps.detect.outputs.audit }}
+      docs: ${{ steps.detect.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,7 +76,7 @@ jobs:
           # requests GitHub cannot list completely (3000+ files) do too.
           if [ "$EVENT" != pull_request ] || [ "${CHANGED:-0}" -ge 3000 ] ||
             ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename' > "$RUNNER_TEMP/changed"; then
-            printf 'unit=true\ne2e=true\naudit=true\n' | tee -a "$GITHUB_OUTPUT"
+            printf 'unit=true\ne2e=true\naudit=true\ndocs=true\n' | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
           bash .github/scripts/ci-changes.sh < "$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT"
@@ -102,6 +103,13 @@ jobs:
         run: bun run check
       - name: Schema changes have committed migrations
         run: bun run db:check
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: needs.changes.outputs.docs == 'true'
+        with:
+          node-version: "24.22.1"
+      - name: Documentation site builds
+        if: needs.changes.outputs.docs == 'true'
+        run: bun run --cwd apps/docs build
 
   domain:
     name: Domain tests

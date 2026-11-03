@@ -193,12 +193,18 @@ version and image digests decide what is live. Only after migrations pass is
 the stable tag reserved; only after activation does its GitHub Release become
 published and latest. The original nightly remains unchanged.
 
-The same workflow then deploys both Cloudflare websites from that published
-stable tag. One **Run workflow** starts the complete production release; approve
-the protected Production jobs if prompted. A backend failure skips the websites.
-If the website job fails, the healthy backend stays deployed: use **Re-run failed
-jobs** to retry the websites with the same tag without repeating the backend
-release. Do not rerun all jobs to recover a frontend failure.
+The same workflow then deploys the platform SPA (`app.lictory.com`) to
+Cloudflare from that published stable tag. One **Run workflow** starts the
+complete production release; approve the protected Production jobs if prompted.
+A backend failure skips the SPA. If the SPA job fails, the healthy backend stays
+deployed: use **Re-run failed jobs** to retry it with the same tag without
+repeating the backend release. Do not rerun all jobs to recover a frontend
+failure.
+
+The marketing website and the documentation are not part of a release. They
+deploy from `main` on their own ([websites on Cloudflare](websites.md)); the
+`stable-published` dispatch sent after each stable publication rebuilds both,
+so the website shows the new version.
 
 Nightly and Stable share a verified source commit, not byte-identical images:
 their versions differ. Neither embeds a domain or analytics setting; each server
@@ -223,13 +229,13 @@ stable commit is an ancestor. Hotfix migrations must obey expand/contract; an
 old branch with unknown applied migrations plus new pending migrations is
 refused by the existing migration safety rules.
 
-For the production topology with static websites on Cloudflare and the backend
+For the production topology with the platform SPA on Cloudflare and the backend
 managed through Openship, **Release to Production** deploys the backend first
-and automatically calls the website workflow with that same published tag. The
-standalone website workflow remains available for compatible frontend rollback
-or recovery. See
-[websites on Cloudflare](cloudflare-marketing.md) for gateway configuration and
-the frontend verification and rollback procedure.
+and automatically calls **Deploy platform SPA to Cloudflare** with that same
+published tag. That workflow can also be dispatched on its own for compatible
+frontend rollback or recovery. See
+[websites on Cloudflare](websites.md) for gateway configuration and the
+frontend verification and rollback procedure.
 
 ## Direct pushes and recovery
 
@@ -289,8 +295,6 @@ Repository variables:
 | `IMAGE_REGISTRY`            | Registry namespace for images, for example `ghcr.io/<owner>`                     |
 | `IMAGE_CACHE_REGISTRY`      | Optional BuildKit cache repository, for example `ghcr.io/<owner>/lictory-cache`  |
 | `STAGING_PLATFORM_URL`      | Staging platform origin, recorded on nightly deployments                         |
-| `POSTHOG_HOST`              | Optional website analytics host (production website build)                       |
-| `LICTORY_LEGAL_*`           | Legal notice details compiled into the website                                   |
 | `STAGING_DEPLOY_ENABLED`    | `true` to run every nightly on the staging server                                |
 
 GitHub environment **Production** (deployment branch `main` only: every
@@ -304,7 +308,15 @@ holds:
 | Variable `DEPLOY_SSH_TARGET`                      | `deploy@<production server>`                                    |
 | Variable `DEPLOY_SSH_KNOWN_HOSTS`                 | The server's verified `ssh-ed25519` host key line               |
 | Variable `PLATFORM_URL`                           | `https://app.lictory.com`, recorded on stable deployments       |
-| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Cloudflare website and platform analytics (optional)            |
+| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Platform SPA analytics on Cloudflare (optional)                 |
+| Variable `ANALYTICS_CONSENT`                      | Platform SPA analytics consent mode (optional)                  |
+| Secret `CLOUDFLARE_API_TOKEN`                     | Deploys the `lictory-platform` Worker only                      |
+| Variable `CLOUDFLARE_ACCOUNT_ID`                  | The Cloudflare account ID                                       |
+
+The marketing website and documentation use their own environment
+**websites**, with a separate Cloudflare token and the website's public build
+variables (`POSTHOG_*`, `LICTORY_LEGAL_*`); see
+[websites on Cloudflare](websites.md#github-configuration).
 
 GitHub environment **staging** holds the same SSH settings for the staging
 server. Packages are pushed with the workflow's `GITHUB_TOKEN`

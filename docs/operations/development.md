@@ -139,7 +139,9 @@ behavior.
 | Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`   | Manual (`CI` → Run workflow → full) | Yes, before publishing |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
-for paths it does not recognise. The required `Verify` check passes only when
+for paths it does not recognise. A change to the documentation site (or what
+it renders) also builds it in the static checks, so a broken page fails the
+pull request. The required `Verify` check passes only when
 every selected job passed.
 
 What earns a test, while the product is young:
@@ -215,7 +217,9 @@ Verification and Cloudflare frontend preparation also run in parallel with
 those builds. Assembly rejects a missing or duplicate architecture, mismatched release plans
 and stale previous-proxy assets before publishing multi-platform indexes.
 Migration, Zero catch-up and healthy backend activation still precede frontend
-publication. The standalone website dispatch builds its selected stable tag.
+publication. The standalone platform dispatch builds its selected stable tag.
+The marketing website and the documentation deploy from `main` in their own
+workflows ([websites on Cloudflare](websites.md)).
 
 Bun installs directly from the lockfile: restoring and saving its broad download
 cache cost more than an uncached install in measured Actions runs. BuildKit registry caches default

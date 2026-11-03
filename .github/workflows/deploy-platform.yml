@@ -1,0 +1,119 @@
+name: Deploy platform SPA to Cloudflare
+
+# The app.lictory.com SPA ships with the backend it talks to, so it deploys
+# only from a published stable release: Release to Production calls this
+# workflow (prepare in parallel with the backend images, then deploy after
+# activation). A manual dispatch from main redeploys a published stable tag for
+# recovery or a compatible frontend rollback. The marketing website and the
+# documentation deploy separately (deploy-marketing.yml, deploy-docs.yml).
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Published stable release tag to deploy
+        required: true
+        type: string
+      prepare_only:
+        description: Build without publishing, in parallel with backend images
+        type: boolean
+        default: false
+      prepared:
+        description: Use the artifact prepared by this workflow run
+        type: boolean
+        default: false
+      source_sha:
+        description: Exact selected source for preparation before stable publication
+        type: string
+        default: ""
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Published stable release tag to deploy (for example v0.13.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lictory-platform-${{ inputs.prepare_only && github.run_id || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy platform
+    if: github.repository == 'chricarp/lictory'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: Production
+    env:
+      PREPARE_ONLY: ${{ inputs.prepare_only || false }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      GH_TOKEN: ${{ github.token }}
+      WRANGLER_SEND_METRICS: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Require dispatch from main and a published stable release
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [ "$PREPARE_ONLY" != true ]; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+              --jq '(.draft == false) and (.prerelease == false)' | grep -qx true
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.prepare_only && inputs.source_sha || inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require released source on main
+        run: git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.1"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Stamp the selected stable version
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+      - run: bun scripts/inject-release-version.ts "${RELEASE_TAG#v}"
+      - if: ${{ !inputs.prepared }}
+        run: bun run --cwd apps/platform build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: inputs.prepare_only
+        with:
+          name: frontend-platform-${{ inputs.release_tag }}
+          path: apps/platform/dist
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 2
+          overwrite: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        if: inputs.prepared
+        with:
+          name: frontend-platform-${{ inputs.release_tag }}
+          path: apps/platform/dist
+      - name: Deploy the platform SPA
+        if: ${{ !inputs.prepare_only }}
+        env:
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # The Worker writes the site URL (wrangler.jsonc) and these analytics
+        # settings into each platform document at runtime.
+        run: |
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          bunx wrangler deploy --config apps/platform/wrangler.jsonc \
+            --var "POSTHOG_PROJECT_TOKEN:$POSTHOG_PROJECT_TOKEN" \
+            --var "POSTHOG_HOST:$POSTHOG_HOST" \
+            --var "ANALYTICS_CONSENT:$ANALYTICS_CONSENT"

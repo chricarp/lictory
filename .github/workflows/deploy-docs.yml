@@ -1,0 +1,73 @@
+name: Deploy documentation
+
+# docs.lictory.com is not part of the released product: it deploys only to the
+# maintainer's Cloudflare account, from main, whenever its sources change, and
+# after each stable release. Pull requests only build it (bun run check, the
+# browser suite); there are no previews. Setup and rollback:
+# docs/operations/websites.md.
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/docs/**
+      - packages/ui/**
+      - deploy/cloudflare/**
+      - bun.lock
+      - package.json
+      - .github/workflows/deploy-docs.yml
+  workflow_dispatch:
+  repository_dispatch:
+    types: [stable-published]
+
+permissions:
+  contents: read
+
+# One deployment at a time; a newer commit waits instead of cancelling it.
+concurrency:
+  group: website-docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy docs.lictory.com
+    # Forks have no deployment environment; never try.
+    if: github.repository == 'chricarp/lictory'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: websites
+      url: https://docs.lictory.com
+    env:
+      SITE_URL: https://docs.lictory.com
+      NEXT_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - name: Require main
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.1"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: apps/docs/.next/cache
+          key: next-docs-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: next-docs-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
+      - run: bun install --frozen-lockfile
+      # No secrets and no analytics: the build sees only the public origin.
+      - name: Build the static site
+        run: bun run --cwd apps/docs build:cloudflare
+      # The only step that receives the Cloudflare token.
+      - name: Deploy to Cloudflare
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          bun run --cwd apps/docs deploy:cloudflare

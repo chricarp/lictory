@@ -145,7 +145,8 @@ CODEOWNERS, labels or the existing title check.
    code checks. Do not grant PR jobs deployment credentials or repository write
    tokens. Review `workflow_run`, reusable workflows and artifacts for trust
    boundaries before adding automation.
-7. Protect Production/staging environments with reviewers and allowed branches.
+7. Protect Production/staging environments with reviewers and allowed branches,
+   and restrict the `websites` environment to `main`.
    Audit repository/environment secrets, SSH and Cloudflare permissions, registry
    ownership and release dispatch permissions. Forks must be able to test without
    Lictory infrastructure and must not automatically publish Lictory releases.

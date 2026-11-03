@@ -1,10 +1,11 @@
 # Deployment and operations
 
 Cloudflare serves the static marketing website at `lictory.com`, redirects
-`www.lictory.com` to the apex, and serves the platform SPA at `app.lictory.com`.
+`www.lictory.com` to the apex, serves the documentation at `docs.lictory.com`
+and the platform SPA at `app.lictory.com`.
 The production server runs five long-lived services: the app gateway, API,
 background worker, zero-cache and PostgreSQL. There is no marketing container.
-See [websites on Cloudflare](cloudflare-marketing.md) for frontend releases.
+See [websites on Cloudflare](websites.md) for frontend releases.
 
 Images are built off-server by GitHub Actions and deployed by digest. Backend
 production changes go through the manually approved **Release to Production**
@@ -203,7 +204,7 @@ website origin from `SITE_URL` and the browser analytics settings from
 browser reads it there instead of from the bundle. Change `.env` and restart
 the API to change them. When Cloudflare serves the platform SPA (lictory.com),
 its Worker writes the same configuration from its own variables
-([websites on Cloudflare](cloudflare-marketing.md)).
+([websites on Cloudflare](websites.md)).
 
 ## Database roles
 
@@ -252,10 +253,11 @@ and rollback targets retain their original marketing digest.
 Dependency installation precedes copying application source; release versions
 are stamped only in the browser/website build stages.
 
-Production builds and exact-candidate verification run concurrently. Both
-Cloudflare websites are prepared alongside backend images, then uploaded in
-parallel only after stable publication and healthy backend activation. Website
-artifacts are scoped to the current workflow run and selected version. No
+Production builds and exact-candidate verification run concurrently. The
+platform SPA is prepared alongside backend images, then uploaded only after
+stable publication and healthy backend activation. Its artifact is scoped to
+the current workflow run and selected version. The marketing website and the
+documentation are not released with the product; they deploy from `main`. No
 production deployment skips verification, backup, migration or Zero catch-up.
 See [release performance](development.md#release-performance) for measuring the
 two-minute warm-run target and the cold-run limits.
@@ -325,8 +327,8 @@ On an empty database a normal release does everything in order: the first
 start of PostgreSQL creates the roles and databases, the migrate service
 applies every migration (including the `lictory_zero` publication), zero-cache
 performs its initial sync, then the proxy, API and worker start. The
-**Release to Production** workflow then deploys both Cloudflare frontends from
-the same published stable tag after the backend is healthy.
+**Release to Production** workflow then deploys the platform SPA to Cloudflare
+from the same published stable tag after the backend is healthy.
 
 ```sh
 # from GitHub: Actions → Release to Production → Run workflow (main)
