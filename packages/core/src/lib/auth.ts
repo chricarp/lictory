@@ -7,7 +7,11 @@ import { eq } from "drizzle-orm";
 import { createInvitationEmail } from "@lictory/core/emails/invitation-email";
 import { sendEmail } from "@lictory/core/lib/mailer";
 import * as schema from "@lictory/core/db/auth-schema";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 
 import { authSchemaOptions } from "@lictory/core/lib/auth-schema-options";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
@@ -28,6 +32,14 @@ import {
   refreshDirectories,
 } from "@lictory/core/domain/projections";
 import { trackServer } from "@lictory/core/lib/analytics/server";
+import {
+  recordAccountDeleted,
+  recordAuthAudit,
+} from "@lictory/core/lib/auth-audit";
+import {
+  auditedAuthPaths,
+  rememberPreviousRole,
+} from "@lictory/core/lib/auth-audit-plan";
 import { importProviderPhoto } from "@lictory/core/profile/server";
 import {
   microsoftEmailPolicy,
@@ -178,6 +190,7 @@ export const auth = betterAuth({
         after: async (user) => {
           const organizationIds = deletedMemberships.get(user.id) ?? [];
           deletedMemberships.delete(user.id);
+          await recordAccountDeleted(user, organizationIds);
           await refreshOrganizations(organizationIds);
         },
       },
@@ -252,6 +265,21 @@ export const auth = betterAuth({
         await refreshOrganizations([left]);
       if (event && userId && !(ctx.context.returned instanceof APIError))
         trackServer(userId, event, {}, ctx.headers);
+      // Membership changes are audited whether or not analytics is enabled.
+      if (
+        auditedAuthPaths.has(ctx.path) &&
+        !(ctx.context.returned instanceof APIError)
+      ) {
+        const session =
+          ctx.context.session ??
+          (await getSessionFromCtx(ctx).catch(() => null));
+        await recordAuthAudit(
+          ctx.path,
+          ctx.body,
+          ctx.context.returned,
+          session ? { id: session.user.id } : null,
+        );
+      }
     }),
     // Better Auth enforces length; whitespace is our own rule. Only paths
     // that set a new password are checked, so sign-in keeps working for any
@@ -381,7 +409,12 @@ export const auth = betterAuth({
         afterRemoveMember: async ({ organization }) => {
           await refreshOrganizations([organization.id]);
         },
-        afterUpdateMemberRole: async ({ organization }) => {
+        afterUpdateMemberRole: async ({
+          organization,
+          member,
+          previousRole,
+        }) => {
+          rememberPreviousRole(member.id, previousRole);
           await refreshOrganizations([organization.id]);
         },
         afterAcceptInvitation: async ({ invitation, user, organization }) => {

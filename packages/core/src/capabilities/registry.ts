@@ -3,6 +3,8 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { accessTokenCapabilities } from "@lictory/core/capabilities/access-tokens";
 import { productKnowledgeCapabilities } from "@lictory/core/capabilities/product-knowledge";
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
+import { auditCapabilities } from "@lictory/core/capabilities/audit";
+import { exportCapabilities } from "@lictory/core/capabilities/export";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
 import {
   CapabilityError,
@@ -32,6 +34,8 @@ export const capabilities: readonly AnyCapability[] = [
   ...attachmentCapabilities,
   ...brandingCapabilities,
   ...accessTokenCapabilities,
+  ...auditCapabilities,
+  ...exportCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
   humanOnlyCapability(() => capabilities),

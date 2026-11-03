@@ -23,6 +23,10 @@ adding domain writes or synchronized entities.
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Audit log](./internals/audit.md): what is recorded, immutability,
+  retention and how features record new events
+- [Organization data export](./internals/data-export.md): the export job,
+  what an archive contains, and the archive format and its versioning
 - [Database model](./internals/database-model.md)
 - [Lictory Intelligence](./internals/ai.md)
 - [Notifications](./internals/notifications.md)

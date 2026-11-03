@@ -15,7 +15,7 @@ export const paths = {
   itemByKey: (org: string, key: string) => `/${org}/items/${key}`,
   inbox: (org: string) => `/${org}/inbox`,
   notificationSettings: (org: string) => `/${org}/inbox/settings`,
-  // Organization settings: general, members, projects, types, integrations,
+  // Organization settings: general, members, projects, audit, types, integrations,
   // intelligence.
   settings: (org: string, section?: string) =>
     `/${org}/settings${section ? `/${section}` : ""}`,
