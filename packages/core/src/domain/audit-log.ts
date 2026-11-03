@@ -6,6 +6,7 @@ import {
   type AuditEntry,
 } from "@lictory/core/contracts/audit";
 import { requireAuditReader } from "@lictory/core/domain/audit";
+import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
 import { DomainError } from "@lictory/core/domain/errors";
 import { csvLine } from "@lictory/core/lib/csv";
 import type { Database } from "@lictory/core/domain/service";
@@ -108,6 +109,8 @@ export async function readAuditLog(
   options: AuditLogFilters & { cursor?: string | null; limit?: number } = {},
 ): Promise<{ entries: AuditEntry[]; nextCursor: string | null }> {
   await requireAuditReader(db, userId, organizationId);
+  // The CSV download route reaches this without the registry's check.
+  await assertTwoFactorSatisfied(db, userId, organizationId);
   return auditLogPage(db, organizationId, options);
 }
 
@@ -237,6 +240,12 @@ function describeEvent(row: Row, detail: Record<string, unknown>) {
       }`;
     case "access_token.revoked":
       return `Revoked access token ${quoted(row.target_label)}`;
+    case "two_factor.requirement_changed":
+      return detail.requireTwoFactor === true
+        ? "Required two-factor authentication for members"
+        : "Stopped requiring two-factor authentication for members";
+    case "two_factor.member_reset":
+      return `Reset ${target}'s two-factor authentication`;
     case "organization.updated": {
       const changed = [
         typeof detail.name === "string" && `name to “${detail.name}”`,
@@ -336,6 +345,8 @@ export async function auditLogCsv(
   filters: AuditLogFilters,
 ): Promise<AsyncGenerator<string>> {
   await requireAuditReader(db, userId, organizationId);
+  // The CSV download route reaches this without the registry's check.
+  await assertTwoFactorSatisfied(db, userId, organizationId);
   async function* lines() {
     yield csvLine(csvHeader);
     let cursor: string | null = null;

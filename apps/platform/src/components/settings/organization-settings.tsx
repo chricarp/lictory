@@ -11,6 +11,7 @@ import { JiraConnections } from "@lictory/platform/components/delivery/delivery-
 import { paths } from "@lictory/core/lib/paths";
 import { OrganizationGeneral } from "@lictory/platform/components/settings/org-general";
 import { OrganizationProjects } from "@lictory/platform/components/settings/org-projects";
+import { OrganizationSecurity } from "@lictory/platform/components/settings/org-security";
 import { OrganizationTypes } from "@lictory/platform/components/settings/org-types";
 import { OrganizationIntelligence } from "@lictory/platform/components/settings/org-intelligence";
 import { OrganizationAudit } from "@lictory/platform/components/settings/org-audit";
@@ -20,6 +21,7 @@ const sections = [
   { id: "general", label: "General", group: "Organization" },
   { id: "members", label: "Members", group: "Organization" },
   { id: "projects", label: "Projects", group: "Organization" },
+  { id: "security", label: "Security", group: "Organization" },
   { id: "audit", label: "Audit log", group: "Organization" },
   { id: "export", label: "Data export", group: "Organization" },
   { id: "types", label: "Work item types", group: "Shared" },
@@ -82,6 +84,7 @@ export function OrganizationSettingsSection({ section }: { section: string }) {
       {active === "general" && <OrganizationGeneral />}
       {active === "members" && <People />}
       {active === "projects" && <OrganizationProjects />}
+      {active === "security" && <OrganizationSecurity />}
       {active === "audit" && <OrganizationAudit />}
       {active === "export" && <OrganizationExport />}
       {active === "types" && <OrganizationTypes />}

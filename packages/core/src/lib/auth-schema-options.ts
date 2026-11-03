@@ -1,5 +1,6 @@
 import type { BetterAuthOptions } from "better-auth";
-import { organization } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
+import { organization, twoFactor } from "better-auth/plugins";
 
 // Shared by runtime auth and the schema generator. Keep schema-affecting options here.
 export const authSchemaOptions = {
@@ -34,5 +35,7 @@ export const authSchemaOptions = {
   // reset and verification email) and its pruning of expired rows are kept.
   // See "Scaling" in docs/operations/deployment.md.
   rateLimit: { storage: "database" },
-  plugins: [organization()],
+  // Runtime auth configures these plugins further; options that change the
+  // schema must stay identical in both places.
+  plugins: [organization(), twoFactor(), passkey()],
 } satisfies BetterAuthOptions;

@@ -65,7 +65,8 @@ Lictory treats the address as proven.
 ## SSO-only installations
 
 `PASSWORD_LOGIN_ENABLED=false` turns password sign-in off. The server then
-rejects password sign-in, sign-up, password reset requests and resets, and the
+rejects password sign-in, sign-up, password reset requests and resets, passkeys
+are turned off (a passkey sign-in would go around the provider), and the
 pages show only the identity providers. The API refuses to start with this
 setting unless an identity provider (OIDC, Google or Microsoft) is configured.
 Keep `OIDC_AUTO_CREATE_USERS` on, or people you invite cannot create their

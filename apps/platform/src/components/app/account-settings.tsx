@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 
 import { AgentAccessSection } from "@lictory/platform/components/app/agent-access";
+import {
+  PasskeysSection,
+  TwoFactorSection,
+} from "@lictory/platform/components/app/security-settings";
 import { ProfilePhoto } from "@lictory/platform/components/app/profile-photo";
 import { useAppearance } from "@lictory/platform/components/app/appearance-provider";
 import { HandleForm } from "@lictory/platform/components/auth/handle-form";
@@ -58,6 +62,7 @@ type AccountSettingsProps = {
     email: string;
     emailVerified: boolean;
     handle: string;
+    twoFactorEnabled: boolean;
   };
   providers: Record<SocialProvider, boolean>;
   // Password sign-in can be turned off by the operator (SSO-only).
@@ -84,6 +89,8 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "email", label: "Email" },
     { id: "appearance", label: "Appearance" },
     ...(props.signIn.password ? [{ id: "password", label: "Password" }] : []),
+    { id: "two-factor", label: "Two-factor" },
+    ...(props.signIn.password ? [{ id: "passkeys", label: "Passkeys" }] : []),
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
     { id: "agents", label: "AI agents" },
@@ -136,6 +143,12 @@ export function AccountSettings(props: AccountSettingsProps) {
           ) : (
             <SetPasswordSection email={props.user.email} />
           )}
+          <TwoFactorSection
+            enabled={props.user.twoFactorEnabled}
+            hasPassword={hasPassword}
+            onChanged={() => void accountChanged()}
+          />
+          {props.signIn.password && <PasskeysSection />}
           <ConnectionsSection
             providers={props.providers}
             ssoName={props.signIn.ssoName}

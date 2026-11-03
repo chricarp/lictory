@@ -15,12 +15,21 @@ const userSchema = z.object({
   handle: z.string().nullable().optional(),
   appearance: z.string().nullable().optional(),
   theme: z.string().nullable().optional(),
+  twoFactorEnabled: z.boolean().optional(),
+});
+const heldSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
 });
 const noProviders = { google: false, microsoft: false, oidc: false };
 // How people sign in on this installation (password, company SSO name).
 const defaultSignIn = { password: true, ssoName: null };
 const sessionSchema = z.object({
   user: userSchema.nullable(),
+  // Organizations that require two-factor authentication this person has
+  // not turned on yet. The server refuses their data either way.
+  twoFactorRequiredBy: z.array(heldSchema).default([]),
   providers: z
     .object({
       google: z.boolean(),
@@ -39,6 +48,7 @@ export type SignInOptions = z.infer<typeof sessionSchema>["signIn"];
 export type Session = {
   user: SessionUser | null;
   providers: AuthProviders;
+  twoFactorRequiredBy: z.infer<typeof heldSchema>[];
   signIn: SignInOptions;
 };
 
@@ -104,6 +114,7 @@ export function clearSession() {
       user: null,
       providers: state.session?.providers ?? noProviders,
       signIn: state.session?.signIn ?? defaultSignIn,
+      twoFactorRequiredBy: [],
     },
   });
 }
@@ -134,4 +145,9 @@ export function useAuthProviders(): AuthProviders {
 
 export function useSignInOptions(): SignInOptions {
   return useSessionState().session?.signIn ?? defaultSignIn;
+}
+
+// Organizations holding the signed-in person until they turn on two-factor.
+export function useTwoFactorRequiredBy() {
+  return useSessionState().session?.twoFactorRequiredBy ?? [];
 }

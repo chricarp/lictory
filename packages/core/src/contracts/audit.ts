@@ -66,6 +66,14 @@ export const auditActions = {
     category: "access",
     label: "Revoked an access token",
   },
+  "two_factor.requirement_changed": {
+    category: "access",
+    label: "Changed the two-factor requirement",
+  },
+  "two_factor.member_reset": {
+    category: "access",
+    label: "Reset a member's two-factor authentication",
+  },
 } as const satisfies Record<
   string,
   { category: Exclude<AuditCategory, "configuration" | "agent">; label: string }

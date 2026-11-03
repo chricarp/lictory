@@ -204,6 +204,13 @@
       "when": 1793724821374,
       "tag": "0028_organization_exports",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793730928839,
+      "tag": "0029_two_factor_and_passkeys",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import {
   FormMessage,
 } from "@lictory/platform/components/auth/form-field";
 import { PasswordInput } from "@lictory/platform/components/auth/password-field";
+import { SecondFactorForm } from "@lictory/platform/components/auth/second-factor-form";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { refreshSession } from "@lictory/platform/lib/session";
@@ -17,6 +18,13 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [secondFactor, setSecondFactor] = useState(false);
+
+  async function finish(userId: string | undefined) {
+    if (userId) identifyUser(userId);
+    await refreshSession().catch(() => undefined);
+    router.push(callbackURL);
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,11 +59,24 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
       return;
     }
 
-    if (result.data?.user.id) identifyUser(result.data.user.id);
+    // Accounts with two-factor authentication get no session until the
+    // second step succeeds.
+    if (result.data && "twoFactorRedirect" in result.data) {
+      setSecondFactor(true);
+      setPending(false);
+      return;
+    }
 
-    await refreshSession().catch(() => undefined);
-    router.push(callbackURL);
+    await finish(result.data?.user.id);
   }
+
+  if (secondFactor)
+    return (
+      <SecondFactorForm
+        onVerified={finish}
+        onCancel={() => setSecondFactor(false)}
+      />
+    );
 
   return (
     <form onSubmit={onSubmit} className="grid gap-4">

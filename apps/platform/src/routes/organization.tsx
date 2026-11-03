@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Outlet } from "@tanstack/react-router";
-import { FileQuestion, Search } from "lucide-react";
+import { FileQuestion, Search, ShieldCheck } from "lucide-react";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { enabledTypes, type Project } from "@lictory/core/lib/work-items";
@@ -23,7 +23,10 @@ import {
   viewStatus,
   type ConnectionName,
 } from "@lictory/platform/data/connection";
-import { useSessionUser } from "@lictory/platform/lib/session";
+import {
+  useSessionUser,
+  useTwoFactorRequiredBy,
+} from "@lictory/platform/lib/session";
 import {
   Link,
   useParams,
@@ -62,6 +65,7 @@ export const ACCESS_REMOVED = "Organization access has been removed.";
 export function OrganizationLayout() {
   const { org } = useParams<{ org: string }>();
   const user = useSessionUser();
+  const held = useTwoFactorRequiredBy();
   const router = useRouter();
   const { organizations, complete } = useMemberships();
   const blocked = useConnectionBlocked();
@@ -123,6 +127,10 @@ export function OrganizationLayout() {
       );
     return <WorkspaceNotFound />;
   }
+  // The server refuses this organization's data until the person turns on
+  // two-factor authentication; say so instead of showing sync errors.
+  if (held.some((o) => o.id === organization.id))
+    return <TwoFactorRequired organizationName={organization.name} />;
   return (
     <OrganizationWorkspace
       key={organization.id}
@@ -304,5 +312,29 @@ export function OrganizationNotFound() {
     >
       Check the address, or choose a page from the sidebar.
     </MissingState>
+  );
+}
+
+function TwoFactorRequired({ organizationName }: { organizationName: string }) {
+  const pathname = usePathname();
+  return (
+    <main className="min-h-dvh">
+      <PageTitle title="Two-factor authentication required" />
+      <MissingState
+        icon={ShieldCheck}
+        title="Turn on two-factor authentication"
+        action={
+          <Link
+            href={`/account?returnTo=${encodeURIComponent(pathname)}#two-factor`}
+            className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            Set up two-factor authentication
+          </Link>
+        }
+      >
+        {organizationName} requires two-factor authentication for its members.
+        Set it up in your account settings, then come back here.
+      </MissingState>
+    </main>
   );
 }

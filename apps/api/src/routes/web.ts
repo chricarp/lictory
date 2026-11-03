@@ -18,6 +18,7 @@ import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { auditLogCsv } from "@lictory/core/domain/audit-log";
 import { openOrganizationExport } from "@lictory/core/export/service";
 import { authorize } from "@lictory/core/domain/service";
+import { heldOrganizations } from "@lictory/core/domain/two-factor-policy";
 import { trackServer } from "@lictory/core/lib/analytics/server";
 import { APPEARANCES, THEMES } from "@lictory/core/lib/appearance";
 import { auth, authProviders, signInOptions } from "@lictory/core/lib/auth";
@@ -43,6 +44,11 @@ import { limit, MB, noStore } from "@lictory/api/middleware";
 const json = (value: unknown, init?: ResponseInit) =>
   Response.json(value ?? { ok: true }, init);
 const store = { headers: noStore };
+
+// Better Auth's two-factor flag; the session user type does not carry plugin
+// fields because the plugin list is assembled dynamically.
+const twoFactorEnabled = (user: object) =>
+  (user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true;
 
 async function currentUser(request: Request) {
   return (
@@ -84,8 +90,14 @@ export function webRoutes() {
   // Signed-in user summary for the SPA boot. Null when signed out.
   app.get("/api/session", async (c) => {
     const user = await currentUser(c.req.raw);
+    // Organizations that will not open until this person turns on
+    // two-factor authentication (enforced by the server either way).
+    const twoFactorRequiredBy = user
+      ? await heldOrganizations(db, user.id)
+      : undefined;
     return c.json(
       {
+        ...(twoFactorRequiredBy && { twoFactorRequiredBy }),
         user: user
           ? {
               id: user.id,
@@ -96,6 +108,7 @@ export function webRoutes() {
               handle: user.handle ?? null,
               appearance: user.appearance,
               theme: user.theme,
+              twoFactorEnabled: twoFactorEnabled(user),
             }
           : null,
         providers: authProviders,
@@ -138,6 +151,7 @@ export function webRoutes() {
           email: user.email,
           emailVerified: user.emailVerified,
           handle: user.handle ?? "",
+          twoFactorEnabled: twoFactorEnabled(user),
         },
         providers: authProviders,
         signIn: signInOptions,

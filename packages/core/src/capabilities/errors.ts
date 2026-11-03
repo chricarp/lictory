@@ -29,6 +29,7 @@ export function toCapabilityError(error: unknown): CapabilityError {
       ...(error.currentRevisionId
         ? { currentRevisionId: error.currentRevisionId }
         : {}),
+      ...(error.kind ? { kind: error.kind } : {}),
     });
   if (error instanceof DeliveryError)
     return new CapabilityError("external", error.message, {

@@ -11,11 +11,11 @@ where it is.
 
 Three append-only tables, all scoped to one organization, are read together:
 
-| Source                  | Holds                                                              | Written by                                                      |
-| ----------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `audit_event`           | Membership, application roles, invitations, access tokens, exports | `recordAuditEvent`, `recordAccountAuditEvent`                   |
-| `configuration_audit`   | Configuration commands with the command and previous definition    | `auditConfiguration` in the domain services                     |
-| `capability_invocation` | Every MCP and Litto capability call: outcome, token, client        | The capability registry ([capabilities](capabilities.md#audit)) |
+| Source                  | Holds                                                                          | Written by                                                      |
+| ----------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `audit_event`           | Membership, application roles, invitations, access tokens, two-factor, exports | `recordAuditEvent`, `recordAccountAuditEvent`                   |
+| `configuration_audit`   | Configuration commands with the command and previous definition                | `auditConfiguration` in the domain services                     |
+| `capability_invocation` | Every MCP and Litto capability call: outcome, token, client                    | The capability registry ([capabilities](capabilities.md#audit)) |
 
 `audit_event` actions are catalogued in `auditActions`
 (`packages/core/src/domain/audit.ts`), each with a category and a label:
@@ -27,6 +27,9 @@ Three append-only tables, all scoped to one organization, are read together:
 - **Access tokens**: `access_token.created` (access, prefix, expiry) and
   `access_token.revoked`. A token acts for its owner in every organization the
   owner belongs to, so each of those organizations records it.
+- **Two-factor**: `two_factor.requirement_changed` (with the previous value)
+  and `two_factor.member_reset` (an administrator removed a member's
+  authenticator; see [two-factor authentication](two-factor-authentication.md)).
 - **Organization**: `organization.created`, `organization.updated` (name or
   handle), `audit_log.exported`, `data_export.requested` and
   `data_export.downloaded` ([data export](data-export.md)).
