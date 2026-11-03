@@ -16,18 +16,30 @@ const userSchema = z.object({
   appearance: z.string().nullable().optional(),
   theme: z.string().nullable().optional(),
 });
+const noProviders = { google: false, microsoft: false, oidc: false };
+// How people sign in on this installation (password, company SSO name).
+const defaultSignIn = { password: true, ssoName: null };
 const sessionSchema = z.object({
   user: userSchema.nullable(),
   providers: z
-    .object({ google: z.boolean(), microsoft: z.boolean() })
-    .default({ google: false, microsoft: false }),
+    .object({
+      google: z.boolean(),
+      microsoft: z.boolean(),
+      oidc: z.boolean().default(false),
+    })
+    .default(noProviders),
+  signIn: z
+    .object({ password: z.boolean(), ssoName: z.string().nullable() })
+    .default(defaultSignIn),
 });
 
 export type SessionUser = z.infer<typeof userSchema>;
 export type AuthProviders = z.infer<typeof sessionSchema>["providers"];
+export type SignInOptions = z.infer<typeof sessionSchema>["signIn"];
 export type Session = {
   user: SessionUser | null;
   providers: AuthProviders;
+  signIn: SignInOptions;
 };
 
 type State =
@@ -90,10 +102,8 @@ export function clearSession() {
     status: "ready",
     session: {
       user: null,
-      providers: state.session?.providers ?? {
-        google: false,
-        microsoft: false,
-      },
+      providers: state.session?.providers ?? noProviders,
+      signIn: state.session?.signIn ?? defaultSignIn,
     },
   });
 }
@@ -119,7 +129,9 @@ export function useSessionUser(): SessionUser {
 }
 
 export function useAuthProviders(): AuthProviders {
-  return (
-    useSessionState().session?.providers ?? { google: false, microsoft: false }
-  );
+  return useSessionState().session?.providers ?? noProviders;
+}
+
+export function useSignInOptions(): SignInOptions {
+  return useSessionState().session?.signIn ?? defaultSignIn;
 }

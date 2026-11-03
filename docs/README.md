@@ -48,6 +48,8 @@ adding domain writes or synchronized entities.
   database, Zero replica and worker recovery
 - [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and
   separate production/development clients
+- [Single sign-on](./operations/sso.md): a company OpenID Connect identity
+  provider (Okta, Entra ID, Keycloak, Dex…) and SSO-only installations
 - [Versions, release preparation and hotfixes](./operations/releases.md)
 - [Database migrations](./operations/migrations.md)
 - [Public legal notices](./operations/legal.md)

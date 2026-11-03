@@ -22,7 +22,14 @@ const accountSchema = z.object({
     emailVerified: z.boolean(),
     handle: z.string().nullable().optional(),
   }),
-  providers: z.object({ google: z.boolean(), microsoft: z.boolean() }),
+  providers: z.object({
+    google: z.boolean(),
+    microsoft: z.boolean(),
+    oidc: z.boolean().default(false),
+  }),
+  signIn: z
+    .object({ password: z.boolean(), ssoName: z.string().nullable() })
+    .default({ password: true, ssoName: null }),
   accounts: z.array(z.object({ id: z.string(), providerId: z.string() })),
   sessionCount: z.number().int(),
 });
@@ -135,6 +142,7 @@ export function AccountPage({
           handle: account.user.handle ?? "",
         }}
         providers={account.providers}
+        signIn={account.signIn}
         accounts={account.accounts}
         returnTo={safeReturnTo}
         connected={connected}
