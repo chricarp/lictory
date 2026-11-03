@@ -132,7 +132,7 @@ export class GitHubFixture {
           runId: manifest.run.id,
           registry,
           images: images(String(id % 10)),
-          url: "https://app.staging.lictory.com",
+          url: "https://github.com/example/lictory/releases",
         },
       },
     ]);

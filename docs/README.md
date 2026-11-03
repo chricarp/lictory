@@ -55,7 +55,7 @@ adding domain writes or synchronized entities.
   your own Linux server with `get.sh` and the `lictory` command (install,
   upgrade, backup, restore, doctor)
 - [Deployment and operations](./operations/deployment.md): single-server
-  Docker Compose topology, Openship operations, worker scheduling, first launch and releases
+  Docker Compose topology, worker scheduling, first launch, upgrades and rollback
 - [Websites on Cloudflare](./operations/websites.md): the marketing
   website, the documentation and the platform SPA; the `websites` environment,
   token scope, DNS, how deploys trigger and rollback

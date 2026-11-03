@@ -1,10 +1,11 @@
 import type { Images } from "@lictory/core/release/images";
 import type { Manifest } from "@lictory/core/release/model";
 
-/** One built image set: `id` identifies the digests, `url` the environment. */
+/** One built image set: `id` identifies the digests, `url` its release page. */
 export type Build = { id: string; url: string; images: Images };
 export type ReleasePorts = {
   validate: () => Promise<void>;
+  /** The journaled build of exactly this release, when a retry finds one. */
   active: () => Promise<Build | undefined>;
   build: () => Promise<Build>;
   record: (build: Build) => Promise<number>;
@@ -13,18 +14,16 @@ export type ReleasePorts = {
     state: "in_progress" | "success" | "failure",
     build: Build,
   ) => Promise<void>;
-  /** Stable only: stores the images on the server and applies migrations. */
-  migrate: (build: Build) => Promise<void>;
   /** Tags the source and reserves its draft release with the build's assets. */
   reserve: (build: Build) => Promise<void>;
-  promote: (build: Build) => Promise<void>;
   publish: () => Promise<void>;
 };
 
-// Stable activation follows validation, a configured image build and migration.
-// Nightlies only build and publish images; they never migrate or activate
-// production. An already active matching release repairs publication without
-// rebuilding, remigrating or reactivating.
+// Releases publish; they deploy nothing. Nightly and stable follow the same
+// path: validation, a build, the reserved tag with its release.env, then
+// publication. Installations upgrade themselves (lictory upgrade), so a
+// release has no server to migrate or activate. A retry that finds the
+// journaled build repairs publication without rebuilding.
 export async function executeRelease(
   manifest: Manifest,
   ports: ReleasePorts,
@@ -42,23 +41,15 @@ export async function executeRelease(
   const record = await ports.record(build);
   await ports.status(record, "in_progress", build);
   try {
-    if (manifest.channel === "stable") await ports.migrate(build);
     await ports.validate();
-    // Reserve stable tags only after gates pass, so a failed migration does not
-    // consume the version before a corrected candidate can be selected.
     await ports.reserve(build);
-    // Nightly publication does not activate anything.
-    if (manifest.channel === "nightly") await ports.publish();
-    if (manifest.channel === "stable") await ports.promote(build);
+    await ports.publish();
     await ports.status(record, "success", build);
-    if (manifest.channel === "stable") await ports.publish();
     return build;
   } catch (error) {
-    // Success can be repaired from the server's active release on retry.
     await ports.status(record, "failure", build).catch(() => undefined);
-    throw new Error(
-      `${manifest.tag} failed; retry the workflow. A migration is never automatically reversed.`,
-      { cause: error },
-    );
+    throw new Error(`${manifest.tag} failed; retry the workflow.`, {
+      cause: error,
+    });
   }
 }

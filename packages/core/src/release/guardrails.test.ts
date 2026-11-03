@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
@@ -17,145 +18,6 @@ import {
   releaseFile,
 } from "@lictory/core/release/images";
 import { nightlyEvents } from "@lictory/core/release/plan";
-import {
-  Server,
-  sshRemote,
-  type Environment,
-  type ServerStatus,
-} from "@lictory/core/release/server";
-
-function fakeServer(
-  environment: Environment,
-  initial: ServerStatus | { version: null },
-  published: (version: string, sha: string) => Promise<boolean> = async () =>
-    false,
-) {
-  let status: ServerStatus = { environment, ...initial };
-  const calls: string[] = [];
-  const inputs: string[] = [];
-  const server = new Server(
-    { environment, registry },
-    async (args, input) => {
-      calls.push(args.join(" "));
-      if (input) inputs.push(input);
-      if (args[1] === "status") return JSON.stringify(status);
-      if (args[1] === "prepare")
-        return `${input?.match(/^LICTORY_VERSION=(.*)$/m)?.[1]}\n`;
-      return "";
-    },
-    published,
-  );
-  return {
-    server,
-    calls,
-    inputs,
-    set: (next: Partial<ServerStatus>) => {
-      status = { ...status, ...next };
-    },
-  };
-}
-const running = (candidate = stable(), set = images("b")): ServerStatus => ({
-  environment: "production",
-  version: candidate.version,
-  sha: candidate.sha,
-  channel: candidate.channel,
-  images: set,
-  healthy: true,
-});
-
-void test("production moves forward only and accepts exact retries and a first launch", async () => {
-  const candidate = stable();
-  await fakeServer("production", { version: null }).server.assertOrder(
-    candidate,
-  );
-  await fakeServer("production", running(candidate)).server.assertOrder(
-    candidate,
-  );
-  const baseline = {
-    ...running(candidate),
-    version: candidate.baseline.version,
-    sha: candidate.baseline.sha,
-  };
-  await fakeServer("production", baseline).server.assertOrder(candidate);
-  await assert.rejects(
-    fakeServer("production", {
-      ...baseline,
-      version: "2.0.0",
-    }).server.assertOrder(candidate),
-    /older/,
-  );
-  await assert.rejects(
-    fakeServer("production", {
-      ...running(candidate),
-      sha: "c".repeat(40),
-    }).server.assertOrder(candidate),
-    /reuse/,
-  );
-  await assert.rejects(
-    fakeServer("production", {
-      ...baseline,
-      version: "1.4.3",
-    }).server.assertOrder(candidate),
-    /publication/,
-  );
-  await assert.rejects(
-    fakeServer("production", {
-      ...baseline,
-      channel: "nightly",
-    }).server.assertOrder(candidate),
-    /non-stable/,
-  );
-  // An operator rollback to an older published release does not block.
-  const rolledBack = { ...baseline, version: "1.4.1", sha: "d".repeat(40) };
-  await fakeServer(
-    "production",
-    rolledBack,
-    async (version, sha) => version === "1.4.1" && sha === "d".repeat(40),
-  ).server.assertOrder(candidate);
-  await assert.rejects(
-    fakeServer("production", rolledBack).server.assertOrder(candidate),
-    /publication/,
-  );
-});
-
-void test("production runs only stable images and staging only nightlies", async () => {
-  const production = fakeServer("production", { version: null });
-  await assert.rejects(
-    production.server.prepare(nightly(), images()),
-    /only runs stable/,
-  );
-  await assert.rejects(
-    production.server.migrate(nightly()),
-    /only runs stable/,
-  );
-  const staging = fakeServer("staging", { version: null });
-  await assert.rejects(
-    staging.server.prepare(stable(), images()),
-    /only runs nightly/,
-  );
-  await staging.server.prepare(nightly(), images());
-  assert.deepEqual(staging.calls, ["staging prepare"]);
-  assert.match(staging.inputs[0]!, /^LICTORY_CHANNEL=nightly$/m);
-});
-
-void test("activation is proven by the server reporting the exact release and digests", async () => {
-  const candidate = stable();
-  const build = {
-    id: imagesId(images("b")),
-    url: "https://app.lictory.com",
-    images: images("b"),
-  };
-  const fixture = fakeServer("production", { version: null });
-  const remote = fixture.server;
-  await assert.rejects(remote.activate(candidate, build), /did not activate/);
-  fixture.set(running(candidate, images("c")));
-  await assert.rejects(remote.activate(candidate, build), /did not activate/);
-  fixture.set({ ...running(candidate), healthy: false });
-  await assert.rejects(remote.activate(candidate, build), /did not activate/);
-  fixture.set(running(candidate));
-  await remote.activate(candidate, build);
-  assert.ok(fixture.calls.includes(`production activate ${candidate.version}`));
-});
 
 void test("releases are pinned by digest in the configured registry", () => {
   assert.deepEqual(assertImages(images(), registry), images());
@@ -221,7 +83,6 @@ void test("builds embed the release version and no installation origins", () => 
       bakeEnvironment(stable(), { ...config, previousProxyImage: "caddy:2" }),
     /not a digest/,
   );
-  assert.throws(() => sshRemote("deploy@host; rm -rf /"), /DEPLOY_SSH_TARGET/);
 });
 
 void test("manual production intent remains frozen when retries happen after a newer nightly", async () => {
@@ -294,21 +155,18 @@ function yaml(file: string): unknown {
   ) as unknown;
 }
 
-void test("workflow channels, source checkout, secrets, and retained queues remain separated", () => {
-  const production = workflow("deploy-production");
+void test("releases publish from the exact candidate source and hold no deployment credential", () => {
+  const release = workflow("release");
   const nightly = workflow("nightly");
-  assert.deepEqual(Object.keys(production.on), ["workflow_dispatch"]);
-  assert.equal(production.concurrency?.queue, "max");
-  assert.equal(production.concurrency?.["cancel-in-progress"], false);
+  assert.deepEqual(Object.keys(release.on), ["workflow_dispatch"]);
+  assert.equal(release.concurrency?.queue, "max");
+  assert.equal(release.concurrency?.["cancel-in-progress"], false);
   assert.equal(nightly.concurrency?.queue, "max");
-  assert.equal(production.jobs.verify!.uses, "./.github/workflows/ci.yml");
-  assert.equal(
-    production.jobs.verify!.with?.ref,
-    "${{ needs.plan.outputs.sha }}",
-  );
-  assert.deepEqual(production.jobs.deploy!.needs, ["plan", "verify", "build"]);
-  for (const flow of [production, nightly]) {
-    const source = flow.jobs.deploy!.steps!.find(
+  assert.equal(release.jobs.verify!.uses, "./.github/workflows/ci.yml");
+  assert.equal(release.jobs.verify!.with?.ref, "${{ needs.plan.outputs.sha }}");
+  assert.deepEqual(release.jobs.publish!.needs, ["plan", "verify", "build"]);
+  for (const flow of [release, nightly]) {
+    const source = flow.jobs.publish!.steps!.find(
       (step) => step.with?.path === "source",
     );
     assert.equal(source?.with?.ref, "${{ needs.plan.outputs.sha }}");
@@ -316,28 +174,28 @@ void test("workflow channels, source checkout, secrets, and retained queues rema
       flow.jobs.plan!.permissions?.contents ?? flow.permissions.contents,
       "read",
     );
-    assert.ok(!JSON.stringify(flow.jobs.plan).includes("secrets."));
-    assert.equal(flow.jobs.deploy!.permissions?.contents, "write");
-    assert.equal(flow.jobs.deploy!.permissions?.packages, "write");
+    assert.equal(flow.jobs.publish!.permissions?.contents, "write");
+    assert.equal(flow.jobs.publish!.permissions?.packages, "write");
+    // Nothing is hosted: no release reaches a server, a database or a secret.
+    const text = JSON.stringify(flow);
+    for (const forbidden of ["secrets.", "DATABASE_", "DEPLOY_SSH", "ssh "])
+      assert.ok(!text.includes(forbidden), forbidden);
   }
-  // Databases are only reachable on the server; no workflow holds a database URL.
-  for (const name of ["deploy-production", "nightly", "migrate", "backfill"])
-    assert.ok(!JSON.stringify(workflow(name)).includes("DATABASE_"), name);
-  // Nightly images are built without any deployment credential.
-  assert.equal(nightly.jobs.deploy!.environment, undefined);
-  assert.ok(!JSON.stringify(nightly.jobs.deploy).includes("secrets."));
-  assert.equal(nightly.jobs.stage!.environment, "staging");
-  assert.equal(production.jobs.deploy!.environment, "Production");
-  assert.ok(
-    JSON.stringify(production.jobs.deploy).includes("secrets.DEPLOY_SSH_KEY"),
-  );
   assert.ok(!Object.hasOwn(nightly.on, "pull_request"));
+  // The workflows that deployed or migrated a hosted platform are gone.
+  for (const name of [
+    "deploy-production",
+    "deploy-platform",
+    "migrate",
+    "backfill",
+  ])
+    assert.throws(() => workflow(name), name);
 });
 
 void test("nightlies are scheduled, fully verified before publication and built for both architectures", () => {
   const ci = workflow("ci");
   const nightly = workflow("nightly");
-  const production = workflow("deploy-production");
+  const production = workflow("release");
   assert.deepEqual(Object.keys(ci.on).sort(), [
     "pull_request",
     "workflow_call",
@@ -365,8 +223,7 @@ void test("nightlies are scheduled, fully verified before publication and built 
     "${{ needs.plan.outputs.version }}",
   );
   assert.equal(verify.with?.suite, "full");
-  assert.deepEqual(nightly.jobs.deploy!.needs, ["plan", "verify", "build"]);
-  assert.deepEqual(nightly.jobs.stage!.needs, ["plan", "deploy"]);
+  assert.deepEqual(nightly.jobs.publish!.needs, ["plan", "verify", "build"]);
   // Days without merges publish nothing.
   for (const job of ["verify", "build"])
     assert.equal(
@@ -389,29 +246,42 @@ void test("nightlies are scheduled, fully verified before publication and built 
   );
 });
 
-void test("only release managers can start a stable release", () => {
-  const production = workflow("deploy-production");
-  const authorize = production.jobs.authorize!;
-  assert.equal(production.jobs.plan!.needs, "authorize");
-  assert.deepEqual(authorize.permissions, {});
-  assert.equal(
-    authorize.env?.MANAGERS,
-    "${{ vars.RELEASE_MANAGERS || github.repository_owner }}",
+void test("only release managers can release or deploy a website", () => {
+  const release = workflow("release");
+  const check = {
+    uses: "./.github/actions/release-manager",
+    with: {
+      managers: "${{ vars.RELEASE_MANAGERS || github.repository_owner }}",
+    },
+  };
+  assert.deepEqual(
+    release.jobs.authorize!.steps!.find((step) => step.uses === check.uses),
+    check,
   );
-  // The person who clicked (also on a re-run), not the original dispatcher.
-  assert.equal(authorize.env?.ACTOR, "${{ github.triggering_actor }}");
-  const script = authorize.steps![0]!.run!;
-  assert.match(script, /refs\/heads\/main/);
-  assert.ok(!JSON.stringify(authorize).includes("secrets."));
+  assert.equal(release.jobs.plan!.needs, "authorize");
   // Every other job waits for the gate, directly or through its needs.
   const needs = (name: string): string[] => {
-    const direct = production.jobs[name]!.needs ?? [];
+    const direct = release.jobs[name]!.needs ?? [];
     const list = typeof direct === "string" ? [direct] : direct;
     return [...list, ...list.flatMap(needs)];
   };
-  for (const name of Object.keys(production.jobs))
+  for (const name of Object.keys(release.jobs))
     if (name !== "authorize")
       assert.ok(needs(name).includes("authorize"), name);
+  // Run alone or from Release, a website deployment checks too, before its
+  // Cloudflare token can be used.
+  for (const name of ["deploy-marketing", "deploy-docs"]) {
+    const steps = workflow(name).jobs.deploy!.steps!;
+    const gate = steps.findIndex((step) => step.uses === check.uses);
+    const token = steps.findIndex((step) =>
+      JSON.stringify(step).includes("secrets."),
+    );
+    assert.ok(gate >= 0 && gate < token, name);
+  }
+  // The person who clicked (also on a re-run), on main.
+  const script = JSON.stringify(compositeAction("release-manager"));
+  assert.match(script, /github\.triggering_actor/);
+  assert.match(script, /refs\/heads\/main/);
 });
 
 void test("PR title enforcement never checks out or runs untrusted PR code", () => {
@@ -427,20 +297,13 @@ void test("PR title enforcement never checks out or runs untrusted PR code", () 
   assert.equal(title.permissions["pull-requests"], "read");
 });
 
-void test("website deployments stay on main, in their own environment, with the token in one step", () => {
+void test("websites deploy only from Release or a release manager, with the token in one step", () => {
   for (const name of ["deploy-marketing", "deploy-docs"]) {
     const flow = workflow(name);
     assert.deepEqual(
       Object.keys(flow.on).sort(),
-      ["push", "repository_dispatch", "workflow_dispatch"],
+      ["workflow_call", "workflow_dispatch"],
       name,
-    );
-    assert.deepEqual((flow.on.push as { branches: string[] }).branches, [
-      "main",
-    ]);
-    assert.deepEqual(
-      (flow.on.repository_dispatch as { types: string[] }).types,
-      ["stable-published"],
     );
     assert.deepEqual(flow.permissions, { contents: "read" });
     assert.equal(flow.concurrency?.["cancel-in-progress"], false);
@@ -452,30 +315,46 @@ void test("website deployments stay on main, in their own environment, with the 
       typeof job.environment === "object" ? job.environment.name : null,
       "websites",
     );
+    assert.deepEqual(job.permissions, {
+      contents: "read",
+      deployments: "write",
+    });
     assert.ok(!JSON.stringify(job.env ?? {}).includes("secrets."), name);
     const withSecrets = job.steps!.filter((step) =>
       JSON.stringify(step).includes("secrets."),
     );
     assert.equal(withSecrets.length, 1, name);
-    assert.deepEqual(Object.keys(withSecrets[0]!.env!).sort(), [
-      "CLOUDFLARE_ACCOUNT_ID",
-      "CLOUDFLARE_API_TOKEN",
-    ]);
-    assert.equal(withSecrets[0], job.steps!.at(-1));
+    assert.deepEqual(
+      Object.keys(withSecrets[0]!.env!)
+        .filter((key) => key.startsWith("CLOUDFLARE_"))
+        .sort(),
+      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"],
+    );
+    // Deploy, then journal the deployed commit for the next Release.
+    assert.equal(withSecrets[0], job.steps!.at(-2));
+    assert.match(job.steps!.at(-1)!.run!, /-site/);
     for (const step of job.steps!)
       if (step.uses?.startsWith("actions/checkout@"))
         assert.equal(String(step.with?.["persist-credentials"]), "false");
   }
-  // The platform SPA still ships only with a stable release, from Production.
-  const production = workflow("deploy-production");
-  for (const job of ["websites-build", "websites"])
-    assert.equal(
-      production.jobs[job]!.uses,
-      "./.github/workflows/deploy-platform.yml",
+  // Release deploys a website only when the platform release succeeded or
+  // was not needed.
+  const release = workflow("release");
+  for (const [job, file] of [
+    ["marketing", "deploy-marketing"],
+    ["docs", "deploy-docs"],
+  ] as const) {
+    assert.equal(release.jobs[job]!.uses, `./.github/workflows/${file}.yml`);
+    assert.match(
+      release.jobs[job]!.if!,
+      /needs\.plan\.outputs\.platform != 'true' \|\| needs\.publish\.result == 'success'/,
     );
-  assert.equal(
-    workflow("deploy-platform").jobs.deploy!.environment,
-    "Production",
+  }
+  // Nothing serves the platform any more.
+  assert.ok(
+    !existsSync(
+      new URL("../../../../apps/platform/wrangler.jsonc", import.meta.url),
+    ),
   );
 });
 
@@ -492,7 +371,7 @@ void test("third-party actions are pinned to commits", async () => {
       for (const step of job.steps ?? [])
         if (step.uses && !step.uses.startsWith("./"))
           assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);
-  for (const name of ["setup", "services"])
+  for (const name of ["setup", "services", "release-manager"])
     for (const step of compositeAction(name).runs.steps)
       if (step.uses)
         assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);

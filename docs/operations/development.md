@@ -212,20 +212,18 @@ a separate worktree and give each worktree its own disposable databases.
 
 ## Release performance
 
-Backend release builds run in parallel on native amd64 and arm64 runners.
-Verification and Cloudflare frontend preparation also run in parallel with
-those builds. Assembly rejects a missing or duplicate architecture, mismatched release plans
-and stale previous-proxy assets before publishing multi-platform indexes.
-Migration, Zero catch-up and healthy backend activation still precede frontend
-publication. The standalone platform dispatch builds its selected stable tag.
-The marketing website and the documentation deploy from `main` in their own
-workflows ([websites on Cloudflare](websites.md)).
+Backend release builds run in parallel on native amd64 and arm64 runners, and
+verification runs in parallel with them. Assembly rejects a missing or
+duplicate architecture, mismatched release plans and stale previous-proxy
+assets before publishing multi-platform indexes. A release deploys nothing,
+so its duration is verification and the image builds; the websites deploy
+afterwards in their own jobs ([websites](websites.md)).
 
 Bun installs directly from the lockfile: restoring and saving its broad download
 cache cost more than an uncached install in measured Actions runs. BuildKit registry caches default
 to `IMAGE_REGISTRY/lictory-cache`, with separate tags per target, channel and
 architecture; `IMAGE_CACHE_REGISTRY` overrides the namespace. The workflow token
 needs package write access there. A cold cache, slow runner allocation, required
-environment approval, database backup or initial Zero sync can exceed the
-two-minute warm-run target. Measure the entire run, including job queue time and
+environment approval or a full browser suite can exceed the two-minute
+warm-run target. Measure the entire run, including job queue time and
 post steps, rather than only Docker's build duration.

@@ -7,9 +7,8 @@
 #   /tmp/lictory-deploy/provision/new-environment.sh production
 #
 # Any name works (lowercase letters, digits and hyphens; not local, test or
-# preview): production and staging have their own templates, other names (qa,
-# eu-prod…) start from the staging template unless LICTORY_ENV_TEMPLATE names
-# another file. Optional: LICTORY_IMAGE_REGISTRY (default a GHCR placeholder),
+# preview). Every environment starts from env/self-hosted.env.example unless
+# LICTORY_ENV_TEMPLATE names another file. Optional: LICTORY_IMAGE_REGISTRY (default a GHCR placeholder),
 # LICTORY_RELEASE_CHANNEL (default stable for production, nightly otherwise).
 #
 # Afterwards edit the file for hosts, provider credentials and the backup age
@@ -27,8 +26,7 @@ home="${LICTORY_ROOT:-/srv/lictory}/$environment"
 target="$home/.env"
 template="${LICTORY_ENV_TEMPLATE:-}"
 if [ -z "$template" ]; then
-  template="$source_dir/env/$environment.env.example"
-  [ -f "$template" ] || template="$source_dir/env/staging.env.example"
+  template="$source_dir/env/self-hosted.env.example"
 fi
 [ -f "$template" ] || { echo "Template $template does not exist." >&2; exit 1; }
 channel="${LICTORY_RELEASE_CHANNEL:-$([ "$environment" = production ] && echo stable || echo nightly)}"
@@ -59,8 +57,6 @@ echo "Created $target (mode 0600) with generated secrets."
 echo "Edit it now: hosts, ACME_EMAIL, R2_* or S3_* (file storage), RESEND_*, BACKUP_* (dedicated bucket and token),"
 echo "BACKUP_AGE_RECIPIENTS (public key of an offline age identity), ALERT_WEBHOOK_URL,"
 echo "MONITOR_PING_URL, BACKUP_PING_URL and LICTORY_IMAGE_REGISTRY."
-[ "$(basename "$template")" = "$environment.env.example" ] ||
-  echo "It started from $(basename "$template"): replace its hosts, database name and bucket names for $environment."
 if grep -q '=generate$' "$target"; then
   echo "Unreplaced placeholders remain in $target." >&2
   exit 1

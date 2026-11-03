@@ -10,8 +10,10 @@ import {
   type Baseline,
   type Manifest,
 } from "@lictory/core/release/model";
+import { touchesPlatform } from "@lictory/core/release/paths";
 import {
   ancestor,
+  changedPaths,
   collectChanges,
   git,
   latestBaseline,
@@ -58,11 +60,13 @@ export function assertRun(
 
 /**
  * Whether this run should produce a nightly: a retry of a run that already
- * planned one always does; otherwise only when the newest published nightly of
- * the branch shipped another commit. Days without merges publish nothing.
+ * planned one always does; otherwise only when the platform changed since the
+ * newest published nightly of the branch. Days without merges, or with only
+ * website, documentation or CI changes, publish nothing.
  */
 export async function nightlyDue(
   github: GitHub,
+  root: string,
   sha: string,
   branch: string,
   runId: number,
@@ -82,7 +86,13 @@ export async function nightlyDue(
     );
   for (const release of nightlies) {
     const manifest = await github.manifest(release);
-    if (manifest.sourceBranch === branch) return manifest.sha !== sha;
+    if (manifest.sourceBranch !== branch) continue;
+    if (manifest.sha === sha) return false;
+    try {
+      return touchesPlatform(await changedPaths(root, manifest.sha, sha));
+    } catch {
+      return true; // An unreadable history never hides a release.
+    }
   }
   return true;
 }

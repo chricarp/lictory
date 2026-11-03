@@ -1,18 +1,31 @@
-name: Release to Production
+name: Release
 
-# Promotes a published nightly (the newest eligible one, or the tag given) to
-# stable and activates it in production. Only release managers can start it:
-# the RELEASE_MANAGERS repository variable lists their GitHub logins
-# (comma-separated; the repository owner when unset), and the Production
-# environment can add required reviewers (people or a team). See
-# docs/operations/releases.md#who-can-release.
+# One button, for release managers only, for everything the public sees:
+#
+#   Platform        when release-worthy pull requests merged since the latest
+#                   stable release: promotes the newest verified nightly (or
+#                   the one given) to stable, rebuilt with its stable version
+#                   and published as multi-platform images plus a GitHub
+#                   Release with release.env. Nothing is deployed anywhere:
+#                   installations upgrade themselves (lictory upgrade).
+#   lictory.com     when its sources changed since its last deployment, or
+#                   the platform was released (it shows the version).
+#   docs.lictory.com when its sources changed since its last deployment.
+#
+# The websites deploy only after the platform release succeeded or was not
+# needed. Each can also be redeployed alone from its own workflow.
+# See docs/operations/releases.md.
 on:
   workflow_dispatch:
     inputs:
       nightly_tag:
-        description: "Verified nightly tag; leave empty for the newest eligible nightly"
+        description: "Verified nightly to promote; empty for the newest eligible one"
         required: false
         type: string
+      redeploy_websites:
+        description: "Deploy both websites even if unchanged"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,39 +35,30 @@ permissions:
 
 # Preserve intentional queued releases instead of replacing the pending run.
 concurrency:
-  group: lictory-production-release
+  group: lictory-release
   cancel-in-progress: false
   queue: max
 
 jobs:
-  # Runs before any build minutes or credentials are spent. Re-runs are
-  # checked again: a re-run by someone else is that person's release.
+  # Runs before any build minutes are spent. Re-runs are checked again: a
+  # re-run by someone else is that person's release.
   authorize:
     name: Authorize the release manager
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    permissions: {}
-    env:
-      ACTOR: ${{ github.triggering_actor }}
-      MANAGERS: ${{ vars.RELEASE_MANAGERS || github.repository_owner }}
+    timeout-minutes: 3
+    permissions:
+      contents: read
     steps:
-      - name: Require a release manager on protected main
-        run: |
-          if [ "$GITHUB_REF" != refs/heads/main ]; then
-            echo "::error::Stable releases are dispatched from main, not $GITHUB_REF."
-            exit 1
-          fi
-          for manager in ${MANAGERS//,/ }; do
-            if [ "${manager,,}" = "${ACTOR,,}" ]; then
-              echo "$ACTOR is a release manager."
-              exit 0
-            fi
-          done
-          echo "::error::$ACTOR is not a release manager. The repository owner adds logins to the RELEASE_MANAGERS variable (Settings → Secrets and variables → Actions)."
-          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/release-manager
+        with:
+          managers: ${{ vars.RELEASE_MANAGERS || github.repository_owner }}
 
   plan:
-    name: Select verified nightly source
+    name: Decide what to release
     needs: authorize
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -62,19 +66,22 @@ jobs:
       contents: read
       pull-requests: read
       actions: read
-      deployments: write # Selection journal only; no production secrets.
+      deployments: write # Release intent journal only; no secrets.
     outputs:
+      platform: ${{ steps.plan.outputs.platform }}
       sha: ${{ steps.plan.outputs.sha }}
       version: ${{ steps.plan.outputs.version }}
+      stable_tag: ${{ steps.plan.outputs.stable_tag }}
+      marketing: ${{ steps.plan.outputs.marketing }}
+      docs: ${{ steps.plan.outputs.docs }}
     env:
       GH_TOKEN: ${{ github.token }}
       NIGHTLY_TAG: ${{ inputs.nightly_tag }}
+      REDEPLOY_WEBSITES: ${{ inputs.redeploy_websites }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
       RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
     steps:
-      - name: Require dispatch from protected main
-        run: test "$GITHUB_REF" = refs/heads/main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -85,16 +92,24 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - id: plan
-        run: bun run release plan-production "$RUNNER_TEMP/release-plan.json"
+        run: bun run release plan-release "$RUNNER_TEMP/release-plan.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.plan.outputs.platform == 'true'
         with:
-          name: production-plan
+          name: release-plan
           path: ${{ runner.temp }}/release-plan.json
           retention-days: 30
           overwrite: true
 
+  # The nightly already passed every browser workflow on this commit; this
+  # re-checks it with the stable version embedded.
   verify:
+    name: Verify the stable candidate
     needs: plan
+    if: needs.plan.outputs.platform == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.plan.outputs.sha }}
@@ -102,7 +117,8 @@ jobs:
 
   build:
     name: Build native ${{ matrix.architecture }} backend images
-    needs: [plan]
+    needs: plan
+    if: needs.plan.outputs.platform == 'true'
     strategy:
       matrix:
         include:
@@ -112,7 +128,6 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
-    environment: Production
     permissions:
       contents: read
       deployments: read
@@ -124,10 +139,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
-      PLATFORM_URL: ${{ vars.PLATFORM_URL }}
-      DEPLOY_SSH_TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
-      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
-      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
     steps:
       # Control code comes from protected main. Application code is never main HEAD.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -144,9 +155,10 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: control/package.json
+          no-cache: true # Release builds never restore a cached Bun binary.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: production-plan
+          name: release-plan
           path: ${{ runner.temp }}/plan
       - run: bun install --frozen-lockfile
         working-directory: control
@@ -158,11 +170,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Trust the production server
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_SSH_KNOWN_HOSTS: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
-        run: bash control/deploy/ci/ssh-setup.sh
       - name: Build the selected source on its native architecture
         env:
           NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/${{ matrix.architecture }}.json
@@ -175,12 +182,16 @@ jobs:
           retention-days: 2
           overwrite: true
 
-  deploy:
-    name: Assemble, migrate, activate and publish stable
+  # The release environment holds no secrets: its required reviewers (a
+  # person or a team) approve publication, if configured.
+  publish:
+    name: Publish the stable release
     needs: [plan, verify, build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    environment: Production
+    timeout-minutes: 30
+    environment:
+      name: release
+      url: https://github.com/${{ github.repository }}/releases/tag/${{ needs.plan.outputs.stable_tag }}
     permissions:
       contents: write
       deployments: write
@@ -191,12 +202,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
-      PLATFORM_URL: ${{ vars.PLATFORM_URL }}
-      DEPLOY_SSH_TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
       RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
       RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
     steps:
-      # Control code comes from protected main. Application code is never main HEAD.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -211,9 +219,10 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: control/package.json
+          no-cache: true # Release builds never restore a cached Bun binary.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: production-plan
+          name: release-plan
           path: ${{ runner.temp }}/plan
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
@@ -227,50 +236,35 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Trust the production server
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_SSH_KNOWN_HOSTS: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
-        run: bash control/deploy/ci/ssh-setup.sh
-      - name: Allow the server to pull this workflow's private images
-        run: |
-          printf '%s\n%s\n' "$GITHUB_ACTOR" "$GH_TOKEN" | \
-            ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-              -o UserKnownHostsFile="$DEPLOY_SSH_KNOWN_HOSTS_FILE" -i "$DEPLOY_SSH_KEY_FILE" \
-              "$DEPLOY_SSH_TARGET" 'production registry-login'
-      - name: Release the selected source with the clean stable version
+      - name: Assemble and publish the stable images and GitHub Release
         working-directory: control
         env:
           NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
-        run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source
-      - name: Remove the temporary registry credential
-        if: always()
-        run: |
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile="$DEPLOY_SSH_KNOWN_HOSTS_FILE" -i "$DEPLOY_SSH_KEY_FILE" \
-            "$DEPLOY_SSH_TARGET" 'production registry-logout'
+        # Images and a GitHub Release, not a package registry upload.
+        run: bun run release publish "$RUNNER_TEMP/plan/release-plan.json" ../source # zizmor: ignore[use-trusted-publishing]
 
-  websites-build:
-    name: Prepare the platform SPA
-    needs: plan
+  marketing:
+    name: lictory.com
+    needs: [plan, publish]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.marketing == 'true' &&
+      (needs.plan.outputs.platform != 'true' || needs.publish.result == 'success')
     permissions:
       contents: read
-    uses: ./.github/workflows/deploy-platform.yml
+      deployments: write
+    uses: ./.github/workflows/deploy-marketing.yml
     with:
-      release_tag: ${{ format('v{0}', needs.plan.outputs.version) }}
-      source_sha: ${{ needs.plan.outputs.sha }}
-      prepare_only: true
-    secrets:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      release_tag: ${{ needs.plan.outputs.stable_tag }}
 
-  websites:
-    name: Deploy the platform SPA
-    needs: [plan, deploy, websites-build]
+  docs:
+    name: docs.lictory.com
+    needs: [plan, publish]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.docs == 'true' &&
+      (needs.plan.outputs.platform != 'true' || needs.publish.result == 'success')
     permissions:
       contents: read
-    uses: ./.github/workflows/deploy-platform.yml
-    with:
-      prepared: true
-      release_tag: ${{ format('v{0}', needs.plan.outputs.version) }}
-    secrets:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      deployments: write
+    uses: ./.github/workflows/deploy-docs.yml

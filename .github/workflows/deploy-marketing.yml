@@ -1,24 +1,19 @@
 name: Deploy marketing website
 
 # lictory.com is not part of the released product: it deploys only to the
-# maintainer's Cloudflare account, from main, whenever its sources change, and
-# again after each stable release so it shows the new version. Pull requests
-# only build it (bun run check, the browser suite); there are no previews.
+# maintainer's Cloudflare account. The Release workflow calls this when the
+# site's sources changed or the platform was released (it shows the stable
+# version); a release manager can also run it alone to redeploy main.
+# Pull requests only build it; there are no previews.
 # Setup and rollback: docs/operations/websites.md.
 on:
-  push:
-    branches: [main]
-    paths:
-      - apps/marketing/**
-      - packages/ui/**
-      - packages/core/src/lib/**
-      - deploy/cloudflare/**
-      - bun.lock
-      - package.json
-      - .github/workflows/deploy-marketing.yml
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Stable release tag the site shows; empty for the latest
+        type: string
+        default: ""
   workflow_dispatch:
-  repository_dispatch:
-    types: [stable-published]
 
 permissions:
   contents: read
@@ -35,20 +30,24 @@ jobs:
     if: github.repository == 'chricarp/lictory'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
+      deployments: write # Its own deployment journal; no other write access.
     environment:
       name: websites
       url: https://lictory.com
     env:
       SITE_URL: https://lictory.com
-      NEXT_PUBLIC_PLATFORM_URL: https://app.lictory.com
       NEXT_TELEMETRY_DISABLED: "1"
       WRANGLER_SEND_METRICS: "false"
     steps:
-      - name: Require main
-        run: test "$GITHUB_REF" = refs/heads/main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Called from Release or run alone: either way, only a release manager.
+      - uses: ./.github/actions/release-manager
+        with:
+          managers: ${{ vars.RELEASE_MANAGERS || github.repository_owner }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24.22.1"
@@ -61,14 +60,14 @@ jobs:
           key: next-marketing-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
           restore-keys: next-marketing-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
       - run: bun install --frozen-lockfile
-      # The release that triggered this run, otherwise the latest published
+      # The release that called this run, otherwise the latest published
       # stable GitHub Release. Before the first stable release the source
       # version stays.
       - name: Resolve the latest stable version
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
-          DISPATCHED_TAG: ${{ github.event.client_payload.tag }}
+          DISPATCHED_TAG: ${{ inputs.release_tag }}
         run: |
           if [ -n "$DISPATCHED_TAG" ]; then
             tag="$DISPATCHED_TAG"
@@ -106,7 +105,24 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
         run: |
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_API_TOKEN"
-          bun run --cwd apps/marketing deploy:cloudflare
+          # The Worker relays consented analytics straight to PostHog.
+          if [ -n "$POSTHOG_HOST" ]; then
+            bun run --cwd apps/marketing deploy:cloudflare --var "POSTHOG_HOST:$POSTHOG_HOST"
+          else
+            bun run --cwd apps/marketing deploy:cloudflare
+          fi
+      # The commit this site now serves: the next Release compares against it.
+      - name: Record the deployed commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(jq -n --arg ref "$GITHUB_SHA" '{ref: $ref, environment: "marketing-site",
+            auto_merge: false, required_contexts: [], transient_environment: false,
+            description: "https://lictory.com"}' |
+            gh api "repos/$GITHUB_REPOSITORY/deployments" --input - --jq .id)
+          gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" \
+            -f state=success -f environment_url=https://lictory.com >/dev/null
