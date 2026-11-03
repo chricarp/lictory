@@ -207,7 +207,8 @@ are installed for the target platform at the lockfile's versions.
    backups or snapshots if wanted.
 2. Point DNS at it (below), then copy `deploy/` and run
    `sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
-   It installs Docker from Docker's repository, automatic security updates
+   It installs Docker from Docker's repository, `jq` (required by
+   `deploy.sh`), automatic security updates
    (with a 04:00 UTC reboot when required), the firewall, SSH hardening,
    fail2ban, swap, journald limits, the `deploy` user, `/srv/lictory` and the
    backup and monitor timers. Re-running it is safe.

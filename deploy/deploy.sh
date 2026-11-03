@@ -56,6 +56,12 @@ env_value() { # env_value <file> <key>
   printf '%s' "$line"
 }
 setting() { env_value "$home/.env" "$1"; }
+# validate_proxy reads the resolved Compose configuration with jq. Fail before
+# touching a release instead of with a misleading proxy-image error.
+case "$command" in prepare | migrate | activate | release | rollback)
+  command -v jq >/dev/null || die "jq is required on the deployment host (apt-get install jq)."
+  ;;
+esac
 compose() { # compose <release-dir> <args...>
   local dir="$1"
   shift
