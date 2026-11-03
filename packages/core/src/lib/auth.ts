@@ -45,6 +45,14 @@ import {
   microsoftEmailPolicy,
   validateMicrosoftAccountLink,
 } from "@lictory/core/lib/microsoft-auth";
+import {
+  OIDC_PROVIDER_ID,
+  oidcPlugins,
+  oidcSettings,
+  passwordFlowClosed,
+  passwordLoginEnabled,
+  validateOidcAccountLink,
+} from "@lictory/core/lib/sso";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
   "/sign-up/email": "password",
@@ -60,6 +68,11 @@ const microsoftEnabled = Boolean(
   process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET,
 );
 const oauthProxy = oauthProxyConfig(process.env);
+const oidc = oidcSettings(process.env);
+const passwordLogin = passwordLoginEnabled(
+  process.env,
+  Boolean(oidc) || googleEnabled || microsoftEnabled,
+);
 
 // Directories list each member's name, email, photo, handle and application
 // role, and organization profiles carry names and slugs. Better Auth commits
@@ -83,7 +96,7 @@ export const auth = betterAuth({
     schema,
   }),
   emailAndPassword: {
-    enabled: true,
+    enabled: passwordLogin,
     requireEmailVerification: true,
     minPasswordLength: MIN_PASSWORD_LENGTH,
     maxPasswordLength: MAX_PASSWORD_LENGTH,
@@ -114,7 +127,9 @@ export const auth = betterAuth({
     ...authSchemaOptions.user,
     changeEmail: { enabled: true },
     deleteUser: { enabled: true },
-    validateUserInfo: validateMicrosoftAccountLink,
+    validateUserInfo: async (info, context) =>
+      (await validateMicrosoftAccountLink(info, context)) ??
+      validateOidcAccountLink(info, context),
   },
   socialProviders: {
     ...(googleEnabled
@@ -146,14 +161,17 @@ export const auth = betterAuth({
   // default), so nobody can pre-register someone else's address with a
   // password and inherit their Google sign-in. Google always verifies email
   // ownership, so it is trusted; Microsoft requires explicit linking from an
-  // authenticated account. Explicit linking from account settings requires the
-  // same email, and the last sign-in method cannot be removed.
+  // authenticated account. The company OIDC provider links implicitly only when
+  // its `email_verified` claim is true, explicitly like Microsoft (lib/sso.ts).
+  // Explicit linking from account settings requires the same email, and the
+  // last sign-in method cannot be removed.
   account: {
     accountLinking: {
       enabled: true,
-      // Microsoft is allowed for explicit links; the user validation gate
-      // rejects implicit links regardless of the provider's email claim.
-      trustedProviders: ["google", "microsoft"],
+      // Microsoft and OIDC are allowed for explicit links; the user validation
+      // gates reject implicit links (OIDC: unless the provider verified the
+      // email).
+      trustedProviders: ["google", "microsoft", OIDC_PROVIDER_ID],
       allowDifferentEmails: false,
       updateUserInfoOnLink: false,
     },
@@ -267,6 +285,7 @@ export const auth = betterAuth({
     // that set a new password are checked, so sign-in keeps working for any
     // password that already exists.
     before: createAuthMiddleware(async (ctx) => {
+      passwordFlowClosed(ctx.path, passwordLogin);
       // Normalize before Better Auth's uniqueness checks, including direct API
       // callers. Name-only updates leave legacy generated handles untouched.
       const body = ctx.body as
@@ -314,6 +333,8 @@ export const auth = betterAuth({
   },
   plugins: [
     ...oauthProxy.plugins,
+    // Company identity provider (OpenID Connect), when configured.
+    ...oidcPlugins(oidc),
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
       sendInvitationEmail: async ({
@@ -414,4 +435,11 @@ export const auth = betterAuth({
 export const authProviders = {
   google: googleEnabled,
   microsoft: microsoftEnabled,
+  oidc: Boolean(oidc),
+};
+
+// How people sign in on this installation, for the sign-in pages.
+export const signInOptions = {
+  password: passwordLogin,
+  ssoName: oidc?.displayName ?? null,
 };

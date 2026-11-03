@@ -39,6 +39,40 @@ Files bytes stay in private Cloudflare R2 (see
 [private file storage](../internals/file-storage.md)); email goes through Resend.
 OAuth and AI are optional.
 
+## Telemetry and privacy
+
+A self-hosted installation sends no telemetry to the Lictory project or anyone
+else. Outbound connections happen only for what the operator configures:
+
+| Setting                                       | Leaves the server                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                              | Content sent to Lictory Intelligence (analysis, chat, transcription)    |
+| `POSTHOG_PROJECT_TOKEN` + `POSTHOG_HOST`      | Product analytics: browser events via `/relay`, server events, job logs |
+| `RESEND_*` or `SMTP_*`                        | Transactional and notification email                                    |
+| `R2_*` (S3-compatible storage)                | Uploaded files                                                          |
+| A project's delivery connection               | Published work items and status reads with that Jira site               |
+| `GOOGLE_*`, `MICROSOFT_*`, `OAUTH_PROXY_*`    | Sign-in through those identity providers                                |
+| `ACME_EMAIL`, `BACKUP_*`, alert and ping URLs | Certificate issuance, encrypted backups, alerts and monitoring pings    |
+
+Uploaded documents are converted to text on the server; scanned PDFs are
+rejected rather than sent to a hosted OCR service. zero-cache's anonymous usage
+telemetry is disabled (`ZERO_ENABLE_TELEMETRY=false`), and zero-cache has no
+route to the internet anyway.
+
+**Analytics consent.** Without PostHog settings the app shows no consent banner,
+stores no consent choice and loads no analytics code. With them,
+`ANALYTICS_CONSENT` selects how analytics follow each visitor's choice:
+
+- unset (default, the current behavior): PostHog loads before a choice in
+  cookieless, anonymous mode and switches to full tracking after consent;
+  server events are sent regardless of the browser choice.
+- `strict`: nothing loads until the visitor grants Analytics consent, and
+  server events are sent only for requests from a browser that granted it.
+  Events without a request (background jobs) are not sent.
+
+Which mode a deployment needs depends on its own privacy policy; the default is
+the maintainer's choice and may change.
+
 ## Network boundaries
 
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
@@ -133,8 +167,16 @@ passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 Each service receives only the variables it needs (see
 `deploy/compose.production.yaml`). Secrets are visible to anyone who can run
 Docker on the server, which is why only the administrator and `deploy` can log
-in. Browser bundles receive public origins and PostHog tokens at build time
-from GitHub variables, not from `.env`.
+in.
+
+Images carry no domain or analytics settings, so the same image runs on any
+hostname. The API writes the platform's public runtime configuration (the
+website origin from `SITE_URL` and the browser analytics settings from
+`POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST`) into each SPA document it serves; the
+browser reads it there instead of from the bundle. Change `.env` and restart
+the API to change them. When Cloudflare serves the platform SPA (lictory.com),
+its Worker writes the same configuration from its own variables
+([websites on Cloudflare](cloudflare-marketing.md)).
 
 ## Database roles
 
@@ -169,8 +211,8 @@ the API/worker, proxy, migration and operations images. Actions builds only
 `linux/arm64` on a native runner for Hetzner. Every target uses the selected checkout, so the API's
 `index.html` and the proxy's assets come from the same SPA build. Tags are the
 release version and `sha-<commit>-<channel>`; deployments always pin digests.
-The browser and website bundles embed their public origins, so a stable build
-of a commit differs from its nightly build. Registry layer caches default to
+The images embed no public origins; only the marketing website, which is not
+part of the release images, is built for one domain. Registry layer caches default to
 `IMAGE_REGISTRY/lictory-cache`; set `IMAGE_CACHE_REGISTRY` to use another
 namespace. Cache tags are isolated by image, release channel and architecture.
 The marketing Docker target is excluded from releases: both public frontends
@@ -368,10 +410,10 @@ routine success notifications. Docker logs rotate at 5 × 20 MB per container.
 Neither in-server checks nor in-server alerts can report during a total VPS
 outage without an independently configured external monitor.
 
-### Platform scheduling replaces Vercel Cron
+### Platform scheduling
 
-The always-running `worker` owns platform scheduling; no public cron endpoint,
-Vercel schedule or duplicate Openship recurring job is needed.
+The always-running `worker` owns platform scheduling; no public cron endpoint
+or duplicate Openship recurring job is needed.
 
 | Activity                  | Trigger / fallback interval                    |
 | ------------------------- | ---------------------------------------------- |
@@ -391,6 +433,56 @@ started again. See [background work](../internals/synchronization.md#background-
 The internal worker `GET /healthz` reports every loop's counters and timing.
 It remains bound to container loopback; read it through the saved **Scheduler
 status** job or an authorized service terminal, never a public route.
+
+## Scaling
+
+Production runs one copy of each service. Whether a service can run as
+several replicas depends on whether its state lives in PostgreSQL:
+
+- **`api`: yes.** Sessions, authentication rate limits and domain state are in
+  PostgreSQL. Each replica LISTENs for presence and inbox signals, so an
+  `/api/events` stream on one replica receives events caused by writes on
+  another. Streams end after four minutes and reconnect to any replica.
+- **`worker`: yes.** Jobs claim work through the database: notification email
+  with `FOR UPDATE SKIP LOCKED` plus a lease, chat runs with `SKIP LOCKED`,
+  delivery exports with a fenced lease that the runner renews, AI runs with a
+  lease taken under the organization lock, and automatic cycles under the
+  organization lock. Each replica LISTENs on `lictory_work` and also polls.
+  The delivery status refresh takes no claim: two replicas may read the same
+  external items in one interval, which costs provider calls but changes no
+  outcome.
+- **`migrate`: one at a time.** A one-shot job. An advisory lock makes a second
+  run wait and then fail without applying anything.
+- **`zero-cache`: no.** One process holds the SQLite replica on its volume and
+  the replication slot. Running more needs Zero's multi-node setup (a
+  replication manager plus view syncers sharing a replica backup), which this
+  deployment does not configure.
+- **`postgres`: no.** The single primary is the source of truth. There are no
+  read replicas.
+- **`proxy`: no.** It is the only published entry point (ports 80 and 443) and
+  keeps certificates and retained assets on its volumes.
+
+Better Auth keeps its rate-limit counters in the `rate_limit` table, so the
+limits hold across API replicas and restarts. The table is not in the
+`lictory_zero` publication. Better Auth deletes rows older than the longest
+window (one minute) when a counter's window resets, so the table only holds
+recent clients and needs no scheduled cleanup. Rate limiting stays on in
+production only, with Better Auth's default rules: 100 requests per 10 s on
+any auth path, 3 per 10 s for sign-in, sign-up and changing the password or
+email, and 3 per minute for password-reset and verification email. Each
+counter is keyed by the client address in `X-Forwarded-For`. With several
+replicas, the gateway's single-address normalization still applies:
+[client addresses](#client-addresses-and-authentication-rate-limits). Without
+it, every visitor shares one counter.
+
+Each API replica opens up to 10 database connections plus one LISTEN
+connection. Each worker replica opens `WORKER_DB_POOL_MAX` (4) plus one.
+Before you add replicas, check the total against PostgreSQL's
+`max_connections`. The gateway's and zero-cache's upstreams are the `api`
+service name. Make sure each replica is reachable under that name and passes
+its own `/readyz`. `deploy.sh` replaces one container per service, so scaled
+replicas also need a rollout procedure, which this deployment does not have
+yet.
 
 ## Microsoft Entra sign-in
 

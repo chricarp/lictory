@@ -25,8 +25,8 @@ export const MAX_CONTEXT_CONTENT = 100_000;
 // scopes.
 export const CONTEXT_PROMPT_BUDGET = 40_000;
 export const MAX_CONTEXT_ENTRIES_PER_SCOPE = 50;
-// Uploads go through a server function (conversion happens there), whose
-// request bodies are limited by the hosting platform (4.5 MB on Vercel).
+// Uploads are converted by the API, whose upload route limits request bodies to
+// this size plus multipart framing.
 export const MAX_CONTEXT_DOCUMENT_SIZE = 4 * 1024 * 1024;
 
 // Formats anydoc converts locally, plus Markdown and text used as they are.

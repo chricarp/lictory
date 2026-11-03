@@ -225,6 +225,7 @@ function DefinitionOfReady({
                   {t.name}
                   {changed && (
                     <span
+                      role="img"
                       aria-label="changed"
                       className="ml-1.5 inline-block size-1.5 rounded-full bg-amber-500 align-middle"
                     />

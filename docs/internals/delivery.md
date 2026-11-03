@@ -232,6 +232,13 @@ Export is explicit and evidence-gated, independent of the readiness policy:
   time out after 30 seconds.
 - Network calls never run inside the organization lock; each item's outcome
   commits with its projections and an `exported` activity.
+- The server sends authenticated requests to the site URL an organization
+  administrator enters, so connections are restricted to Jira Cloud hosts
+  (`<site>.atlassian.net`, legacy `<site>.jira.com`, default port, https). The
+  check runs when connecting and before every request, and redirects are never
+  followed: a connection or a response cannot make the API or worker call
+  internal services. Self-managed Jira on a private network will need an
+  explicit operator allowlist, not a relaxed check.
 - Organization administrators connect Jira sites (credentials). Each project's
   administrators choose its Jira project and type mapping. Exporting and
   linking require the "Hand off to delivery tools" capability of a discipline

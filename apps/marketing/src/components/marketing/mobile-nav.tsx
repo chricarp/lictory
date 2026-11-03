@@ -40,6 +40,7 @@ export function MobileNav({
     };
   }, [open]);
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape and focus-out bubble from the menu's links and toggle; the wrapper is not a control.
     <div
       ref={root}
       className="mobile-nav"

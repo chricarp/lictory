@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { FormMessage } from "@lictory/platform/components/auth/form-field";
 import {
   ProviderIcon,
-  providerLabels,
+  providerLabel,
   socialProviders,
   type SocialProvider,
 } from "@lictory/platform/components/auth/provider-icons";
@@ -17,8 +17,14 @@ export function SocialButtons({
   callbackURL,
   errorCallbackURL,
   error,
+  ssoName,
+  passwordForm = true,
 }: {
   providers: Record<SocialProvider, boolean>;
+  // The operator's name for the company identity provider.
+  ssoName?: string | null;
+  // Whether the email/password form follows (and needs the "or" divider).
+  passwordForm?: boolean;
   callbackURL: string;
   // Where the provider sends people back when sign-in fails, with `?error=`.
   errorCallbackURL: string;
@@ -29,6 +35,7 @@ export function SocialButtons({
     oauthErrorMessage(error, "sign-in"),
   );
   const enabled = socialProviders.filter((provider) => providers[provider]);
+  const label = (provider: SocialProvider) => providerLabel(provider, ssoName);
 
   // Coming back from the provider with the browser's Back button restores
   // this page from cache; let the buttons be used again.
@@ -58,7 +65,7 @@ export function SocialButtons({
       // Network failures should leave both sign-in methods available to retry.
     }
     setFailure(
-      `We couldn't reach ${providerLabels[provider]}. Check your connection and try again.`,
+      `We couldn't reach ${label(provider)}. Check your connection and try again.`,
     );
     setPending(null);
   }
@@ -78,15 +85,15 @@ export function SocialButtons({
           >
             <ProviderIcon provider={provider} />
             {pending === provider
-              ? `Redirecting to ${providerLabels[provider]}…`
-              : `Continue with ${providerLabels[provider]}`}
+              ? `Redirecting to ${label(provider)}…`
+              : `Continue with ${label(provider)}`}
           </Button>
         ))}
       </div>
       <span role="status" className="sr-only">
-        {pending ? `Redirecting to ${providerLabels[pending]}…` : ""}
+        {pending ? `Redirecting to ${label(pending)}…` : ""}
       </span>
-      <AuthDivider />
+      {passwordForm && <AuthDivider />}
     </>
   );
 }

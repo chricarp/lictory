@@ -195,6 +195,7 @@ function Reader({
             : "Nothing written yet. Click to propose a first draft for review."}
         </button>
       ) : (
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- reads the text selection after a mouse selection; see the known gaps in docs/internals/accessibility.md.
         <div
           ref={rootRef}
           data-spec-root
