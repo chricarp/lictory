@@ -140,7 +140,7 @@ record of the decision.
 
 The selected SHA passes the minimal CI workflow (types and migration checks)
 again with the stable version. Only the deploy job accesses the protected
-`Production` environment, its required approvals and the deployment SSH key.
+`Production` environment, its protection rules and the deployment SSH key.
 Its release controller comes from the dispatch's protected `main` commit; the
 application and migration code are checked out in a separate directory at the
 nightly's exact SHA.
@@ -252,8 +252,10 @@ Repository variables:
 | `LICTORY_LEGAL_*`                               | Legal notice details compiled into the website                                  |
 | `STAGING_DEPLOY_ENABLED`                        | `true` to run every nightly on the staging server                               |
 
-GitHub environment **Production** (required reviewers; branches `main` and
-`release/*` only):
+GitHub environment **Production** (deployment branch `main` only: every
+production job is dispatched from `main`). Add at least one required reviewer so
+production jobs wait for approval; without one they start immediately. It
+holds:
 
 | Setting                                           | Value                                                           |
 | ------------------------------------------------- | --------------------------------------------------------------- |
@@ -292,10 +294,10 @@ pushes can create nightlies. Import those changes without merging unrelated main
 features. Future stable tags already contain that infrastructure.
 
 Normal operation has no package bump, changelog edit, local deployment, or tag
-push. Legacy stable releases remain valid baselines; their historical changelog
-is retained in `CHANGELOG.md`. Release metadata and journals are not disposable
-CI artifacts and must be retained for selection/recovery. Keep the registry's
-images at least as long as the releases you may roll back to.
+push. Legacy stable releases remain valid baselines. Release metadata and
+journals are not disposable CI artifacts and must be retained for
+selection/recovery. Keep the registry's images at least as long as the releases
+you may roll back to.
 
 GitHub's `queue: max` preserves up to 100 pending runs; avoid exceeding that
 platform limit and inspect canceled runs if it is reached. Actionlint 1.7.12
