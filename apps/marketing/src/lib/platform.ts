@@ -9,12 +9,14 @@ export function configuredOrigin(value: string | undefined, fallback: string) {
   return new URL(value === undefined || value === "" ? fallback : value).origin;
 }
 
-/** Embedded at build time, like every `NEXT_PUBLIC_` variable. */
+/**
+ * Embedded at build time, like every `NEXT_PUBLIC_` variable. Production
+ * builds set it (the Dockerfile and the deployment workflow require it); the
+ * fallback is the local development server, never a public domain.
+ */
 export const platformUrl = configuredOrigin(
   process.env.NEXT_PUBLIC_PLATFORM_URL,
-  process.env.NODE_ENV === "production"
-    ? "https://app.lictory.com"
-    : "http://localhost:3000",
+  "http://localhost:3000",
 );
 
 export function platformHref(path: "/" | "/sign-in" | "/sign-up") {

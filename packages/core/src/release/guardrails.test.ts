@@ -201,11 +201,9 @@ void test("releases are pinned by digest in the configured registry", () => {
   assert.equal(file.trim().split("\n").length, 8);
 });
 
-void test("builds embed the release version and only bare HTTPS origins", () => {
+void test("builds embed the release version and no installation origins", () => {
   const config = {
     registry,
-    siteUrl: "https://lictory.com",
-    platformUrl: "https://app.lictory.com",
     sourceUrl: "https://github.com/example/lictory",
   };
   const environment = bakeEnvironment(stable(), config);
@@ -214,22 +212,9 @@ void test("builds embed the release version and only bare HTTPS origins", () => 
   assert.equal(environment.PREVIOUS_PROXY_IMAGE, "no-previous-assets");
   assert.equal(environment.VERSION, bakeEnvironment(stable(), config).VERSION);
   assert.match(bakeEnvironment(nightly(), config).VERSION!, /-nightly\./);
-  assert.throws(
-    () =>
-      bakeEnvironment(stable(), {
-        ...config,
-        platformUrl: "http://app.lictory.com",
-      }),
-    /bare https/,
-  );
-  assert.throws(
-    () =>
-      bakeEnvironment(stable(), {
-        ...config,
-        siteUrl: "https://lictory.com/x",
-      }),
-    /bare https/,
-  );
+  // Domains and analytics are runtime settings: one image runs anywhere.
+  for (const name of ["SITE_URL", "PLATFORM_URL", "POSTHOG_PROJECT_TOKEN"])
+    assert.equal(environment[name], undefined);
   assert.throws(
     () =>
       bakeEnvironment(stable(), { ...config, previousProxyImage: "caddy:2" }),
@@ -407,4 +392,6 @@ void test("the minimal CI verification sequence and the released version display
   assert.match(bake, /APP_VERSION\s*=\s*VERSION/);
   assert.match(dockerfile, /VITE_APP_VERSION=\$APP_VERSION/);
   assert.match(dockerfile, /NEXT_PUBLIC_APP_VERSION=\$APP_VERSION/);
+  // The platform bundle reads its origins and analytics at runtime.
+  assert.doesNotMatch(dockerfile, /VITE_SITE_URL|VITE_POSTHOG/);
 });

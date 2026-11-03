@@ -420,6 +420,7 @@ export function CommandPalette({
   };
   let index = -1;
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape and arrow keys bubble from the search field; the backdrop is not a control.
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[14vh] pb-4"
       onKeyDown={(e) => {

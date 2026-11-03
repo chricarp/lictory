@@ -244,6 +244,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
           </div>
           {members.length > 0 && (
             <div
+              role="group"
               className="flex -space-x-1.5"
               aria-label={`${members.length} ${members.length === 1 ? "member" : "members"}`}
             >

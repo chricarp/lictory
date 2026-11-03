@@ -18,8 +18,9 @@ Invitation links preserve the existing authentication and handle flow.
 ## Sign-in methods and account linking
 
 An account is one person identified by one email address. Password and identity
-providers (Google, and Microsoft where configured) are sign-in methods on that
-account, never separate accounts.
+providers (Google, Microsoft and the installation's company OpenID Connect
+provider, where configured) are sign-in methods on that account, never separate
+accounts.
 
 - Continuing with Google on sign-in or sign-up creates an account only when no
   account uses that email. Otherwise Google is linked to the existing account,
@@ -32,6 +33,17 @@ account, never separate accounts.
   email. An existing account connects Microsoft from authenticated Account
   settings. A new Microsoft account verifies its mailbox through Lictory before
   receiving its first session; later sign-ins use the linked provider identity.
+- The company provider (single sign-on, [setup](../operations/sso.md)) is
+  trusted per sign-in, not by name: it links to an existing verified account
+  with the same email, and a new account starts verified, only when the
+  provider's `email_verified` claim is true. Without the claim the person
+  verifies the mailbox through Lictory before the first session, and an
+  existing account cannot be linked implicitly. Later sign-ins use the stable
+  provider subject (`sub`), so an email change at the provider never moves the
+  sign-in to another account.
+- An installation can turn password sign-in off (`PASSWORD_LOGIN_ENABLED=false`).
+  The server then rejects password sign-in, sign-up and resets; the pages offer
+  only the configured providers.
 - Account settings connect a provider explicitly. The provider account must use
   the same email as the Lictory account, and must not belong to another
   Lictory account.

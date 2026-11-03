@@ -41,16 +41,13 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 COPY . .
 
+# The SPA carries no installation settings: the API writes the public site
+# URL and analytics settings into each document at runtime
+# (packages/core/src/lib/public-config.ts), so one image serves any domain.
 FROM source AS platform-build
 ARG APP_VERSION
-ARG VITE_SITE_URL
-ARG VITE_POSTHOG_PROJECT_TOKEN=""
-ARG VITE_POSTHOG_HOST=""
-RUN test -n "$APP_VERSION" && test -n "$VITE_SITE_URL"
-ENV VITE_APP_VERSION=$APP_VERSION \
-    VITE_SITE_URL=$VITE_SITE_URL \
-    VITE_POSTHOG_PROJECT_TOKEN=$VITE_POSTHOG_PROJECT_TOKEN \
-    VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+RUN test -n "$APP_VERSION"
+ENV VITE_APP_VERSION=$APP_VERSION
 RUN bun scripts/inject-release-version.ts "$APP_VERSION" \
  && bun run --filter @lictory/platform build \
  && test -f apps/platform/dist/index.html
@@ -78,6 +75,9 @@ RUN bun build scripts/migrate.ts --target=node --format=esm \
         --outfile="/out/backfills/$(basename "$script" .ts).mjs"; \
     done
 
+# The public website (lictory.com) is static and prerendered, so its origins
+# and legal notice are build arguments. Self-hosted installations do not need
+# this image.
 FROM source AS marketing-build
 ARG APP_VERSION
 ARG SITE_URL

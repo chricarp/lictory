@@ -8,6 +8,7 @@ import {
   type JiraClientOptions,
   type JiraRequestOptions,
 } from "@lictory/core/delivery/jira/client";
+import { jiraCloudSite } from "@lictory/core/delivery/jira/site";
 import {
   DeliveryError,
   type DeliveryConnection,
@@ -131,25 +132,7 @@ export function createJiraCloudProvider(
   return {
     kind: "jira_cloud",
 
-    normalizeBaseUrl(url) {
-      let parsed: URL;
-      try {
-        parsed = new URL(
-          url.trim().includes("://") ? url.trim() : `https://${url.trim()}`,
-        );
-      } catch {
-        throw new DeliveryError(
-          "validation",
-          "Enter your Jira site URL, for example https://acme.atlassian.net.",
-        );
-      }
-      if (parsed.protocol !== "https:" && !localDevelopment(parsed))
-        throw new DeliveryError(
-          "validation",
-          "Jira Cloud sites must use https.",
-        );
-      return parsed.origin;
-    },
+    normalizeBaseUrl: jiraCloudSite,
 
     async verify(connection) {
       const me = await call<{
@@ -479,14 +462,4 @@ function readProperty(value: unknown): LictoryProperty | null {
 
 function split(value: string | null | undefined) {
   return value ? value.split(/\s+/).filter(Boolean) : [];
-}
-
-// A local Jira stand-in (http://localhost) is accepted outside production so
-// the export flow can be exercised end to end without a Jira Cloud site.
-function localDevelopment(url: URL) {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    url.protocol === "http:" &&
-    (url.hostname === "localhost" || url.hostname === "127.0.0.1")
-  );
 }

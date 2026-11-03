@@ -1,11 +1,26 @@
-export type SocialProvider = "google" | "microsoft";
+import { Building2 } from "lucide-react";
 
-export const socialProviders = ["google", "microsoft"] as const;
+// "oidc" is the installation's company identity provider (single sign-on),
+// named by the operator.
+export type SocialProvider = "oidc" | "google" | "microsoft";
 
-export const providerLabels: Record<SocialProvider, string> = {
+export const socialProviders = ["oidc", "google", "microsoft"] as const;
+
+const providerLabels: Record<SocialProvider, string> = {
+  oidc: "SSO",
   google: "Google",
   microsoft: "Microsoft",
 };
+
+export function providerLabel(
+  provider: SocialProvider,
+  ssoName?: string | null,
+) {
+  return provider === "oidc" && ssoName ? ssoName : providerLabels[provider];
+}
+
+export const isSocialProvider = (value: string): value is SocialProvider =>
+  Object.hasOwn(providerLabels, value);
 
 export function ProviderIcon({
   provider,
@@ -14,6 +29,8 @@ export function ProviderIcon({
   provider: SocialProvider;
   className?: string;
 }) {
+  if (provider === "oidc")
+    return <Building2 aria-hidden="true" className={className} />;
   if (provider === "google")
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24" className={className}>

@@ -434,7 +434,8 @@ Normal UI errors retain actionable text.
 
 List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…`);
 `/{org}/items/KEY-n` resolves any identifier to its project route. The Inbox
-renders in pages of 50. SSO setup, billing, custom fields,
+renders in pages of 50. Organization-level SSO setup (company sign-in is
+configured per installation, see [single sign-on](../operations/sso.md)), billing, custom fields,
 comments on items without a specification, saved views, advanced policy
 configuration, SCIM, private projects,
 CRDT editing, multiplayer cursors, service-worker offline

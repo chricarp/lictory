@@ -30,7 +30,8 @@ type Sql = postgres.Sql | postgres.TransactionSql;
 // unnamed statement. An unnamed statement with parameters costs an extra round
 // trip to describe it and stops postgres.js from pipelining queries issued
 // together. Named (protocol-level) prepared statements are described once per
-// connection; Neon's PgBouncer pooler supports them.
+// connection. A transaction pooler in front of DATABASE_URL must support them
+// (PgBouncer does with `max_prepared_statements` enabled).
 function preparedStatements<T extends Sql>(sql: T): T {
   return new Proxy(sql, {
     get(target, property, receiver) {

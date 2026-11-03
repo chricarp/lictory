@@ -28,5 +28,11 @@ export const authSchemaOptions = {
       },
     },
   },
+  // Counters live in PostgreSQL so every API replica shares them and they
+  // survive deploys. Better Auth's defaults (on in production only, 100
+  // requests per 10 s, 3 per 10 s for sign-in and sign-up, 3 per minute for
+  // reset and verification email) and its pruning of expired rows are kept.
+  // See "Scaling" in docs/operations/deployment.md.
+  rateLimit: { storage: "database" },
   plugins: [organization()],
 } satisfies BetterAuthOptions;

@@ -1,0 +1,43 @@
+# A local OpenID Connect identity provider for developing and testing company
+# single sign-on. Development and browser tests only: in-memory storage, a
+# published client secret and a static test person. Never deploy it.
+#
+#   docker compose --profile sso up -d dex
+#
+# Lictory settings (docs/operations/sso.md):
+#   OIDC_ISSUER=http://127.0.0.1:5556/dex
+#   OIDC_CLIENT_ID=lictory-local
+#   OIDC_CLIENT_SECRET=lictory-local-dex-secret
+# Sign in as ada@sso.example.test with password Local-sso-password-123.
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+  responseTypes: [code]
+
+enablePasswordDB: true
+
+staticClients:
+  - id: lictory-local
+    name: Lictory (local)
+    secret: lictory-local-dex-secret
+    # The development app, and the browser test stack (bun run test:e2e) at
+    # each E2E_PORT_OFFSET the verification slots use (0, 20, 40).
+    redirectURIs:
+      - http://localhost:3000/api/auth/callback/oidc
+      - http://localhost:3001/api/auth/callback/oidc
+      - http://localhost:3021/api/auth/callback/oidc
+      - http://localhost:3041/api/auth/callback/oidc
+
+staticPasswords:
+  - email: ada@sso.example.test
+    # bcrypt of Local-sso-password-123
+    hash: "$2a$10$RE/oZUI9HBsQBQx/gciL0OzaSW/oo/ty2yQenCLFRKUXrFfteFY9G"
+    username: ada
+    userID: 6f1c1f0e-2c43-4a3f-9d1b-6a4f8f6e5d21

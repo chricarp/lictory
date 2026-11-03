@@ -268,7 +268,8 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
   assert.equal(body.user?.id, user.id);
   assert.deepEqual(await (await m.app.request("/api/session")).json(), {
     user: null,
-    providers: { google: false, microsoft: false },
+    providers: { google: false, microsoft: false, oidc: false },
+    signIn: { password: true, ssoName: null },
   });
   assert.equal((await m.app.request("/api/account")).status, 401);
   const account = await m.app.request("/api/account", {
