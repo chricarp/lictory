@@ -7,6 +7,7 @@ import {
 } from "@lictory/core/contracts/audit";
 import { requireAuditReader } from "@lictory/core/domain/audit";
 import { DomainError } from "@lictory/core/domain/errors";
+import { csvLine } from "@lictory/core/lib/csv";
 import type { Database } from "@lictory/core/domain/service";
 
 // Reading the organization audit log. Every source is filtered by the
@@ -300,14 +301,6 @@ function toEntry(row: Row): AuditEntry {
   };
 }
 
-// CSV cells that start with a formula character are prefixed so spreadsheet
-// applications show them as text instead of evaluating them.
-function cell(value: string | null | undefined) {
-  const text = value ?? "";
-  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
-  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
-}
-
 const csvHeader = [
   "Time (UTC)",
   "Category",
@@ -320,22 +313,18 @@ const csvHeader = [
   "Details",
 ];
 
-export function auditCsvLine(entry: AuditEntry) {
-  return (
-    [
-      entry.at,
-      entry.category,
-      entry.actor?.name ?? (entry.actor ? "" : "Lictory"),
-      entry.actor?.email ?? "",
-      entry.action,
-      entry.summary,
-      entry.target?.type ?? "",
-      entry.target?.label ?? entry.target?.id ?? "",
-      JSON.stringify(entry.detail),
-    ]
-      .map(cell)
-      .join(",") + "\r\n"
-  );
+function auditCsvLine(entry: AuditEntry) {
+  return csvLine([
+    entry.at,
+    entry.category,
+    entry.actor?.name ?? (entry.actor ? "" : "Lictory"),
+    entry.actor?.email ?? "",
+    entry.action,
+    entry.summary,
+    entry.target?.type ?? "",
+    entry.target?.label ?? entry.target?.id ?? "",
+    JSON.stringify(entry.detail),
+  ]);
 }
 
 // The filtered audit log as CSV, page by page, so an export never holds the
@@ -348,7 +337,7 @@ export async function auditLogCsv(
 ): Promise<AsyncGenerator<string>> {
   await requireAuditReader(db, userId, organizationId);
   async function* lines() {
-    yield csvHeader.map(cell).join(",") + "\r\n";
+    yield csvLine(csvHeader);
     let cursor: string | null = null;
     do {
       const page = await auditLogPage(db, organizationId, {

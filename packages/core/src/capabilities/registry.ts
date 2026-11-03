@@ -4,6 +4,7 @@ import { accessTokenCapabilities } from "@lictory/core/capabilities/access-token
 import { productKnowledgeCapabilities } from "@lictory/core/capabilities/product-knowledge";
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
 import { auditCapabilities } from "@lictory/core/capabilities/audit";
+import { exportCapabilities } from "@lictory/core/capabilities/export";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
 import {
   CapabilityError,
@@ -34,6 +35,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...brandingCapabilities,
   ...accessTokenCapabilities,
   ...auditCapabilities,
+  ...exportCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
   humanOnlyCapability(() => capabilities),

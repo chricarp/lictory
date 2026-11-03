@@ -16,6 +16,7 @@ import { LogoError, readLogo } from "@lictory/core/branding/server";
 import { auditLogFilterInput } from "@lictory/core/capabilities/audit";
 import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { auditLogCsv } from "@lictory/core/domain/audit-log";
+import { openOrganizationExport } from "@lictory/core/export/service";
 import { authorize } from "@lictory/core/domain/service";
 import { trackServer } from "@lictory/core/lib/analytics/server";
 import { APPEARANCES, THEMES } from "@lictory/core/lib/appearance";
@@ -435,6 +436,43 @@ export function webRoutes() {
           ...noStore,
           "Content-Type": "text/csv; charset=utf-8",
           "Content-Disposition": `attachment; filename="lictory-audit-log-${day}.csv"`,
+        },
+      });
+    } catch (error) {
+      return errorResponse(error);
+    }
+  });
+
+  // A finished organization data export, streamed chunk by chunk to an
+  // administrator. Opening it is recorded in the audit log.
+  app.get("/api/organizations/:id/exports/:exportId/archive", async (c) => {
+    try {
+      const user = await currentUser(c.req.raw);
+      if (!user)
+        throw new CapabilityError("unauthorized", "Sign in again to continue.");
+      const archive = await openOrganizationExport(
+        db,
+        user.id,
+        c.req.param("id"),
+        c.req.param("exportId"),
+      );
+      const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const next = await archive.chunks.next();
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
+        },
+        async cancel() {
+          await archive.chunks.return(undefined);
+        },
+      });
+      return new Response(body, {
+        headers: {
+          ...noStore,
+          "Content-Type": "application/gzip",
+          "Content-Disposition": `attachment; filename="${archive.filename}"`,
+          ...(archive.size ? { "Content-Length": String(archive.size) } : {}),
+          ...(archive.sha256 ? { "X-Content-SHA256": archive.sha256 } : {}),
         },
       });
     } catch (error) {

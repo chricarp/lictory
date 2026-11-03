@@ -26,6 +26,14 @@ export const auditActions = {
     category: "organization",
     label: "Exported the audit log",
   },
+  "data_export.requested": {
+    category: "organization",
+    label: "Started an export of the organization's data",
+  },
+  "data_export.downloaded": {
+    category: "organization",
+    label: "Downloaded an export of the organization's data",
+  },
   "member.added": { category: "membership", label: "Added a member" },
   "member.joined": {
     category: "membership",

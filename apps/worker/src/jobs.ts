@@ -3,6 +3,7 @@ import {
   advanceSchedules,
   dispatchNotificationEmails,
   processAiRuns,
+  processDataExports,
   processDeliveryPublications,
   refreshDeliveryStatuses,
 } from "@lictory/core/jobs";
@@ -70,6 +71,8 @@ export function workerConfig(env: Record<string, string | undefined>) {
 
 const EMAIL_BATCH = 20;
 const DELIVERY_BATCH = 10;
+// Exports are rare and woken by their signal; polling only recovers leases.
+const EXPORT_INTERVAL_MS = 60_000;
 
 export function workerJobs(
   db: Database,
@@ -126,6 +129,20 @@ export function workerJobs(
           signal: stopping,
         });
         return { more: more && !stopping.aborted, counts: { publications } };
+      },
+    },
+    {
+      name: "export",
+      kind: "export",
+      intervalMs: EXPORT_INTERVAL_MS,
+      // A large organization's export can take a while; it renews its lease.
+      stuckMs: 6 * 60 * 60_000,
+      // One export at a time; a long export renews its lease as it goes.
+      async run({ stopping }) {
+        const { claimed, ...counts } = await processDataExports(db, {
+          signal: stopping,
+        });
+        return { more: claimed > 0 && !stopping.aborted, counts };
       },
     },
     {

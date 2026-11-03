@@ -28,7 +28,8 @@ Three append-only tables, all scoped to one organization, are read together:
   `access_token.revoked`. A token acts for its owner in every organization the
   owner belongs to, so each of those organizations records it.
 - **Organization**: `organization.created`, `organization.updated` (name or
-  handle), `audit_log.exported`.
+  handle), `audit_log.exported`, `data_export.requested` and
+  `data_export.downloaded` ([data export](data-export.md)).
 
 Each entry keeps the actor's id together with their name and email at the
 time, the target (a member, invitation or token, with a readable label) and a

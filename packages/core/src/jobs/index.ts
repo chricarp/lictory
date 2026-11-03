@@ -3,6 +3,8 @@ import { processAiRuns } from "@lictory/core/ai/runner";
 import { createDeliveryService } from "@lictory/core/delivery/service";
 import { trackPublicationCompleted } from "@lictory/core/lib/analytics/server";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
+import { processOrganizationExports } from "@lictory/core/export/service";
+import { storage } from "@lictory/core/storage";
 
 export {
   WORK_CHANNEL,
@@ -36,6 +38,15 @@ export function processDeliveryPublications(
   options?: { limit?: number; signal?: AbortSignal },
 ) {
   return deliveryService(db).processPending(options);
+}
+
+// Builds at most one queued organization data export (and expires old
+// archives). Attachments are included when file storage is configured.
+export function processDataExports(
+  db: Database,
+  options?: { signal?: AbortSignal },
+) {
+  return processOrganizationExports(db, { storage, ...options });
 }
 
 // Read-only status sync of exported items, least recently checked first.
