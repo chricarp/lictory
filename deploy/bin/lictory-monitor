@@ -5,7 +5,7 @@
 # cannot run at all (Docker or PostgreSQL down), alerts directly from here.
 set -uo pipefail
 
-environment="${1:?Usage: lictory-monitor <production|staging>}"
+environment="${1:?Usage: lictory-monitor <environment>}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
 bin="$(cd "$(dirname "$0")" && pwd)"

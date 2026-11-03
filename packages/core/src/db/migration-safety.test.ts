@@ -104,11 +104,12 @@ void describe("migration connection", () => {
     );
   });
 
-  void test("refuses unknown targets and transports", () => {
-    assert.throws(
-      () => resolveMigrationConnection({ DATABASE_MIGRATION_TARGET: "prod" }),
-      /must be one of/,
-    );
+  void test("refuses malformed targets and unknown transports", () => {
+    for (const target of ["Production", "../production", "qa env", "-qa"])
+      assert.throws(
+        () => resolveMigrationConnection({ DATABASE_MIGRATION_TARGET: target }),
+        /DATABASE_MIGRATION_TARGET must be/,
+      );
     assert.throws(
       () =>
         resolveMigrationConnection({
@@ -150,7 +151,7 @@ void describe("compose-internal migration connection", () => {
     );
   });
 
-  void test("only staging and production may use the internal transport", () => {
+  void test("local, test and preview targets may not use the internal transport", () => {
     for (const target of ["local", "test", "preview"])
       assert.throws(
         () =>
@@ -159,8 +160,58 @@ void describe("compose-internal migration connection", () => {
             DATABASE_MIGRATION_TARGET: target,
             LICTORY_ENVIRONMENT: target,
           }),
-        /only serves the staging and production servers/,
+        /only serves server environments/,
       );
+  });
+
+  void test("a custom server environment such as qa gets the same guards as production", () => {
+    const qa = {
+      ...production,
+      DATABASE_MIGRATION_TARGET: "qa",
+      LICTORY_ENVIRONMENT: "qa",
+      DATABASE_MIGRATION_URL: production.DATABASE_MIGRATION_URL.replace(
+        "/lictory?",
+        "/lictory_qa?",
+      ),
+      DATABASE_MIGRATION_EXPECTED_DATABASE: "lictory_qa",
+    };
+    const resolved = resolveMigrationConnection(qa);
+    assert.equal(resolved.target, "qa");
+    assert.equal(resolved.database, "lictory_qa");
+    // A qa stack cannot migrate production's database, nor be confirmed by
+    // another environment, nor skip the explicit internal transport.
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...qa,
+          DATABASE_MIGRATION_URL: production.DATABASE_MIGRATION_URL,
+        }),
+      /does not match DATABASE_MIGRATION_EXPECTED_DATABASE/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...qa,
+          LICTORY_ENVIRONMENT: "production",
+        }),
+      /does not confirm the qa target/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          ...qa,
+          DATABASE_MIGRATION_TRANSPORT: undefined,
+        }),
+      /local database host/,
+    );
+    assert.throws(
+      () =>
+        resolveMigrationConnection({
+          DATABASE_MIGRATION_TARGET: "qa",
+          DATABASE_URL: neonDirect,
+        }),
+      /DATABASE_MIGRATION_URL is required for the qa target/,
+    );
   });
 
   void test("a staging configuration cannot migrate production and vice versa", () => {

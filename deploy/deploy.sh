@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Deploys, inspects and rolls back one Lictory environment on this server.
-# Installed as /srv/lictory/bin/deploy.sh; release automation calls it over SSH
-# through deploy/bin/lictory-remote. See docs/operations/deployment.md.
+# Installed as <root>/bin/deploy.sh (root: LICTORY_ROOT, default /srv/lictory);
+# release automation calls it over SSH through deploy/bin/lictory-remote.
+# <env> is any configured environment (<root>/<env>/.env exists): production,
+# staging, qa… See docs/operations/deployment.md.
 #
 #   deploy.sh <env> prepare < release.env   validate, store and pull a release
 #   deploy.sh <env> migrate <version>       backup if needed, migrate, wait for Zero
@@ -17,17 +19,27 @@
 # so every migration must stay compatible with the previous release.
 set -euo pipefail
 
-environment="${1:?Usage: deploy.sh <production|staging> <command> [args]}"
-command="${2:?Usage: deploy.sh <production|staging> <command> [args]}"
+environment="${1:?Usage: deploy.sh <environment> <command> [args]}"
+command="${2:?Usage: deploy.sh <environment> <command> [args]}"
 shift 2
-case "$environment" in production | staging) ;; *)
+# Environment names become paths, Compose project names and migration
+# targets: lowercase letters, digits and hyphens. local, test and preview are
+# reserved by the migration runner (packages/core/src/db/migration-safety.ts).
+valid_environment() {
+  [[ "$1" =~ ^[a-z][a-z0-9-]{0,31}$ ]] && case "$1" in local | test | preview) false ;; esac
+}
+valid_environment "$environment" || {
   echo "Unknown environment: $environment" >&2
   exit 64
-  ;;
-esac
+}
 
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
+# A typo must not create a new environment: only configured ones are deployed.
+[ -f "$home/.env" ] || {
+  echo "Unknown environment: $environment ($home/.env does not exist; create it with new-environment.sh)." >&2
+  exit 64
+}
 releases="$home/releases"
 bin="$(cd "$(dirname "$0")" && pwd)"
 history="$home/release-history.log"

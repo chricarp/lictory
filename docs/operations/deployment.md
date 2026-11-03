@@ -98,25 +98,46 @@ uses `staging.lictory.com` and `app.staging.lictory.com` and runs nightly
 images; production runs stable images only. Never copy a value between their
 `.env` files.
 
-Each server has `/srv/lictory/<environment>/`:
+Other installations choose their own environments and layout. An environment
+is any name of lowercase letters, digits and hyphens (`production`, `staging`,
+`qa`, `eu-prod`); `local`, `test` and `preview` are reserved by the migration
+runner. Each name is its own Compose project (`lictory-<environment>`),
+database and `.env`, and an environment exists on a server only once its
+`.env` does, so a mistyped name is refused instead of created. Every
+environment gets the same migration safeguards
+([migrations](migrations.md)).
 
-| Path                  | Contents                                                                    |
-| --------------------- | --------------------------------------------------------------------------- |
-| `.env`                | Secrets and settings (mode 0600, owner `deploy`); template in `deploy/env/` |
-| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling       |
-| `current`             | Symlink to the active release                                               |
-| `release-history.log` | Every activation                                                            |
-| `deploy.log`          | Deployment log                                                              |
+| Setting                  | Default        | Where                                                                       |
+| ------------------------ | -------------- | --------------------------------------------------------------------------- |
+| `LICTORY_ROOT`           | `/srv/lictory` | Environment of the scripts; `install.sh` writes it into the systemd units   |
+| `DEPLOY_USER`            | `deploy`       | `install.sh` and `provision.sh`                                             |
+| `LICTORY_ENVIRONMENTS`   | `production`   | `install.sh` and `provision.sh`: the environments hosted on this server     |
+| `LICTORY_IMAGE_REGISTRY` | none (GHCR)    | Each `.env`: releases must be digests in it; `registry-login` uses its host |
 
-`/srv/lictory/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
+With another root, the release key's forced command sets it:
+`command="LICTORY_ROOT=/opt/lictory /opt/lictory/bin/lictory-remote",restrict …`
+(`install.sh` prints the exact line).
+
+Each server has `<root>/<environment>/` (`/srv/lictory/<environment>/` by default):
+
+| Path                  | Contents                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `.env`                | Secrets and settings (mode 0600, owner: the deploy user); template in `deploy/env/` |
+| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling               |
+| `current`             | Symlink to the active release                                                       |
+| `release-history.log` | Every activation                                                                    |
+| `deploy.log`          | Deployment log                                                                      |
+
+`<root>/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
 environment), `lictory-remote` (the CI key's forced command), and the backup,
 monitor and restore-drill wrappers. A newly activated release installs its
 versions of these tools.
 
 ## Secrets and settings
 
-`deploy/provision/new-environment.sh` creates `.env` with generated database
-passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
+`deploy/provision/new-environment.sh <environment>` creates `.env` from
+`deploy/env/<environment>.env.example` (the staging template for other names,
+or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 `ZERO_ADMIN_PASSWORD`. Fill in the rest by hand:
 
 | Setting                                                    | Notes                                                                                                  |
@@ -202,26 +223,46 @@ are installed for the target platform at the lockfile's versions.
 
 ## Provisioning a server
 
-1. Create an Ubuntu 24.04 server in an EU region with
-   `deploy/provision/cloud-init.yaml` (your SSH key) and enable provider
-   backups or snapshots if wanted.
-2. Point DNS at it (below), then copy `deploy/` and run
-   `sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
-   It installs Docker from Docker's repository, automatic security updates
-   (with a 04:00 UTC reboot when required), the firewall, SSH hardening,
-   fail2ban, swap, journald limits, the `deploy` user, `/srv/lictory` and the
-   backup and monitor timers. Re-running it is safe.
-3. As `deploy`: `new-environment.sh production`, then edit `.env`.
-4. The production workflow authenticates `deploy` to GHCR with its temporary
-   GitHub job token and removes that credential afterward. No long-lived
-   registry token is needed on the server. Direct manual releases outside the
-   workflow still need a registry login before pulling private images.
-5. Add the release automation's public key to `~deploy/.ssh/authorized_keys`:
+Any Linux host with Docker Engine and the Docker Compose v2 plugin can run
+Lictory; it also needs `bash`, `curl`, `jq`, `openssl` and `flock`
+(util-linux). Choose the size and region your data and users require.
+
+1. Install Docker Engine and Compose v2 the way your distribution or company
+   does, and harden the host to your own standard.
+2. Point DNS at it (below), copy `deploy/` to the server and run, as root,
+   `LICTORY_ENVIRONMENTS="production" bash deploy/provision/install.sh`
+   (with `LICTORY_ROOT` and `DEPLOY_USER` when the defaults do not fit). It
+   creates the deploy user if needed (in the `docker` group, no sudo), the
+   directory layout, the host tools and, where systemd runs, the backup and
+   monitor timers. It changes nothing else. Re-running it is safe.
+3. As the deploy user: `new-environment.sh <environment>` (with the same
+   `LICTORY_ROOT`), then edit `.env`.
+4. The production workflow authenticates the deploy user to the registry with
+   its temporary GitHub job token and removes that credential afterward
+   (`<env> registry-login` logs in to the host of the environment's
+   `LICTORY_IMAGE_REGISTRY`, GHCR by default). No long-lived registry token is
+   needed on the server. Direct manual releases outside the workflow still
+   need a registry login before pulling private images.
+5. Add the release automation's public key to the deploy user's
+   `~/.ssh/authorized_keys`:
    `command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… release`.
    It can then only prepare, migrate, activate, backfill, roll back and report
-   status.
+   status of the environments configured on that server.
 6. Record the host key for GitHub (`ssh-keyscan -t ed25519 <server>`, compared
    with the console output) as `DEPLOY_SSH_KNOWN_HOSTS`.
+
+**Optional Ubuntu hardening.** On a fresh Ubuntu 24.04 server,
+`deploy/provision/provision.sh` replaces steps 1 and 2: create the server with
+`deploy/provision/cloud-init.yaml` (your SSH key), then run
+`sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
+It installs Docker from Docker's repository, automatic security updates (with
+a 04:00 UTC reboot when required), the firewall, SSH hardening (only the
+administrator and the deploy user may log in), fail2ban, swap and journald
+limits, then runs `install.sh`. Re-running it is safe.
+
+The GitHub release workflows deploy `production` and `staging`. Other
+environments are released with `deploy.sh <environment> release < release.env`
+on the server or by your own automation through the same forced command.
 
 DNS checklist (production): `A`/`AAAA` for `lictory.com`, `www.lictory.com`
 and `app.lictory.com`; a `CAA` record allowing `letsencrypt.org`; keep existing

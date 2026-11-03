@@ -3,14 +3,14 @@
 # verifies it (row counts and migration history against the backup manifest,
 # migration runner up to date, API ready). Never touches the live database.
 #
-#   lictory-restore-drill <production|staging> <age-identity-file> [latest|<key>]
+#   lictory-restore-drill <environment> <age-identity-file> [latest|<key>]
 #
 # Run monthly and after changes to backups or migrations. The identity file is
 # the offline private key; delete any temporary copy afterwards.
 set -euo pipefail
 
-environment="${1:?Usage: lictory-restore-drill <production|staging> <age-identity-file> [latest|<key>]}"
-identity="${2:?Usage: lictory-restore-drill <production|staging> <age-identity-file> [latest|<key>]}"
+environment="${1:?Usage: lictory-restore-drill <environment> <age-identity-file> [latest|<key>]}"
+identity="${2:?Usage: lictory-restore-drill <environment> <age-identity-file> [latest|<key>]}"
 source="${3:-latest}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
