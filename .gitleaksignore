@@ -1,0 +1,4 @@
+# Reviewed gitleaks false positives (fingerprint: commit:file:rule:line).
+# deploy.sh sends a fixed, public WebSocket handshake key (base64 of
+# "lictory-deploy!!") to probe zero-cache; it is not a credential.
+e009fdc76f90bfafecafd44d815f9071a12ccd1b:deploy/deploy.sh:generic-api-key:223

@@ -23,7 +23,14 @@ const accountSchema = z.object({
     handle: z.string().nullable().optional(),
     twoFactorEnabled: z.boolean().default(false),
   }),
-  providers: z.object({ google: z.boolean(), microsoft: z.boolean() }),
+  providers: z.object({
+    google: z.boolean(),
+    microsoft: z.boolean(),
+    oidc: z.boolean().default(false),
+  }),
+  signIn: z
+    .object({ password: z.boolean(), ssoName: z.string().nullable() })
+    .default({ password: true, ssoName: null }),
   accounts: z.array(z.object({ id: z.string(), providerId: z.string() })),
   sessionCount: z.number().int(),
 });
@@ -137,6 +144,7 @@ export function AccountPage({
           twoFactorEnabled: account.user.twoFactorEnabled,
         }}
         providers={account.providers}
+        signIn={account.signIn}
         accounts={account.accounts}
         returnTo={safeReturnTo}
         connected={connected}

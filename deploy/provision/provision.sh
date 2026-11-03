@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Idempotent provisioning of a fresh Ubuntu 24.04 LTS server for Lictory.
-# Run as root from a copy of the repository's deploy/ directory:
+# Optional, idempotent hardening of a fresh Ubuntu 24.04 LTS server for
+# Lictory: packages, Docker from Docker's repository, automatic security
+# updates, firewall, SSH, fail2ban, swap and journald, then install.sh (deploy
+# user, layout, tools, timers). Any other Linux host with Docker Engine and
+# Compose v2 only needs install.sh. Run as root from a copy of deploy/:
 #
 #   scp -r deploy admin@server:/tmp/lictory-deploy
 #   ssh admin@server sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production \
@@ -10,17 +13,18 @@
 #
 # Variables:
 #   ADMIN_USER            existing sudo user that keeps SSH access (required)
-#   LICTORY_ENVIRONMENTS  environments hosted here: "production" or "staging" (default production)
+#   LICTORY_ENVIRONMENTS  space-separated environment names hosted here (default production)
+#   LICTORY_ROOT          tooling and environment root (default /srv/lictory)
+#   DEPLOY_USER           unprivileged user that runs releases (default deploy)
 #   SWAP_SIZE             swap file size when none exists (default 4G)
 #   AUTO_REBOOT           reboot at 04:00 UTC when security updates need it (default true)
 set -euo pipefail
 
 : "${ADMIN_USER:?Set ADMIN_USER to the sudo user that keeps SSH access.}"
-environments="${LICTORY_ENVIRONMENTS:-production}"
 swap_size="${SWAP_SIZE:-4G}"
 auto_reboot="${AUTO_REBOOT:-true}"
 source_dir="$(cd "$(dirname "$0")/.." && pwd)"
-root=/srv/lictory
+deploy_user="${DEPLOY_USER:-deploy}"
 
 [ "$(id -u)" = 0 ] || { echo "Run as root." >&2; exit 1; }
 . /etc/os-release
@@ -101,7 +105,7 @@ MaxAuthTries 3
 LoginGraceTime 30
 X11Forwarding no
 AllowAgentForwarding no
-AllowUsers ${ADMIN_USER} deploy
+AllowUsers ${ADMIN_USER} ${deploy_user}
 CONF
 sshd -t
 systemctl reload ssh
@@ -140,44 +144,5 @@ MaxRetentionSec=1month
 CONF
 systemctl restart systemd-journald
 
-step "Deploy user and directory layout"
-if ! id deploy >/dev/null 2>&1; then
-  useradd --create-home --shell /bin/bash deploy
-fi
-# Membership in the docker group is root-equivalent; deploy has no sudo and
-# its CI key is restricted to deploy/bin/lictory-remote.
-usermod -aG docker deploy
-install -d -m 0700 -o deploy -g deploy /home/deploy/.ssh
-touch /home/deploy/.ssh/authorized_keys
-chown deploy:deploy /home/deploy/.ssh/authorized_keys
-chmod 0600 /home/deploy/.ssh/authorized_keys
-install -d -m 0750 -o deploy -g deploy "$root" "$root/bin"
-for file in "$source_dir"/bin/* "$source_dir"/deploy.sh; do
-  install -m 0755 -o deploy -g deploy "$file" "$root/bin/$(basename "$file")"
-done
-for environment in $environments; do
-  case "$environment" in production | staging) ;; *) echo "Unknown environment $environment" >&2; exit 1 ;; esac
-  install -d -m 0750 -o deploy -g deploy "$root/$environment" "$root/$environment/releases" "$root/$environment/postgres"
-  install -m 0555 -o deploy -g deploy "$source_dir/postgres/10-lictory-roles.sh" "$root/$environment/postgres/10-lictory-roles.sh"
-done
-
-step "Backup and monitoring timers"
-install -m 0644 "$source_dir"/provision/systemd/* /etc/systemd/system/
-systemctl daemon-reload
-for environment in $environments; do
-  systemctl enable "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer"
-  # Timers start once the environment has a .env and an active release.
-  if [ -f "$root/$environment/.env" ] && [ -e "$root/$environment/current" ]; then
-    systemctl start "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer"
-  fi
-done
-
-step "Done"
-cat <<EOF
-Next steps (docs/operations/deployment.md, "First launch"):
-  1. sudo -u deploy $source_dir/provision/new-environment.sh <environment>   # secrets
-  2. Add the release automation key to /home/deploy/.ssh/authorized_keys with
-     command="$root/bin/lictory-remote",restrict
-  3. Configure the production workflow's SSH variables; it supplies temporary GHCR authentication.
-  4. Deploy the first release, then: systemctl start lictory-backup@<env>.timer lictory-monitor@<env>.timer
-EOF
+# Deploy user, directory layout, host tools and timers (any distribution).
+DEPLOY_USER="$deploy_user" bash "$source_dir/provision/install.sh"

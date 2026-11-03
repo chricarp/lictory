@@ -8,7 +8,11 @@ import { eq } from "drizzle-orm";
 import { createInvitationEmail } from "@lictory/core/emails/invitation-email";
 import { sendEmail } from "@lictory/core/lib/mailer";
 import * as schema from "@lictory/core/db/auth-schema";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 
 import { authSchemaOptions } from "@lictory/core/lib/auth-schema-options";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
@@ -29,11 +33,27 @@ import {
   refreshDirectories,
 } from "@lictory/core/domain/projections";
 import { trackServer } from "@lictory/core/lib/analytics/server";
+import {
+  recordAccountDeleted,
+  recordAuthAudit,
+} from "@lictory/core/lib/auth-audit";
+import {
+  auditedAuthPaths,
+  rememberPreviousRole,
+} from "@lictory/core/lib/auth-audit-plan";
 import { importProviderPhoto } from "@lictory/core/profile/server";
 import {
   microsoftEmailPolicy,
   validateMicrosoftAccountLink,
 } from "@lictory/core/lib/microsoft-auth";
+import {
+  OIDC_PROVIDER_ID,
+  oidcPlugins,
+  oidcSettings,
+  passwordFlowClosed,
+  passwordLoginEnabled,
+  validateOidcAccountLink,
+} from "@lictory/core/lib/sso";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
   "/sign-up/email": "password",
@@ -49,6 +69,11 @@ const microsoftEnabled = Boolean(
   process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET,
 );
 const oauthProxy = oauthProxyConfig(process.env);
+const oidc = oidcSettings(process.env);
+const passwordLogin = passwordLoginEnabled(
+  process.env,
+  Boolean(oidc) || googleEnabled || microsoftEnabled,
+);
 
 // Directories list each member's name, email, photo, handle and application
 // role, and organization profiles carry names and slugs. Better Auth commits
@@ -72,7 +97,7 @@ export const auth = betterAuth({
     schema,
   }),
   emailAndPassword: {
-    enabled: true,
+    enabled: passwordLogin,
     requireEmailVerification: true,
     minPasswordLength: MIN_PASSWORD_LENGTH,
     maxPasswordLength: MAX_PASSWORD_LENGTH,
@@ -103,7 +128,9 @@ export const auth = betterAuth({
     ...authSchemaOptions.user,
     changeEmail: { enabled: true },
     deleteUser: { enabled: true },
-    validateUserInfo: validateMicrosoftAccountLink,
+    validateUserInfo: async (info, context) =>
+      (await validateMicrosoftAccountLink(info, context)) ??
+      validateOidcAccountLink(info, context),
   },
   socialProviders: {
     ...(googleEnabled
@@ -135,14 +162,17 @@ export const auth = betterAuth({
   // default), so nobody can pre-register someone else's address with a
   // password and inherit their Google sign-in. Google always verifies email
   // ownership, so it is trusted; Microsoft requires explicit linking from an
-  // authenticated account. Explicit linking from account settings requires the
-  // same email, and the last sign-in method cannot be removed.
+  // authenticated account. The company OIDC provider links implicitly only when
+  // its `email_verified` claim is true, explicitly like Microsoft (lib/sso.ts).
+  // Explicit linking from account settings requires the same email, and the
+  // last sign-in method cannot be removed.
   account: {
     accountLinking: {
       enabled: true,
-      // Microsoft is allowed for explicit links; the user validation gate
-      // rejects implicit links regardless of the provider's email claim.
-      trustedProviders: ["google", "microsoft"],
+      // Microsoft and OIDC are allowed for explicit links; the user validation
+      // gates reject implicit links (OIDC: unless the provider verified the
+      // email).
+      trustedProviders: ["google", "microsoft", OIDC_PROVIDER_ID],
       allowDifferentEmails: false,
       updateUserInfoOnLink: false,
     },
@@ -161,6 +191,7 @@ export const auth = betterAuth({
         after: async (user) => {
           const organizationIds = deletedMemberships.get(user.id) ?? [];
           deletedMemberships.delete(user.id);
+          await recordAccountDeleted(user, organizationIds);
           await refreshOrganizations(organizationIds);
         },
       },
@@ -244,11 +275,27 @@ export const auth = betterAuth({
         await refreshOrganizations([left]);
       if (event && userId && !(ctx.context.returned instanceof APIError))
         trackServer(userId, event, {}, ctx.headers);
+      // Membership changes are audited whether or not analytics is enabled.
+      if (
+        auditedAuthPaths.has(ctx.path) &&
+        !(ctx.context.returned instanceof APIError)
+      ) {
+        const session =
+          ctx.context.session ??
+          (await getSessionFromCtx(ctx).catch(() => null));
+        await recordAuthAudit(
+          ctx.path,
+          ctx.body,
+          ctx.context.returned,
+          session ? { id: session.user.id } : null,
+        );
+      }
     }),
     // Better Auth enforces length; whitespace is our own rule. Only paths
     // that set a new password are checked, so sign-in keeps working for any
     // password that already exists.
     before: createAuthMiddleware(async (ctx) => {
+      passwordFlowClosed(ctx.path, passwordLogin);
       // Normalize before Better Auth's uniqueness checks, including direct API
       // callers. Name-only updates leave legacy generated handles untouched.
       const body = ctx.body as
@@ -308,12 +355,20 @@ export const auth = betterAuth({
       allowPasswordless: true,
     }),
     // WebAuthn is bound to the platform's one public origin, never to the
-    // request's Host or Origin headers.
-    passkey({
-      rpID: new URL(platformUrl()).hostname,
-      rpName: "Lictory",
-      origin: platformUrl(),
-    }),
+    // request's Host or Origin headers. SSO-only installations leave passkeys
+    // off: the company identity provider decides who may sign in, and a
+    // passkey sign-in would go around it. The table stays in the schema.
+    ...(passwordLogin
+      ? [
+          passkey({
+            rpID: new URL(platformUrl()).hostname,
+            rpName: "Lictory",
+            origin: platformUrl(),
+          }),
+        ]
+      : []),
+    // Company identity provider (OpenID Connect), when configured.
+    ...oidcPlugins(oidc),
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
       sendInvitationEmail: async ({
@@ -388,7 +443,12 @@ export const auth = betterAuth({
         afterRemoveMember: async ({ organization }) => {
           await refreshOrganizations([organization.id]);
         },
-        afterUpdateMemberRole: async ({ organization }) => {
+        afterUpdateMemberRole: async ({
+          organization,
+          member,
+          previousRole,
+        }) => {
+          rememberPreviousRole(member.id, previousRole);
           await refreshOrganizations([organization.id]);
         },
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
@@ -409,4 +469,11 @@ export const auth = betterAuth({
 export const authProviders = {
   google: googleEnabled,
   microsoft: microsoftEnabled,
+  oidc: Boolean(oidc),
+};
+
+// How people sign in on this installation, for the sign-in pages.
+export const signInOptions = {
+  password: passwordLogin,
+  ssoName: oidc?.displayName ?? null,
 };

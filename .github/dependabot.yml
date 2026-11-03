@@ -1,9 +1,13 @@
 version: 2
+# A week of cooldown lets the ecosystem catch a compromised or broken release
+# before it is proposed here. Security updates are not delayed.
 updates:
   - package-ecosystem: bun
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       development:
@@ -13,6 +17,37 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
+  # Base images are pinned as image:tag@sha256:digest. Dependabot refreshes the
+  # digest when a tag is rebuilt (base OS fixes) and proposes newer tags. Major
+  # versions are deliberate upgrades (PostgreSQL needs a data upgrade), and the
+  # Bun and Zero images must move together with package.json, so review those
+  # bumps against the matching npm and packageManager versions.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+  - package-ecosystem: docker-compose
+    directories: [/, /deploy]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]

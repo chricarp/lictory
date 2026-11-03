@@ -23,6 +23,10 @@ adding domain writes or synchronized entities.
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Audit log](./internals/audit.md): what is recorded, immutability,
+  retention and how features record new events
+- [Organization data export](./internals/data-export.md): the export job,
+  what an archive contains, and the archive format and its versioning
 - [Database model](./internals/database-model.md)
 - [Lictory Intelligence](./internals/ai.md)
 - [Notifications](./internals/notifications.md)
@@ -37,6 +41,8 @@ adding domain writes or synchronized entities.
 - [Product analytics](./internals/analytics.md)
 - [Brand identity](./internals/brand.md)
 - [State illustrations and design brief](./internals/illustrations.md)
+- [Accessibility](./internals/accessibility.md): the WCAG 2.2 AA target,
+  automated lint and browser checks, and known gaps
 
 ## Operations
 
@@ -44,10 +50,15 @@ adding domain writes or synchronized entities.
   Docker Compose topology, Openship operations, worker scheduling, first launch and releases
 - [Websites on Cloudflare](./operations/cloudflare-marketing.md): public domains,
   static HTML, the platform SPA and manually selected stable deployments
+- [Existing reverse proxy, internal CA and plain HTTP](./operations/reverse-proxy.md):
+  nginx and Traefik in front of the gateway, WebSockets, streaming, client
+  addresses, certificates and the limits of plain HTTP
 - [Backups and recovery](./operations/recovery.md): backups, restore drills,
   database, Zero replica and worker recovery
 - [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and
   separate production/development clients
+- [Single sign-on](./operations/sso.md): a company OpenID Connect identity
+  provider (Okta, Entra ID, Keycloak, Dex…) and SSO-only installations
 - [Versions, release preparation and hotfixes](./operations/releases.md)
 - [Database migrations](./operations/migrations.md)
 - [Public legal notices](./operations/legal.md)

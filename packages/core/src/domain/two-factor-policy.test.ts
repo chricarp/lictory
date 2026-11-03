@@ -12,7 +12,9 @@ import {
 } from "@lictory/core/capabilities/core";
 import { invoke } from "@lictory/core/capabilities/registry";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { auditLogCsv, readAuditLog } from "@lictory/core/domain/audit-log";
 import { authorize, directory } from "@lictory/core/domain/service";
+import { openOrganizationExport } from "@lictory/core/export/service";
 import { heldOrganizations } from "@lictory/core/domain/two-factor-policy";
 
 const adminUrl =
@@ -94,11 +96,11 @@ async function rejection(promise: Promise<unknown>) {
 async function audit(organizationId: string, action: string) {
   return db
     .select()
-    .from(s.configurationAudit)
+    .from(s.auditEvent)
     .where(
       and(
-        eq(s.configurationAudit.organizationId, organizationId),
-        eq(s.configurationAudit.action, action),
+        eq(s.auditEvent.organizationId, organizationId),
+        eq(s.auditEvent.action, action),
       ),
     );
 }
@@ -141,11 +143,14 @@ void test("requiring two-factor holds members without it on every server path un
   })) as { requireTwoFactor: boolean; membersWithoutTwoFactor: number };
   assert.equal(result.requireTwoFactor, true);
   assert.equal(result.membersWithoutTwoFactor, 1);
-  const [recorded] = await audit(organizationId, "setTwoFactorRequirement");
+  const [recorded] = await audit(
+    organizationId,
+    "two_factor.requirement_changed",
+  );
   assert.equal(recorded?.actorId, owner);
   assert.deepEqual(recorded?.detail, {
     requireTwoFactor: true,
-    previous: { requireTwoFactor: false },
+    previous: false,
   });
 
   // The member is held: capabilities on every surface, domain authorization
@@ -198,7 +203,7 @@ void test("requiring two-factor holds members without it on every server path un
   });
   await authorize(db, member, organizationId);
   assert.equal(
-    (await audit(organizationId, "setTwoFactorRequirement")).length,
+    (await audit(organizationId, "two_factor.requirement_changed")).length,
     2,
   );
   // Administrators see who has two-factor; members do not.
@@ -293,16 +298,49 @@ void test("an administrator resets a member's two-factor with an audit entry", a
       .where(eq(s.verification.value, member)),
     [],
   );
-  const [entry] = await audit(organizationId, "resetMemberTwoFactor");
+  const [entry] = await audit(organizationId, "two_factor.member_reset");
   assert.equal(entry?.actorId, adminWith);
-  assert.equal(
-    (entry?.detail as { memberUserId?: string }).memberUserId,
-    member,
-  );
+  assert.equal(entry?.targetType, "member");
+  assert.equal(entry?.targetId, member);
   // Nothing left to reset; owners can reset other owners and admins.
   assert.equal(
     (await rejection(reset(adminWith, member))).category,
     "validation",
   );
   await reset(owner, adminWith);
+});
+
+void test("a held administrator cannot download the audit log or a data export", async () => {
+  const owner = await user("Owner", true);
+  const heldAdmin = await user("Held admin");
+  const organizationId = await organization([
+    [owner, "owner"],
+    [heldAdmin, "admin"],
+  ]);
+  await invoke(as(owner), "setTwoFactorRequirement", {
+    organizationId,
+    required: true,
+  });
+
+  // The download routes call these directly, without the capability registry.
+  const csv = await rejection(auditLogCsv(db, heldAdmin, organizationId, {}));
+  assert.equal(csv.kind, "two_factor_required");
+  const archive = await rejection(
+    openOrganizationExport(db, heldAdmin, organizationId, crypto.randomUUID()),
+  );
+  assert.equal(archive.kind, "two_factor_required");
+
+  // The enrolled owner reads the policy change in the audit log.
+  const { entries } = await readAuditLog(db, owner, organizationId, {
+    category: "access",
+  });
+  assert.deepEqual(
+    entries.map((e) => [e.action, e.summary]),
+    [
+      [
+        "two_factor.requirement_changed",
+        "Required two-factor authentication for members",
+      ],
+    ],
+  );
 });

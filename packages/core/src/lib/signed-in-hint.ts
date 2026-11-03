@@ -13,7 +13,7 @@ const maxAgeSeconds = 7 * 24 * 60 * 60;
 /**
  * The `Domain` attribute that makes the hint visible to both hosts: none when
  * they are the same host (cookies ignore ports), their shared parent domain
- * otherwise (`app.lictory.com` and `lictory.com` share `lictory.com`), or
+ * otherwise (`app.example.com` and `example.com` share `example.com`), or
  * `null` when they share no domain the browser would accept.
  */
 export function signedInHintDomain(

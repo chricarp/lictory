@@ -8,13 +8,13 @@ import { configuredOrigin } from "@lictory/marketing/lib/platform";
 
 /**
  * The canonical public origin of this website. Never derived from a request
- * Host header. Pages are prerendered, so it is fixed at build time.
+ * Host header. Pages are prerendered, so it is fixed at build time. Production
+ * builds set SITE_URL (the Dockerfile and the deployment workflow require it);
+ * the fallback is the local development server, never a public domain.
  */
 export const siteUrl = configuredOrigin(
   process.env.SITE_URL,
-  process.env.NODE_ENV === "production"
-    ? "https://lictory.com"
-    : "http://localhost:3100",
+  "http://localhost:3100",
 );
 
 /** RSS feed of the guides, so feed readers and crawlers notice new ones. */

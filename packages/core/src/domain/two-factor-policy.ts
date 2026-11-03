@@ -1,6 +1,7 @@
 import { and, asc, eq, like, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
+import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { DomainError } from "@lictory/core/domain/errors";
 import type { Database, Tx } from "@lictory/core/domain/service";
 
@@ -171,21 +172,6 @@ async function lock(tx: Tx, organizationId: string) {
   );
 }
 
-async function auditSecurity(
-  tx: Tx,
-  organizationId: string,
-  actorId: string,
-  action: string,
-  detail: Record<string, unknown>,
-) {
-  await tx.insert(s.configurationAudit).values({
-    organizationId,
-    actorId,
-    action,
-    detail,
-  });
-}
-
 // Turning the requirement on needs the administrator's own two-factor, so
 // the person enabling it is never the first one locked out. Turning it off
 // is always possible for an administrator who can reach the organization.
@@ -221,16 +207,12 @@ export async function setTwoFactorRequirement(
             updatedAt: new Date(),
           },
         });
-      await auditSecurity(
-        tx,
+      await recordAuditEvent(tx, {
         organizationId,
-        userId,
-        "setTwoFactorRequirement",
-        {
-          requireTwoFactor: required,
-          previous: { requireTwoFactor: previous },
-        },
-      );
+        actor: { id: userId },
+        action: "two_factor.requirement_changed",
+        detail: { requireTwoFactor: required, previous },
+      });
     }
     const [{ held }] = (await tx
       .select({ held: sql<number>`count(*)::int` })
@@ -321,9 +303,16 @@ export async function resetMemberTwoFactor(
           eq(s.verification.value, memberUserId),
         ),
       );
-    await auditSecurity(tx, organizationId, userId, "resetMemberTwoFactor", {
-      memberUserId,
-      memberEmail: target.email,
+    await recordAuditEvent(tx, {
+      organizationId,
+      actor: { id: userId },
+      action: "two_factor.member_reset",
+      target: {
+        type: "member",
+        id: memberUserId,
+        label: target.name || target.email,
+      },
+      detail: { email: target.email },
     });
     return {
       member: { userId: memberUserId, name: target.name, email: target.email },

@@ -19,7 +19,10 @@ import { SignUpForm } from "@lictory/platform/components/auth/sign-up-form";
 import { SocialButtons } from "@lictory/platform/components/auth/social-buttons";
 import { VerificationStatus } from "@lictory/platform/components/auth/verification-status";
 import { Link, useSearchParams } from "@lictory/platform/lib/navigation";
-import { useAuthProviders } from "@lictory/platform/lib/session";
+import {
+  useAuthProviders,
+  useSignInOptions,
+} from "@lictory/platform/lib/session";
 import { PageTitle } from "@lictory/platform/routes/title";
 
 // Account flows: public pages inside the auth layout. Every destination after
@@ -32,6 +35,7 @@ function useCallbackPath(name = "callbackUrl") {
 export function SignInPage() {
   const params = useSearchParams();
   const providers = useAuthProviders();
+  const { password, ssoName } = useSignInOptions();
   const callbackURL = useCallbackPath();
   const here = `/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`;
   return (
@@ -41,20 +45,27 @@ export function SignInPage() {
       <AccountLegalNotice signIn />
       <SocialButtons
         providers={providers}
+        ssoName={ssoName}
+        passwordForm={password}
         callbackURL={callbackURL}
         errorCallbackURL={here}
         error={params.get("error") ?? undefined}
       />
-      <PasskeySignIn callbackURL={callbackURL} />
-      <SignInForm callbackURL={callbackURL} />
-      <AuthFooter>
-        New to Lictory?{" "}
-        <AuthLink
-          href={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
-        >
-          Create an account
-        </AuthLink>
-      </AuthFooter>
+      {/* SSO-only installations: the provider creates accounts as well. */}
+      {password && (
+        <>
+          <PasskeySignIn callbackURL={callbackURL} />
+          <SignInForm callbackURL={callbackURL} />
+          <AuthFooter>
+            New to Lictory?{" "}
+            <AuthLink
+              href={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
+            >
+              Create an account
+            </AuthLink>
+          </AuthFooter>
+        </>
+      )}
     </>
   );
 }
@@ -62,6 +73,7 @@ export function SignInPage() {
 export function SignUpPage() {
   const params = useSearchParams();
   const providers = useAuthProviders();
+  const { password, ssoName } = useSignInOptions();
   const callbackURL = useCallbackPath();
   return (
     <>
@@ -70,11 +82,13 @@ export function SignUpPage() {
       <AccountLegalNotice />
       <SocialButtons
         providers={providers}
+        ssoName={ssoName}
+        passwordForm={password}
         callbackURL={callbackURL}
         errorCallbackURL={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
         error={params.get("error") ?? undefined}
       />
-      <SignUpForm callbackURL={callbackURL} />
+      {password && <SignUpForm callbackURL={callbackURL} />}
       <AuthFooter>
         Already have an account?{" "}
         <AuthLink
@@ -88,6 +102,7 @@ export function SignUpPage() {
 }
 
 export function ForgotPasswordPage() {
+  if (!useSignInOptions().password) return <PasswordLoginDisabled />;
   return (
     <>
       <PageTitle title="Reset your password" />
@@ -105,6 +120,7 @@ export function ForgotPasswordPage() {
 
 export function ResetPasswordPage() {
   const token = useSearchParams().get("token") ?? undefined;
+  if (!useSignInOptions().password) return <PasswordLoginDisabled />;
   return (
     <>
       <PageTitle title="Choose a new password" />
@@ -113,6 +129,21 @@ export function ResetPasswordPage() {
         description="Use at least 10 characters. A unique passphrase works best."
       />
       <ResetPasswordForm token={token} />
+      <AuthFooter>
+        <AuthLink href="/sign-in">Back to sign in</AuthLink>
+      </AuthFooter>
+    </>
+  );
+}
+
+function PasswordLoginDisabled() {
+  return (
+    <>
+      <PageTitle title="Passwords are turned off" />
+      <AuthHeading
+        title="Passwords are turned off"
+        description="This installation signs people in through your company account. There is no password to reset."
+      />
       <AuthFooter>
         <AuthLink href="/sign-in">Back to sign in</AuthLink>
       </AuthFooter>

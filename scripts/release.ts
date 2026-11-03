@@ -130,17 +130,7 @@ function buildConfiguration(
 ): BuildConfiguration {
   return {
     registry,
-    siteUrl: required("SITE_URL"),
-    platformUrl: required("PLATFORM_URL"),
     sourceUrl: `https://github.com/${required("GITHUB_REPOSITORY")}`,
-    posthogProjectToken: optional("POSTHOG_PROJECT_TOKEN"),
-    posthogHost: optional("POSTHOG_HOST"),
-    legal: {
-      name: optional("LICTORY_LEGAL_NAME"),
-      address: optional("LICTORY_LEGAL_ADDRESS"),
-      email: optional("LICTORY_LEGAL_EMAIL"),
-      registration: optional("LICTORY_LEGAL_REGISTRATION"),
-    },
     previousProxyImage,
     cacheRegistry: optional("IMAGE_CACHE_REGISTRY"),
   };

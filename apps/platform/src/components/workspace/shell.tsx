@@ -700,7 +700,7 @@ function Sidebar({
           trigger={(props) => (
             <button
               {...props}
-              aria-label="Account menu"
+              aria-label={`Account menu: ${user.name || user.email}`}
               title={
                 collapsed ? `Account: ${user.name || user.email}` : undefined
               }
@@ -709,11 +709,14 @@ function Sidebar({
                 collapsed ? "size-8 justify-center" : "-ml-1 flex-1",
               )}
             >
-              <Avatar
-                image={user.image}
-                name={user.name || user.email}
-                size="sm"
-              />
+              {/* The name already says whose account this is. */}
+              <span aria-hidden className="inline-flex shrink-0">
+                <Avatar
+                  image={user.image}
+                  name={user.name || user.email}
+                  size="sm"
+                />
+              </span>
               {!collapsed && (
                 <>
                   <span className="min-w-0 flex-1 truncate text-xs font-medium">
@@ -804,9 +807,9 @@ function InboxLink({
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground"),
             )}
-            aria-label={`${count} ${unread ? "unread" : "to do"}`}
           >
             {count > 99 ? "99+" : count}
+            <span className="sr-only">{unread ? " unread" : " to do"}</span>
           </span>
         ) : undefined
       }
@@ -851,9 +854,14 @@ function ProjectSwitcher({
             )}
           >
             {project ? (
-              <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground">
-                {collapsed ? project.key.slice(0, 2) : project.key}
-              </span>
+              // A visual aid drawn as generated content: the button is named
+              // after the project, and the key as text would not match that
+              // name (WCAG 2.5.3).
+              <span
+                aria-hidden
+                data-key={collapsed ? project.key.slice(0, 2) : project.key}
+                className="grid h-5 min-w-5 shrink-0 place-items-center rounded bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground before:content-[attr(data-key)]"
+              />
             ) : (
               <FolderOpen
                 className="size-4 text-muted-foreground"
@@ -1142,10 +1150,12 @@ function NavLink({
   badge?: ReactNode;
 }) {
   const collapsed = useContext(CollapsedSidebarContext);
+  const badgeId = useId();
+  // Named by its label alone; a badge (an unread count) describes it.
   return (
     <Link
       href={href}
-      aria-label={children}
+      aria-describedby={badge ? badgeId : undefined}
       title={collapsed ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
@@ -1157,14 +1167,22 @@ function NavLink({
       )}
     >
       {icon ? (
-        <span className="grid size-4 place-items-center text-muted-foreground">
+        // Decorative next to the label (type icons are named images).
+        <span
+          aria-hidden
+          className="grid size-4 place-items-center text-muted-foreground"
+        >
           {icon}
         </span>
       ) : (
         <span className="size-4" />
       )}
       <span className={collapsed ? "sr-only" : undefined}>{children}</span>
-      {badge}
+      {badge && (
+        <span id={badgeId} aria-hidden className="contents">
+          {badge}
+        </span>
+      )}
       <PendingHint />
     </Link>
   );

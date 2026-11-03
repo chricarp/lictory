@@ -91,7 +91,8 @@ signed-in person sees.
 The one exception is a signed-in hint, the pattern GitHub uses with its
 `logged_in` cookie. While someone is signed in, the application keeps a
 `lictory_signed_in=1` cookie on the domain it shares with the website
-(`lictory.com`, derived from `VITE_SITE_URL`), and it clears the cookie when they
+(derived from `SITE_URL`, which the application reads from its runtime
+configuration), and it clears the cookie when they
 sign out. The cookie carries no identity and grants nothing. After hydration the
 website reads it in the browser and changes "Log in", "Sign up" and "Start for
 free" into a single "Open workspace" link. Crawlers and the prerendered HTML
@@ -105,8 +106,8 @@ Links shared before the split (`/app/...`, `/sign-in`,
 once the landing page for signed-in people, redirects to `/`.
 
 The files are generated at build time from `SITE_URL`, which must be the
-canonical HTTPS origin (production builds default to `https://lictory.com`); no
-request Host header is used. Rebuild after changing it.
+canonical HTTPS origin (unset, the build falls back to the local development
+origin); no request Host header is used. Rebuild after changing it.
 
 Allowing AI crawlers is a product decision: being cited by AI assistants is
 worth more to Lictory than keeping public marketing copy out of their training

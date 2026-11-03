@@ -178,6 +178,20 @@ export const browserOperations: readonly BrowserOperation[] = [
     authClient: ["organization.updateMemberRole"],
   },
   {
+    name: "exportAuditLog",
+    title: "Export the audit log as CSV",
+    reason: "audit",
+    where: "Organization settings → Audit log → Export CSV",
+    routes: ["GET /api/organizations/:id/audit-log.csv"],
+  },
+  {
+    name: "downloadOrganizationExport",
+    title: "Download an organization data export",
+    reason: "export",
+    where: "Organization settings → Data export",
+    routes: ["GET /api/organizations/:id/exports/:exportId/archive"],
+  },
+  {
     name: "manageLittoChats",
     title: "Chat with Litto, or rename, stop or delete Litto conversations",
     reason: "conversation",
@@ -308,7 +322,7 @@ export function humanOnlyCapability(all: () => readonly AnyCapability[]) {
     name: "listHumanOnlyOperations",
     title: "List human-only operations",
     description:
-      "What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, Litto conversations, browser preferences), with the reason and where the person does each one. Call it before telling someone a tool is missing.",
+      "What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, the audit log, organization data exports, Litto conversations, browser preferences), with the reason and where the person does each one. Call it before telling someone a tool is missing.",
     kind: "query",
     surfaces: everywhere,
     idempotent: true,

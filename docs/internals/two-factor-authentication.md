@@ -15,8 +15,8 @@ factors; Lictory owns the organization policy, its enforcement and recovery.
   Turning it off needs the password (when the account has one) and a fresh
   session.
 - **Second step at sign-in.** Only email and password sign-ins ask for the
-  code or a backup code. Google and Microsoft sign-ins rely on the provider's
-  own checks; organizations that need more should use their identity
+  code or a backup code. Google, Microsoft and company identity provider
+  (OIDC) sign-ins rely on the provider's own checks; organizations that need more should use their identity
   provider's multi-factor policy. People without a password can still turn
   it on (and so meet an organization's requirement); it is asked for once
   they add a password. "Trust this device" is not offered.
@@ -27,6 +27,10 @@ factors; Lictory owns the organization policy, its enforcement and recovery.
   `PLATFORM_URL` to another host makes existing passkeys unusable, as WebAuthn
   binds them to the host name. A passkey does not count as two-factor
   authentication, because the password still signs in on its own.
+  SSO-only installations (`PASSWORD_LOGIN_ENABLED=false`, see
+  [SSO](../operations/sso.md)) turn passkeys off: the passkey endpoints are
+  not registered and the pages hide them, because a passkey sign-in would go
+  around the identity provider that decides who may sign in.
 
 ## Organization policy
 
@@ -60,8 +64,8 @@ Lockout rules:
   held like any member and enroll to regain access.
 - Turning the requirement off is always possible for an administrator who is
   not held.
-- Every change is recorded in `configuration_audit`
-  (`setTwoFactorRequirement`, with the previous value).
+- Every change is recorded in the [audit log](audit.md)
+  (`two_factor.requirement_changed`, with the previous value).
 
 ## Recovery
 
@@ -73,8 +77,8 @@ Lockout rules:
    stay; if the organization requires two-factor they are held until they
    enroll again. Rules: the administrator needs their own two-factor, cannot
    reset themselves (they use Account settings), and only an owner can reset
-   an owner. The reset is recorded in `configuration_audit`
-   (`resetMemberTwoFactor`, with the member's id and email).
+   an owner. The reset is recorded in the [audit log](audit.md)
+   (`two_factor.member_reset`, with the member as the target).
 
 Resetting is organization-level rather than an instance operator action
 because organization administrators are the people who can verify a member's

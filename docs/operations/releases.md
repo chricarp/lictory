@@ -95,8 +95,7 @@ candidate again before activation.
    attempt number.
    The `nightly-intent` journal preserves the original candidate across whole-run
    retries, even if another stable release appears while it is being repaired.
-3. Build the four backend images natively for `linux/arm64` with the staging
-   origins and push them to the registry (`IMAGE_REGISTRY`), tagged with the
+3. Build the four backend images natively for `linux/arm64` and push them to the registry (`IMAGE_REGISTRY`), tagged with the
    version; the deployment journal records their digests. Nightlies never run
    production migrations or touch the production server, and the job holds no
    deployment credential.
@@ -140,12 +139,13 @@ record of the decision.
 
 The selected SHA passes the minimal CI workflow (types and migration checks)
 again with the stable version. Only the deploy job accesses the protected
-`Production` environment, its required approvals and the deployment SSH key.
+`Production` environment, its protection rules and the deployment SSH key.
 Its release controller comes from the dispatch's protected `main` commit; the
 application and migration code are checked out in a separate directory at the
 nightly's exact SHA.
 
-The deployment builds **new images with production origins** from that commit,
+The deployment builds **new images** of that commit (stamped with the stable
+version),
 then, on the production server through the restricted SSH command: validates
 that production only moves forward (no older version, no version reuse for
 different code, no unpublished activation pending), prepares the release by
@@ -164,7 +164,10 @@ jobs** to retry the websites with the same tag without repeating the backend
 release. Do not rerun all jobs to recover a frontend failure.
 
 Nightly and Stable share a verified source commit, not byte-identical images:
-their versions and public origins differ.
+their versions differ. Neither embeds a domain or analytics setting; each server
+supplies them at runtime from its `.env` ([deployment](deployment.md)). A
+rebuild of a source that predates runtime configuration uses that source's
+bake-file defaults (lictory.com origins, no browser analytics).
 
 ## Hotfixes
 
@@ -241,27 +244,29 @@ version's identity instead of creating a second version.
 
 Repository variables:
 
-| Variable                                        | Value                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------------- |
-| `RELEASE_BOOTSTRAP_SHA`                         | Exact currently deployed legacy source commit; keep this fallback configured    |
-| `RELEASE_BOOTSTRAP_VERSION`                     | Its clean version, default `0.1.0`; ignored once a stable release exists        |
-| `IMAGE_REGISTRY`                                | Registry namespace for images, for example `ghcr.io/<owner>`                    |
-| `IMAGE_CACHE_REGISTRY`                          | Optional BuildKit cache repository, for example `ghcr.io/<owner>/lictory-cache` |
-| `STAGING_SITE_URL`, `STAGING_PLATFORM_URL`      | Origins compiled into nightly images                                            |
-| `STAGING_POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Optional browser analytics settings for nightlies                               |
-| `LICTORY_LEGAL_*`                               | Legal notice details compiled into the website                                  |
-| `STAGING_DEPLOY_ENABLED`                        | `true` to run every nightly on the staging server                               |
+| Variable                    | Value                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `RELEASE_BOOTSTRAP_SHA`     | Exact currently deployed legacy source commit; keep this fallback configured    |
+| `RELEASE_BOOTSTRAP_VERSION` | Its clean version, default `0.1.0`; ignored once a stable release exists        |
+| `IMAGE_REGISTRY`            | Registry namespace for images, for example `ghcr.io/<owner>`                    |
+| `IMAGE_CACHE_REGISTRY`      | Optional BuildKit cache repository, for example `ghcr.io/<owner>/lictory-cache` |
+| `STAGING_PLATFORM_URL`      | Staging platform origin, recorded on nightly deployments                        |
+| `POSTHOG_HOST`              | Optional website analytics host (production website build)                      |
+| `LICTORY_LEGAL_*`           | Legal notice details compiled into the website                                  |
+| `STAGING_DEPLOY_ENABLED`    | `true` to run every nightly on the staging server                               |
 
-GitHub environment **Production** (required reviewers; branches `main` and
-`release/*` only):
+GitHub environment **Production** (deployment branch `main` only: every
+production job is dispatched from `main`). Add at least one required reviewer so
+production jobs wait for approval; without one they start immediately. It
+holds:
 
 | Setting                                           | Value                                                           |
 | ------------------------------------------------- | --------------------------------------------------------------- |
 | Secret `DEPLOY_SSH_KEY`                           | Private key whose public half is restricted to `lictory-remote` |
 | Variable `DEPLOY_SSH_TARGET`                      | `deploy@<production server>`                                    |
 | Variable `DEPLOY_SSH_KNOWN_HOSTS`                 | The server's verified `ssh-ed25519` host key line               |
-| Variables `SITE_URL`, `PLATFORM_URL`              | `https://lictory.com`, `https://app.lictory.com`                |
-| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Production browser analytics (optional)                         |
+| Variable `PLATFORM_URL`                           | `https://app.lictory.com`, recorded on stable deployments       |
+| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Cloudflare website and platform analytics (optional)            |
 
 GitHub environment **staging** holds the same SSH settings for the staging
 server. Packages are pushed with the workflow's `GITHUB_TOKEN`
@@ -292,16 +297,17 @@ pushes can create nightlies. Import those changes without merging unrelated main
 features. Future stable tags already contain that infrastructure.
 
 Normal operation has no package bump, changelog edit, local deployment, or tag
-push. Legacy stable releases remain valid baselines; their historical changelog
-is retained in `CHANGELOG.md`. Release metadata and journals are not disposable
-CI artifacts and must be retained for selection/recovery. Keep the registry's
-images at least as long as the releases you may roll back to.
+push. Legacy stable releases remain valid baselines. Release metadata and
+journals are not disposable CI artifacts and must be retained for
+selection/recovery. Keep the registry's images at least as long as the releases
+you may roll back to.
 
 GitHub's `queue: max` preserves up to 100 pending runs; avoid exceeding that
 platform limit and inspect canceled runs if it is reached. Actionlint 1.7.12
-does not yet recognize this documented GitHub property: validate with its exact
-`unexpected key "queue" for "concurrency" section` diagnostic suppressed, plus
-the repository's YAML queue/permission/source guardrail tests. All other
-actionlint diagnostics remain enabled. Real deployment credentials and DNS are
+does not yet recognize this documented GitHub property: the **Workflow lint**
+workflow runs actionlint on every `.github/` change with its exact
+`unexpected key "queue" for "concurrency" section` diagnostic suppressed, next
+to zizmor and the repository's YAML queue/permission/source guardrail tests.
+All other actionlint diagnostics remain enabled. Real deployment credentials and DNS are
 one-time operator configuration, not automatically provisioned by repository
 tests.

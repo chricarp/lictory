@@ -53,6 +53,7 @@ export function Avatar({
   const intelligence = name === AI_ACTOR_NAME;
   return (
     <span
+      role="img"
       title={name}
       aria-label={name}
       className={cn(
@@ -68,7 +69,13 @@ export function Avatar({
       {intelligence ? (
         <IntelligenceMark className="size-[62%]" />
       ) : (
-        initials(name)
+        // Drawn, not written: the avatar is named by its label, and initials as
+        // text would join the visible label of a control around it (WCAG 2.5.3).
+        <span
+          aria-hidden
+          data-initials={initials(name)}
+          className="before:content-[attr(data-initials)]"
+        />
       )}
       {!intelligence && src && failed !== src && (
         // Provider photos and private authenticated images cannot use the
