@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "@lictory/ui/logo";
-import { HeaderAccountLinks } from "@lictory/marketing/components/marketing/account-cta";
+import { HeaderGetStartedLinks } from "@lictory/marketing/components/marketing/get-started-cta";
 import { MobileNav } from "@lictory/marketing/components/marketing/mobile-nav";
 
 /** Section anchors point home when this header appears on an article. */
@@ -76,7 +76,7 @@ export function MarketingHeader({ sections = "" }: { sections?: string }) {
         <Logo className="header-logo" />
         <DesktopNav links={links} activeHref={activeHref} />
         <div className="header-account">
-          <HeaderAccountLinks />
+          <HeaderGetStartedLinks />
         </div>
         <MobileNav links={links} activeHref={activeHref} />
       </div>

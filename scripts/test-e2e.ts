@@ -258,7 +258,6 @@ try {
       ...appEnv,
       API_ORIGIN: `http://localhost:${ports.api}`,
       NODE_ENV: "production" as const,
-      NEXT_PUBLIC_PLATFORM_URL: platformUrl,
       NEXT_TELEMETRY_DISABLED: "1",
     };
     await run(

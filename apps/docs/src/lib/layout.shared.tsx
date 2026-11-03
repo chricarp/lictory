@@ -7,9 +7,6 @@ export function baseOptions(): BaseLayoutProps {
   return {
     nav: { title: <Wordmark /> },
     githubUrl: site.repository,
-    links: [
-      { text: "Website", url: site.website, external: true },
-      { text: "Open Lictory", url: site.app, external: true },
-    ],
+    links: [{ text: "Website", url: site.website, external: true }],
   };
 }

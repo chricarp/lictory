@@ -51,12 +51,9 @@ for (const path of ["/privacy", "/terms-of-service"]) {
       "href",
       new URL(path, page.url()).toString(),
     );
-    // Signing in happens in the application, on its own origin.
-    const signIn = page
-      .getByRole("banner")
-      .getByRole("link", { name: "Sign in" });
-    const target = new URL((await signIn.getAttribute("href"))!);
-    expect(target.pathname).toBe("/sign-in");
-    expect(target.origin).not.toBe(new URL(page.url()).origin);
+    // Lictory is self-hosted: the header leads to the installation guide.
+    await expect(
+      page.getByRole("banner").getByRole("link", { name: "Get started" }),
+    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/install");
   });
 }

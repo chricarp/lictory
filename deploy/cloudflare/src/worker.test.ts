@@ -1,72 +1,145 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import worker from "./worker";
 
 const env = {
   SITE_KIND: "marketing" as const,
   SITE_URL: "https://lictory.com",
-  PLATFORM_URL: "https://app.lictory.com",
-  BACKEND_ORIGIN: "https://app.lictory.com",
-  ASSETS: { fetch: () => Promise.resolve(new Response("static")) },
+  ASSETS: {
+    fetch: (request: Request) =>
+      Promise.resolve(
+        new Response(`asset ${new URL(request.url).pathname}`, {
+          status: 404,
+        }),
+      ),
+  },
 };
 
-void test("legacy account links and www retain the path and query on the canonical origin", async () => {
-  for (const [path, destination] of [
+const realFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = realFetch;
+});
+
+/** Records the Worker's outgoing requests instead of sending them. */
+function captureFetch(response = () => new Response("ok")) {
+  const sent: Request[] = [];
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    sent.push(new Request(input, init));
+    return Promise.resolve(response());
+  };
+  return sent;
+}
+
+void test("www redirects to the canonical origin with the path and query", async () => {
+  for (const [request, siteUrl, destination] of [
     [
       "https://www.lictory.com/guides/definition-of-ready?ref=shared",
+      "https://lictory.com",
       "https://lictory.com/guides/definition-of-ready?ref=shared",
     ],
     [
-      "https://lictory.com/sign-in?next=%2Fapp",
-      "https://app.lictory.com/sign-in?next=%2Fapp",
-    ],
-    [
-      "https://lictory.com/app//evil.example/path",
-      "https://app.lictory.com//evil.example/path",
+      "https://www.example.org/guides?ref=shared",
+      "https://example.org",
+      "https://example.org/guides?ref=shared",
     ],
   ] as const) {
-    const response = await worker.fetch(new Request(path), env);
+    const response = await worker.fetch(new Request(request), {
+      ...env,
+      SITE_URL: siteUrl,
+    });
     assert.equal(response.status, 308);
     assert.equal(response.headers.get("Location"), destination);
   }
 });
 
-void test("www redirects to the configured website origin, whatever its domain", async () => {
-  const response = await worker.fetch(
-    new Request("https://www.example.org/guides?ref=shared"),
-    { ...env, SITE_URL: "https://example.org" },
-  );
-  assert.equal(response.status, 308);
-  assert.equal(
-    response.headers.get("Location"),
-    "https://example.org/guides?ref=shared",
-  );
+void test("former application and account paths are ordinary website paths", async () => {
+  const sent = captureFetch();
+  for (const path of [
+    "/app",
+    "/app/acme/pay/epics/PAY-1",
+    "/sign-in?next=%2Fapp",
+    "/sign-up",
+    "/reset-password?token=t",
+    "/verify-email",
+    "/welcome",
+    "/auth-error",
+  ]) {
+    const response = await worker.fetch(
+      new Request(`https://lictory.com${path}`),
+      env,
+    );
+    assert.equal(response.status, 404, path);
+    assert.equal(response.headers.get("Location"), null, path);
+  }
+  assert.equal(sent.length, 0);
 });
 
-void test("the platform edge hides internal mutations and rejects foreign WebSocket origins before fetching", async () => {
-  for (const path of ["/api/zero", "/api/zero/query", "/api/zero/mutate"])
-    assert.equal(
-      (
-        await worker.fetch(new Request(`https://app.lictory.com${path}`), {
-          ...env,
-          SITE_KIND: "platform",
-        })
-      ).status,
-      404,
-    );
-  const response = await worker.fetch(
-    new Request("https://app.lictory.com/zero/sync/v1/connect", {
-      headers: { Upgrade: "websocket", Origin: "https://foreign.example" },
-    }),
-    { ...env, SITE_KIND: "platform" },
+void test("the analytics relay forwards to PostHog without cookies", async () => {
+  const sent = captureFetch(
+    () =>
+      new Response("{}", {
+        headers: { "Set-Cookie": "ph=1", "Content-Type": "application/json" },
+      }),
   );
-  assert.equal(response.status, 403);
+  const response = await worker.fetch(
+    new Request("https://lictory.com/relay/e/?ip=0&ver=1", {
+      method: "POST",
+      body: "event",
+      headers: {
+        Cookie: "lictory_analytics_consent=1; session=secret",
+        Authorization: "Bearer secret",
+        "Content-Type": "text/plain",
+        Origin: "https://lictory.com",
+        "CF-Connecting-IP": "192.0.2.7",
+        "X-Forwarded-For": "198.51.100.1",
+      },
+    }),
+    { ...env, POSTHOG_HOST: "https://eu.i.posthog.com" },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Set-Cookie"), null);
+  assert.equal(sent.length, 1);
+  const [upstream] = sent;
+  assert.equal(upstream!.url, "https://eu.i.posthog.com/e/?ip=0&ver=1");
+  assert.equal(upstream!.method, "POST");
+  assert.equal(await upstream!.text(), "event");
+  assert.equal(upstream!.headers.get("cookie"), null);
+  assert.equal(upstream!.headers.get("authorization"), null);
+  assert.equal(upstream!.headers.get("origin"), "https://lictory.com");
+  // Only Cloudflare's view of the visitor, for PostHog's cookieless hash.
+  assert.equal(upstream!.headers.get("x-forwarded-for"), "192.0.2.7");
+
+  // SDK assets come from the regional asset host.
+  await worker.fetch(new Request("https://lictory.com/relay/static/array.js"), {
+    ...env,
+    POSTHOG_HOST: "https://eu.i.posthog.com",
+  });
+  assert.equal(sent[1]!.url, "https://eu-assets.i.posthog.com/static/array.js");
+});
+
+void test("the analytics relay sends nothing while PostHog is not configured", async () => {
+  const sent = captureFetch();
+  for (const [path, host] of [
+    ["/relay/e/", undefined],
+    ["/relay/e/", ""],
+    ["/relay", "https://eu.i.posthog.com"],
+  ] as const) {
+    const response = await worker.fetch(
+      new Request(`https://lictory.com${path}`, { method: "POST" }),
+      { ...env, POSTHOG_HOST: host },
+    );
+    assert.equal(response.status, 404, path);
+  }
+  assert.equal(sent.length, 0);
 });
 
 void test("exported Markdown has a canonical HTML target and cannot be indexed at the internal asset path", async () => {
   const response = await worker.fetch(
     new Request("https://lictory.com/guides/definition-of-ready.md"),
-    env,
+    {
+      ...env,
+      ASSETS: { fetch: () => Promise.resolve(new Response("# Guide")) },
+    },
   );
   assert.equal(
     response.headers.get("Content-Type"),
@@ -87,44 +160,13 @@ void test("exported Markdown has a canonical HTML target and cannot be indexed a
   );
 });
 
-void test("SPA documents preserve private social previews without echoing workspace identifiers", async () => {
-  const response = await worker.fetch(
-    new Request(
-      "https://app.lictory.com/private-organization/items/secret-item",
-    ),
-    {
-      ...env,
-      SITE_KIND: "platform",
-      ASSETS: {
-        fetch: () =>
-          Promise.resolve(
-            new Response("<html><head><!--app-head--></head></html>", {
-              headers: { "Content-Type": "text/html", ETag: "static" },
-            }),
-          ),
-      },
-    },
-  );
-  const html = await response.text();
-  assert.ok(html.includes("Work item in Lictory"));
-  // The bundle carries no installation settings; the Worker supplies them.
-  assert.ok(
-    html.includes(
-      '<script type="application/json" id="lictory-config">{"siteUrl":"https://lictory.com","analytics":null}</script>',
-    ),
-  );
-  assert.ok(!html.includes("private-organization"));
-  assert.ok(!html.includes("secret-item"));
-  assert.equal(response.headers.get("Cache-Control"), "no-store");
-  assert.equal(response.headers.get("X-Robots-Tag"), "noindex, nofollow");
-  assert.equal(response.headers.get("ETag"), null);
-});
-
 void test("the documentation serves only its static files, with the website's security headers", async () => {
+  const sent = captureFetch();
   const docs = {
     ...env,
     SITE_KIND: "docs" as const,
     SITE_URL: "https://docs.lictory.com",
+    POSTHOG_HOST: "https://eu.i.posthog.com",
     ASSETS: {
       fetch: (request: Request) =>
         Promise.resolve(
@@ -134,8 +176,8 @@ void test("the documentation serves only its static files, with the website's se
         ),
     },
   };
-  // No backend behind the documentation, and no website redirects.
-  for (const path of ["/api/search", "/zero/sync", "/relay/e/", "/sign-in"]) {
+  // No relay behind the documentation, and no website redirects.
+  for (const path of ["/api/search", "/zero/sync", "/relay/e/", "/home"]) {
     const response = await worker.fetch(
       new Request(`https://docs.lictory.com${path}`),
       docs,
@@ -143,6 +185,7 @@ void test("the documentation serves only its static files, with the website's se
     assert.equal(response.status, 200, path);
     assert.equal(await response.text(), `asset ${path}`);
   }
+  assert.equal(sent.length, 0);
   const page = await worker.fetch(
     new Request("https://docs.lictory.com/self-hosting/install"),
     docs,

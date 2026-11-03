@@ -1,16 +1,12 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
-/** The application has its own origin; the website only links to it. */
-async function expectApplicationLink(page: Page, link: Locator, path: string) {
-  const href = await link.getAttribute("href");
-  expect(href).not.toBeNull();
-  const target = new URL(href!);
-  expect(target.pathname).toBe(path);
-  expect(target.origin).not.toBe(new URL(page.url()).origin);
-}
+// Lictory is self-hosted: calls to action lead to the installation guide and
+// the source code.
+const installUrl = "https://docs.lictory.com/self-hosting/install";
+const repositoryUrl = "https://github.com/chricarp/lictory";
 
 for (const width of [320, 390]) {
-  test(`mobile landing makes signup visible and demonstrates refinement at ${width}px`, async ({
+  test(`mobile landing makes getting started visible and demonstrates refinement at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -20,13 +16,13 @@ for (const width of [320, 390]) {
     const hero = page.getByRole("region", {
       name: "Agree on what to build before anyone builds it",
     });
-    const signup = hero.getByRole("link", { name: "Start for free" });
+    const start = hero.getByRole("link", { name: "Get started" });
     // Geometry snapshots can race with rendering, even after a visibility check.
     await expect(async () => {
-      const signupBox = await signup.boundingBox();
-      expect(signupBox).not.toBeNull();
-      expect(signupBox!.y + signupBox!.height).toBeLessThan(500);
-      expect(signupBox!.height).toBeGreaterThanOrEqual(44);
+      const startBox = await start.boundingBox();
+      expect(startBox).not.toBeNull();
+      expect(startBox!.y + startBox!.height).toBeLessThan(500);
+      expect(startBox!.height).toBeGreaterThanOrEqual(44);
     }).toPass({ timeout: 30_000 });
 
     // Each illustration is one described image. Under reduced motion it is a
@@ -76,8 +72,7 @@ for (const width of [320, 390]) {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(width);
 
-    // Sign-up lives in the application, on its own origin.
-    await expectApplicationLink(page, signup, "/sign-up");
+    await expect(start).toHaveAttribute("href", installUrl);
   });
 }
 
@@ -130,54 +125,26 @@ test("/home permanently redirects to the landing page", async ({
   );
 });
 
-test("calls to action lead to the application without reading its session", async ({
+test("calls to action lead to the installation guide and the source code", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
   const banner = page.getByRole("banner");
-  await expectApplicationLink(
-    page,
-    banner.getByRole("link", { name: "Sign up" }),
-    "/sign-up",
+  await expect(
+    banner.getByRole("link", { name: "Get started" }),
+  ).toHaveAttribute("href", installUrl);
+  await expect(banner.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+    "href",
+    repositoryUrl,
   );
-  await expectApplicationLink(
-    page,
-    banner.getByRole("link", { name: "Log in" }),
-    "/sign-in",
+  const hero = page.getByRole("region", {
+    name: "Agree on what to build before anyone builds it",
+  });
+  await expect(hero.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+    "href",
+    repositoryUrl,
   );
-  // Every account link, including the persistent header and final call to
-  // action, points at the application origin.
-  const hrefs = await page
-    .locator('a[href*="sign-up"], a[href*="sign-in"], a[href*="/app"]')
-    .evaluateAll((links) => links.map((link) => link.getAttribute("href")!));
-  expect(hrefs.length).toBeGreaterThanOrEqual(4);
-  for (const href of hrefs)
-    expect(new URL(href, page.url()).origin).not.toBe(
-      new URL(page.url()).origin,
-    );
-});
-
-test("links shared before the split reach the application", async ({
-  request,
-}) => {
-  for (const [path, target] of [
-    ["/app", "/"],
-    [
-      "/app/acme/pay/epics/PAY-1?tab=review",
-      "/acme/pay/epics/PAY-1?tab=review",
-    ],
-    ["/app/invitation?id=abc", "/invitation?id=abc"],
-    ["/sign-in?callbackUrl=%2Facme", "/sign-in?callbackUrl=%2Facme"],
-    ["/sign-up", "/sign-up"],
-    ["/reset-password?token=t", "/reset-password?token=t"],
-  ]) {
-    const response = await request.get(path!, { maxRedirects: 0 });
-    expect(response.status(), path).toBe(308);
-    const location = new URL(response.headers().location!);
-    expect(location.pathname + location.search, path).toBe(target);
-    expect(location.origin, path).not.toBe(new URL(response.url()).origin);
-  }
 });
 
 for (const width of [320, 390, 768, 1280]) {
@@ -241,7 +208,7 @@ test("persistent navigation tracks reading position and works from a guide", asy
   ).toHaveAttribute("aria-current", "location");
   await expect(page.getByRole("banner")).toHaveAttribute("data-scrolled");
   await expect(
-    page.getByRole("banner").getByRole("link", { name: "Sign up" }),
+    page.getByRole("banner").getByRole("link", { name: "Get started" }),
   ).toBeInViewport();
   expect(
     await page
@@ -286,7 +253,7 @@ test("mobile navigation dismisses outside, stays closed after resizing and respe
       .getByRole("region", {
         name: "Agree on what to build before anyone builds it",
       })
-      .getByRole("link", { name: "Start for free" }),
+      .getByRole("link", { name: "Get started" }),
   ).toBeFocused();
 
   await toggle.click();

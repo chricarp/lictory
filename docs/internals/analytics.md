@@ -66,16 +66,28 @@ and reloads the page, which starts again in cookieless mode.
 
 ### First-party relay
 
-The browser never contacts PostHog directly. `api_host` is `/relay`, handled on
-each origin (the website's `apps/marketing/src/app/relay/[[...path]]/route.ts`
-and the application's API), so blockers that match PostHog domains do
-not drop analytics. The relay derives the regional ingestion and asset hosts from
-`NEXT_PUBLIC_POSTHOG_HOST`, accepts only plain relative paths, forwards only
+The browser never contacts PostHog directly. `api_host` is `/relay` on the
+page's own origin, so blockers that match PostHog domains do not drop
+analytics. Both relays share one implementation
+(`relayToPosthog` in `packages/core/src/lib/analytics/relay.ts`):
+
+- **Application:** the API relays for its installation, configured by
+  `POSTHOG_HOST` and `POSTHOG_PROJECT_TOKEN`. The visitor's IP is the first
+  `X-Forwarded-For` entry set by the installation's reverse proxy.
+- **Website (`lictory.com`):** the Cloudflare Worker
+  (`deploy/cloudflare/src/worker.ts`) relays straight to the `POSTHOG_HOST`
+  Worker variable; no Lictory backend is involved. The visitor's IP is
+  Cloudflare's `CF-Connecting-IP`; any client-sent `X-Forwarded-For` is
+  ignored. The website's standalone Next.js server (development and the
+  browser suite) rewrites `/relay` to the API instead.
+
+The relay derives the regional ingestion and asset hosts from the configured
+host, accepts only plain relative paths and `GET`/`HEAD`/`POST`, forwards only
 content headers plus the visitor's IP (required for the cookieless hash), and
-never forwards Lictory cookies or returns PostHog cookies. It is disabled when
-analytics is not configured. `skipTrailingSlashRedirect` is enabled because the
-SDK posts to paths such as `/relay/e/`. The server SDK keeps sending to
-`NEXT_PUBLIC_POSTHOG_HOST` directly.
+never forwards Lictory cookies or authorization headers or returns PostHog
+cookies. Without configuration it answers 404 and sends nothing.
+`skipTrailingSlashRedirect` is enabled because the SDK posts to paths such as
+`/relay/e/`. The server SDK keeps sending to `POSTHOG_HOST` directly.
 
 Server-side events (`posthog-node`) and OpenTelemetry logs are not governed by this
 browser choice. They are keyed by authenticated user ID; whether they need consent

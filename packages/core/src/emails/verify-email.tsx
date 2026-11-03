@@ -31,7 +31,7 @@ export function VerifyEmail({ name, verificationUrl }: VerifyEmailProps) {
 
 VerifyEmail.PreviewProps = {
   name: "Alex Morgan",
-  verificationUrl: "https://app.lictory.com/verify-email?token=preview",
+  verificationUrl: "https://lictory.example.com/verify-email?token=preview",
 } satisfies VerifyEmailProps;
 
 export default VerifyEmail;

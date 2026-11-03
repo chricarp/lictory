@@ -11,16 +11,16 @@ before opening a pull request.
 
 One repository, Bun workspaces:
 
-| Workspace        | What it is                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| `apps/platform`  | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
-| `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery     |
-| `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles       |
-| `apps/marketing` | Next.js public website (`lictory.com`), static export, no database                      |
-| `apps/docs`      | Fumadocs documentation (`docs.lictory.com`), static export, no database                 |
-| `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                         |
-| `packages/zero`  | Zero schema, server-defined queries and the mutator                                     |
-| `packages/ui`    | Shared React primitives, theme and consent UI                                           |
+| Workspace        | What it is                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `apps/platform`  | React + Vite + TanStack Router SPA, synchronized with Rocicorp Zero                 |
+| `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery |
+| `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles   |
+| `apps/marketing` | Next.js public website (`lictory.com`), static export, no database                  |
+| `apps/docs`      | Fumadocs documentation (`docs.lictory.com`), static export, no database             |
+| `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                     |
+| `packages/zero`  | Zero schema, server-defined queries and the mutator                                 |
+| `packages/ui`    | Shared React primitives, theme and consent UI                                       |
 
 PostgreSQL is the source of truth. Every domain write maintains read
 projections in the same transaction; Zero replicates only those projections
@@ -94,8 +94,8 @@ SMTP server, which Mailpit captures locally.
 ## OAuth setup
 
 Each OAuth button appears once its provider has credentials in `.env`.
-Configure these redirect URIs in the provider consoles (and the production
-origin's equivalents on `https://app.lictory.com`):
+Configure these redirect URIs in the provider consoles (and their equivalents
+on your installation's address, such as `https://lictory.example.com`):
 
 - Google: `http://localhost:3000/api/auth/callback/google`
 - Microsoft: `http://localhost:3000/api/auth/callback/microsoft`

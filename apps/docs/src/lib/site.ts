@@ -14,6 +14,5 @@ export const site = {
   /** Canonical origin, fixed at build time (the pages are prerendered). */
   url: origin(process.env.SITE_URL),
   website: "https://lictory.com",
-  app: "https://app.lictory.com",
   repository: "https://github.com/chricarp/lictory",
 } as const;

@@ -1,26 +1,12 @@
 import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
-import {
-  configuredOrigin,
-  platformHref,
-  platformUrl,
-} from "./src/lib/platform";
+import { configuredOrigin } from "./src/lib/origin";
 
 // The website imports sources from other workspaces (`@lictory/ui`,
 // `@lictory/core`), so bundling and file tracing start at the monorepo root.
 const monorepoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const staticExport = process.env.MARKETING_STATIC_EXPORT === "true";
-
-const applicationPages = [
-  "/sign-in",
-  "/sign-up",
-  "/forgot-password",
-  "/reset-password",
-  "/verify-email",
-  "/welcome",
-  "/auth-error",
-];
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
@@ -49,8 +35,6 @@ const nextConfig: NextConfig = {
   },
   // The landing page used to be reachable at /home by signed-in people. The
   // website has no session any more, so the alias would only duplicate "/".
-  // Application pages moved to their own origin; links shared or emailed
-  // before the split keep working (the query string is preserved).
   async redirects() {
     if (staticExport) return [];
     const siteOrigin = configuredOrigin(
@@ -65,17 +49,6 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       { source: "/home", destination: "/", permanent: true },
-      { source: "/app", destination: platformHref("/"), permanent: true },
-      {
-        source: "/app/:path*",
-        destination: `${platformUrl}/:path*`,
-        permanent: true,
-      },
-      ...applicationPages.map((source) => ({
-        source,
-        destination: `${platformUrl}${source}`,
-        permanent: true,
-      })),
     ];
   },
   // Markdown versions of public pages for AI assistants live at `<page>.md`.

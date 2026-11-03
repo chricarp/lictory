@@ -1,40 +1,33 @@
 # Websites on Cloudflare
 
-Cloudflare serves three frontends from the maintainer's account. Only the
-platform SPA is part of the released product; the marketing website and the
-documentation live in this repository but are never shipped to self-hosting
-users and deploy on their own.
+Cloudflare serves two static websites from the maintainer's account. Lictory
+itself is distributed only for self-hosting ([self-hosting](self-hosting.md)):
+there is no hosted application, and `app.lictory.com` serves nothing. The
+marketing website and the documentation live in this repository but are never
+shipped to self-hosting users and deploy on their own.
 
 | Site      | Host                             | Source           | Worker              | Deploys                                                   |
 | --------- | -------------------------------- | ---------------- | ------------------- | --------------------------------------------------------- |
 | Marketing | `lictory.com`, `www.lictory.com` | `apps/marketing` | `lictory-marketing` | `deploy-marketing.yml`: pushes to `main`, stable releases |
 | Docs      | `docs.lictory.com`               | `apps/docs`      | `lictory-docs`      | `deploy-docs.yml`: pushes to `main`, stable releases      |
-| Platform  | `app.lictory.com`                | `apps/platform`  | `lictory-platform`  | `deploy-platform.yml`: only with a stable release         |
 
-The API, job worker, PostgreSQL and Zero run on the production VPS managed
-through Openship.
-
-All three Workers run `deploy/cloudflare/src/worker.ts` with a different
+Both Workers run `deploy/cloudflare/src/worker.ts` with a different
 `SITE_KIND`, so security headers (HSTS, `nosniff`, referrer policy, framing)
 and immutable caching of hashed assets are defined once:
 
 - **Marketing** is a Next.js static export. Metadata, social images and
-  Markdown documents are generated at build time. The Worker keeps canonical
-  redirects (`www` to the apex with path and query, legacy application pages
-  to `app.lictory.com`), Markdown media types, and forwards `/relay` to the
-  backend for analytics.
+  Markdown documents are generated at build time. Its calls to action lead to
+  the documentation's installation page and the GitHub repository. The Worker
+  keeps canonical redirects (`www` to the apex with path and query, `/home` to
+  `/`) and Markdown media types, and relays `/relay` straight to PostHog for
+  the website's analytics ([first-party relay](../internals/analytics.md#first-party-relay)).
+  The relay reads the `POSTHOG_HOST` Worker variable, passed with
+  `wrangler deploy --var`; without it `/relay` answers 404 and nothing leaves.
+  Former application paths (`/app/...`, `/sign-in`, `/sign-up` and the other
+  account pages) are not redirected; they are ordinary missing pages.
 - **Docs** is a Fumadocs static export. Search downloads a prebuilt index
   (`/search.json`) and runs in the browser. The Worker only serves files and
   headers: no redirects, no backend, no analytics.
-- **Platform** is Vite's static output with an SPA fallback. Its bundle carries
-  no installation settings: the Worker writes the public runtime configuration
-  into each document, like the API does on a self-hosted server, from
-  `SITE_URL` in `apps/platform/wrangler.jsonc` and the `POSTHOG_PROJECT_TOKEN`,
-  `POSTHOG_HOST` and `ANALYTICS_CONSENT` variables passed with
-  `wrangler deploy --var`. It forwards `/api`, `/zero` and `/relay` (including
-  WebSocket upgrades and streaming responses) to the backend; internal
-  `/api/zero` endpoints stay hidden and cross-origin Zero WebSocket handshakes
-  are rejected. Cookies stay on the public application origin.
 
 ## GitHub configuration
 
@@ -99,22 +92,9 @@ running the workflow once, then revoking the old token.
 
 ## One-time Cloudflare setup
 
-Set `BACKEND_ORIGIN=https://app.lictory.com` in the marketing and platform
-Wrangler files. The platform uses a Cloudflare **Worker Route**, with a proxied
-`app` DNS record pointing to the VPS. Its static assets come from Cloudflare;
-`/api`, `/zero` and `/relay` fetch the HTTPS origin on that same hostname.
-Cloudflare routes same-zone subrequests directly to the DNS-configured origin
-without invoking the Worker again. A Worker Custom Domain has different fetch
-semantics and must not replace this route. See
-[Cloudflare's route documentation](https://developers.cloudflare.com/workers/configuration/routing/routes/).
-Keep PostgreSQL and Zero private behind the gateway. No backend subdomain is
-needed, and Zero's WebSocket endpoint remains under `app.lictory.com/zero`.
-
 Verify each Worker through its provider URL before enabling its production
 route. The marketing routes serve static assets on the apex and `www`; `www`
-redirects to the apex. Point the proxied `app` DNS record at the VPS and
-configure Openship's HTTPS edge for `app.lictory.com`. Preserve the existing
-email DNS records and the Openship dashboard domain.
+redirects to the apex. Preserve the existing email DNS records.
 
 **DNS for the documentation.** The `lictory-docs` Worker Route
 `docs.lictory.com/*` needs a proxied DNS record for `docs` so requests reach
@@ -158,37 +138,15 @@ the database is not rolled back.
 ## Local preview
 
 ```sh
-SITE_URL=https://lictory.com NEXT_PUBLIC_PLATFORM_URL=https://app.lictory.com \
-  bun run --cwd apps/marketing build:cloudflare
+SITE_URL=https://lictory.com bun run --cwd apps/marketing build:cloudflare
 bun run --cwd apps/marketing preview:cloudflare   # http://localhost:8787
 
 SITE_URL=https://docs.lictory.com bun run --cwd apps/docs build:cloudflare
 bun run --cwd apps/docs preview:cloudflare        # http://localhost:8788
 ```
 
-For marketing, verify the home page, guides, comparison pages, legal pages,
-social images, Markdown routes, legacy application redirects, query strings,
+For marketing, verify the home page and its calls to action, guides,
+comparison pages, legal pages, social images, Markdown routes, query strings,
 the Microsoft publisher association file and `www` redirects before switching
-DNS. For docs, verify navigation, search, both themes and the 404 page. Verify
-platform sign-in, API errors, uploads, realtime reconnects and streaming
-through the Cloudflare origin as well as directly on the backend.
-
-## Backend gateway behind Openship
-
-The existing migration controller remains responsible for schema changes,
-replication catch-up and activation. Openship can adopt the running stack in
-place for service visibility and provide saved jobs for its operations; a second
-Compose deploy path must not bypass the controller's migration gate. The backend
-Compose stack contains no website service; the websites never need a Next.js
-server on the VPS. See [Openship production operations](deployment.md#openship-production-operations)
-for service logs, scheduler status and saved recovery jobs.
-
-When Openship owns public ports 80/443, configure the Compose environment with
-`APP_HOST=app.lictory.com`, `PUBLIC_APP_HOST=app.lictory.com`,
-`PROXY_SCHEME=http`, `HTTP_PORT=8080`,
-`HTTP_BINDING=127.0.0.1:8080:80` and
-`HTTPS_BINDING=127.0.0.1:8443:443`. Publish the backend gateway through Openship's
-HTTPS edge to the loopback HTTP listener. HTTP is confined to the same machine;
-Cloudflare's backend origin must use HTTPS. Preserve WebSocket upgrades and
-unbuffered event streams through both proxies. PostgreSQL and Zero publish no
-host ports. The runtime authentication origin remains the public SPA origin.
+DNS (add `--var POSTHOG_HOST:<host>` to the preview to exercise the analytics
+relay). For docs, verify navigation, search, both themes and the 404 page.

@@ -5,8 +5,8 @@
 #
 # The default images carry no domain or analytics settings: the API reads them
 # from its environment at runtime, so the same image runs on any hostname.
-# Only the optional marketing website (`marketing` target) embeds its origins:
-# set SITE_URL and PLATFORM_URL to build it. Tags: <version> and
+# Only the optional marketing website (`marketing` target) embeds its origin:
+# set SITE_URL to build it. Tags: <version> and
 # sha-<git sha>-<channel>; deploy by digest.
 
 variable "REGISTRY" { default = "ghcr.io/lictory" }
@@ -16,7 +16,6 @@ variable "CHANNEL" { default = "local" }
 variable "SOURCE_URL" { default = "" }
 # Website-only build settings (the `marketing` target).
 variable "SITE_URL" { default = "" }
-variable "PLATFORM_URL" { default = "" }
 variable "POSTHOG_PROJECT_TOKEN" { default = "" }
 variable "POSTHOG_HOST" { default = "" }
 variable "LICTORY_LEGAL_NAME" { default = "" }
@@ -81,7 +80,6 @@ target "marketing" {
   target   = "marketing"
   args = {
     SITE_URL                          = SITE_URL
-    NEXT_PUBLIC_PLATFORM_URL          = PLATFORM_URL
     NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN = POSTHOG_PROJECT_TOKEN
     NEXT_PUBLIC_POSTHOG_HOST          = POSTHOG_HOST
     LICTORY_LEGAL_NAME                = LICTORY_LEGAL_NAME

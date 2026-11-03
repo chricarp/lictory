@@ -5,7 +5,12 @@ import { illustrationAssets } from "@lictory/ui/illustration-assets";
 import { useEffect } from "react";
 
 import { trackRenderFailure } from "@lictory/core/lib/analytics/client";
-import { platformHref } from "@lictory/marketing/lib/platform";
+import {
+  getStartedLabel,
+  installUrl,
+  repositoryLabel,
+  repositoryUrl,
+} from "@lictory/marketing/lib/get-started";
 
 export default function GlobalError({
   error,
@@ -42,12 +47,13 @@ export default function GlobalError({
             />
             <h1 style={{ fontSize: 24 }}>Lictory could not open this page</h1>
             <p style={{ fontSize: 14, lineHeight: 1.7 }}>
-              An unexpected error interrupted the page. Try again, or return to
-              your workspace.
+              An unexpected error interrupted the page. Try again, or continue
+              to the installation guide.
             </p>
             <div className="recovery-actions">
               <button onClick={reset}>Try again</button>
-              <a href={platformHref("/")}>Open workspace</a>
+              <a href={installUrl}>{getStartedLabel}</a>
+              <a href={repositoryUrl}>{repositoryLabel}</a>
             </div>
           </div>
         </main>
