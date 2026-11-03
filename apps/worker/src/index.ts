@@ -1,5 +1,6 @@
 import { createJobDatabase, listenForWork } from "@lictory/core/jobs";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
+import { mailTransportSummary } from "@lictory/core/lib/mailer";
 import { flushPosthogLogs } from "@lictory/core/lib/posthog-logs";
 import { startHealthServer } from "@lictory/worker/health";
 import { workerConfig, workerJobs } from "@lictory/worker/jobs";
@@ -19,6 +20,9 @@ const listenUrl = process.env.DATABASE_URL_UNPOOLED?.trim()
   ? process.env.DATABASE_URL_UNPOOLED.trim()
   : databaseUrl;
 const config = workerConfig(process.env);
+// Notification email needs a transport: production refuses to start without
+// one, with a message naming the settings to add.
+const mail = mailTransportSummary();
 
 const database = createJobDatabase(databaseUrl, { max: config.poolMax });
 const supervisor = createSupervisor(workerJobs(database.db, config), {
@@ -52,6 +56,7 @@ log("info", "worker.started", {
     schedules: config.schedulesIntervalMs,
   },
   shutdownTimeoutMs: config.shutdownTimeoutMs,
+  mail,
 });
 supervisor.start();
 

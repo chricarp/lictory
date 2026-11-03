@@ -55,6 +55,8 @@ const appEnv = {
   VITE_POSTHOG_PROJECT_TOKEN: "",
   SMTP_HOST: process.env.SMTP_HOST ?? "localhost",
   SMTP_PORT: process.env.SMTP_PORT ?? "1025",
+  // Production requires an explicit sender.
+  SMTP_FROM: "Lictory <no-reply@lictory.local>",
   GOOGLE_CLIENT_ID: "e2e-google-client-id",
   GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
   MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",

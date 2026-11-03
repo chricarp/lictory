@@ -36,7 +36,8 @@ container is built, pulled or started. Cloudflare receives static frontend
 artifacts prepared from the selected source.
 
 Files bytes stay in private Cloudflare R2 (see
-[private file storage](../internals/file-storage.md)); email goes through Resend.
+[private file storage](../internals/file-storage.md)); email goes through Resend
+or any SMTP server (see [Email](#email)).
 OAuth and AI are optional.
 
 ## Network boundaries
@@ -44,7 +45,7 @@ OAuth and AI are optional.
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
 worker and ops tooling also join an egress-only network for external
-APIs (R2, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
+APIs (R2, Resend or SMTP, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only.
 
 The proxy:
@@ -124,7 +125,7 @@ passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 | `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
 | `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
 | `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                          |
+| `RESEND_*` or `SMTP_*`                                     | Required: a mail transport and sender ([Email](#email))                                                |
 | `BACKUP_*`                                                 | Dedicated private backup bucket and its own token; `BACKUP_AGE_RECIPIENTS` is a public key             |
 | `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                              |
 | `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                               |
@@ -135,6 +136,29 @@ Each service receives only the variables it needs (see
 Docker on the server, which is why only the administrator and `deploy` can log
 in. Browser bundles receive public origins and PostHog tokens at build time
 from GitHub variables, not from `.env`.
+
+## Email
+
+Sign-up requires email verification and invitations arrive by email, so in
+production the API and worker refuse to start until a mail transport and an
+explicit sender are configured; the error names the settings to add. Each
+service logs the transport it uses (without credentials) when it starts.
+
+Resend is used when `RESEND_API_KEY` is set, with `RESEND_FROM_EMAIL` as sender
+(a domain verified in Resend). Otherwise Lictory sends through any SMTP server:
+
+| Setting                      | Meaning                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `SMTP_HOST`                  | Server name; required in production without Resend                                                    |
+| `SMTP_PORT`                  | `587` by default (submission with STARTTLS); `465` for TLS from the first byte; `25` for a relay      |
+| `SMTP_SECURE`                | TLS from the first byte; defaults to `true` on port 465 and `false` elsewhere                         |
+| `SMTP_REQUIRE_TLS`           | `true` refuses to send unless STARTTLS succeeds; recommended for any server reached over the internet |
+| `SMTP_USER`, `SMTP_PASSWORD` | Authentication, when the server requires it                                                           |
+| `SMTP_FROM`                  | Sender, for example `Lictory <no-reply@mail.example.com>`; required in production                     |
+
+Message-IDs use the platform host (`PLATFORM_URL`). Configure SPF, DKIM and
+DMARC for the sender's domain with your provider. Outside production, blank
+settings fall back to Mailpit (`localhost:1025`).
 
 ## Database roles
 

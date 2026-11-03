@@ -3,6 +3,7 @@ import { closeDatabase } from "@lictory/core/db";
 import { realtime } from "@lictory/core/domain/realtime";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
 import { env, envInteger } from "@lictory/core/lib/env";
+import { mailTransportSummary } from "@lictory/core/lib/mailer";
 import { createApp } from "@lictory/api/app";
 import { closeEventStreams } from "@lictory/api/routes/events";
 
@@ -13,6 +14,9 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 const port = envInteger("PORT") ?? 3002;
 const hostname = env("HOST") ?? "0.0.0.0";
 const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
+// Sign-up requires email verification: production refuses to start without a
+// mail transport or sender, with a message naming the settings to add.
+const mail = mailTransportSummary();
 
 let draining = false;
 let inflight = 0;
@@ -33,7 +37,12 @@ const server = serve(
   },
   (info) =>
     console.info(
-      JSON.stringify({ event: "api.listening", port: info.port, hostname }),
+      JSON.stringify({
+        event: "api.listening",
+        port: info.port,
+        hostname,
+        mail,
+      }),
     ),
 );
 

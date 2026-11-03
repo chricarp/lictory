@@ -100,6 +100,10 @@ services:
       R2_ACCESS_KEY_ID: restore-drill
       R2_SECRET_ACCESS_KEY: restore-drill
       R2_BUCKET_NAME: restore-drill
+      # Production refuses to start without a mail transport; the drill
+      # network is internal, so nothing is ever delivered.
+      SMTP_HOST: smtp.restore-drill.invalid
+      SMTP_FROM: Lictory restore drill <no-reply@restore-drill.invalid>
     depends_on:
       postgres:
         condition: service_healthy

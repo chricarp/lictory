@@ -310,6 +310,10 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       WORKER_HEALTH_PORT: "0",
       WORKER_SHUTDOWN_TIMEOUT_MS: "5000",
       NODE_ENV: "production",
+      PLATFORM_URL: "http://localhost:3001",
+      RESEND_API_KEY: "",
+      SMTP_HOST: "localhost",
+      SMTP_FROM: "Lictory <no-reply@lictory.local>",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -356,4 +360,29 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
   } finally {
     child.kill("SIGKILL");
   }
+});
+
+void test("in production the worker refuses to start without a mail transport", async () => {
+  const child = spawn(process.execPath, ["apps/worker/src/index.ts"], {
+    env: {
+      ...process.env,
+      DATABASE_URL: databaseUrl,
+      WORKER_HEALTH_PORT: "0",
+      NODE_ENV: "production",
+      PLATFORM_URL: "http://localhost:3001",
+      RESEND_API_KEY: "",
+      SMTP_HOST: "",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
+  child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
+  const code = await new Promise<number | null>((resolve) =>
+    child.on("exit", (exitCode) => resolve(exitCode)),
+  );
+  assert.notEqual(code, 0);
+  assert.match(output, /Email is not configured/);
+  assert.match(output, /SMTP_HOST/);
+  assert.doesNotMatch(output, /worker\.started/);
 });

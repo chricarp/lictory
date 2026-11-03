@@ -28,3 +28,25 @@ export function envInteger(
     throw new Error(`${name} must be a whole number, got "${value}".`);
   return Number(value);
 }
+
+const booleans = new Map([
+  ["true", true],
+  ["yes", true],
+  ["1", true],
+  ["false", false],
+  ["no", false],
+  ["0", false],
+]);
+
+// true/yes/1 or false/no/0 (any case), or undefined when unset or blank.
+export function envBoolean(
+  name: string,
+  source: Environment = process.env,
+): boolean | undefined {
+  const value = env(name, source);
+  if (value === undefined) return undefined;
+  const parsed = booleans.get(value.toLowerCase());
+  if (parsed === undefined)
+    throw new Error(`${name} must be true or false, got "${value}".`);
+  return parsed;
+}
