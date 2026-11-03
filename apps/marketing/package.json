@@ -21,7 +21,7 @@
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
-    "wrangler": "4.152.0"
+    "wrangler": "4.156.0"
   },
   "license": "MIT"
 }
