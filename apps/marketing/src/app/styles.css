@@ -750,7 +750,12 @@ html {
   font-size: 18px;
   line-height: 28px;
 }
-.final-cta > a {
+.final-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.final-cta-actions > a {
   height: 48px;
   padding-inline: 24px;
   border-radius: 10px;
@@ -1041,6 +1046,9 @@ html {
   }
   .final-cta h2 {
     font-size: 44px;
+  }
+  .final-cta-actions > a {
+    flex: 1 1 auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {

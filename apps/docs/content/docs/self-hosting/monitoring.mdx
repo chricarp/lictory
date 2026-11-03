@@ -1,0 +1,45 @@
+---
+title: Monitoring
+description: Health endpoints, the built-in monitor and its alerts, and how to plug Lictory into existing monitoring.
+---
+
+<CliNotice />
+
+<Cli command={["status", "doctor", "logs"]} />
+
+## Health endpoints
+
+| Check                    | Where                                              |
+| ------------------------ | -------------------------------------------------- |
+| API liveness / readiness | `GET /healthz`, `GET /readyz` on your Lictory host |
+| zero-cache               | `GET /keepalive`, inside the internal network      |
+| Worker, proxy            | Container health checks                            |
+
+Point any uptime checker or load balancer at `https://<your host>/readyz`.
+
+## Built-in monitor
+
+Every five minutes the monitor checks, and alerts on:
+
+- the public `/readyz` route;
+- disk usage above 80 %;
+- unhealthy or stopped containers;
+- a lagging, lost or orphaned replication slot, and `pg_wal` above 6 GB;
+- failed or stuck AI runs, failed or overdue notification email, and
+  partial, failed or stuck Jira exports;
+- automatic cycles overdue by two hours;
+- a backup older than 30 hours (unless backups are disabled).
+
+It posts to `ALERT_WEBHOOK_URL` (Slack- and Discord-compatible JSON) when the
+set of problems changes, every six hours while they persist, and once on
+recovery. It also pings `MONITOR_PING_URL` (or `<url>/fail`), so an external
+dead-man's switch notices a server that stopped reporting. Both are optional.
+In-server checks cannot report a total outage: keep one external check.
+
+## Existing monitoring
+
+Scrape container health with cAdvisor or the Docker engine metrics endpoint,
+and use `postgres_exporter` for replication slot lag and WAL size (the
+queries are in
+[`deploy/monitor/checks.sql`](https://github.com/chricarp/lictory/blob/main/deploy/monitor/checks.sql)).
+Container logs rotate at 5 × 20 MB.

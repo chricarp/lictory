@@ -51,7 +51,7 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "How long does setup take?",
     answer:
-      "Minutes. Create an organization, a project and a team; defaults for work item types, workflow and readiness are ready to use.",
+      "Install Lictory on your own server with the lictory command, then create an organization, a project and a team; defaults for work item types, workflow and readiness are ready to use.",
   },
 ];
 

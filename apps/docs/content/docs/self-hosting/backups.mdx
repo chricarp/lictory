@@ -1,0 +1,74 @@
+---
+title: Backups and restore
+description: What to back up, where encrypted backups go, how to restore and how to prove a restore works.
+---
+
+<CliNotice />
+
+PostgreSQL is the only state that must survive. Everything else is either in
+another system (attachments in your bucket, email at your provider) or
+rebuilt from PostgreSQL (zero-cache's replica).
+
+| Data                 | Protection                                                |
+| -------------------- | --------------------------------------------------------- |
+| Application database | Nightly encrypted backup, plus one before every migration |
+| zero-cache replica   | Not backed up: rebuilt automatically                      |
+| Attachments          | Your bucket: enable object versioning or a daily copy     |
+| `.env` secrets       | Your password manager; never in backups or Git            |
+
+## Backups
+
+A backup is a `pg_dump` taken in one consistent snapshot, with a manifest of
+exact row counts and applied migrations. It is checked for readability,
+encrypted with [age](https://age-encryption.org) to the public key(s) in
+`BACKUP_AGE_RECIPIENTS`, stored, and verified by checksum. Only the public key
+lives on the server; keep the private identity offline. Backups run nightly
+at 02:30 UTC, and before every release that has migrations. Retention: 7
+daily, 4 weekly, 6 monthly and the last 10 pre-deploy and manual backups.
+
+Take one now:
+
+<Cli command="backup" />
+
+| `BACKUP_TARGET` | Where backups go                                                             |
+| --------------- | ---------------------------------------------------------------------------- |
+| `s3`            | Any S3-compatible storage: `BACKUP_BUCKET`, `BACKUP_S3_*`                    |
+| `local`         | `BACKUP_LOCAL_PATH`, such as a NAS mount or a second disk (install default)  |
+| `rclone`        | `BACKUP_RCLONE_REMOTE`: SFTP, WebDAV, SMB, Azure Blob, Google Cloud Storage… |
+| `none`          | Disabled; back up PostgreSQL with your own tooling                           |
+
+Keep at least one copy off the server, give the backup storage its own
+credentials (never the attachment bucket's), and where the storage supports
+it, make it refuse deletes by the server's credential (object lock, bucket
+lock, snapshots) so a stolen credential cannot erase history.
+`BACKUP_PING_URL` and `ALERT_WEBHOOK_URL` report successes and failures; the
+monitor alerts when the last backup is older than 30 hours.
+
+## Restore drill
+
+Prove that backups restore, monthly and after changing backups: the drill
+restores the latest backup into a throwaway database on a separate network,
+compares migration history and every table's row count with the manifest,
+and starts the release's API against the restored data. It never touches the
+live database.
+
+```sh
+sudo lictory restore /path/to/age-identity.txt latest --drill
+```
+
+## Restore
+
+<Cli command="restore" />
+
+Restoring replaces the database with a backup: writes made after that backup
+are lost, and zero-cache rebuilds its replica so clients resync. Jira items
+exported in the lost window still exist in Jira; check their links before
+the next export. The step-by-step recovery procedures for database loss,
+replica loss and a lost server are in the
+[recovery runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/recovery.md).
+
+## Without the bundled tooling
+
+The format is plain `pg_dump`. If you already back up PostgreSQL (pgBackRest,
+WAL-G, managed snapshots), set `BACKUP_TARGET=none` and include the
+application database, excluding Zero's `zero` and `zero_*` schemas.

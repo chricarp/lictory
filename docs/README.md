@@ -3,6 +3,11 @@
 Product principles, the glossary and engineering conventions live in
 [`AGENTS.md`](../AGENTS.md). Read it first; these documents build on it.
 
+User documentation (concepts, a team guide, self-hosting and integrations) is
+the documentation site in [`apps/docs`](../apps/docs/content/docs), published at
+[docs.lictory.com](https://docs.lictory.com). The documents below are for
+people working on Lictory and operating lictory.com.
+
 ## Working on Lictory
 
 - [Development runbook](./operations/development.md): setup, daily commands,
@@ -46,10 +51,14 @@ adding domain writes or synchronized entities.
 
 ## Operations
 
+- [Self-hosting](./operations/self-hosting.md): install and operate Lictory on
+  your own Linux server with `get.sh` and the `lictory` command (install,
+  upgrade, backup, restore, doctor)
 - [Deployment and operations](./operations/deployment.md): single-server
-  Docker Compose topology, Openship operations, worker scheduling, first launch and releases
-- [Websites on Cloudflare](./operations/cloudflare-marketing.md): public domains,
-  static HTML, the platform SPA and manually selected stable deployments
+  Docker Compose topology, worker scheduling, first launch, upgrades and rollback
+- [Websites on Cloudflare](./operations/websites.md): the marketing
+  website, the documentation and the platform SPA; the `websites` environment,
+  token scope, DNS, how deploys trigger and rollback
 - [Existing reverse proxy, internal CA and plain HTTP](./operations/reverse-proxy.md):
   nginx and Traefik in front of the gateway, WebSockets, streaming, client
   addresses, certificates and the limits of plain HTTP

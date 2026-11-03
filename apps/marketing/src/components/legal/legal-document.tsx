@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { Logo } from "@lictory/ui/logo";
 import { LegalOperator } from "@lictory/marketing/components/legal/legal-operator";
-import { AccountTextLink } from "@lictory/marketing/components/marketing/account-cta";
+import { GetStartedTextLink } from "@lictory/marketing/components/marketing/get-started-cta";
 import { legalVersion } from "@lictory/marketing/lib/site";
 
 export type LegalSection = { id: string; title: string; body: string };
@@ -22,7 +22,7 @@ export function LegalDocument({
       <header className="border-b border-border px-5 py-5 sm:px-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
           <Logo />
-          <AccountTextLink className="rounded text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" />
+          <GetStartedTextLink className="rounded text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" />
         </div>
       </header>
       <main

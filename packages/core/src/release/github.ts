@@ -229,6 +229,64 @@ export class GitHub {
     return release;
   }
 
+  /**
+   * Attaches a text asset (release.env) to a reserved draft once. A retry must
+   * carry the same bytes; a release published before the asset existed is
+   * left unchanged, since published releases are immutable.
+   */
+  async attach(manifest: Manifest, name: string, body: string): Promise<void> {
+    const release = await this.release(manifest.tag);
+    if (!release) throw new Error(`${manifest.tag} is not reserved.`);
+    const existing = release.assets.filter((asset) => asset.name === name);
+    if (existing.length > 1)
+      throw new Error(`${manifest.tag} has more than one ${name}.`);
+    if (existing.length) {
+      if ((await this.text(existing[0]!.url)) !== body)
+        throw new Error(`${manifest.tag} already has a different ${name}.`);
+      return;
+    }
+    if (!release.draft) {
+      console.warn(
+        `${manifest.tag} was published without ${name}; left as is.`,
+      );
+      return;
+    }
+    const response = await this.fetcher(
+      `https://uploads.github.com/repos/${this.repository}/releases/${release.id}/assets?name=${encodeURIComponent(name)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+        body,
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    if (!response.ok)
+      throw new Error(
+        `Uploading ${name} to ${manifest.tag} failed (${response.status}); retry the failed job.`,
+      );
+  }
+
+  private async text(url: string): Promise<string> {
+    if (new URL(url).hostname !== "api.github.com")
+      throw new Error("Untrusted GitHub API URL.");
+    const response = await this.fetcher(url, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: "application/octet-stream",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok)
+      throw new Error(
+        `GitHub GET ${new URL(url).pathname} failed (${response.status}).`,
+      );
+    return response.text();
+  }
+
   async publish(manifest: Manifest): Promise<void> {
     const release = await this.reserve(manifest);
     if (!release.draft) return;

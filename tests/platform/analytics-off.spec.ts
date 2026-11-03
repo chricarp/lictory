@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
 // PostHog or its first-party relay.
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test("without analytics settings there is no consent banner and no analytics traffic", async ({
+test("without analytics settings there is no consent banner and no analytics traffic @smoke", async ({
   page,
 }) => {
   const analytics: string[] = [];

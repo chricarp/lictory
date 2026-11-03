@@ -15,10 +15,6 @@ const env: NodeJS.ProcessEnv = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PLATFORM_URL: or(process.env.PLATFORM_URL, "http://localhost:3000"),
   SITE_URL: or(process.env.SITE_URL, "http://localhost:3100"),
-  NEXT_PUBLIC_PLATFORM_URL: or(
-    process.env.NEXT_PUBLIC_PLATFORM_URL,
-    "http://localhost:3000",
-  ),
 };
 
 // zero-cache runs in Docker (compose.yaml) after the migrations; without it

@@ -42,7 +42,7 @@ for (const [name, directory] of [
   ["platform SPA", "apps/platform/dist"],
   ["website client chunks", "apps/marketing/.next/static"],
 ] as const)
-  test(`${name}: no secrets or server-only code`, () => {
+  test(`${name}: no secrets or server-only code @smoke`, () => {
     const shipped = files(directory).filter((f) =>
       /\.(js|mjs|css|html|json)$/.test(f),
     );

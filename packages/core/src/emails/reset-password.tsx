@@ -34,7 +34,7 @@ export function ResetPasswordEmail({
 
 ResetPasswordEmail.PreviewProps = {
   name: "Alex Morgan",
-  resetUrl: "https://app.lictory.com/reset-password?token=preview",
+  resetUrl: "https://lictory.example.com/reset-password?token=preview",
 } satisfies ResetPasswordEmailProps;
 
 export default ResetPasswordEmail;

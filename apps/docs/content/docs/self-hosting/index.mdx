@@ -1,0 +1,55 @@
+---
+title: Overview and requirements
+description: What a self-hosted Lictory installation runs, what the server needs, and the commands that operate it.
+---
+
+A Lictory installation is one Linux server running Docker Compose. Images are
+deployed by digest; your data never leaves the server unless you configure a
+service that needs it ([privacy and telemetry](/self-hosting/privacy)).
+
+```text
+https://lictory.example.com ──▶ proxy (Caddy: TLS, routing, security headers)
+                                 ├─ api      Hono API, sign-in, files, sync endpoints
+                                 ├─ worker   AI runs, email, Jira exports, cycles
+                                 └─ zero-cache ──▶ postgres
+```
+
+| Service      | Purpose                                                                      |
+| ------------ | ---------------------------------------------------------------------------- |
+| `proxy`      | The only public entry point: the app, the API, streaming and the sync socket |
+| `api`        | API, authentication, file access and the application's pages                 |
+| `worker`     | Background jobs: AI runs, notification email, Jira exports and status sync   |
+| `zero-cache` | Realtime sync engine with a replica that can always be rebuilt               |
+| `postgres`   | The source of truth: the only data that must be backed up                    |
+| `migrate`    | One-shot: applies database migrations before a release is activated          |
+| `ops`        | One-shot: backups, restores and monitoring checks                            |
+
+PostgreSQL and zero-cache are on an internal network with no route to or from
+the internet. Only the proxy publishes ports (80 and 443).
+
+## Requirements
+
+- A Linux host with **Docker Engine** and the **Docker Compose v2** plugin,
+  plus `bash`, `curl`, `jq`, `openssl` and `flock` (util-linux).
+- A dedicated host name, such as `lictory.example.com`, with `A`/`AAAA`
+  records pointing at the server. Lictory must own the root of its host;
+  hosting under a path (`example.com/lictory/`) is not supported.
+- Ports 80 and 443 reachable for automatic certificates, unless TLS ends at
+  [your own reverse proxy](/self-hosting/reverse-proxy).
+- Memory for the default service limits: about 4 GB in total (PostgreSQL
+  1.5 GB, zero-cache 1 GB, API 768 MB, worker 512 MB), adjustable in the
+  configuration.
+- An email service (SMTP or Resend) so people can verify addresses and
+  receive invitations.
+
+Optional: an S3-compatible bucket for attachments, an OpenAI API key for
+Lictory Intelligence, your company identity provider for single sign-on,
+and storage for off-server backups.
+
+## Operating the server
+
+<CliNotice />
+
+<CliReference />
+
+Start with [installation](/self-hosting/install).

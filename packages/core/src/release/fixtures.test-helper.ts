@@ -70,6 +70,8 @@ export class GitHubFixture {
   releases: Release[] = [];
   tags = new Map<string, string>();
   assets = new Map<number, Manifest>();
+  /** Text assets such as release.env, by asset id. */
+  files = new Map<number, string>();
   responses = new Map<string, unknown>();
   writes: string[] = [];
   latestTag: string | undefined;
@@ -130,7 +132,7 @@ export class GitHubFixture {
           runId: manifest.run.id,
           registry,
           images: images(String(id % 10)),
-          url: "https://app.staging.lictory.com",
+          url: "https://github.com/example/lictory/releases",
         },
       },
     ]);
@@ -169,10 +171,12 @@ export class GitHubFixture {
     );
     const path = url.pathname.replace("/repos/example/lictory", "");
     const method = init?.method ?? "GET";
+    const raw = typeof init?.body === "string" ? init.body : undefined;
+    const json = (init?.headers as Record<string, string> | undefined)?.[
+      "Content-Type"
+    ]?.startsWith("application/json");
     const body =
-      typeof init?.body === "string"
-        ? (JSON.parse(init.body) as Record<string, unknown>)
-        : {};
+      raw && json ? (JSON.parse(raw) as Record<string, unknown>) : {};
     const respond = (value: unknown, status = 200) =>
       value === undefined
         ? new Response(null, { status: 404 })
@@ -195,17 +199,22 @@ export class GitHubFixture {
           ? { sha: this.tags.get(decodeURIComponent(path.slice(9))) }
           : undefined,
       );
-    if (path.startsWith("/releases/assets/"))
-      return respond(this.assets.get(Number(path.split("/").at(-1))));
+    if (path.startsWith("/releases/assets/")) {
+      const id = Number(path.split("/").at(-1));
+      if (this.files.has(id)) return new Response(this.files.get(id));
+      return respond(this.assets.get(id));
+    }
     if (url.hostname === "uploads.github.com") {
       const id = Number(path.split("/")[2]);
       const assetId = this.nextId++;
-      this.assets.set(assetId, body as unknown as Manifest);
+      const name = url.searchParams.get("name")!;
+      if (json) this.assets.set(assetId, body as unknown as Manifest);
+      else this.files.set(assetId, raw ?? "");
       this.releases
         .find((value) => value.id === id)!
         .assets.push({
           id: assetId,
-          name: "release-manifest.json",
+          name,
           url: `https://api.github.com/repos/example/lictory/releases/assets/${assetId}`,
         });
       return respond({ id: assetId });

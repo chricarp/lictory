@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "---Concepts---",
+    "...concepts",
+    "---Self-hosting---",
+    "...self-hosting",
+    "---Integrations---",
+    "...integrations"
+  ]
+}

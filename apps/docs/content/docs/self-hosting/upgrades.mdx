@@ -1,0 +1,51 @@
+---
+title: Upgrades and release channels
+description: Stable and nightly releases, what an upgrade does, and how to roll back.
+---
+
+<CliNotice />
+
+## Release channels
+
+Lictory publishes two channels as [GitHub Releases](https://github.com/chricarp/lictory/releases):
+
+| Channel     | Version                        | For                                                           |
+| ----------- | ------------------------------ | ------------------------------------------------------------- |
+| **Stable**  | `X.Y.Z`                        | Production. Promotes the exact commit of a tested nightly     |
+| **Nightly** | `X.Y.Z-nightly.YYYYMMDD.<run>` | Staging and testing. Built from every change merged to `main` |
+
+Versions follow semantic versioning: features raise the minor version,
+fixes the patch version, and breaking changes the major version (the minor
+version while Lictory is `0.x`). Each release's notes list breaking changes
+first, with any upgrade action. An installation accepts only releases of its
+configured channel (`LICTORY_RELEASE_CHANNEL`: `stable` or `nightly`).
+
+## Upgrade
+
+<Cli command="upgrade" />
+
+Without a version, the newest release of the channel is installed. An
+upgrade runs three steps, and stops before changing anything if the first
+fails:
+
+1. **Prepare**: validate the release, pull its images by digest and check
+   the gateway configuration.
+2. **Migrate**: if the release has migrations, take a backup, apply them,
+   and wait until zero-cache has replicated them.
+3. **Activate**: replace zero-cache, the proxy, the API and the worker one by
+   one, each waiting for its health check, then verify the application and
+   the realtime connection. If anything fails, the previous release's images
+   are restored automatically.
+
+The proxy holds requests for up to 30 seconds while the API is replaced, so
+API restarts drop no requests. Replacing the proxy itself refuses connections
+for about two seconds; open browser tabs reconnect on their own.
+
+## Roll back
+
+<Cli command="rollback" />
+
+A rollback switches the application images back to the previously activated
+release. **Database migrations stay applied**: every migration is written so
+that the previous release keeps working against the new schema. Publish or
+install a fix as a new release rather than staying on an old one.

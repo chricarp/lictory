@@ -19,8 +19,10 @@ Set `LICTORY_LEGAL_ADDRESS` and `LICTORY_LEGAL_EMAIL` to a correspondence addres
 and monitored public contact before launch. Without either, both pages explicitly
 display a draft notice. `LICTORY_LEGAL_NAME` overrides the operator name and
 `LICTORY_LEGAL_REGISTRATION` supplies registration/VAT details if applicable.
-These public values are compiled into the website at build time; rebuild and
-redeploy after changing them.
+These public values are compiled into the website at build time: for
+lictory.com they are variables of the GitHub environment `websites`
+([websites on Cloudflare](websites.md#github-configuration)). Rerun **Deploy
+marketing website** after changing them.
 
 The signup notice makes account creation the acceptance action, also for social
 authentication that first creates an account on the sign-in page. Privacy notice

@@ -5,7 +5,10 @@ import ReactMarkdown, { type Components } from "react-markdown";
 
 import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome";
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
-import { StartCta } from "@lictory/marketing/components/marketing/account-cta";
+import {
+  GetStartedCta,
+  RepositoryCta,
+} from "@lictory/marketing/components/marketing/get-started-cta";
 import { cn } from "@lictory/core/lib/utils";
 
 /** Shared marketing frame for public guides and comparisons. */
@@ -166,7 +169,10 @@ export function TryLictory({
           {children}
         </p>
       </div>
-      <StartCta label="Start for free" className="w-full sm:w-auto" />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <GetStartedCta className="w-full sm:w-auto" />
+        <RepositoryCta className="w-full sm:w-auto" />
+      </div>
     </aside>
   );
 }

@@ -1,8 +1,20 @@
 name: Nightly
 
+# One verified candidate a day, the way T3 Code ships nightlies: the schedule
+# builds main when the platform changed since the newest nightly and
+# publishes nothing otherwise (website- or docs-only changes included).
+# "Run workflow" on main produces one now. Maintenance branches release every
+# fix, and a stable publication rebases main's next
+# candidate on the new baseline. A candidate is published only after every
+# browser workflow passed on its exact source; the Release workflow promotes
+# a published nightly, never main HEAD.
 on:
+  schedule:
+    # 03:23 UTC, off the minute GitHub's scheduler is busiest.
+    - cron: "23 3 * * *"
+  workflow_dispatch:
   push:
-    branches: [main, "release/*"]
+    branches: ["release/*"]
   repository_dispatch:
     types: [stable-published]
 
@@ -32,6 +44,7 @@ jobs:
       actions: read
       deployments: write # Candidate journal only; no deployment credentials.
     outputs:
+      due: ${{ steps.plan.outputs.due }}
       sha: ${{ steps.plan.outputs.sha }}
       version: ${{ steps.plan.outputs.version }}
     env:
@@ -52,20 +65,41 @@ jobs:
       - id: plan
         run: bun run release plan-nightly "$RUNNER_TEMP/release-plan.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.plan.outputs.due == 'true'
         with:
           name: nightly-plan
           path: ${{ runner.temp }}/release-plan.json
           retention-days: 30
           overwrite: true
 
-  # No re-verification here: the merged PR already passed CI, and the
-  # production release verifies the exact candidate before activation.
-  # Nightly images are built with the staging origins; they never reach
-  # production, which rebuilds the same commit with production origins.
+  # Every browser workflow, the domain suite and the static checks on the
+  # exact candidate with its embedded version, in parallel with the builds.
+  verify:
+    name: Verify the candidate
+    needs: plan
+    if: needs.plan.outputs.due == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      release_version: ${{ needs.plan.outputs.version }}
+      suite: full
+
+  # Stable releases rebuild the same commit with their own version.
   build:
-    name: Build native ARM64 backend images
+    name: Build native ${{ matrix.architecture }} backend images
     needs: [plan]
-    runs-on: ubuntu-24.04-arm
+    if: needs.plan.outputs.due == 'true'
+    strategy:
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
       contents: read
@@ -74,11 +108,10 @@ jobs:
       pull-requests: read
       actions: read
     env:
-      BUILD_ARCHITECTURE: arm64
+      BUILD_ARCHITECTURE: ${{ matrix.architecture }}
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
-      PLATFORM_URL: ${{ vars.STAGING_PLATFORM_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -111,19 +144,19 @@ jobs:
           password: ${{ github.token }}
       - name: Build the selected source on its native architecture
         env:
-          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/arm64.json
+          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/${{ matrix.architecture }}.json
         working-directory: control
         run: bun run release build "$RUNNER_TEMP/plan/release-plan.json" ../source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-arm64
-          path: ${{ runner.temp }}/arm64.json
+          name: native-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/${{ matrix.architecture }}.json
           retention-days: 2
           overwrite: true
 
-  deploy:
+  publish:
     name: Assemble and publish nightly images
-    needs: [plan, build]
+    needs: [plan, verify, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -136,7 +169,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
       IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
-      PLATFORM_URL: ${{ vars.STAGING_PLATFORM_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -173,42 +205,5 @@ jobs:
         working-directory: control
         env:
           NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
-        run: bun run release deploy "$RUNNER_TEMP/plan/release-plan.json" ../source
-
-  # Optional: runs the published nightly on the staging server, migrations
-  # included. Skipped until the staging environment is configured.
-  stage:
-    name: Deploy nightly to staging
-    needs: [plan, deploy]
-    if: vars.STAGING_DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    environment: staging
-    permissions:
-      contents: read
-      deployments: read
-    env:
-      GH_TOKEN: ${{ github.token }}
-      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
-      DEPLOY_SSH_TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-          no-cache: true # Release builds never restore a cached Bun binary.
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: nightly-plan
-          path: ${{ runner.temp }}/plan
-      - run: bun install --frozen-lockfile
-      - name: Trust the staging server
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_SSH_KNOWN_HOSTS: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
-        run: bash deploy/ci/ssh-setup.sh
-      - name: Prepare, migrate and activate on staging
-        run: bun run release stage "$RUNNER_TEMP/plan/release-plan.json"
+        # Images and a GitHub Release, not a package registry upload.
+        run: bun run release publish "$RUNNER_TEMP/plan/release-plan.json" ../source # zizmor: ignore[use-trusted-publishing]

@@ -1,0 +1,111 @@
+---
+title: Reverse proxy and TLS
+description: Run Lictory behind nginx, Traefik or an ingress, with an internal CA, or on plain HTTP for an evaluation.
+---
+
+The bundled gateway is always the entry point of an installation: it routes
+the API, server-sent events, AI streams, the realtime WebSocket and the
+application's assets, sets the security headers and checks the WebSocket
+`Origin`. What varies is who terminates TLS.
+
+| Setup                             | TLS terminated by        | Settings                                                       |
+| --------------------------------- | ------------------------ | -------------------------------------------------------------- |
+| Standalone (default)              | The gateway, public ACME | `APP_HOST`, `ACME_EMAIL`                                       |
+| Internal CA                       | The gateway              | `CADDY_GLOBAL_OPTIONS`                                         |
+| Existing reverse proxy or ingress | Your proxy               | `PROXY_SCHEME=http`, `PLATFORM_URL`, bindings, trusted proxies |
+| Plain HTTP (evaluation only)      | Nobody                   | `PROXY_SCHEME=http`, `PLATFORM_URL=http://…`                   |
+
+## Behind an existing reverse proxy
+
+Run the gateway as plain HTTP on a private address and let your proxy
+terminate TLS:
+
+```sh
+APP_HOST=lictory.example.com            # the Host header your proxy forwards
+PLATFORM_URL=https://lictory.example.com
+PROXY_SCHEME=http
+HTTP_PORT=8080
+HTTP_BINDING=127.0.0.1:8080:80           # or a private address your proxy reaches
+HTTPS_BINDING=127.0.0.1:8443:443         # unused, but kept off the public 443
+CADDY_TRUSTED_PROXIES=172.18.0.1         # the address your proxy connects from
+ACME_EMAIL=ops@example.com               # required, unused over HTTP
+```
+
+Your proxy must:
+
+- forward the original `Host`;
+- pass WebSocket upgrades for `/zero/*` with the browser's `Origin` unchanged;
+- not buffer responses (at least `/api/` and `/relay/`): server-sent events
+  and AI answers stream;
+- allow at least 300 seconds for reading responses and for idle connections;
+- accept request bodies up to 12 MB;
+- append the client address to `X-Forwarded-For` (or overwrite it), with
+  `CADDY_TRUSTED_PROXIES` set to the address(es) it connects from. Otherwise
+  every user shares one sign-in rate limit. Never trust all private ranges.
+
+Do not publish the API, zero-cache or PostgreSQL directly, and do not strip
+the gateway's security headers.
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name lictory.example.com;
+    ssl_certificate     /etc/nginx/tls/lictory.example.com.crt;
+    ssl_certificate_key /etc/nginx/tls/lictory.example.com.key;
+    client_max_body_size 12m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
+```
+
+Traefik and Kubernetes ingress examples are in the
+[reverse proxy runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/reverse-proxy.md).
+
+## Internal CA
+
+The gateway can obtain certificates from an internal ACME CA (step-ca, Vault,
+AD CS with ACME):
+
+```sh
+CADDY_GLOBAL_OPTIONS=acme_ca https://ca.internal.example/acme/acme/directory
+```
+
+With `CADDY_GLOBAL_OPTIONS=local_certs` the gateway becomes its own CA;
+distribute its root certificate to your users' trust stores. To use existing
+certificate files, terminate TLS in a reverse proxy as above.
+
+## Plain HTTP
+
+For a quick evaluation on `localhost` only:
+
+```sh
+APP_HOST=localhost
+PLATFORM_URL=http://localhost:8080
+PROXY_SCHEME=http
+HTTP_PORT=8080
+HTTP_BINDING=127.0.0.1:8080:80
+HTTPS_BINDING=127.0.0.1:8443:443
+```
+
+Over plain HTTP, session cookies are not `Secure`: anyone who can observe
+the network can read sessions and documents. Browsers also treat any host
+other than `localhost` as insecure and disable features the application
+needs. Use HTTPS for anything beyond a local trial.

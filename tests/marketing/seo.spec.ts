@@ -11,9 +11,6 @@ test("search engines and AI assistants can discover the public website", async (
   expect(rules).toContain("Disallow: /relay/");
   expect(rules).toContain("Disallow: /markdown/");
   expect(rules).not.toContain("Host:");
-  // Old workspace links stay fetchable: they redirect to the application, whose
-  // noindex previews unfurlers must still read.
-  expect(rules).not.toMatch(/Disallow: \/app/);
   expect(rules).toMatch(/Sitemap: https?:\/\/[^/]+\/sitemap\.xml/);
   expect(rules).toMatch(/Sitemap: https?:\/\/[^/]+\/guides\/feed\.xml/);
 
@@ -26,8 +23,7 @@ test("search engines and AI assistants can discover the public website", async (
   const sitemap = await (await request.get("/sitemap.xml")).text();
   for (const path of ["/privacy", "/terms-of-service"])
     expect(sitemap).toContain(`${path}</loc>`);
-  // Account pages live on the application origin, outside this sitemap.
-  expect(sitemap).not.toMatch(/\/(app|home|sign-in|sign-up)<\/loc>/);
+  expect(sitemap).not.toMatch(/\/home<\/loc>/);
   expect(sitemap).toContain("/og/marketing</image:loc>");
 
   const manifest = await request.get("/manifest.webmanifest");

@@ -1,4 +1,4 @@
-# OAuth in local development and staging
+# OAuth in local development and test environments
 
 The optional [Better Auth OAuth proxy](https://better-auth.com/docs/plugins/oauth-proxy)
 lets local development and other trusted environments use a fixed provider
@@ -18,9 +18,9 @@ server at a stable HTTPS origin, for example `https://auth-dev.example.com`,
 with your development Google/Microsoft credentials and an isolated staging
 database. Local development uses that same development client and proxies
 through this server. Production keeps its production client and leaves the
-proxy variables empty. The staging environment (`app.staging.lictory.com`)
-works as the callback server: its `PLATFORM_URL` is its canonical origin and it
-uses staging resources only.
+proxy variables empty. A test environment of your own can be the callback
+server: its `PLATFORM_URL` is its canonical origin and it uses test resources
+only.
 
 Alternatively, production can be the callback server, but participating local
 deployments must then use the production OAuth client too. Enable
@@ -76,12 +76,10 @@ proxy variables so browser tests never contact a configured live callback server
 
 ## Production callbacks
 
-The platform moved to `app.lictory.com`; Better Auth runs there under
-`/api/auth`. Production OAuth clients must list exactly:
+Better Auth runs under `/api/auth` on the installation's own origin. Its OAuth
+clients must list exactly (replace the host with yours):
 
-- Google: `https://app.lictory.com/api/auth/callback/google`
-- Microsoft: `https://app.lictory.com/api/auth/callback/microsoft`
+- Google: `https://lictory.example.com/api/auth/callback/google`
+- Microsoft: `https://lictory.example.com/api/auth/callback/microsoft`
 
-Remove the former `https://lictory.com/api/auth/callback/*` URIs once the new
-origin serves sign-in. Staging uses its own clients with
-`https://app.staging.lictory.com/api/auth/callback/*`.
+Each test environment uses its own clients with its own origin's callbacks.

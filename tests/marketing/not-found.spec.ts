@@ -23,10 +23,13 @@ test("missing pages stay readable, serve shared artwork and lead back", async ({
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(320);
-    const workspace = page.getByRole("link", { name: "Open workspace" });
-    const target = new URL((await workspace.getAttribute("href"))!);
-    expect(target.pathname).toBe("/");
-    expect(target.origin).not.toBe(new URL(page.url()).origin);
+    await expect(
+      page.getByRole("link", { name: "Get started" }),
+    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/install");
+    await expect(page.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/chricarp/lictory",
+    );
     await page.getByRole("button", { name: "Go home" }).click();
     await expect(page).toHaveURL("/");
   }

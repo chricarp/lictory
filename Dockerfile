@@ -75,23 +75,21 @@ RUN bun build scripts/migrate.ts --target=node --format=esm \
         --outfile="/out/backfills/$(basename "$script" .ts).mjs"; \
     done
 
-# The public website (lictory.com) is static and prerendered, so its origins
+# The public website (lictory.com) is static and prerendered, so its origin
 # and legal notice are build arguments. Self-hosted installations do not need
 # this image.
 FROM source AS marketing-build
 ARG APP_VERSION
 ARG SITE_URL
-ARG NEXT_PUBLIC_PLATFORM_URL
 ARG NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=""
 ARG NEXT_PUBLIC_POSTHOG_HOST=""
 ARG LICTORY_LEGAL_NAME=""
 ARG LICTORY_LEGAL_ADDRESS=""
 ARG LICTORY_LEGAL_EMAIL=""
 ARG LICTORY_LEGAL_REGISTRATION=""
-RUN test -n "$SITE_URL" && test -n "$NEXT_PUBLIC_PLATFORM_URL"
+RUN test -n "$SITE_URL"
 ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
     SITE_URL=$SITE_URL \
-    NEXT_PUBLIC_PLATFORM_URL=$NEXT_PUBLIC_PLATFORM_URL \
     NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=$NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN \
     NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST \
     LICTORY_LEGAL_NAME=$LICTORY_LEGAL_NAME \
@@ -229,7 +227,10 @@ COPY deploy/monitor/*.sql /opt/lictory/sql/
 COPY deploy/compose.production.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
 COPY deploy/postgres /opt/lictory/deploy/postgres
 COPY deploy/bin deploy/deploy.sh /opt/lictory/deploy/bin/
-RUN chmod 0555 /opt/lictory/*.sh /opt/lictory/deploy/bin/* /opt/lictory/deploy/postgres/*.sh
+# Host installation (lictory CLI, deploy/get.sh): install.sh, timers, templates.
+COPY deploy/provision /opt/lictory/deploy/provision
+COPY deploy/env /opt/lictory/deploy/env
+RUN chmod 0555 /opt/lictory/*.sh /opt/lictory/deploy/bin/* /opt/lictory/deploy/postgres/*.sh /opt/lictory/deploy/provision/*.sh
 ENV PATH=/opt/lictory:$PATH
 USER postgres
 WORKDIR /tmp

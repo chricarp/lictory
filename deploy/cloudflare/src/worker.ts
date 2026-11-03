@@ -1,30 +1,18 @@
 import {
-  analyticsSettings,
-  publicConfigTag,
-} from "../../../packages/core/src/lib/public-config";
-import { socialPreviewHead } from "../../../packages/core/src/lib/social-preview-kind";
+  analyticsRelayPath,
+  relayToPosthog,
+} from "../../../packages/core/src/lib/analytics/relay";
 
 interface Environment {
   ASSETS: { fetch(request: Request): Promise<Response> };
-  SITE_KIND: "marketing" | "platform";
+  /** marketing (lictory.com) or docs (docs.lictory.com: static files and
+   * headers only). Lictory itself is self-hosted; no Worker serves it. */
+  SITE_KIND: "marketing" | "docs";
   SITE_URL: string;
-  PLATFORM_URL: string;
-  BACKEND_ORIGIN: string;
-  /** Browser analytics for the platform document; unset disables them. */
-  POSTHOG_PROJECT_TOKEN?: string;
+  /** PostHog ingestion host for the website's analytics relay (passed with
+   * `wrangler deploy --var`); unset, the relay answers 404 and nothing leaves. */
   POSTHOG_HOST?: string;
-  ANALYTICS_CONSENT?: string;
 }
-
-const accountPages = new Set([
-  "/sign-in",
-  "/sign-up",
-  "/forgot-password",
-  "/reset-password",
-  "/verify-email",
-  "/welcome",
-  "/auth-error",
-]);
 
 function destinationUrl(base: string, path: string, search: string) {
   const url = new URL(base);
@@ -33,30 +21,17 @@ function destinationUrl(base: string, path: string, search: string) {
   return url;
 }
 
-async function backend(request: Request, env: Environment) {
-  const incoming = new URL(request.url);
-  if (/^\/api\/zero(\/|$)/.test(incoming.pathname))
-    return new Response(null, { status: 404 });
-  if (
-    incoming.pathname.startsWith("/zero/") &&
-    request.headers.get("upgrade")?.toLowerCase() === "websocket" &&
-    request.headers.get("origin") !== env.PLATFORM_URL
-  )
-    return new Response(null, { status: 403 });
-  const target = new URL(env.BACKEND_ORIGIN);
-  target.pathname = incoming.pathname;
-  target.search = incoming.search;
-  const headers = new Headers(request.headers);
-  headers.delete("host");
-  headers.set("x-forwarded-host", incoming.host);
-  headers.set("x-forwarded-proto", "https");
-  const clientIp = request.headers.get("cf-connecting-ip");
-  headers.delete("x-forwarded-for");
-  if (clientIp) headers.set("x-forwarded-for", clientIp);
-  // A same-zone fetch from a Worker Route reaches the DNS-configured VPS
-  // origin without invoking this route again. Do not use a Custom Domain here.
-  // Return the response directly: cloning would break WebSocket upgrades.
-  return fetch(new Request(target, request), { headers, redirect: "manual" });
+// The website's first-party analytics relay goes straight to PostHog, with
+// the same forwarded headers and stripped cookies as the application's API.
+// Cloudflare's client IP header is the only one this edge trusts.
+function relay(request: Request, env: Environment) {
+  const host = env.POSTHOG_HOST?.trim();
+  if (!host) return new Response(null, { status: 404 });
+  return relayToPosthog(
+    request,
+    host,
+    request.headers.get("cf-connecting-ip") ?? undefined,
+  );
 }
 
 export default {
@@ -69,18 +44,13 @@ export default {
         destination = destinationUrl(env.SITE_URL, path, url.search);
       } else if (path === "/home") {
         destination = destinationUrl(env.SITE_URL, "/", url.search);
-      } else if (path === "/app" || path.startsWith("/app/")) {
-        destination = destinationUrl(
-          env.PLATFORM_URL,
-          path.slice(4) || "/",
-          url.search,
-        );
-      } else if (accountPages.has(path)) {
-        destination = destinationUrl(env.PLATFORM_URL, path, url.search);
       }
       if (destination) return Response.redirect(destination.toString(), 308);
-      if (path === "/relay" || path.startsWith("/relay/"))
-        return backend(request, env);
+      if (
+        path === analyticsRelayPath ||
+        path.startsWith(`${analyticsRelayPath}/`)
+      )
+        return relay(request, env);
       if (path.startsWith("/markdown/"))
         return new Response(null, { status: 404 });
       if (
@@ -99,12 +69,6 @@ export default {
         );
         return new Response(asset.body, { status: asset.status, headers });
       }
-    } else if (
-      /^\/(api|zero|relay)(\/|$)/.test(path) ||
-      path === "/healthz" ||
-      path === "/readyz"
-    ) {
-      return backend(request, env);
     }
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);
@@ -114,18 +78,7 @@ export default {
       "Strict-Transport-Security",
       "max-age=63072000; includeSubDomains",
     );
-    headers.set(
-      "X-Frame-Options",
-      env.SITE_KIND === "platform" ? "DENY" : "SAMEORIGIN",
-    );
-    const platformDocument =
-      env.SITE_KIND === "platform" &&
-      headers.get("Content-Type")?.includes("text/html");
-    if (env.SITE_KIND === "platform") {
-      headers.set("Content-Security-Policy", "frame-ancestors 'none'");
-      headers.set("X-Robots-Tag", "noindex, nofollow");
-      if (platformDocument) headers.set("Cache-Control", "no-store");
-    }
+    headers.set("X-Frame-Options", "SAMEORIGIN");
     if (/^\/(assets|_next\/static|illustrations)\//.test(path) && asset.ok)
       headers.set("Cache-Control", "public, max-age=31536000, immutable");
     // Static export preserves extensionless route handlers, but object storage
@@ -134,23 +87,6 @@ export default {
       headers.set("Content-Type", "image/png");
     if (path === "/guides/feed.xml" && asset.ok)
       headers.set("Content-Type", "application/rss+xml; charset=utf-8");
-    if (platformDocument) {
-      headers.delete("Content-Length");
-      headers.delete("ETag");
-      const html =
-        request.method === "HEAD"
-          ? null
-          : (await asset.text()).replace(
-              "<!--app-head-->",
-              () =>
-                socialPreviewHead(path, env.SITE_URL) +
-                publicConfigTag({
-                  siteUrl: new URL(env.SITE_URL).origin,
-                  analytics: analyticsSettings(env),
-                }),
-            );
-      return new Response(html, { status: asset.status, headers });
-    }
     return new Response(asset.body, { status: asset.status, headers });
   },
 };

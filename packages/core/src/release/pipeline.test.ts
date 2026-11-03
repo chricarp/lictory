@@ -12,18 +12,17 @@ import {
 
 function ports() {
   const calls: string[] = [];
-  let active = false;
   let publicationFails = false;
   const build = {
     id: "verified",
-    url: "https://app.lictory.com",
+    url: "https://github.com/example/lictory/releases/tag/v1.5.0",
     images: images("b"),
   };
   const adapter: ReleasePorts = {
     validate: async () => {
       calls.push("validate");
     },
-    active: async () => (active ? build : undefined),
+    active: async () => undefined,
     build: async () => {
       calls.push("build");
       return build;
@@ -35,15 +34,8 @@ function ports() {
     status: async (_id, state) => {
       calls.push(state);
     },
-    migrate: async () => {
-      calls.push("migrate");
-    },
     reserve: async () => {
       calls.push("reserve");
-    },
-    promote: async () => {
-      calls.push("promote");
-      active = true;
     },
     publish: async () => {
       calls.push("publish");
@@ -59,96 +51,50 @@ function ports() {
   };
 }
 
-void test("production cannot reserve a tag or activate a build before migrations succeed", async () => {
-  const fixture = ports();
-  fixture.adapter.migrate = async () => {
-    throw new Error("Migration transaction failed");
-  };
-  await assert.rejects(executeRelease(stable(), fixture.adapter), /failed/);
-  assert.ok(fixture.calls.includes("failure"));
-  assert.ok(!fixture.calls.includes("reserve"));
-  assert.ok(!fixture.calls.includes("promote"));
-  assert.ok(!fixture.calls.includes("publish"));
+void test("nightly and stable releases build, revalidate, reserve and publish, deploying nothing", async () => {
+  for (const manifest of [nightly(), stable()]) {
+    const fixture = ports();
+    await executeRelease(manifest, fixture.adapter);
+    assert.deepEqual(fixture.calls, [
+      "validate",
+      "build",
+      "record",
+      "in_progress",
+      "validate",
+      "reserve",
+      "publish",
+      "success",
+    ]);
+  }
 });
 
-void test("an activation gate revalidates history after a configured build and migration", async () => {
-  const fixture = ports();
-  await executeRelease(stable(), fixture.adapter);
-  assert.deepEqual(fixture.calls, [
-    "validate",
-    "build",
-    "record",
-    "in_progress",
-    "migrate",
-    "validate",
-    "reserve",
-    "promote",
-    "success",
-    "publish",
-  ]);
-});
-
-void test("publication failure is repaired without rebuilding, remigrating, or reactivating production", async () => {
-  const fixture = ports();
-  fixture.failPublication(true);
-  await assert.rejects(executeRelease(stable(), fixture.adapter));
-  fixture.calls.length = 0;
-  fixture.failPublication(false);
-  await executeRelease(stable(), fixture.adapter);
-  assert.deepEqual(fixture.calls, [
-    "validate",
-    "record",
-    "reserve",
-    "success",
-    "publish",
-  ]);
-});
-
-void test("failed nightly validation or build cannot promote production", async () => {
+void test("a failed validation or build publishes nothing", async () => {
   for (const failAt of ["validate", "build"] as const) {
     const fixture = ports();
     fixture.adapter[failAt] = async () => {
       throw new Error("Failed gate");
     };
-    await assert.rejects(executeRelease(nightly(), fixture.adapter));
-    assert.ok(!fixture.calls.includes("promote"));
+    await assert.rejects(executeRelease(stable(), fixture.adapter));
+    assert.ok(!fixture.calls.includes("reserve"));
     assert.ok(!fixture.calls.includes("publish"));
   }
 });
 
-void test("a nightly publication outage cannot promote production", async () => {
+void test("a publication outage is recorded as a failure and retried from the journaled build", async () => {
   const fixture = ports();
   fixture.failPublication(true);
-  await assert.rejects(executeRelease(nightly(), fixture.adapter));
-  assert.ok(fixture.calls.includes("publish"));
-  assert.ok(!fixture.calls.includes("promote"));
-});
-
-void test("a verified nightly creates and publishes a preview without migrations or promotion", async () => {
-  const fixture = ports();
-  await executeRelease(nightly(), fixture.adapter);
-  assert.deepEqual(fixture.calls, [
-    "validate",
-    "build",
-    "record",
-    "in_progress",
-    "validate",
-    "reserve",
-    "publish",
-    "success",
-  ]);
-});
-
-void test("a nightly publication retry reuses the journaled images without touching production", async () => {
-  const fixture = ports();
-  const preview = {
-    id: "nightly",
-    url: "https://app.staging.lictory.com",
+  await assert.rejects(executeRelease(stable(), fixture.adapter), /failed/);
+  assert.ok(fixture.calls.includes("failure"));
+  // The retry finds the journaled images and publishes them without a rebuild.
+  const retry = ports();
+  const journaled = {
+    id: "journaled",
+    url: "https://github.com/example/lictory/releases/tag/v1.5.0",
     images: images("c"),
   };
-  fixture.adapter.active = async () => preview;
-  assert.equal(await executeRelease(nightly(), fixture.adapter), preview);
-  assert.deepEqual(fixture.calls, [
+  retry.adapter.active = async () => journaled;
+  assert.equal(await executeRelease(stable(), retry.adapter), journaled);
+  assert.deepEqual(retry.calls, [
     "validate",
     "record",
     "reserve",

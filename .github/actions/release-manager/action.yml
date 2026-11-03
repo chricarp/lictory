@@ -1,0 +1,32 @@
+name: Require a release manager
+description: >-
+  Fails unless the person who started (or re-ran) this run is a release
+  manager and the run is on main. Releases and website deployments change
+  what the public sees, so only release managers may start them.
+
+inputs:
+  managers:
+    description: Comma-separated GitHub logins (vars.RELEASE_MANAGERS, the repository owner when unset)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Require a release manager on protected main
+      shell: bash
+      env:
+        ACTOR: ${{ github.triggering_actor }}
+        MANAGERS: ${{ inputs.managers }}
+      run: |
+        if [ "$GITHUB_REF" != refs/heads/main ]; then
+          echo "::error::Releases and website deployments run from main, not $GITHUB_REF."
+          exit 1
+        fi
+        for manager in ${MANAGERS//,/ }; do
+          if [ "${manager,,}" = "${ACTOR,,}" ]; then
+            echo "$ACTOR is a release manager."
+            exit 0
+          fi
+        done
+        echo "::error::$ACTOR is not a release manager. The repository owner adds logins to the RELEASE_MANAGERS variable (Settings → Secrets and variables → Actions)."
+        exit 1

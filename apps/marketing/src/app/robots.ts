@@ -5,8 +5,7 @@ export const dynamic = "force-static";
 import { absoluteUrl, guidesFeedPath } from "@lictory/marketing/lib/site";
 
 // Search engines and AI assistants named explicitly, so the policy for each is
-// deliberate rather than inherited. They read the public website only; the
-// application has its own origin and asks crawlers not to index it.
+// deliberate rather than inherited. They read the public website only.
 const searchAndAiCrawlers = [
   // Bingbot also feeds Microsoft Copilot, DuckDuckGo and ChatGPT search.
   "Googlebot",
@@ -38,9 +37,7 @@ const searchAndAiCrawlers = [
 ];
 
 // Analytics relay responses are not pages, and /markdown/ is only the internal
-// target of the public `<page>.md` URLs. Old workspace URLs (/app/...) stay
-// crawlable: they redirect to the application, whose noindex social previews
-// link unfurlers must still be able to read.
+// target of the public `<page>.md` URLs.
 const disallow = ["/relay/", "/markdown/"];
 
 export default function robots(): MetadataRoute.Robots {

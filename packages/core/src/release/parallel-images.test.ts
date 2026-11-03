@@ -12,11 +12,14 @@ import {
   imagesSchema,
   releaseFile,
 } from "@lictory/core/release/images";
-import { mergeArchitectureBuilds } from "@lictory/core/release/parallel-images";
+import {
+  mergeArchitectureBuilds,
+  releaseArchitectures,
+} from "@lictory/core/release/parallel-images";
 
 const manifest = stable();
 const builds = () =>
-  ["arm64"].map((architecture, index) => ({
+  releaseArchitectures.map((architecture, index) => ({
     architecture,
     manifestHash: fingerprint(manifest),
     images: images(index ? "b" : "a"),
@@ -35,7 +38,7 @@ void test("native build caches and temporary tags are isolated by architecture a
   assert.equal(env.CACHE_REGISTRY, `${registry}/lictory-cache`);
 });
 
-void test("assembly publishes the ARM64 build for every image and returns only pinned digests", async () => {
+void test("assembly joins the amd64 and arm64 builds of every image and returns only pinned digests", async () => {
   const calls: string[][] = [];
   const result = await mergeArchitectureBuilds(
     builds(),
@@ -58,20 +61,23 @@ void test("assembly publishes the ARM64 build for every image and returns only p
     const call = calls.find((args) =>
       args.includes(`${registry}/lictory-${name}:${manifest.version}`),
     )!;
-    assert.ok(call.includes(builds()[0]!.images[name]));
+    for (const build of builds()) assert.ok(call.includes(build.images[name]));
   }
 });
 
 void test("incomplete, mixed-source, foreign-registry and stale-asset builds fail before any publication", async () => {
   for (const metadata of [
     [],
-    [builds()[0], builds()[0]],
-    [{ ...builds()[0], architecture: "amd64" }],
-    [{ ...builds()[0], manifestHash: "another-plan" }],
-    [{ ...builds()[0], previousProxyImage: images().proxy }],
+    [builds()[0]],
+    [builds()[1]],
+    [builds()[1], builds()[1]],
+    [...builds(), builds()[0]],
+    [builds()[0], { ...builds()[1], manifestHash: "another-plan" }],
+    [builds()[0], { ...builds()[1], previousProxyImage: images().proxy }],
     [
+      builds()[0],
       {
-        ...builds()[0],
+        ...builds()[1],
         images: { ...images(), api: `other/repo@sha256:${"a".repeat(64)}` },
       },
     ],

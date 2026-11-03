@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "lictory-docs",
+  // The shared Worker only adds the security and cache headers the website
+  // uses; the documentation has no redirects and no backend.
+  "main": "../../deploy/cloudflare/src/worker.ts",
+  "compatibility_date": "2026-10-22",
+  "routes": [{ "pattern": "docs.lictory.com/*", "zone_name": "lictory.com" }],
+  "assets": {
+    "directory": "out",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "404-page",
+  },
+  "vars": {
+    "SITE_KIND": "docs",
+    "SITE_URL": "https://docs.lictory.com",
+  },
+}

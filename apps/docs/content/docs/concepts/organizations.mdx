@@ -1,0 +1,55 @@
+---
+title: Organizations, projects and teams
+description: The three scopes of Lictory, and the difference between roles (what you administer) and disciplines (what kind of work you do and may do).
+---
+
+```text
+Organization   a company, or a very large department of one
+└─ Project     a product area: identifiers, workflow, delivery and its people
+   └─ Team     a vertical inside the product: a group of people and a label
+```
+
+| Scope        | Owns                                                                                                                                                                        |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Organization | Name and branding, members and invitations, application roles, work item types, Jira connections, whether Lictory Intelligence may run, projects                            |
+| Project      | Key and numbering, members and project roles, disciplines, teams, workflow, enabled types, labels and milestones, iterations, estimates, delivery mode, Definition of Ready |
+| Team         | Name, description, members                                                                                                                                                  |
+
+A work item belongs to exactly one project (its identity, `PAY-142`) and
+optionally one of the project's teams. Moving it between teams never changes
+its identifier, status or iteration. A team owns no configuration: boards and
+backlogs can be narrowed to it, and team membership grants nothing.
+
+## Roles and disciplines
+
+Three separate questions, three separate concepts:
+
+- **Application role**: _can this person administer the organization?_
+  Owners and admins manage the organization and every project; everyone else
+  is a member.
+- **Project role**: _can this person configure the project?_ Project admins
+  manage its settings; members work in it.
+- **Discipline**: _what kind of work does this person do in this project, and
+  what may they do with its work items?_ Product, Engineering and QA exist in
+  every new project; administrators can add others (Security, UX…).
+
+Roles grant no work item capabilities. Those come from disciplines, and a
+person's capabilities in a project are the union of the disciplines they
+hold there:
+
+| Capability             | Allows                                                                    |
+| ---------------------- | ------------------------------------------------------------------------- |
+| Edit specifications    | Create spec-backed items, revise main, restore revisions, merge into main |
+| Change properties      | Status, priority, owner, parent, labels, iterations, ordering, archiving  |
+| Request reviews        | Request and cancel reviews                                                |
+| Can be asked to review | Be a review responsibility and decide reviews assigned to the discipline  |
+| Hand off               | Export ready work to the project's Jira project and link existing issues  |
+
+New projects start with Product (every capability), Engineering (request
+reviews, be asked to review, change properties) and QA (request reviews, be
+asked to review). Taking part in discussions only needs organization
+membership. Every check runs on the server; the interface only hides
+controls you cannot use.
+
+Every organization member can read every project. There are no private
+projects.

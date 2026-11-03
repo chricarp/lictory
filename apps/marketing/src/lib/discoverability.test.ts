@@ -5,7 +5,7 @@ import sitemap from "@lictory/marketing/app/sitemap";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
 import { landingStructuredData } from "@lictory/marketing/components/landing/structured-data";
-import { platformHref } from "@lictory/marketing/lib/platform";
+import { installUrl } from "@lictory/marketing/lib/get-started";
 import { publicPageMetadata } from "@lictory/marketing/lib/public-metadata";
 import { absoluteUrl, publicPages, siteUrl } from "@lictory/marketing/lib/site";
 import {
@@ -54,18 +54,12 @@ void describe("search discoverability", () => {
     });
   }
 
-  void test("account pages belong to the application, not the website sitemap", () => {
-    const paths = sitemap().map((entry) => new URL(entry.url).pathname);
-    for (const path of ["/sign-in", "/sign-up", "/home", "/app"])
-      assert.ok(!paths.includes(path), path);
-  });
-
-  void test("the landing page offer links to sign-up in the application", () => {
+  void test("the landing page offer leads to the installation guide", () => {
     const application = landingStructuredData["@graph"].find(
       (node) => node["@type"] === "WebApplication",
-    ) as { offers: { url: string } };
-    assert.equal(application.offers.url, platformHref("/sign-up"));
-    assert.notEqual(new URL(application.offers.url).origin, siteUrl);
+    ) as { offers: { "@type": string; url: string } };
+    assert.equal(application.offers["@type"], "Offer");
+    assert.equal(application.offers.url, installUrl);
   });
 
   void test("every guide and comparison is published in the sitemap", () => {

@@ -21,6 +21,9 @@ const reviewerEmail = "engineer@example.test";
 const multiOrgEmail = "multi-org@example.test";
 const loadingEmail = "loading@example.test";
 const revisitEmail = "revisit@example.test";
+// Native delivery scenarios create their own organizations: they must not
+// depend on another test having created one (the smoke tier runs them alone).
+const deliveryEmail = "delivery@example.test";
 const password = "Local-test-password-123";
 // Give independent browser scenarios distinct client addresses. Production auth
 // throttles rapid sign-ins by IP; unrelated tests must not share that budget.
@@ -39,6 +42,7 @@ test.beforeAll(async () => {
     ["Taylor Rivera", multiOrgEmail, null],
     ["Jordan Lee", loadingEmail, "jordan_lee"],
     ["Casey Park", revisitEmail, "casey_park"],
+    ["Sam Ortiz", deliveryEmail, "sam_ortiz"],
   ] as const) {
     const id = crypto.randomUUID();
     // A worker restarted after a failure re-runs this hook on the same database.
@@ -571,7 +575,7 @@ test("work item panels collapse independently and persist across routes and relo
   await expect(filter).toBeHidden();
 });
 
-test("epic and story refinement: create, review, block, branch, PR, approve, stale, ready", async ({
+test("epic and story refinement: create, review, block, branch, PR, approve, stale, ready @smoke", async ({
   page,
   browser,
 }) => {
@@ -1392,16 +1396,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewerContext.close();
 });
 
-test("native delivery: plan a sprint, move cards on the board, readiness gates starting, complete with carry-over", async ({
+test("native delivery: plan a sprint, move cards on the board, readiness gates starting, complete with carry-over @smoke", async ({
   page,
 }) => {
   test.setTimeout(180_000);
-  await signIn(page, multiOrgEmail);
-  await page
-    .getByRole("button", { name: /First Team|Second Team/ })
-    .first()
-    .click();
-  await page.getByRole("link", { name: "Create organization" }).click();
+  await signIn(page, deliveryEmail);
+  await page.goto("/new-organization");
   await createWorkspace(page, {
     organization: "Delivery Co",
     project: "Checkout",
@@ -1661,7 +1661,7 @@ test("native delivery preserves accepted scope through an amendment, completion 
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await signIn(page, multiOrgEmail);
+  await signIn(page, deliveryEmail);
   await page.goto("/new-organization");
   await createWorkspace(page, {
     organization: "Scope agreements",

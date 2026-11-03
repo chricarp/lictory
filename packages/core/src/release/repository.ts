@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { type GitHub } from "@lictory/core/release/github";
+import { touchesPlatform } from "@lictory/core/release/paths";
 import {
   baselineSchema,
   changeSchema,
@@ -35,6 +36,46 @@ export async function ancestor(
     if ((error as { code?: number }).code === 1) return false;
     throw error;
   }
+}
+
+/**
+ * Files each first-parent commit of `base..head` changed (a merge commit
+ * against its first parent, so it carries its whole pull request).
+ */
+export async function changedFiles(
+  root: string,
+  base: string,
+  head: string,
+): Promise<Map<string, string[]>> {
+  shaSchema.parse(base);
+  shaSchema.parse(head);
+  const log = await git(
+    root,
+    "log",
+    "--first-parent",
+    "--diff-merges=first-parent",
+    "--name-only",
+    "--format=%x00%H",
+    `${base}..${head}`,
+  );
+  const files = new Map<string, string[]>();
+  for (const entry of log.split("\0").filter(Boolean)) {
+    const [commit, ...paths] = entry.trim().split("\n");
+    files.set(commit!, paths.filter(Boolean));
+  }
+  return files;
+}
+
+/** Every file changed in `base..head`. */
+export async function changedPaths(
+  root: string,
+  base: string,
+  head: string,
+): Promise<string[]> {
+  shaSchema.parse(base);
+  shaSchema.parse(head);
+  const diff = await git(root, "diff", "--name-only", base, head);
+  return diff ? diff.split("\n") : [];
 }
 
 export async function latestBaseline(
@@ -190,5 +231,17 @@ export async function collectChanges(
       (a, b) => a.mergedAt.localeCompare(b.mergedAt) || a.number - b.number,
     );
   accountForCommits(commits, associations, changes);
-  return changes;
+  // Pull requests that only changed the websites, maintainer documentation or
+  // CI are not platform changes: no version bump and no platform release note.
+  const files = await changedFiles(root, baseline.sha, sha);
+  const pullFiles = new Map<number, string[]>();
+  for (const [commit, numbers] of associations)
+    for (const number of numbers)
+      pullFiles.set(number, [
+        ...(pullFiles.get(number) ?? []),
+        ...(files.get(commit) ?? []),
+      ]);
+  return changes.filter((change) =>
+    touchesPlatform(pullFiles.get(change.number) ?? []),
+  );
 }

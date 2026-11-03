@@ -18,11 +18,7 @@ as the visible page:
 
 - **`/robots.txt`** allows all crawlers on the public website and names major
   search and AI crawlers explicitly so the policy for each is deliberate.
-  The analytics relay and the internal `/markdown/` route are disallowed. Old
-  workspace URLs (`/app/...`) are not disallowed: they redirect to the
-  application, and link unfurlers that obey robots.txt (for example Twitterbot
-  and LinkedIn) must still read the application's safe social previews, which
-  carry `noindex, nofollow` instead. See [social link previews](./social-previews.md).
+  The analytics relay and the internal `/markdown/` route are disallowed.
   It lists the guides RSS feed as a second sitemap, because Google and Bing
   revisit feeds more often. There is no `Host` line: Google ignores it and
   Yandex retired it.
@@ -45,7 +41,8 @@ as the visible page:
   page and every guide. Dates come from the content, never the build.
 - **JSON-LD** on the landing page describes the `Organization` (with logo),
   `WebSite`, `WebPage` and its primary image, the product as a
-  `WebApplication` (its offer links to sign-up in the application) and the
+  `WebApplication` (its free offer links to the installation guide on
+  `docs.lictory.com`) and the
   `FAQPage`. Guides, comparisons and the legal notices publish
   their own `WebPage` and `BreadcrumbList` with the shared `Organization` and
   `WebSite`, because search engines do not resolve `@id` references across
@@ -56,9 +53,8 @@ as the visible page:
   web app manifest and `theme-color` give browsers, installed apps and search
   results consistent branding.
 - **Robots meta**: public pages allow full snippets and large image previews.
-  Account and workspace pages live on the application origin
-  (`app.lictory.com`), which decides their robots policy; they are not in this
-  sitemap.
+  Lictory itself runs on each team's own server, never on this origin, so the
+  sitemap has no account or workspace pages.
 - Content that is collapsed for people (comparison rows, FAQ answers) stays in
   the HTML and is only hidden visually, so crawlers read all of it.
 
@@ -83,27 +79,17 @@ Linear is described as coming.
 
 Only public, closed facts about the product belong in these files. Never expose
 organization, project, item or user data, and never load workspace data to build
-them. The website has no database, session or authentication: it never reads the
-application's session, so the same page is served to everyone and calls to action
-always link to the application (`NEXT_PUBLIC_PLATFORM_URL`), which decides what a
-signed-in person sees.
+them. The website has no database, session or authentication, and no hosted
+application stands behind it: Lictory is only self-hosted. The same page is
+served to everyone, and its calls to action are fixed links
+(`apps/marketing/src/lib/get-started.ts`): **Get started** leads to the
+installation guide (`docs.lictory.com/self-hosting/install`) and **GitHub** to
+the source repository.
 
-The one exception is a signed-in hint, the pattern GitHub uses with its
-`logged_in` cookie. While someone is signed in, the application keeps a
-`lictory_signed_in=1` cookie on the domain it shares with the website
-(derived from `SITE_URL`, which the application reads from its runtime
-configuration), and it clears the cookie when they
-sign out. The cookie carries no identity and grants nothing. After hydration the
-website reads it in the browser and changes "Log in", "Sign up" and "Start for
-free" into a single "Open workspace" link. Crawlers and the prerendered HTML
-always see the signed-out page. A stale hint, such as one left by a session that
-expired without a visit, only means the application shows its sign-in page. If
-the two hosts share no domain, there is no hint and the website stays signed
-out.
-
-Links shared before the split (`/app/...`, `/sign-in`,
-`/sign-up` and the other account pages) permanently redirect to the application, and `/home`,
-once the landing page for signed-in people, redirects to `/`.
+Paths of the former hosted application (`/app/...`, `/sign-in`, `/sign-up` and
+the other account pages) are not redirected any more; they are ordinary
+missing pages. `/home`, once the landing page for signed-in people, still
+redirects to `/`.
 
 The files are generated at build time from `SITE_URL`, which must be the
 canonical HTTPS origin (unset, the build falls back to the local development

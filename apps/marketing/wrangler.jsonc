@@ -16,7 +16,7 @@
   "vars": {
     "SITE_KIND": "marketing",
     "SITE_URL": "https://lictory.com",
-    "PLATFORM_URL": "https://app.lictory.com",
-    "BACKEND_ORIGIN": "https://app.lictory.com",
   },
+  // POSTHOG_HOST, for the analytics relay, comes from the deployment
+  // (`wrangler deploy --var`); without it /relay answers 404.
 }

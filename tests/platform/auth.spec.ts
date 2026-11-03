@@ -33,7 +33,7 @@ async function emailLink(
   return link!;
 }
 
-test("signup verification and password reset deliver usable email links", async ({
+test("signup verification and password reset deliver usable email links @smoke", async ({
   page,
   request,
   context,
