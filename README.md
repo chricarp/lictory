@@ -16,7 +16,7 @@ One repository, Bun workspaces:
 | `apps/platform`  | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
 | `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery     |
 | `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles       |
-| `apps/marketing` | Next.js public website (`lictory.com`), server-rendered, no database                    |
+| `apps/marketing` | Next.js public website (`lictory.com`), static export, no database                      |
 | `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                         |
 | `packages/zero`  | Zero schema, server-defined queries and the mutator                                     |
 | `packages/ui`    | Shared React primitives, theme and consent UI                                           |
@@ -92,10 +92,12 @@ bun run db:test      # verify migrations and constraints in a disposable local d
 
 ## Versions and releases
 
-Conventional Commit PR titles determine semantic versions. Merges build nightly
-images for staging; **Release to Production** in GitHub Actions deploys a
-tested version to the production server after approval. See
-[the release runbook](docs/operations/releases.md).
+Conventional Commit PR titles determine semantic versions. GitHub Actions
+calculates versions, writes release notes from the merged PRs and publishes a
+nightly prerelease for every push to `main`; a stable release promotes the exact
+commit of a tested nightly. Nobody bumps versions, edits a changelog or pushes
+tags by hand. See [the release runbook](docs/operations/releases.md) for
+versioning, hotfixes and deploying a release.
 
 ## Scripts
 

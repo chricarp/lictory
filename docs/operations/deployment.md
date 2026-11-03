@@ -368,10 +368,10 @@ routine success notifications. Docker logs rotate at 5 × 20 MB per container.
 Neither in-server checks nor in-server alerts can report during a total VPS
 outage without an independently configured external monitor.
 
-### Platform scheduling replaces Vercel Cron
+### Platform scheduling
 
-The always-running `worker` owns platform scheduling; no public cron endpoint,
-Vercel schedule or duplicate Openship recurring job is needed.
+The always-running `worker` owns platform scheduling; no public cron endpoint
+or duplicate Openship recurring job is needed.
 
 | Activity                  | Trigger / fallback interval                    |
 | ------------------------- | ---------------------------------------------- |
