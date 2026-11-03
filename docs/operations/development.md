@@ -95,6 +95,12 @@ and its replication slot. PostgreSQL must run with `wal_level=logical`
 side; `E2E_SKIP_BUILD=1` reuses builds when only tests changed. Failure
 screenshots land in `/tmp/lictory-playwright-results`.
 
+The single sign-on workflow (`tests/platform/sso.spec.ts`) needs a real
+identity provider and is skipped without one. To run it, start the local Dex
+(`docker compose --profile sso up -d dex`) and set
+`E2E_OIDC_ISSUER=http://127.0.0.1:5556/dex` for `bun run test:e2e`; see
+[single sign-on](./sso.md).
+
 ## Full verification before a pull request
 
 GitHub Actions CI is deliberately minimal to save minutes: it runs only

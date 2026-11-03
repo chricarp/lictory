@@ -16,7 +16,7 @@ import { LogoError, readLogo } from "@lictory/core/branding/server";
 import { authorize } from "@lictory/core/domain/service";
 import { trackServer } from "@lictory/core/lib/analytics/server";
 import { APPEARANCES, THEMES } from "@lictory/core/lib/appearance";
-import { auth, authProviders } from "@lictory/core/lib/auth";
+import { auth, authProviders, signInOptions } from "@lictory/core/lib/auth";
 import { handleProblem, normalizeHandle } from "@lictory/core/lib/handles";
 import {
   checkHandle,
@@ -95,6 +95,7 @@ export function webRoutes() {
             }
           : null,
         providers: authProviders,
+        signIn: signInOptions,
       },
       200,
       noStore,
@@ -135,6 +136,7 @@ export function webRoutes() {
           handle: user.handle ?? "",
         },
         providers: authProviders,
+        signIn: signInOptions,
         accounts,
         sessionCount: sessions.length,
       },

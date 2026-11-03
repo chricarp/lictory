@@ -138,6 +138,19 @@ services:
       - "8025:8025"
     restart: unless-stopped
 
+  # Optional local OpenID Connect identity provider for single sign-on work:
+  # `docker compose --profile sso up -d dex`. See deploy/dex/development.yaml
+  # and docs/operations/sso.md.
+  dex:
+    profiles: [sso]
+    image: ghcr.io/dexidp/dex:v2.43.1
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    ports:
+      - "127.0.0.1:5556:5556"
+    volumes:
+      - ./deploy/dex/development.yaml:/etc/dex/config.yaml:ro
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   zero_replica:

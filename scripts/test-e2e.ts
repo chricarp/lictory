@@ -34,6 +34,18 @@ const replicaDir = mkdtempSync(join(tmpdir(), "lictory-e2e-zero-"));
 const children: { name: string; child: ChildProcess }[] = [];
 const workerAvailable = existsSync("apps/worker/build.mjs");
 
+// The API discovers the provider when it starts, so Dex must already run.
+function oidcEnv(issuer: string | undefined) {
+  return {
+    OIDC_ISSUER: issuer ?? "",
+    OIDC_CLIENT_ID: issuer ? "lictory-local" : "",
+    OIDC_CLIENT_SECRET: issuer ? "lictory-local-dex-secret" : "",
+    OIDC_SCOPES: "",
+    OIDC_DISPLAY_NAME: issuer ? "Acme SSO" : "",
+    OIDC_AUTO_CREATE_USERS: "",
+  };
+}
+
 // Application settings shared by the API and the worker. Integrations stay
 // disabled; placeholder OAuth clients let tests reach provider redirects.
 const appEnv = {
@@ -60,6 +72,10 @@ const appEnv = {
   MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",
   MICROSOFT_CLIENT_SECRET: "e2e-microsoft-client-secret",
   MICROSOFT_TENANT_ID: "common",
+  // Company SSO only against the local Dex (tests/platform/sso.spec.ts), and
+  // only when it is requested; never a developer's own identity provider.
+  ...oidcEnv(process.env.E2E_OIDC_ISSUER?.trim()),
+  PASSWORD_LOGIN_ENABLED: "",
   ZERO_QUERY_API_KEY: "e2e-zero-query-key",
   ZERO_MUTATE_API_KEY: "e2e-zero-mutate-key",
 };
