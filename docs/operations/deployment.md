@@ -118,7 +118,10 @@ versions of these tools.
 
 `deploy/provision/new-environment.sh` creates `.env` with generated database
 passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
-`ZERO_ADMIN_PASSWORD`. Fill in the rest by hand:
+`ZERO_ADMIN_PASSWORD`. Fill in the rest by hand. The API, the worker and the
+migration runner validate their settings at startup and stop with every problem
+listed (missing required values, placeholders, secrets shorter than 32 bytes);
+see the [configuration reference](./configuration.md).
 
 | Setting                                                    | Notes                                                                                                  |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |

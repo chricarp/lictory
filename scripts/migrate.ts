@@ -17,7 +17,10 @@ import {
   resolveMigrationConnection,
   type RepositoryMigration,
 } from "@lictory/core/db/migration-safety";
+import { loadConfiguration } from "@lictory/core/config/validate";
 import { env, envInteger } from "@lictory/core/lib/env";
+
+loadConfiguration("migrate");
 
 const migrationsFolder = "drizzle";
 // Arbitrary fixed key shared by every runner of this application's migrations.

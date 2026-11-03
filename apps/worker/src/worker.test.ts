@@ -314,6 +314,9 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       RESEND_API_KEY: "",
       SMTP_HOST: "localhost",
       SMTP_FROM: "Lictory <no-reply@lictory.local>",
+      // Production startup validation rejects published example secrets
+      // (such as the CI runbook's), so the test brings its own.
+      BETTER_AUTH_SECRET: "worker-test-secret-local-only-at-least-32-bytes",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

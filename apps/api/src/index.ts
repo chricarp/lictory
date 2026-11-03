@@ -1,3 +1,6 @@
+// First: stops with every configuration problem before other modules load.
+import "@lictory/api/configuration";
+
 import { serve } from "@hono/node-server";
 import { closeDatabase } from "@lictory/core/db";
 import { realtime } from "@lictory/core/domain/realtime";

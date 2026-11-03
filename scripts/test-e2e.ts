@@ -62,8 +62,10 @@ const appEnv = {
   MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",
   MICROSOFT_CLIENT_SECRET: "e2e-microsoft-client-secret",
   MICROSOFT_TENANT_ID: "common",
-  ZERO_QUERY_API_KEY: "e2e-zero-query-key",
-  ZERO_MUTATE_API_KEY: "e2e-zero-mutate-key",
+  // Production startup validation requires at least 32 bytes. The shared
+  // prefix is what the client bundle scan looks for.
+  ZERO_QUERY_API_KEY: "e2e-zero-api-key-for-query-local-only",
+  ZERO_MUTATE_API_KEY: "e2e-zero-api-key-for-mutate-local-only",
 };
 
 function run(command: string, args: string[], env = appEnv) {

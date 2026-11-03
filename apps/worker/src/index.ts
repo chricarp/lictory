@@ -1,3 +1,6 @@
+// First: stops with every configuration problem before other modules load.
+import "@lictory/worker/configuration";
+
 import { createJobDatabase, listenForWork } from "@lictory/core/jobs";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
 import { mailTransportSummary } from "@lictory/core/lib/mailer";

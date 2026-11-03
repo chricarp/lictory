@@ -61,20 +61,25 @@ Production images and the single-server stack are described in
 
 ## Daily commands
 
-| Command               | Purpose                                            |
-| --------------------- | -------------------------------------------------- |
-| `bun run dev`         | Applications (after `docker compose up -d`)        |
-| `bun run check`       | Types, lint, formatting, unused code and PR assets |
-| `bun run format`      | Apply Prettier                                     |
-| `bun test src/<area>` | Focused domain tests while you work                |
-| `bun run test:sync`   | Synchronization invariants against PostgreSQL      |
-| `bun run test:e2e`    | Production build plus browser workflows            |
-| `bun run db:generate` | Committed SQL migration after a schema change      |
-| `bun run db:check`    | Fail when the schema has no matching migration     |
+| Command               | Purpose                                                                         |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `bun run dev`         | Applications (after `docker compose up -d`)                                     |
+| `bun run check`       | Types, lint, formatting, unused code, PR assets and the configuration reference |
+| `bun run format`      | Apply Prettier                                                                  |
+| `bun test src/<area>` | Focused domain tests while you work                                             |
+| `bun run test:sync`   | Synchronization invariants against PostgreSQL                                   |
+| `bun run test:e2e`    | Production build plus browser workflows                                         |
+| `bun run db:generate` | Committed SQL migration after a schema change                                   |
+| `bun run db:check`    | Fail when the schema has no matching migration                                  |
 
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and
 [capabilities](../internals/capabilities.md).
+
+Environment variables are declared in `packages/core/src/config/declarations.ts`.
+After adding or changing one, run `bun run config:docs` to regenerate the
+[configuration reference](./configuration.md); a test fails when runtime code
+reads an undeclared variable.
 
 `bun run knip` reports unused files and dependencies. Its configuration
 (`knip.jsonc`) lists the few findings that predate it; shrink that list rather
