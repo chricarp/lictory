@@ -29,7 +29,8 @@ x-server-environment: &server-environment
   APP_VERSION: ${LICTORY_VERSION:?}
   DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
   PLATFORM_URL: https://${PUBLIC_APP_HOST:-${APP_HOST:?}}
-  SITE_URL: https://${SITE_HOST:?}
+  # Optional: the operator's public website (legal pages, home link).
+  SITE_URL: ${SITE_HOST:+https://${SITE_HOST}}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
   DELIVERY_CREDENTIALS_KEY: ${DELIVERY_CREDENTIALS_KEY:?}
   # zero-cache presents this key to /api/zero/{query,mutate}.

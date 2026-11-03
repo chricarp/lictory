@@ -19,15 +19,17 @@ function documentWith(html: string) {
 }
 
 void test("the browser reads back the configuration the server wrote", () => {
+  const withoutWebsite: PublicConfig = { siteUrl: null, analytics: null };
+  assert.deepEqual(
+    readPublicConfig(documentWith(publicConfigTag(withoutWebsite))),
+    withoutWebsite,
+  );
   const config: PublicConfig = {
     siteUrl: "https://www.example.org",
     analytics: { projectToken: "phc_test", host: "https://eu.i.posthog.com" },
   };
   assert.deepEqual(
-    readPublicConfig(
-      documentWith(publicConfigTag(config)),
-      "https://app.example.org",
-    ),
+    readPublicConfig(documentWith(publicConfigTag(config))),
     config,
   );
 });
@@ -43,16 +45,14 @@ void test("configuration values can never close the element or inject markup", (
   assert.equal(tag.match(/<\/script>/g)?.length, 1);
   assert.ok(!tag.includes("<script>alert"));
   assert.equal(
-    readPublicConfig(documentWith(tag), "https://app.example.org").analytics
-      ?.projectToken,
+    readPublicConfig(documentWith(tag)).analytics?.projectToken,
     "</script><script>alert(1)</script>&",
   );
 });
 
-void test("a document without valid configuration falls back to the page origin and no analytics", () => {
-  const origin = "https://app.example.org";
-  const fallback = { siteUrl: origin, analytics: null };
-  assert.deepEqual(readPublicConfig(documentWith(""), origin), fallback);
+void test("a document without valid configuration has no website and no analytics", () => {
+  const fallback = { siteUrl: null, analytics: null };
+  assert.deepEqual(readPublicConfig(documentWith("")), fallback);
   for (const body of [
     "not json",
     "null",
@@ -64,7 +64,6 @@ void test("a document without valid configuration falls back to the page origin 
         documentWith(
           `<script type="application/json" id="lictory-config">${body}</script>`,
         ),
-        origin,
       ),
       fallback,
     );

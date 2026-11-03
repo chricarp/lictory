@@ -71,10 +71,11 @@ export function PrivacyPreferencesButton({
   );
 }
 
+/** `privacyHref` null: the installation publishes no privacy notice to link. */
 export function ConsentBanner({
   privacyHref = "/privacy",
 }: {
-  privacyHref?: string;
+  privacyHref?: string | null;
 }) {
   const { banner, performBannerAction, openDialog } = useHeadlessConsentUI();
   const t = useTranslations();
@@ -110,14 +111,20 @@ export function ConsentBanner({
             <span className="font-medium text-foreground">
               {t.cookieBanner.title}.
             </span>{" "}
-            Optional analytics cookies need your permission. Read our{" "}
-            <a
-              href={privacyHref}
-              className="rounded text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-            >
-              Privacy Notice
-            </a>
-            .
+            Optional analytics cookies need your permission.
+            {privacyHref ? (
+              <>
+                {" "}
+                Read our{" "}
+                <a
+                  href={privacyHref}
+                  className="rounded text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                >
+                  Privacy Notice
+                </a>
+                .
+              </>
+            ) : null}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:ml-auto sm:flex-nowrap">

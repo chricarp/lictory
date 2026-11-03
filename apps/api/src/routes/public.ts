@@ -5,7 +5,7 @@ import {
   analyticsRelayPath,
   relayTarget,
 } from "@lictory/core/lib/analytics/relay";
-import { siteUrl } from "@lictory/core/lib/auth-base-url";
+import { platformUrl, siteUrl } from "@lictory/core/lib/auth-base-url";
 import {
   analyticsSettings,
   publicConfigTag,
@@ -130,11 +130,10 @@ export function documentRoutes() {
       });
     }
     const url = new URL(c.req.url);
-    const site = siteUrl();
     const head =
-      socialPreviewHead(url.pathname, site) +
+      socialPreviewHead(url.pathname, platformUrl()) +
       publicConfigTag({
-        siteUrl: site,
+        siteUrl: siteUrl(),
         analytics: analyticsSettings({
           POSTHOG_PROJECT_TOKEN: process.env.POSTHOG_PROJECT_TOKEN,
           POSTHOG_HOST: process.env.POSTHOG_HOST,

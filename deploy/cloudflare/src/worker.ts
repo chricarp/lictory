@@ -142,9 +142,9 @@ export default {
           : (await asset.text()).replace(
               "<!--app-head-->",
               () =>
-                socialPreviewHead(path, env.SITE_URL) +
+                socialPreviewHead(path, env.PLATFORM_URL) +
                 publicConfigTag({
-                  siteUrl: new URL(env.SITE_URL).origin,
+                  siteUrl: env.SITE_URL ? new URL(env.SITE_URL).origin : null,
                   analytics: analyticsSettings(env),
                 }),
             );

@@ -84,7 +84,7 @@ export function ConsentProvider({
   privacyHref,
 }: {
   children: ReactNode;
-  privacyHref?: string;
+  privacyHref?: string | null;
 }) {
   const [scripts] = useState(consentScripts);
   return (

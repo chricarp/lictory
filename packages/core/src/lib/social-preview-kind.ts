@@ -64,6 +64,11 @@ export function previewKind(path: string): PreviewKind {
   return "workspace";
 }
 
+/** Where the platform serves the preview card of a kind of page. */
+export function socialPreviewImagePath(kind: PreviewKind) {
+  return `/social/${kind}.png`;
+}
+
 const escape = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -72,15 +77,17 @@ const escape = (value: string) =>
     .replaceAll(">", "&gt;");
 
 // The `<head>` additions for a platform document: title, description, Open
-// Graph and Twitter cards pointing at the marketing site's preview images.
+// Graph and Twitter cards pointing at the platform's own preview images
+// (packages/ui/public/social, rendered by scripts/render-social-previews.ts),
+// so link previews never depend on a separate website.
 // The SPA document itself carries noindex. Every value comes from the closed
 // vocabulary above.
-export function socialPreviewHead(path: string, siteUrl: string) {
+export function socialPreviewHead(path: string, platformOrigin: string) {
   const kind = previewKind(path);
   const title = `${previewLabels[kind]} in Lictory`;
   const description =
     "Open this link in Lictory. Sign in with an account that has access to see the details.";
-  const image = `${siteUrl.replace(/\/$/, "")}/og/${kind}`;
+  const image = `${platformOrigin.replace(/\/$/, "")}${socialPreviewImagePath(kind)}`;
   const meta = (attribute: "name" | "property", key: string, value: string) =>
     `<meta ${attribute}="${key}" content="${escape(value)}" />`;
   return [

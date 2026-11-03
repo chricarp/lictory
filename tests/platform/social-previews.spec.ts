@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { marketingOrigin } from "../helpers/app-urls";
+import { platformOrigin } from "../helpers/app-urls";
 
 // The app host's document handler names only the kind of page in link
 // previews: never the organization, project, item or query.
@@ -18,9 +18,9 @@ test("app links expose only page categories to anonymous recipients", async ({
   expect(html).toContain('content="noindex, nofollow"');
   const tags = html.match(/<meta[^>]+>/g)?.join(" ") ?? "";
   expect(tags).not.toMatch(/confidential|acquisition|SECRET-42|tab=review/);
-  // Preview images live on the website, which renders them without data.
+  // Preview images are static platform files: no website needed, no data.
   const image = /<meta property="og:image" content="([^"]+)"/.exec(html)?.[1];
-  expect(image).toBe(`${marketingOrigin}/og/epic`);
+  expect(image).toBe(`${platformOrigin}/social/epic.png`);
   const rendered = await request.get(image!);
   expect(rendered.status()).toBe(200);
   expect(rendered.headers()["content-type"]).toContain("image/");

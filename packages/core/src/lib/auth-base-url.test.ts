@@ -27,6 +27,9 @@ void test("the platform origin is exact and required in production", () => {
     }),
     "https://lictory.com",
   );
+  // No website is a valid installation, not a reason to guess one.
+  assert.equal(siteUrl({ PLATFORM_URL: "https://app.lictory.com" }), null);
+  assert.equal(siteUrl({ SITE_URL: " " }), null);
 });
 
 void test("writes are accepted only from the exact platform origin", () => {

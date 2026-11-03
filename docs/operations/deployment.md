@@ -2,6 +2,12 @@
 
 Cloudflare serves the static marketing website at `lictory.com`, redirects
 `www.lictory.com` to the apex, and serves the platform SPA at `app.lictory.com`.
+
+The marketing website (`apps/marketing`) is the lictory.com website, not part
+of a self-hosted installation. A self-hosted Lictory needs only `APP_HOST`: the
+platform serves its own link-preview images, and without `SITE_HOST` it shows
+no links to a website (the sign-up legal notice and the consent banner's
+privacy link are hidden, and the logo leads to the app's start page).
 The production server runs five long-lived services: the app gateway, API,
 background worker, zero-cache and PostgreSQL. There is no marketing container.
 See [websites on Cloudflare](cloudflare-marketing.md) for frontend releases.
@@ -121,7 +127,8 @@ passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 
 | Setting                                                    | Notes                                                                                                  |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
+| `APP_HOST`, `ACME_EMAIL`                                   | Public platform host; certificates are issued automatically                                            |
+| `SITE_HOST`, `WWW_HOST`                                    | Optional: the operator's separate public website (legal pages), served elsewhere                       |
 | `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
 | `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                          |

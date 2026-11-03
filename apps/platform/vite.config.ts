@@ -63,8 +63,7 @@ function developmentConfig(env: Record<string, string>): Plugin {
       const site = env.SITE_URL?.trim();
       return html.replace("<!--app-head-->", () =>
         publicConfigTag({
-          // Empty: the browser falls back to the page's own origin.
-          siteUrl: site ? new URL(site).origin : "",
+          siteUrl: site ? new URL(site).origin : null,
           analytics: analyticsSettings(env),
         }),
       );

@@ -6,8 +6,12 @@
 // visitor, signed in or not.
 
 export type PublicConfig = {
-  /** Public website origin: legal pages and the home link. */
-  siteUrl: string;
+  /**
+   * The operator's public website (SITE_URL): legal pages and the home link.
+   * Null for an installation without one; the platform then links nowhere
+   * outside itself.
+   */
+  siteUrl: string | null;
   /** Browser analytics, or null when analytics are not configured. */
   analytics: { projectToken: string; host: string } | null;
 };
@@ -54,13 +58,11 @@ function httpUrl(value: unknown): URL | undefined {
 }
 
 /**
- * Reads the configuration the document carries. A document without it (the
- * Vite development server, or a misconfigured host) gets safe defaults: the
- * page's own origin as the site and no analytics.
+ * Reads the configuration the document carries. A document without it (a
+ * misconfigured host) gets safe defaults: no website and no analytics.
  */
 export function readPublicConfig(
   document: Pick<Document, "getElementById">,
-  pageOrigin: string,
 ): PublicConfig {
   let raw: unknown;
   try {
@@ -83,7 +85,7 @@ export function readPublicConfig(
     ? String(analytics.host).replace(/\/+$/, "")
     : undefined;
   return {
-    siteUrl: httpUrl(value.siteUrl)?.origin ?? pageOrigin,
+    siteUrl: httpUrl(value.siteUrl)?.origin ?? null,
     analytics: projectToken && host ? { projectToken, host } : null,
   };
 }

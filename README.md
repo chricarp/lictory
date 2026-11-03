@@ -16,7 +16,7 @@ One repository, Bun workspaces:
 | `apps/platform`  | React + Vite + TanStack Router SPA (`app.lictory.com`), synchronized with Rocicorp Zero |
 | `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery     |
 | `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles       |
-| `apps/marketing` | Next.js public website (`lictory.com`), server-rendered, no database                    |
+| `apps/marketing` | The lictory.com website (Next.js, no database); not part of a self-hosted install       |
 | `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                         |
 | `packages/zero`  | Zero schema, server-defined queries and the mutator                                     |
 | `packages/ui`    | Shared React primitives, theme and consent UI                                           |

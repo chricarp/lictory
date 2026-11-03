@@ -30,10 +30,12 @@ export function platformUrl(env: Environment = process.env): string {
   return url.origin;
 }
 
-// The public website (SITE_URL): legal pages and other public links. Without
-// one, the platform origin.
-export function siteUrl(env: Environment = process.env): string {
-  return new URL(setting(env.SITE_URL) ?? platformUrl(env)).origin;
+// The operator's public website (SITE_URL): legal pages and other public
+// links. Optional: a self-hosted installation usually has none, and the
+// platform then links nowhere outside itself.
+export function siteUrl(env: Environment = process.env): string | null {
+  const configured = setting(env.SITE_URL);
+  return configured ? new URL(configured).origin : null;
 }
 
 export function matchesPlatformOrigin(

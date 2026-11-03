@@ -53,7 +53,11 @@ void test("the same build serves each installation its own origins and analytics
     siteUrl: "https://first.example",
     analytics: { projectToken: "phc_first", host: "https://eu.i.posthog.com" },
   });
-  assert.match(first, /content="https:\/\/first\.example\/og\/item"/);
+  // Link previews use the platform's own images, never the website's.
+  assert.match(
+    first,
+    /property="og:image" content="https:\/\/work\.first\.example\/social\/item\.png"/,
+  );
 
   const second = await documentFor({
     PLATFORM_URL: "https://lictory.second.example",
@@ -61,9 +65,11 @@ void test("the same build serves each installation its own origins and analytics
     POSTHOG_PROJECT_TOKEN: "",
     POSTHOG_HOST: "",
   });
-  assert.deepEqual(configOf(second), {
-    siteUrl: "https://lictory.second.example",
-    analytics: null,
-  });
+  // No website configured: the browser shows no links to one.
+  assert.deepEqual(configOf(second), { siteUrl: null, analytics: null });
+  assert.match(
+    second,
+    /property="og:image" content="https:\/\/lictory\.second\.example\/social\/item\.png"/,
+  );
   assert.ok(!second.includes("first.example"));
 });

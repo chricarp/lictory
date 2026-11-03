@@ -10,7 +10,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
     <main className="flex min-h-dvh flex-col items-center bg-background px-5 py-10 sm:py-14">
       <div className="lictory-enter flex w-full max-w-[360px] flex-1 flex-col justify-center">
         <a
-          href={siteUrl}
+          href={siteUrl ?? "/"}
           aria-label="Lictory home"
           className="mx-auto mb-8 grid size-10 place-items-center rounded-lg text-foreground transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]"
         >

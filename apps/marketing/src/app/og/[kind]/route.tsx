@@ -1,4 +1,4 @@
-import { ogCard } from "@lictory/marketing/lib/og-card";
+import { ogCard, sharedWorkCard } from "@lictory/marketing/lib/og-card";
 import { previewLabels } from "@lictory/marketing/lib/social-preview";
 
 export const dynamic = "force-static";
@@ -14,21 +14,22 @@ export async function GET(
   const { kind } = await params;
   if (kind !== "marketing" && !Object.hasOwn(previewLabels, kind))
     return new Response(null, { status: 404 });
-  const marketing = kind === "marketing";
+  const card =
+    kind === "marketing"
+      ? {
+          eyebrow: "Before the first line of code",
+          title: "Agree on what to build before anyone builds it",
+          titleSize: 68,
+          subtitle:
+            "People and agents refine one specification on parallel branches.",
+          footer: [
+            "Branch → Review → Merge → Deliver",
+            "Open-source work management",
+          ] as [string, string],
+        }
+      : sharedWorkCard(previewLabels[kind as keyof typeof previewLabels]);
   return ogCard({
-    eyebrow: marketing
-      ? "Before the first line of code"
-      : "Shared work · Private details",
-    title: marketing
-      ? "Agree on what to build before anyone builds it"
-      : `${previewLabels[kind as keyof typeof previewLabels]} in Lictory`,
-    titleSize: marketing ? 68 : 72,
-    subtitle: marketing
-      ? "People and agents refine one specification on parallel branches."
-      : "Sign in with an account that has access to see the details.",
-    footer: marketing
-      ? ["Branch → Review → Merge → Deliver", "Open-source work management"]
-      : ["Requirements, reviewed like code.", "Access stays with your team."],
+    ...card,
     headers: {
       "Cache-Control": "public, max-age=86400",
       "X-Content-Type-Options": "nosniff",

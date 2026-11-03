@@ -18,11 +18,15 @@ and APIs still enforce authentication and membership; the rewrite grants no acce
 Workspace responses are not publicly cached. Only the category images can be
 publicly cached, and workspace metadata asks search engines not to index pages.
 
-The public website serves every card image at `/og/<kind>`, including the
-workspace categories, and `SITE_URL` supplies the origin for absolute image URLs.
-No request Host header is used to construct image URLs. Images are generated
-locally with Next.js ImageResponse at build time, without remote fonts, image
-services, or AI calls.
+The platform serves the workspace category cards itself, as static files at
+`/social/<kind>.png`, so link previews work on an installation without a
+public website. `PLATFORM_URL` supplies the origin for absolute image URLs; no
+request Host header is used to construct them. The images are committed in
+`packages/ui/public/social` and rendered with the website's card renderer
+(Next.js ImageResponse, without remote fonts, image services or AI calls) by
+`bun scripts/render-social-previews.ts`; rerun it after changing the card design
+or the preview vocabulary. The website serves its own marketing card at
+`/og/marketing`.
 
 Richer previews in an authenticated chat integration would need a separate,
 explicit disclosure policy and recipient authorization. Never add private fields

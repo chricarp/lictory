@@ -4,6 +4,23 @@ import { ImageResponse } from "next/og";
 
 export const ogCardSize = { width: 1200, height: 630 };
 
+/**
+ * The card of a shared platform link: names only the kind of page. The
+ * platform serves these as static images (scripts/render-social-previews.ts).
+ */
+export function sharedWorkCard(label: string) {
+  return {
+    eyebrow: "Shared work · Private details",
+    title: `${label} in Lictory`,
+    titleSize: 72,
+    subtitle: "Sign in with an account that has access to see the details.",
+    footer: [
+      "Requirements, reviewed like code.",
+      "Access stays with your team.",
+    ] as [string, string],
+  };
+}
+
 /** The branded 1200×630 social card, rendered locally without remote assets. */
 export async function ogCard({
   eyebrow,

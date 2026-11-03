@@ -113,6 +113,11 @@ void test("SPA documents preserve private social previews without echoing worksp
       '<script type="application/json" id="lictory-config">{"siteUrl":"https://lictory.com","analytics":null}</script>',
     ),
   );
+  assert.ok(
+    html.includes(
+      'property="og:image" content="https://app.lictory.com/social/item.png"',
+    ),
+  );
   assert.ok(!html.includes("private-organization"));
   assert.ok(!html.includes("secret-item"));
   assert.equal(response.headers.get("Cache-Control"), "no-store");
