@@ -147,7 +147,7 @@ services:
   # and docs/operations/sso.md.
   dex:
     profiles: [sso]
-    image: ghcr.io/dexidp/dex:v2.43.1
+    image: ghcr.io/dexidp/dex:v2.43.1@sha256:0881d3c9359b436d585b2061736ce271c100331e073be9178ef405ce5bf09557
     command: ["dex", "serve", "/etc/dex/config.yaml"]
     ports:
       - "127.0.0.1:5556:5556"
