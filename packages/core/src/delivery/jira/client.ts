@@ -1,8 +1,11 @@
+import { jiraCloudSite } from "@lictory/core/delivery/jira/site";
 import { DeliveryError } from "@lictory/core/delivery/provider";
 
 // Minimal Jira Cloud REST v3 client: basic auth with an API token, bounded
 // retries honouring Retry-After, and Jira error bodies mapped to actionable
-// DeliveryErrors. Credentials never appear in error messages.
+// DeliveryErrors. Credentials never appear in error messages. Requests only go
+// to Jira Cloud sites (see site.ts) and never follow redirects, so a stored
+// URL or a response cannot steer the server to another host.
 
 export type JiraCredential = { email: string; apiToken: string };
 
@@ -52,13 +55,22 @@ export function createJiraClient(options: JiraClientOptions = {}) {
     body?: unknown,
     call: JiraRequestOptions = {},
   ): Promise<T | null> {
+    let site: string;
+    try {
+      site = jiraCloudSite(baseUrl);
+    } catch {
+      throw new DeliveryError(
+        "validation",
+        `This Jira connection points at ${baseUrl}, which is not a Jira Cloud site. Reconnect Jira with your https://<site>.atlassian.net URL.`,
+      );
+    }
     const authorization = `Basic ${Buffer.from(
       `${credential.email}:${credential.apiToken}`,
     ).toString("base64")}`;
     for (let attempt = 1; ; attempt++) {
       let response: Response;
       try {
-        response = await doFetch(`${baseUrl}${path}`, {
+        response = await doFetch(`${site}${path}`, {
           method,
           headers: {
             Authorization: authorization,
@@ -69,6 +81,7 @@ export function createJiraClient(options: JiraClientOptions = {}) {
           },
           body: body === undefined ? undefined : JSON.stringify(body),
           signal: AbortSignal.timeout(timeoutMs),
+          redirect: "manual",
         });
       } catch {
         if (attempt < maxAttempts && !call.once) {
@@ -80,6 +93,14 @@ export function createJiraClient(options: JiraClientOptions = {}) {
           `Jira at ${baseUrl} could not be reached. Try again later.`,
         );
       }
+      if (
+        response.type === "opaqueredirect" ||
+        (response.status >= 300 && response.status < 400)
+      )
+        throw new DeliveryError(
+          "validation",
+          `Jira at ${site} redirected the request instead of answering it. If the site was renamed, reconnect Jira with its new URL.`,
+        );
       if (response.ok) {
         const text = await response.text();
         return text ? (JSON.parse(text) as T) : null;
