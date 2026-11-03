@@ -392,6 +392,56 @@ The internal worker `GET /healthz` reports every loop's counters and timing.
 It remains bound to container loopback; read it through the saved **Scheduler
 status** job or an authorized service terminal, never a public route.
 
+## Scaling
+
+Production runs one copy of each service. Whether a service can run as
+several replicas depends on whether its state lives in PostgreSQL:
+
+- **`api`: yes.** Sessions, authentication rate limits and domain state are in
+  PostgreSQL. Each replica LISTENs for presence and inbox signals, so an
+  `/api/events` stream on one replica receives events caused by writes on
+  another. Streams end after four minutes and reconnect to any replica.
+- **`worker`: yes.** Jobs claim work through the database: notification email
+  with `FOR UPDATE SKIP LOCKED` plus a lease, chat runs with `SKIP LOCKED`,
+  delivery exports with a fenced lease that the runner renews, AI runs with a
+  lease taken under the organization lock, and automatic cycles under the
+  organization lock. Each replica LISTENs on `lictory_work` and also polls.
+  The delivery status refresh takes no claim: two replicas may read the same
+  external items in one interval, which costs provider calls but changes no
+  outcome.
+- **`migrate`: one at a time.** A one-shot job. An advisory lock makes a second
+  run wait and then fail without applying anything.
+- **`zero-cache`: no.** One process holds the SQLite replica on its volume and
+  the replication slot. Running more needs Zero's multi-node setup (a
+  replication manager plus view syncers sharing a replica backup), which this
+  deployment does not configure.
+- **`postgres`: no.** The single primary is the source of truth. There are no
+  read replicas.
+- **`proxy`: no.** It is the only published entry point (ports 80 and 443) and
+  keeps certificates and retained assets on its volumes.
+
+Better Auth keeps its rate-limit counters in the `rate_limit` table, so the
+limits hold across API replicas and restarts. The table is not in the
+`lictory_zero` publication. Better Auth deletes rows older than the longest
+window (one minute) when a counter's window resets, so the table only holds
+recent clients and needs no scheduled cleanup. Rate limiting stays on in
+production only, with Better Auth's default rules: 100 requests per 10 s on
+any auth path, 3 per 10 s for sign-in, sign-up and changing the password or
+email, and 3 per minute for password-reset and verification email. Each
+counter is keyed by the client address in `X-Forwarded-For`. With several
+replicas, the gateway's single-address normalization still applies:
+[client addresses](#client-addresses-and-authentication-rate-limits). Without
+it, every visitor shares one counter.
+
+Each API replica opens up to 10 database connections plus one LISTEN
+connection. Each worker replica opens `WORKER_DB_POOL_MAX` (4) plus one.
+Before you add replicas, check the total against PostgreSQL's
+`max_connections`. The gateway's and zero-cache's upstreams are the `api`
+service name. Make sure each replica is reachable under that name and passes
+its own `/readyz`. `deploy.sh` replaces one container per service, so scaled
+replicas also need a rollout procedure, which this deployment does not have
+yet.
+
 ## Microsoft Entra sign-in
 
 Set `MICROSOFT_CLIENT_ID` (`674718cd-ca91-451c-84eb-02aa492d2b10`) and
