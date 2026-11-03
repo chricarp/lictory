@@ -91,10 +91,11 @@
 
 	handle /zero/* {
 		# Cross-site WebSocket hijacking: the sync socket carries the session
-		# cookie, so only pages served from this origin may open it.
+		# cookie, so only pages served from the platform's public origin
+		# (PLATFORM_URL, scheme included) may open it.
 		@foreignSocket {
 			header_regexp Connection (?i)upgrade
-			not header Origin https://{$PUBLIC_APP_HOST}
+			not header Origin {$PLATFORM_URL}
 		}
 		respond @foreignSocket 403
 

@@ -5,11 +5,22 @@
 # cannot run at all (Docker or PostgreSQL down), alerts directly from here.
 set -uo pipefail
 
-environment="${1:?Usage: lictory-monitor <production|staging>}"
+environment="${1:?Usage: lictory-monitor <environment>}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
 bin="$(cd "$(dirname "$0")" && pwd)"
 setting() { grep -E "^$1=" "$home/.env" | tail -n 1 | cut -d= -f2- | sed -e "s/^['\"]//" -e "s/['\"]\$//"; }
+# JSON string without python or jq: escapes backslash, quote and control
+# characters (newlines and tabs as \n and \t, others dropped).
+json_string() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/}"
+  s="${s//$'\t'/\\t}"
+  printf '"%s"' "$(printf '%s' "$s" | tr -d '\000-\010\013-\037')"
+}
 report=""
 
 threshold="${DISK_ALERT_PERCENT:-80}"
@@ -27,12 +38,16 @@ for service in postgres zero-cache api worker proxy; do
 " ;; esac
 done
 
-# Frontends have their own release lifecycle on Cloudflare. Check the public
-# routes here, without making backend activation depend on a frontend release.
+# Frontends may have their own release lifecycle (Cloudflare). Check the
+# public routes here, without making backend activation depend on a frontend
+# release. Without a marketing site (SITE_HOST empty) there is nothing to probe.
 site=$(setting SITE_HOST)
 app=$(setting PUBLIC_APP_HOST)
 app="${app:-$(setting APP_HOST)}"
-for url in "https://$site/" "https://$app/readyz"; do
+platform=$(setting PLATFORM_URL)
+urls=("${platform:-https://$app}/readyz")
+[ -z "$site" ] || urls=("https://$site/" "${urls[@]}")
+for url in "${urls[@]}"; do
   curl -fsS -m 15 -o /dev/null "$url" 2>/dev/null || report="${report}public route $url is not healthy
 "
 done
@@ -45,8 +60,8 @@ if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then
   message="[lictory $environment] monitor could not run (exit $status). Host report: ${report:-none}"
   echo "$message" >&2
   if [ -n "$url" ]; then
-    printf '%s' "$message" | python3 -c 'import json,sys; m=sys.stdin.read(); print(json.dumps({"text":m,"content":m}))' |
-      curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "$url" >/dev/null || true
+    body=$(json_string "$message")
+    curl -fsS -m 10 -H 'Content-Type: application/json' --data-raw "{\"text\":$body,\"content\":$body}" "$url" >/dev/null || true
   fi
   ping=$(setting MONITOR_PING_URL)
   [ -n "$ping" ] && curl -fsS -m 10 --data-raw "$message" "$ping/fail" >/dev/null || true

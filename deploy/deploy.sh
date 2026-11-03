@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Deploys, inspects and rolls back one Lictory environment on this server.
-# Installed as /srv/lictory/bin/deploy.sh; release automation calls it over SSH
-# through deploy/bin/lictory-remote. See docs/operations/deployment.md.
+# Installed as <root>/bin/deploy.sh (root: LICTORY_ROOT, default /srv/lictory);
+# release automation calls it over SSH through deploy/bin/lictory-remote.
+# <env> is any configured environment (<root>/<env>/.env exists): production,
+# staging, qa… See docs/operations/deployment.md.
 #
 #   deploy.sh <env> prepare < release.env   validate, store and pull a release
 #   deploy.sh <env> migrate <version>       backup if needed, migrate, wait for Zero
@@ -17,17 +19,27 @@
 # so every migration must stay compatible with the previous release.
 set -euo pipefail
 
-environment="${1:?Usage: deploy.sh <production|staging> <command> [args]}"
-command="${2:?Usage: deploy.sh <production|staging> <command> [args]}"
+environment="${1:?Usage: deploy.sh <environment> <command> [args]}"
+command="${2:?Usage: deploy.sh <environment> <command> [args]}"
 shift 2
-case "$environment" in production | staging) ;; *)
+# Environment names become paths, Compose project names and migration
+# targets: lowercase letters, digits and hyphens. local, test and preview are
+# reserved by the migration runner (packages/core/src/db/migration-safety.ts).
+valid_environment() {
+  [[ "$1" =~ ^[a-z][a-z0-9-]{0,31}$ ]] && case "$1" in local | test | preview) false ;; esac
+}
+valid_environment "$environment" || {
   echo "Unknown environment: $environment" >&2
   exit 64
-  ;;
-esac
+}
 
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
+# A typo must not create a new environment: only configured ones are deployed.
+[ -f "$home/.env" ] || {
+  echo "Unknown environment: $environment ($home/.env does not exist; create it with new-environment.sh)." >&2
+  exit 64
+}
 releases="$home/releases"
 bin="$(cd "$(dirname "$0")" && pwd)"
 history="$home/release-history.log"
@@ -80,7 +92,12 @@ psql_admin() { # psql_admin <release-dir> <sql>
 # real proxy. Keep configuration and Caddy diagnostics private: both may contain
 # env values. No production networks, ports or volumes are used by validation.
 validate_proxy() ( # validate_proxy <release-dir>
-  local dir="$1" tmp image entry proxy_env=()
+  local dir="$1" tmp image entry proxy_env=() platform
+  # The API and the proxy's WebSocket origin check both use PLATFORM_URL
+  # verbatim as the browser's Origin: lowercase, no path or trailing slash.
+  platform=$(setting PLATFORM_URL)
+  [ -z "$platform" ] || [[ "$platform" =~ ^https?://([a-z0-9.-]+|\[[0-9a-f:]+\])(:[0-9]+)?$ ]] ||
+    die "PLATFORM_URL must be an origin such as https://lictory.example.com or http://10.0.0.5:8080 (lowercase, no path or trailing slash)."
   umask 077
   tmp=$(mktemp -d) || die "Could not create a private validation directory."
   trap 'rm -rf "$tmp"' EXIT
@@ -226,7 +243,10 @@ migrate() {
     log "No pending migrations for $1."
     return 0
   fi
-  if [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ]; then
+  if [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ] &&
+    [ "$(setting BACKUP_TARGET)" = none ]; then
+    log "WARNING: no pre-deploy backup: backups are disabled (BACKUP_TARGET=none)."
+  elif [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ]; then
     log "Pre-deploy backup…"
     compose "$dir" run --rm --no-deps -T ops backup.sh pre-deploy >&2 ||
       die "Pre-deploy backup failed; nothing was migrated."
@@ -259,10 +279,12 @@ roll() { # roll <dir>
 }
 
 verify() { # verify <dir>
-  local dir="$1" app public_app scheme insecure=()
+  local dir="$1" app public_app origin scheme insecure=()
   app=$(setting APP_HOST)
   public_app=$(setting PUBLIC_APP_HOST)
   public_app="${public_app:-$app}"
+  origin=$(setting PLATFORM_URL)
+  origin="${origin:-https://$public_app}"
   scheme=$(setting PROXY_SCHEME)
   scheme="${scheme:-https}"
   case "$scheme" in http | https) ;; *) die "Unsupported PROXY_SCHEME." ;; esac
@@ -279,7 +301,7 @@ verify() { # verify <dir>
   done
   # Zero answers WebSocket upgrades only: 101 proves proxy -> zero-cache routing.
   code=$(curl -s "${insecure[@]+"${insecure[@]}"}" --http1.1 -m 3 -o /dev/null -w '%{http_code}' \
-    --resolve "$app:${port}:127.0.0.1" -H "Origin: https://$public_app" \
+    --resolve "$app:${port}:127.0.0.1" -H "Origin: $origin" \
     -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
     -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
     "$scheme://$app:$port/zero/sync/v1/connect" || true)

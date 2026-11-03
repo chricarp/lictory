@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Five-minute health check for one environment (run by deploy/bin/lictory-monitor
-# from a systemd timer). Collects problems, then:
+# from a systemd timer). Checks only what is configured: no backup check with
+# BACKUP_TARGET=none, no alerts or pings without their URLs. Collects problems,
+# then:
 #   - pings MONITOR_PING_URL (healthy) or MONITOR_PING_URL/fail (problems), so a
 #     dead server is noticed by the absence of pings;
 #   - posts to ALERT_WEBHOOK_URL when the set of problems changes, again every
@@ -38,9 +40,12 @@ probe() { # probe <name> <url>
 probe api http://api:3002/readyz
 probe zero-cache http://zero-cache:4848/keepalive
 
-# Backup freshness (written by backup.sh on this volume).
+# Backup freshness (written by backup.sh on this volume), unless backups are
+# deliberately disabled. Webhooks and pings are optional (skipped when unset).
 max_age=$(( ${MONITOR_BACKUP_MAX_AGE_HOURS:-30} * 3600 ))
-if [ -f /backups/last-success.json ]; then
+if [ "${BACKUP_TARGET:-s3}" = none ]; then
+  echo "Note: backups are disabled (BACKUP_TARGET=none); backup freshness is not checked."
+elif [ -f /backups/last-success.json ]; then
   completed=$(jq -r .completed_at /backups/last-success.json)
   age=$(( $(date -u +%s) - $(date -u -d "$completed" +%s) ))
   [ "$age" -le "$max_age" ] || add backup "last successful backup $completed ($((age / 3600)) h ago)"

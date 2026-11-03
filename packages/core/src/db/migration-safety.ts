@@ -1,6 +1,13 @@
 // Pure safety rules for the migration runner (scripts/migrate.ts). Kept free of
 // I/O so the guarantees are unit-tested. See docs/operations/migrations.md.
 
+/**
+ * Well-known targets. `local` and `test` migrate local databases only;
+ * `preview` names hosted preview databases reached over TLS. Any other valid
+ * name (`staging`, `production`, `qa`, `eu-prod`…) is a remote environment and
+ * gets every remote protection; a server environment's name is its
+ * LICTORY_ENVIRONMENT.
+ */
 export const migrationTargets = [
   "local",
   "test",
@@ -8,7 +15,12 @@ export const migrationTargets = [
   "staging",
   "production",
 ] as const;
-export type MigrationTarget = (typeof migrationTargets)[number];
+const localTargets = new Set(["local", "test"]);
+/** Targets that never name a server environment of deploy/compose.production.yaml. */
+const nonServerTargets = new Set([...localTargets, "preview"]);
+/** Same rule as the deployment scripts (deploy/deploy.sh). */
+const targetName = /^[a-z][a-z0-9-]{0,31}$/;
+export type MigrationTarget = string;
 
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 // Docker Compose service name of the database in every Compose stack.
@@ -48,12 +60,14 @@ function value(env: MigrationEnvironment, name: string) {
  *
  * - local/test may fall back to the runtime variables but only for loopback or
  *   Compose hosts.
- * - preview/staging/production require DATABASE_MIGRATION_URL plus a matching
+ * - every other target (preview, staging, production or a custom environment
+ *   name such as qa) requires DATABASE_MIGRATION_URL plus a matching
  *   non-secret DATABASE_MIGRATION_EXPECTED_HOST. Swapping a secret between
  *   environments therefore fails closed.
  *   - transport `tls` (default): a direct (unpooled) TLS connection to a
  *     non-local host.
- *   - transport `compose-internal`: staging/production only, host exactly
+ *   - transport `compose-internal`: server environments only (not
+ *     local/test/preview), host exactly
  *     `postgres`, `sslmode=disable` stated explicitly, and both
  *     DATABASE_MIGRATION_EXPECTED_DATABASE and LICTORY_ENVIRONMENT must match,
  *     because every Compose stack names its database host `postgres`.
@@ -62,13 +76,13 @@ export function resolveMigrationConnection(
   env: MigrationEnvironment,
 ): ResolvedMigrationConnection {
   const declared = value(env, "DATABASE_MIGRATION_TARGET") ?? "local";
-  if (!(migrationTargets as readonly string[]).includes(declared)) {
+  if (!targetName.test(declared)) {
     throw new MigrationConfigurationError(
-      `DATABASE_MIGRATION_TARGET must be one of ${migrationTargets.join(", ")}; received "${declared}".`,
+      `DATABASE_MIGRATION_TARGET must be ${migrationTargets.join(", ")} or another environment name of lowercase letters, digits and hyphens; received "${declared}".`,
     );
   }
-  const target = declared as MigrationTarget;
-  const remote = target !== "local" && target !== "test";
+  const target: MigrationTarget = declared;
+  const remote = !localTargets.has(target);
   const declaredTransport = value(env, "DATABASE_MIGRATION_TRANSPORT") ?? "tls";
   if (!(migrationTransports as readonly string[]).includes(declaredTransport)) {
     throw new MigrationConfigurationError(
@@ -76,13 +90,9 @@ export function resolveMigrationConnection(
     );
   }
   const transport = declaredTransport as MigrationTransport;
-  if (
-    transport === "compose-internal" &&
-    target !== "staging" &&
-    target !== "production"
-  ) {
+  if (transport === "compose-internal" && nonServerTargets.has(target)) {
     throw new MigrationConfigurationError(
-      `The compose-internal transport only serves the staging and production servers; received target "${target}".`,
+      `The compose-internal transport only serves server environments (such as staging or production); received target "${target}".`,
     );
   }
 

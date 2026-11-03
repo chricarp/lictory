@@ -7,21 +7,25 @@ application boot, image builds or containers starting.
 
 ## Connections
 
-| Variable                               | Used by                                             | Where it lives                                 |
-| -------------------------------------- | --------------------------------------------------- | ---------------------------------------------- |
-| `DATABASE_URL`                         | API and worker (`lictory_app`, DML only)            | Built by Compose from the server's `.env`      |
-| `DATABASE_MIGRATION_URL`               | `scripts/migrate.ts`, backfills (owner)             | Only in the `migrate` service on the server    |
-| `DATABASE_MIGRATION_EXPECTED_HOST`     | Guard: host the migration URL must match            | Compose (`postgres`)                           |
-| `DATABASE_MIGRATION_EXPECTED_DATABASE` | Guard: database name the URL must match             | Compose (`LICTORY_DB_NAME` of the environment) |
-| `DATABASE_MIGRATION_TRANSPORT`         | `tls` (default) or `compose-internal`               | Compose sets `compose-internal`                |
-| `DATABASE_MIGRATION_TARGET`            | `local`, `test`, `preview`, `staging`, `production` | Compose sets the environment; default `local`  |
-| `LICTORY_ENVIRONMENT`                  | Confirms the target for `compose-internal`          | Server `.env`                                  |
+| Variable                               | Used by                                           | Where it lives                                 |
+| -------------------------------------- | ------------------------------------------------- | ---------------------------------------------- |
+| `DATABASE_URL`                         | API and worker (`lictory_app`, DML only)          | Built by Compose from the server's `.env`      |
+| `DATABASE_MIGRATION_URL`               | `scripts/migrate.ts`, backfills (owner)           | Only in the `migrate` service on the server    |
+| `DATABASE_MIGRATION_EXPECTED_HOST`     | Guard: host the migration URL must match          | Compose (`postgres`)                           |
+| `DATABASE_MIGRATION_EXPECTED_DATABASE` | Guard: database name the URL must match           | Compose (`LICTORY_DB_NAME` of the environment) |
+| `DATABASE_MIGRATION_TRANSPORT`         | `tls` (default) or `compose-internal`             | Compose sets `compose-internal`                |
+| `DATABASE_MIGRATION_TARGET`            | `local`, `test`, `preview` or an environment name | Compose sets the environment; default `local`  |
+| `LICTORY_ENVIRONMENT`                  | Confirms the target for `compose-internal`        | Server `.env`                                  |
 
 The runtime role only has DML on application tables; the migration role owns
 the schema ([database roles](deployment.md#database-roles)). The migration
 credential exists only in the one-shot `migrate` container, so a compromised
 API process cannot run DDL. Databases are never reachable from GitHub Actions
 or developer machines; migrations always run on their server.
+
+Targets other than `local` and `test` are remote: `preview`, `staging`,
+`production` and any custom environment name (lowercase letters, digits and
+hyphens) get exactly the same protections.
 
 `scripts/migrate.ts` refuses to run when:
 
@@ -33,7 +37,8 @@ or developer machines; migrations always run on their server.
   `require`/`verify-full`;
 - transport `compose-internal` (the single-server deployment, where the
   database is the Compose service `postgres` on an internal network without
-  TLS): the target is not `staging` or `production`, the host is not
+  TLS): the target is `local`, `test` or `preview` instead of a server
+  environment (`staging`, `production` or a custom name such as `qa`), the host is not
   `postgres`, `sslmode=disable` is not stated explicitly,
   `DATABASE_MIGRATION_EXPECTED_DATABASE` is missing or differs, or
   `LICTORY_ENVIRONMENT` does not equal the target.

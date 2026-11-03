@@ -84,8 +84,10 @@ allows SSH (rate limited), HTTP and HTTPS only.
 The proxy:
 
 - sends `/zero/*` to zero-cache unchanged (Zero 1.11 serves the `/zero`
-  prefix itself) and refuses WebSocket upgrades whose `Origin` is not
-  `https://app.lictory.com` (cross-site WebSocket hijacking);
+  prefix itself) and refuses WebSocket upgrades whose `Origin` is not the
+  platform's public origin, `PLATFORM_URL` (default
+  `https://<PUBLIC_APP_HOST or APP_HOST>`, here `https://app.lictory.com`;
+  cross-site WebSocket hijacking);
 - answers `/api/zero/*` with 404: zero-cache calls those endpoints on the
   internal network with its API key and forwarded session cookies;
 - streams `/api/*` and `/relay/*` without buffering (server-sent events,
@@ -101,6 +103,10 @@ The proxy:
 
 `scripts/edge-proxy.ts` is the local stand-in for these routes; keep both in
 step.
+
+Behind an existing reverse proxy or ingress, with an internal CA, or on plain
+HTTP, see [existing reverse proxy, internal CA and plain HTTP](reverse-proxy.md).
+Lictory needs its own host name; subpath hosting is not supported.
 
 ### Client addresses and authentication rate limits
 
@@ -132,37 +138,58 @@ uses `staging.lictory.com` and `app.staging.lictory.com` and runs nightly
 images; production runs stable images only. Never copy a value between their
 `.env` files.
 
-Each server has `/srv/lictory/<environment>/`:
+Other installations choose their own environments and layout. An environment
+is any name of lowercase letters, digits and hyphens (`production`, `staging`,
+`qa`, `eu-prod`); `local`, `test` and `preview` are reserved by the migration
+runner. Each name is its own Compose project (`lictory-<environment>`),
+database and `.env`, and an environment exists on a server only once its
+`.env` does, so a mistyped name is refused instead of created. Every
+environment gets the same migration safeguards
+([migrations](migrations.md)).
 
-| Path                  | Contents                                                                    |
-| --------------------- | --------------------------------------------------------------------------- |
-| `.env`                | Secrets and settings (mode 0600, owner `deploy`); template in `deploy/env/` |
-| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling       |
-| `current`             | Symlink to the active release                                               |
-| `release-history.log` | Every activation                                                            |
-| `deploy.log`          | Deployment log                                                              |
+| Setting                  | Default        | Where                                                                       |
+| ------------------------ | -------------- | --------------------------------------------------------------------------- |
+| `LICTORY_ROOT`           | `/srv/lictory` | Environment of the scripts; `install.sh` writes it into the systemd units   |
+| `DEPLOY_USER`            | `deploy`       | `install.sh` and `provision.sh`                                             |
+| `LICTORY_ENVIRONMENTS`   | `production`   | `install.sh` and `provision.sh`: the environments hosted on this server     |
+| `LICTORY_IMAGE_REGISTRY` | none (GHCR)    | Each `.env`: releases must be digests in it; `registry-login` uses its host |
 
-`/srv/lictory/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
+With another root, the release key's forced command sets it:
+`command="LICTORY_ROOT=/opt/lictory /opt/lictory/bin/lictory-remote",restrict …`
+(`install.sh` prints the exact line).
+
+Each server has `<root>/<environment>/` (`/srv/lictory/<environment>/` by default):
+
+| Path                  | Contents                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `.env`                | Secrets and settings (mode 0600, owner: the deploy user); template in `deploy/env/` |
+| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling               |
+| `current`             | Symlink to the active release                                                       |
+| `release-history.log` | Every activation                                                                    |
+| `deploy.log`          | Deployment log                                                                      |
+
+`<root>/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
 environment), `lictory-remote` (the CI key's forced command), and the backup,
 monitor and restore-drill wrappers. A newly activated release installs its
 versions of these tools.
 
 ## Secrets and settings
 
-`deploy/provision/new-environment.sh` creates `.env` with generated database
-passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
+`deploy/provision/new-environment.sh <environment>` creates `.env` from
+`deploy/env/<environment>.env.example` (the staging template for other names,
+or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 `ZERO_ADMIN_PASSWORD`. Fill in the rest by hand:
 
-| Setting                                                    | Notes                                                                                                  |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
-| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
-| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                          |
-| `BACKUP_*`                                                 | Dedicated private backup bucket and its own token; `BACKUP_AGE_RECIPIENTS` is a public key             |
-| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                              |
-| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                               |
-| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` production, `nightly` staging) |
+| Setting                                                    | Notes                                                                                                                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                                                                                            |
+| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                                                                                                 |
+| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                                                                                            |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                                                                                                  |
+| `BACKUP_*`                                                 | `BACKUP_TARGET` (`s3`, `local`, `rclone`, `none`) and its storage with its own credentials; `BACKUP_AGE_RECIPIENTS` is a public key ([recovery](recovery.md#where-backups-go)) |
+| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                                                                                                      |
+| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                                                                                                       |
+| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` production, `nightly` staging)                                                                         |
 
 Each service receives only the variables it needs (see
 `deploy/compose.production.yaml`). Secrets are visible to anyone who can run
@@ -244,26 +271,46 @@ are installed for the target platform at the lockfile's versions.
 
 ## Provisioning a server
 
-1. Create an Ubuntu 24.04 server in an EU region with
-   `deploy/provision/cloud-init.yaml` (your SSH key) and enable provider
-   backups or snapshots if wanted.
-2. Point DNS at it (below), then copy `deploy/` and run
-   `sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
-   It installs Docker from Docker's repository, automatic security updates
-   (with a 04:00 UTC reboot when required), the firewall, SSH hardening,
-   fail2ban, swap, journald limits, the `deploy` user, `/srv/lictory` and the
-   backup and monitor timers. Re-running it is safe.
-3. As `deploy`: `new-environment.sh production`, then edit `.env`.
-4. The production workflow authenticates `deploy` to GHCR with its temporary
-   GitHub job token and removes that credential afterward. No long-lived
-   registry token is needed on the server. Direct manual releases outside the
-   workflow still need a registry login before pulling private images.
-5. Add the release automation's public key to `~deploy/.ssh/authorized_keys`:
+Any Linux host with Docker Engine and the Docker Compose v2 plugin can run
+Lictory; it also needs `bash`, `curl`, `jq`, `openssl` and `flock`
+(util-linux). Choose the size and region your data and users require.
+
+1. Install Docker Engine and Compose v2 the way your distribution or company
+   does, and harden the host to your own standard.
+2. Point DNS at it (below), copy `deploy/` to the server and run, as root,
+   `LICTORY_ENVIRONMENTS="production" bash deploy/provision/install.sh`
+   (with `LICTORY_ROOT` and `DEPLOY_USER` when the defaults do not fit). It
+   creates the deploy user if needed (in the `docker` group, no sudo), the
+   directory layout, the host tools and, where systemd runs, the backup and
+   monitor timers. It changes nothing else. Re-running it is safe.
+3. As the deploy user: `new-environment.sh <environment>` (with the same
+   `LICTORY_ROOT`), then edit `.env`.
+4. The production workflow authenticates the deploy user to the registry with
+   its temporary GitHub job token and removes that credential afterward
+   (`<env> registry-login` logs in to the host of the environment's
+   `LICTORY_IMAGE_REGISTRY`, GHCR by default). No long-lived registry token is
+   needed on the server. Direct manual releases outside the workflow still
+   need a registry login before pulling private images.
+5. Add the release automation's public key to the deploy user's
+   `~/.ssh/authorized_keys`:
    `command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… release`.
    It can then only prepare, migrate, activate, backfill, roll back and report
-   status.
+   status of the environments configured on that server.
 6. Record the host key for GitHub (`ssh-keyscan -t ed25519 <server>`, compared
    with the console output) as `DEPLOY_SSH_KNOWN_HOSTS`.
+
+**Optional Ubuntu hardening.** On a fresh Ubuntu 24.04 server,
+`deploy/provision/provision.sh` replaces steps 1 and 2: create the server with
+`deploy/provision/cloud-init.yaml` (your SSH key), then run
+`sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
+It installs Docker from Docker's repository, automatic security updates (with
+a 04:00 UTC reboot when required), the firewall, SSH hardening (only the
+administrator and the deploy user may log in), fail2ban, swap and journald
+limits, then runs `install.sh`. Re-running it is safe.
+
+The GitHub release workflows deploy `production` and `staging`. Other
+environments are released with `deploy.sh <environment> release < release.env`
+on the server or by your own automation through the same forced command.
 
 DNS checklist (production): `A`/`AAAA` for `lictory.com`, `www.lictory.com`
 and `app.lictory.com`; a `CAA` record allowing `letsencrypt.org`; keep existing
@@ -367,15 +414,26 @@ timeouts even when Caddy considers the configuration valid.
 | Zero diagnostics            | `lictory-compose <env> exec zero-cache sh -c 'curl -su "admin:$ZERO_ADMIN_PASSWORD" localhost:4848/statz'` (never public) |
 
 The Openship health job (or `lictory-monitor@<env>.timer` on a standalone host)
-runs every five minutes and alerts on public Cloudflare route failures, disk usage
+runs every five minutes and alerts on public route failures (the app's
+`/readyz`, and the marketing site when `SITE_HOST` is set), disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
 overdue notification email, partial, failed or stuck delivery exports,
-automatic cycles overdue by two hours, and a backup older than 30 hours. It
-posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
+automatic cycles overdue by two hours, and a backup older than 30 hours
+(not checked with `BACKUP_TARGET=none`). It checks only what is configured
+and needs nothing but Docker, `bash` and `curl` on the host. It posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
 problems changes, every six hours while it persists, and once on recovery, and
 pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
-a server that stopped reporting. Logs rotate at 5 × 20 MB per container.
+a server that stopped reporting; both are optional. Logs rotate at 5 × 20 MB
+per container.
+
+Existing monitoring can replace or complement it: point an uptime checker
+(Uptime Kuma, Pingdom, a load balancer health check) at
+`https://<app host>/readyz`, scrape container health with cAdvisor or the
+Docker engine metrics endpoint, and use `postgres_exporter` with Prometheus for
+replication slot lag and WAL size (the queries are in
+`deploy/monitor/checks.sql`). Without the timers, run
+`lictory-monitor <env>` from your scheduler or not at all.
 
 ## Openship production operations
 

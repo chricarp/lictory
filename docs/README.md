@@ -48,6 +48,9 @@ adding domain writes or synchronized entities.
   Docker Compose topology, Openship operations, worker scheduling, first launch and releases
 - [Websites on Cloudflare](./operations/cloudflare-marketing.md): public domains,
   static HTML, the platform SPA and manually selected stable deployments
+- [Existing reverse proxy, internal CA and plain HTTP](./operations/reverse-proxy.md):
+  nginx and Traefik in front of the gateway, WebSockets, streaming, client
+  addresses, certificates and the limits of plain HTTP
 - [Backups and recovery](./operations/recovery.md): backups, restore drills,
   database, Zero replica and worker recovery
 - [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and
