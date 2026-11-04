@@ -130,3 +130,14 @@
   box-shadow: inset 0 0 0 1px var(--ss-line);
   background: var(--ss-chrome);
 }
+
+/* Buttons and revision chips match the application's pills. */
+.lx :is(.hs-button, .ag-button, .dl-button) {
+  border-radius: 999px;
+}
+.lx .dl-from {
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  font-family: var(--ss-mono);
+  font-size: 11px;
+}

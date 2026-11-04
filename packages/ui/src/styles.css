@@ -740,16 +740,6 @@
     background-position: -150% 0;
   }
 }
-/* Ambient glow behind the Intelligence greeting. */
-@keyframes intelligence-orb {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(0, -6px, 0) scale(1.06);
-  }
-}
 /* Lictory Intelligence working indicator: a 3×3 grid whose cells light up in
    a chevron wave, adapted from Beautiful UI (MIT, beautifului.dev). */
 .pixel-loader > span {

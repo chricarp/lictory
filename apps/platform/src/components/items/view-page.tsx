@@ -149,6 +149,36 @@ export function ViewPage({
         : nextRefinementAction(item),
     [project, links],
   );
+  // A review queue is a decision queue: each row says which review is asked
+  // of you, on which revision, and what else is outstanding.
+  const reviewHint = useCallback(
+    (item: WorkItem) => {
+      const open = item.reviews.filter(
+        (r) => r.status !== "cancelled" && r.status !== "completed",
+      );
+      const mine = open.filter((r) =>
+        r.assigneeIds.some((id) => id === userId || disciplineIds.includes(id)),
+      );
+      const asked = (view === "needs-my-review" && mine.length ? mine : open)
+        .map((r) => r.responsibility)
+        .join(", ");
+      const parts = [
+        asked
+          ? `${asked} review requested on revision ${item.revisionNumber}`
+          : item.suggestionReviewerIds.includes(userId)
+            ? item.openSuggestions > 0
+              ? `${item.openSuggestions} proposed change${item.openSuggestions === 1 ? "" : "s"} waiting for your review`
+              : "A proposed change waits for your review"
+            : `Revision ${item.revisionNumber}`,
+      ];
+      if (item.blockingThreads)
+        parts.push(
+          `${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`,
+        );
+      return parts.join(" · ");
+    },
+    [view, userId, disciplineIds],
+  );
   return (
     <IssueList
       items={scoped}
@@ -217,7 +247,13 @@ export function ViewPage({
       createKind={overview && canPropose ? "story" : undefined}
       createIntent="proposal"
       createLabel="New proposal"
-      itemHint={overview ? itemHint : undefined}
+      itemHint={
+        overview
+          ? itemHint
+          : view === "needs-my-review" || view === "needs-review"
+            ? reviewHint
+            : undefined
+      }
       summary={
         overview &&
         !proposals && (

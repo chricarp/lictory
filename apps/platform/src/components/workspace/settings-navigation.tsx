@@ -38,9 +38,9 @@ export function SettingsNavigation({ nav }: { nav: SettingsNavItem[] }) {
                     scroll={false}
                     aria-current={n.id === selected ? "page" : undefined}
                     className={cn(
-                      "block rounded-md px-2 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground",
+                      "block rounded-lg px-2.5 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground transition-[background-color,color,box-shadow] duration-100 hover:bg-muted hover:text-foreground",
                       n.id === selected &&
-                        "bg-muted font-medium text-foreground",
+                        "bg-card font-medium text-foreground shadow-(--shadow-border) hover:bg-card",
                     )}
                   >
                     {n.label}

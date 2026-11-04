@@ -292,7 +292,7 @@ export function ItemWorkflow({
     </>
   );
   const evidence = (
-    <dl className="grid gap-2 text-[11.5px]">
+    <dl className="grid gap-1.5 text-[11.5px] sm:gap-2">
       {specEvidence && <EvidenceRow label="Spec">{specEvidence}</EvidenceRow>}
       {deliveryEvidence && (
         <EvidenceRow label="Delivery">{deliveryEvidence}</EvidenceRow>
@@ -328,20 +328,19 @@ export function ItemWorkflow({
               </p>
             )}
           </div>
-          {action && <div className="shrink-0 max-sm:hidden">{action}</div>}
+          {/* On phones too the action sits beside the statement, so the
+              card stays short. */}
+          {action && <div className="shrink-0">{action}</div>}
         </div>
-        <div className="mt-3.5 pl-4">{evidence}</div>
+        <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
         {next && (
-          <p className="mt-3 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px]">
-            <span className="w-16 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+          <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
+            <span className="w-12 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:w-16">
               Next
             </span>
             <span className="min-w-0">{next}</span>
           </p>
         )}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 pl-4 sm:hidden">
-          {action}
-        </div>
         <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
       </div>
       {children && (
@@ -398,7 +397,7 @@ function EvidenceRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <dt className="w-16 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+      <dt className="w-12 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:w-16">
         {label}
       </dt>
       <dd>

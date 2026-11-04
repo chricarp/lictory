@@ -76,6 +76,32 @@ type AccountSettingsProps = {
   connectionError?: string;
 };
 
+// The section nearest the top of the viewport, for the anchor nav.
+function useActiveSection(ids: string[]) {
+  const [active, setActive] = useState(ids[0]);
+  const key = ids.join(",");
+  useEffect(() => {
+    const sections = key
+      .split(",")
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => Boolean(el));
+    if (!sections.length || typeof IntersectionObserver === "undefined") return;
+    const visible = new Map<string, boolean>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries)
+          visible.set(entry.target.id, entry.isIntersecting);
+        const first = sections.find((el) => visible.get(el.id));
+        if (first) setActive(first.id);
+      },
+      { rootMargin: "0px 0px -60% 0px" },
+    );
+    for (const el of sections) observer.observe(el);
+    return () => observer.disconnect();
+  }, [key]);
+  return active;
+}
+
 // Personal settings, laid out like organization settings: an anchor nav on the
 // left and grouped cards on the right. Groups separate who you are from how
 // you sign in, with the irreversible action kept apart at the end.
@@ -97,6 +123,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "delete", label: "Delete account" },
   ];
 
+  const active = useActiveSection(nav.map((n) => n.id));
   return (
     <div className="mt-8 gap-10 lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
       <nav
@@ -108,7 +135,12 @@ export function AccountSettings(props: AccountSettingsProps) {
             <li key={n.id}>
               <a
                 href={`#${n.id}`}
-                className="block rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground"
+                aria-current={n.id === active ? "location" : undefined}
+                className={cn(
+                  "block rounded-lg px-2.5 py-1.5 text-[13px] text-muted-foreground transition-[background-color,color,box-shadow] duration-100 hover:bg-muted hover:text-foreground",
+                  n.id === active &&
+                    "bg-card font-medium text-foreground shadow-(--shadow-border) hover:bg-card",
+                )}
               >
                 {n.label}
               </a>

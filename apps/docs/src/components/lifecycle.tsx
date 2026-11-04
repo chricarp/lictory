@@ -71,7 +71,7 @@ export function Lifecycle() {
             Refinement, with its reason alongside. */}
         <div aria-hidden className="relative hidden h-9 sm:block">
           <svg
-            className="text-fd-muted-foreground/70 absolute inset-0 size-full overflow-visible"
+            className="text-fd-foreground/55 absolute inset-0 size-full overflow-visible"
             viewBox="0 0 100 36"
             preserveAspectRatio="none"
           >
@@ -79,7 +79,7 @@ export function Lifecycle() {
               d="M70 0 V16 Q70 22 64 22 H36 Q30 22 30 16 V4"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.25"
+              strokeWidth="1.5"
               strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
@@ -87,7 +87,7 @@ export function Lifecycle() {
               d="M50 0 V22"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.25"
+              strokeWidth="1.5"
               strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
@@ -97,9 +97,13 @@ export function Lifecycle() {
           </span>
         </div>
         <p className="text-fd-muted-foreground flex items-center gap-2 px-3 pt-1 pb-1.5 text-xs sm:justify-center">
-          <CornerLeftUp aria-hidden className="size-3.5 shrink-0 sm:hidden" />A
-          requested change or a material edit sends the specification back to
-          refinement; earlier approvals become stale.
+          <CornerLeftUp aria-hidden className="size-3.5 shrink-0 sm:hidden" />
+          <span>
+            <span className="text-fd-foreground font-medium">
+              Changes requested or a material edit → Refinement.
+            </span>{" "}
+            Earlier approvals become stale.
+          </span>
         </p>
       </div>
       <figcaption className="text-fd-muted-foreground mt-2.5 text-xs">

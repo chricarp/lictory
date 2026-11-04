@@ -220,7 +220,7 @@ function useAiState() {
     return {
       ok: false as const,
       message:
-        "Lictory Intelligence is not configured on this server. Ask an administrator to set OPENAI_API_KEY.",
+        "Litto isn't available on this server yet. An administrator can connect an AI provider; everything else in Lictory works without it.",
       action: null,
     };
   if (!enabled)
@@ -315,10 +315,6 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
         <span className="text-[13px] font-medium">Litto</span>
       </Header>
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-16">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-[18%] left-1/2 size-[420px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_65%)] blur-2xl motion-safe:animate-[intelligence-orb_8s_ease-in-out_infinite]"
-        />
         <div className="relative w-full max-w-2xl">
           <motion.div
             {...stagger(0)}
@@ -392,12 +388,21 @@ function AiUnavailable({
   action: { label: string; href: string } | null;
 }) {
   return (
-    <div className="rounded-2xl border bg-card p-5 text-center">
-      <p className="text-[13px] text-muted-foreground">{message}</p>
+    // A quiet notice in a tray, like the product's other unavailable states.
+    <div className="mx-auto max-w-md rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset">
+      <div className="flex items-start gap-3 rounded-2xl bg-card px-4 py-3.5 text-left shadow-(--shadow-border)">
+        <span
+          aria-hidden
+          className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/50"
+        />
+        <p className="text-[13px] leading-relaxed text-muted-foreground">
+          {message}
+        </p>
+      </div>
       {action && (
         <Link
           href={action.href}
-          className="mt-3 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+          className="m-2 inline-flex h-8 items-center rounded-full bg-primary px-3.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/88"
         >
           {action.label}
         </Link>
