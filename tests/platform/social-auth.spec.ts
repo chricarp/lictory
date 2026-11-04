@@ -10,16 +10,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { platformOrigin, signedIn } from "../helpers/app-urls";
+import { clientAddress, useClientAddress } from "../helpers/client-address";
 
 const password = "Local-test-password-123";
 
-test.beforeEach(async ({ context }, testInfo) => {
-  // Parameterized cases share a source line; give each provider its own rate
-  // limit bucket while keeping production authentication limits enabled.
-  const subnet = testInfo.title.includes("Microsoft") ? 101 : 100;
-  await context.setExtraHTTPHeaders({
-    "x-forwarded-for": `198.51.${subnet}.${(testInfo.line % 254) + 1}`,
-  });
+test.beforeEach(async ({ context }) => {
+  // Each case gets its own rate limit bucket while keeping production
+  // authentication limits enabled.
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
 async function withDb<T>(run: (db: ReturnType<typeof drizzle>) => Promise<T>) {
@@ -64,6 +62,8 @@ async function addProviderAccount(userId: string, provider: string) {
 }
 
 async function signIn(page: Page, email: string, secret = password) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(secret);

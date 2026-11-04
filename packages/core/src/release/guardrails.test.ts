@@ -14,7 +14,6 @@ import {
   assertImages,
   bakeEnvironment,
   imagesFromBakeMetadata,
-  imagesId,
   releaseFile,
 } from "@lictory/core/release/images";
 import { nightlyEvents } from "@lictory/core/release/plan";

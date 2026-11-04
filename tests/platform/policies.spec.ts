@@ -10,6 +10,7 @@ import {
 } from "../helpers/seed";
 import { waitUntilSaved } from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
+import { clientAddress } from "../helpers/client-address";
 
 // Project policy and server capabilities as a person meets them: the server
 // enforces readiness even when the browser's view is out of date, external
@@ -20,7 +21,7 @@ const properties = (page: Page) =>
   page.getByRole("heading", { name: "Properties", exact: true }).locator("..");
 
 test.beforeEach(async ({ context }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.170" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
 test("the server refuses to start a not-ready specification even from an outdated view @smoke", async ({

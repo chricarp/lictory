@@ -11,6 +11,7 @@ import {
   type Seeded,
 } from "../helpers/seed";
 import { reloadWhenSaved, waitUntilSaved } from "../helpers/sync-helpers";
+import { clientAddress } from "../helpers/client-address";
 
 let seeded: Seeded;
 const proposalTitle = "Remember the selected payment method";
@@ -57,7 +58,7 @@ test.beforeAll(async () => {
 });
 
 test.beforeEach(async ({ context }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.176" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
 test("custom types move from proposal through refinement to native delivery, with one catalog across every type", async ({

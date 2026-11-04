@@ -4,6 +4,13 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { consentStatePath } from "../consent-setup";
+import { clientAddress, useClientAddress } from "../helpers/client-address";
+
+// Sign-in and sign-up are rate limited per client address: this page
+// authenticates from its own.
+test.beforeEach(async ({ page }) => {
+  await useClientAddress(page);
+});
 
 // Instance administration in the browser: an instance administrator creates
 // an account and an organization for it, deactivates the account (which can
@@ -45,6 +52,8 @@ test.beforeAll(async () => {
 });
 
 async function signIn(page: Page, email: string, secret: string) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(secret);
@@ -57,7 +66,7 @@ test("an instance administrator manages accounts and organizations from the admi
   context,
 }) => {
   test.setTimeout(90_000);
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.181" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, administrator.email, password);
   // Without an organization, the entry page leads to the console.
   await page.getByRole("button", { name: /Open the admin console/ }).click();
@@ -106,7 +115,7 @@ test("an instance administrator manages accounts and organizations from the admi
 
   const other = await browser.newContext({
     storageState: consentStatePath,
-    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.182" },
+    extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
   });
   const person = await other.newPage();
   await signIn(person, newcomer.email, newcomer.password);

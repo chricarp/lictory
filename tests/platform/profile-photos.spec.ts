@@ -8,6 +8,7 @@ import * as s from "@lictory/core/db/schema";
 import { platformOrigin, signedIn } from "../helpers/app-urls";
 import { consentStatePath } from "../consent-setup";
 import { createWorkspace } from "../helpers/onboarding-helpers";
+import { clientAddress, useClientAddress } from "../helpers/client-address";
 
 const password = "Local-test-password-123";
 const providerImage = "https://photos.example.test/provider.png";
@@ -49,6 +50,8 @@ async function createUser(social: boolean) {
   return { id, email };
 }
 async function signIn(page: Page, email: string) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -87,7 +90,7 @@ for (const social of [false, true]) {
     context,
   }) => {
     await context.setExtraHTTPHeaders({
-      "x-forwarded-for": social ? "192.0.2.221" : "192.0.2.220",
+      "x-forwarded-for": clientAddress(),
     });
     const user = await createUser(social);
     const png = await sharp({
@@ -191,7 +194,7 @@ test("a saved photo appears in the workspace and online collaborators refresh it
   browser,
   context,
 }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.222" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   const owner = await createUser(false);
   const colleague = await createUser(false);
   await signIn(page, owner.email);
