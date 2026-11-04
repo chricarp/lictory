@@ -2,12 +2,15 @@
 # lictory: install and operate a self-hosted Lictory environment on this
 # server. A thin layer over the release tooling (install.sh,
 # new-environment.sh, deploy.sh, lictory-compose, lictory-backup,
-# lictory-restore-drill): it asks for what a first installation needs, pulls
-# releases from GitHub Releases and surfaces the safeguards of deploy.sh.
+# lictory-restore-drill): it guides a first installation (server checks,
+# address, services, access policy, the first administrator), pulls releases
+# from GitHub Releases and surfaces the safeguards of deploy.sh. Instance
+# administration runs inside the api container (apps/api/dist/admin.js).
 # Installed by deploy/get.sh; see docs/operations/self-hosting.md.
 #
-#   lictory install                 interactive (or --yes with flags/LICTORY_* variables)
-#   lictory status [--json]         active release and service health
+#   lictory install                 guided (or --yes with flags/LICTORY_* variables)
+#   lictory admin <command>         first administrator, accounts and instance administrators
+#   lictory status [--json]         active release, service health and access policy
 #   lictory doctor                  host and runtime checks, with what to fix
 #   lictory upgrade [version]       newest release of the environment's channel, or that version
 #   lictory rollback                re-activate the previous release's images
@@ -17,6 +20,8 @@
 #   lictory registry-login [--username U]   token on stdin, for private images
 #
 # Every command takes --env <name> when the server hosts several environments.
+# Output is styled only on a terminal (NO_COLOR=1 turns colours off); logs and
+# pipes get plain text.
 set -euo pipefail
 
 repository="${LICTORY_REPOSITORY:-chricarp/lictory}"
@@ -29,11 +34,77 @@ services="postgres zero-cache api worker proxy"
 # requests no certificates (proxy, local CA and plain HTTP modes).
 unused_email=unused@example.invalid
 
+# ------------------------------------------------------------------- terminal
+# Styling needs a terminal on both outputs; everything else gets the plain
+# text earlier versions printed, so logs and scripts keep working.
+fancy=false
+if [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ] && [ -t 1 ] && [ -t 2 ]; then
+  fancy=true
+fi
+utf8=false
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in *[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*) utf8=true ;; esac
+if [ "$fancy" = true ]; then
+  c_reset=$'\033[0m' c_bold=$'\033[1m' c_dim=$'\033[2m' c_red=$'\033[31m'
+  c_green=$'\033[32m' c_yellow=$'\033[33m' c_accent=$'\033[38;5;105m'
+else
+  c_reset="" c_bold="" c_dim="" c_red="" c_green="" c_yellow="" c_accent=""
+fi
+if [ "$fancy" = true ] && [ "$utf8" = true ]; then
+  g_ok="✓" g_warn="!" g_fail="✗" g_step="◆" g_prompt="›" g_pointer="❯" g_on="●" g_off="○"
+  g_bullet="•" g_mask="••••" g_h="─" g_v="│" g_tl="╭" g_tr="╮" g_bl="╰" g_br="╯" g_ellipsis="…"
+  spinner_frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+else
+  g_ok="ok" g_warn="!" g_fail="x" g_step="==" g_prompt=">" g_pointer=">" g_on="(*)" g_off="( )"
+  g_bullet="-" g_mask="****" g_h="-" g_v="|" g_tl="+" g_tr="+" g_bl="+" g_br="+" g_ellipsis="..."
+  spinner_frames=('|' '/' '-' '\')
+fi
+
+columns() {
+  local width="${COLUMNS:-}"
+  [ -n "$width" ] || width=$(tput cols 2>/dev/null || echo 80)
+  [[ "$width" =~ ^[0-9]+$ ]] || width=80
+  [ "$width" -le 100 ] || width=100
+  printf '%s' "$width"
+}
+repeat() { # repeat <text> <count>
+  local i out=""
+  for ((i = 0; i < $2; i++)); do out="$out$1"; done
+  printf '%s' "$out"
+}
+
 say() { printf '%s\n' "$*"; }
-step() { printf '\n== %s\n' "$*"; }
-warn() { printf 'Warning: %s\n' "$*" >&2; }
+# Step headers: "Step 3 of 8 · Access policy" when the command counts steps.
+steps_total=0
+step_index=0
+step() {
+  local counter=""
+  if [ "$steps_total" -gt 0 ]; then
+    step_index=$((step_index + 1))
+    counter="Step $step_index of $steps_total"
+  fi
+  if [ "$fancy" = true ]; then
+    printf '\n %s%s%s %s%s%s%s%s\n' "$c_accent" "$g_step" "$c_reset" "$c_dim" "${counter:+$counter · }" "$c_reset$c_bold" "$*" "$c_reset"
+    printf ' %s%s%s\n' "$c_dim" "$(repeat "$g_h" $(($(columns) - 2)))" "$c_reset"
+  else
+    printf '\n== %s%s\n' "${counter:+[$step_index/$steps_total] }" "$*"
+  fi
+}
+note() { # a secondary line: dimmed on a terminal
+  if [ "$fancy" = true ]; then printf '   %s%s%s\n' "$c_dim" "$*" "$c_reset"; else say "$*"; fi
+}
+warn() {
+  if [ "$fancy" = true ]; then
+    printf '   %s%s Warning:%s %s\n' "$c_yellow" "$g_warn" "$c_reset" "$*" >&2
+  else
+    printf 'Warning: %s\n' "$*" >&2
+  fi
+}
 die() {
-  printf 'Error: %s\n' "$1" >&2
+  if [ "$fancy" = true ]; then
+    printf '\n %s%s Error:%s %s\n' "$c_red$c_bold" "$g_fail" "$c_reset" "$1" >&2
+  else
+    printf 'Error: %s\n' "$1" >&2
+  fi
   exit "${2:-1}"
 }
 usage_error() {
@@ -41,12 +112,53 @@ usage_error() {
   exit 64
 }
 
+# banner <subtitle>: the Lictory header (terminal only).
+banner() {
+  [ "$fancy" = true ] || return 0
+  local version
+  version=$(current_version 2>/dev/null || true)
+  [ -n "$version" ] || version=$(env_value "$root/share/bundle/release.env" LICTORY_VERSION 2>/dev/null || true)
+  box "${c_accent}${g_step}${c_reset} ${c_bold}Lictory${c_reset}  ${c_dim}$1${c_reset}" \
+    "${c_dim}${version:+release $version · }environment ${environment:-production} · $(hostname 2>/dev/null || echo server)${c_reset}"
+}
+
+# box <line...>: lines in a rounded frame on a terminal, plain lines otherwise.
+# Lines may carry colour codes; widths are measured without them.
+box() {
+  local line plain width=0 inner cols
+  if [ "$fancy" != true ]; then
+    for line in "$@"; do say "$line"; done
+    return 0
+  fi
+  cols=$(columns)
+  for line in "$@"; do
+    plain=$(printf '%s' "$line" | sed $'s/\033\\[[0-9;]*m//g')
+    [ "${#plain}" -le "$width" ] || width=${#plain}
+  done
+  inner=$((width + 2))
+  [ "$inner" -le $((cols - 4)) ] || inner=$((cols - 4))
+  printf '\n %s%s%s%s%s\n' "$c_dim" "$g_tl" "$(repeat "$g_h" "$inner")" "$g_tr" "$c_reset"
+  for line in "$@"; do
+    plain=$(printf '%s' "$line" | sed $'s/\033\\[[0-9;]*m//g')
+    # Too long for the terminal: the plain text, shortened.
+    if [ "${#plain}" -gt $((inner - 2)) ]; then
+      plain="${plain:0:$((inner - 3))}$g_ellipsis"
+      line="$plain"
+    fi
+    printf ' %s%s%s %s%*s %s%s%s\n' "$c_dim" "$g_v" "$c_reset" "$line" $((inner - 2 - ${#plain} > 0 ? inner - 2 - ${#plain} : 0)) "" "$c_dim" "$g_v" "$c_reset"
+  done
+  printf ' %s%s%s%s%s\n' "$c_dim" "$g_bl" "$(repeat "$g_h" "$inner")" "$g_br" "$c_reset"
+}
+# row <label> <value>: one aligned line for a box or plain output.
+row() { printf '%s%-24s%s %s' "$c_dim" "$1" "$c_reset" "$2"; }
+
 usage() {
   cat <<'USAGE'
 Usage: lictory <command> [options]
 
-  install            Install or reconfigure an environment (interactive, or --yes)
-  status [--json]    Active release and service health
+  install            Install or reconfigure an environment (guided, or --yes)
+  admin <command>    Instance administration (lictory admin help)
+  status [--json]    Active release, service health and access policy
   doctor             Check the host and the running environment
   upgrade [version]  Upgrade to the newest release of the channel, or to <version>
   rollback           Re-activate the previous release (database schema stays)
@@ -59,6 +171,31 @@ Usage: lictory <command> [options]
 
 Options for every command: --env <name> (when several environments exist),
 --yes (no questions). Install options: docs/operations/self-hosting.md.
+USAGE
+}
+
+admin_usage() {
+  cat <<'USAGE'
+Usage: lictory admin <command> [options]
+
+  setup                    Create the first administrator and their organization
+                           (--organization, --organization-handle, --admin-name,
+                           --admin-email; password from LICTORY_ADMIN_PASSWORD)
+  status [--json]          Access policy, administrators, accounts, organizations
+  list                     Instance administrators
+  grant <email>            Make an account an instance administrator
+  revoke <email>           Remove instance administration from an account
+  create-user <email>      Create an account (--name, --admin, --organization
+                           <handle> [--role member|admin|owner]; password at the
+                           prompt or from LICTORY_USER_PASSWORD, else none)
+  set-password <email>     Set a password and sign the account out everywhere
+                           (prompt, or LICTORY_USER_PASSWORD)
+  deactivate <email>       Block sign-in and end every session (reversible)
+  reactivate <email>       Allow a deactivated account to sign in again
+
+Instance administrators manage accounts and organizations in the admin
+console at <your address>/admin. These commands work from the server even
+when nobody can sign in, for example to recover the only administrator.
 USAGE
 }
 
@@ -86,7 +223,9 @@ install_values="host tls acme-email acme-ca http-port bind public-url trusted-pr
   oidc oidc-issuer oidc-client-id oidc-client-secret oidc-display-name
   backup backup-path backup-bucket backup-s3-provider backup-s3-endpoint backup-s3-region
   backup-s3-access-key-id backup-s3-secret-access-key backup-rclone-remote
-  backup-age-recipient backup-identity-file channel version deploy-user"
+  backup-age-recipient backup-identity-file channel version deploy-user
+  signup-mode allowed-email-domains organization-creation
+  organization organization-handle admin-name admin-email"
 
 positional=()
 parse() { # parse <value options> <flag options> <arguments...>
@@ -161,9 +300,28 @@ host_pattern='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a
 version_pattern='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
 origin_pattern='^https?://([a-z0-9.-]+|\[[0-9a-f:]+\])(:[0-9]+)?$'
 age_pattern='^age1[0-9a-z]{20,}([ ,]+age1[0-9a-z]{20,})*$'
+email_pattern='^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+domain_pattern='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'
 
 valid_environment() {
   [[ "$1" =~ ^[a-z][a-z0-9-]{0,31}$ ]] && case "$1" in local | test | preview) false ;; esac
+}
+# Organization handles are URL names (packages/core/src/lib/organization-handles.ts):
+# the server checks reserved names; this catches typing mistakes early.
+handle_problem() {
+  local handle="$1"
+  if [ "${#handle}" -lt 3 ] || [ "${#handle}" -gt 30 ]; then
+    echo "3 to 30 characters"
+  elif ! [[ "$handle" =~ ^[a-z][a-z0-9_-]*$ ]] || [[ "$handle" =~ [-_][-_] ]] || [[ "$handle" =~ [-_]$ ]]; then
+    echo "lowercase letters, digits, single hyphens or underscores, starting with a letter"
+  fi
+}
+# A handle suggestion from an organization name (as the app suggests it).
+suggest_handle() {
+  local ascii
+  ascii=$(printf '%s' "$1" | iconv -f utf-8 -t ascii//TRANSLIT 2>/dev/null) || ascii="$1"
+  printf '%s' "$ascii" | tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9]+/-/g; s/^[^a-z]+//' | cut -c1-30 | sed -E 's/-+$//' || true
 }
 valid_port() { [[ "$1" =~ ^[0-9]{1,5}$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
 
@@ -178,7 +336,7 @@ invalid_reason() {
     env) valid_environment "$value" || echo "use lowercase letters, digits and hyphens (local, test and preview are reserved)" ;;
     host) [[ "$value" =~ $host_pattern ]] || echo "a lowercase host name such as lictory.example.com (no scheme, port or path)" ;;
     tls) word_in "$value" "acme proxy internal http" || echo "one of acme, proxy, internal, http" ;;
-    acme-email) [[ "$value" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || echo "an email address" ;;
+    acme-email) [[ "$value" =~ $email_pattern ]] || echo "an email address" ;;
     acme-ca | oidc-issuer) [ -z "$value" ] || [[ "$value" =~ ^https://[^[:space:]]+$ ]] || echo "an https:// URL" ;;
     http-port | smtp-port) valid_port "$value" || echo "a port number" ;;
     bind) word_in "$value" "127.0.0.1 0.0.0.0" || echo "127.0.0.1 (this host only) or 0.0.0.0 (all interfaces)" ;;
@@ -199,6 +357,18 @@ invalid_reason() {
     channel) word_in "$value" "stable nightly" || echo "stable or nightly" ;;
     version) [[ "$value" =~ $version_pattern ]] || echo "a release version such as 1.4.2" ;;
     deploy-user | username) [[ "$value" =~ ^[A-Za-z0-9_][A-Za-z0-9._@+\$-]{0,127}$ ]] || echo "a user name" ;;
+    signup-mode) word_in "$value" "invite closed open" || echo "one of invite, closed, open" ;;
+    organization-creation) word_in "$value" "administrators everyone" || echo "administrators or everyone" ;;
+    allowed-email-domains)
+      for item in ${value//,/ }; do
+        [[ "${item,,}" =~ $domain_pattern ]] || { echo "comma-separated lowercase email domains such as example.com" && return; }
+      done
+      ;;
+    admin-email | user-email) [[ "$value" =~ $email_pattern ]] || echo "an email address" ;;
+    admin-name | name) [ "${#value}" -le 100 ] || echo "at most 100 characters" ;;
+    organization) [ "${#value}" -le 80 ] || echo "at most 80 characters" ;;
+    organization-handle) handle_problem "$value" ;;
+    role) word_in "$value" "member admin owner" || echo "member, admin or owner" ;;
     tail) [[ "$value" =~ ^[0-9]{1,6}$ ]] || echo "a number of lines" ;;
   esac
 }
@@ -522,9 +692,59 @@ confirm() { # confirm <question>: true with --yes, else asks (default yes)
   [ "$(opt yes)" = true ] && return 0
   [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
   local answer
-  printf '%s [Y/n] ' "$1" >/dev/tty
+  if [ "$fancy" = true ]; then
+    printf '\n %s?%s %s%s%s %s(Y/n)%s %s%s%s ' "$c_accent" "$c_reset" "$c_bold" "$1" "$c_reset" "$c_dim" "$c_reset" "$c_accent" "$g_prompt" "$c_reset" >/dev/tty
+  else
+    printf '%s [Y/n] ' "$1" >/dev/tty
+  fi
   IFS= read -r answer </dev/tty || true
   case "$answer" in "" | y | Y | yes | Yes) return 0 ;; *) return 1 ;; esac
+}
+
+# run_task <title> <command...>: on a terminal in a guided run, a spinner with
+# the elapsed time while the command's output goes to a private log, and the
+# log's tail when it fails. Otherwise the output streams as it always did.
+task_log=""
+run_task() {
+  local title="$1" status=0 pid start elapsed frame=0
+  shift
+  if [ "$fancy" != true ] || [ "$interactive" != true ]; then
+    "$@" || status=$?
+    return "$status"
+  fi
+  if [ -z "$task_log" ]; then
+    if [ -d "$home" ] && { [ -d "$home/logs" ] || mkdir -m 0700 "$home/logs" 2>/dev/null; }; then
+      task_log="$home/logs/$command-$(date -u +%Y%m%dT%H%M%SZ).log"
+    else
+      task_log=$(mktemp "${TMPDIR:-/tmp}/lictory-$command.XXXXXX")
+    fi
+    (umask 077 && : >>"$task_log")
+  fi
+  printf '\n### %s (%s)\n' "$title" "$(date -u +%FT%TZ)" >>"$task_log"
+  start=$(date +%s)
+  "$@" <&0 >>"$task_log" 2>&1 &
+  pid=$!
+  # shellcheck disable=SC2064 # the child's pid is fixed now
+  trap "kill $pid 2>/dev/null; printf '\033[?25h\n' >&2; exit 130" INT TERM
+  printf '\033[?25l' >&2
+  while kill -0 "$pid" 2>/dev/null; do
+    elapsed=$(($(date +%s) - start))
+    printf '\r   %s%s%s %s %s%ss%s\033[K' "$c_accent" "${spinner_frames[frame]}" "$c_reset" "$title" "$c_dim" "$elapsed" "$c_reset" >&2
+    frame=$(((frame + 1) % ${#spinner_frames[@]}))
+    sleep 0.1
+  done
+  wait "$pid" || status=$?
+  trap - INT TERM
+  elapsed=$(($(date +%s) - start))
+  printf '\r\033[K\033[?25h' >&2
+  if [ "$status" -eq 0 ]; then
+    printf '   %s%s%s %s %s%ss%s\n' "$c_green" "$g_ok" "$c_reset" "$title" "$c_dim" "$elapsed" "$c_reset"
+  else
+    printf '   %s%s%s %s %s(failed after %ss)%s\n' "$c_red" "$g_fail" "$c_reset" "$title" "$c_dim" "$elapsed" "$c_reset"
+    tail -n 25 "$task_log" | sed "s/^/     $c_dim$g_v$c_reset /" >&2
+    printf '     %sFull log: %s%s\n' "$c_dim" "$task_log" "$c_reset" >&2
+  fi
+  return "$status"
 }
 
 start_timers() {
@@ -550,13 +770,15 @@ wait_until_ready() {
 # ------------------------------------------------------------------ preflight
 failures=0
 warnings=0
-check_ok() { printf '  ok    %s\n' "$*"; }
+check_ok() {
+  if [ "$fancy" = true ]; then printf '   %s%s%s %s\n' "$c_green" "$g_ok" "$c_reset" "$*"; else printf '  ok    %s\n' "$*"; fi
+}
 check_warn() {
-  printf '  warn  %s\n' "$*"
+  if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_yellow" "$g_warn" "$*" "$c_reset"; else printf '  warn  %s\n' "$*"; fi
   warnings=$((warnings + 1))
 }
 check_fail() {
-  printf '  FAIL  %s\n' "$*"
+  if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_red" "$g_fail" "$*" "$c_reset"; else printf '  FAIL  %s\n' "$*"; fi
   failures=$((failures + 1))
 }
 version_ge() { # version_ge <have> <need>: dotted numeric comparison
@@ -685,6 +907,37 @@ check_ports() { # check_ports <port...>: free unless this environment holds them
 # -------------------------------------------------------------------- install
 interactive=false
 
+# prompt_line <question> <default> [secret]: one styled question on the
+# terminal; sets $answer.
+prompt_line() {
+  local question="$1" default="$2" secret="${3:-}" hint=""
+  if [ -n "$secret" ]; then
+    [ -z "$default" ] || hint="keep current"
+  else
+    hint="$default"
+  fi
+  if [ "$fancy" = true ]; then
+    printf ' %s?%s %s%s%s%s %s%s ' "$c_accent" "$c_reset" "$c_bold" "$question" "$c_reset" \
+      "${hint:+ $c_dim($hint)$c_reset}" "$c_accent$g_prompt" "$c_reset" >/dev/tty
+  else
+    printf '%s%s: ' "$question" "${hint:+ [$hint]}" >/dev/tty
+  fi
+  answer=""
+  if [ -n "$secret" ]; then
+    IFS= read -r -s answer </dev/tty || true
+    if [ "$fancy" = true ] && [ -n "$answer" ]; then printf '%s%s%s\n' "$c_dim" "$g_mask" "$c_reset" >/dev/tty; else printf '\n' >/dev/tty; fi
+  else
+    IFS= read -r answer </dev/tty || true
+  fi
+}
+prompt_problem() {
+  if [ "$fancy" = true ]; then
+    printf '   %s%s %s%s\n' "$c_red" "$g_fail" "$1" "$c_reset" >/dev/tty
+  else
+    printf '  %s\n' "$1" >/dev/tty
+  fi
+}
+
 # ask <option> <question> <default> [secret]: sets the option unless it was
 # given; asks in interactive mode (re-asking until valid), else the default.
 ask() {
@@ -695,23 +948,124 @@ ask() {
     return 0
   fi
   while :; do
-    if [ -n "$secret" ]; then
-      printf '%s%s: ' "$question" "$([ -n "$default" ] && printf ' [keep current]')" >/dev/tty
-      IFS= read -r -s answer </dev/tty || true
-      printf '\n' >/dev/tty
-    else
-      printf '%s%s: ' "$question" "${default:+ [$default]}" >/dev/tty
-      IFS= read -r answer </dev/tty || true
-    fi
+    prompt_line "$question" "$default" "$secret"
     answer="${answer:-$default}"
     if [ -z "$answer" ]; then
       return 0
     fi
     reason=$(invalid_reason "$name" "$answer") || true
     [ -z "$reason" ] && break
-    printf '  %s\n' "$reason" >/dev/tty
+    prompt_problem "$reason"
   done
   set_opt "$name" "$answer"
+}
+
+# choose <option> <question> <default> <value|description>...: a single
+# choice. On a terminal, a menu (arrows or j/k, a number, Enter); without
+# styling, a typed answer; without questions, the default.
+choose() {
+  local name="$1" question="$2" default="$3" values="" item i count selected=0 key rest
+  shift 3
+  is_given "$name" && return 0
+  local -a choices=("$@")
+  count=${#choices[@]}
+  for i in "${!choices[@]}"; do
+    values="$values${values:+, }${choices[i]%%|*}"
+    [ "${choices[i]%%|*}" != "$default" ] || selected=$i
+  done
+  if [ "$interactive" != true ]; then
+    [ -z "$default" ] || set_opt "$name" "$default"
+    return 0
+  fi
+  if [ "$fancy" != true ]; then
+    ask "$name" "$question ($values)" "$default"
+    return 0
+  fi
+  local width=0
+  for item in "${choices[@]}"; do
+    item="${item%%|*}"
+    [ "${#item}" -le "$width" ] || width=${#item}
+  done
+  local header=1 room desc
+  room=$(($(columns) - width - 10))
+  [ "$room" -ge 10 ] || room=10
+  if [ "$utf8" = true ]; then
+    printf ' %s?%s %s%s%s %s(↑/↓, Enter)%s\n' "$c_accent" "$c_reset" "$c_bold" "$question" "$c_reset" "$c_dim" "$c_reset" >/dev/tty
+  else
+    printf ' %s?%s %s%s%s %s(up/down or j/k, Enter)%s\n' "$c_accent" "$c_reset" "$c_bold" "$question" "$c_reset" "$c_dim" "$c_reset" >/dev/tty
+  fi
+  printf '\033[?25l' >/dev/tty
+  local first=true
+  while :; do
+    [ "$first" = true ] || printf '\033[%sA' "$count" >/dev/tty
+    first=false
+    for i in "${!choices[@]}"; do
+      item="${choices[i]}"
+      desc="${item#*|}"
+      [ "${#desc}" -le "$room" ] || desc="${desc:0:$((room - 1))}$g_ellipsis"
+      item="${item%%|*}|$desc"
+      if [ "$i" = "$selected" ]; then
+        printf '\r\033[K  %s%s %s %-*s%s  %s\n' "$c_accent" "$g_pointer" "$g_on" "$width" "${item%%|*}" "$c_reset" "${item#*|}" >/dev/tty
+      else
+        printf '\r\033[K    %s%s%s %-*s  %s%s%s\n' "$c_dim" "$g_off" "$c_reset" "$width" "${item%%|*}" "$c_dim" "${item#*|}" "$c_reset" >/dev/tty
+      fi
+    done
+    key=""
+    IFS= read -rsn1 key </dev/tty || break
+    case "$key" in
+      $'\033')
+        rest=""
+        IFS= read -rsn2 -t 0.05 rest </dev/tty || true
+        case "$rest" in
+          "[A" | "OA") selected=$(((selected + count - 1) % count)) ;;
+          "[B" | "OB") selected=$(((selected + 1) % count)) ;;
+        esac
+        ;;
+      k) selected=$(((selected + count - 1) % count)) ;;
+      j | " ") selected=$(((selected + 1) % count)) ;;
+      [1-9]) [ "$key" -gt "$count" ] || selected=$((key - 1)) ;;
+      "") break ;;
+    esac
+  done
+  printf '\033[?25h' >/dev/tty
+  # Collapse the menu into the answered question.
+  printf '\033[%sA\r\033[J' $((count + header)) >/dev/tty
+  item="${choices[selected]}"
+  printf ' %s%s%s %s%s%s %s%s%s %s\n' "$c_green" "$g_ok" "$c_reset" "$c_bold" "$question" "$c_reset" \
+    "$c_accent" "$g_prompt" "$c_reset" "${item%%|*}" >/dev/tty
+  set_opt "$name" "${item%%|*}"
+}
+
+# ask_new_password <question>: asked twice, at least 10 characters without
+# spaces (the password policy of packages/core/src/lib/password-policy.ts).
+# Sets $new_password.
+ask_new_password() {
+  local first again answer
+  while :; do
+    prompt_line "$1" "" secret
+    first="$answer"
+    if [ "${#first}" -lt 10 ] || [ "${#first}" -gt 64 ]; then
+      prompt_problem "Use 10 to 64 characters."
+      continue
+    fi
+    case "$first" in *[[:space:]]*)
+      prompt_problem "Passwords can't contain spaces."
+      continue
+      ;;
+    esac
+    prompt_line "Repeat the password" "" secret
+    again="$answer"
+    [ "$first" = "$again" ] && break
+    prompt_problem "The passwords don't match; try again."
+  done
+  new_password="$first"
+}
+password_problem() { # password_problem <password>: why the server would refuse it
+  if [ "${#1}" -lt 10 ] || [ "${#1}" -gt 64 ]; then
+    echo "use 10 to 64 characters"
+  else
+    case "$1" in *[[:space:]]*) echo "passwords can't contain spaces" ;; esac
+  fi
 }
 require_opt() { # require_opt <option> <what>
   [ -n "$(opt "$1")" ] || die "$2 is required (--$1)." 64
@@ -742,9 +1096,13 @@ current_storage() {
 changes=""
 plan() { changes="$changes$1=$2"$'\n'; }
 
-collect_settings() {
-  local tls host port bind url email storage backup recipient ca
-  ask tls "TLS: acme (automatic HTTPS), proxy (your reverse proxy terminates TLS), internal (internal CA), http (evaluation)" "$(current_tls)"
+collect_connection() {
+  local tls host port bind url ca
+  choose tls "How do browsers reach Lictory securely?" "$(current_tls)" \
+    "acme|Automatic HTTPS with Let's Encrypt (public DNS name, ports 80 and 443)" \
+    "proxy|Your reverse proxy or ingress terminates TLS in front of this server" \
+    "internal|Certificates from your internal CA, or the gateway's own CA" \
+    "http|Plain HTTP for evaluation on a trusted machine only"
   tls=$(opt tls)
   local host_default
   host_default=$(current APP_HOST)
@@ -798,7 +1156,9 @@ collect_settings() {
       bind=$(current HTTP_BINDING)
       bind="${bind%%:*}"
       word_in "$bind" "127.0.0.1 0.0.0.0" || bind=127.0.0.1
-      ask bind "Listen on 127.0.0.1 (this host only) or 0.0.0.0 (all interfaces)" "$bind"
+      choose bind "Which interfaces does the gateway listen on?" "$bind" \
+        "127.0.0.1|This host only (a proxy on the same server)" \
+        "0.0.0.0|All interfaces (a proxy on another machine)"
       bind=$(opt bind)
       if [ "$tls" = proxy ]; then
         url=$(current PLATFORM_URL)
@@ -823,8 +1183,22 @@ collect_settings() {
       ;;
   esac
   is_given trusted-proxies && [ "$tls" != proxy ] && plan CADDY_TRUSTED_PROXIES "$(opt trusted-proxies)"
+  case "$tls" in
+    acme | internal) planned_url="https://$host" ;;
+    proxy) planned_url=$(opt public-url) ;;
+    http) planned_url="$url" ;;
+  esac
+  return 0
+}
 
-  ask email "Outbound email: smtp, resend or none" "$(current_email)"
+collect_services() {
+  local host port url email storage backup recipient
+  host=$(opt host)
+
+  choose email "How does Lictory send email (invitations, verification, password reset)?" "$(current_email)" \
+    "smtp|Your SMTP server (STARTTLS on 587, or 25)" \
+    "resend|The Resend API" \
+    "none|No email: invitations and password reset links are not delivered"
   email=$(opt email)
   local from_default="Lictory <no-reply@$host>"
   case "$email" in
@@ -860,7 +1234,9 @@ collect_settings() {
 
   storage=$(current_storage)
   if [ "$storage" != r2 ] || is_given storage; then
-    ask storage "Attachment storage: s3 (any S3-compatible bucket) or none" "${storage/r2/s3}"
+    choose storage "Where are attachments stored?" "${storage/r2/s3}" \
+      "s3|Any S3-compatible bucket reachable from browsers" \
+      "none|Nowhere: attachments are disabled"
     if [ "$(opt storage)" = s3 ]; then
       ask s3-endpoint "S3 endpoint reachable from browsers (empty: AWS S3)" "$(current S3_ENDPOINT)"
       ask s3-region "Region (empty: us-east-1 with an endpoint)" "$(current S3_REGION)"
@@ -880,7 +1256,9 @@ collect_settings() {
     for key in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET_NAME R2_S3_ENDPOINT; do plan "$key" ""; done
   fi
 
-  ask oidc "Company single sign-on (OpenID Connect): yes or no" "$([ -n "$(current OIDC_ISSUER)" ] && echo yes || echo no)"
+  choose oidc "Sign in with your company identity provider (OpenID Connect)?" "$([ -n "$(current OIDC_ISSUER)" ] && echo yes || echo no)" \
+    "yes|Okta, Entra ID, Keycloak, Authentik, Google Workspace…" \
+    "no|Passwords (and passkeys) only; you can add SSO later"
   if [ "$(opt oidc)" = yes ] || is_given oidc-issuer; then
     ask oidc-issuer "Issuer URL" "$(current OIDC_ISSUER)"
     require_opt oidc-issuer "The OIDC issuer"
@@ -901,7 +1279,11 @@ collect_settings() {
   fi
 
   backup=$(current BACKUP_TARGET)
-  ask backup "Backups: local (this server or a mounted disk), s3, rclone or none" "${backup:-local}"
+  choose backup "Where do backups go?" "${backup:-local}" \
+    "local|A directory on this server or a mounted disk (NAS, second disk)" \
+    "s3|An S3-compatible bucket (never the attachment bucket)" \
+    "rclone|Any rclone remote (SFTP, Azure, Google Cloud Storage…)" \
+    "none|No backups (evaluation only)"
   backup=$(opt backup)
   plan BACKUP_TARGET "$backup"
   case "$backup" in
@@ -936,8 +1318,55 @@ collect_settings() {
     recipient=$(current BACKUP_AGE_RECIPIENTS)
     [[ "$recipient" =~ $age_pattern ]] || [ "$recipient" = none ] || recipient=generate
     ask backup-age-recipient "Backup encryption: an age public key (age1…), generate, or none" "$recipient"
+    # A generated key is planned once it exists (cmd_install).
+    [ "$(opt backup-age-recipient)" = generate ] || plan BACKUP_AGE_RECIPIENTS "$(opt backup-age-recipient)"
   fi
 }
+
+# Who may create accounts and organizations (LICTORY_SIGNUP_MODE,
+# LICTORY_ALLOWED_EMAIL_DOMAINS, LICTORY_ORGANIZATION_CREATION). Instance
+# administrators always can, from the admin console or `lictory admin`.
+collect_access() {
+  local mode domains creation
+  mode=$(current LICTORY_SIGNUP_MODE)
+  word_in "$mode" "invite closed open" || mode=invite
+  choose signup-mode "Who can create a Lictory account?" "$mode" \
+    "invite|People invited by an administrator (recommended)" \
+    "closed|Nobody on their own: administrators create every account" \
+    "open|Anyone who can reach this server"
+  mode=$(opt signup-mode)
+  if [ "$mode" = open ] && [ "$(opt tls)" != http ]; then
+    warn "Open sign-up lets anyone who can reach ${planned_url:-this server} create an account. Keep it on a private network."
+  fi
+  domains=$(current LICTORY_ALLOWED_EMAIL_DOMAINS)
+  ask allowed-email-domains "Allowed email domains for new accounts, comma-separated (empty: any)" "$domains"
+  domains=$(opt allowed-email-domains)
+  # One canonical spelling: lowercase, comma-separated.
+  domains=$(printf '%s' "$domains" | tr '[:upper:]' '[:lower:]' | tr -s ', ' '\n\n' | grep . | paste -sd, - || true)
+  creation=$(current LICTORY_ORGANIZATION_CREATION)
+  word_in "$creation" "administrators everyone" || creation=administrators
+  choose organization-creation "Who can create organizations?" "$creation" \
+    "administrators|Instance administrators only (recommended)" \
+    "everyone|Any signed-in person"
+  plan LICTORY_SIGNUP_MODE "$mode"
+  plan LICTORY_ALLOWED_EMAIL_DOMAINS "$domains"
+  plan LICTORY_ORGANIZATION_CREATION "$(opt organization-creation)"
+}
+
+signup_words() { # signup_words <mode>: the sign-up mode in plain words
+  case "$1" in
+    closed) printf 'only instance administrators create accounts' ;;
+    open) printf 'anyone who can reach %s can create an account' "$(platform_url)" ;;
+    *) printf 'people join when an administrator invites them' ;;
+  esac
+}
+organization_words() {
+  case "$1" in
+    everyone) printf 'any signed-in person can create organizations' ;;
+    *) printf 'only instance administrators create organizations' ;;
+  esac
+}
+
 
 # Prints the planned assignments that differ from the current .env.
 pending_changes() {
@@ -973,24 +1402,111 @@ generate_age_key() { # generate_age_key <ops image> <identity file>
   printf '%s' "$key"
 }
 
+# masked <value>: secrets shown as dots in the review.
+masked() { [ -z "$1" ] && printf 'none' || printf '%s' "$g_mask"; }
+
+# The review before anything changes: the answers in words, and for an
+# existing environment the .env keys that change.
+review() {
+  local tls email storage backup lines=() changed="$1"
+  tls=$(opt tls)
+  case "$tls" in
+    acme) lines+=("$(row "Address" "${planned_url} (automatic HTTPS)")") ;;
+    internal) lines+=("$(row "Address" "${planned_url} ($([ -n "$(opt acme-ca)" ] && echo "certificates from $(opt acme-ca)" || echo "the gateway's own CA"))")") ;;
+    proxy) lines+=("$(row "Address" "${planned_url} (behind your proxy, gateway on $(opt bind):$(opt http-port))")") ;;
+    http) lines+=("$(row "Address" "${planned_url} (plain HTTP, evaluation only)")") ;;
+  esac
+  email=$(opt email)
+  case "$email" in
+    smtp) lines+=("$(row "Email" "SMTP $(opt smtp-host):$(opt smtp-port)$([ -n "$(opt smtp-user)" ] && printf ' as %s, password %s' "$(opt smtp-user)" "$(masked "$(opt smtp-password)")") from $(opt smtp-from)")") ;;
+    resend) lines+=("$(row "Email" "Resend (key $(masked "$(opt resend-api-key)")) from $(opt email-from)")") ;;
+    *) lines+=("$(row "Email" "none: invitations and password reset are not delivered")") ;;
+  esac
+  storage=$(opt storage)
+  if [ "$storage" = s3 ]; then
+    lines+=("$(row "Attachments" "bucket $(opt s3-bucket)$([ -z "$(opt s3-endpoint)" ] || printf ' at %s' "$(opt s3-endpoint)"), secret $(masked "$(opt s3-secret-access-key)")")")
+  elif [ -n "$storage" ]; then
+    lines+=("$(row "Attachments" "disabled")")
+  else
+    lines+=("$(row "Attachments" "unchanged (Cloudflare R2)")")
+  fi
+  if [ "$(opt oidc)" = yes ]; then
+    lines+=("$(row "Single sign-on" "$(opt oidc-display-name) via $(opt oidc-issuer), secret $(masked "$(opt oidc-client-secret)")")")
+  else
+    lines+=("$(row "Single sign-on" "off")")
+  fi
+  backup=$(opt backup)
+  case "$backup" in
+    local) lines+=("$(row "Backups" "$( [ -n "$(opt backup-path)" ] && opt backup-path || printf 'a volume on this server')")") ;;
+    s3) lines+=("$(row "Backups" "bucket $(opt backup-bucket), secret $(masked "$(opt backup-s3-secret-access-key)")")") ;;
+    rclone) lines+=("$(row "Backups" "rclone $(opt backup-rclone-remote)")") ;;
+    none) lines+=("$(row "Backups" "none")") ;;
+  esac
+  if [ "$backup" != none ]; then
+    case "$(opt backup-age-recipient)" in
+      generate) lines+=("$(row "Backup encryption" "a new age key pair")") ;;
+      none) lines+=("$(row "Backup encryption" "none (backups are not encrypted)")") ;;
+      *) lines+=("$(row "Backup encryption" "age $(opt backup-age-recipient | cut -c1-16)$g_ellipsis")") ;;
+    esac
+  fi
+  lines+=("$(row "Accounts" "$(signup_words_planned "$(opt signup-mode)")")")
+  lines+=("$(row "Allowed email domains" "$(planned LICTORY_ALLOWED_EMAIL_DOMAINS | grep . || echo any)")")
+  lines+=("$(row "Organizations" "$(organization_words "$(opt organization-creation)")")")
+  lines+=("$(row "Release channel" "$(planned LICTORY_RELEASE_CHANNEL)")")
+  box "${lines[@]}"
+  if [ "$existed" = true ]; then
+    if [ -n "$changed" ]; then
+      say "Changes to $home/.env: $(printf '%s' "$changed" | tr '\n' ' ')"
+    else
+      note "No changes to $home/.env."
+    fi
+  fi
+}
+signup_words_planned() {
+  case "$1" in
+    open) printf 'anyone who can reach %s can create one' "${planned_url:-this server}" ;;
+    *) signup_words "$1" ;;
+  esac
+}
+planned() { # planned <key>: the last planned value
+  printf '%s' "$changes" | grep -E "^$1=" | tail -n 1 | cut -d= -f2- || true
+}
+
 cmd_install() {
   parse "$install_values" "ignore-requirements" "$@"
   [ ${#positional[@]} -eq 0 ] || usage_error "install takes no arguments."
   require_root
   select_environment install
   [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
-  local user existed=false active release_file bundle tmp changed identity=""
+  local user active release_file bundle tmp changed identity=""
+  existed=false
   user=$(deploy_user)
   [ -f "$home/.env" ] && existed=true
   active=$(current_version)
+  steps_total=8
+  banner "self-hosted installer"
 
   step "Checking this server"
   preflight
   [ "$failures" -eq 0 ] || die "Fix the failed checks above, then run lictory install again."
 
-  step "Settings for $environment"
-  [ "$existed" = true ] && say "Existing $home/.env: its secrets are kept; Enter keeps each current value."
-  collect_settings
+  step "Address and certificates"
+  [ "$existed" = true ] && note "Existing $home/.env: its secrets are kept; Enter keeps each current value."
+  collect_connection
+  if [ "$(opt tls)" = acme ] || [ "$(opt tls)" = internal ]; then
+    check_dns "$(opt host)"
+    [ -n "$active" ] || check_ports 80 443
+  elif [ -z "$active" ]; then
+    check_ports "$(opt http-port)"
+  fi
+  [ "$failures" -eq 0 ] || die "Fix the failed checks above, then run lictory install again."
+
+  step "Email, attachments, sign-in and backups"
+  collect_services
+
+  step "Access policy"
+  note "Instance administrators always create accounts and organizations, in the admin console (/admin) or with lictory admin."
+  collect_access
   local channel
   channel=$(opt channel)
   if [ -z "$channel" ]; then
@@ -1003,35 +1519,34 @@ cmd_install() {
   registry=$(current LICTORY_IMAGE_REGISTRY)
   case "$registry" in "" | *replace-with-owner*) plan LICTORY_IMAGE_REGISTRY "$default_registry" ;; esac
 
-  if [ "$(opt tls)" = acme ] || [ "$(opt tls)" = internal ]; then
-    step "Network"
-    check_dns "$(opt host)"
-    [ -n "$active" ] || check_ports 80 443
-  elif [ -z "$active" ]; then
-    step "Network"
-    check_ports "$(opt http-port)"
+  step "Review"
+  changed=""
+  [ "$existed" = false ] || changed=$(pending_changes | awk '!seen[$0]++')
+  review "$changed"
+  if [ "$existed" = true ] && [ -n "$changed" ]; then
+    confirm "Apply these changes?" || die "Nothing changed."
+  elif [ "$existed" = false ] && [ "$interactive" = true ]; then
+    confirm "Install Lictory with these settings?" || die "Nothing was installed."
   fi
-  [ "$failures" -eq 0 ] || die "Fix the failed checks above, then run lictory install again."
 
-  step "Host tooling"
+  step "Installing"
   bundle=$(bundle_dir)
-  LICTORY_ROOT="$root" DEPLOY_USER="$user" LICTORY_ENVIRONMENTS="$environment" \
-    LICTORY_CLI_PATH="$cli_path" SHOW_NEXT_STEPS=false bash "$bundle/provision/install.sh"
+  run_task "Host tooling" env LICTORY_ROOT="$root" DEPLOY_USER="$user" LICTORY_ENVIRONMENTS="$environment" \
+    LICTORY_CLI_PATH="$cli_path" SHOW_NEXT_STEPS=false bash "$bundle/provision/install.sh" ||
+    die "The host tooling could not be installed; see the messages above."
 
   if [ "$existed" = false ]; then
-    step "Environment $environment"
     tmp=$(as_deploy env LICTORY_ENV_TEMPLATE="$bundle/env/self-hosted.env.example" \
       LICTORY_IMAGE_REGISTRY="$default_registry" LICTORY_RELEASE_CHANNEL="$channel" \
       bash "$bundle/provision/new-environment.sh" "$environment" 2>&1) ||
       die "Could not create $home/.env: $tmp"
-    say "Created $home/.env with generated secrets (mode 0600). Keep a copy in your password manager."
+    check_ok "Created $home/.env with generated secrets (mode 0600). Keep a copy in your password manager."
   fi
 
   # The release to install: a chosen version, the one get.sh verified, or
   # the newest of the channel. An active environment keeps its release.
   release_file=""
   if [ -z "$active" ]; then
-    step "Release"
     if [ -z "$(opt version)" ] && [ -f "$root/share/bundle/release.env" ] &&
       [ "$(env_value "$root/share/bundle/release.env" LICTORY_CHANNEL)" = "$channel" ]; then
       release_file="$root/share/bundle/release.env"
@@ -1042,20 +1557,21 @@ cmd_install() {
       fetch_release "$release_file"
       say "Lictory $release_version ($channel): $release_notes"
     fi
-    pull_release_images "$release_file"
+    run_task "Pulling the release images" pull_release_images "$release_file" ||
+      die "The release images could not be pulled; see the messages above."
   elif [ -n "$(opt version)" ] && [ "$(opt version)" != "$active" ]; then
     say "$environment already runs $active; use: lictory upgrade $(opt version)"
   fi
 
-  if [ "$(opt backup-age-recipient)" = generate ]; then
+  if [ "$(opt backup)" != none ] && [ "$(opt backup-age-recipient)" = generate ]; then
     identity=$(opt backup-identity-file)
     identity="${identity:-/root/lictory-$environment-backup-identity.txt}"
     local ops_image key
     ops_image=$(env_value "${release_file:-$home/current/release.env}" OPS_IMAGE)
     key=$(generate_age_key "$ops_image" "$identity")
     set_opt backup-age-recipient "$key"
+    plan BACKUP_AGE_RECIPIENTS "$key"
   fi
-  [ "$(opt backup)" = none ] || plan BACKUP_AGE_RECIPIENTS "$(opt backup-age-recipient)"
   local path
   path=$(opt backup-path)
   if [ "$(opt backup)" = local ] && [ -n "$path" ]; then
@@ -1063,22 +1579,20 @@ cmd_install() {
     install -d -m 0700 -o 70 -g 70 "$path" 2>/dev/null || warn "Make $path a directory owned by uid 70 with mode 0700."
   fi
 
-  changed=$(pending_changes)
+  # The review computed the changes of an existing environment; a new one
+  # (or a key generated since) is compared with its .env now.
+  [ "$existed" = true ] && [ -z "$identity" ] || changed=$(pending_changes | awk '!seen[$0]++')
   if [ -n "$changed" ]; then
-    if [ "$existed" = true ]; then
-      say "Changes to $home/.env: $(printf '%s' "$changed" | tr '\n' ' ')"
-      confirm "Apply them?" || die "Nothing changed."
-      cp -p "$home/.env" "$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ)"
-    fi
+    [ "$existed" = false ] || cp -p "$home/.env" "$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ)"
     apply_changes
   fi
 
   if [ -n "$release_file" ]; then
-    step "Deploying"
-    deploy_sh release <"$release_file" || die "The release did not activate; see the messages above and run: lictory doctor"
+    run_task "Deploying Lictory $(env_value "$release_file" LICTORY_VERSION)" deploy_sh release <"$release_file" ||
+      die "The release did not activate; see the messages above and run: lictory doctor"
   elif [ -n "$changed" ]; then
-    step "Applying the new settings to $active"
-    deploy_sh activate "$active" || die "Re-activation failed; the previous settings are in $home/.env.backup-*. Run: lictory doctor"
+    run_task "Applying the new settings to $active" deploy_sh activate "$active" ||
+      die "Re-activation failed; the previous settings are in $home/.env.backup-*. Run: lictory doctor"
   else
     say "Nothing changed; $environment runs $active. New releases: lictory upgrade"
   fi
@@ -1087,38 +1601,362 @@ cmd_install() {
 
   step "Checking $(platform_url)"
   # Behind a proxy that may not be configured yet, do not wait long.
-  if wait_until_ready "$([ "$(current_tls)" = proxy ] && echo 20 || echo 180)"; then
+  if run_task "Waiting for $(platform_url)/readyz" wait_until_ready "$([ "$(current_tls)" = proxy ] && echo 20 || echo 180)"; then
     say "Lictory is up: $(platform_url)"
   else
     warn "$(platform_url)/readyz is not reachable from this server yet. The services are running; check DNS, firewall and certificates with: lictory doctor"
   fi
+
+  step "First administrator"
+  first_administrator install
   summary "$identity"
 }
 
+# ------------------------------------------------------- instance administration
+# admin_call <command> [args...]: admin.js inside the api container, as JSON.
+# Sets admin_out (stdout), admin_err (stderr tail) and admin_status. The
+# caller supplies stdin (a password with --password-stdin), else /dev/null.
+admin_out=""
+admin_err=""
+admin_status=0
+admin_call() {
+  local err
+  err=$(mktemp)
+  admin_status=0
+  admin_out=$(compose exec -T api node apps/api/dist/admin.js "$@" --json 2>"$err") || admin_status=$?
+  admin_err=$(tail -n 5 "$err" 2>/dev/null || true)
+  rm -f "$err"
+  return "$admin_status"
+}
+admin_value() { printf '%s' "$admin_out" | jq -r "$1" 2>/dev/null || true; }
+admin_message() {
+  local message
+  message=$(admin_value '.error.message // empty')
+  [ -n "$message" ] || message=$(printf '%s' "$admin_err" | tail -n 1)
+  printf '%s' "${message:-the administration command failed (exit $admin_status)}"
+}
+# admin_status_json: the instance status, or false when the api service
+# cannot answer (not running yet, or an older release without admin.js).
+admin_status_json() {
+  admin_call status </dev/null >/dev/null 2>&1 || return 1
+  [ -n "$(admin_value '.administrators // empty')" ]
+}
+
+# first_administrator <install|setup>: creates the first instance
+# administrator and the organization they own. From install, problems are
+# warnings with the command to finish later; from `admin setup`, errors.
+admin_email_created=""
+admin_pending=false
+first_administrator() {
+  local from="$1" count password_login sso organization handle name email password=""
+  fail() {
+    if [ "$from" = install ]; then
+      warn "$1"
+      note "Finish later with: sudo lictory admin setup"
+      admin_pending=true
+      return 1
+    fi
+    die "$1"
+  }
+  if ! admin_status_json; then
+    fail "The api service did not answer, so the first administrator was not created ($(admin_message))." || return 0
+  fi
+  count=$(admin_value '.administrators')
+  if [ "$count" -gt 0 ] 2>/dev/null; then
+    [ "$from" = install ] || die "Lictory already has an instance administrator (lictory admin list). Add more with: lictory admin grant <email>" 3
+    check_ok "$count instance administrator(s) already exist. More: sudo lictory admin grant <email>"
+    return 0
+  fi
+  password_login=$(admin_value '.passwordLogin')
+  sso=$(admin_value '.sso // empty')
+  if [ "$interactive" != true ] && [ -z "$(opt admin-email)" ]; then
+    if [ "$from" = install ]; then
+      admin_pending=true
+      note "No administrator yet. Create one with: sudo lictory admin setup"
+      return 0
+    fi
+    die "Pass --admin-email, --admin-name and --organization (password: LICTORY_ADMIN_PASSWORD), or run without --yes on a terminal." 64
+  fi
+  if [ "$from" = install ] && [ "$interactive" = true ] && [ -z "$(opt admin-email)" ]; then
+    if ! confirm "Create the first administrator now?"; then
+      admin_pending=true
+      return 0
+    fi
+  fi
+  note "The first administrator manages Lictory: accounts, organizations and other administrators."
+  note "They also own the first organization (your company or team)."
+  ask organization "Organization name (your company or team)" ""
+  organization=$(opt organization)
+  while [ -z "$organization" ]; do
+    [ "$interactive" = true ] || fail "--organization is required." || return 0
+    prompt_problem "Enter a name."
+    ask organization "Organization name (your company or team)" ""
+    organization=$(opt organization)
+  done
+  handle=$(suggest_handle "$organization")
+  [ -z "$(handle_problem "$handle")" ] || handle=""
+  ask organization-handle "Organization handle (its address: $(platform_url)/<handle>)" "$handle"
+  handle=$(opt organization-handle)
+  ask admin-name "Your full name" ""
+  name=$(opt admin-name)
+  while [ -z "$name" ]; do
+    [ "$interactive" = true ] || fail "--admin-name is required." || return 0
+    prompt_problem "Enter a name."
+    ask admin-name "Your full name" ""
+    name=$(opt admin-name)
+  done
+  ask admin-email "Your work email (you sign in with it)" ""
+  email=$(opt admin-email)
+  while [ -z "$email" ]; do
+    prompt_problem "Enter an email address."
+    ask admin-email "Your work email (you sign in with it)" ""
+    email=$(opt admin-email)
+  done
+  local args=(setup --organization "$organization" --name "$name" --email "$email")
+  [ -z "$handle" ] || args+=(--organization-handle "$handle")
+  if [ "$password_login" != false ]; then
+    if [ "$interactive" = true ] && [ -z "${LICTORY_ADMIN_PASSWORD:-}" ]; then
+      ask_new_password "Choose a password"
+      password="$new_password"
+    else
+      password="${LICTORY_ADMIN_PASSWORD:-}"
+      [ -n "$password" ] || fail "Set the administrator's password in LICTORY_ADMIN_PASSWORD (never as a flag)." || return 0
+      local problem
+      problem=$(password_problem "$password")
+      [ -z "$problem" ] || fail "LICTORY_ADMIN_PASSWORD: $problem." || return 0
+    fi
+    args+=(--password-stdin)
+  else
+    note "Password sign-in is off: $name signs in with ${sso:-your identity provider} as $email."
+  fi
+  note "Creating $email and $organization$g_ellipsis"
+  if [ -n "$password" ]; then
+    admin_call "${args[@]}" <<<"$password" || true
+  else
+    admin_call "${args[@]}" </dev/null || true
+  fi
+  password=""
+  new_password=""
+  case "$admin_status" in
+    0)
+      admin_email_created="$email"
+      check_ok "$email is the instance administrator and owns $(admin_value '.organization.name') ($(admin_value '.url'))."
+      ;;
+    3) check_ok "Lictory already has an instance administrator: lictory admin list" ;;
+    *) fail "The first administrator was not created: $(admin_message)" || return 0 ;;
+  esac
+}
 summary() {
-  local identity="$1"
+  local identity="$1" url mode lines=() notes=()
+  url=$(platform_url)
+  mode=$(setting LICTORY_SIGNUP_MODE)
+  mode="${mode:-invite}"
+  if [ "$fancy" = true ]; then
+    lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is ready${c_reset}")
+    lines+=("")
+    lines+=("$(row "Open" "$url")")
+    [ -z "$admin_email_created" ] || lines+=("$(row "Administrator" "$admin_email_created")")
+    lines+=("$(row "Admin console" "$url/admin")")
+    lines+=("$(row "Accounts" "$(signup_words "$mode")")")
+    lines+=("$(row "Organizations" "$(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")")")
+    [ -z "$(current_version)" ] || lines+=("$(row "Release" "$(current_version) ($(channel_of_environment))")")
+    box "${lines[@]}"
+  fi
   step "Next steps"
-  say "1. Open $(platform_url) and create the first account; it creates your organization."
-  say "   Sign-up is open to anyone who can reach this address: keep it on a private network until you have invited your team."
+  steps_total=0
+  if [ -n "$admin_email_created" ]; then
+    say "1. Sign in at $url as $admin_email_created."
+  elif [ "$admin_pending" = true ]; then
+    say "1. Create the first administrator and organization: sudo lictory admin setup"
+  else
+    say "1. Sign in at $url with an instance administrator account (lictory admin list)."
+  fi
+  say "2. Open the admin console at $url/admin to invite people, create accounts and organizations,"
+  say "   and choose who administers Lictory."
+  say "   Accounts: $(signup_words "$mode"); $(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")."
+  say "   Change it with: sudo lictory install --signup-mode invite|closed|open --organization-creation administrators|everyone"
   if [ "$(current_email)" = none ]; then
-    say "2. No outbound email: verification, invitation and password reset email will not be delivered,"
-    say "   so password sign-up cannot be completed. Configure SMTP or Resend: sudo lictory install --email smtp"
+    notes+=("No outbound email: invitations, verification and password reset email are not delivered.")
+    notes+=("   Configure SMTP or Resend (sudo lictory install --email smtp), or create accounts with passwords: sudo lictory admin create-user")
   fi
   if [ -n "$identity" ]; then
-    say "-  Backup identity (private key): $identity"
-    say "   Move it to your password manager or an offline copy, then delete it from this server."
-    say "   Restores and restore drills need it."
+    notes+=("Backup identity (private key): $identity")
+    notes+=("   Move it to your password manager or an offline copy, then delete it from this server.")
+    notes+=("   Restores and restore drills need it.")
   fi
   [ "$(setting BACKUP_TARGET)" = local ] && [ -z "$(setting BACKUP_LOCAL_PATH)" ] &&
-    say "-  Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone for disaster recovery."
+    notes+=("Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone for disaster recovery.")
   if [ "$(current_tls)" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
-    say "-  Set the address your reverse proxy connects from (lictory doctor suggests it):"
-    say "   sudo lictory install --trusted-proxies <ip>   (docs/operations/reverse-proxy.md)"
+    notes+=("Set the address your reverse proxy connects from (lictory doctor suggests it):")
+    notes+=("   sudo lictory install --trusted-proxies <ip>   (docs/operations/reverse-proxy.md)")
   fi
   [ "$(current_tls)" = http ] &&
-    say "-  Plain HTTP: session cookies are not Secure. Use it on a trusted machine only (docs/operations/reverse-proxy.md)."
-  say "-  Check the installation at any time: lictory doctor"
-  say "-  Upgrades: lictory upgrade (channel: $(channel_of_environment))"
+    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only (docs/operations/reverse-proxy.md).")
+  notes+=("Check the installation at any time: lictory doctor")
+  notes+=("Upgrades: lictory upgrade (channel: $(channel_of_environment))")
+  local line
+  for line in "${notes[@]}"; do
+    case "$line" in "   "*) say "$line" ;; *) say "$g_bullet  $line" ;; esac
+  done
+}
+
+# lictory admin <command>: instance administration from the server.
+need_email() { # need_email <command>: the one positional email address
+  [ ${#positional[@]} -eq 1 ] || usage_error "Usage: lictory admin $1 <email>"
+  [[ "${positional[0]}" =~ $email_pattern ]] || usage_error "$1: ${positional[0]} is not an email address."
+  printf '%s' "${positional[0]}" | tr '[:upper:]' '[:lower:]'
+}
+admin_ready() { # the api service must answer
+  admin_status_json && return 0
+  die "Lictory's api service did not answer ($(admin_message)). Is $environment running? Check: lictory status, lictory doctor"
+}
+# admin_do <success message> <admin.js args...>: one call, its error as a die.
+admin_do() {
+  local message="$1"
+  shift
+  admin_call "$@" </dev/null || die "$(admin_message)"
+  check_ok "$message"
+}
+user_label() { printf '%s <%s>' "$(admin_value '.user.name')" "$(admin_value '.user.email')"; }
+
+cmd_admin() {
+  local sub="${1:-help}" email
+  [ $# -eq 0 ] || shift
+  command="admin $sub"
+  case "$sub" in
+    help | -h | --help)
+      admin_usage
+      return 0
+      ;;
+    setup)
+      parse "organization organization-handle admin-name admin-email" "" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "admin setup takes no arguments."
+      select_environment
+      [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
+      banner "first administrator"
+      step "First administrator"
+      first_administrator setup
+      [ -z "$admin_email_created" ] || {
+        say "Sign in at $(platform_url) as $admin_email_created, then open $(platform_url)/admin."
+      }
+      ;;
+    status)
+      parse "" "json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "admin status takes no arguments."
+      select_environment
+      admin_ready
+      if [ "$(opt json)" = true ]; then
+        printf '%s\n' "$admin_out"
+        return 0
+      fi
+      print_access
+      ;;
+    list)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "admin list takes no arguments."
+      select_environment
+      admin_call list-admins </dev/null || die "$(admin_message)"
+      if [ "$(admin_value '.administrators | length')" = 0 ]; then
+        say "No instance administrator yet: sudo lictory admin setup"
+        return 0
+      fi
+      admin_value '.administrators[] | "\(.name) <\(.email)>\(if .deactivated then "  (deactivated)" else "" end)"' |
+        while IFS= read -r line; do say "$g_bullet $line"; done
+      ;;
+    grant | revoke)
+      parse "" "" "$@"
+      email=$(need_email "$sub")
+      select_environment
+      if [ "$sub" = revoke ]; then
+        confirm "Remove instance administration from $email?" || die "Nothing changed."
+      fi
+      admin_call "$sub-admin" "$email" </dev/null || die "$(admin_message)"
+      if [ "$(admin_value '.instanceAdmin')" = true ]; then
+        check_ok "$(user_label) is an instance administrator."
+      else
+        check_ok "$(user_label) is no longer an instance administrator."
+      fi
+      ;;
+    deactivate | reactivate)
+      parse "" "" "$@"
+      email=$(need_email "$sub")
+      select_environment
+      if [ "$sub" = deactivate ]; then
+        confirm "Deactivate $email? They are signed out everywhere and cannot sign in until reactivated." || die "Nothing changed."
+      fi
+      admin_call "$sub" "$email" </dev/null || die "$(admin_message)"
+      if [ "$(admin_value '.deactivated')" = true ]; then
+        check_ok "$(user_label) is deactivated. Undo: lictory admin reactivate $email"
+      else
+        check_ok "$(user_label) can sign in again."
+      fi
+      ;;
+    create-user)
+      parse "name organization role" "admin" "$@"
+      email=$(need_email create-user)
+      select_environment
+      [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
+      admin_ready
+      ask name "Full name" ""
+      [ -n "$(opt name)" ] || die "--name is required." 64
+      local args=(create-user --email "$email" --name "$(opt name)") password="${LICTORY_USER_PASSWORD:-}"
+      [ "$(opt admin)" != true ] || args+=(--admin)
+      if [ -n "$(opt organization)" ]; then
+        args+=(--organization "$(opt organization)")
+        [ -z "$(opt role)" ] || args+=(--role "$(opt role)")
+      elif [ -n "$(opt role)" ]; then
+        usage_error "--role needs --organization <handle>."
+      fi
+      if [ -z "$password" ] && [ "$interactive" = true ] && [ "$(admin_value '.passwordLogin')" != false ]; then
+        note "Set a password now, or leave it empty: they then use \"Forgot password\" (needs email) or single sign-on."
+        prompt_line "Password (empty: none)" "" secret
+        if [ -n "$answer" ]; then
+          local first="$answer"
+          [ -z "$(password_problem "$first")" ] || die "Password: $(password_problem "$first")." 64
+          prompt_line "Repeat the password" "" secret
+          [ "$answer" = "$first" ] || die "The passwords don't match." 64
+          password="$first"
+        fi
+      fi
+      if [ -n "$password" ]; then
+        [ -z "$(password_problem "$password")" ] || die "Password: $(password_problem "$password")." 64
+        args+=(--password-stdin)
+        admin_call "${args[@]}" <<<"$password" || die "$(admin_message)"
+      else
+        admin_call "${args[@]}" </dev/null || die "$(admin_message)"
+      fi
+      check_ok "Created $(user_label)$([ "$(opt admin)" != true ] || printf ', an instance administrator')."
+      [ "$(admin_value '.organization.name // empty')" = "" ] ||
+        check_ok "Member of $(admin_value '.organization.name') ($(opt role | grep . || echo member))."
+      ;;
+    set-password)
+      parse "" "" "$@"
+      email=$(need_email set-password)
+      select_environment
+      [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
+      local password="${LICTORY_USER_PASSWORD:-}"
+      if [ -z "$password" ]; then
+        [ "$interactive" = true ] || die "Set the new password in LICTORY_USER_PASSWORD, or run on a terminal." 64
+        ask_new_password "New password for $email"
+        password="$new_password"
+      fi
+      [ -z "$(password_problem "$password")" ] || die "Password: $(password_problem "$password")." 64
+      admin_call set-password "$email" --password-stdin <<<"$password" || die "$(admin_message)"
+      check_ok "New password set for $(user_label); their sessions were signed out."
+      ;;
+    *) usage_error "Unknown admin command: $sub (lictory admin help)" ;;
+  esac
+}
+
+# The access policy and counts from admin_out (admin.js status).
+print_access() {
+  local domains
+  domains=$(admin_value '(.allowedEmailDomains // []) | join(", ")')
+  say "accounts: $(signup_words "$(admin_value '.signUpMode')") (LICTORY_SIGNUP_MODE=$(admin_value '.signUpMode'))"
+  say "email domains: ${domains:-any}"
+  say "organizations: $(organization_words "$(admin_value '.organizationCreation')")"
+  say "sign-in: $([ "$(admin_value '.passwordLogin')" = false ] && printf 'single sign-on only' || printf 'password')$([ -z "$(admin_value '.sso // empty')" ] || printf ', %s' "$(admin_value '.sso')")"
+  say "administrators: $(admin_value '.administrators'), accounts: $(admin_value '.users'), organizations: $(admin_value '.organizations')"
 }
 
 # ------------------------------------------------------------------ bootstrap
@@ -1161,6 +1999,12 @@ cmd_status() {
     deploy_sh status
     say "url: $(platform_url)"
     say "channel: $(channel_of_environment)"
+    # The access policy comes from the running api; status works without it.
+    if admin_status_json; then
+      print_access
+    else
+      say "access: unknown (the api service did not answer)"
+    fi
   fi
 }
 
@@ -1443,6 +2287,31 @@ cmd_doctor() {
     fi
   fi
 
+  step "Access"
+  local mode creation count
+  mode=$(setting LICTORY_SIGNUP_MODE)
+  mode="${mode:-invite}"
+  creation=$(setting LICTORY_ORGANIZATION_CREATION)
+  if [ "$mode" = open ] && [ "$tls" != http ]; then
+    check_warn "Open sign-up: anyone who can reach $(platform_url) can create an account. Restrict it: sudo lictory install --signup-mode invite"
+  else
+    check_ok "accounts: $(signup_words "$mode")"
+  fi
+  [ -z "$(setting LICTORY_ALLOWED_EMAIL_DOMAINS)" ] || check_ok "new accounts limited to $(setting LICTORY_ALLOWED_EMAIL_DOMAINS)"
+  check_ok "organizations: $(organization_words "$creation")"
+  if [ -n "$version" ]; then
+    if admin_status_json; then
+      count=$(admin_value '.administrators')
+      if [ "$count" -gt 0 ] 2>/dev/null; then
+        check_ok "$count instance administrator(s) (lictory admin list)"
+      else
+        check_warn "No active instance administrator: nobody can manage accounts. Fix: sudo lictory admin setup (or sudo lictory admin grant <email>)"
+      fi
+    else
+      check_warn "Could not ask the api service for administrators ($(admin_message)): lictory logs api"
+    fi
+  fi
+
   if [ -d /run/systemd/system ] && command -v systemctl >/dev/null; then
     step "Timers"
     for unit in "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer"; do
@@ -1459,6 +2328,7 @@ command="${1:-help}"
 [ $# -eq 0 ] || shift
 case "$command" in
   install) cmd_install "$@" ;;
+  admin) cmd_admin "$@" ;;
   bootstrap) cmd_bootstrap "$@" ;;
   status) cmd_status "$@" ;;
   doctor) cmd_doctor "$@" ;;

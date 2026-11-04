@@ -15,6 +15,7 @@ import { eventRoutes } from "@lictory/api/routes/events";
 import { intelligenceRoutes } from "@lictory/api/routes/intelligence";
 import { documentRoutes, relayRoutes } from "@lictory/api/routes/public";
 import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
+import { adminRoutes } from "@lictory/api/routes/admin";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -144,6 +145,7 @@ export function createApp(options: { draining?: () => boolean } = {}) {
 
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());
+  app.route("/", adminRoutes());
   app.route("/", intelligenceRoutes());
   app.route("/", eventRoutes());
   app.all("/api/*", (c) =>

@@ -19,20 +19,27 @@ command, then open its address in your browser. The
 </Step>
 <Step>
 
-### Create your account
+### Sign in
 
-Sign up with your email address (or Google, Microsoft or your company's
-single sign-on, when the installation offers them), verify the address and
-choose a handle. Your handle is how teammates mention you; you can change it
-later in account settings.
+The installer creates the first administrator and your organization
+(`sudo lictory admin setup` does it later). Sign in with that email address
+and choose a handle. Your handle is how teammates mention you; you can change
+it later in account settings.
+
+Everyone else gets an account the way your installation's
+[access policy](/self-hosting/configuration#access-policy) allows: by default
+an organization administrator invites them, or an instance administrator
+creates the account in the admin console (`/admin`). With single sign-on,
+people from your identity provider can sign in directly.
 
 </Step>
 <Step>
 
 ### Create an organization and its first project
 
-Choose to create an organization (or to join one you were invited to). Name
-the organization and its first project. The project **key** becomes part of
+Open your organization and name its first project. (Where the access policy
+lets everyone create organizations, people without one can create their own
+from the welcome page.) The project **key** becomes part of
 every identifier (`PAY-142`) and does not change, so pick it with care; the
 name can change later.
 

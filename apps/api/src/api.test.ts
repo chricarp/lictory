@@ -47,6 +47,11 @@ before(async () => {
     PLATFORM_URL: origin,
     BETTER_AUTH_SECRET: "test-only-api-secret-not-a-production-credential",
     ZERO_MUTATE_API_KEY: "zero-test-key",
+    // The self-hosted defaults (invitations only, organizations by instance
+    // administrators), whatever a developer's .env says.
+    LICTORY_SIGNUP_MODE: "",
+    LICTORY_ALLOWED_EMAIL_DOMAINS: "",
+    LICTORY_ORGANIZATION_CREATION: "",
   });
   const [{ auth }, { executeMutation }, { createApp }, { closeDatabase }] =
     await Promise.all([
@@ -64,15 +69,12 @@ after(async () => {
   await admin.end();
 });
 
-// A verified person with a session cookie, created through Better Auth.
+// A verified person with a session cookie: an account an administrator
+// created through Better Auth (self-service sign-up needs an invitation).
 async function person(name: string) {
   const email = `${name.toLowerCase()}-${crypto.randomUUID().slice(0, 8)}@example.test`;
   const password = "Test-password-123";
-  await m.auth.api.signUpEmail({ body: { name, email, password } });
-  await db
-    .update(s.user)
-    .set({ emailVerified: true })
-    .where(eq(s.user.email, email));
+  await m.auth.api.provisionUser({ body: { name, email, password } });
   const response = await m.auth.api.signInEmail({
     body: { email, password },
     asResponse: true,
@@ -135,9 +137,13 @@ void test(
   async () => {
     const owner = await person("Owner");
     const member = await person("Member");
+    // Created for the owner, as the admin console does.
     const organization = await m.auth.api.createOrganization({
-      headers: owner.headers,
-      body: { name: "Acme", slug: `acme-${crypto.randomUUID().slice(0, 8)}` },
+      body: {
+        name: "Acme",
+        slug: `acme-${crypto.randomUUID().slice(0, 8)}`,
+        userId: owner.id,
+      },
     });
     const [profile] = await db
       .select()
@@ -270,7 +276,7 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
   assert.deepEqual(await (await m.app.request("/api/session")).json(), {
     user: null,
     providers: { google: false, microsoft: false, oidc: false },
-    signIn: { password: true, ssoName: null },
+    signIn: { password: true, ssoName: null, signUpMode: "invite" },
     // Follows this environment's S3_*/R2_* settings (a developer .env may set them).
     attachments: attachmentsAvailable(),
   });
@@ -318,4 +324,224 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
   assert.equal((await m.app.request("/readyz")).status, 200);
   assert.equal((await m.app.request("/api/unknown")).status, 404);
   assert.equal((await m.app.request("/api/sync")).status, 404);
+});
+
+const json = (body: unknown) => ({
+  origin,
+  "content-type": "application/json",
+  body: JSON.stringify(body),
+});
+const post = (path: string, body: unknown, cookie?: string) => {
+  const { body: payload, ...headers } = json(body);
+  return m.app.request(path, {
+    method: "POST",
+    headers: { ...headers, ...(cookie ? { cookie } : {}) },
+    body: payload,
+  });
+};
+const makeInstanceAdmin = (id: string) =>
+  db.update(s.user).set({ instanceAdmin: true }).where(eq(s.user.id, id));
+
+void test("instance policy: self-service accounts need an invitation, organizations an instance administrator", async () => {
+  const password = "Test-password-123";
+  const signUp = (email: string) =>
+    post("/api/auth/sign-up/email", { name: "Newcomer", email, password });
+  const accountFor = async (email: string) =>
+    (await db.select().from(s.user).where(eq(s.user.email, email))).length;
+
+  const stranger = `stranger-${crypto.randomUUID().slice(0, 8)}@example.test`;
+  const refused = await signUp(stranger);
+  assert.equal(refused.status, 403);
+  assert.equal(
+    ((await refused.json()) as { code: string }).code,
+    "signup_invitation_required",
+  );
+  assert.equal(await accountFor(stranger), 0);
+
+  const owner = await person("Inviter");
+  const organization = await m.auth.api.createOrganization({
+    body: {
+      name: "Invites",
+      slug: `invites-${crypto.randomUUID().slice(0, 8)}`,
+      userId: owner.id,
+    },
+  });
+  const invite = (email: string, expiresAt: Date) =>
+    db.insert(s.invitation).values({
+      id: crypto.randomUUID(),
+      organizationId: organization.id,
+      email,
+      role: "member",
+      status: "pending",
+      expiresAt,
+      inviterId: owner.id,
+      createdAt: new Date(),
+    });
+  const invited = `invited-${crypto.randomUUID().slice(0, 8)}@example.test`;
+  await invite(invited, new Date(Date.now() + 86_400_000));
+  assert.equal((await signUp(invited.toUpperCase())).status, 200);
+  assert.equal(await accountFor(invited), 1);
+  // An expired invitation no longer opens the door.
+  const late = `late-${crypto.randomUUID().slice(0, 8)}@example.test`;
+  await invite(late, new Date(Date.now() - 1000));
+  assert.equal((await signUp(late)).status, 403);
+
+  // Only instance administrators create organizations.
+  const create = () =>
+    post(
+      "/api/auth/organization/create",
+      { name: "Mine", slug: `mine-${crypto.randomUUID().slice(0, 8)}` },
+      owner.cookie,
+    );
+  assert.equal((await create()).status, 403);
+  const before = (await (
+    await m.app.request("/api/session", { headers: { cookie: owner.cookie } })
+  ).json()) as {
+    user: { instanceAdmin: boolean; canCreateOrganization: boolean };
+  };
+  assert.deepEqual(
+    [before.user.instanceAdmin, before.user.canCreateOrganization],
+    [false, false],
+  );
+  await makeInstanceAdmin(owner.id);
+  assert.equal((await create()).status, 200);
+  const after = (await (
+    await m.app.request("/api/session", { headers: { cookie: owner.cookie } })
+  ).json()) as {
+    user: { instanceAdmin: boolean; canCreateOrganization: boolean };
+  };
+  assert.deepEqual(
+    [after.user.instanceAdmin, after.user.canCreateOrganization],
+    [true, true],
+  );
+});
+
+void test("the admin API serves instance administrators only, and deactivation ends access until reactivation", async () => {
+  const admin = await person("Admin");
+  // The only instance administrator (earlier tests may have made others).
+  await db.update(s.user).set({ instanceAdmin: false });
+  await makeInstanceAdmin(admin.id);
+  const member = await person("Member");
+  assert.equal((await m.app.request("/api/admin/overview")).status, 401);
+  assert.equal(
+    (
+      await m.app.request("/api/admin/overview", {
+        headers: { cookie: member.cookie },
+      })
+    ).status,
+    403,
+  );
+  const overview = await m.app.request("/api/admin/overview", {
+    headers: { cookie: admin.cookie },
+  });
+  assert.equal(overview.status, 200);
+  assert.equal(
+    ((await overview.json()) as { policy: { signUpMode: string } }).policy
+      .signUpMode,
+    "invite",
+  );
+  // Writes must come from the platform's own origin.
+  assert.equal(
+    (
+      await m.app.request("/api/admin/users", {
+        method: "POST",
+        headers: {
+          cookie: admin.cookie,
+          origin: "https://evil.example",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name: "X", email: "x@example.test" }),
+      })
+    ).status,
+    403,
+  );
+
+  // An account created in the console can sign in right away.
+  const email = `created-${crypto.randomUUID().slice(0, 8)}@example.test`;
+  const created = await post(
+    "/api/admin/users",
+    { name: "Created", email, password: "Created-password-1" },
+    admin.cookie,
+  );
+  assert.equal(created.status, 200);
+  await m.auth.api.signInEmail({
+    body: { email, password: "Created-password-1" },
+  });
+
+  const deactivate = (id: string, deactivated: boolean) =>
+    post(`/api/admin/users/${id}/deactivation`, { deactivated }, admin.cookie);
+  assert.equal((await deactivate(member.id, true)).status, 200);
+  assert.equal(await m.auth.api.getSession({ headers: member.headers }), null);
+  await assert.rejects(
+    m.auth.api.signInEmail({
+      body: { email: member.email, password: "Test-password-123" },
+    }),
+    (error: { body?: { code?: string } }) =>
+      error.body?.code === "account_deactivated",
+  );
+  // Nobody locks themselves or the installation out.
+  assert.equal((await deactivate(admin.id, true)).status, 409);
+  const revoke = await post(
+    `/api/admin/users/${admin.id}/administrator`,
+    { instanceAdmin: false },
+    admin.cookie,
+  );
+  assert.equal(revoke.status, 409);
+  assert.equal(
+    ((await revoke.json()) as { error: { code: string } }).error.code,
+    "last_administrator",
+  );
+  assert.equal((await deactivate(member.id, false)).status, 200);
+  await m.auth.api.signInEmail({
+    body: { email: member.email, password: "Test-password-123" },
+  });
+
+  // Organizations created for someone else make them the owner.
+  const organization = await post(
+    "/api/admin/organizations",
+    { name: "Console Org", owner: { email: member.email } },
+    admin.cookie,
+  );
+  assert.equal(organization.status, 200);
+  const { organization: made } = (await organization.json()) as {
+    organization: { id: string; slug: string };
+  };
+  assert.equal(made.slug, "console-org");
+  const [ownership] = await db
+    .select({ role: s.member.role })
+    .from(s.member)
+    .where(
+      and(eq(s.member.organizationId, made.id), eq(s.member.userId, member.id)),
+    );
+  assert.equal(ownership?.role, "owner");
+  // The administrator gains no membership by creating it.
+  const [adminMembership] = await db
+    .select()
+    .from(s.member)
+    .where(
+      and(eq(s.member.organizationId, made.id), eq(s.member.userId, admin.id)),
+    );
+  assert.equal(adminMembership, undefined);
+
+  const activity = (await (
+    await m.app.request("/api/admin/activity", {
+      headers: { cookie: admin.cookie },
+    })
+  ).json()) as {
+    events: { action: string; actor: { email: string } | null }[];
+  };
+  for (const action of [
+    "user.created",
+    "user.deactivated",
+    "user.reactivated",
+    "organization.created",
+  ])
+    assert.ok(
+      activity.events.some(
+        (e) => e.action === action && e.actor?.email === admin.email,
+      ),
+      `activity records ${action}`,
+    );
+  // Instance history is append-only.
+  await assert.rejects(db.delete(s.instanceAuditEvent));
 });

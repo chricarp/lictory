@@ -49,8 +49,11 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
         method: "email",
         status_code: result.error.status ?? 0,
       });
+      // A 403 is an unverified email, unless the server names another
+      // reason (a deactivated account).
       setError(
-        result.error.status === 403
+        result.error.status === 403 &&
+          (!result.error.code || result.error.code === "EMAIL_NOT_VERIFIED")
           ? "Verify your email before signing in. We sent you a new verification link."
           : (result.error.message ??
               "We could not sign you in with those details."),

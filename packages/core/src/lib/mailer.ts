@@ -21,6 +21,11 @@ const resendFromEmail =
   process.env.RESEND_FROM_EMAIL?.trim() ??
   "Lictory <no-reply@email.lictory.com>";
 
+// Whether the operator configured a way to send email (without SMTP_HOST the
+// transport falls back to a local development server).
+export const emailConfigured = () =>
+  resend !== null || Boolean(process.env.SMTP_HOST?.trim());
+
 const smtpTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST ?? "localhost",
   port: Number(process.env.SMTP_PORT ?? 1025),

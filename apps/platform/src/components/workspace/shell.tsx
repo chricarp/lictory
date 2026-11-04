@@ -45,12 +45,14 @@ import {
   Settings,
   Settings2,
   ShieldCheck,
+  ShieldUser,
   UserRound,
   KanbanSquare,
   ListOrdered,
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { signOut } from "@lictory/platform/lib/account";
+import { useSessionState } from "@lictory/platform/lib/session";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { itemOrigin } from "@lictory/platform/components/items/queues";
@@ -494,6 +496,8 @@ function Sidebar({
   sidebarId: string;
 }) {
   const router = useRouter();
+  // Instance policy for the menus (the server enforces it either way).
+  const sessionUser = useSessionState().session?.user;
   const org = organization.slug;
   const active = (href: string, exact = false) =>
     exact
@@ -581,14 +585,16 @@ function Sidebar({
                 <Settings className="size-3.5" aria-hidden />
                 Organization settings
               </Link>
-              <Link
-                href={paths.newOrganization}
-                onClick={close}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-              >
-                <Plus className="size-3.5" aria-hidden />
-                Create organization
-              </Link>
+              {sessionUser?.canCreateOrganization && (
+                <Link
+                  href={paths.newOrganization}
+                  onClick={close}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+                >
+                  <Plus className="size-3.5" aria-hidden />
+                  Create organization
+                </Link>
+              )}
             </div>
           )}
         </Popover>
@@ -744,6 +750,15 @@ function Sidebar({
                 <UserRound className="size-3.5 text-muted-foreground" /> Account
                 settings
               </Link>
+              {sessionUser?.instanceAdmin && (
+                <Link
+                  href={paths.admin()}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
+                >
+                  <ShieldUser className="size-3.5 text-muted-foreground" />{" "}
+                  Admin console
+                </Link>
+              )}
               <PrivacyPreferencesButton
                 onClick={close}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"

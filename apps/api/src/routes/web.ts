@@ -21,7 +21,17 @@ import { authorize } from "@lictory/core/domain/service";
 import { heldOrganizations } from "@lictory/core/domain/two-factor-policy";
 import { trackServer } from "@lictory/core/lib/analytics/server";
 import { APPEARANCES, THEMES } from "@lictory/core/lib/appearance";
-import { auth, authProviders, signInOptions } from "@lictory/core/lib/auth";
+import {
+  auth,
+  authProviders,
+  policy,
+  signInOptions,
+} from "@lictory/core/lib/auth";
+import {
+  accountCreationProblem,
+  canCreateOrganization,
+  isInstanceAdmin,
+} from "@lictory/core/lib/instance-policy";
 import { handleProblem, normalizeHandle } from "@lictory/core/lib/handles";
 import {
   checkHandle,
@@ -110,6 +120,9 @@ export function webRoutes() {
               appearance: user.appearance,
               theme: user.theme,
               twoFactorEnabled: twoFactorEnabled(user),
+              // Instance policy, enforced by the server either way.
+              instanceAdmin: isInstanceAdmin(user),
+              canCreateOrganization: canCreateOrganization(policy, user),
             }
           : null,
         providers: authProviders,
@@ -384,6 +397,33 @@ export function webRoutes() {
           );
         email = account.email;
       }
+      // An invitation must lead somewhere: a person without an account has
+      // to be allowed to create one (instance policy).
+      const [existing] = await db
+        .select({ id: s.user.id })
+        .from(s.user)
+        .where(sql`lower(${s.user.email}) = ${email}`)
+        .limit(1);
+      const problem = existing
+        ? null
+        : accountCreationProblem(policy, {
+            origin: "self-service",
+            email,
+            invited: true,
+          });
+      if (problem)
+        return c.json(
+          {
+            error: {
+              code: problem.code,
+              message:
+                problem.code === "signup_closed"
+                  ? "No account uses this email, and accounts on this installation are created by its administrators. Ask your Lictory administrator to create the account, then invite them."
+                  : "This email's domain isn't allowed on this installation. Invite them with their company email address.",
+            },
+          },
+          400,
+        );
       const invitation = await auth.api.createInvitation({
         headers: request.headers,
         body: { organizationId, email, role: "member", resend: true },

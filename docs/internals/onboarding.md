@@ -4,6 +4,12 @@ A new account verifies its email (or authenticates with a configured identity
 provider) and chooses a platform-wide handle. The handle makes mentions and
 identity understandable; it can be changed later in account settings.
 
+Who may create an account or an organization at all is the installation's
+[access policy](./instance-administration.md#access-policy); by default new
+accounts need an invitation and only instance administrators create
+organizations. When a person may not create one, the entry point goes straight
+to joining.
+
 The workspace entry point explains the refinement workflow and asks whether the
 person is creating an organization or joining one. Choosing to join never
 creates an organization or alters an existing organization's configuration.

@@ -325,8 +325,10 @@ sudo lictory install        # or, by hand, with a release file of digests:
 /srv/lictory/bin/deploy.sh production status
 ```
 
-Then verify sign-up and email verification, password reset, organization
-creation, a revision/approval between two browsers (live updates through
+Then sign in as the first instance administrator (created by `lictory
+install`, or later with `lictory admin setup`) and verify an invitation and its
+sign-up, email verification, password reset, organization creation in the
+admin console, a revision/approval between two browsers (live updates through
 Zero), attachment upload and download, a denied cross-organization request,
 the first backup, and a restore drill ([recovery](recovery.md)).
 

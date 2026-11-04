@@ -135,8 +135,29 @@ export const browserOperations: readonly BrowserOperation[] = [
     name: "createOrganization",
     title: "Create an organization",
     reason: "membership",
-    where: "Onboarding, when signing in without an organization",
+    where:
+      "Onboarding, when the installation lets this person create organizations; otherwise an instance administrator creates it in the admin console",
     authClient: ["organization.create", "organization.checkSlug"],
+  },
+  {
+    name: "administerInstance",
+    title:
+      "Manage the installation: accounts, instance administrators and organizations",
+    reason: "administration",
+    where: "The admin console (/admin), for instance administrators",
+    routes: [
+      "GET /api/admin/overview",
+      "GET /api/admin/users",
+      "POST /api/admin/users",
+      "POST /api/admin/users/:id/administrator",
+      "POST /api/admin/users/:id/deactivation",
+      "POST /api/admin/users/:id/password",
+      "POST /api/admin/users/:id/password-reset",
+      "GET /api/admin/organizations",
+      "POST /api/admin/organizations",
+      "POST /api/admin/organizations/:id/members",
+      "GET /api/admin/activity",
+    ],
   },
   {
     name: "updateOrganization",

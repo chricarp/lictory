@@ -336,6 +336,17 @@ Application and project roles grant no work item capabilities.
 
 ---
 
+## Instance administrator
+
+A person who manages one installation: its accounts, its instance
+administrators and its organizations, under the access policy the operator
+configures (who may sign up, who may create organizations). Instance
+administration grants no access to any organization's work and is separate
+from application roles. See
+[instance administration](docs/internals/instance-administration.md).
+
+---
+
 ## Discipline
 
 A kind of work a person does in one project, such as Product, Engineering, QA,

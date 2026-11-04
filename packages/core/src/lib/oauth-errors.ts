@@ -34,6 +34,25 @@ const messages: Record<string, Partial<Record<Situation, string>>> = {
   signup_disabled: {
     "sign-in": "New accounts can't be created with this provider.",
   },
+  // Instance policy (lib/instance-policy.ts).
+  signup_invitation_required: {
+    "sign-in":
+      "New accounts on this installation need an invitation. Ask an administrator of your organization to invite you, then open the link in the invitation email.",
+  },
+  signup_closed: {
+    "sign-in":
+      "Accounts on this installation are created by its administrators. Ask your Lictory administrator for access.",
+  },
+  signup_domain_not_allowed: {
+    "sign-in":
+      "Accounts on this installation are limited to your company's email domains. Sign in with your work account.",
+  },
+  account_deactivated: {
+    "sign-in":
+      "Your Lictory account has been deactivated. Ask your Lictory administrator if you need access again.",
+    connect:
+      "Your Lictory account has been deactivated. Ask your Lictory administrator if you need access again.",
+  },
 };
 
 const fallback: Record<Situation, string> = {

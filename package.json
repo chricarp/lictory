@@ -25,6 +25,7 @@
     "db:test": "bun test packages/core/src/db/schema.test.ts",
     "test:sync": "bun test packages/core/src/domain",
     "test:e2e": "bun scripts/test-e2e.ts",
+    "admin": "bun apps/api/src/admin-cli.ts",
     "test:smoke": "bun scripts/test-e2e.ts --grep @smoke",
     "licenses:report": "bun scripts/license-report.ts"
   },

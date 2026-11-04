@@ -78,25 +78,41 @@ stdin or at the prompt).
 
 ## Install
 
-`sudo lictory install` asks only for what a first installation needs and keeps
-the template default for everything else:
+`sudo lictory install` is a guided installation in eight steps. On a
+terminal it shows menus (arrow keys or `j`/`k`, Enter), checks each answer
+as you type it and runs long steps behind a progress line, keeping their
+output in `/srv/lictory/<env>/logs/install-<timestamp>.log` (the tail is shown
+when a step fails). Elsewhere (`--yes`, pipes, CI) it prints plain text;
+`NO_COLOR=1` turns colours off.
 
-1. **TLS**: how browsers reach the server (below).
-2. **Host name**, and for automatic HTTPS an email for certificate notices.
-3. **Outbound email**: SMTP or Resend. You may skip it, but then verification,
-   invitation and password reset email are not delivered, so password sign-up
-   cannot be completed; single sign-on still works.
-4. **Attachment storage** (optional): any S3-compatible bucket reachable from
-   browsers ([private file storage](../internals/file-storage.md)). Without
-   one, attachments are disabled.
-5. **Single sign-on** (optional): an OpenID Connect provider
-   ([single sign-on](sso.md)). Register
-   `https://<host>/api/auth/callback/oidc` at the provider.
-6. **Backups**: where they go and the age key that encrypts them (below).
+1. **This server**: the requirements above.
+2. **Address and certificates**: how browsers reach the server (TLS mode,
+   below), the host name and, for automatic HTTPS, an email for certificate
+   notices. DNS and the ports are checked right away.
+3. **Email, attachments, sign-in and backups**:
+   - Outbound email: SMTP or Resend. Without it invitations, verification
+     and password reset email are not delivered; administrators can still
+     create accounts with passwords.
+   - Attachment storage (optional): any S3-compatible bucket reachable from
+     browsers ([private file storage](../internals/file-storage.md)).
+   - Single sign-on (optional): an OpenID Connect provider
+     ([single sign-on](sso.md)). Register
+     `https://<host>/api/auth/callback/oidc` at the provider.
+   - Backups: where they go and the age key that encrypts them (below).
+4. **Access policy**: who may create accounts and organizations
+   ([below](#access-policy)).
+5. **Review**: every answer in one summary, secrets masked; for an existing
+   environment the `.env` keys that change. Nothing changes before you
+   confirm.
+6. **Installing**: the host tooling, `/srv/lictory/<env>/.env` with generated
+   secrets, the release images and the release `get.sh` verified (or
+   `--version`).
+7. **Checking** that `https://<host>/readyz` answers; the timers start.
+8. **First administrator**: the account that manages Lictory and the
+   organization it owns ([below](#the-first-administrator)).
 
-It then checks the server, creates `/srv/lictory/<env>/.env` with generated
-secrets, deploys the release `get.sh` verified (or `--version`), waits until
-`https://<host>/readyz` answers, starts the timers and prints the next steps.
+It ends with a summary: the address, the administrator, the admin console
+(`https://<host>/admin`) and what remains to do.
 
 | TLS mode         | Who terminates TLS              | Notes                                                                                                                       |
 | ---------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -123,6 +139,56 @@ sudo LICTORY_SMTP_PASSWORD='…' lictory install --yes \
 
 Interactive mode is used when stdin is a terminal and `--yes` is absent.
 
+## Access policy
+
+Lictory is an administered product: by default nobody can create an account
+or an organization on their own. Three settings decide what people may do
+without an administrator; `install` asks for them and writes them to `.env`.
+
+| Setting (`.env`)                | Install option            | Values                                                                                                                                                                      |
+| ------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LICTORY_SIGNUP_MODE`           | `--signup-mode`           | `invite` (default): a new account needs a pending invitation for its email. `closed`: only instance administrators create accounts. `open`: anyone who can reach the server |
+| `LICTORY_ALLOWED_EMAIL_DOMAINS` | `--allowed-email-domains` | Comma-separated domains for self-service accounts, single sign-on included; empty: any. Administrators may create any address                                               |
+| `LICTORY_ORGANIZATION_CREATION` | `--organization-creation` | `administrators` (default): only instance administrators create organizations. `everyone`: any signed-in person                                                             |
+
+The server enforces them for every way an account can appear (password
+sign-up, Google, Microsoft), never only in the browser. The company identity
+provider is your directory: with `OIDC_AUTO_CREATE_USERS` (on by default) the
+people it lets in get an account on first sign-in in every mode, still
+limited to the allowed domains. Assign the application at the provider to
+decide who that is ([single sign-on](sso.md)).
+
+**Instance administrators** run the installation. They are separate from
+organization roles: an instance administrator creates accounts and
+organizations, deactivates accounts and appoints other instance
+administrators in the admin console (`https://<host>/admin`) or with
+`lictory admin`; organization owners and admins manage their own
+organization's members and settings. Being an instance administrator gives no
+access to an organization's work items.
+
+## The first administrator
+
+The last install step creates the first instance administrator (email
+verified, so no email is needed) and an organization they own: its name, its
+handle (the address `https://<host>/<handle>`, suggested from the name), the
+administrator's name, work email and password, asked twice. On an SSO-only
+installation (`PASSWORD_LOGIN_ENABLED=false`) there is no password: the
+administrator signs in through the identity provider with that email.
+
+Without questions, pass `--organization`, `--organization-handle` (optional),
+`--admin-name` and `--admin-email`, and the password in
+`LICTORY_ADMIN_PASSWORD` (never a flag; it reaches the server on stdin):
+
+```sh
+sudo LICTORY_ADMIN_PASSWORD='…' lictory install --yes --host lictory.example.com \
+  --acme-email ops@example.com --organization 'Acme' \
+  --admin-name 'Ada Lovelace' --admin-email ada@example.com
+```
+
+`--yes` without `--admin-email`, or services that do not answer yet, leave
+this step for later: `sudo lictory admin setup` runs it on its own. Once an
+administrator exists, `install` leaves administration alone.
+
 **Re-running converges.** `install` never regenerates secrets and never
 replaces `.env`: it changes only the keys whose answers differ, lists them,
 asks for confirmation (unless `--yes`), keeps the previous file as
@@ -136,7 +202,8 @@ else in `.env` by hand; `sudo lictory install --yes` (or
 | Command                                                                           | What it does                                                                                                                                                   |
 | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lictory install`                                                                 | Installs or reconfigures an environment (root)                                                                                                                 |
-| `lictory status [--json]`                                                         | Active release, image digests and service health (`deploy.sh status`), the address and channel                                                                 |
+| `lictory admin <command>`                                                         | Instance administration from the server ([below](#instance-administration))                                                                                    |
+| `lictory status [--json]`                                                         | Active release, image digests and service health (`deploy.sh status`), the address, channel and access policy                                                  |
 | `lictory doctor`                                                                  | Host requirements, `.env`, services, the public route and certificate, DNS, replication slot, WAL, queued work, last backup and timers; exits 1 on any failure |
 | `lictory upgrade [version] [--yes]`                                               | The newest release of the environment's channel, or that version                                                                                               |
 | `lictory rollback [--yes]`                                                        | Re-activates the previously activated release's images                                                                                                         |
@@ -153,29 +220,56 @@ question with yes or its default. Run as root (`sudo`) or as the deploy user.
 Install options (each also `LICTORY_<NAME>`, for example
 `--smtp-password` as `LICTORY_SMTP_PASSWORD`):
 
-| Option                                                                                                                                                | Values and default                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `--host`                                                                                                                                              | The host name users open (required)                                                      |
-| `--tls`                                                                                                                                               | `acme` (default), `proxy`, `internal`, `http`                                            |
-| `--acme-email`                                                                                                                                        | Required for `acme` and for `internal` with `--acme-ca`                                  |
-| `--acme-ca`                                                                                                                                           | `internal`: your CA's ACME directory URL; empty: the gateway's own CA                    |
-| `--http-port`, `--bind`                                                                                                                               | `proxy`/`http`: port (8080) and `127.0.0.1` (default) or `0.0.0.0`                       |
-| `--public-url`                                                                                                                                        | `proxy`: the address your proxy serves (default `https://<host>`)                        |
-| `--trusted-proxies`                                                                                                                                   | `proxy`: space-separated IPs/CIDRs your proxy connects from                              |
-| `--email`                                                                                                                                             | `smtp`, `resend`, `none` (default)                                                       |
-| `--smtp-host`, `--smtp-port`, `--smtp-user`, `--smtp-password`, `--smtp-from`                                                                         | SMTP server (port 587 default, STARTTLS; 465 is not supported)                           |
-| `--resend-api-key`, `--email-from`                                                                                                                    | Resend                                                                                   |
-| `--storage`, `--s3-endpoint`, `--s3-region`, `--s3-bucket`, `--s3-access-key-id`, `--s3-secret-access-key`, `--s3-force-path-style`                   | `s3` or `none` (default); an empty endpoint means AWS S3                                 |
-| `--oidc`, `--oidc-issuer`, `--oidc-client-id`, `--oidc-client-secret`, `--oidc-display-name`                                                          | `yes` or `no` (default); display name default `SSO`                                      |
-| `--backup`                                                                                                                                            | `local` (default), `s3`, `rclone`, `none`                                                |
-| `--backup-path`                                                                                                                                       | `local`: a host directory (NAS, second disk); empty: a Docker volume on this server      |
-| `--backup-bucket`, `--backup-s3-provider`, `--backup-s3-endpoint`, `--backup-s3-region`, `--backup-s3-access-key-id`, `--backup-s3-secret-access-key` | `s3` backups (rclone provider `AWS`, `Cloudflare`, `Minio`, `Other`…)                    |
-| `--backup-rclone-remote`                                                                                                                              | `rclone` backups: an rclone remote or connection string                                  |
-| `--backup-age-recipient`, `--backup-identity-file`                                                                                                    | An age public key, `generate` (default) or `none`; where a generated identity is written |
-| `--channel`, `--version`                                                                                                                              | `stable` (default) or `nightly`; a specific first release                                |
-| `--deploy-user`, `--ignore-requirements`                                                                                                              | The deploy user (default the owner of the root); memory and disk minimums as warnings    |
+| Option                                                                                                                                                | Values and default                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `--host`                                                                                                                                              | The host name users open (required)                                                                                                      |
+| `--tls`                                                                                                                                               | `acme` (default), `proxy`, `internal`, `http`                                                                                            |
+| `--acme-email`                                                                                                                                        | Required for `acme` and for `internal` with `--acme-ca`                                                                                  |
+| `--acme-ca`                                                                                                                                           | `internal`: your CA's ACME directory URL; empty: the gateway's own CA                                                                    |
+| `--http-port`, `--bind`                                                                                                                               | `proxy`/`http`: port (8080) and `127.0.0.1` (default) or `0.0.0.0`                                                                       |
+| `--public-url`                                                                                                                                        | `proxy`: the address your proxy serves (default `https://<host>`)                                                                        |
+| `--trusted-proxies`                                                                                                                                   | `proxy`: space-separated IPs/CIDRs your proxy connects from                                                                              |
+| `--email`                                                                                                                                             | `smtp`, `resend`, `none` (default)                                                                                                       |
+| `--smtp-host`, `--smtp-port`, `--smtp-user`, `--smtp-password`, `--smtp-from`                                                                         | SMTP server (port 587 default, STARTTLS; 465 is not supported)                                                                           |
+| `--resend-api-key`, `--email-from`                                                                                                                    | Resend                                                                                                                                   |
+| `--storage`, `--s3-endpoint`, `--s3-region`, `--s3-bucket`, `--s3-access-key-id`, `--s3-secret-access-key`, `--s3-force-path-style`                   | `s3` or `none` (default); an empty endpoint means AWS S3                                                                                 |
+| `--oidc`, `--oidc-issuer`, `--oidc-client-id`, `--oidc-client-secret`, `--oidc-display-name`                                                          | `yes` or `no` (default); display name default `SSO`                                                                                      |
+| `--backup`                                                                                                                                            | `local` (default), `s3`, `rclone`, `none`                                                                                                |
+| `--backup-path`                                                                                                                                       | `local`: a host directory (NAS, second disk); empty: a Docker volume on this server                                                      |
+| `--backup-bucket`, `--backup-s3-provider`, `--backup-s3-endpoint`, `--backup-s3-region`, `--backup-s3-access-key-id`, `--backup-s3-secret-access-key` | `s3` backups (rclone provider `AWS`, `Cloudflare`, `Minio`, `Other`…)                                                                    |
+| `--backup-rclone-remote`                                                                                                                              | `rclone` backups: an rclone remote or connection string                                                                                  |
+| `--backup-age-recipient`, `--backup-identity-file`                                                                                                    | An age public key, `generate` (default) or `none`; where a generated identity is written                                                 |
+| `--signup-mode`, `--allowed-email-domains`, `--organization-creation`                                                                                 | [Access policy](#access-policy): `invite` (default), `closed` or `open`; domains (default any); `administrators` (default) or `everyone` |
+| `--organization`, `--organization-handle`, `--admin-name`, `--admin-email`                                                                            | [The first administrator](#the-first-administrator); the password only in `LICTORY_ADMIN_PASSWORD`                                       |
+| `--channel`, `--version`                                                                                                                              | `stable` (default) or `nightly`; a specific first release                                                                                |
+| `--deploy-user`, `--ignore-requirements`                                                                                                              | The deploy user (default the owner of the root); memory and disk minimums as warnings                                                    |
 
 Invalid values are refused before anything changes (exit 64).
+
+## Instance administration
+
+`lictory admin` runs inside the environment's api container, so it works
+from the server even when nobody can sign in. Everything except `setup` is
+also in the admin console.
+
+| Command                                                                                                             | What it does                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `lictory admin setup`                                                                                               | The first instance administrator and their organization (refused once one exists)                                             |
+| `lictory admin status [--json]`                                                                                     | The access policy, and how many administrators, accounts and organizations exist                                              |
+| `lictory admin list`                                                                                                | Instance administrators                                                                                                       |
+| `lictory admin grant <email>`, `revoke <email>`                                                                     | Appoints or removes an instance administrator; the last active one cannot be removed                                          |
+| `lictory admin create-user <email> --name <name> [--admin] [--organization <handle> [--role member\|admin\|owner]]` | An account with a verified email; a password from the prompt or `LICTORY_USER_PASSWORD`, else none (SSO or "Forgot password") |
+| `lictory admin set-password <email>`                                                                                | A new password (prompt or `LICTORY_USER_PASSWORD`); signs the account out everywhere                                          |
+| `lictory admin deactivate <email>`, `reactivate <email>`                                                            | Blocks sign-in and ends every session, or allows it again; nothing is deleted                                                 |
+
+Removals (`revoke`, `deactivate`) ask for confirmation; `--yes` skips it.
+
+**Recovery.** Lost the only administrator's password: `sudo lictory admin
+set-password <email>`. The administrator left the company:
+`sudo lictory admin grant <someone's email>`, then revoke or deactivate the
+old account. No administrator at all (`lictory doctor` warns):
+`sudo lictory admin grant <email>` for an existing account, or
+`sudo lictory admin create-user <email> --name … --admin`.
 
 ## Backups and restore
 
@@ -251,6 +345,8 @@ Start with `lictory doctor`; every failure line names the fix.
 | "Port 80 is in use"                                       | Another web server runs on the host: stop it, or put Lictory behind it with `--tls proxy`                                           |
 | `/readyz` not reachable but "the gateway answers locally" | DNS, the firewall (80/443) or your proxy; certificates are issued only once DNS points here                                         |
 | No certificate yet                                        | `lictory logs proxy`: Let's Encrypt reports why (DNS, rate limits, a CAA record)                                                    |
+| A new person cannot create an account                     | Invite the person from the admin console or organization settings, or create the account: `lictory admin create-user`               |
+| Nobody can manage accounts                                | `sudo lictory admin setup` (no administrator yet) or `sudo lictory admin grant <email>`                                             |
 | Sign-up email never arrives                               | `--email none` or wrong SMTP settings: `sudo lictory install --email smtp …`, then `lictory logs worker`                            |
 | "Another deployment of <env> is running"                  | Wait for it; `deploy.sh` holds a lock per environment                                                                               |
 | "This environment accepts stable releases"                | The version belongs to the other channel: `sudo lictory install --channel …`                                                        |
@@ -263,9 +359,4 @@ limits are the same as in [deployment](deployment.md).
 
 ## Not yet covered
 
-- Restricting sign-up: anyone who can reach the address can create an account
-  and an organization, and there is no designated first administrator yet.
-  Until invitation-only installations exist, keep the server on a private
-  network or VPN, or, with single sign-on and `PASSWORD_LOGIN_ENABLED=false`,
-  assign the application only to your own people at the identity provider.
 - Helm charts, air-gapped installation bundles and one-click templates.

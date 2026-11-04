@@ -211,6 +211,13 @@
       "when": 1793730928839,
       "tag": "0029_two_factor_and_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793752568505,
+      "tag": "0030_instance_administration",
+      "breakpoints": true
     }
   ]
 }

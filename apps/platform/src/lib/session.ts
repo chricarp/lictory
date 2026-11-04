@@ -15,6 +15,11 @@ const userSchema = z.object({
   appearance: z.string().nullable().optional(),
   theme: z.string().nullable().optional(),
   twoFactorEnabled: z.boolean().optional(),
+  // Instance policy (the server enforces it either way): instance
+  // administrators open the admin console; organization creation may be
+  // reserved to them.
+  instanceAdmin: z.boolean().default(false),
+  canCreateOrganization: z.boolean().default(false),
 });
 const heldSchema = z.object({
   id: z.string(),
@@ -22,8 +27,13 @@ const heldSchema = z.object({
   slug: z.string(),
 });
 const noProviders = { google: false, microsoft: false, oidc: false };
-// How people sign in on this installation (password, company SSO name).
-const defaultSignIn = { password: true, ssoName: null };
+// How people sign in on this installation (password, company SSO name), and
+// who may create an account (see lib/instance-policy.ts on the server).
+const defaultSignIn = {
+  password: true,
+  ssoName: null,
+  signUpMode: "invite" as const,
+};
 const sessionSchema = z.object({
   user: userSchema.nullable(),
   // Organizations that require two-factor authentication this person has
@@ -37,7 +47,11 @@ const sessionSchema = z.object({
     })
     .default(noProviders),
   signIn: z
-    .object({ password: z.boolean(), ssoName: z.string().nullable() })
+    .object({
+      password: z.boolean(),
+      ssoName: z.string().nullable(),
+      signUpMode: z.enum(["invite", "closed", "open"]).default("invite"),
+    })
     .default(defaultSignIn),
   // Whether the server has object storage for attachments.
   attachments: z.boolean().default(true),

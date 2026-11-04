@@ -55,7 +55,8 @@ RUN bun scripts/inject-release-version.ts "$APP_VERSION" \
 FROM source AS server-build
 RUN bun run --filter @lictory/api build \
  && bun run --filter @lictory/worker build \
- && test -f apps/api/dist/index.js && test -f apps/worker/dist/index.js \
+ && test -f apps/api/dist/index.js && test -f apps/api/dist/admin.js \
+ && test -f apps/worker/dist/index.js \
  && mkdir -p /manifests \
  && cp package.json bun.lock bunfig.toml /manifests/ \
  && for manifest in apps/*/package.json packages/*/package.json; do \
@@ -125,7 +126,7 @@ COPY --from=server-build /src/apps/api/dist ./apps/api/dist
 COPY --from=server-build /src/apps/worker/dist ./apps/worker/dist
 COPY deploy/docker/trace-runtime.mjs ./deploy/docker/trace-runtime.mjs
 RUN node deploy/docker/trace-runtime.mjs /deps \
-      apps/api/dist/index.js apps/worker/dist/index.js
+      apps/api/dist/index.js apps/api/dist/admin.js apps/worker/dist/index.js
 
 FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS marketing-dependencies
 WORKDIR /deps

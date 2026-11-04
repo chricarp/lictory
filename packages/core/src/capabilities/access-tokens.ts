@@ -41,12 +41,19 @@ export async function authenticateAccessToken(
 ): Promise<AuthenticatedToken | null> {
   if (!secret.startsWith(PREFIX) || secret.length > 200) return null;
   const digest = hash(secret);
-  const [row] = await db
-    .select()
+  const [found] = await db
+    .select({
+      token: s.accessToken,
+      deactivatedAt: s.user.deactivatedAt,
+    })
     .from(s.accessToken)
+    .innerJoin(s.user, eq(s.user.id, s.accessToken.userId))
     .where(eq(s.accessToken.tokenHash, digest));
+  const row = found?.token;
   if (
     !row ||
+    // A deactivated account's tokens stop working until it is reactivated.
+    found.deactivatedAt ||
     // The lookup is by hash; compare again in constant time regardless.
     !timingSafeEqual(Buffer.from(row.tokenHash), Buffer.from(digest)) ||
     row.revokedAt ||

@@ -37,6 +37,9 @@ adding domain writes or synchronized entities.
 - [Notifications](./internals/notifications.md)
 - [Account and workspace onboarding](./internals/onboarding.md): including
   sign-in methods and account linking
+- [Instance administration](./internals/instance-administration.md): instance
+  administrators, the access policy (who may sign up and create
+  organizations), deactivation and its history
 - [Two-factor authentication and passkeys](./internals/two-factor-authentication.md):
   factors, the organization requirement and recovery
 - [Private file storage](./internals/file-storage.md)

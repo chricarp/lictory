@@ -8,6 +8,9 @@ const withSearchParams = (path: string, searchParams?: SearchParams) => {
 export const paths = {
   org: (org: string) => `/${org}`,
   newOrganization: "/new-organization",
+  // Instance administration (instance administrators only): overview, users,
+  // organizations, activity.
+  admin: (section?: string) => `/admin${section ? `/${section}` : ""}`,
   intelligence: (org: string) => `/${org}/intelligence`,
   intelligenceChat: (org: string, chat: string) =>
     `/${org}/intelligence/${chat}`,

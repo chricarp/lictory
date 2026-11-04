@@ -232,6 +232,65 @@ function githubRelease(
   };
 }
 
+// Tests that run several installs take seconds on a shared CI runner.
+const slow = { timeout: 30_000 };
+
+// The api container's administration CLI (apps/api/dist/admin.js) behind
+// lictory-compose: records each call with its stdin and answers like the
+// server. FAKE_ADMINS sets the administrator count; FAKE_ADMIN_ERROR makes
+// every command except status fail with that message.
+function stubAdministration(f: ReturnType<typeof fixture>) {
+  writeFileSync(
+    join(f.root, "bin/lictory-compose"),
+    `#!/usr/bin/env bun
+import { appendFileSync, readFileSync } from "node:fs";
+const args = process.argv.slice(2);
+const stdin = readFileSync(0, "utf8");
+appendFileSync(${JSON.stringify(join(f.base, "calls.jsonl"))}, JSON.stringify({ name: "lictory-compose", args, stdin }) + "\\n");
+const script = args.indexOf("apps/api/dist/admin.js");
+if (script < 0) process.exit(0);
+const [command, ...rest] = args.slice(script + 1);
+const value = (flag) => rest[rest.indexOf(flag) + 1];
+const user = (email) => ({ id: "user-1", name: value("--name") ?? "Grace Hopper", email });
+const answer = (body, code = 0) => { console.log(JSON.stringify(body)); process.exit(code); };
+if (command === "status")
+  answer({ administrators: Number(process.env.FAKE_ADMINS ?? 0), users: 1, organizations: 1,
+    signUpMode: "invite", organizationCreation: "administrators", allowedEmailDomains: [],
+    passwordLogin: true, sso: null, email: true });
+if (process.env.FAKE_ADMIN_ERROR)
+  answer({ error: { code: "last_administrator", message: process.env.FAKE_ADMIN_ERROR } }, 1);
+if (command === "setup")
+  answer({ user: user(value("--email")), organization: { id: "org-1", name: value("--organization"), slug: value("--organization-handle") },
+    url: "https://lictory.example.test/" + value("--organization-handle") });
+if (command === "grant-admin" || command === "revoke-admin")
+  answer({ user: user(rest[0]), instanceAdmin: command === "grant-admin" });
+if (command === "set-password") answer({ user: user(rest[0]) });
+answer({ error: { code: "usage", message: "unknown command " + command } }, 64);
+`,
+    { mode: 0o755 },
+  );
+}
+const adminCalls = (calls: { name: string; args: string[]; stdin: string }[]) =>
+  calls
+    .filter((call) => call.name === "lictory-compose")
+    .map((call) => ({
+      args: call.args.slice(call.args.indexOf("apps/api/dist/admin.js") + 1),
+      stdin: call.stdin,
+      exec: call.args.slice(0, call.args.indexOf("apps/api/dist/admin.js")),
+    }));
+
+const acmeInstall = [
+  "install",
+  "--yes",
+  "--ignore-requirements",
+  "--host",
+  "lictory.example.test",
+  "--acme-email",
+  "ops@example.test",
+  "--backup",
+  "none",
+];
+
 // The state get.sh leaves behind: tooling in <root>/bin and the verified
 // bundle with its release.env in <root>/share/bundle.
 function bootstrapped(t: TestContext, version = "1.2.3") {
@@ -332,6 +391,25 @@ void test("the CLI refuses invalid input before touching the server", (t) => {
     [["upgrade", "latest"], /version: a release version/],
     [["logs", "database"], /Unknown service database/],
     [["deploy"], /Unknown command: deploy/],
+    [
+      ["install", "--signup-mode", "public"],
+      /--signup-mode: one of invite, closed, open/,
+    ],
+    [
+      ["install", "--organization-creation", "anyone"],
+      /--organization-creation: administrators or everyone/,
+    ],
+    [
+      ["install", "--allowed-email-domains", "example.test, not a domain"],
+      /--allowed-email-domains: comma-separated lowercase email domains/,
+    ],
+    [
+      ["install", "--organization-handle", "Acme Corp"],
+      /--organization-handle: lowercase letters/,
+    ],
+    [["admin", "grant", "nobody"], /nobody is not an email address/],
+    [["admin", "grant"], /Usage: lictory admin grant <email>/],
+    [["admin", "promote"], /Unknown admin command: promote/],
   ] as const) {
     const result = f.lictory([...args]);
     assert.equal(result.status, 64, args.join(" "));
@@ -344,11 +422,107 @@ void test("the CLI refuses invalid input before touching the server", (t) => {
   assert.match(status.stderr, /Run: sudo lictory install/);
 });
 
-void test("install converges: secrets survive re-runs and only answered settings change", (t) => {
-  const f = bootstrapped(t);
-  const home = join(f.root, "production");
-  const first = f.lictory(
-    [
+void test(
+  "install converges: secrets survive re-runs and only answered settings change",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const first = f.lictory(
+      [
+        "install",
+        "--yes",
+        "--ignore-requirements",
+        "--host",
+        "lictory.example.test",
+        "--acme-email",
+        "ops@example.test",
+        "--email",
+        "smtp",
+        "--smtp-host",
+        "smtp.example.test",
+        "--smtp-user",
+        "lictory",
+        "--smtp-from",
+        "Lictory <lictory@example.test>",
+        "--backup-age-recipient",
+        recipient,
+      ],
+      { LICTORY_SMTP_PASSWORD: "pa$$word #1" },
+    );
+    assert.equal(first.status, 0, first.stderr + first.stdout);
+    const created = readFileSync(join(home, ".env"), "utf8");
+    assert.equal(statSync(join(home, ".env")).mode & 0o777, 0o600);
+    assert.match(created, /^BETTER_AUTH_SECRET=[0-9a-f]{64}$/m);
+    assert.match(created, /^APP_HOST=lictory\.example\.test$/m);
+    assert.match(created, /^SMTP_PASSWORD='pa\$\$word #1'$/m);
+    assert.match(created, /^LICTORY_IMAGE_REGISTRY=ghcr\.io\/chricarp$/m);
+    assert.match(created, /^LICTORY_RELEASE_CHANNEL=stable$/m);
+    assert.match(
+      created,
+      new RegExp(`^BACKUP_AGE_RECIPIENTS=${recipient}$`, "m"),
+    );
+    assert.doesNotMatch(created, /^SITE_HOST=/m);
+    // The release get.sh verified is deployed; GitHub is not asked again.
+    const releases = first.calls.filter((call) => call.name === "deploy.sh");
+    assert.deepEqual(releases[0]!.args, ["production", "release"]);
+    assert.equal(releases[0]!.stdin, releaseFile("1.2.3"));
+    assert.ok(
+      !first.calls.some(
+        (call) =>
+          call.name === "curl" && call.args.some((a) => a.startsWith(api)),
+      ),
+    );
+    assert.match(
+      first.stdout,
+      /Lictory is up: https:\/\/lictory\.example\.test/,
+    );
+
+    const secret = /^BETTER_AUTH_SECRET=.*$/m.exec(created)![0];
+    const second = f.lictory([
+      "install",
+      "--yes",
+      "--ignore-requirements",
+      "--smtp-host",
+      "mail.example.test",
+    ]);
+    assert.equal(second.status, 0, second.stderr + second.stdout);
+    const changed = readFileSync(join(home, ".env"), "utf8");
+    assert.ok(changed.includes(secret));
+    assert.match(changed, /^SMTP_HOST=mail\.example\.test$/m);
+    assert.match(changed, /^SMTP_PASSWORD='pa\$\$word #1'$/m);
+    assert.equal(
+      changed.replace(/^SMTP_HOST=.*$/m, ""),
+      created.replace(/^SMTP_HOST=.*$/m, ""),
+    );
+    assert.match(second.stdout, /Changes to .*\.env: SMTP_HOST/);
+    const backups = readdirSync(home).filter((name) =>
+      name.startsWith(".env.backup-"),
+    );
+    assert.equal(backups.length, 1);
+    assert.equal(readFileSync(join(home, backups[0]!), "utf8"), created);
+    // An active environment is re-activated with its release, not upgraded.
+    assert.deepEqual(
+      second.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+
+    const third = f.lictory(["install", "--yes", "--ignore-requirements"]);
+    assert.equal(third.status, 0, third.stderr + third.stdout);
+    assert.equal(readFileSync(join(home, ".env"), "utf8"), changed);
+    assert.match(third.stdout, /Nothing changed/);
+    assert.ok(!third.calls.some((call) => call.name === "deploy.sh"));
+  },
+);
+
+void test(
+  "upgrade follows the environment's channel, forward only, with verified files",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const install = f.lictory([
       "install",
       "--yes",
       "--ignore-requirements",
@@ -356,142 +530,60 @@ void test("install converges: secrets survive re-runs and only answered settings
       "lictory.example.test",
       "--acme-email",
       "ops@example.test",
-      "--email",
-      "smtp",
-      "--smtp-host",
-      "smtp.example.test",
-      "--smtp-user",
-      "lictory",
-      "--smtp-from",
-      "Lictory <lictory@example.test>",
-      "--backup-age-recipient",
-      recipient,
-    ],
-    { LICTORY_SMTP_PASSWORD: "pa$$word #1" },
-  );
-  assert.equal(first.status, 0, first.stderr + first.stdout);
-  const created = readFileSync(join(home, ".env"), "utf8");
-  assert.equal(statSync(join(home, ".env")).mode & 0o777, 0o600);
-  assert.match(created, /^BETTER_AUTH_SECRET=[0-9a-f]{64}$/m);
-  assert.match(created, /^APP_HOST=lictory\.example\.test$/m);
-  assert.match(created, /^SMTP_PASSWORD='pa\$\$word #1'$/m);
-  assert.match(created, /^LICTORY_IMAGE_REGISTRY=ghcr\.io\/chricarp$/m);
-  assert.match(created, /^LICTORY_RELEASE_CHANNEL=stable$/m);
-  assert.match(
-    created,
-    new RegExp(`^BACKUP_AGE_RECIPIENTS=${recipient}$`, "m"),
-  );
-  assert.doesNotMatch(created, /^SITE_HOST=/m);
-  // The release get.sh verified is deployed; GitHub is not asked again.
-  const releases = first.calls.filter((call) => call.name === "deploy.sh");
-  assert.deepEqual(releases[0]!.args, ["production", "release"]);
-  assert.equal(releases[0]!.stdin, releaseFile("1.2.3"));
-  assert.ok(
-    !first.calls.some(
-      (call) =>
-        call.name === "curl" && call.args.some((a) => a.startsWith(api)),
-    ),
-  );
-  assert.match(first.stdout, /Lictory is up: https:\/\/lictory\.example\.test/);
+      "--backup",
+      "none",
+    ]);
+    assert.equal(install.status, 0, install.stderr + install.stdout);
 
-  const secret = /^BETTER_AUTH_SECRET=.*$/m.exec(created)![0];
-  const second = f.lictory([
-    "install",
-    "--yes",
-    "--ignore-requirements",
-    "--smtp-host",
-    "mail.example.test",
-  ]);
-  assert.equal(second.status, 0, second.stderr + second.stdout);
-  const changed = readFileSync(join(home, ".env"), "utf8");
-  assert.ok(changed.includes(secret));
-  assert.match(changed, /^SMTP_HOST=mail\.example\.test$/m);
-  assert.match(changed, /^SMTP_PASSWORD='pa\$\$word #1'$/m);
-  assert.equal(
-    changed.replace(/^SMTP_HOST=.*$/m, ""),
-    created.replace(/^SMTP_HOST=.*$/m, ""),
-  );
-  assert.match(second.stdout, /Changes to .*\.env: SMTP_HOST/);
-  const backups = readdirSync(home).filter((name) =>
-    name.startsWith(".env.backup-"),
-  );
-  assert.equal(backups.length, 1);
-  assert.equal(readFileSync(join(home, backups[0]!), "utf8"), created);
-  // An active environment is re-activated with its release, not upgraded.
-  assert.deepEqual(
-    second.calls
-      .filter((call) => call.name === "deploy.sh")
-      .map((call) => call.args),
-    [["production", "activate", "1.2.3"]],
-  );
+    f.route(
+      `${api}/releases/latest`,
+      JSON.stringify(githubRelease(f, "1.3.0")),
+    );
+    const upgrade = f.lictory(["upgrade", "--yes"]);
+    assert.equal(upgrade.status, 0, upgrade.stderr + upgrade.stdout);
+    assert.match(upgrade.stdout, /1\.2\.3 -> 1\.3\.0 \(stable\)/);
+    assert.match(upgrade.stdout, /releases\/tag\/v1\.3\.0/);
+    const release = upgrade.calls.find((call) => call.name === "deploy.sh")!;
+    assert.deepEqual(release.args, ["production", "release"]);
+    assert.equal(release.stdin, releaseFile("1.3.0"));
 
-  const third = f.lictory(["install", "--yes", "--ignore-requirements"]);
-  assert.equal(third.status, 0, third.stderr + third.stdout);
-  assert.equal(readFileSync(join(home, ".env"), "utf8"), changed);
-  assert.match(third.stdout, /Nothing changed/);
-  assert.ok(!third.calls.some((call) => call.name === "deploy.sh"));
-});
+    const again = f.lictory(["upgrade", "--yes"]);
+    assert.match(again.stdout, /already runs 1\.3\.0/);
 
-void test("upgrade follows the environment's channel, forward only, with verified files", (t) => {
-  const f = bootstrapped(t);
-  const install = f.lictory([
-    "install",
-    "--yes",
-    "--ignore-requirements",
-    "--host",
-    "lictory.example.test",
-    "--acme-email",
-    "ops@example.test",
-    "--backup",
-    "none",
-  ]);
-  assert.equal(install.status, 0, install.stderr + install.stdout);
+    f.route(
+      `${api}/releases/tags/v1.2.3`,
+      JSON.stringify(githubRelease(f, "1.2.3")),
+    );
+    const older = f.lictory(["upgrade", "1.2.3", "--yes"]);
+    assert.equal(older.status, 1);
+    assert.match(
+      older.stderr,
+      /older than the active 1\.3\.0[\s\S]*lictory rollback/,
+    );
 
-  f.route(`${api}/releases/latest`, JSON.stringify(githubRelease(f, "1.3.0")));
-  const upgrade = f.lictory(["upgrade", "--yes"]);
-  assert.equal(upgrade.status, 0, upgrade.stderr + upgrade.stdout);
-  assert.match(upgrade.stdout, /1\.2\.3 -> 1\.3\.0 \(stable\)/);
-  assert.match(upgrade.stdout, /releases\/tag\/v1\.3\.0/);
-  const release = upgrade.calls.find((call) => call.name === "deploy.sh")!;
-  assert.deepEqual(release.args, ["production", "release"]);
-  assert.equal(release.stdin, releaseFile("1.3.0"));
+    const nightly = "1.4.0-nightly.20261103.1";
+    f.route(
+      `${api}/releases/tags/v${nightly}`,
+      JSON.stringify(githubRelease(f, nightly, { channel: "nightly" })),
+    );
+    const wrongChannel = f.lictory(["upgrade", nightly, "--yes"]);
+    assert.equal(wrongChannel.status, 1);
+    assert.match(
+      wrongChannel.stderr,
+      /is a nightly release; environment production follows stable/,
+    );
 
-  const again = f.lictory(["upgrade", "--yes"]);
-  assert.match(again.stdout, /already runs 1\.3\.0/);
-
-  f.route(
-    `${api}/releases/tags/v1.2.3`,
-    JSON.stringify(githubRelease(f, "1.2.3")),
-  );
-  const older = f.lictory(["upgrade", "1.2.3", "--yes"]);
-  assert.equal(older.status, 1);
-  assert.match(
-    older.stderr,
-    /older than the active 1\.3\.0[\s\S]*lictory rollback/,
-  );
-
-  const nightly = "1.4.0-nightly.20261103.1";
-  f.route(
-    `${api}/releases/tags/v${nightly}`,
-    JSON.stringify(githubRelease(f, nightly, { channel: "nightly" })),
-  );
-  const wrongChannel = f.lictory(["upgrade", nightly, "--yes"]);
-  assert.equal(wrongChannel.status, 1);
-  assert.match(
-    wrongChannel.stderr,
-    /is a nightly release; environment production follows stable/,
-  );
-
-  f.route(
-    `${api}/releases/tags/v1.4.0`,
-    JSON.stringify(githubRelease(f, "1.4.0", { digest: sha256("other") })),
-  );
-  const tampered = f.lictory(["upgrade", "1.4.0", "--yes"]);
-  assert.equal(tampered.status, 1);
-  assert.match(tampered.stderr, /does not match the digest/);
-  for (const result of [older, wrongChannel, tampered])
-    assert.ok(!result.calls.some((call) => call.name === "deploy.sh"));
-});
+    f.route(
+      `${api}/releases/tags/v1.4.0`,
+      JSON.stringify(githubRelease(f, "1.4.0", { digest: sha256("other") })),
+    );
+    const tampered = f.lictory(["upgrade", "1.4.0", "--yes"]);
+    assert.equal(tampered.status, 1);
+    assert.match(tampered.stderr, /does not match the digest/);
+    for (const result of [older, wrongChannel, tampered])
+      assert.ok(!result.calls.some((call) => call.name === "deploy.sh"));
+  },
+);
 
 void test("an installation with only an app host name renders without a website", (t) => {
   if (spawnSync("docker", ["compose", "version"]).status !== 0) {
@@ -570,4 +662,194 @@ void test("an installation with only an app host name renders without a website"
     site.services.worker!.environment.SITE_URL,
     "https://lictory.example.com",
   );
+});
+
+void test(
+  "install restricts access by default and records the chosen policy",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    stubAdministration(f);
+    const env = join(f.root, "production/.env");
+    const first = f.lictory(acmeInstall);
+    assert.equal(first.status, 0, first.stderr + first.stdout);
+    const created = readFileSync(env, "utf8");
+    assert.match(created, /^LICTORY_SIGNUP_MODE=invite$/m);
+    assert.match(created, /^LICTORY_ALLOWED_EMAIL_DOMAINS=$/m);
+    assert.match(created, /^LICTORY_ORGANIZATION_CREATION=administrators$/m);
+    // Without administrator details the install asks the server and points to
+    // `lictory admin setup` instead of creating anyone.
+    assert.deepEqual(
+      adminCalls(first.calls).map((call) => call.args[0]),
+      ["status"],
+    );
+    assert.deepEqual(adminCalls(first.calls)[0]!.exec, [
+      "production",
+      "exec",
+      "-T",
+      "api",
+      "node",
+    ]);
+    assert.match(first.stdout, /sudo lictory admin setup/);
+    assert.match(
+      first.stdout,
+      /people join when an administrator invites them/,
+    );
+    assert.doesNotMatch(first.stdout, /create the first account/i);
+
+    const closed = f.lictory([
+      ...acmeInstall,
+      "--signup-mode",
+      "closed",
+      "--allowed-email-domains",
+      "Example.test, corp.example.test",
+      "--organization-creation",
+      "everyone",
+    ]);
+    assert.equal(closed.status, 0, closed.stderr + closed.stdout);
+    const changed = readFileSync(env, "utf8");
+    assert.match(changed, /^LICTORY_SIGNUP_MODE=closed$/m);
+    assert.match(
+      changed,
+      /^LICTORY_ALLOWED_EMAIL_DOMAINS=example\.test,corp\.example\.test$/m,
+    );
+    assert.match(changed, /^LICTORY_ORGANIZATION_CREATION=everyone$/m);
+    assert.match(closed.stdout, /only instance administrators create accounts/);
+  },
+);
+
+void test(
+  "install creates the first administrator, the password only on stdin",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    stubAdministration(f);
+    const password = "Correct-horse-battery-9";
+    const install = f.lictory(
+      [
+        ...acmeInstall,
+        "--admin-email",
+        "ada@example.test",
+        "--admin-name",
+        "Ada Lovelace",
+        "--organization",
+        "Acme Corp",
+      ],
+      { LICTORY_ADMIN_PASSWORD: password },
+    );
+    assert.equal(install.status, 0, install.stderr + install.stdout);
+    const calls = adminCalls(install.calls);
+    assert.deepEqual(
+      calls.map((call) => call.args),
+      [
+        ["status", "--json"],
+        [
+          "setup",
+          "--organization",
+          "Acme Corp",
+          "--name",
+          "Ada Lovelace",
+          "--email",
+          "ada@example.test",
+          "--organization-handle",
+          "acme-corp",
+          "--password-stdin",
+          "--json",
+        ],
+      ],
+    );
+    assert.equal(calls[1]!.stdin, `${password}\n`);
+    for (const call of install.calls)
+      assert.ok(!call.args.some((arg) => arg.includes(password)), call.name);
+    assert.match(
+      install.stdout,
+      /ada@example\.test is the instance administrator/,
+    );
+    assert.match(
+      install.stdout,
+      /Sign in at https:\/\/lictory\.example\.test as ada@example\.test/,
+    );
+    assert.match(install.stdout, /https:\/\/lictory\.example\.test\/admin/);
+
+    // Once an administrator exists, installs leave administration alone.
+    const again = f.lictory(acmeInstall, { FAKE_ADMINS: "1" });
+    assert.equal(again.status, 0, again.stderr + again.stdout);
+    assert.deepEqual(
+      adminCalls(again.calls).map((call) => call.args[0]),
+      ["status"],
+    );
+    assert.match(again.stdout, /1 instance administrator\(s\) already exist/);
+
+    // A password the server would refuse is caught before it is sent.
+    const weak = f.lictory(
+      [
+        ...acmeInstall,
+        "--admin-email",
+        "ada@example.test",
+        "--admin-name",
+        "Ada",
+        "--organization",
+        "Acme",
+      ],
+      { LICTORY_ADMIN_PASSWORD: "short" },
+    );
+    assert.equal(weak.status, 0, weak.stderr + weak.stdout);
+    assert.match(
+      weak.stderr,
+      /LICTORY_ADMIN_PASSWORD: use 10 to 64 characters/,
+    );
+    assert.ok(!adminCalls(weak.calls).some((call) => call.args[0] === "setup"));
+  },
+);
+
+void test("lictory admin passes commands to the api container", (t) => {
+  const f = bootstrapped(t);
+  stubAdministration(f);
+  mkdirSync(join(f.root, "production"), { recursive: true });
+  writeFileSync(
+    join(f.root, "production/.env"),
+    "APP_HOST=lictory.example.test\n",
+    { mode: 0o600 },
+  );
+  const grant = f.lictory(["admin", "grant", "Grace@Example.test"]);
+  assert.equal(grant.status, 0, grant.stderr + grant.stdout);
+  assert.deepEqual(adminCalls(grant.calls)[0]!.args, [
+    "grant-admin",
+    "grace@example.test",
+    "--json",
+  ]);
+  assert.match(
+    grant.stdout,
+    /<grace@example\.test> is an instance administrator/,
+  );
+
+  // Server refusals reach the operator as they are.
+  const revoke = f.lictory(["admin", "revoke", "grace@example.test", "--yes"], {
+    FAKE_ADMIN_ERROR: "Grace Hopper is the last active instance administrator.",
+  });
+  assert.equal(revoke.status, 1);
+  assert.match(revoke.stderr, /last active instance administrator/);
+
+  // Without a terminal, a removal needs --yes.
+  const unconfirmed = f.lictory(["admin", "revoke", "grace@example.test"]);
+  assert.equal(unconfirmed.status, 1);
+  assert.match(unconfirmed.stderr, /pass --yes/);
+  assert.deepEqual(adminCalls(unconfirmed.calls), []);
+
+  const reset = f.lictory(["admin", "set-password", "grace@example.test"], {
+    LICTORY_USER_PASSWORD: "Another-long-password-7",
+  });
+  assert.equal(reset.status, 0, reset.stderr + reset.stdout);
+  const call = adminCalls(reset.calls)[0]!;
+  assert.deepEqual(call.args, [
+    "set-password",
+    "grace@example.test",
+    "--password-stdin",
+    "--json",
+  ]);
+  assert.equal(call.stdin, "Another-long-password-7\n");
+
+  const status = f.lictory(["admin", "status"], { FAKE_ADMINS: "2" });
+  assert.equal(status.status, 0, status.stderr + status.stdout);
+  assert.match(status.stdout, /administrators: 2/);
 });

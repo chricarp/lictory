@@ -75,6 +75,12 @@ x-server-environment: &server-environment
   OIDC_DISPLAY_NAME: ${OIDC_DISPLAY_NAME:-}
   OIDC_AUTO_CREATE_USERS: ${OIDC_AUTO_CREATE_USERS:-}
   PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-}
+  # Instance access policy (docs/operations/self-hosting.md#access-policy):
+  # who may create accounts and organizations. Unset means invite-only
+  # accounts and organizations created by instance administrators.
+  LICTORY_SIGNUP_MODE: ${LICTORY_SIGNUP_MODE:-}
+  LICTORY_ALLOWED_EMAIL_DOMAINS: ${LICTORY_ALLOWED_EMAIL_DOMAINS:-}
+  LICTORY_ORGANIZATION_CREATION: ${LICTORY_ORGANIZATION_CREATION:-}
   OAUTH_PROXY_URL: ${OAUTH_PROXY_URL:-}
   OAUTH_PROXY_SECRET: ${OAUTH_PROXY_SECRET:-}
   OAUTH_PROXY_TRUSTED_ORIGINS: ${OAUTH_PROXY_TRUSTED_ORIGINS:-}
