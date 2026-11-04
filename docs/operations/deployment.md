@@ -23,7 +23,7 @@ https://<your app host> ──▶ Caddy gateway (TLS, SPA assets)
 | `proxy`      | `lictory-proxy`         | Private app gateway: API, streaming, Zero and retained SPA assets                 |
 | `api`        | `lictory-api`           | Hono API, Better Auth, files, Zero query/mutate endpoints and document metadata   |
 | `worker`     | `lictory-api`           | Durable AI, email and delivery jobs; delivery status refresh and automatic cycles |
-| `zero-cache` | `rocicorp/zero:1.11.2`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume   |
+| `zero-cache` | `rocicorp/zero:1.11.3`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume   |
 | `postgres`   | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                  |
 | `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before activation                          |
 | `ops`        | `lictory-ops`           | One-shot backups, restores and monitoring                                         |
