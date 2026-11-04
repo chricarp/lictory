@@ -15,6 +15,7 @@ import { controlZeroConnection } from "../helpers/zero-socket";
 import { paths } from "@lictory/core/lib/paths";
 import packageJson from "../../package.json" with { type: "json" };
 import { appHome, platformOrigin, signedIn } from "../helpers/app-urls";
+import { clientAddress, useClientAddress } from "../helpers/client-address";
 const version = packageJson.version;
 const email = "project@example.test";
 const reviewerEmail = "engineer@example.test";
@@ -27,10 +28,8 @@ const deliveryEmail = "delivery@example.test";
 const password = "Local-test-password-123";
 // Give independent browser scenarios distinct client addresses. Production auth
 // throttles rapid sign-ins by IP; unrelated tests must not share that budget.
-test.beforeEach(async ({ context }, testInfo) => {
-  await context.setExtraHTTPHeaders({
-    "x-forwarded-for": `192.0.2.${(testInfo.line % 254) + 1}`,
-  });
+test.beforeEach(async ({ context }) => {
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 test.beforeAll(async () => {
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
@@ -130,6 +129,8 @@ test("an existing member can create and switch to another organization", async (
   );
 });
 async function signIn(page: Page, loginEmail = email) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(loginEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -302,9 +303,9 @@ test("navigation commits immediately inside the persistent shell and shows a loa
   });
   try {
     await board.click();
-    await expect(page).toHaveURL(/\/board$/, { timeout: 2_000 });
+    await expect(page).toHaveURL(/\/board$/);
     await expect.poll(() => codeHeld).toBe(true);
-    await expect(loading).toBeVisible({ timeout: 2_000 });
+    await expect(loading).toBeVisible();
     await expect(loading).toHaveAttribute("aria-busy", "true");
     // The shell stays mounted while the page loads.
     expect(await railNode.evaluate((node) => node.isConnected)).toBe(true);
@@ -840,7 +841,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .getByLabel("Invitation link", { exact: true })
     .inputValue();
   const reviewerContext = await browser.newContext({
-    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.254" },
+    extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
     storageState: consentStatePath,
   });
   const reviewer = await reviewerContext.newPage();

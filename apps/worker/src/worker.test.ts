@@ -73,9 +73,21 @@ void test("a failing job backs off without holding up the others", async () => {
     backoffMs: 40,
   });
   supervisor.start();
-  await sleep(250);
-  assert.ok(good > 15, `the healthy job keeps its cadence (${good} runs)`);
-  assert.ok(bad >= 2 && bad <= 5, `the failing job backs off (${bad} runs)`);
+  // Progress and the scheduled delays, not run counts in a wall-clock window:
+  // on a busy machine every timer fires late, so counts depend on its speed.
+  await until(() => good > 15 && bad >= 3, 30_000);
+  const retries = lines
+    .map(
+      (line) =>
+        JSON.parse(line) as { event: string; job?: string; retryInMs?: number },
+    )
+    .filter((line) => line.event === "worker.job_failed" && line.job === "bad")
+    .map((line) => line.retryInMs);
+  assert.deepEqual(
+    retries.slice(0, 3),
+    [40, 80, 160],
+    "the failing job backs off exponentially",
+  );
   const status = supervisor.status().find((j) => j.name === "bad")!;
   assert.ok(status.consecutiveFailures >= 2);
   assert.equal(status.lastErrorCategory, "internal");
@@ -124,6 +136,7 @@ void test("work signals run a job at once and coalesce while it runs", async () 
 });
 
 void test("shutdown waits for the run in flight, then cancels it at the deadline", async () => {
+  let started = false;
   let finished = false;
   let cancelled = false;
   const slow = createSupervisor(
@@ -132,6 +145,7 @@ void test("shutdown waits for the run in flight, then cancels it at the deadline
         name: "slow",
         intervalMs: 60_000,
         async run({ stopping, cancel }) {
+          started = true;
           await sleep(100);
           assert.ok(stopping.aborted);
           cancelled = cancel.aborted;
@@ -143,8 +157,11 @@ void test("shutdown waits for the run in flight, then cancels it at the deadline
     { log: quiet },
   );
   slow.start();
-  await sleep(10);
-  assert.equal(await slow.stop({ timeoutMs: 1_000, cancelAfterMs: 500 }), true);
+  await until(() => started);
+  assert.equal(
+    await slow.stop({ timeoutMs: 20_000, cancelAfterMs: 10_000 }),
+    true,
+  );
   assert.ok(finished);
   assert.equal(
     cancelled,
@@ -166,12 +183,12 @@ void test("shutdown waits for the run in flight, then cancels it at the deadline
     { log: quiet },
   );
   stubborn.start();
-  const started = Date.now();
+  // The run only ends when cancelled, so stopping before the deadline proves
+  // cancellation ended it early.
   assert.equal(
-    await stubborn.stop({ timeoutMs: 1_000, cancelAfterMs: 50 }),
+    await stubborn.stop({ timeoutMs: 20_000, cancelAfterMs: 50 }),
     true,
   );
-  assert.ok(Date.now() - started < 500, "cancellation ends it early");
 
   const hung = createSupervisor(
     [
@@ -281,20 +298,19 @@ void test("a committed request wakes the worker through LISTEN, also after the c
     await until(() => listener.listening());
     await until(() => supervisor.status()[0]!.runs === 1);
 
+    // Polling is an hour apart, so completing at all proves the commit's
+    // notification woke the worker; how fast depends on the machine.
     const first = await org.review();
-    const requested = Date.now();
-    await until(async () => (await first()) === "completed", 3_000);
-    const latencyMs = Date.now() - requested;
-    assert.ok(latencyMs < 3_000, `processed ${latencyMs} ms after commit`);
+    await until(async () => (await first()) === "completed", 30_000);
 
     // The server drops the LISTEN connection; the worker re-listens, and
     // looks for work it may have missed meanwhile.
     await admin`select pg_terminate_backend(pid) from pg_stat_activity
       where datname = ${databaseName} and query ilike 'listen%'`;
-    await until(() => listens.length === 2, 10_000);
+    await until(() => listens.length === 2, 30_000);
     assert.deepEqual(listens, [false, true]);
     const second = await org.review();
-    await until(async () => (await second()) === "completed", 3_000);
+    await until(async () => (await second()) === "completed", 30_000);
   } finally {
     await listener.close();
     await supervisor.stop({ timeoutMs: 1_000, cancelAfterMs: 500 });

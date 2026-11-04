@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signedIn } from "../helpers/app-urls";
+import { clientAddress } from "../helpers/client-address";
 
 // Company single sign-on through a real OpenID Connect provider: the local Dex
 // from `docker compose --profile sso up -d dex` (deploy/dex/development.yaml).
@@ -20,10 +21,8 @@ async function providerReachable() {
   }
 }
 
-test.beforeEach(async ({ context }, testInfo) => {
-  await context.setExtraHTTPHeaders({
-    "x-forwarded-for": `198.51.102.${(testInfo.line % 254) + 1}`,
-  });
+test.beforeEach(async ({ context }) => {
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
 test("a person signs in with the company identity provider and gets a verified account", async ({

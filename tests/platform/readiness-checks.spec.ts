@@ -9,6 +9,13 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { directory, executeMutation } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { inApp } from "../helpers/app-urls";
+import { useClientAddress } from "../helpers/client-address";
+
+// Sign-in and sign-up are rate limited per client address: this page
+// authenticates from its own.
+test.beforeEach(async ({ page }) => {
+  await useClientAddress(page);
+});
 
 const password = "Readiness-test-password-123!";
 // A retry runs in a new worker that seeds again; each worker gets its own users.
@@ -147,6 +154,8 @@ test.beforeAll(async () => {
 });
 
 async function signIn(page: Page) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(adminEmail);
   await page.getByLabel("Password", { exact: true }).fill(password);

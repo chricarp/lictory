@@ -11,6 +11,13 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { directory, executeMutation } from "@lictory/core/domain/service";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { inApp } from "../helpers/app-urls";
+import { clientAddress, useClientAddress } from "../helpers/client-address";
+
+// Sign-in and sign-up are rate limited per client address: this page
+// authenticates from its own.
+test.beforeEach(async ({ page }) => {
+  await useClientAddress(page);
+});
 
 const password = "Branch-test-password-123!";
 // A retry runs in a new worker that seeds again; each worker gets its own users.
@@ -125,6 +132,8 @@ test.beforeAll(async () => {
 });
 
 async function signIn(page: Page, email: string) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -218,7 +227,7 @@ test("readiness is checked before queueing, with one toast per attempt and none 
   await page.emulateMedia({ colorScheme: "dark" });
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.183" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, authorEmail);
   // Routes apply to connections opened afterwards: observe from page load.
   const zero = await controlZeroConnection(page);
@@ -335,7 +344,7 @@ test("a handled server rejection is forgotten and never replays its toast after 
 }) => {
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.185" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, authorEmail);
   // Mutations travel over Zero's connection. Pointing the "urgent" change at
   // an item that does not exist makes the server reject it definitively,
@@ -410,7 +419,7 @@ test("workspace sync explains automatic recovery and resumes when the connection
 }) => {
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.184" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   const zero = await controlZeroConnection(page);
   await signIn(page, authorEmail);
   await page.goto(itemUrl);
@@ -461,7 +470,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
   test.setTimeout(180_000);
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.181" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, authorEmail);
   const parent = await createBranch(page, "integration/retries");
   await commit(page, integration, "Define stable retry IDs");
@@ -486,7 +495,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       .filter({ hasText: "QA approval is pending or stale." }),
   ).toBeVisible();
   const reviewerContext = await browser.newContext({
-    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.182" },
+    extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
     storageState: consentStatePath,
   });
   try {
@@ -687,7 +696,7 @@ test("a breakdown-only pull request creates children only after review and merge
   test.setTimeout(120_000);
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.191" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, authorEmail);
   const branchUrl = await createBranch(page, "engineering/delivery-breakdown");
   await page
@@ -744,7 +753,7 @@ test("a breakdown-only pull request creates children only after review and merge
       .click();
   }
   const reviewerContext = await browser.newContext({
-    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.192" },
+    extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
     storageState: consentStatePath,
   });
   try {

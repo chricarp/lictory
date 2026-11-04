@@ -13,6 +13,7 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { consentStatePath } from "../consent-setup";
 import { inApp } from "./app-urls";
+import { clientAddress, useClientAddress } from "./client-address";
 
 // Workspaces seeded through the domain (the same writer the API uses), so
 // projections and receipts are exactly what a browser-made workspace has.
@@ -199,16 +200,21 @@ export async function removeMember(organizationId: string, userId: string) {
 }
 
 export async function signIn(page: Page, email: string) {
-  await page.goto("/sign-in");
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(inApp);
+  const restore = await useClientAddress(page);
+  try {
+    await page.goto("/sign-in");
+    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(inApp);
+  } finally {
+    await restore();
+  }
 }
 
 // A separate browser profile with its own client address (rate limits are
 // per address).
-export async function newPerson(browser: Browser, address: string) {
+export async function newPerson(browser: Browser, address = clientAddress()) {
   const context = await browser.newContext({
     storageState: consentStatePath,
     extraHTTPHeaders: { "x-forwarded-for": address },

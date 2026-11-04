@@ -30,9 +30,7 @@ function totp(base32Secret: string, at = Date.now()) {
 }
 
 // Rate limits are per client address: each step signs in from its own.
-let address = 170;
-const person = (browser: Browser) =>
-  newPerson(browser, `203.0.113.${address++}`);
+const person = (browser: Browser) => newPerson(browser);
 
 // Turns on two-factor in Account settings and returns the setup key and the
 // backup codes shown once.

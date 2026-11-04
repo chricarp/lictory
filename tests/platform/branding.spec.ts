@@ -5,6 +5,7 @@ import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "../helpers/onboarding-helpers";
 import { inApp } from "../helpers/app-urls";
+import { clientAddress } from "../helpers/client-address";
 
 const email = "branding@example.test";
 const password = "Local-test-password-123";
@@ -14,7 +15,7 @@ const png = Buffer.from(
 );
 
 test.beforeEach(async ({ context }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.240" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 test.beforeAll(async () => {
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });

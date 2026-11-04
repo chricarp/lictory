@@ -3,7 +3,9 @@
 ## First checkout
 
 Requirements: [Bun](https://bun.sh) at the version in `package.json`
-(`packageManager`), **Node.js 24 LTS**, Docker, Git and **Bash 4+**. Bun is the only supported
+(`packageManager`), **Node.js 24 LTS**, Docker, Git, and `jq` and `openssl`
+(the release tests run the deployment scripts, which use both; macOS 15 and
+later include them, older macOS and minimal Linux images may not). Bun is the only supported
 package manager; Node runs workspace build scripts and supplies Zero's supported
 native SQLite ABI. Install Node before `bun install`, and check `node --version`.
 A bare Bun-only container can fall back to compiling Zero's SQLite module;
@@ -12,10 +14,14 @@ also pairs Bun with Node 24.
 
 Both versions are recorded where version managers find them: `engines` in
 `package.json`, `.nvmrc` (`nvm use`, `fnm use`) and `.tool-versions`
-(`mise install`, `asdf install`). Bun does not enforce `engines`, so these
-files help rather than guard; `node --version` and `bun --version` remain the
-check. Update them together with `packageManager` and the Bun images in the
-Dockerfile, `.devcontainer/Dockerfile` and `compose.yaml`.
+(`mise install`, `asdf install`). Update them together with `packageManager`,
+the Bun images in the Dockerfile, `.devcontainer/Dockerfile` and
+`compose.yaml`, and the Node version in `.github/actions/setup`.
+
+Bun does not enforce `engines`, so `bun run check` starts with
+`scripts/check-toolchain.ts`: it stops on a different Bun minor release, a
+different Node major release or a missing tool, and warns when only Bun's patch
+release differs from CI.
 
 **Shell for release-tooling tests.** The deployment CLI targets Linux and uses
 Bash 4+ syntax. macOS ships Bash 3.2; install a current version (for example
@@ -42,10 +48,9 @@ Docker on Linux, the container's `node` user cannot write a bind-mounted
 checkout; use a container volume there too, or the native setup.
 
 For a memory-limited container, allow at least 8 GB of Docker memory. The full
-type-aware ESLint check peaks near 4 GB and can exceed Node's default heap (CI
-raises it for that step); if it reports a JavaScript heap limit, run
-`export NODE_OPTIONS=--max-old-space-size=6144` before the verification commands.
-This increases the process heap allowance without filtering or disabling checks.
+type-aware ESLint check peaks near 4 GB, above Node's default heap on some
+machines, so `bun run lint` allows itself 6 GB (`--max-old-space-size=6144`).
+A `NODE_OPTIONS` you export comes after it and wins.
 
 ```sh
 cp .env.example .env
@@ -163,9 +168,32 @@ static export behind its Cloudflare Worker in `wrangler dev` (port 3201) and
 `scripts/edge-proxy.ts` (the platform origin, port 3001, routed like
 production), then drops the database and its replication slot. PostgreSQL must
 run with `wal_level=logical` (`compose.yaml` does). `E2E_PORT_OFFSET` lets
-several checkouts run side by side; `E2E_SKIP_BUILD=1` reuses builds when only
-tests changed. Failure
+several checkouts run side by side; use multiples of 10 (10, 20...), because the
+services take consecutive ports (an offset of 1 would put the edge proxy on the
+API's port). `E2E_SKIP_BUILD=1` reuses builds when only tests changed. Failure
 screenshots land in `/tmp/lictory-playwright-results`.
+
+### Tests that pass on every contributor's machine
+
+The verification sequence runs on contributors' laptops and their agents'
+machines, often busy with other work, as well as in CI. A test that fails there
+without a defect costs everyone a rerun and teaches people to ignore failures.
+
+- **Assert progress, not speed.** Wait for an observable outcome with a
+  generous bound instead of counting what happened in a fixed window or
+  asserting a duration. Domain tests get a 60 s default timeout
+  (`scripts/test-setup.ts`, preloaded by `bunfig.toml`); browser assertions keep
+  the configured 15 s.
+- **Authentication is rate limited per client address**, as in production
+  (sign-in and sign-up: 3 per 10 s), and every browser test runs from one
+  machine. Sign in with `signIn` or `newPerson` from `tests/helpers/seed.ts`; a
+  test or local helper that submits an authentication form itself, or opens its
+  own browser context, takes an address from `clientAddress()` or
+  `useClientAddress(page)` in `tests/helpers/client-address.ts`. Never hand-pick an address: two tests that
+  pick the same one share a budget, depending on the order they run in.
+- **Shell scripts that tests execute must run on macOS**: Bash 3.2 and BSD
+  tools (no `${var,,}`, `mapfile`, `declare -A`, `sed -i` without a suffix
+  argument, `readlink -f`, `date -d`, `grep -P`).
 
 The single sign-on workflow (`tests/platform/sso.spec.ts`) needs a real
 identity provider and is skipped without one. To run it, start the local Dex

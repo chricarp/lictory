@@ -16,6 +16,7 @@ import {
 import { writeChatMessage } from "@lictory/core/intelligence/chat/runs";
 import { platformOrigin } from "../helpers/app-urls";
 import { seedWorkspace, signIn, withDb } from "../helpers/seed";
+import { clientAddress } from "../helpers/client-address";
 
 const question = {
   title: "Refund scope",
@@ -113,7 +114,7 @@ test("navigation, reload and a second device retain working, waiting and complet
   context,
   browser,
 }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.175" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   const f = await seed();
   await signIn(page, f.seeded.owner.email);
   await page.goto(`/${f.seeded.slug}/intelligence/${f.chatId}`);
@@ -139,7 +140,9 @@ test("navigation, reload and a second device retain working, waiting and complet
   await expect(page.getByText("Refund scope", { exact: true })).toBeVisible();
 
   const otherContext = await browser.newContext();
-  await otherContext.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.176" });
+  await otherContext.setExtraHTTPHeaders({
+    "x-forwarded-for": clientAddress(),
+  });
   const other = await otherContext.newPage();
   try {
     await signIn(other, f.seeded.owner.email);
@@ -230,7 +233,7 @@ test("long questions and answers remain readable before submission and in saved 
   page,
   context,
 }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.178" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const longUrl = `https://example.test/specifications/${"archive-policy-".repeat(20)}`;
   const prompt =
@@ -346,7 +349,7 @@ test("a saved failure remains actionable after refresh and Stop works through th
   page,
   context,
 }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.177" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   const f = await seed();
   await signIn(page, f.seeded.owner.email);
   await page.goto(`/${f.seeded.slug}/intelligence/${f.chatId}`);

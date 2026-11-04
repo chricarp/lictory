@@ -7,6 +7,7 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { executeMutation } from "@lictory/core/domain/service";
 import { PROTOCOL } from "@lictory/core/contracts/protocol";
 import { inApp } from "../helpers/app-urls";
+import { clientAddress } from "../helpers/client-address";
 
 const password = "Audit-log-test-password-123";
 // A retry runs in a new worker that seeds again; each worker gets its own users.
@@ -27,7 +28,7 @@ const organizationId = crypto.randomUUID();
 const slug = `audit-${run}`;
 
 test.beforeEach(async ({ context }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.174" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
 test.beforeAll(async () => {

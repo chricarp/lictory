@@ -6,6 +6,7 @@ import postgres from "postgres";
 import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { inApp, platformOrigin } from "../helpers/app-urls";
+import { clientAddress } from "../helpers/client-address";
 
 async function invitationMail(request: APIRequestContext, email: string) {
   const mailpit = process.env.MAILPIT_URL ?? "http://localhost:8025";
@@ -72,7 +73,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
       role: "owner",
       createdAt: new Date(),
     });
-    await context.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.81" });
+    await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
     await page.goto("/sign-in");
     await page.getByLabel("Email", { exact: true }).fill(owner.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
@@ -144,7 +145,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
       `/invitation?id=${newInvite.id}`,
     );
     const joining = await browser.newContext({
-      extraHTTPHeaders: { "x-forwarded-for": "203.0.113.82" },
+      extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
       storageState: consentStatePath,
     });
     try {
