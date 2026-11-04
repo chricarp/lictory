@@ -45,6 +45,8 @@ it afterwards. See [self-hosting](docs/operations/self-hosting.md).
 Requirements: Bun (version in `packageManager`), Node.js 24 LTS, Docker and Git.
 Bun is the only supported package manager. Node.js runs the application builds
 and provides the supported ABI for Zero's native SQLite module.
+On Windows, use WSL2; a dev container is also provided (see the
+[development runbook](docs/operations/development.md#first-checkout)).
 
 ```bash
 cp .env.example .env

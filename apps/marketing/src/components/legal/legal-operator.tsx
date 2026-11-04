@@ -1,10 +1,13 @@
+import { setting } from "@lictory/marketing/lib/setting";
+
 // Server-rendered deployment facts. Never infer the controller from a brand,
 // repository author, hosting provider or authentication identity.
 export function LegalOperator() {
-  const name = process.env.LICTORY_LEGAL_NAME ?? "Christian Carpinelli";
-  const address = process.env.LICTORY_LEGAL_ADDRESS;
-  const email = process.env.LICTORY_LEGAL_EMAIL;
-  const registration = process.env.LICTORY_LEGAL_REGISTRATION;
+  const name =
+    setting(process.env.LICTORY_LEGAL_NAME) ?? "Christian Carpinelli";
+  const address = setting(process.env.LICTORY_LEGAL_ADDRESS);
+  const email = setting(process.env.LICTORY_LEGAL_EMAIL);
+  const registration = setting(process.env.LICTORY_LEGAL_REGISTRATION);
   const complete = address && email;
 
   return (

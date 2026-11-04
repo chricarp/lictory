@@ -832,7 +832,7 @@ collect_settings() {
       ask smtp-host "SMTP server host" "$(current SMTP_HOST)"
       require_opt smtp-host "The SMTP host"
       port=$(current SMTP_PORT)
-      ask smtp-port "SMTP port (587 STARTTLS or 25; 465 is not supported)" "${port:-587}"
+      ask smtp-port "SMTP port (587 STARTTLS, 465 TLS or 25)" "${port:-587}"
       ask smtp-user "SMTP user (empty: no authentication)" "$(current SMTP_USER)"
       [ -z "$(opt smtp-user)" ] || ask smtp-password "SMTP password" "$(current SMTP_PASSWORD)" secret
       url=$(current SMTP_FROM)

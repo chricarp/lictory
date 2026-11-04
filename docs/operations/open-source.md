@@ -273,7 +273,9 @@ workflows skip forks.
 
 Node 24 is documented alongside Bun; a bare Bun-only clean installation failed
 in Zero's native install, whereas the paired environment uses the supported
-Node ABI.
+Node ABI. Both versions are pinned in `engines`, `.nvmrc` and
+`.tool-versions`, a dev container provides them, and Windows contributors use
+WSL2 (see the [development runbook](development.md#first-checkout)).
 
 Before changing visibility:
 

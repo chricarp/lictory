@@ -1,0 +1,32 @@
+// Reproducible development environment: Bun and Node 24 at the versions in
+// package.json, plus a Docker daemon of its own for compose.yaml's services.
+// See docs/operations/development.md.
+{
+  "name": "Lictory",
+  "build": { "dockerfile": "Dockerfile" },
+  "features": {
+    // Its own daemon, so the runbook works unchanged: published ports are on
+    // the container's localhost, bind mounts resolve inside the container,
+    // and zero-cache reaches the API through host.docker.internal. Docker CE
+    // rather than Moby, which has no Debian trixie packages.
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false }
+  },
+  "hostRequirements": { "memory": "8gb" },
+  "remoteUser": "node",
+  "postCreateCommand": "test -f .env || cp .env.example .env; bun install",
+  "forwardPorts": [3000, 3100, 8025],
+  "portsAttributes": {
+    "3000": { "label": "App" },
+    "3100": { "label": "Website" },
+    "8025": { "label": "Mailpit" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}

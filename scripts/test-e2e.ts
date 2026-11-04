@@ -87,6 +87,8 @@ const appEnv = {
   NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "",
   SMTP_HOST: process.env.SMTP_HOST ?? "localhost",
   SMTP_PORT: process.env.SMTP_PORT ?? "1025",
+  // Production requires an explicit sender.
+  SMTP_FROM: "Lictory <no-reply@lictory.local>",
   GOOGLE_CLIENT_ID: "e2e-google-client-id",
   GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
   MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",
@@ -96,8 +98,10 @@ const appEnv = {
   // only when it is requested; never a developer's own identity provider.
   ...oidcEnv(process.env.E2E_OIDC_ISSUER?.trim()),
   PASSWORD_LOGIN_ENABLED: "",
-  ZERO_QUERY_API_KEY: "e2e-zero-query-key",
-  ZERO_MUTATE_API_KEY: "e2e-zero-mutate-key",
+  // Production startup validation requires at least 32 bytes. The shared
+  // prefix is what the client bundle scan looks for.
+  ZERO_QUERY_API_KEY: "e2e-zero-api-key-for-query-local-only",
+  ZERO_MUTATE_API_KEY: "e2e-zero-api-key-for-mutate-local-only",
 };
 
 // The build or Playwright process in the foreground, stopped on interruption.
