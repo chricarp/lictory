@@ -54,14 +54,14 @@ export function InlineTitle() {
             setEditing(false);
           }
         }}
-        className="w-full resize-none bg-transparent font-display text-[2rem] leading-[1.15] font-normal tracking-[-0.02em] outline-none"
+        className="w-full resize-none bg-transparent text-[1.75rem] leading-[1.2] font-semibold tracking-[-0.03em] outline-none"
         style={{ fieldSizing: "content" }}
       />
     );
   // The heading keeps its role and name; people who may rename it get a
   // button inside, so keyboard and screen reader users can start editing too.
   return (
-    <h1 className="font-display text-[2rem] leading-[1.15] font-normal tracking-[-0.02em] text-balance">
+    <h1 className="text-[1.75rem] leading-[1.2] font-semibold tracking-[-0.03em] text-balance">
       {canEdit ? (
         <button
           ref={button}

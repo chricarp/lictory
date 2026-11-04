@@ -26,7 +26,7 @@ export function SettingsNavigation({ nav }: { nav: SettingsNavItem[] }) {
         {groups.map((g, i) => (
           <div key={g.group ?? i} className="flex gap-1 lg:block">
             {g.group && (
-              <p className="hidden px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase lg:block">
+              <p className="hidden px-2 pb-1 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase lg:block">
                 {g.group}
               </p>
             )}

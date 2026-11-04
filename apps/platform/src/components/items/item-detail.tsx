@@ -890,7 +890,7 @@ export function ItemDetail({
           {!branchScreen && (
             <aside
               data-desktop-item-panel
-              className="hidden w-72 shrink-0 overflow-y-auto border-l bg-(--paper)/60 xl:block 2xl:w-80"
+              className="hidden w-72 shrink-0 overflow-y-auto border-l bg-shell/60 xl:block 2xl:w-80"
             >
               {panel}
             </aside>

@@ -18,7 +18,7 @@ export function SettingsGroup({
   return (
     <div className="space-y-4">
       <div className="px-1">
-        <h2 className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <h2 className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
           {title}
         </h2>
         {description && (

@@ -1,7 +1,7 @@
 /* Lictory's shared tokens (light and dark) from the UI package, mapped onto
    Fumadocs' colors through its shadcn bridge, so the documentation reads like
-   the application and the website: paper sidebar, ink text, one cobalt accent,
-   Newsreader for page titles only. */
+   the application and the website: a cool gray sidebar, white reading column,
+   ink type, mono capitals for section labels. */
 @import "../../../../packages/ui/src/styles.css";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
@@ -13,11 +13,20 @@ body {
   background: var(--background);
 }
 
-/* Sidebar: the website's paper, quiet section labels, rounded rows. */
+/* Sidebar: the application's shell, mono section labels, rounded rows. */
 #nd-sidebar {
   font-size: 0.875rem;
 }
+#nd-sidebar p.inline-flex {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 #nd-sidebar a[data-active="true"] {
+  border-radius: 0.625rem;
   background: var(--card);
   color: var(--foreground);
   font-weight: 500;
@@ -29,11 +38,10 @@ body {
 
 /* Page title and lede. */
 .docs-title {
-  font-family: var(--font-display);
-  font-size: clamp(2.25rem, 1.6rem + 1.8vw, 2.875rem);
-  line-height: 1.08;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-size: clamp(2rem, 1.5rem + 1.4vw, 2.5rem);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
   text-wrap: balance;
 }
 .docs-lede {
@@ -79,14 +87,14 @@ body {
 .docs-body :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *)) {
   font-weight: 500;
   text-decoration-line: underline;
-  text-decoration-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--foreground) 28%, transparent);
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
   border-bottom: 0;
   transition: text-decoration-color 150ms ease-out;
 }
 .docs-body :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *)):hover {
-  text-decoration-color: var(--primary);
+  text-decoration-color: var(--foreground);
 }
 /* Inline code: a warm chip, no border. */
 .docs-body :where(:not(pre) > code):not(:where(.not-prose *)) {
@@ -152,7 +160,7 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 9999px;
-  background: var(--primary);
+  background: var(--brand);
   box-shadow: 0 0 0 3px var(--background);
 }
 /* The first entry has no top padding. */

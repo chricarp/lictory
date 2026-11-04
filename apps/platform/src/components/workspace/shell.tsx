@@ -655,7 +655,7 @@ function Sidebar({
         )}
         aria-label="Workspace"
       >
-        <div className="space-y-px">
+        <div className="space-y-0.5">
           <InboxLink
             organizationId={organization.id}
             href={paths.inbox(org)}
@@ -944,7 +944,7 @@ function NavGroup({
           type="button"
           aria-expanded={toggle.open}
           onClick={toggle.onToggle}
-          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
+          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase hover:text-foreground"
         >
           {label}
           <ChevronRight
@@ -956,12 +956,12 @@ function NavGroup({
           />
         </button>
       ) : (
-        <p className="mb-1 px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="mb-1 px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
           {label}
         </p>
       )}
       {(!toggle || toggle.open || collapsed) && (
-        <div className="space-y-px">{children}</div>
+        <div className="space-y-0.5">{children}</div>
       )}
     </div>
   );
@@ -1174,18 +1174,22 @@ function NavLink({
       title={collapsed ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center rounded-md text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        collapsed ? "size-8 justify-center" : "h-7 gap-2 px-2",
+        "relative flex items-center rounded-lg text-[13px] transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        collapsed ? "size-8 justify-center" : "h-8 gap-2.5 px-2.5",
+        // The current page is a raised card on the shell.
         active
-          ? "bg-sidebar-accent font-medium text-foreground"
-          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+          ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"
+          : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
       )}
     >
       {icon ? (
         // Decorative next to the label (type icons are named images).
         <span
           aria-hidden
-          className="grid size-4 place-items-center text-muted-foreground"
+          className={cn(
+            "grid size-4 place-items-center",
+            active ? "text-foreground" : "text-muted-foreground",
+          )}
         >
           {icon}
         </span>

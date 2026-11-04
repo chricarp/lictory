@@ -143,7 +143,7 @@ export function ItemWorkflow({
   const stages = (
     <ol
       aria-label="Workflow stages"
-      className="flex items-center gap-1.5 text-[11px] text-muted-foreground max-sm:hidden"
+      className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.06em] text-muted-foreground uppercase max-sm:hidden"
     >
       {steps.map((name, index) => {
         const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
@@ -239,9 +239,10 @@ export function ItemWorkflow({
   return (
     <section
       aria-label="Item workflow"
-      className="mt-5 overflow-hidden rounded-xl bg-card shadow-(--shadow-border)"
+      className="mt-5 rounded-[1.25rem] bg-muted p-1 ring-1 ring-border/70 ring-inset"
     >
-      <div className="px-4 pt-3 pb-3 sm:pb-3.5">
+      {/* A tray: the state card on top, the decision it leads to beneath. */}
+      <div className="rounded-2xl bg-card px-4 pt-3 pb-3 shadow-(--shadow-border) sm:pb-3.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {/* An amendment names itself; the delivery status it would repeat is
               in the Delivery row below. */}
@@ -278,7 +279,7 @@ export function ItemWorkflow({
         )}
       </div>
       {children && (
-        <div className="border-t bg-muted/40">
+        <div>
           {/* Phones keep the document first: the decision folds into one
               line that still names what is pending. */}
           <button
@@ -324,8 +325,8 @@ export function ItemWorkflow({
 
 function StateRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid gap-0.5 sm:grid-cols-[5.5rem_1fr] sm:items-baseline sm:gap-x-2">
-      <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+    <div className="grid gap-0.5 sm:grid-cols-[7.25rem_1fr] sm:items-baseline sm:gap-x-2">
+      <dt className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">

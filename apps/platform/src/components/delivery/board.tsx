@@ -582,7 +582,7 @@ function ProjectBoard({ project }: { project: Project }) {
                         key={status.id}
                         data-board-column={status.id}
                         className={cn(
-                          "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-xl bg-muted/55 p-1.5 dark:bg-foreground/[0.035]",
+                          "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-muted p-1.5 ring-1 ring-border/60 ring-inset",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {

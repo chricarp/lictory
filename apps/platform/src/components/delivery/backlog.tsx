@@ -461,7 +461,7 @@ function ProjectBacklog({ project }: { project: Project }) {
             )}
             {iterations.some((i) => i.state === "completed") && (
               <div>
-                <h2 className="mb-2 px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                <h2 className="mb-2 px-1 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
                   Completed
                 </h2>
                 <ul className="space-y-1">
@@ -709,7 +709,7 @@ export function BacklogColumns() {
   return (
     <div
       aria-hidden
-      className="hidden h-7 items-center gap-2 border-t border-b bg-muted/30 px-4 text-[11px] font-medium tracking-wide text-muted-foreground uppercase sm:flex"
+      className="hidden h-7 items-center gap-2 border-t border-b bg-muted/30 px-4 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:flex"
     >
       <span className="min-w-0 flex-1">Item</span>
       <span className="w-36 shrink-0">Specification</span>

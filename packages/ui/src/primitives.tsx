@@ -9,7 +9,7 @@ export { Avatar } from "@lictory/ui/avatar";
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border bg-muted px-1 font-sans text-[10px] font-medium text-muted-foreground">
+    <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-md border bg-card px-1 font-mono text-[10px] font-medium text-muted-foreground shadow-xs">
       {children}
     </kbd>
   );
@@ -27,12 +27,15 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center gap-1 rounded px-1.5 text-[11px] font-medium whitespace-nowrap",
-        tone === "good" && "bg-success/10 text-success",
-        tone === "warning" && "bg-warning/12 text-warning",
-        tone === "danger" && "bg-red-500/10 text-red-700 dark:text-red-400",
-        tone === "info" && "bg-primary/10 text-primary",
-        tone === "neutral" && "bg-muted text-muted-foreground",
+        // Soft status pills: a tint, a hairline of the same hue, no fill.
+        "inline-flex h-5 items-center gap-1 rounded-full px-2 text-[11px] font-medium whitespace-nowrap ring-1 ring-inset",
+        tone === "good" && "bg-success/8 text-success ring-success/20",
+        tone === "warning" && "bg-warning/8 text-warning ring-warning/25",
+        tone === "danger" &&
+          "bg-destructive/8 text-destructive ring-destructive/20",
+        tone === "info" && "bg-ring/8 text-ring ring-ring/20",
+        tone === "neutral" &&
+          "bg-muted text-muted-foreground ring-foreground/8",
         className,
       )}
     >
@@ -76,7 +79,8 @@ export function SectionLabel({
   return (
     <h3
       className={cn(
-        "text-[11px] font-medium tracking-wide text-muted-foreground uppercase",
+        // Metadata labels: small mono capitals, like an instrument panel.
+        "font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase",
         className,
       )}
     >

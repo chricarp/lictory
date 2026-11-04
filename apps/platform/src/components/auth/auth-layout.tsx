@@ -7,7 +7,7 @@ import { LogoMark } from "@lictory/ui/logo";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col items-center bg-(--paper) px-4 py-10 sm:py-14">
+    <main className="flex min-h-dvh flex-col items-center bg-shell [background-image:var(--hatch)] px-4 py-10 sm:py-14">
       <div className="lictory-enter flex w-full max-w-[400px] flex-1 flex-col justify-center">
         <a
           href={siteUrl}
@@ -16,7 +16,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         >
           <LogoMark className="size-9" />
         </a>
-        <div className="rounded-2xl bg-card px-6 py-8 shadow-(--shadow-panel) sm:px-8">
+        <div className="rounded-[1.75rem] bg-card px-6 py-8 shadow-(--shadow-panel) sm:px-8">
           {children}
         </div>
       </div>
@@ -36,7 +36,7 @@ export function AuthHeading({
 }) {
   return (
     <div className="mb-7 text-center">
-      <h1 className="font-display text-[1.875rem] leading-9 font-normal tracking-[-0.02em] text-balance">
+      <h1 className="text-2xl leading-8 font-semibold tracking-[-0.025em] text-balance">
         {title}
       </h1>
       {description ? (
