@@ -4,8 +4,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#151412",
-  "theme_color": "#151412",
+  "background_color": "#0c0d0f",
+  "theme_color": "#0c0d0f",
   "categories": ["business", "productivity"],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },

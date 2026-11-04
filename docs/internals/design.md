@@ -19,38 +19,43 @@ artwork.
 ## One visual language
 
 The application, the website and the documentation share one token set
-(`packages/ui/src/styles.css`) so they read as one product: paper and ink.
+(`packages/ui/src/styles.css`) and read as one product: a calm instrument
+panel for agreeing on what to build.
 
-- **Color.** Warm, nearly neutral surfaces: a white document on an off-white
-  canvas, the website's paper (`--paper`) as the application and
-  documentation sidebar, ink text and Lictory's cobalt as the only accent.
-  Dark mode is warm charcoal, never blue-black. Success, warning and
-  destructive keep at least 4.5:1 on every surface; use the tokens
-  (`text-warning`, `bg-success/10`), not palette colors.
-- **Type.** Geist for the interface and reading text, Geist Mono for
-  identifiers and revisions. Newsreader sets document titles only: website
-  headlines, documentation page titles, a specification's title and the
-  sign-in headings. Everything a person scans or clicks stays in Geist.
-- **Shape.** A small radius scale (6px controls, 8px buttons, 10px cards,
-  14px panels); pills are for badges. Surfaces separate with hairlines and a
-  one-pixel shadow ring; real shadows are for layers that float.
-- **Density.** The specification is the primary surface. Workflow state sits
-  beside it in one quiet card; compact lists show the one signal that needs
-  attention instead of every counter.
+- **Color.** Cool, nearly neutral grays. White surfaces on a gray shell
+  (`--shell`, also the sidebar); recessed trays (`--tray`) hold raised white
+  cards. Ink text, black primary actions, blue only for focus, and one orange
+  accent (`--brand`) for marks and live highlights, never for body text. Dark
+  mode is neutral charcoal with the same structure: trays darker than cards.
+  Success, warning and destructive keep at least 4.5:1 on every surface; use
+  the tokens (`text-warning`, `bg-success/8`), not palette colors.
+- **Type.** Geist for the interface and reading text. Geist Mono, in small
+  capitals with open tracking, labels metadata: section labels, column
+  headers, stage steppers, identifiers and revisions.
+- **Shape.** Pills for every action and status; concentric radii everywhere a
+  card sits in a tray (outer radius = inner radius + padding). Surfaces
+  separate with hairline rings; real shadows are for what floats.
+- **Status grammar.** A status is a soft tint with a hairline ring of the same
+  hue, an optional dot or icon, and color only when it means something:
+  green for done or passing, warning for what needs attention, red for what
+  blocks. Everything else is neutral.
+- **Structure.** The specification is the primary surface. Workflow state is
+  one statement, its evidence as pills, and one next action. Lists name
+  their columns and keep them aligned. A faint diagonal hatch (`--hatch`) only
+  fills the trays that frame illustrations and the sign-in backdrop.
 
 Personal colour themes override colours only, so structure, type and radius
 stay Lictory's.
 
 ## The public website
 
-The website reads like the specifications it is about: the shared paper and
-ink, with a serif (Newsreader) for headlines. It follows the visitor's light
-or dark preference; one ink band marks the agent section.
+The website uses the same language: Geist headlines set tight, mono eyebrow
+labels with an orange dot, black pill calls to action, and product
+illustrations framed in hatched trays. It follows the visitor's light or dark
+preference; one ink band marks the agent section.
 
 Color and motion belong to the product illustrations, not the chrome. Each
-contributor in the hero's branch graph keeps one color wherever it appears. The
-graph's commit dot is the site's one recurring mark: section labels, the current
-navigation item and the workflow steps.
+contributor in the hero's branch graph keeps one color wherever it appears.
 
 Illustrations are built with the Stageshow kit (`apps/marketing/src/vendor/stageshow`,
 from the skill in `.agents/skills/stageshow`): the product's own window, in the
@@ -58,17 +63,16 @@ product's tokens, with only the words the story needs and short, quiet
 supporting sentences around them (never skeleton bars, which read as
 unfinished). Each tells one story from real product concepts and capability
 names, plays once when it comes into view, ends on its result and offers Replay.
-With reduced motion it shows that result as a still frame. The page is the
-ground: a window sits a gutter in from the column and fades out at its foot
-rather than floating on a plate.
+With reduced motion it shows that result as a still frame. A window sits in a
+hatched tray, a gutter in from its edge, and fades out at its foot.
 
 ## Application illustrations
 
 Lictory is a calm, document-first workspace for collaborative requirements review.
-Its visual language is the shared paper and ink above: warm off-white surfaces,
-ink text, cobalt primary controls, Geist typography and restrained borders.
-Dark mode uses warm charcoal surfaces with the same cobalt accents. Compact
-controls and readable specification content take priority over decoration.
+Its visual language is the shared one above: cool neutral surfaces, ink text,
+black pill controls, Geist typography and hairline rings. Dark mode uses
+neutral charcoal with the same structure. Compact controls and readable
+specification content take priority over decoration.
 
 Illustrations extend that language with small, tactile 3D objects inspired by
 Airbnb's friendly editorial approach. Use matte porcelain and soft clay, rounded

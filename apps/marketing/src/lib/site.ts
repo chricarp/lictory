@@ -37,7 +37,7 @@ export const siteSummary =
   openSource.summary;
 
 /** Browser chrome colors: the page's paper and ink backgrounds. */
-export const siteThemeColors = { light: "#f6f4ef", dark: "#141311" } as const;
+export const siteThemeColors = { light: "#f4f5f7", dark: "#0c0d0f" } as const;
 
 /** Search snippet policy for every indexable page. */
 export const indexableRobots = {
