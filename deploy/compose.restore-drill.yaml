@@ -101,6 +101,10 @@ services:
       ZERO_QUERY_API_KEY: ${DRILL_APP_SECRET:?}
       ZERO_MUTATE_API_KEY: ${DRILL_APP_SECRET:?}
       # No file storage: attachments are disabled in the drill.
+      # A mail transport keeps the drill as close to production as possible;
+      # the drill network is internal, so nothing is ever delivered.
+      SMTP_HOST: smtp.restore-drill.invalid
+      SMTP_FROM: Lictory restore drill <no-reply@restore-drill.invalid>
     depends_on:
       postgres:
         condition: service_healthy

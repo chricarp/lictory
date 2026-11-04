@@ -1171,7 +1171,7 @@ bun audit --audit-level=high
 bun run check
 bun run db:check
 bun run db:migrate
-bun test src
+bun test --isolate src
 bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 ```

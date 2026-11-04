@@ -21,7 +21,7 @@
 # the currently deployed proxy image; the default carries no assets.
 ARG PREVIOUS_PROXY_IMAGE=no-previous-assets
 
-FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS bun
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS bun
 
 # ---------------------------------------------------------------- build stages
 FROM --platform=$BUILDPLATFORM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS source
@@ -111,7 +111,7 @@ RUN --mount=type=cache,target=/src/apps/marketing/.next/cache \
  && rm -rf /out/node_modules/sharp /out/node_modules/@img
 
 # ------------------------------------------- target-platform native packages
-FROM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS bun-target
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS bun-target
 
 # Installs the workspace lockfile's exact versions for the target platform,
 # then keeps only the files the API and worker bundles load (traced like

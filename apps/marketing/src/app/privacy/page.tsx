@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <>
       <LegalDocument
         title="Privacy Notice"
-        introduction="This notice explains how personal data is handled when you visit Lictory, create an account or collaborate in an organization. It covers the public website and the work-management service. Acknowledging this notice is not consent to optional analytics."
+        introduction="This notice explains how personal data is handled when you visit lictory.com and docs.lictory.com. Lictory itself is self-hosted software: the project does not receive the data in any Lictory installation, whose operator is responsible for it."
         sections={privacySections}
       />
       <JsonLd data={publicPageStructuredData("/privacy")} />

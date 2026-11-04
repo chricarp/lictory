@@ -1,63 +1,62 @@
 # Public legal notices
 
-The public `/privacy` and `/terms-of-service` pages describe the deployed service,
-including optional Lictory Intelligence, organization review history and both delivery modes. The
-operator has confirmed Christian Carpinelli, an individual in Italy, as the
-operator; EU configurations for Vercel, Neon, Cloudflare R2, Resend and PostHog;
-and an OpenAI Zero Data Retention arrangement. These are operator declarations,
-not guarantees inferred from SDK options or verified vendor contracts.
+The `/privacy` and `/terms-of-service` pages on `lictory.com` cover only the
+project's websites, `lictory.com` and `docs.lictory.com`. The hosted Lictory
+service is retired: the project hosts no installation and receives no data
+from any. Lictory is self-hosted software under the MIT License; each
+installation's operator is the controller for its data and writes its own
+notices. The pages say so and link to the
+[self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy).
 
-**Before the self-hosted launch** the hosting sentence in
-`apps/marketing/src/lib/legal/privacy.ts` must be updated by the operator: the
-application and its PostgreSQL database move from Vercel and Neon to the chosen
-EU server provider (see [deployment](deployment.md)), and encrypted database
-backups are kept off-server for up to about six months (7 daily, 4 weekly, 6
-monthly; see [recovery](recovery.md)), which matters for erasure requests.
-This is an operator declaration and is deliberately not changed by engineering.
+What the pages describe, and where it comes from:
+
+- **Hosting:** both websites are static exports served by Cloudflare Workers
+  ([websites on Cloudflare](websites.md)). The documentation loads no
+  analytics or third-party scripts.
+- **Analytics:** `lictory.com` uses PostHog EU Cloud through the Worker's
+  first-party `/relay`, behind the c15t consent banner
+  ([product analytics](../internals/analytics.md#consent)). The privacy notice
+  describes the default consent mode (`ANALYTICS_CONSENT` unset in the
+  `websites` environment): cookieless, anonymous capture before a choice or
+  after rejection, and a stored PostHog identifier only after consent.
+  Setting `ANALYTICS_CONSENT=strict`, removing the PostHog variables or
+  adding any other script or provider changes the processing: update
+  `apps/marketing/src/lib/legal/privacy.ts` and `legalVersion` in the same
+  change.
+- **Operator:** Christian Carpinelli, an individual in Italy, confirmed as the
+  websites' operator. Provider configurations (Cloudflare, PostHog EU) are
+  operator declarations, not guarantees inferred from SDK options or verified
+  vendor contracts.
 
 Set `LICTORY_LEGAL_ADDRESS` and `LICTORY_LEGAL_EMAIL` to a correspondence address
-and monitored public contact before launch. Without either, both pages explicitly
-display a draft notice. `LICTORY_LEGAL_NAME` overrides the operator name and
+and monitored public contact. Without either, both pages explicitly display a
+draft notice. `LICTORY_LEGAL_NAME` overrides the operator name and
 `LICTORY_LEGAL_REGISTRATION` supplies registration/VAT details if applicable.
 These public values are compiled into the website at build time: for
 lictory.com they are variables of the GitHub environment `websites`
 ([websites on Cloudflare](websites.md#github-configuration)). Rerun **Deploy
 marketing website** after changing them.
 
-The signup notice makes account creation the acceptance action, also for social
-authentication that first creates an account on the sign-in page. Privacy notice
-acknowledgment is not consent. The terms avoid contractual liability caps,
-exclusive jurisdiction, automatic renewal or unrestricted suspension rights that
-would need additional consideration under Italian Civil Code Articles 1341–1342.
-Do not add such clauses without designing the required separate acceptance.
-The present implementation does not persist a versioned acceptance receipt or
-collect acceptance of future material amendments from existing accounts.
+The terms avoid contractual liability caps, exclusive jurisdiction or other
+clauses that would need separate acceptance under Italian Civil Code Articles
+1341–1342. Do not add such clauses without designing that acceptance. The
+software's warranty disclaimer is the MIT License's, not the website terms'.
 
-## Operational requirements beyond the pages
+Before relying on cookieless analytics on the websites, assess and document
+the legitimate interest and how an objection is honored. Cookieless IP/user-agent
+hashes are not assumed anonymous. Consent is stored locally by c15t; its offline
+mode keeps no server-side consent evidence register.
 
-Legal wording alone cannot establish compliance. Before offering the service to
-organizations, arrange an Article 28 processing agreement with them, obtain
-appropriate provider agreements/subprocessor authorizations, confirm actual
-processing and support-access countries and transfer safeguards, and verify that
-the OpenAI organization/project and all features used qualify for Zero Data
-Retention. `store: false` alone does not establish ZDR.
+## Self-hosted installations
 
-The operator's policy is account-lifetime retention for account data and
-organization-lifetime retention for workspace data. Confirm and document provider
-retention for analytics, emails, logs and backups, and a process to fulfill
-access, portability, objections and erasure requests. Account deletion currently
-calls Better Auth deletion, while many historical actor foreign keys restrict
-user deletion; an organization erasure workflow is not implemented. Assisted
-erasure/anonymization is needed, and the pages do not claim automatic complete
-deletion. Removing immutable history merely to make deletion succeed is not an
-acceptable fix.
-
-Assess and document the legitimate interests and necessity of cookieless browser
-and identified server analytics before relying on that basis, including how an
-individual's objection is honored. Cookieless IP/user-agent hashes are not assumed
-anonymous. Browser analytics consent is stored locally by c15t; its offline mode
-does not provide a server-side consent evidence register. Assess whether this is
-sufficient to demonstrate consent and implement the appropriate recordkeeping.
+The platform's sign-up and sign-in screens still say that creating an account
+accepts "our" Terms of Service and acknowledges "our" Privacy Notice, linked
+on the installation's website origin (`SITE_URL`, otherwise the
+installation's own origin, which serves no legal pages). That wording dates
+from the hosted service. Replacing it with operator-configurable notice links
+is a product change outside these pages. Until it lands, operators
+should know that those links do not lead to notices that describe their
+installation.
 
 ## Legal basis for the drafting choices
 
@@ -68,6 +67,5 @@ sufficient to demonstrate consent and implement the appropriate recordkeeping.
 - [Italian Legislative Decree 70/2003](https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2003-04-09;70): accessible provider and contracting information.
 - [Italian Civil Code Article 1341](https://def.giustiziatributaria.gov.it/DocTribFrontend/executePrintArticolo.do?articolo=Articolo+1341&codiceOrdinamento=0000000000013410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000&id=%7B9E93F1BE-06AE-4F24-8E9D-B838F7E0C2E6%7D): specific acceptance of certain standard terms.
 
-Reassess the text when processing, vendors, monetization or contract formation
-changes. Preserve the terms accepted by existing customers and provide an
-appropriate notice/acceptance flow for material amendments.
+Reassess the text when the websites' processing or vendors change, or if the
+project ever offers a service again.

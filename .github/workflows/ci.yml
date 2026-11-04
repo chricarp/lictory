@@ -100,6 +100,10 @@ jobs:
         if: needs.changes.outputs.audit == 'true'
         run: bun audit --audit-level=high
       - name: Types, lint, formatting, unused code and PR assets
+        # Type-aware ESLint over every workspace peaks near 4 GB, above
+        # Node's default heap on these runners.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: bun run check
       - name: Schema changes have committed migrations
         run: bun run db:check
@@ -129,7 +133,7 @@ jobs:
       - name: Committed migrations apply to an empty database
         run: bun run db:migrate
       - name: Domain tests
-        run: bun test src
+        run: bun test --isolate src
 
   browser:
     name: Browser workflows (${{ inputs.suite || 'smoke' }})

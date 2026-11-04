@@ -1,7 +1,7 @@
 # Private file storage
 
 The database holds file metadata only. Object bytes live in a private bucket on
-any S3-compatible service: Cloudflare R2 (lictory.com), AWS S3, MinIO, Garage,
+any S3-compatible service: Cloudflare R2, AWS S3, MinIO, Garage,
 Ceph, Hetzner Object Storage, GCS interoperability and similar. The
 `ObjectStorage` boundary in `packages/core/src/storage` signs PUT and GET
 requests, checks object metadata, copies and deletes objects. Endpoint and

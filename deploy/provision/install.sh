@@ -15,7 +15,7 @@
 #   LICTORY_ENVIRONMENTS  space-separated environment names hosted here (default production)
 #   INSTALL_TIMERS        install the systemd backup and monitor timers (default true when systemd runs)
 #   LICTORY_CLI_PATH      where the lictory command is linked (default /usr/local/bin/lictory; none skips)
-#   SHOW_NEXT_STEPS       print the release automation next steps (default true; the lictory CLI sets false)
+#   SHOW_NEXT_STEPS       print the manual next steps (default true; the lictory CLI sets false)
 set -euo pipefail
 
 root="${LICTORY_ROOT:-/srv/lictory}"
@@ -108,8 +108,8 @@ step "Done"
 cat <<DONE
 Next steps (docs/operations/deployment.md, "First launch"):
   1. sudo -u $user $( [ "$root" = /srv/lictory ] || printf 'env LICTORY_ROOT=%s ' "$root")$source_dir/provision/new-environment.sh <environment>   # secrets
-  2. Add the release automation key to $user_home/.ssh/authorized_keys with
-     command="$forced",restrict
-  3. Configure the release workflow's SSH variables; it supplies temporary registry authentication.
+  2. Optional, for your own release automation over SSH: add its key to
+     $user_home/.ssh/authorized_keys with command="$forced",restrict
+  3. When release images are private, log the deploy user in to their registry.
   4. Deploy the first release$([ "$timers" = true ] && printf ', then: systemctl start lictory-backup@<env>.timer lictory-monitor@<env>.timer').
 DONE

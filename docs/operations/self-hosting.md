@@ -1,10 +1,9 @@
 # Self-hosting
 
 This runbook is for a company that runs Lictory on its own Linux server. The
-server pulls published releases from GitHub; nothing pushes to it. The
-maintainer's own production (lictory.com, released by GitHub Actions over
-SSH) is described in [deployment](deployment.md). Both use the same release
-tooling, images and safeguards.
+server pulls published releases from GitHub; nothing pushes to it. How the
+server tooling works underneath (services, network boundaries, upgrades,
+rollback) is described in [deployment](deployment.md).
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh | sudo sh
@@ -230,7 +229,7 @@ Install options (each also `LICTORY_<NAME>`, for example
 | `--public-url`                                                                                                                                        | `proxy`: the address your proxy serves (default `https://<host>`)                                                                        |
 | `--trusted-proxies`                                                                                                                                   | `proxy`: space-separated IPs/CIDRs your proxy connects from                                                                              |
 | `--email`                                                                                                                                             | `smtp`, `resend`, `none` (default)                                                                                                       |
-| `--smtp-host`, `--smtp-port`, `--smtp-user`, `--smtp-password`, `--smtp-from`                                                                         | SMTP server (port 587 default, STARTTLS; 465 is not supported)                                                                           |
+| `--smtp-host`, `--smtp-port`, `--smtp-user`, `--smtp-password`, `--smtp-from`                                                                         | SMTP server (port 587 default, STARTTLS; 465 TLS; 25)                                                                                    |
 | `--resend-api-key`, `--email-from`                                                                                                                    | Resend                                                                                                                                   |
 | `--storage`, `--s3-endpoint`, `--s3-region`, `--s3-bucket`, `--s3-access-key-id`, `--s3-secret-access-key`, `--s3-force-path-style`                   | `s3` or `none` (default); an empty endpoint means AWS S3                                                                                 |
 | `--oidc`, `--oidc-issuer`, `--oidc-client-id`, `--oidc-client-secret`, `--oidc-display-name`                                                          | `yes` or `no` (default); display name default `SSO`                                                                                      |

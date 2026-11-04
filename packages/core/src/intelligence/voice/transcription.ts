@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { CapabilityError } from "@lictory/core/capabilities/core";
+import { env } from "@lictory/core/lib/env";
 
 // Live dictation for the Intelligence composer.
 //
@@ -27,10 +28,7 @@ export type DictationSession = {
 };
 
 export function transcriptionSessionConfig(
-  model = process.env.LICTORY_TRANSCRIPTION_MODEL?.trim().replace(
-    /^$/,
-    DEFAULT_TRANSCRIPTION_MODEL,
-  ) ?? DEFAULT_TRANSCRIPTION_MODEL,
+  model = env("LICTORY_TRANSCRIPTION_MODEL") ?? DEFAULT_TRANSCRIPTION_MODEL,
 ) {
   return {
     type: "transcription" as const,
@@ -56,7 +54,7 @@ export async function createDictationSession(
     fetch?: typeof fetch;
   } = {},
 ): Promise<DictationSession> {
-  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
+  const apiKey = options.apiKey ?? env("OPENAI_API_KEY");
   if (!apiKey)
     throw new CapabilityError(
       "unavailable",

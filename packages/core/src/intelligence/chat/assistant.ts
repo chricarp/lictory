@@ -1,7 +1,8 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output, tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { DEFAULT_AI_MODEL } from "@lictory/core/ai/analyzer";
+import { aiModelId } from "@lictory/core/ai/analyzer";
+import { env } from "@lictory/core/lib/env";
 import { agentTools } from "@lictory/core/capabilities/agent";
 import type { CapabilityContext } from "@lictory/core/capabilities/core";
 import {
@@ -21,10 +22,7 @@ import {
 // browser and MCP), plus a clarification tool answered in the chat UI.
 
 export function chatModel() {
-  const modelId =
-    process.env.LICTORY_AI_MODEL?.trim().replace(/^$/, DEFAULT_AI_MODEL) ??
-    DEFAULT_AI_MODEL;
-  return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
+  return createOpenAI({ apiKey: env("OPENAI_API_KEY") })(aiModelId());
 }
 
 export function assistantTools(

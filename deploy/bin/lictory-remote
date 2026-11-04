@@ -2,7 +2,7 @@
 # SSH forced command for release automation. The deploy key in
 # ~deploy/.ssh/authorized_keys is restricted to this script:
 #
-#   command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… github-actions
+#   command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… release
 #
 # With another root, set it in the forced command:
 #   command="LICTORY_ROOT=/opt/lictory /opt/lictory/bin/lictory-remote",restrict …
