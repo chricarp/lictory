@@ -124,6 +124,14 @@ body {
   max-width: 42rem;
 }
 
+/* Callouts keep the reading measure and a quiet frame. */
+.docs-body div.rounded-xl.border.bg-fd-card {
+  max-width: 42rem;
+  border-color: transparent;
+  border-radius: 1rem;
+  background: var(--muted);
+}
+
 /* Secondary controls (search, theme switch, sidebar footer) take the warm
    neutrals instead of the cobalt tint. */
 :root,
@@ -156,12 +164,19 @@ body {
   content: "";
   position: absolute;
   top: calc(0.375rem + 3px);
-  left: 13.5px;
+  left: 13px;
   width: 7px;
   height: 7px;
   border-radius: 9999px;
   background: var(--brand);
   box-shadow: 0 0 0 3px var(--background);
+}
+/* The dot sits on the rail, which is indented with the heading depth. */
+#nd-toc a[style*="padding-inline-start:20px"]::before {
+  left: 1px !important;
+}
+#nd-toc a[style*="padding-inline-start:44px"]::before {
+  left: 25px !important;
 }
 /* The first entry has no top padding. */
 #nd-toc a.pt-0[data-active="true"]::before {

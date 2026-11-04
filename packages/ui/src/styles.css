@@ -6,11 +6,12 @@
 @custom-variant touch (@media (any-pointer: coarse));
 
 /* Default (Lictory) palette, shared by the application, the website and the
-   documentation. Cool, nearly neutral grays: white surfaces float on a gray
-   shell (--shell, also the sidebar), ink text, black primary actions and one
-   orange brand accent (--brand) for the single most important action on a
-   page. Blue is kept for focus. Also applied to any element carrying a theme
-   so a nested preview never inherits the surrounding page's mode. */
+   documentation. Cool, nearly neutral grays: white surfaces on a gray shell
+   (--shell, also the sidebar), recessed trays (--tray) holding raised cards,
+   ink text, black primary actions and one orange accent (--brand) for marks
+   and live highlights. Blue is kept for focus. Also applied to any element
+   carrying a theme so a nested preview never inherits the surrounding page's
+   mode. */
 :root,
 [data-theme] {
   color-scheme: light;
@@ -20,6 +21,8 @@
   --success: #15803d;
   --warning: #b45309;
   --shell: #f2f3f5;
+  /* Recessed groups (trays) hold raised cards. */
+  --tray: #f3f4f6;
   --background: #ffffff;
   --foreground: #111214;
   --card: #ffffff;
@@ -28,8 +31,8 @@
   --popover-foreground: #111214;
   --primary: #111214;
   --primary-foreground: #ffffff;
-  --brand: #c4501d;
-  --brand-foreground: #ffffff;
+  /* Decoration (markers, dots, live highlights), never body text. */
+  --brand: #ea6a2f;
   --secondary: #f4f4f6;
   --secondary-foreground: #111214;
   --muted: #f4f4f6;
@@ -100,16 +103,16 @@
   --success: #4ade80;
   --warning: #fbbf24;
   --shell: #0c0d0f;
+  --tray: #0f1012;
   --background: #141518;
   --foreground: #eceef1;
-  --card: #141518;
+  --card: #1b1c20;
   --card-foreground: #eceef1;
-  --popover: #1a1b1f;
+  --popover: #212226;
   --popover-foreground: #eceef1;
   --primary: #f2f3f5;
   --primary-foreground: #111214;
   --brand: #f0773a;
-  --brand-foreground: #111214;
   --secondary: #1f2024;
   --secondary-foreground: #eceef1;
   --muted: #1c1d21;
@@ -528,8 +531,8 @@
   --font-serif: var(--font-serif);
   --font-display: var(--font-display);
   --color-brand: var(--brand);
-  --color-brand-foreground: var(--brand-foreground);
   --color-shell: var(--shell);
+  --color-tray: var(--tray);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

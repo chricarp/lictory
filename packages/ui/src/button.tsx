@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@lictory/core/lib/utils";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "brand" | "secondary" | "danger" | "ghost" | "outline";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
   size?: "sm" | "md" | "lg" | "icon";
 };
 
@@ -26,8 +26,6 @@ export function Button({
         size === "icon" && "size-7 text-xs",
         variant === "primary" &&
           "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-primary/88",
-        variant === "brand" &&
-          "bg-brand text-brand-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(0_0_0/0.12),0_6px_16px_-6px_color-mix(in_srgb,var(--brand)_60%,transparent)] hover:bg-brand/92",
         variant === "secondary" &&
           "bg-card text-foreground shadow-(--shadow-border) hover:bg-muted hover:shadow-(--shadow-border-hover)",
         variant === "outline" &&

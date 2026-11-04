@@ -451,7 +451,7 @@ function ProjectBacklog({ project }: { project: Project }) {
               backlog,
               <div className="flex items-center gap-2 px-4 py-3">
                 <h2 className="text-sm font-semibold">Backlog</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">
+                <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase tabular-nums">
                   {backlog.length} items
                   {project.estimateScale !== "none" &&
                     ` · ${points(backlog)} pts`}
@@ -550,16 +550,20 @@ function IterationHeader({
         <Repeat className="size-3.5 text-muted-foreground" />
         <h2 className="text-sm font-semibold">{iterationLabel(iteration)}</h2>
         {iteration.state === "active" && (
-          <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+          <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+            <span aria-hidden className="size-1.5 rounded-full bg-success" />
             Active
           </span>
         )}
-        <span className="text-xs text-muted-foreground">
+        <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase">
           {shortRange(iteration)}
+        </span>
+        <span aria-hidden className="text-muted-foreground/50">
+          ·
         </span>
         <span
           className={cn(
-            "text-xs tabular-nums",
+            "font-mono text-[11px] tracking-[0.04em] uppercase tabular-nums",
             over ? "text-warning" : "text-muted-foreground",
           )}
           title={

@@ -35,6 +35,20 @@ export function Readiness() {
           </span>
         )}
       </div>
+      {checks.length > 0 && (
+        // One segment per check, so progress reads at a glance.
+        <div aria-hidden className="mb-3 flex gap-1">
+          {checks.map((c) => (
+            <span
+              key={c.key}
+              className={cn(
+                "h-1.5 flex-1 rounded-full",
+                c.passed ? "bg-success" : "bg-foreground/10",
+              )}
+            />
+          ))}
+        </div>
+      )}
       {!readiness ? (
         <p className="text-[13px] text-muted-foreground">Evaluating…</p>
       ) : checks.length === 0 ? (

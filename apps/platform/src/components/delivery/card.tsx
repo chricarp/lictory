@@ -97,10 +97,6 @@ export const ItemCard = memo(function ItemCard({
   const id = identifier(project, item.number);
   const status = delivery.statuses.get(item.statusId);
   const estimate = estimateLabel(project, item.estimate);
-  const notReady =
-    type.hasSpecification &&
-    item.refinementState !== "ready" &&
-    project?.readinessPolicy !== "off";
   return (
     <div
       data-card={item.id}
@@ -109,7 +105,7 @@ export const ItemCard = memo(function ItemCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group relative rounded-xl bg-card p-3 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover) dark:bg-accent",
+        "group relative rounded-xl bg-card p-3 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover)",
         draggable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-40",
         selected && "ring-2 ring-primary/60",
@@ -160,9 +156,10 @@ export const ItemCard = memo(function ItemCard({
           <span
             className={cn(
               "inline-flex h-5 items-center gap-1 rounded-full px-1.5 ring-1 ring-inset",
-              notReady
-                ? "bg-warning/8 text-warning ring-warning/20"
-                : "bg-muted ring-foreground/8",
+              // Color only when it needs attention: blockers carry it.
+              item.refinementState === "ready"
+                ? "bg-success/8 text-success ring-success/20"
+                : "bg-muted text-foreground/80 ring-foreground/8",
             )}
             title={
               item.refinementState !== "ready"

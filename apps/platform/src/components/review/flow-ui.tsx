@@ -70,19 +70,19 @@ export const prStatusMeta: Record<
   draft: {
     label: "Draft",
     icon: GitPullRequestDraft,
-    pill: "bg-muted text-muted-foreground",
+    pill: "bg-muted text-muted-foreground ring-1 ring-foreground/8 ring-inset",
     text: "text-muted-foreground",
   },
   open: {
     label: "Open",
     icon: GitPullRequest,
-    pill: "bg-success text-white dark:bg-success/15 dark:text-success",
+    pill: "bg-success/8 text-success ring-1 ring-success/20 ring-inset",
     text: "text-success",
   },
   merged: {
     label: "Merged",
     icon: GitMerge,
-    pill: "bg-violet-600 text-white dark:bg-violet-500/90",
+    pill: "bg-violet-500/10 text-violet-700 ring-1 ring-violet-500/25 ring-inset dark:text-violet-300",
     text: "text-violet-600 dark:text-violet-400",
   },
 };

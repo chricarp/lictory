@@ -368,7 +368,11 @@ function ProjectBoard({ project }: { project: Project }) {
                 <Repeat className="size-3.5" />
                 {iteration ? iterationLabel(iteration) : "All work"}
                 {iteration?.state === "active" && (
-                  <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                  <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+                    <span
+                      aria-hidden
+                      className="size-1.5 rounded-full bg-success"
+                    />
                     Active
                   </span>
                 )}
@@ -582,7 +586,7 @@ function ProjectBoard({ project }: { project: Project }) {
                         key={status.id}
                         data-board-column={status.id}
                         className={cn(
-                          "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-muted p-1.5 ring-1 ring-border/60 ring-inset",
+                          "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-tray p-1.5 ring-1 ring-border/60 ring-inset",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {

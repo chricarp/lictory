@@ -1,6 +1,6 @@
-/* The agents scene, on the ink band. Three windows at one height and one
-   gap, the history card straddling their foot as the one satellite: the
-   place where all three arrive. Compact stacks the terminal over the
+/* The agents scene, on the ink band. Three entry points side by side, one
+   gap apart, and beneath them, full width and never overlapping, the one
+   history every call lands in. Compact stacks the terminal over the
    history. */
 
 .ag .ss-stage {
@@ -11,8 +11,7 @@
   position: absolute;
   top: 24px;
   width: 360px;
-  /* Down to where the history card overlaps, no further */
-  height: 254px;
+  height: 218px;
 }
 
 .ag-win--app {
@@ -193,12 +192,12 @@
 
 .ag-history {
   position: absolute;
-  top: 236px;
-  left: 232px;
+  top: 258px;
+  left: 28px;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  width: 720px;
+  width: 1128px;
   /* A fixed size that fits its three entries and the summary of older
      ones, so the card never grows on the stage */
   height: 224px;

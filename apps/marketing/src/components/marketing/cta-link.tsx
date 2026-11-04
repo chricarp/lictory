@@ -15,7 +15,7 @@ export function CtaLink({
 }: {
   href: string;
   children: ReactNode;
-  variant?: "primary" | "brand" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost";
   size?: "md" | "lg";
   className?: string;
 }) {
@@ -28,8 +28,6 @@ export function CtaLink({
         size === "lg" && "h-11 px-5 text-sm",
         variant === "primary" &&
           "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_1px_rgb(0_0_0/0.08)] hover:bg-primary/90",
-        variant === "brand" &&
-          "bg-brand text-brand-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(0_0_0/0.12),0_8px_20px_-8px_color-mix(in_srgb,var(--brand)_70%,transparent)] hover:bg-brand/92",
         variant === "secondary" &&
           "bg-card text-foreground shadow-[0_0_0_1px_var(--border),0_1px_2px_rgb(0_0_0/0.05)] hover:bg-muted",
         variant === "ghost" &&

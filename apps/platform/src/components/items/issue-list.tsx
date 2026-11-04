@@ -890,7 +890,7 @@ export function IssueList({
           </EmptyState>
         ) : (
           <ul ref={listRef}>
-            {groups.map((g) => (
+            {groups.map((g, groupIndex) => (
               <li key={g.key}>
                 {g.label && (
                   <div className="sticky top-0 z-1 flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs font-medium backdrop-blur">
@@ -899,6 +899,25 @@ export function IssueList({
                     <span className="text-muted-foreground tabular-nums">
                       {g.items.length}
                     </span>
+                    {!compact &&
+                      groupIndex === 0 &&
+                      project?.deliveryMode !== "external" && (
+                        // Column names, aligned with the rows' fixed slots.
+                        <span
+                          aria-hidden
+                          className="ml-auto hidden items-center gap-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase md:flex"
+                        >
+                          <span className="w-7 text-center">Est.</span>
+                          <span className="w-36 text-right xl:w-52">
+                            Review
+                          </span>
+                          <span className="w-16 xl:w-24">Checks</span>
+                          <span className="w-7 text-center">Who</span>
+                          <span className="hidden w-14 text-right sm:block">
+                            Updated
+                          </span>
+                        </span>
+                      )}
                   </div>
                 )}
                 <ul>

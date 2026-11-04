@@ -192,91 +192,124 @@ export function ItemWorkflow({
   const status = delivery.statuses.get(item.statusId);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const decisionId = useId();
-  // The two states an item can be in at once, each named: the specification's
-  // refinement (always about the current revision) and, once a revision is
-  // accepted, its delivery.
-  const specificationRow = type.hasSpecification && current && (
-    <StateRow label="Specification">
-      {item.refinementState && (
-        <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-          <RefinementIcon state={item.refinementState} />
-          {refinementMeta[item.refinementState].label}
-        </span>
+  const refinement = item.refinementState;
+  // One dominant statement, then the evidence behind it. An amendment names
+  // both revisions in one sentence: the one under refinement and the one
+  // delivery still uses.
+  const statement =
+    amendment && current
+      ? `Revision ${current.number} is ${refinement ? refinementMeta[refinement].label.toLowerCase() : "in refinement"}`
+      : label;
+  const subline =
+    amendment && agreed != null
+      ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
+      : description;
+  const evidence = (
+    <ul
+      aria-label="Evidence"
+      className="flex flex-wrap items-center gap-1.5 text-[11.5px]"
+    >
+      {type.hasSpecification && refinement && (
+        <li>
+          <Pill
+            tone={
+              refinement === "ready"
+                ? "good"
+                : refinement === "in_review"
+                  ? "info"
+                  : "neutral"
+            }
+          >
+            <RefinementIcon state={refinement} className="size-3" />
+            {refinementMeta[refinement].label}
+          </Pill>
+        </li>
       )}
-      <Segment className="font-mono tabular-nums">
-        Revision {current.number}
-      </Segment>
-      {item.readinessTotal > 0 && (
-        <Segment className="tabular-nums">
-          {item.readinessPassed} of {item.readinessTotal} checks pass
-        </Segment>
+      {current && (
+        <li>
+          <Pill tone="neutral" mono>
+            Revision {current.number}
+          </Pill>
+        </li>
+      )}
+      {type.hasSpecification && item.readinessTotal > 0 && (
+        <li>
+          <Pill
+            tone={
+              item.readinessPassed === item.readinessTotal ? "good" : "neutral"
+            }
+          >
+            {item.readinessPassed}/{item.readinessTotal} checks
+          </Pill>
+        </li>
       )}
       {item.blockingThreads > 0 && (
-        <span className="rounded-full bg-destructive/8 px-2 py-0.5 font-medium whitespace-nowrap text-destructive">
-          {item.blockingThreads} blocking discussion
-          {item.blockingThreads === 1 ? "" : "s"}
-        </span>
+        <li>
+          <Pill tone="danger">
+            {item.blockingThreads} blocking discussion
+            {item.blockingThreads === 1 ? "" : "s"}
+          </Pill>
+        </li>
       )}
-    </StateRow>
+      {native && item.committedRevisionNumber != null && (
+        <li>
+          <Pill tone="neutral">
+            {status && (
+              <StatusIcon
+                category={status.category}
+                color={status.color}
+                className="size-3"
+              />
+            )}
+            Accepted revision {item.committedRevisionNumber}
+          </Pill>
+        </li>
+      )}
+      {native && item.deliveredRevisionNumber != null && (
+        <li>
+          <Pill tone="good">
+            Delivered revision {item.deliveredRevisionNumber}
+          </Pill>
+        </li>
+      )}
+    </ul>
   );
-  const deliveryRow = native && item.committedRevisionNumber != null && (
-    <StateRow label="Delivery">
-      {status && (
-        <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-          <StatusIcon category={status.category} color={status.color} />
-          {status.name}
-        </span>
-      )}
-      <Segment>Accepted revision {item.committedRevisionNumber}</Segment>
-      {item.deliveredRevisionNumber != null && (
-        <Segment>Delivered revision {item.deliveredRevisionNumber}</Segment>
-      )}
-    </StateRow>
-  );
-  // The delivery scope below explains an amendment and its decision; the
-  // guidance would only repeat it.
-  const guidance = !(amendment && children);
   return (
     <section
       aria-label="Item workflow"
-      className="mt-5 rounded-[1.25rem] bg-muted p-1 ring-1 ring-border/70 ring-inset"
+      className="mt-5 rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset"
     >
       {/* A tray: the state card on top, the decision it leads to beneath. */}
-      <div className="rounded-2xl bg-card px-4 pt-3 pb-3 shadow-(--shadow-border) sm:pb-3.5">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          {/* An amendment names itself; the delivery status it would repeat is
-              in the Delivery row below. */}
-          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium tracking-[-0.01em]">
-            {amendment ? (
-              <>
-                <span
-                  className="size-1.5 rounded-full bg-warning"
-                  aria-hidden
-                />
-                Amendment in refinement
-              </>
-            ) : (
-              label
+      <div className="rounded-2xl bg-card px-4 pt-3.5 pb-4 shadow-(--shadow-border)">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.015em]">
+              <span
+                aria-hidden
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  amendment
+                    ? "bg-warning"
+                    : stage === "ready" || stage === "completed"
+                      ? "bg-success"
+                      : "bg-foreground/70",
+                )}
+              />
+              {statement}
+            </p>
+            {subline && (
+              <p className="mt-1 line-clamp-3 pl-4 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
+                {subline}
+              </p>
             )}
-          </p>
+          </div>
+          {action && <div className="shrink-0 max-sm:hidden">{action}</div>}
+        </div>
+        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pl-4">
+          {evidence}
           {stages}
         </div>
-        {guidance && (
-          <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
-            {description}
-          </p>
-        )}
-        {(Boolean(specificationRow) ||
-          Boolean(deliveryRow) ||
-          Boolean(action)) && (
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-            <dl className="grid min-w-0 flex-1 gap-2 text-xs text-muted-foreground sm:gap-1.5">
-              {specificationRow}
-              {deliveryRow}
-            </dl>
-            {action && <div className="shrink-0">{action}</div>}
-          </div>
-        )}
+        {action && <div className="mt-3 pl-4 sm:hidden">{action}</div>}
       </div>
       {children && (
         <div>
@@ -311,7 +344,7 @@ export function ItemWorkflow({
           <div
             id={decisionId}
             className={cn(
-              "px-4 pb-2.5 sm:py-3",
+              "px-4 pb-3 sm:pt-3",
               !decisionOpen && "max-sm:hidden",
             )}
           >
@@ -323,27 +356,30 @@ export function ItemWorkflow({
   );
 }
 
-function StateRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid gap-0.5 sm:grid-cols-[7.25rem_1fr] sm:items-baseline sm:gap-x-2">
-      <dt className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        {children}
-      </dd>
-    </div>
-  );
-}
-
-// Facts in a state row are separated by space rather than dots, so a wrapped
-// line never starts or ends with a stray separator.
-function Segment({
-  className,
+// Evidence chips share the status grammar: a tint, a hairline ring of the
+// same hue, and color only when it means something.
+function Pill({
+  tone,
+  mono = false,
   children,
 }: {
-  className?: string;
+  tone: "neutral" | "good" | "info" | "danger";
+  mono?: boolean;
   children: ReactNode;
 }) {
-  return <span className={cn("whitespace-nowrap", className)}>{children}</span>;
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 font-medium whitespace-nowrap ring-1 ring-inset",
+        mono && "font-mono text-[11px] tracking-[0.02em]",
+        tone === "neutral" && "bg-muted text-foreground/80 ring-foreground/8",
+        tone === "good" && "bg-success/8 text-success ring-success/20",
+        tone === "info" && "bg-ring/8 text-ring ring-ring/20",
+        tone === "danger" &&
+          "bg-destructive/8 text-destructive ring-destructive/20",
+      )}
+    >
+      {children}
+    </span>
+  );
 }

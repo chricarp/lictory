@@ -1,6 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  GitBranch,
+  GitCommitHorizontal,
+  GitMerge,
+  GitPullRequest,
+} from "lucide-react";
 
 import { ComparisonTable } from "@lictory/marketing/components/landing/comparison";
 import { comparisons } from "@lictory/marketing/content/comparisons";
@@ -206,18 +213,26 @@ function ShiftChart() {
 
 const steps = [
   {
+    tag: "Main",
+    icon: GitCommitHorizontal,
     name: "Main holds the agreement",
     body: "Every specification has a main line. Each material change to it creates an immutable revision, so you can always return to exactly what was approved.",
   },
   {
+    tag: "Branch",
+    icon: GitBranch,
     name: "Branch to explore",
     body: "Anyone can branch a specification to try a change. Collaborators and agents commit to it. Independent edits combine on their own; overlapping ones ask a person to choose.",
   },
   {
+    tag: "Review",
+    icon: GitPullRequest,
     name: "Review the pull request",
     body: "Reviewers from each discipline read the diff and discuss the exact sentence. Lictory Actions can check every new commit, like CI for requirements.",
   },
   {
+    tag: "Merge",
+    icon: GitMerge,
     name: "Merge one result",
     body: "Approvals record the exact content they covered, so a later change makes them stale. A merge needs every required approval, no blocking discussion and no conflict.",
   },
@@ -253,8 +268,16 @@ function Workflow() {
           nothing merges without review.
         </SectionHeading>
         <ol className="steps">
-          {steps.map(({ name, body }) => (
+          {steps.map(({ name, body, tag, icon: Icon }, index) => (
             <li key={name}>
+              <div className="step-head">
+                <span className="step-icon">
+                  <Icon aria-hidden />
+                </span>
+                <span className="step-index">
+                  {String(index + 1).padStart(2, "0")} · {tag}
+                </span>
+              </div>
               <h3>{name}</h3>
               <p>{body}</p>
             </li>

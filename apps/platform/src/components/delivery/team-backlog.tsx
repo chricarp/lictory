@@ -438,7 +438,11 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                         {iterationLabel(iteration)}
                       </span>
                       {iteration.state === "active" && (
-                        <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                        <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+                          <span
+                            aria-hidden
+                            className="size-1.5 rounded-full bg-success"
+                          />
                           Active
                         </span>
                       )}

@@ -9,8 +9,7 @@ import {
   repositoryUrl,
 } from "@lictory/marketing/lib/get-started";
 
-// The website's calls to action: install Lictory (the brand action in page
-// bodies, ink in the header) or read its code.
+// The website's calls to action: install Lictory (primary) or read its code.
 
 export function HeaderGetStartedLinks() {
   return (
@@ -34,12 +33,7 @@ export function GetStartedCta({
   className?: string;
 }) {
   return (
-    <CtaLink
-      href={installUrl}
-      size={size}
-      variant="brand"
-      className={className}
-    >
+    <CtaLink href={installUrl} size={size} className={className}>
       {getStartedLabel}
       <ArrowRight aria-hidden className="size-4" />
     </CtaLink>

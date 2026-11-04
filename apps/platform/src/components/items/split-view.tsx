@@ -112,7 +112,7 @@ export function SplitView({ children }: { children: ReactNode }) {
         <div
           id={listId}
           className={cn(
-            "hidden w-[272px] shrink-0 border-r 2xl:w-[320px]",
+            "hidden w-[272px] shrink-0 border-r bg-shell/50 2xl:w-[320px]",
             !collapsed && "xl:block",
           )}
         >

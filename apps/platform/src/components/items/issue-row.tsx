@@ -188,7 +188,11 @@ export const IssueRow = memo(function IssueRow({
       <ReviewSignal
         item={item}
         compact={compact}
-        className={compact ? undefined : "md:min-w-28 md:justify-end"}
+        className={
+          compact
+            ? undefined
+            : "md:w-36 md:shrink-0 md:justify-end md:whitespace-nowrap xl:w-52"
+        }
       />
       {!compact && (
         // A fixed slot keeps assignee and time aligned on rows without checks.

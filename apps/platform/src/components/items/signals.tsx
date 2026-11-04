@@ -49,7 +49,11 @@ export function ReviewSignal({
       )}
       {item.openThreads > item.blockingThreads && !(compact && blocked) && (
         <span
-          className="inline-flex items-center gap-0.5"
+          className={cn(
+            "inline-flex items-center gap-0.5",
+            // Below xl a blocked row keeps the blocker and approvals.
+            !compact && blocked && "max-xl:hidden",
+          )}
           title={`${item.openThreads} open discussion${item.openThreads > 1 ? "s" : ""}`}
         >
           <MessageSquare className="size-3.5" />
