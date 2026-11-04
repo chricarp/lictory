@@ -71,6 +71,10 @@ import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { PriorityIcon } from "@lictory/platform/components/items/properties";
 import { ColorDot } from "@lictory/platform/components/items/labels";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import {
+  ItemPreviewCard,
+  useItemPreview,
+} from "@lictory/platform/components/items/item-preview";
 
 export function IssueList({
   items,
@@ -215,6 +219,10 @@ export function IssueList({
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [focus, setFocus] = useState<string | undefined>(selectedId);
   const listRef = useRef<HTMLUListElement>(null);
+  const { previewed, target: previewTarget } = useItemPreview();
+  const previewedItem = previewed
+    ? items.find((i) => i.id === previewed.itemId)
+    : undefined;
   const links = useMemo(
     () =>
       externalLinksByItem(
@@ -990,6 +998,7 @@ export function IssueList({
                           : undefined
                       }
                       onFocus={() => setFocus(item.id)}
+                      preview={compact ? previewTarget : undefined}
                     />
                   ))}
                 </ul>
@@ -998,6 +1007,17 @@ export function IssueList({
           </ul>
         )}
       </div>
+      {previewed && previewedItem && (
+        <ItemPreviewCard
+          item={previewedItem}
+          project={projectById.get(previewedItem.projectId)}
+          anchor={previewed.anchor}
+          externalLink={links.get(previewedItem.id)}
+          deliveryTool={
+            projectDeliveryTool(directory, previewedItem.projectId).name
+          }
+        />
+      )}
     </div>
   );
 }

@@ -34,6 +34,7 @@ import {
   MilestoneBadge,
 } from "@lictory/platform/components/items/labels";
 import type { Label, Milestone } from "@lictory/core/lib/work-items";
+import type { ItemPreviewTarget } from "@lictory/platform/components/items/item-preview";
 
 export const IssueRow = memo(function IssueRow({
   item,
@@ -51,6 +52,7 @@ export const IssueRow = memo(function IssueRow({
   externalLink,
   deliveryTool = "your delivery tool",
   hint,
+  preview,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -73,16 +75,104 @@ export const IssueRow = memo(function IssueRow({
   // Names the tool an external project delivers in, for row copy.
   deliveryTool?: string;
   hint?: string;
+  // Compact rows preview the item on hover and keyboard focus.
+  preview?: ItemPreviewTarget;
 }) {
   const delivery = useDelivery();
   const type = typeOf(delivery, item);
+  const externalStatus =
+    project?.deliveryMode === "external" ? (
+      <span
+        title={
+          externalLink?.externalKey
+            ? `${externalLink.externalStatus ?? "Status unavailable"} in ${deliveryTool}`
+            : `Not handed off to ${deliveryTool}`
+        }
+      >
+        <StatusIcon
+          category={deliveryCategory(item, project, delivery, externalLink)}
+        />
+      </span>
+    ) : undefined;
+  if (compact)
+    // Beside an open item the list is narrow: the title gets the whole first
+    // line (and a second when it needs one), the identifier and signals sit
+    // underneath, and hovering previews the rest.
+    return (
+      <li
+        data-item-row
+        data-focused={focused || undefined}
+        className={cn(
+          "group relative border-b px-3 py-1.5 text-[13px] last:border-b-0",
+          selected
+            ? "bg-card shadow-(--shadow-border)"
+            : focused
+              ? "bg-muted/70"
+              : "hover:bg-muted/50",
+        )}
+        onMouseEnter={onFocus}
+        onPointerEnter={
+          preview &&
+          ((event) => {
+            if (event.pointerType === "mouse" && !selected)
+              preview.show(item.id, event.currentTarget);
+          })
+        }
+        onPointerLeave={preview?.hide}
+        onPointerDown={preview?.hide}
+      >
+        <Link
+          href={href}
+          className="line-clamp-2 leading-snug font-medium break-words outline-none after:absolute after:inset-0 after:content-[''] focus-visible:text-primary"
+          aria-current={selected ? "page" : undefined}
+          onFocus={
+            preview &&
+            ((event) => {
+              const row = event.currentTarget.closest("li");
+              if (
+                !selected &&
+                row &&
+                event.currentTarget.matches(":focus-visible")
+              )
+                preview.show(item.id, row);
+            })
+          }
+          onBlur={preview?.hide}
+        >
+          {item.title}
+        </Link>
+        <div className="mt-0.5 flex h-6 items-center gap-1.5">
+          {/* Above the row link's hit area, so the status stays a control. */}
+          <span className="relative -ml-1.5 inline-flex">
+            {externalStatus ?? (
+              <IssueStatus
+                projectId={item.projectId}
+                statusId={item.statusId}
+                compact
+                onChange={onUpdate && ((statusId) => onUpdate({ statusId }))}
+              />
+            )}
+          </span>
+          <TypeIcon type={type} />
+          <IssueIdentifier project={project} number={item.number} />
+          <ReviewSignal item={item} compact className="ml-auto" />
+          {project?.deliveryMode !== "external" && item.assigneeId && (
+            <Avatar
+              userId={item.assigneeId}
+              name={memberName(item.assigneeId)}
+              size="xs"
+            />
+          )}
+        </div>
+      </li>
+    );
   return (
     <li
       data-item-row
       data-focused={focused || undefined}
       className={cn(
         "group relative flex items-center gap-2 border-b px-3 text-[13px] last:border-b-0",
-        compact ? "h-9" : hint ? "min-h-14" : "h-10",
+        hint ? "min-h-14" : "h-10",
         selected
           ? "bg-card shadow-(--shadow-border)"
           : focused
@@ -91,26 +181,12 @@ export const IssueRow = memo(function IssueRow({
       )}
       onMouseEnter={onFocus}
     >
-      {!compact && (
-        <IssuePriority
-          priority={item.priority}
-          compact
-          onChange={onUpdate && ((priority) => onUpdate({ priority }))}
-        />
-      )}
-      {project?.deliveryMode === "external" ? (
-        <span
-          title={
-            externalLink?.externalKey
-              ? `${externalLink.externalStatus ?? "Status unavailable"} in ${deliveryTool}`
-              : `Not handed off to ${deliveryTool}`
-          }
-        >
-          <StatusIcon
-            category={deliveryCategory(item, project, delivery, externalLink)}
-          />
-        </span>
-      ) : (
+      <IssuePriority
+        priority={item.priority}
+        compact
+        onChange={onUpdate && ((priority) => onUpdate({ priority }))}
+      />
+      {externalStatus ?? (
         <IssueStatus
           projectId={item.projectId}
           statusId={item.statusId}
@@ -122,7 +198,7 @@ export const IssueRow = memo(function IssueRow({
       <IssueIdentifier
         project={project}
         number={item.number}
-        className={compact ? "w-12" : "w-18"}
+        className="w-18"
       />
       <Link
         href={href}
@@ -130,13 +206,13 @@ export const IssueRow = memo(function IssueRow({
         aria-current={selected ? "page" : undefined}
       >
         <span className="block truncate">{item.title}</span>
-        {hint && !compact && (
+        {hint && (
           <span className="block truncate text-xs font-normal text-muted-foreground">
             {hint}
           </span>
         )}
       </Link>
-      {!compact && labels.length > 0 && (
+      {labels.length > 0 && (
         <span className="hidden items-center gap-1 lg:inline-flex">
           {labels.slice(0, 3).map((l) => (
             <LabelChip key={l.id} label={l} />
@@ -148,12 +224,12 @@ export const IssueRow = memo(function IssueRow({
           )}
         </span>
       )}
-      {!compact && milestone && (
+      {milestone && (
         <span className="hidden @min-[65rem]/frame:inline-flex">
           <MilestoneBadge milestone={milestone} />
         </span>
       )}
-      {!compact && parent && (
+      {parent && (
         <span
           className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground @min-[81rem]/frame:inline-flex"
           title={parent.title}
@@ -165,7 +241,7 @@ export const IssueRow = memo(function IssueRow({
           <span className="truncate">{identifier(project, parent.number)}</span>
         </span>
       )}
-      {isTopLevel(type) && item.childCount > 0 && !compact && (
+      {isTopLevel(type) && item.childCount > 0 && (
         <span
           className="text-xs text-muted-foreground tabular-nums"
           title={`${item.childDoneCount} of ${item.childCount} children done, ${item.childReadyCount} specifications ready`}
@@ -173,7 +249,7 @@ export const IssueRow = memo(function IssueRow({
           {item.childDoneCount}/{item.childCount} done
         </span>
       )}
-      {!compact && project?.deliveryMode !== "external" && (
+      {project?.deliveryMode !== "external" && (
         <span className="inline-flex shrink-0 justify-center md:w-7">
           {item.estimate !== null && (
             <span
@@ -187,19 +263,12 @@ export const IssueRow = memo(function IssueRow({
       )}
       <ReviewSignal
         item={item}
-        compact={compact}
-        className={
-          compact
-            ? undefined
-            : "md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
-        }
+        className="md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
       />
-      {!compact && (
-        // A fixed slot keeps assignee and time aligned on rows without checks.
-        <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
-          <ReadinessBar item={item} labelled />
-        </span>
-      )}
+      {/* A fixed slot keeps assignee and time aligned on rows without checks. */}
+      <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
+        <ReadinessBar item={item} labelled />
+      </span>
       {project?.deliveryMode === "external" ? (
         <span
           className="hidden max-w-28 truncate text-xs text-muted-foreground sm:block"
@@ -211,33 +280,20 @@ export const IssueRow = memo(function IssueRow({
               : `Unassigned in ${deliveryTool}`
             : "Not handed off"}
         </span>
-      ) : !compact ? (
+      ) : (
         <AssigneePicker
           assigneeId={item.assigneeId}
           compact
           onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
         />
-      ) : (
-        // Compact rows give the title the room; the assignee shows on wide
-        // screens only.
-        item.assigneeId && (
-          <Avatar
-            userId={item.assigneeId}
-            name={memberName(item.assigneeId)}
-            size="xs"
-            className="hidden @min-[81rem]/frame:inline-grid"
-          />
-        )
       )}
-      {!compact && (
-        <time
-          className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"
-          dateTime={item.updatedAt}
-          title={new Date(item.updatedAt).toLocaleString()}
-        >
-          {relativeTime(item.updatedAt)}
-        </time>
-      )}
+      <time
+        className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"
+        dateTime={item.updatedAt}
+        title={new Date(item.updatedAt).toLocaleString()}
+      >
+        {relativeTime(item.updatedAt)}
+      </time>
     </li>
   );
 });
