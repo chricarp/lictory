@@ -1,5 +1,12 @@
-import type { ReactNode } from "react";
-import { ArrowRight, Check, FilePenLine, ListTree } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  FilePenLine,
+  ListTree,
+  TriangleAlert,
+} from "lucide-react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -183,6 +190,8 @@ export function ItemWorkflow({
     </ol>
   );
   const status = delivery.statuses.get(item.statusId);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const decisionId = useId();
   // The two states an item can be in at once, each named: the specification's
   // refinement (always about the current revision) and, once a revision is
   // accepted, its delivery.
@@ -269,8 +278,44 @@ export function ItemWorkflow({
         )}
       </div>
       {children && (
-        <div className="border-t bg-muted/40 px-4 py-2.5 sm:py-3">
-          {children}
+        <div className="border-t bg-muted/40">
+          {/* Phones keep the document first: the decision folds into one
+              line that still names what is pending. */}
+          <button
+            type="button"
+            aria-expanded={decisionOpen}
+            aria-controls={decisionId}
+            onClick={() => setDecisionOpen((open) => !open)}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:hidden"
+          >
+            {amendment && (
+              <TriangleAlert
+                aria-hidden
+                className="size-3.5 shrink-0 text-warning"
+              />
+            )}
+            <span className="min-w-0 flex-1">
+              {amendment && current
+                ? `Revision ${current.number} is not accepted for delivery`
+                : "Delivery decision"}
+            </span>
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                decisionOpen && "rotate-180",
+              )}
+            />
+          </button>
+          <div
+            id={decisionId}
+            className={cn(
+              "px-4 pb-2.5 sm:py-3",
+              !decisionOpen && "max-sm:hidden",
+            )}
+          >
+            {children}
+          </div>
         </div>
       )}
     </section>

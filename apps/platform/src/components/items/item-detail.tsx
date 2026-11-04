@@ -801,14 +801,17 @@ export function ItemDetail({
                       }
                     />
                     {native && (
-                      <AssigneePicker
-                        assigneeId={item.assigneeId}
-                        onChange={
-                          canChange
-                            ? (assigneeId) => update({ assigneeId })
-                            : undefined
-                        }
-                      />
+                      // Shares the row with priority instead of taking a line.
+                      <div className="min-w-40 flex-1">
+                        <AssigneePicker
+                          assigneeId={item.assigneeId}
+                          onChange={
+                            canChange
+                              ? (assigneeId) => update({ assigneeId })
+                              : undefined
+                          }
+                        />
+                      </div>
                     )}
                   </div>
                 </>

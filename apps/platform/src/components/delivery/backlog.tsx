@@ -225,43 +225,46 @@ function ProjectBacklog({ project }: { project: Project }) {
           {empty}
         </p>
       ) : (
-        <ul className="border-t">
-          {rows.map((item, index) => (
-            <li key={item.id}>
-              {over?.section === id && over.index === index && drag && (
-                <div className="h-0.5 bg-primary" aria-hidden />
-              )}
-              <BacklogRow
-                item={item}
-                label={identifier(project, item.number)}
-                href={paths.item(
-                  organization.slug,
-                  project.key,
-                  identifier(project, item.number),
+        <>
+          <BacklogColumns />
+          <ul className="border-t sm:border-t-0">
+            {rows.map((item, index) => (
+              <li key={item.id}>
+                {over?.section === id && over.index === index && drag && (
+                  <div className="h-0.5 bg-primary" aria-hidden />
                 )}
-                teamName={
-                  teamFilter.value
-                    ? undefined
-                    : teamFilter.teamName(item.teamId)
-                }
-                estimate={estimateLabel(project, item.estimate)}
-                memberName={memberName}
-                draggable={capabilities.changeProperties}
-                dragging={drag === item.id}
-                selected={peek.peeked === identifier(project, item.number)}
-                onOpen={peek.onLinkClick}
-                onDragStart={() => setDrag(item.id)}
-                onDragEnd={() => {
-                  setDrag(undefined);
-                  setOver(undefined);
-                }}
-              />
-            </li>
-          ))}
-          {over?.section === id && over.index >= rows.length && drag && (
-            <div className="h-0.5 bg-primary" aria-hidden />
-          )}
-        </ul>
+                <BacklogRow
+                  item={item}
+                  label={identifier(project, item.number)}
+                  href={paths.item(
+                    organization.slug,
+                    project.key,
+                    identifier(project, item.number),
+                  )}
+                  teamName={
+                    teamFilter.value
+                      ? undefined
+                      : teamFilter.teamName(item.teamId)
+                  }
+                  estimate={estimateLabel(project, item.estimate)}
+                  memberName={memberName}
+                  draggable={capabilities.changeProperties}
+                  dragging={drag === item.id}
+                  selected={peek.peeked === identifier(project, item.number)}
+                  onOpen={peek.onLinkClick}
+                  onDragStart={() => setDrag(item.id)}
+                  onDragEnd={() => {
+                    setDrag(undefined);
+                    setOver(undefined);
+                  }}
+                />
+              </li>
+            ))}
+            {over?.section === id && over.index >= rows.length && drag && (
+              <div className="h-0.5 bg-primary" aria-hidden />
+            )}
+          </ul>
+        </>
       )}
     </section>
   );
@@ -695,6 +698,25 @@ function IterationHeader({
           </p>
         )
       )}
+    </div>
+  );
+}
+
+// Names the row's state columns once per list, so refinement ("In review")
+// and delivery ("In Progress") never have to be told apart by icon alone.
+// The cells carry the same meaning in their titles for assistive technology.
+export function BacklogColumns() {
+  return (
+    <div
+      aria-hidden
+      className="hidden h-7 items-center gap-2 border-t border-b bg-muted/30 px-4 text-[11px] font-medium tracking-wide text-muted-foreground uppercase sm:flex"
+    >
+      <span className="min-w-0 flex-1">Item</span>
+      <span className="w-36 shrink-0">Specification</span>
+      <span className="size-3.5 shrink-0 xl:hidden" />
+      <span className="hidden w-24 shrink-0 xl:inline">Delivery</span>
+      <span className="w-7 shrink-0 text-center">Est.</span>
+      <span className="size-4 shrink-0" />
     </div>
   );
 }
