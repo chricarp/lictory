@@ -108,7 +108,13 @@ setting a password would bring back an account its owner deleted.
 
 Instance administration is recorded in `instance_audit_event`, which no
 organization owns. Entries name the administrator (or the server CLI) and
-the account or organization they acted on, never passwords. A database
+the account or organization they acted on, never passwords. The same history
+records what an installation must remember after an organization is gone:
+an owner scheduling or cancelling an organization's deletion, and the
+worker's `organization.deleted` with what it removed
+([organization deletion](./organization-deletion.md)). The console lists
+organizations scheduled for deletion with their date; instance
+administrators cannot cancel or bring forward a deletion. A database
 trigger refuses updates and deletes. When the console adds someone to an
 organization, that organization's own [audit log](./audit.md) records the
 membership too, naming the instance administrator.

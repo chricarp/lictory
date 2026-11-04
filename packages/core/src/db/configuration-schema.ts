@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -106,7 +107,8 @@ export const instanceAuditEvent = pgTable(
     actorId: text("actor_id"),
     actorName: text("actor_name"),
     actorEmail: text("actor_email"),
-    // `cli` (server command line) or `web` (admin console).
+    // `cli` (server command line), `web` (a person in the browser) or
+    // `worker` (background work, such as deleting an organization).
     via: text("via").notNull(),
     // A catalogued action (`instanceAuditActions`), e.g. `user.deactivated`.
     action: text("action").notNull(),
@@ -122,6 +124,49 @@ export const instanceAuditEvent = pgTable(
   (t) => [
     index("instance_audit_event_created_idx").on(t.createdAt, t.id),
     check("instance_audit_event_action_present", sql`length(${t.action}) > 0`),
-    check("instance_audit_event_via", sql`${t.via} in ('cli', 'web')`),
+    check(
+      "instance_audit_event_via",
+      sql`${t.via} in ('cli', 'web', 'worker')`,
+    ),
+  ],
+);
+
+// An organization an owner scheduled for deletion. While the row exists the
+// organization is locked (members cannot open its data; owners can still
+// export it and cancel). When `deleteAfter` has passed, the worker claims the
+// row (`status` becomes `deleting`, which can no longer be cancelled), deletes
+// the stored files, then every organization row in one transaction, and
+// records `organization.deleted` in `instance_audit_event`. The row goes with
+// the organization. Cancelling removes it. See
+// docs/internals/organization-deletion.md.
+export const organizationDeletion = pgTable(
+  "organization_deletion",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    // A plain id with the name it had, like the audit log.
+    requestedById: text("requested_by_id").notNull(),
+    requestedByName: text("requested_by_name"),
+    requestedAt: timestamp("requested_at").defaultNow().notNull(),
+    deleteAfter: timestamp("delete_after").notNull(),
+    // `scheduled` (cancellable) or `deleting` (claimed by the worker).
+    status: text("status").notNull().default("scheduled"),
+    // Incremented by every claim; outcomes are fenced on it.
+    attempt: integer("attempt").notNull().default(0),
+    // The claim's lease, and after a failed attempt the time of the retry.
+    leaseUntil: timestamp("lease_until"),
+    startedAt: timestamp("started_at"),
+    // Set once every stored file object is deleted, so retries skip storage.
+    filesDeletedAt: timestamp("files_deleted_at"),
+    // Why the last attempt failed; shown to instance administrators.
+    error: text("error"),
+  },
+  (t) => [
+    index("organization_deletion_due_idx").on(t.deleteAfter),
+    check(
+      "organization_deletion_status",
+      sql`${t.status} in ('scheduled', 'deleting')`,
+    ),
   ],
 );

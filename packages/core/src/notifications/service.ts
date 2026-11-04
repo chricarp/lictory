@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
-import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
+import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
 import { DomainError } from "@lictory/core/domain/errors";
 import type { Database } from "@lictory/core/domain/service";
 import {
@@ -119,7 +119,7 @@ export function createNotificationService(db: Database) {
         "forbidden",
         "You are not a member of this organization.",
       );
-    await assertTwoFactorSatisfied(db, userId, organizationId);
+    await assertOrganizationAccess(db, userId, organizationId);
   }
   const memberOf = and(
     eq(s.member.organizationId, s.notification.organizationId),

@@ -14,6 +14,7 @@ void test("an unconfigured installation takes invitations only and reserves orga
     signUpMode: "invite",
     allowedEmailDomains: [],
     organizationCreation: "administrators",
+    organizationDeletionGraceDays: 30,
   });
   // Empty variables count as unset.
   assert.equal(
@@ -34,6 +35,16 @@ void test("invalid policy settings stop the server instead of opening it", () =>
   assert.throws(
     () => instancePolicy({ LICTORY_ALLOWED_EMAIL_DOMAINS: "acme" }),
     /not a domain/,
+  );
+  for (const days of ["0", "366", "7.5", "two weeks", "-3"])
+    assert.throws(
+      () => instancePolicy({ LICTORY_ORGANIZATION_DELETION_GRACE_DAYS: days }),
+      /LICTORY_ORGANIZATION_DELETION_GRACE_DAYS must be a whole number of days from 1 to 365/,
+    );
+  assert.equal(
+    instancePolicy({ LICTORY_ORGANIZATION_DELETION_GRACE_DAYS: " 14 " })
+      .organizationDeletionGraceDays,
+    14,
   );
   assert.deepEqual(
     instancePolicy({

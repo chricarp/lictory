@@ -5,6 +5,7 @@ import { productKnowledgeCapabilities } from "@lictory/core/capabilities/product
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
 import { auditCapabilities } from "@lictory/core/capabilities/audit";
 import { exportCapabilities } from "@lictory/core/capabilities/export";
+import { organizationDeletionCapabilities } from "@lictory/core/capabilities/organization-deletion";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
 import {
   CapabilityError,
@@ -19,7 +20,7 @@ import {
   humanOnlyRefusal,
 } from "@lictory/core/capabilities/human-only";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
-import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
+import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
 import { intakeCapabilities } from "@lictory/core/capabilities/intake";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
@@ -39,6 +40,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...securityCapabilities,
   ...auditCapabilities,
   ...exportCapabilities,
+  ...organizationDeletionCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
   humanOnlyCapability(() => capabilities),
@@ -220,13 +222,15 @@ export async function invoke(
         : parsed;
     organizationId = organizationOf(input);
     // An organization that requires two-factor holds members without it,
-    // on every surface, before any capability runs (domain services check
-    // again through `authorize`).
+    // and one scheduled for deletion holds everyone but its owners in the
+    // few capabilities that allow it, on every surface, before any
+    // capability runs (domain services check again through `authorize`).
     if (organizationId)
-      await assertTwoFactorSatisfied(
+      await assertOrganizationAccess(
         ctx.db,
         ctx.principal.userId,
         organizationId,
+        { owners: capability.whileDeletionScheduled === "owners" },
       );
     const output = await capability.run(ctx, input);
     if (output && typeof output === "object" && "mutationId" in output)

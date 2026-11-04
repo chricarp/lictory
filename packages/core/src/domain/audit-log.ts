@@ -6,7 +6,7 @@ import {
   type AuditEntry,
 } from "@lictory/core/contracts/audit";
 import { requireAuditReader } from "@lictory/core/domain/audit";
-import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
+import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
 import { DomainError } from "@lictory/core/domain/errors";
 import { csvLine } from "@lictory/core/lib/csv";
 import type { Database } from "@lictory/core/domain/service";
@@ -110,7 +110,7 @@ export async function readAuditLog(
 ): Promise<{ entries: AuditEntry[]; nextCursor: string | null }> {
   await requireAuditReader(db, userId, organizationId);
   // The CSV download route reaches this without the registry's check.
-  await assertTwoFactorSatisfied(db, userId, organizationId);
+  await assertOrganizationAccess(db, userId, organizationId);
   return auditLogPage(db, organizationId, options);
 }
 
@@ -228,6 +228,10 @@ function describeEvent(row: Row, detail: Record<string, unknown>) {
       return `Removed ${target} from the organization`;
     case "member.account_deleted":
       return "Deleted their account, leaving the organization";
+    case "organization.deletion_scheduled":
+      return typeof detail.deleteAfter === "string"
+        ? `Scheduled the organization's deletion for ${detail.deleteAfter.slice(0, 10)}`
+        : auditActions["organization.deletion_scheduled"].label;
     case "invitation.created":
       return `Invited ${target}`;
     case "invitation.cancelled":
@@ -346,7 +350,7 @@ export async function auditLogCsv(
 ): Promise<AsyncGenerator<string>> {
   await requireAuditReader(db, userId, organizationId);
   // The CSV download route reaches this without the registry's check.
-  await assertTwoFactorSatisfied(db, userId, organizationId);
+  await assertOrganizationAccess(db, userId, organizationId);
   async function* lines() {
     yield csvLine(csvHeader);
     let cursor: string | null = null;

@@ -11,6 +11,7 @@ export type Overview = {
     signUpMode: SignUpMode;
     allowedEmailDomains: string[];
     organizationCreation: "administrators" | "everyone";
+    organizationDeletionGraceDays: number;
   };
   signIn: { password: boolean; sso: string | null };
   email: boolean;
@@ -54,6 +55,12 @@ export type AdminOrganization = {
   members: number;
   pendingInvitations: number;
   owners: { id: string; name: string; email: string }[];
+  // Scheduled by an owner; the worker deletes it after `deleteAfter`.
+  deletion: {
+    status: "scheduled" | "deleting";
+    deleteAfter: string;
+    error: string | null;
+  } | null;
 };
 
 export type ActivityEvent = {

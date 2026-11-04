@@ -906,6 +906,11 @@ export const directorySchema = z.object({
       logos: z
         .object({ mark: z.string().nullable(), full: z.string().nullable() })
         .default({ mark: null, full: null }),
+      // Set while the organization is scheduled for deletion (locked).
+      deletion: z
+        .object({ deleteAfter: z.string(), requestedBy: z.string().nullable() })
+        .nullable()
+        .optional(),
     }),
   ),
   projects: z.array(entitySchema.options[0]),

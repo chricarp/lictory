@@ -55,6 +55,8 @@ const sessionSchema = z.object({
     .default(defaultSignIn),
   // Whether the server has object storage for attachments.
   attachments: z.boolean().default(true),
+  // Days between scheduling an organization's deletion and the deletion.
+  organizationDeletionGraceDays: z.number().int().positive().default(30),
 });
 
 export type SessionUser = z.infer<typeof userSchema>;
@@ -66,6 +68,7 @@ export type Session = {
   twoFactorRequiredBy: z.infer<typeof heldSchema>[];
   signIn: SignInOptions;
   attachments: boolean;
+  organizationDeletionGraceDays: number;
 };
 
 type State =
@@ -131,6 +134,8 @@ export function clearSession() {
       signIn: state.session?.signIn ?? defaultSignIn,
       twoFactorRequiredBy: [],
       attachments: state.session?.attachments ?? true,
+      organizationDeletionGraceDays:
+        state.session?.organizationDeletionGraceDays ?? 30,
     },
   });
 }
@@ -166,6 +171,11 @@ export function useSignInOptions(): SignInOptions {
 // Organizations holding the signed-in person until they turn on two-factor.
 export function useTwoFactorRequiredBy() {
   return useSessionState().session?.twoFactorRequiredBy ?? [];
+}
+
+// How long an organization stays locked before it is deleted.
+export function useOrganizationDeletionGraceDays(): number {
+  return useSessionState().session?.organizationDeletionGraceDays ?? 30;
 }
 
 // False when the server has no file storage: uploads are not offered.

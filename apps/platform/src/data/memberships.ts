@@ -27,6 +27,7 @@ export function useMemberships() {
                     slug: profile.slug,
                     role: member.role,
                     logos: profile.logos ?? { mark: null, full: null },
+                    deletion: profile.deletion ?? null,
                   },
                 ]
               : [];

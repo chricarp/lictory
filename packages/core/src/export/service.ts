@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
 import { recordAuditEvent } from "@lictory/core/domain/audit";
-import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
+import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
 import { DomainError } from "@lictory/core/domain/errors";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import {
@@ -51,8 +51,9 @@ async function requireOrganizationAdmin(
       "Only organization administrators can export the organization's data.",
     );
   // The archive download route reaches this without the capability
-  // registry's check; a held administrator gets nothing either way.
-  await assertTwoFactorSatisfied(db, userId, organizationId);
+  // registry's check; a held administrator gets nothing either way. While
+  // the organization is scheduled for deletion its owners can still export.
+  await assertOrganizationAccess(db, userId, organizationId, { owners: true });
 }
 
 const iso = (value: Date | null) => value?.toISOString() ?? null;

@@ -185,6 +185,16 @@ export function describeNotification(
         headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
         body: `${num(d.total)} items exported.`,
       };
+    case "organization_deletion_scheduled":
+      return {
+        headline: `${actor} scheduled ${str(d.organizationName) ?? "the organization"} for deletion${str(d.deleteDay) ? ` on ${str(d.deleteDay)}` : ""}`,
+        body: "Its projects, work items, specifications, reviews, discussions and files will then be permanently deleted. Until then the organization is locked. If this is a mistake, ask an owner to cancel the deletion.",
+      };
+    case "organization_deletion_cancelled":
+      return {
+        headline: `${actor} cancelled the deletion of ${str(d.organizationName) ?? "the organization"}`,
+        body: "The organization is open again; nothing was deleted.",
+      };
   }
   return {
     headline:

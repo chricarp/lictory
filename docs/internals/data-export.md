@@ -37,6 +37,11 @@ download when it is ready.
    marks them `expired` and deletes their chunks (also those of failed
    exports); the `organization_export` rows stay as history.
 
+Owners are offered an export before they schedule the organization's
+[deletion](./organization-deletion.md), and can still start and download
+exports while the organization is locked for it; other administrators
+cannot.
+
 Archives are stored in PostgreSQL, so exports work on every installation,
 including ones without object storage. A large organization's archive
 occupies database space until it expires. Email delivery of the link and

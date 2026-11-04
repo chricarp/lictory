@@ -124,11 +124,13 @@ external status is a read-only copy. Adapters live behind
 
 Domain history and actor references use restrictive foreign keys. Deleting a
 project/work item/organization with referenced history, or a referenced author,
-fails instead of silently cascading. Archive timestamps on projects, work items,
+fails instead of silently cascading. Deleting an organization is therefore an
+explicit job that removes its rows table by table, in a checked order
+([organization deletion](./organization-deletion.md)). Archive timestamps on projects, work items,
 disciplines, teams, types, statuses, and decisions support reversible removal
 from active views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
-history exists. Accounts are therefore never removed: deleting one anonymizes
+history exists, and its organization delete endpoint is disabled. Accounts are therefore never removed: deleting one anonymizes
 the row and keeps it ([account deletion](./account-deletion.md)). Removing an
 organization membership remains possible and does not delete reviews or
 approvals. Only project, discipline and

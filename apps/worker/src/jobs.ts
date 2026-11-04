@@ -5,6 +5,7 @@ import {
   processAiRuns,
   processDataExports,
   processDeliveryPublications,
+  processDueOrganizationDeletions,
   refreshDeliveryStatuses,
 } from "@lictory/core/jobs";
 import type { Analyzer } from "@lictory/core/ai/analyzer";
@@ -73,6 +74,9 @@ const EMAIL_BATCH = 20;
 const DELIVERY_BATCH = 10;
 // Exports are rare and woken by their signal; polling only recovers leases.
 const EXPORT_INTERVAL_MS = 60_000;
+// Deletions fall due after a grace period of days; a few minutes' delay
+// does not matter.
+const DELETION_INTERVAL_MS = 5 * 60_000;
 
 export function workerJobs(
   db: Database,
@@ -142,6 +146,19 @@ export function workerJobs(
         const { claimed, ...counts } = await processDataExports(db, {
           signal: stopping,
         });
+        return { more: claimed > 0 && !stopping.aborted, counts };
+      },
+    },
+    {
+      name: "organization-deletion",
+      intervalMs: DELETION_INTERVAL_MS,
+      // One large organization's deletion is one long transaction.
+      stuckMs: 6 * 60 * 60_000,
+      async run({ stopping }) {
+        const { claimed, ...counts } = await processDueOrganizationDeletions(
+          db,
+          { signal: stopping },
+        );
         return { more: claimed > 0 && !stopping.aborted, counts };
       },
     },

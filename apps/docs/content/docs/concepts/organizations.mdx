@@ -53,3 +53,19 @@ controls you cannot use.
 
 Every organization member can read every project. There are no private
 projects.
+
+## Deleting an organization
+
+An owner deletes an organization from **Organization settings → Delete
+organization**. Export its data first: the page shows the latest export and
+links to **Data export**. Type the organization's handle to confirm.
+
+Deletion is not immediate. Scheduling it locks the organization at once:
+nobody can open its projects or change anything in it, and every member is
+told by email. Owners can still download exports and **Cancel deletion**.
+After the grace period (30 days unless your installation sets another) its
+projects, work items, specifications with every revision, reviews,
+approvals, discussions, decisions, attachments, Jira connections with their
+credentials, and its audit log are permanently deleted. People's accounts and
+their other organizations are not affected. The installation's history keeps
+a record that the organization existed and was deleted.

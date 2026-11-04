@@ -285,6 +285,7 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
     signIn: { password: true, ssoName: null, signUpMode: "invite" },
     // Follows this environment's S3_*/R2_* settings (a developer .env may set them).
     attachments: attachmentsAvailable(),
+    organizationDeletionGraceDays: 30,
   });
   assert.equal((await m.app.request("/api/account")).status, 401);
   const account = await m.app.request("/api/account", {

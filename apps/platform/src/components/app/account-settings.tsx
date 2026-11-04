@@ -1000,7 +1000,11 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
           <p className="text-[13px] text-muted-foreground">
             You will lose access to every organization you belong to. Your name
             stays on the revisions, comments and approvals you contributed,
-            shown as a former member; what you wrote is not changed.
+            shown as a former member; what you wrote is not changed. If you are
+            the only owner of an organization, make another member an owner or
+            delete the organization first. An organization scheduled for
+            deletion is still deleted on its date; if you are its only owner,
+            nobody can cancel the deletion once your account is gone.
             {hasPassword
               ? " You will be asked for your password to confirm."
               : ""}

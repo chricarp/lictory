@@ -47,6 +47,8 @@ export const humanOnlyReasons = {
     "Instance administration (accounts, instance administrators, organizations) is done by the installation's administrators themselves; agents acting for a person never manage the installation.",
   export:
     "Taking a copy of all of an organization's data is an administrator's own decision; agents do not start or download organization exports.",
+  deletion:
+    "Deleting an organization, or cancelling its deletion, is its owners' own decision; agents never schedule or cancel it.",
 } as const;
 export type HumanOnlyReason = keyof typeof humanOnlyReasons;
 
@@ -191,6 +193,9 @@ export type Capability<I extends z.ZodType = z.ZodType, O = unknown> = {
   // Required when an agent surface (mcp, agent) is excluded: why the operation
   // stays with the person and where they do it.
   humanOnly?: HumanOnly;
+  // An organization scheduled for deletion is locked; "owners" lets its
+  // owners still call this (export the data, cancel the deletion).
+  whileDeletionScheduled?: "owners";
   run(ctx: CapabilityContext, input: z.output<I>): Promise<O>;
 };
 
