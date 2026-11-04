@@ -16,12 +16,36 @@ PNG export of the combined logo because email clients do not consistently suppor
 SVGs or CSS masks. Regenerate these derived assets when replacing the definitive
 artwork.
 
+## One visual language
+
+The application, the website and the documentation share one token set
+(`packages/ui/src/styles.css`) so they read as one product: paper and ink.
+
+- **Color.** Warm, nearly neutral surfaces: a white document on an off-white
+  canvas, the website's paper (`--paper`) as the application and
+  documentation sidebar, ink text and Lictory's cobalt as the only accent.
+  Dark mode is warm charcoal, never blue-black. Success, warning and
+  destructive keep at least 4.5:1 on every surface; use the tokens
+  (`text-warning`, `bg-success/10`), not palette colors.
+- **Type.** Geist for the interface and reading text, Geist Mono for
+  identifiers and revisions. Newsreader sets document titles only: website
+  headlines, documentation page titles, a specification's title and the
+  sign-in headings. Everything a person scans or clicks stays in Geist.
+- **Shape.** A small radius scale (6px controls, 8px buttons, 10px cards,
+  14px panels); pills are for badges. Surfaces separate with hairlines and a
+  one-pixel shadow ring; real shadows are for layers that float.
+- **Density.** The specification is the primary surface. Workflow state sits
+  beside it in one quiet card; compact lists show the one signal that needs
+  attention instead of every counter.
+
+Personal colour themes override colours only, so structure, type and radius
+stay Lictory's.
+
 ## The public website
 
-The website reads like the specifications it is about: paper and ink. Warm
-neutral surfaces, the product's cobalt as the only accent, Geist for the
-interface and a serif (Newsreader) for headlines only. It follows the visitor's
-light or dark preference; one ink band marks the agent section.
+The website reads like the specifications it is about: the shared paper and
+ink, with a serif (Newsreader) for headlines. It follows the visitor's light
+or dark preference; one ink band marks the agent section.
 
 Color and motion belong to the product illustrations, not the chrome. Each
 contributor in the hero's branch graph keeps one color wherever it appears. The
@@ -40,9 +64,9 @@ rather than floating on a plate.
 ## Application illustrations
 
 Lictory is a calm, document-first workspace for collaborative requirements review.
-Its visual language uses near-white cool surfaces, charcoal text, cobalt primary
-controls, pale lavender secondary surfaces, Geist typography and restrained
-borders. Dark mode uses ink surfaces with the same cobalt accents. Compact
+Its visual language is the shared paper and ink above: warm off-white surfaces,
+ink text, cobalt primary controls, Geist typography and restrained borders.
+Dark mode uses warm charcoal surfaces with the same cobalt accents. Compact
 controls and readable specification content take priority over decoration.
 
 Illustrations extend that language with small, tactile 3D objects inspired by

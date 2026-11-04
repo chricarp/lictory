@@ -27,7 +27,7 @@ export function CtaLink({
         size === "md" && "h-8 px-3 text-[13px]",
         size === "lg" && "h-11 px-5 text-sm",
         variant === "primary" &&
-          "bg-foreground text-background hover:bg-foreground/90",
+          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_1px_rgb(0_0_0/0.08)] hover:bg-primary/90",
         variant === "secondary" &&
           "border border-border bg-card text-foreground hover:bg-muted",
         variant === "ghost" &&

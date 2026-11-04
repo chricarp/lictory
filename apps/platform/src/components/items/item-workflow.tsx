@@ -129,68 +129,63 @@ export function ItemWorkflow({
         <ArrowRight className="size-3.5" />
       </Link>
     );
+  const stages = (
+    <ol
+      aria-label="Workflow stages"
+      className="flex items-center gap-1.5 text-[11px] text-muted-foreground max-sm:hidden"
+    >
+      {steps.map((name, index) => {
+        const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
+        const active = position === step;
+        const complete = position < step;
+        return (
+          <li
+            key={name}
+            aria-current={active ? "step" : undefined}
+            className="flex min-w-0 items-center gap-1.5"
+          >
+            {index > 0 && (
+              <span
+                aria-hidden
+                className={cn(
+                  "h-px w-3 shrink-0",
+                  complete || active ? "bg-primary/40" : "bg-border",
+                )}
+              />
+            )}
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5",
+                active && "font-medium text-foreground",
+              )}
+            >
+              {complete ? (
+                <Check className="size-3 shrink-0 text-success" aria-hidden />
+              ) : (
+                <span
+                  className={cn(
+                    "size-1.5 shrink-0 rounded-full",
+                    active
+                      ? "bg-primary ring-3 ring-primary/15"
+                      : "bg-muted-foreground/30",
+                  )}
+                />
+              )}
+              {name}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
   return (
     <section
       aria-label="Item workflow"
       className="mt-5 overflow-hidden rounded-xl bg-card shadow-(--shadow-border)"
     >
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-3 px-4 pt-3.5 pb-4">
-        <div className="min-w-0 flex-1 basis-60">
-          <ol
-            aria-label="Workflow stages"
-            className="mb-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground"
-          >
-            {steps.map((name, index) => {
-              const position = type.hasSpecification
-                ? index
-                : index === 0
-                  ? 0
-                  : 2;
-              const active = position === step;
-              const complete = position < step;
-              return (
-                <li
-                  key={name}
-                  aria-current={active ? "step" : undefined}
-                  className="flex min-w-0 items-center gap-1.5"
-                >
-                  {index > 0 && (
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "h-px w-4 shrink-0",
-                        complete || active ? "bg-primary/40" : "bg-border",
-                      )}
-                    />
-                  )}
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full",
-                      active && "font-medium text-foreground",
-                    )}
-                  >
-                    {complete ? (
-                      <Check
-                        className="size-3 shrink-0 text-success"
-                        aria-hidden
-                      />
-                    ) : (
-                      <span
-                        className={cn(
-                          "size-1.5 shrink-0 rounded-full",
-                          active
-                            ? "bg-primary ring-3 ring-primary/15"
-                            : "bg-muted-foreground/30",
-                        )}
-                      />
-                    )}
-                    {name}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium tracking-[-0.01em]">
+      <div className="px-4 pt-3 pb-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium tracking-[-0.01em]">
             {label}
             {amendment && (
               <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
@@ -198,42 +193,53 @@ export function ItemWorkflow({
               </span>
             )}
           </p>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-            {description}
-          </p>
-          {current && (
-            <p className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-              <span className="font-mono tabular-nums">
-                Revision {current.number}
-              </span>
-              {!children && item.committedRevisionNumber != null && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>Accepted revision {item.committedRevisionNumber}</span>
-                </>
-              )}
-              {!children && item.deliveredRevisionNumber != null && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>Delivered revision {item.deliveredRevisionNumber}</span>
-                </>
-              )}
-              {item.blockingThreads > 0 && (
-                <>
-                  <span aria-hidden>·</span>
-                  <span className="font-medium text-destructive">
-                    {item.blockingThreads} blocking discussion
-                    {item.blockingThreads === 1 ? "" : "s"}
-                  </span>
-                </>
-              )}
-            </p>
-          )}
+          {stages}
         </div>
-        {action && <div className="shrink-0 sm:pt-6">{action}</div>}
+        <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
+          {description}
+        </p>
+        {(current || action) && (
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            {current ? (
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
+                <span className="font-mono tabular-nums">
+                  Revision {current.number}
+                </span>
+                {!children && item.committedRevisionNumber != null && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>
+                      Accepted revision {item.committedRevisionNumber}
+                    </span>
+                  </>
+                )}
+                {!children && item.deliveredRevisionNumber != null && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>
+                      Delivered revision {item.deliveredRevisionNumber}
+                    </span>
+                  </>
+                )}
+                {item.blockingThreads > 0 && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="font-medium text-destructive">
+                      {item.blockingThreads} blocking discussion
+                      {item.blockingThreads === 1 ? "" : "s"}
+                    </span>
+                  </>
+                )}
+              </p>
+            ) : (
+              <span />
+            )}
+            {action}
+          </div>
+        )}
       </div>
       {children && (
-        <div className="border-t bg-muted/40 px-4 py-3.5">{children}</div>
+        <div className="border-t bg-muted/40 px-4 py-3">{children}</div>
       )}
     </section>
   );

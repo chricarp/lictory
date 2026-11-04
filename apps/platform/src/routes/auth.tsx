@@ -59,7 +59,6 @@ export function SignInPage() {
     <>
       <PageTitle title="Sign in" />
       <AuthHeading title="Sign in to Lictory" />
-      <AccountLegalNotice signIn />
       <SocialButtons
         providers={providers}
         ssoName={ssoName}
@@ -94,6 +93,8 @@ export function SignInPage() {
           </AuthFooter>
         </>
       )}
+      {/* Account creation through a provider: the notice applies to it too. */}
+      <AccountLegalNotice signIn className="mt-6 border-t pt-5" />
     </>
   );
 }

@@ -763,23 +763,28 @@ export function BacklogRow({
           {teamName}
         </span>
       )}
-      {item.refinementState && item.refinementState !== "ready" && (
-        <span
-          title="Specification not ready"
-          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
-        >
-          <RefinementIcon state={item.refinementState} />
-          <span className="hidden sm:inline">
-            {refinementMeta[item.refinementState].label}
+      {/* Fixed slots keep the columns aligned from row to row. */}
+      <span className="inline-flex w-4 shrink-0 items-center gap-1 text-xs text-muted-foreground sm:w-22">
+        {item.refinementState && item.refinementState !== "ready" && (
+          <span
+            title="Specification not ready"
+            className="inline-flex items-center gap-1"
+          >
+            <RefinementIcon state={item.refinementState} />
+            <span className="hidden sm:inline">
+              {refinementMeta[item.refinementState].label}
+            </span>
           </span>
-        </span>
-      )}
+        )}
+      </span>
       <StatusIcon category={status?.category} color={status?.color} />
-      {estimate && (
-        <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
-          {estimate}
-        </span>
-      )}
+      <span className="inline-flex w-7 shrink-0 justify-center">
+        {estimate && (
+          <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
+            {estimate}
+          </span>
+        )}
+      </span>
       {item.assigneeId ? (
         <Avatar
           userId={item.assigneeId}

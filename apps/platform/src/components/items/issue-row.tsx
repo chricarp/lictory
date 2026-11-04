@@ -122,7 +122,7 @@ export const IssueRow = memo(function IssueRow({
       <IssueIdentifier
         project={project}
         number={item.number}
-        className={compact ? "w-14" : "w-18"}
+        className={compact ? "w-12" : "w-18"}
       />
       <Link
         href={href}
@@ -155,7 +155,7 @@ export const IssueRow = memo(function IssueRow({
       )}
       {!compact && parent && (
         <span
-          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
+          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground 2xl:inline-flex"
           title={parent.title}
         >
           <TypeIcon
@@ -173,23 +173,28 @@ export const IssueRow = memo(function IssueRow({
           {item.childDoneCount}/{item.childCount} done
         </span>
       )}
-      {!compact &&
-        project?.deliveryMode !== "external" &&
-        item.estimate !== null && (
-          <span
-            className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
-            title="Estimate"
-          >
-            {item.estimate}
-          </span>
-        )}
+      {!compact && project?.deliveryMode !== "external" && (
+        <span className="inline-flex w-7 shrink-0 justify-center">
+          {item.estimate !== null && (
+            <span
+              className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
+              title="Estimate"
+            >
+              {item.estimate}
+            </span>
+          )}
+        </span>
+      )}
       <ReviewSignal
         item={item}
         compact={compact}
-        className={compact ? undefined : "min-w-22 justify-end"}
+        className={compact ? undefined : "min-w-28 justify-end"}
       />
       {!compact && (
-        <ReadinessBar item={item} className="hidden md:inline-flex" />
+        // A fixed slot keeps assignee and time aligned on rows without checks.
+        <span className="hidden w-16 shrink-0 md:inline-flex">
+          <ReadinessBar item={item} />
+        </span>
       )}
       {project?.deliveryMode === "external" ? (
         <span
@@ -209,11 +214,14 @@ export const IssueRow = memo(function IssueRow({
           onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
         />
       ) : (
+        // Compact rows give the title the room; the assignee shows on wide
+        // screens only.
         item.assigneeId && (
           <Avatar
             userId={item.assigneeId}
             name={memberName(item.assigneeId)}
             size="xs"
+            className="hidden 2xl:inline-grid"
           />
         )
       )}

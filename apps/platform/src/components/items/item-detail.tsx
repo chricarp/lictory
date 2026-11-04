@@ -707,7 +707,7 @@ export function ItemDetail({
               className={
                 branchScreen
                   ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
-                  : "mx-auto max-w-3xl px-6 py-6 lg:px-10"
+                  : "mx-auto max-w-3xl px-5 py-7 lg:px-8 2xl:px-10"
               }
             >
               {changedSinceSeen && !focusScreen && mode.kind !== "compare" && (
@@ -885,7 +885,7 @@ export function ItemDetail({
           {!branchScreen && (
             <aside
               data-desktop-item-panel
-              className="hidden w-75 shrink-0 overflow-y-auto border-l bg-muted/20 xl:block"
+              className="hidden w-72 shrink-0 overflow-y-auto border-l bg-(--paper)/60 xl:block 2xl:w-80"
             >
               {panel}
             </aside>

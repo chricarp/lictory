@@ -109,7 +109,7 @@ export const ItemCard = memo(function ItemCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group relative rounded-lg bg-card p-2.5 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-panel)",
+        "group relative rounded-lg bg-card p-2.5 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover) dark:bg-accent",
         draggable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-40",
         selected && "ring-2 ring-primary/60",

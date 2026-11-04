@@ -104,10 +104,32 @@ body {
 .docs-body :where(figure.shiki, pre):not(:where(.not-prose *)) {
   border-color: var(--border);
 }
-/* A 65-75 character measure for reading; tables, code and steps keep the
-   full column. */
+/* A 65-75 character measure for reading, also inside steps and callouts;
+   tables and code blocks keep the full column. */
 .docs-title,
 .docs-lede,
-.docs-body > :where(p, ul, ol, blockquote, h2, h3, h4) {
+.docs-body
+  :where(p, ul, ol, blockquote, h2, h3, h4):not(:where(table *, .not-prose *)) {
   max-width: 42rem;
+}
+
+/* Secondary controls (search, theme switch, sidebar footer) take the warm
+   neutrals instead of the cobalt tint. */
+:root,
+.dark {
+  --color-fd-secondary: var(--muted);
+  --color-fd-secondary-foreground: var(--foreground);
+}
+#nd-sidebar button[data-search-full],
+#nd-sidebar [data-search-full] {
+  background: var(--card);
+}
+
+/* On this page: visible sections read as ink, the rest stay quiet; cobalt is
+   kept for the rail. */
+#nd-toc a {
+  transition: color 120ms ease-out;
+}
+#nd-toc a[data-active="true"] {
+  color: var(--foreground);
 }

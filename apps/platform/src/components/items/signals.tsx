@@ -32,13 +32,19 @@ export function ReviewSignal({
         className,
       )}
     >
-      {item.blockingThreads > 0 && (
+      {blocked && (
         <span
-          className="inline-flex items-center gap-0.5 text-destructive"
+          className={cn(
+            "inline-flex items-center gap-1 text-destructive",
+            !compact &&
+              "rounded-full bg-destructive/8 py-0.5 pr-2 pl-1.5 font-medium",
+          )}
           title={`${item.blockingThreads} blocking discussion${item.blockingThreads > 1 ? "s" : ""}`}
         >
           <CircleAlert className="size-3.5" />
-          {item.blockingThreads}
+          {compact
+            ? item.blockingThreads
+            : `${item.blockingThreads} blocker${item.blockingThreads > 1 ? "s" : ""}`}
         </span>
       )}
       {item.openThreads > item.blockingThreads && !(compact && blocked) && (

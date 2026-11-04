@@ -581,7 +581,7 @@ function ProjectBoard({ project }: { project: Project }) {
                       <div
                         key={status.id}
                         className={cn(
-                          "flex w-[280px] shrink-0 flex-col rounded-xl bg-muted/55 p-1.5",
+                          "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-xl bg-muted/55 p-1.5 dark:bg-foreground/[0.035]",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {
