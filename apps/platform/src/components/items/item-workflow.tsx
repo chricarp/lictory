@@ -203,7 +203,7 @@ export function ItemWorkflow({
         </Segment>
       )}
       {item.blockingThreads > 0 && (
-        <span className="ml-0.5 rounded-full bg-destructive/8 px-2 py-0.5 font-medium whitespace-nowrap text-destructive">
+        <span className="rounded-full bg-destructive/8 px-2 py-0.5 font-medium whitespace-nowrap text-destructive">
           {item.blockingThreads} blocking discussion
           {item.blockingThreads === 1 ? "" : "s"}
         </span>
@@ -281,15 +281,15 @@ function StateRow({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </dt>
-      <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         {children}
       </dd>
     </div>
   );
 }
 
-// A separator travels with the fact after it, so a wrapped line never starts
-// or ends with a stray dot.
+// Facts in a state row are separated by space rather than dots, so a wrapped
+// line never starts or ends with a stray separator.
 function Segment({
   className,
   children,
@@ -297,10 +297,5 @@ function Segment({
   className?: string;
   children: ReactNode;
 }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span aria-hidden>·</span>
-      <span className={className}>{children}</span>
-    </span>
-  );
+  return <span className={cn("whitespace-nowrap", className)}>{children}</span>;
 }
