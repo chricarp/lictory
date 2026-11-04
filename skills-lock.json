@@ -18,6 +18,18 @@
       "sourceType": "github",
       "skillPath": "skills/shadcn/SKILL.md",
       "computedHash": "f615de216e085a84e31593ad0fa9062232adc40cd87b7c7ab2b8e49abf6500be"
+    },
+    "stageshow": {
+      "source": "benjitaylor/skills",
+      "sourceType": "github",
+      "skillPath": "stageshow/SKILL.md",
+      "computedHash": "a04c3d3a5403bd66e2980a3c96afce80ff0996a6ca501b434ec00b062d942a9b"
+    },
+    "unslop": {
+      "source": "heydamir/unslop",
+      "sourceType": "github",
+      "skillPath": "skills/unslop/SKILL.md",
+      "computedHash": "f65b990d6c0c794e9cb59393cddde120241d03d61375882f4ac22866ca82fc68"
     }
   }
 }

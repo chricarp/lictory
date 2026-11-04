@@ -24,10 +24,10 @@ const scoped = (configs, files) =>
 
 export default defineConfig([
   globalIgnores([
-    // Upstream skill examples and tools are vendored, not application source.
-    ".agents/skills/stageshow/**",
+    // Locally restored skill examples and tools are not application source.
+    ".agents/skills/**",
     // The Stageshow kit the website's illustrations run on, kept as upstream
-    // wrote it so it can be refreshed from the skill. TypeScript still checks it.
+    // wrote it so it can be refreshed from upstream. TypeScript still checks it.
     "apps/marketing/src/vendor/**",
     "**/.next/**",
     "**/.open-next/**",

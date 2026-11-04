@@ -282,9 +282,20 @@ run to use.
 
 ## Agents
 
-Agents follow `AGENTS.md`. Skills in `.agents/skills` cover UI polish and
-[app verification](../../.agents/skills/test-lictory-app/SKILL.md). Run agents in
-a separate worktree and give each worktree its own disposable databases.
+Agents follow `AGENTS.md`. Only the project's own
+[app verification skill](../../.agents/skills/test-lictory-app/SKILL.md) is tracked
+in `.agents/skills`. Third-party skills are recorded in `skills-lock.json` and
+can be restored locally from the repository root with the
+[skills CLI](https://github.com/vercel-labs/skills/blob/main/docs/commands.md#restore-skills-from-the-project-lock-file):
+
+```sh
+npx skills experimental_install
+```
+
+Restored third-party skills are ignored by Git. The lockfile records sources and
+content fingerprints, not pinned upstream commits; restoration may refresh the
+fingerprints if upstream content has changed. Review any lockfile changes.
+Run agents in a separate worktree and give each worktree its own disposable databases.
 
 ## Release performance
 

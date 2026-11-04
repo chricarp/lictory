@@ -13,9 +13,11 @@ bun.lock
 skills-lock.json
 *.tsbuildinfo
 
-# Vendored third-party agent skills, and the Stageshow kit the website's
-# illustrations run on
-.agents
+# Locally restored third-party agent skills
+.agents/skills/*
+!.agents/skills/test-lictory-app/
+
+# The Stageshow kit the website's illustrations run on
 apps/marketing/src/vendor
 
 .next-e2e

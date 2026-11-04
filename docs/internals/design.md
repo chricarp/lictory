@@ -28,8 +28,8 @@ contributor in the hero's branch graph keeps one color wherever it appears. The
 graph's commit dot is the site's one recurring mark: section labels, the current
 navigation item and the workflow steps.
 
-Illustrations are built with the Stageshow kit (`apps/marketing/src/vendor/stageshow`,
-from the skill in `.agents/skills/stageshow`): the product's own window, in the
+Illustrations are built with the upstream [Stageshow kit](https://github.com/benjitaylor/skills/tree/main/stageshow)
+(`apps/marketing/src/vendor/stageshow`): the product's own window, in the
 product's tokens, with only the words the story needs and quiet placeholder
 lines elsewhere. Each tells one story from real product concepts and capability
 names, plays once when it comes into view, ends on its result and offers Replay.
