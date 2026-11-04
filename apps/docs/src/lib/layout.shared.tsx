@@ -7,15 +7,23 @@ export function baseOptions(): BaseLayoutProps {
   return {
     nav: { title: <Wordmark /> },
     githubUrl: site.repository,
-    links: [
-      { text: "Website", url: site.website, external: true },
-      // The websites' own notices (lictory.com operator), not an installation's.
-      { text: "Privacy", url: `${site.website}/privacy`, external: true },
-      {
-        text: "Terms",
-        url: `${site.website}/terms-of-service`,
-        external: true,
-      },
-    ],
+    links: [{ text: "Website", url: site.website, external: true }],
   };
+}
+
+// The websites' own notices (lictory.com operator), not an installation's.
+export function LegalLinks() {
+  return (
+    <p className="text-fd-muted-foreground flex gap-4 px-1 pt-1 text-xs">
+      <a className="hover:text-fd-foreground" href={`${site.website}/privacy`}>
+        Privacy
+      </a>
+      <a
+        className="hover:text-fd-foreground"
+        href={`${site.website}/terms-of-service`}
+      >
+        Terms
+      </a>
+    </p>
+  );
 }

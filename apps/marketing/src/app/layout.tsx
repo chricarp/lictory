@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 // Headlines only: specifications are documents, and the page reads like one.
 const newsreader = Newsreader({
-  variable: "--font-display",
+  variable: "--font-newsreader",
   subsets: ["latin"],
   axes: ["opsz"],
 });

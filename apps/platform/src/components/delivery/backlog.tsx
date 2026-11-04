@@ -550,9 +550,7 @@ function IterationHeader({
         <span
           className={cn(
             "text-xs tabular-nums",
-            over
-              ? "text-amber-700 dark:text-amber-400"
-              : "text-muted-foreground",
+            over ? "text-warning" : "text-muted-foreground",
           )}
           title={
             capacity !== undefined

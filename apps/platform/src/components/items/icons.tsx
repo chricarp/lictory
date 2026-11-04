@@ -21,7 +21,7 @@ const typeBackground: Record<LabelColor, string> = {
   gray: "bg-zinc-500",
   blue: "bg-sky-600",
   green: "bg-emerald-600",
-  amber: "bg-amber-500",
+  amber: "bg-warning",
   red: "bg-red-600",
   purple: "bg-violet-600",
   pink: "bg-pink-600",

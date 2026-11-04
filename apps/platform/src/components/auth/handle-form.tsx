@@ -158,7 +158,7 @@ export function HandleForm({
             status?.tone === "error"
               ? "text-destructive"
               : status?.tone === "ok"
-                ? "text-emerald-700 dark:text-emerald-300"
+                ? "text-success"
                 : "text-muted-foreground",
           )}
         >

@@ -11,15 +11,20 @@ import type { WorkItem } from "@lictory/core/contracts/protocol";
 
 // Compact review + readiness signal for rows. Icons are enough at a glance;
 // the title attribute explains them.
+// Compact rows show only the one signal that needs attention most: blockers
+// first, then the review state; the full row shows every signal.
 export function ReviewSignal({
   item,
   className,
+  compact = false,
 }: {
   item: WorkItem;
   className?: string;
+  compact?: boolean;
 }) {
   const state = reviewState(item);
   const { approved, total } = approvalsCount(item);
+  const blocked = item.blockingThreads > 0;
   return (
     <span
       className={cn(
@@ -36,7 +41,7 @@ export function ReviewSignal({
           {item.blockingThreads}
         </span>
       )}
-      {item.openThreads > item.blockingThreads && (
+      {item.openThreads > item.blockingThreads && !(compact && blocked) && (
         <span
           className="inline-flex items-center gap-0.5"
           title={`${item.openThreads} open discussion${item.openThreads > 1 ? "s" : ""}`}
@@ -45,7 +50,7 @@ export function ReviewSignal({
           {item.openThreads}
         </span>
       )}
-      {state !== "none" && (
+      {state !== "none" && !(compact && blocked) && (
         <span
           className={cn(
             "inline-flex items-center gap-0.5",
@@ -95,7 +100,7 @@ export function ReadinessBar({
         <span
           className={cn(
             "block h-full rounded-full",
-            ratio === 1 ? "bg-emerald-500" : "bg-foreground/40",
+            ratio === 1 ? "bg-success" : "bg-foreground/40",
           )}
           style={{ width: `${ratio * 100}%` }}
         />

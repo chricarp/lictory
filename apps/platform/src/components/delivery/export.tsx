@@ -321,7 +321,7 @@ export function ExportDialog({
                       )}
                       {(!publication && entry.conflict?.length) ||
                       result?.outcome === "conflict" ? (
-                        <label className="mt-1 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                        <label className="mt-1 flex items-center gap-2 text-xs text-warning">
                           <input
                             type="checkbox"
                             checked={overwrite.has(entry.workItemId)}

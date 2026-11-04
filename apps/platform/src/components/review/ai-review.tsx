@@ -100,7 +100,7 @@ export function useAiBlocker() {
 
 const bandTone = {
   good: "text-success",
-  fair: "text-amber-600 dark:text-amber-400",
+  fair: "text-warning",
   poor: "text-destructive",
 } as const;
 const bandStroke = {
@@ -340,7 +340,7 @@ export function AiReviewView({
       </header>
       <GroundedIn context={run.intelligenceContext} />
       {run.staleAt && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[13px]">
           <AlertTriangle className="size-4 text-amber-600" />
           <span className="min-w-0 flex-1">
             Outdated: {run.staleReason}. Findings may no longer apply, and

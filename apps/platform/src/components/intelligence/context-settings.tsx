@@ -352,7 +352,7 @@ function BudgetMeter({ used }: { used: number }) {
     <span
       className={cn(
         "ml-auto text-xs tabular-nums",
-        over ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+        over ? "text-warning" : "text-muted-foreground",
       )}
       title="Characters of active context in this scope. Reviews include up to the budget across all scopes, narrower scopes first."
     >
@@ -596,7 +596,7 @@ function EntryRow({
                 </ol>
               )}
               {viewing && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
+                <p className="text-xs text-warning">
                   Viewing version {viewing.number}. Lictory Intelligence uses
                   version {v.number}.
                 </p>

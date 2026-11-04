@@ -131,7 +131,7 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
         )}
         {stale > 0 && (
           <span
-            className="text-xs text-amber-700 dark:text-amber-400"
+            className="text-xs text-warning"
             title="These children were derived from an earlier revision of this specification. Review whether they still match."
           >
             {stale} from an earlier revision

@@ -28,10 +28,8 @@ export function Badge({
     <span
       className={cn(
         "inline-flex h-5 items-center gap-1 rounded px-1.5 text-[11px] font-medium whitespace-nowrap",
-        tone === "good" &&
-          "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-        tone === "warning" &&
-          "bg-amber-500/12 text-amber-800 dark:text-amber-300",
+        tone === "good" && "bg-success/10 text-success",
+        tone === "warning" && "bg-warning/12 text-warning",
         tone === "danger" && "bg-red-500/10 text-red-700 dark:text-red-400",
         tone === "info" && "bg-primary/10 text-primary",
         tone === "neutral" && "bg-muted text-muted-foreground",

@@ -160,7 +160,7 @@ export const ItemCard = memo(function ItemCard({
           <span
             className={cn(
               "inline-flex items-center gap-1",
-              notReady && "text-amber-700 dark:text-amber-400",
+              notReady && "text-warning",
             )}
             title={
               item.refinementState !== "ready"

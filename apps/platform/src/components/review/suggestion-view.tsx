@@ -172,7 +172,7 @@ function SuggestionBody({
       )}
 
       {state.outdated && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
           <CircleAlert className="size-4 shrink-0 text-warning" />
           <span>
             The specification moved to revision {current?.number} since this was
@@ -653,7 +653,7 @@ function SuggestionEditor({
   return (
     <div className="space-y-3">
       {outdated && target && current && (
-        <details className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-[13px]">
+        <details className="rounded-md border border-warning/40 bg-warning/10 p-3 text-[13px]">
           <summary className="cursor-pointer">
             What changed in the specification since revision {target.number}{" "}
             (now revision {current.number}) — fold these changes into your

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCheck, GitCompareArrows } from "lucide-react";
+import { CheckCheck, GitCompareArrows, TriangleAlert } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { useItem } from "@lictory/platform/components/items/item-context";
@@ -65,14 +65,16 @@ export function DeliveryScope({
       <div
         className={
           embedded
-            ? "space-y-2 text-[13px]"
-            : "space-y-2 rounded-lg border bg-card p-3 text-[13px]"
+            ? "space-y-2.5 text-[13px]"
+            : "space-y-2.5 rounded-lg border bg-card p-3 text-[13px]"
         }
       >
         {item.committedRevisionId ? (
-          <p>
+          <p className="text-muted-foreground">
             Accepted for delivery:{" "}
-            <b>revision {item.committedRevisionNumber ?? "—"}</b>
+            <span className="font-medium text-foreground">
+              revision {item.committedRevisionNumber ?? "—"}
+            </span>
           </p>
         ) : (
           <p className="text-muted-foreground">
@@ -88,43 +90,51 @@ export function DeliveryScope({
           </p>
         )}
         {changed && (
-          <div className="space-y-1.5 border-t pt-2">
-            <p className="text-warning">
+          <p className="flex items-start gap-2 text-foreground">
+            <TriangleAlert
+              aria-hidden
+              className="mt-0.5 size-3.5 shrink-0 text-warning"
+            />
+            <span>
               Revision {current.number} changes the accepted specification.
               {closed
                 ? " A new amendment does not change what was delivered."
                 : " Accept it to change what the team delivers."}
-            </p>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onCompare(item.committedRevisionId!, current.id)}
-            >
-              <GitCompareArrows className="size-3.5" /> Compare with accepted
-              revision
-            </Button>
+            </span>
+          </p>
+        )}
+        {(changed || canAccept) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {canAccept && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={pending || blocked}
+                onClick={() => void accept()}
+              >
+                {pending
+                  ? "Accepting…"
+                  : `Accept revision ${current.number} for delivery`}
+              </Button>
+            )}
+            {changed && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onCompare(item.committedRevisionId!, current.id)}
+              >
+                <GitCompareArrows className="size-3.5" /> Compare with accepted
+                revision
+              </Button>
+            )}
           </div>
         )}
-        {canAccept && (
-          <>
-            <Button
-              size="sm"
-              variant={changed ? "secondary" : "outline"}
-              disabled={pending || blocked}
-              onClick={() => void accept()}
-            >
-              {pending
-                ? "Accepting…"
-                : `Accept revision ${current.number} for delivery`}
-            </Button>
-            {early && (
-              <p className="text-xs text-muted-foreground">
-                {blocked
-                  ? "Complete the readiness checks before accepting this revision."
-                  : "Readiness checks are incomplete. Accepting records this exception under the project's readiness policy."}
-              </p>
-            )}
-          </>
+        {canAccept && early && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {blocked
+              ? "Complete the readiness checks before accepting this revision."
+              : "Readiness checks are incomplete. Accepting records this exception under the project's readiness policy."}
+          </p>
         )}
         {error && (
           <p role="alert" className="text-xs text-destructive">

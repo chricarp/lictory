@@ -496,8 +496,7 @@ function Notice({ tone, children }: { tone: "warning"; children: ReactNode }) {
     <p
       className={cn(
         "flex items-start gap-2 rounded-lg px-3 py-2 text-[13px]",
-        tone === "warning" &&
-          "bg-amber-500/10 text-amber-900 dark:text-amber-200",
+        tone === "warning" && "bg-warning/10 text-warning",
       )}
     >
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

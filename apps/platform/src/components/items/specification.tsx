@@ -319,7 +319,7 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
   return (
     <div className="space-y-3">
       {conflicted && (
-        <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-[13px]">
+        <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-[13px]">
           <p>
             Revision {current.number} was saved while you were editing revision{" "}
             {baseRevision.number}. Your text is kept; review the difference

@@ -172,7 +172,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
             </span>
           )}
           {early && (
-            <span className="text-amber-700 dark:text-amber-400">
+            <span className="text-warning">
               {" "}
               before the specification was ready
             </span>

@@ -7,16 +7,18 @@ import { LogoMark } from "@lictory/ui/logo";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col items-center bg-background px-5 py-10 sm:py-14">
-      <div className="lictory-enter flex w-full max-w-[360px] flex-1 flex-col justify-center">
+    <main className="flex min-h-dvh flex-col items-center bg-(--paper) px-4 py-10 sm:py-14">
+      <div className="lictory-enter flex w-full max-w-[400px] flex-1 flex-col justify-center">
         <a
           href={siteUrl}
           aria-label="Lictory home"
-          className="mx-auto mb-8 grid size-10 place-items-center rounded-lg text-foreground transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]"
+          className="mx-auto mb-7 grid size-10 place-items-center rounded-lg text-foreground transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]"
         >
-          <LogoMark className="size-10" />
+          <LogoMark className="size-9" />
         </a>
-        {children}
+        <div className="rounded-2xl bg-card px-6 py-8 shadow-(--shadow-panel) sm:px-8">
+          {children}
+        </div>
       </div>
       <PrivacyPreferencesButton className="mt-10 rounded text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
         Privacy preferences
@@ -33,8 +35,8 @@ export function AuthHeading({
   description?: ReactNode;
 }) {
   return (
-    <div className="mb-8 text-center">
-      <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.02em]">
+    <div className="mb-7 text-center">
+      <h1 className="font-display text-[1.875rem] leading-9 font-normal tracking-[-0.02em] text-balance">
         {title}
       </h1>
       {description ? (
@@ -48,7 +50,7 @@ export function AuthHeading({
 
 export function AuthFooter({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-8 text-center text-sm leading-6 text-muted-foreground">
+    <p className="mt-7 text-center text-sm leading-6 text-muted-foreground">
       {children}
     </p>
   );

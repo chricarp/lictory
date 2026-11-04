@@ -543,7 +543,7 @@ function Meter({
         <div
           className={cn(
             "h-full rounded-full",
-            complete ? "bg-success" : warn ? "bg-amber-500" : "bg-primary",
+            complete ? "bg-success" : warn ? "bg-warning" : "bg-primary",
           )}
           style={{ width: total ? `${(done / total) * 100}%` : 0 }}
         />

@@ -541,14 +541,18 @@ function ProjectBoard({ project }: { project: Project }) {
         <div className="min-h-0 flex-1 overflow-auto">
           <div
             className={cn(
-              "inline-flex min-w-full flex-col gap-3 p-3",
+              "inline-flex min-h-full min-w-full flex-col gap-3 p-3",
               // Room to scroll the last column and cards out from under the
               // docked preview.
               peek.peeked && "pb-[60dvh] sm:pr-[400px] sm:pb-3 2xl:pr-[440px]",
             )}
           >
             {lanes.map((l) => (
-              <section key={l.key} aria-label={l.label || "Board"}>
+              <section
+                key={l.key}
+                aria-label={l.label || "Board"}
+                className={cn(lanes.length === 1 && "flex flex-1 flex-col")}
+              >
                 {lane !== "none" && (
                   <h2 className="sticky left-3 mb-1.5 inline-flex items-center gap-2 text-xs font-medium">
                     {lane === "priority" && (
@@ -560,7 +564,9 @@ function ProjectBoard({ project }: { project: Project }) {
                     </span>
                   </h2>
                 )}
-                <div className="flex gap-3">
+                <div
+                  className={cn("flex gap-2.5", lanes.length === 1 && "flex-1")}
+                >
                   {columns.map((status) => {
                     const cards = l.items.filter(
                       (i) => i.statusId === status.id,
@@ -575,7 +581,7 @@ function ProjectBoard({ project }: { project: Project }) {
                       <div
                         key={status.id}
                         className={cn(
-                          "flex w-[272px] shrink-0 flex-col rounded-xl bg-muted/50 p-1.5",
+                          "flex w-[280px] shrink-0 flex-col rounded-xl bg-muted/55 p-1.5",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {

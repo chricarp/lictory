@@ -112,17 +112,17 @@ export function assessPassword(value: string): Strength {
 const meterColor: Record<Strength["score"], string> = {
   0: "bg-destructive",
   1: "bg-destructive",
-  2: "bg-amber-500",
-  3: "bg-emerald-500",
-  4: "bg-emerald-500",
+  2: "bg-warning",
+  3: "bg-success",
+  4: "bg-success",
 };
 
 const meterText: Record<Strength["score"], string> = {
   0: "text-destructive",
   1: "text-destructive",
-  2: "text-amber-600 dark:text-amber-400",
-  3: "text-emerald-600 dark:text-emerald-400",
-  4: "text-emerald-600 dark:text-emerald-400",
+  2: "text-warning",
+  3: "text-success",
+  4: "text-success",
 };
 
 /** Drops whitespace (typed or pasted) and caps the length. */
@@ -240,9 +240,7 @@ export function NewPasswordFields({
                 id={matchId}
                 className={cn(
                   "inline-flex items-center gap-1",
-                  matches
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-destructive",
+                  matches ? "text-success" : "text-destructive",
                 )}
               >
                 {matches ? (

@@ -122,7 +122,7 @@ export const IssueRow = memo(function IssueRow({
       <IssueIdentifier
         project={project}
         number={item.number}
-        className="w-18"
+        className={compact ? "w-14" : "w-18"}
       />
       <Link
         href={href}
@@ -183,7 +183,11 @@ export const IssueRow = memo(function IssueRow({
             {item.estimate}
           </span>
         )}
-      <ReviewSignal item={item} />
+      <ReviewSignal
+        item={item}
+        compact={compact}
+        className={compact ? undefined : "min-w-22 justify-end"}
+      />
       {!compact && (
         <ReadinessBar item={item} className="hidden md:inline-flex" />
       )}

@@ -31,7 +31,7 @@ function Notice({
   if (!children) return null;
   if (tone === "error") return <InlineError>{children}</InlineError>;
   return (
-    <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">
+    <p role="status" className="text-xs text-success">
       {children}
     </p>
   );

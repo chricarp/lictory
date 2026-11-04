@@ -239,7 +239,7 @@ function AdminOverview() {
           {notices.map((notice, i) => (
             <p
               key={i}
-              className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3 text-[13px] leading-5"
+              className="flex gap-2 rounded-lg border border-warning/30 bg-warning/8 px-4 py-3 text-[13px] leading-5"
             >
               <CircleAlert
                 aria-hidden
@@ -408,10 +408,7 @@ function People() {
       )}
       {notice && (
         <SettingsBody className="py-2.5">
-          <p
-            role="status"
-            className="text-[13px] text-emerald-700 dark:text-emerald-400"
-          >
+          <p role="status" className="text-[13px] text-success">
             {notice}
           </p>
         </SettingsBody>
@@ -973,10 +970,7 @@ function ManagePerson({
       )}
       <InlineError>{error}</InlineError>
       {done && (
-        <p
-          role="status"
-          className="text-xs text-emerald-700 dark:text-emerald-400"
-        >
+        <p role="status" className="text-xs text-success">
           {done}
         </p>
       )}
@@ -1017,10 +1011,7 @@ function Organizations() {
       )}
       {notice && (
         <SettingsBody className="py-2.5">
-          <p
-            role="status"
-            className="text-[13px] text-emerald-700 dark:text-emerald-400"
-          >
+          <p role="status" className="text-[13px] text-success">
             {notice}
           </p>
         </SettingsBody>
@@ -1257,10 +1248,7 @@ function OrganizationRow({
           <div className="w-full">
             <InlineError>{error}</InlineError>
             {done && (
-              <p
-                role="status"
-                className="text-xs text-emerald-700 dark:text-emerald-400"
-              >
+              <p role="status" className="text-xs text-success">
                 {done}
               </p>
             )}

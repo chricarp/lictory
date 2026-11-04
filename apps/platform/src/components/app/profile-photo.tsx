@@ -166,10 +166,7 @@ export function ProfilePhoto({
       )}
       {error && <InlineError>{error}</InlineError>}
       {message && (
-        <p
-          role="status"
-          className="text-xs text-emerald-700 dark:text-emerald-400"
-        >
+        <p role="status" className="text-xs text-success">
           {message}
         </p>
       )}

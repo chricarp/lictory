@@ -560,7 +560,7 @@ function BarChip({
 
 const bandDot = {
   good: "bg-success",
-  fair: "bg-amber-500",
+  fair: "bg-warning",
   poor: "bg-destructive",
 } as const;
 
@@ -1113,7 +1113,7 @@ function ReviewCard({
                         f.severity === "blocker"
                           ? "bg-destructive"
                           : f.severity === "major"
-                            ? "bg-amber-500"
+                            ? "bg-warning"
                             : "bg-muted-foreground/50",
                       )}
                     />

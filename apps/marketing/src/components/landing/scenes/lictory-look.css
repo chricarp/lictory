@@ -1,6 +1,6 @@
 /* The Lictory look for Stageshow scenes: the product's own tokens
-   (packages/ui/src/styles.css) mapped onto the kit's, so a scene reads as
-   the real app. The page around a scene is the marketing site's paper; the
+   (packages/ui/src/styles.css, paper and ink) mapped onto the kit's, so a
+   scene reads as the real app. The page around a scene is the marketing site's paper; the
    window inside it is the product, in the product's colors, type and radii.
    Each scene sets `theme` from the site's light or dark preference. */
 
@@ -8,36 +8,36 @@
   --ss-font: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --ss-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  --ss-canvas: oklch(0.9946 0.0026 286.35);
-  --ss-surface: oklch(1 0 0);
-  --ss-chrome: oklch(0.9946 0.0026 286.35);
-  --ss-raised: oklch(1 0 0);
-  --ss-line: oklch(0.9163 0.0162 286.08);
-  --ss-line-faint: oklch(0.9601 0.0093 286.22);
-  --ss-text-strong: oklch(0.1615 0.0105 285.17);
-  --ss-text: oklch(0.5052 0.0379 284.96);
-  --ss-text-faint: oklch(0.68 0.025 285);
-  --ss-icon: oklch(0.5052 0.0379 284.96);
-  --ss-icon-faint: oklch(0.8 0.015 285);
+  --ss-canvas: #fcfbf8;
+  --ss-surface: #ffffff;
+  --ss-chrome: #fcfbf8;
+  --ss-raised: #ffffff;
+  --ss-line: #e9e5dd;
+  --ss-line-faint: #f2f0ea;
+  --ss-text-strong: #1b1a17;
+  --ss-text: #6b665d;
+  --ss-text-faint: #9c968b;
+  --ss-icon: #6b665d;
+  --ss-icon-faint: #cfc9bd;
 
-  --ss-accent: oklch(0.5828 0.2188 258.88);
-  --ss-accent-2: oklch(0.5828 0.2188 258.88);
-  --ss-accent-soft: oklch(0.5828 0.2188 258.88 / 0.12);
-  --ss-success: oklch(0.6 0.13 162);
-  --ss-success-text: oklch(0.508 0.118 165.61);
-  --ss-success-soft: oklch(0.6 0.13 162 / 0.12);
-  --ss-warning-text: oklch(0.555 0.163 49);
-  --ss-warning-soft: oklch(0.75 0.15 70 / 0.16);
+  --ss-accent: #2a59d1;
+  --ss-accent-2: #2a59d1;
+  --ss-accent-soft: rgb(42 89 209 / 0.1);
+  --ss-success: #2b8a5c;
+  --ss-success-text: #1d7a4f;
+  --ss-success-soft: rgb(29 122 79 / 0.1);
+  --ss-warning-text: #9a5806;
+  --ss-warning-soft: rgb(154 88 6 / 0.12);
 
   --ss-radius-sm: 6px;
   --ss-radius-md: 8px;
-  --ss-radius-lg: 12px;
+  --ss-radius-lg: 10px;
   --ss-radius-window: 14px;
 
   /* Each collaborator keeps one color everywhere: their lane, their dots,
      their avatar. None of them is the product's accent, which belongs to the
      action. */
-  --lx-main: oklch(0.32 0.012 285);
+  --lx-main: #1b1a17;
   --lx-theo: oklch(0.62 0.17 45);
   --lx-litto: oklch(0.56 0.1 180);
   --lx-ana: oklch(0.58 0.17 350);
@@ -51,28 +51,28 @@
 }
 
 .lx .ss-stage[data-theme="dark"] {
-  --ss-canvas: oklch(0.144 0.0028 247.09);
-  --ss-surface: oklch(0.1809 0.0052 248.12);
-  --ss-chrome: oklch(0.144 0.0028 247.09);
-  --ss-raised: oklch(0.2303 0.0125 264.29);
-  --ss-line: oklch(0.2758 0.0035 248);
-  --ss-line-faint: oklch(0.2258 0.0025 247.94);
-  --ss-text-strong: oklch(0.9643 0.0083 271.33);
-  --ss-text: oklch(0.7364 0.0183 248.08);
-  --ss-text-faint: oklch(0.56 0.015 248);
-  --ss-icon: oklch(0.7364 0.0183 248.08);
-  --ss-icon-faint: oklch(0.42 0.01 248);
+  --ss-canvas: #151412;
+  --ss-surface: #1b1a17;
+  --ss-chrome: #151412;
+  --ss-raised: #24221e;
+  --ss-line: #2e2b27;
+  --ss-line-faint: #23211d;
+  --ss-text-strong: #ede9e1;
+  --ss-text: #9c968b;
+  --ss-text-faint: #6f6a61;
+  --ss-icon: #9c968b;
+  --ss-icon-faint: #4a4640;
 
-  --ss-accent: oklch(0.62 0.2 258.75);
-  --ss-accent-2: oklch(0.62 0.2 258.75);
-  --ss-accent-soft: oklch(0.62 0.2 258.75 / 0.22);
-  --ss-success: oklch(0.7 0.15 163);
-  --ss-success-text: oklch(0.765 0.177 163.22);
-  --ss-success-soft: oklch(0.7 0.15 163 / 0.16);
-  --ss-warning-text: oklch(0.828 0.189 84.43);
-  --ss-warning-soft: oklch(0.828 0.189 84.43 / 0.16);
+  --ss-accent: #3d68dc;
+  --ss-accent-2: #86a6ff;
+  --ss-accent-soft: rgb(134 166 255 / 0.18);
+  --ss-success: #4fb487;
+  --ss-success-text: #5cc59a;
+  --ss-success-soft: rgb(92 197 154 / 0.14);
+  --ss-warning-text: #e2a54a;
+  --ss-warning-soft: rgb(226 165 74 / 0.14);
 
-  --lx-main: oklch(0.86 0.01 270);
+  --lx-main: #ede9e1;
   --lx-theo: oklch(0.74 0.15 50);
   --lx-litto: oklch(0.74 0.11 180);
   --lx-ana: oklch(0.74 0.15 350);

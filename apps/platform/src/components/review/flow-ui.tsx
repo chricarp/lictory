@@ -76,8 +76,8 @@ export const prStatusMeta: Record<
   open: {
     label: "Open",
     icon: GitPullRequest,
-    pill: "bg-emerald-600 text-white dark:bg-emerald-500/90",
-    text: "text-emerald-600 dark:text-emerald-400",
+    pill: "bg-success text-white dark:bg-success/15 dark:text-success",
+    text: "text-success",
   },
   merged: {
     label: "Merged",
@@ -218,7 +218,7 @@ export function Tabs<T extends string>({
               <span
                 role="img"
                 aria-label="has uncommitted edits"
-                className="size-1.5 rounded-full bg-amber-500"
+                className="size-1.5 rounded-full bg-warning"
               />
             )}
           </button>
@@ -300,7 +300,7 @@ export function NextStep({
       className={cn(
         "flex flex-wrap items-center gap-3 rounded-lg border px-3.5 py-2.5",
         tone === "success" && "border-success/30 bg-success/5",
-        tone === "warning" && "border-amber-500/40 bg-amber-500/5",
+        tone === "warning" && "border-warning/40 bg-warning/5",
         tone === "neutral" && "bg-muted/30",
       )}
     >

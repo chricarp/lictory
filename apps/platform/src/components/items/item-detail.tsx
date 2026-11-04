@@ -544,7 +544,9 @@ export function ItemDetail({
                   title={parent.title}
                 >
                   <TypeIcon type={typeOf(workspace.delivery, parent)} />
-                  <span className="truncate">{parent.title}</span>
+                  <span className="truncate max-sm:sr-only">
+                    {parent.title}
+                  </span>
                 </Link>
               </>
             )}
@@ -554,7 +556,7 @@ export function ItemDetail({
               project={project}
               number={item.number}
               copyable
-              className="text-foreground"
+              className="shrink-0 text-foreground"
             />
           </nav>
           {item.archivedAt && <Badge tone="warning">Archived</Badge>}
@@ -582,7 +584,8 @@ export function ItemDetail({
                     })
                   }
                 >
-                  <GitCompareArrows className="size-3.5" /> Changes
+                  <GitCompareArrows className="size-3.5" />
+                  <span className="max-sm:sr-only">Changes</span>
                 </Button>
               )
             )}
