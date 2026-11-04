@@ -43,9 +43,12 @@ function SelectTrigger({
           "border border-input bg-card font-normal shadow-[0_1px_2px_oklch(0_0_0/0.03)] hover:bg-muted/50 aria-invalid:border-destructive",
         variant === "secondary" &&
           "bg-card font-medium shadow-(--shadow-border) hover:bg-muted",
-        size === "sm" && "h-7 rounded-md px-2 text-xs",
-        size === "default" && "h-8 rounded-md px-3 text-[13px]",
-        size === "lg" && "h-10 rounded-[6px] px-3 text-[13px]",
+        // Form fields share the input's shape; every other trigger is a pill
+        // like the buttons beside it.
+        variant === "field" ? "rounded-xl" : "rounded-full",
+        size === "sm" && "h-7 px-2.5 text-xs",
+        size === "default" && "h-8 px-3 text-[13px]",
+        size === "lg" && "h-10 px-3.5 text-[13px]",
         className,
       )}
       {...props}

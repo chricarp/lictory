@@ -227,7 +227,7 @@ function DefinitionOfReady({
                     <span
                       role="img"
                       aria-label="changed"
-                      className="ml-1.5 inline-block size-1.5 rounded-full bg-amber-500 align-middle"
+                      className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle"
                     />
                   )}
                 </button>
@@ -261,7 +261,7 @@ function DefinitionOfReady({
           {dirty && (
             <div className="space-y-2 border-t px-5 py-3">
               {outdated && (
-                <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]">
+                <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
                   {versionName(latest.number)} was published while you were
                   editing. Discard your changes to start from it.
                 </p>
@@ -387,7 +387,7 @@ function TypeRules({
         const gone = removed.filter((c) => group.kinds.includes(c.kind));
         return (
           <div key={group.id} className="px-5 pt-2">
-            <p className="mb-0.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            <p className="mb-0.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
               {group.title}
             </p>
             {sortedKinds(builtIns, group.kinds).map((kind) => {
@@ -547,8 +547,8 @@ function Switch({
 }
 
 const changeTags: Record<ReadinessChange["change"], [string, string]> = {
-  added: ["New", "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"],
-  changed: ["Changed", "bg-amber-500/15 text-amber-700 dark:text-amber-400"],
+  added: ["New", "bg-success/15 text-success"],
+  changed: ["Changed", "bg-warning/15 text-warning"],
   removed: ["Removed", "bg-red-500/15 text-red-700 dark:text-red-400"],
 };
 
@@ -585,8 +585,8 @@ function Rule({
     <div
       className={cn(
         "-mx-5 flex min-h-9 items-center gap-3 px-5 py-1 text-[13px]",
-        change === "added" && "bg-emerald-500/6",
-        change === "changed" && "bg-amber-500/6",
+        change === "added" && "bg-success/6",
+        change === "changed" && "bg-warning/6",
         change === "removed" && "bg-red-500/6",
       )}
     >
@@ -1061,7 +1061,7 @@ function Review({
             </Impact>
             <Impact
               count={impact.needMoreWork.length}
-              tone="text-amber-600 dark:text-amber-400"
+              tone="text-warning"
               title="will need more work"
             >
               {impact.reasons.length > 0 && (
@@ -1083,7 +1083,7 @@ function Review({
       </div>
       <div className="space-y-2 border-t px-5 py-3">
         {outdated && (
-          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[13px]">
+          <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
             {versionName(latest.number)} was published meanwhile. Go back and
             discard your changes to start from it.
           </p>

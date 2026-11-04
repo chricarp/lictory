@@ -209,8 +209,8 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
       title="Lictory Intelligence Context"
       description={
         pinnedProject
-          ? `What Lictory Intelligence should know about ${pinnedProject.name} and its teams: product facts, vocabulary, conventions, quality standards and constraints. It is added to every Lictory Intelligence review of this project's work, on top of organization context; a team's context applies to its items.`
-          : "What Lictory Intelligence should know about your organization, projects and teams: product facts, vocabulary, conventions, policies. Context compounds: work in a team of a project gets all three, and the narrower scope wins when they disagree."
+          ? `Product facts, vocabulary and standards for ${pinnedProject.name} and its teams, added to every review of its work.`
+          : "Product facts, vocabulary, conventions and policies. Team, project and organization context combine; the narrower scope wins."
       }
       action={
         canManage && !adding ? (
@@ -234,14 +234,11 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
       }
       footer={
         <>
-          Every member can read this context. Organization administrators can
-          change all of it; project administrators can change their
-          project&apos;s and its teams&apos;. Each change is kept as a version,
-          and Lictory Intelligence findings cite the entries they relied on. Up
-          to {chars(CONTEXT_PROMPT_BUDGET)} characters reach Lictory
-          Intelligence per review, team context first, then project, then
-          organization. Context is sent to the AI provider only while Lictory
-          Intelligence is enabled.
+          Readable by every member; editable by organization administrators, and
+          by project administrators for their project and teams. Every change is
+          versioned and findings cite the entries they used. Up to{" "}
+          {chars(CONTEXT_PROMPT_BUDGET)} characters per review, narrowest scope
+          first.
         </>
       }
     >
@@ -311,10 +308,22 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
           isEmpty={active.length === 0 && (!showArchived || !archived.length)}
           empty={
             <>
-              <StateIllustration kind="knowledge" />
-              {canManage
-                ? `No ${scopeLabel[target.scope].toLowerCase()} context yet. Write a note or upload a document Lictory Intelligence should know about.`
-                : `No ${scopeLabel[target.scope].toLowerCase()} context yet.`}
+              <StateIllustration kind="knowledge" className="size-28" />
+              <span className="block text-sm font-medium text-foreground">
+                No {scopeLabel[target.scope].toLowerCase()} context yet
+              </span>
+              <span className="mt-1 block">
+                {canManage
+                  ? "Add what reviews should know: the vocabulary, rules and constraints people otherwise explain in every discussion."
+                  : "Administrators add what reviews should know here."}
+              </span>
+              {canManage && (
+                <span className="mt-4 flex justify-center">
+                  <Button size="sm" onClick={() => setAdding("note")}>
+                    <NotebookPen className="size-3.5" /> Write the first note
+                  </Button>
+                </span>
+              )}
             </>
           }
         >
@@ -352,7 +361,7 @@ function BudgetMeter({ used }: { used: number }) {
     <span
       className={cn(
         "ml-auto text-xs tabular-nums",
-        over ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+        over ? "text-warning" : "text-muted-foreground",
       )}
       title="Characters of active context in this scope. Reviews include up to the budget across all scopes, narrower scopes first."
     >
@@ -596,7 +605,7 @@ function EntryRow({
                 </ol>
               )}
               {viewing && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
+                <p className="text-xs text-warning">
                   Viewing version {viewing.number}. Lictory Intelligence uses
                   version {v.number}.
                 </p>

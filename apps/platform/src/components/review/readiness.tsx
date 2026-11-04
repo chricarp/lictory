@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
-import { CircleCheck, CircleDashed } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
@@ -18,10 +18,6 @@ export function Readiness() {
   const checks = readiness?.checks ?? [];
   const passed = checks.filter((c) => c.passed).length;
   const latest = directory.readiness.find((r) => r.projectId === project.id);
-  // Sign-offs explain themselves in place; other failing checks need work.
-  const next = checks.find(
-    (check) => !check.passed && (!check.signOff || check.intelligence),
-  );
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
@@ -39,6 +35,24 @@ export function Readiness() {
           </span>
         )}
       </div>
+      {checks.length > 0 && (
+        // One segment per check, so progress reads at a glance.
+        <div aria-hidden className="mb-3 flex gap-1">
+          {checks.map((c) => (
+            <span
+              key={c.key}
+              className={cn(
+                "h-1.5 flex-1 rounded-full",
+                c.passed
+                  ? "bg-success"
+                  : blocks(c)
+                    ? "bg-destructive"
+                    : "bg-foreground/10",
+              )}
+            />
+          ))}
+        </div>
+      )}
       {!readiness ? (
         <p className="text-[13px] text-muted-foreground">Evaluating…</p>
       ) : checks.length === 0 ? (
@@ -58,11 +72,6 @@ export function Readiness() {
           ? "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
-      {next?.detail && (
-        <p className="mt-2 rounded-md bg-muted/60 px-2 py-1.5 text-xs leading-relaxed">
-          <span className="font-medium">Next concern:</span> {next.detail}
-        </p>
-      )}
       {readiness?.pinned && latest && (
         <p className="mt-1 text-[11px] text-muted-foreground">
           Kept on Definition of Ready{" "}
@@ -87,11 +96,18 @@ export function Readiness() {
   );
 }
 
+// A failing check caused by an open blocker is red: it stops readiness, it
+// is not merely waiting.
+const blocks = (check: ReadinessCheck) =>
+  !check.passed && check.key.includes("blocking");
+
 function CheckRow({ check }: { check: ReadinessCheck }) {
   return (
     <li className="flex items-start gap-2 text-[13px] leading-5">
       {check.passed ? (
         <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
+      ) : blocks(check) ? (
+        <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
       ) : (
         <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       )}

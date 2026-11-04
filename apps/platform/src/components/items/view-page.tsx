@@ -149,6 +149,36 @@ export function ViewPage({
         : nextRefinementAction(item),
     [project, links],
   );
+  // A review queue is a decision queue: each row says which review is asked
+  // of you, on which revision, and what else is outstanding.
+  const reviewHint = useCallback(
+    (item: WorkItem) => {
+      const open = item.reviews.filter(
+        (r) => r.status !== "cancelled" && r.status !== "completed",
+      );
+      const mine = open.filter((r) =>
+        r.assigneeIds.some((id) => id === userId || disciplineIds.includes(id)),
+      );
+      const asked = (view === "needs-my-review" && mine.length ? mine : open)
+        .map((r) => r.responsibility)
+        .join(", ");
+      const parts = [
+        asked
+          ? `${asked} review requested on revision ${item.revisionNumber}`
+          : item.suggestionReviewerIds.includes(userId)
+            ? item.openSuggestions > 0
+              ? `${item.openSuggestions} proposed change${item.openSuggestions === 1 ? "" : "s"} waiting for your review`
+              : "A proposed change waits for your review"
+            : `Revision ${item.revisionNumber}`,
+      ];
+      if (item.blockingThreads)
+        parts.push(
+          `${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`,
+        );
+      return parts.join(" · ");
+    },
+    [view, userId, disciplineIds],
+  );
   return (
     <IssueList
       items={scoped}
@@ -158,7 +188,7 @@ export function ViewPage({
       description={
         overview
           ? proposals
-            ? "A place for rough ideas. Capture the problem now; start refinement when it is worth exploring with the team."
+            ? "A place for rough ideas. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs."
             : "Clarify behavior, resolve questions and review changes together. When the checks pass, the work is ready for delivery."
           : meta.description
       }
@@ -213,11 +243,23 @@ export function ViewPage({
         ) : undefined
       }
       showArchivedToggle={false}
-      groupBy="refinement"
+      groupBy={
+        view === "needs-my-review" || view === "needs-review"
+          ? "review"
+          : "refinement"
+      }
       createKind={overview && canPropose ? "story" : undefined}
       createIntent="proposal"
       createLabel="New proposal"
-      itemHint={overview ? itemHint : undefined}
+      itemHint={
+        overview
+          ? proposals
+            ? undefined
+            : itemHint
+          : view === "needs-my-review" || view === "needs-review"
+            ? reviewHint
+            : undefined
+      }
       summary={
         overview &&
         !proposals && (

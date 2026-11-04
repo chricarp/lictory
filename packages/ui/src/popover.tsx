@@ -312,7 +312,7 @@ export function Picker<T extends string>({
       {title && (
         <div
           id={hideSearch ? undefined : popover?.labelId}
-          className="px-3 pt-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
+          className="px-3 pt-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase"
         >
           {title}
         </div>

@@ -1447,7 +1447,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.setViewportSize({ width: 1800, height: 900 });
   await page.getByRole("link", { name: "Board" }).click();
   const column = (name: string) =>
-    page.locator("div.w-\\[272px\\]").filter({
+    page.locator("[data-board-column]").filter({
       has: page.locator("span.truncate", {
         hasText: new RegExp(`^${name}$`),
       }),

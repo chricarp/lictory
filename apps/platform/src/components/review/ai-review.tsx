@@ -2,6 +2,7 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ChevronRight,
   ArrowLeft,
   Check,
   CircleHelp,
@@ -100,12 +101,12 @@ export function useAiBlocker() {
 
 const bandTone = {
   good: "text-success",
-  fair: "text-amber-600 dark:text-amber-400",
+  fair: "text-warning",
   poor: "text-destructive",
 } as const;
 const bandStroke = {
   good: "stroke-success",
-  fair: "stroke-amber-500",
+  fair: "stroke-warning",
   poor: "stroke-destructive",
 } as const;
 
@@ -134,15 +135,15 @@ export function ScoreRing({
           cy="18"
           r={r}
           fill="none"
-          strokeWidth="3"
-          className="stroke-muted"
+          strokeWidth="2.5"
+          className="stroke-foreground/8"
         />
         <circle
           cx="18"
           cy="18"
           r={r}
           fill="none"
-          strokeWidth="3"
+          strokeWidth="2.5"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - score / 100)}
@@ -317,30 +318,90 @@ export function AiReviewView({
     (k) => [k, run.findings.filter((f) => f.kind === k).length] as const,
   );
   const history = runs.filter((r) => r.status === "completed");
+  const assessed = ctx.revisions.find(
+    (r) => r.id === run.contextRevisions[ctx.item.id],
+  )?.number;
   return (
     <div className="space-y-6 pb-24">
       <BackButton onClose={onClose} />
-      <header className="flex flex-wrap items-start gap-4">
-        <ScoreRing score={run.score ?? 0} size={72} />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">
-            Lictory Intelligence review of{" "}
-            {identifier(ctx.project, ctx.item.number)}
-          </h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Requested by {ctx.memberName(run.requestedById)} ·{" "}
-            {relativeTime(run.completedAt ?? run.createdAt)} ·{" "}
-            {Object.keys(run.contextRevisions).length} items analysed
-            {run.model ? ` · ${run.model}` : ""}
-          </p>
-          {run.summary && (
-            <p className="mt-2 text-[14px] leading-6">{run.summary}</p>
-          )}
+      {/* The review is evidence, not a decision: it reads as a proposal in a
+          tray, with its provenance named before its verdict. */}
+      <header className="rounded-[1.375rem] bg-tray p-1 ring-1 ring-border/70 ring-inset">
+        <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2 pb-2.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+          <IntelligenceMark className="size-3.5 text-foreground" />
+          Lictory Intelligence · review
+          <span className="ml-auto inline-flex h-5 items-center rounded-full bg-card px-2 tracking-[0.04em] ring-1 ring-foreground/8 ring-inset">
+            Proposal · people decide
+          </span>
+        </div>
+        <div className="rounded-[1.125rem] bg-card p-4 shadow-(--shadow-border)">
+          <div className="flex items-start gap-4">
+            <div className="min-w-0 flex-1">
+              {/* The headline is what needs a human, not a grade. */}
+              <h1 className="text-xl font-semibold tracking-[-0.02em]">
+                {run.findings.length === 0
+                  ? "No proposed concerns"
+                  : `${run.findings.length} proposed concern${run.findings.length === 1 ? "" : "s"}`}
+              </h1>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">
+                AI assessment of {identifier(ctx.project, ctx.item.number)} ·
+                requested by {ctx.memberName(run.requestedById)} ·{" "}
+                {relativeTime(run.completedAt ?? run.createdAt)}
+              </p>
+            </div>
+          </div>
+          {run.summary && <Summary text={run.summary} />}
+          {/* Provenance: which revision was read, whether it is still
+              current, how much context, which model. */}
+          <ul className="mt-3.5 flex flex-wrap items-center gap-1.5 border-t pt-3 text-[11.5px]">
+            {assessed != null && (
+              <li className="inline-flex h-6 items-center rounded-full bg-muted px-2.5 font-mono text-[11px] ring-1 ring-foreground/8 ring-inset">
+                Read revision {assessed}
+              </li>
+            )}
+            <li
+              className={cn(
+                "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 font-medium ring-1 ring-inset",
+                run.staleAt
+                  ? "bg-warning/8 text-warning ring-warning/25"
+                  : "bg-success/8 text-success ring-success/20",
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "size-1.5 rounded-full",
+                  run.staleAt ? "bg-warning" : "bg-success",
+                )}
+              />
+              {run.staleAt ? "Outdated" : "Current"}
+            </li>
+            <li
+              title={run.model ? `Model: ${run.model}` : undefined}
+              className="inline-flex h-6 items-center rounded-full bg-muted px-2.5 ring-1 ring-foreground/8 ring-inset"
+            >
+              {Object.keys(run.contextRevisions).length} item
+              {Object.keys(run.contextRevisions).length === 1 ? "" : "s"} read
+            </li>
+            {run.score != null && (
+              // The model's reading of the text, not a readiness verdict:
+              // neutral, and named for what it is.
+              <li
+                title="How complete and unambiguous the model finds the text. Readiness checks and people decide readiness."
+                className="inline-flex h-6 items-center gap-1 rounded-full bg-muted px-2.5 ring-1 ring-foreground/8 ring-inset"
+              >
+                AI text assessment{" "}
+                <span className="font-mono text-[11px] tabular-nums">
+                  {run.score}/100
+                </span>
+              </li>
+            )}
+          </ul>
         </div>
       </header>
       <GroundedIn context={run.intelligenceContext} />
       {run.staleAt && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[13px]">
           <AlertTriangle className="size-4 text-amber-600" />
           <span className="min-w-0 flex-1">
             Outdated: {run.staleReason}. Findings may no longer apply, and
@@ -369,9 +430,16 @@ export function AiReviewView({
         </p>
       )}
       {run.strengths.length > 0 && (
-        <section>
-          <SectionLabel className="mb-1.5">What works</SectionLabel>
-          <ul className="space-y-1 text-[13px]">
+        // Reassurance on demand; the concerns come first.
+        <details className="group/works">
+          <summary className="flex cursor-pointer items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
+            <ChevronRight
+              aria-hidden
+              className="size-3 transition-transform group-open/works:rotate-90"
+            />
+            What works · {run.strengths.length}
+          </summary>
+          <ul className="mt-2 space-y-1 text-[13px]">
             {run.strengths.map((s) => (
               <li key={s} className="flex gap-2">
                 <Check className="mt-0.5 size-3.5 shrink-0 text-success" />
@@ -379,23 +447,27 @@ export function AiReviewView({
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
       <nav aria-label="Filter findings" className="flex flex-wrap gap-1.5">
-        {([["all", run.findings.length] as const, ...kinds] as const).map(
-          ([k, n]) => (
-            <Button
-              key={k}
-              size="sm"
-              variant={filter === k ? "secondary" : "ghost"}
-              aria-pressed={filter === k}
-              onClick={() => setFilter(k)}
-            >
-              {k === "all" ? "All" : kindMeta[k].label + "s"}
-              <span className="text-muted-foreground tabular-nums">{n}</span>
-            </Button>
-          ),
-        )}
+        {(
+          [
+            ["all", run.findings.length] as const,
+            // Only the kinds this review found.
+            ...kinds.filter(([, n]) => n > 0),
+          ] as const
+        ).map(([k, n]) => (
+          <Button
+            key={k}
+            size="sm"
+            variant={filter === k ? "secondary" : "ghost"}
+            aria-pressed={filter === k}
+            onClick={() => setFilter(k)}
+          >
+            {k === "all" ? "All" : kindMeta[k].label + "s"}
+            <span className="text-muted-foreground tabular-nums">{n}</span>
+          </Button>
+        ))}
       </nav>
       {groups.length === 0 && (
         <p className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
@@ -555,8 +627,8 @@ export function FindingCard({
   return (
     <article
       className={cn(
-        "rounded-lg border bg-card p-3.5 transition-colors duration-100",
-        selected && "border-primary/50 bg-primary/3",
+        "rounded-2xl bg-card p-4 shadow-(--shadow-border) transition-shadow duration-100",
+        selected && "shadow-[0_0_0_1.5px_var(--color-foreground)]",
       )}
     >
       <div className="flex items-start gap-2.5">
@@ -569,42 +641,53 @@ export function FindingCard({
             className="mt-1 size-4 shrink-0 accent-primary"
           />
         )}
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Severity is the model's proposal; only people and readiness
+                checks block. */}
             <Badge tone={severityMeta[f.severity].tone}>
-              {severityMeta[f.severity].label}
+              Proposed {severityMeta[f.severity].label.toLowerCase()}
             </Badge>
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
               <Kind className="size-3.5" /> {kindMeta[f.kind].label} ·{" "}
               {f.category.replaceAll("_", " ")}
             </span>
           </div>
-          <p className="text-[14px] leading-5 font-medium">{f.title}</p>
+          <p className="text-[15px] leading-snug font-semibold tracking-[-0.01em]">
+            {f.title}
+          </p>
           {!compact && (
-            <p className="text-[13px] leading-5 text-muted-foreground">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
               {f.detail}
             </p>
           )}
-          {!compact &&
-            f.evidence.map((e) => (
-              <blockquote
-                key={e}
-                className="border-l-2 pl-2.5 text-[13px] text-muted-foreground italic"
-              >
-                {e}
-              </blockquote>
-            ))}
-          {f.question && (
-            <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-[13px]">
-              <span className="font-medium">Question for the team: </span>
-              {f.question}
-            </p>
-          )}
+          {f.question && <FindingRow label="Question">{f.question}</FindingRow>}
           {!compact && f.recommendation && (
-            <p className="text-[13px]">
-              <span className="font-medium">Recommendation: </span>
-              {f.recommendation}
-            </p>
+            <FindingRow label="Proposed">{f.recommendation}</FindingRow>
+          )}
+          {!compact && f.evidence.length > 0 && (
+            // What the finding is grounded in, on demand: quoted text from
+            // the item.
+            <details className="group/evidence rounded-xl bg-muted/70 px-3 py-2">
+              <summary className="flex cursor-pointer items-center gap-1.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
+                <ChevronRight
+                  aria-hidden
+                  className="size-3 transition-transform group-open/evidence:rotate-90"
+                />
+                Evidence · {f.evidence.length} quote
+                {f.evidence.length === 1 ? "" : "s"} from the item
+              </summary>
+              <div className="mt-2 space-y-1.5">
+                {f.evidence.map((e) => (
+                  <blockquote
+                    key={e}
+                    className="border-l-2 border-foreground/15 pl-2.5 text-[13px] leading-relaxed text-foreground/80"
+                  >
+                    {e}
+                  </blockquote>
+                ))}
+              </div>
+            </details>
           )}
           <ContextCitations context={f.context} />
           {f.edit && (
@@ -623,6 +706,50 @@ export function FindingCard({
         </div>
       </div>
     </article>
+  );
+}
+
+// The run's synopsis, clamped with an explicit way to read all of it.
+function Summary({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 260;
+  return (
+    <div className="mt-3">
+      <p
+        className={cn(
+          "text-[14px] leading-relaxed",
+          long && !open && "line-clamp-3",
+        )}
+      >
+        {text}
+      </p>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-1 text-[13px] font-medium text-muted-foreground underline decoration-border underline-offset-[3px] hover:text-foreground"
+        >
+          {open ? "Show less" : "Read full summary"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FindingRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <p className="grid grid-cols-[5.5rem_1fr] items-baseline gap-2 text-[13px] leading-relaxed">
+      <span className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        {label}
+      </span>
+      <span>{children}</span>
+    </p>
   );
 }
 

@@ -1,9 +1,16 @@
-import type { ReactNode } from "react";
-import { ArrowRight, Check, FilePenLine, ListTree } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  FilePenLine,
+  ListTree,
+  TriangleAlert,
+} from "lucide-react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { isTopLevel } from "@lictory/core/lib/work-items";
+import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
 import {
   externalLinksByItem,
   isAmended,
@@ -14,6 +21,10 @@ import {
 import { Button } from "@lictory/ui/button";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  RefinementIcon,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 
 const labels: Record<LifecycleStage, string> = {
   proposal: "Shape the proposal",
@@ -129,89 +140,297 @@ export function ItemWorkflow({
         <ArrowRight className="size-3.5" />
       </Link>
     );
+  const stages = (
+    <ol
+      aria-label="Workflow stages"
+      className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.06em] text-muted-foreground uppercase max-sm:hidden"
+    >
+      {steps.map((name, index) => {
+        const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
+        const active = position === step;
+        const complete = position < step;
+        return (
+          <li
+            key={name}
+            aria-current={active ? "step" : undefined}
+            className="flex min-w-0 items-center gap-1.5"
+          >
+            {index > 0 && (
+              <span
+                aria-hidden
+                className={cn(
+                  "h-px w-3 shrink-0",
+                  complete || active ? "bg-primary/40" : "bg-border",
+                )}
+              />
+            )}
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5",
+                active && "font-medium text-foreground",
+              )}
+            >
+              {complete ? (
+                <Check className="size-3 shrink-0 text-success" aria-hidden />
+              ) : (
+                <span
+                  className={cn(
+                    "size-1.5 shrink-0 rounded-full",
+                    active
+                      ? "bg-primary ring-3 ring-primary/15"
+                      : "bg-muted-foreground/30",
+                  )}
+                />
+              )}
+              {name}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+  const status = delivery.statuses.get(item.statusId);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const decisionId = useId();
+  const refinement = item.refinementState;
+  // What happens next, in one line: the specification's open concern first,
+  // then the delivery decision.
+  const next =
+    type.hasSpecification && refinement && refinement !== "ready"
+      ? nextRefinementAction(item)
+      : stage === "ready" && native
+        ? `Accept revision ${current?.number ?? ""} for delivery when the team is ready to build it.`
+        : null;
+  // One dominant statement, then the evidence behind it. An amendment names
+  // both revisions in one sentence: the one under refinement and the one
+  // delivery still uses.
+  const statement =
+    amendment && current
+      ? `Revision ${current.number} is ${refinement ? refinementMeta[refinement].label.toLowerCase() : "in refinement"}`
+      : label;
+  // When a NEXT line names the step, the general guidance would repeat it.
+  const subline =
+    amendment && agreed != null
+      ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
+      : next
+        ? null
+        : description;
+  // Evidence, grouped by what it is about: the specification's refinement
+  // (always the current revision) and, once a revision is accepted, delivery.
+  const specEvidence = type.hasSpecification && (
+    <>
+      {refinement && (
+        <li>
+          <Pill
+            tone={
+              refinement === "ready"
+                ? "good"
+                : refinement === "in_review"
+                  ? "info"
+                  : "neutral"
+            }
+          >
+            <RefinementIcon state={refinement} className="size-3" />
+            {refinementMeta[refinement].label}
+          </Pill>
+        </li>
+      )}
+      {current && (
+        <li>
+          <Pill tone="neutral" mono>
+            Revision {current.number}
+          </Pill>
+        </li>
+      )}
+      {item.readinessTotal > 0 && (
+        <li>
+          <Pill
+            tone={
+              item.readinessPassed === item.readinessTotal ? "good" : "neutral"
+            }
+          >
+            {item.readinessPassed}/{item.readinessTotal} checks
+          </Pill>
+        </li>
+      )}
+      {item.blockingThreads > 0 && (
+        <li>
+          <Pill tone="danger">
+            {item.blockingThreads} blocking discussion
+            {item.blockingThreads === 1 ? "" : "s"}
+          </Pill>
+        </li>
+      )}
+    </>
+  );
+  const deliveryEvidence = native && item.committedRevisionNumber != null && (
+    <>
+      {status && (
+        <li>
+          <Pill tone={status.category === "done" ? "good" : "neutral"}>
+            <StatusIcon
+              category={status.category}
+              color={status.color}
+              className="size-3"
+            />
+            {status.name}
+          </Pill>
+        </li>
+      )}
+      <li>
+        <Pill tone="neutral">
+          Accepted revision {item.committedRevisionNumber}
+        </Pill>
+      </li>
+      {item.deliveredRevisionNumber != null && (
+        <li>
+          <Pill tone="good">
+            Delivered revision {item.deliveredRevisionNumber}
+          </Pill>
+        </li>
+      )}
+    </>
+  );
+  const evidence = (
+    <dl className="grid gap-1.5 text-[11.5px] sm:gap-2">
+      {specEvidence && <EvidenceRow label="Spec">{specEvidence}</EvidenceRow>}
+      {deliveryEvidence && (
+        <EvidenceRow label="Delivery">{deliveryEvidence}</EvidenceRow>
+      )}
+    </dl>
+  );
   return (
     <section
       aria-label="Item workflow"
-      className="mt-4 rounded-lg border bg-muted/20"
+      className="mt-5 rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset"
     >
-      <ol
-        aria-label="Workflow stages"
-        className="flex items-center gap-2 border-b px-3 py-2 text-[11px]"
-      >
-        {steps.map((name, index) => {
-          const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
-          const active = position === step;
-          const complete = position < step;
-          return (
-            <li
-              key={name}
-              aria-current={active ? "step" : undefined}
-              className="flex min-w-0 items-center gap-2"
-            >
-              {index > 0 && (
-                <ArrowRight
-                  className="size-3 shrink-0 text-muted-foreground/50"
-                  aria-hidden
-                />
-              )}
+      {/* A tray: the state card on top, the decision it leads to beneath. */}
+      <div className="rounded-2xl bg-card px-4 pt-3.5 pb-4 shadow-(--shadow-border)">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.015em]">
               <span
+                aria-hidden
                 className={cn(
-                  "inline-flex items-center gap-1.5",
-                  active
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground",
+                  "size-2 shrink-0 rounded-full",
+                  amendment
+                    ? "bg-warning"
+                    : stage === "ready" || stage === "completed"
+                      ? "bg-success"
+                      : "bg-foreground/70",
                 )}
-              >
-                {complete ? (
-                  <Check className="size-3 shrink-0 text-success" aria-hidden />
-                ) : (
-                  <span
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full",
-                      active ? "bg-primary" : "bg-muted-foreground/30",
-                    )}
-                  />
-                )}
-                {name}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="flex flex-wrap items-start gap-3 px-3 py-3">
-        <div className="min-w-0 flex-1 basis-56">
-          <p className="text-[13px] font-medium">
-            {label}
-            {amendment && (
-              <span className="ml-2 font-normal text-warning">
-                Amendment in refinement
-              </span>
-            )}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {description}
-          </p>
-          {current && (
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-              <span>Revision {current.number}</span>
-              {!children && item.committedRevisionNumber != null && (
-                <span>Accepted revision {item.committedRevisionNumber}</span>
-              )}
-              {!children && item.deliveredRevisionNumber != null && (
-                <span>Delivered revision {item.deliveredRevisionNumber}</span>
-              )}
-              {item.blockingThreads > 0 && (
-                <span className="text-warning">
-                  {item.blockingThreads} blocking discussion
-                  {item.blockingThreads === 1 ? "" : "s"}
-                </span>
-              )}
+              />
+              {statement}
             </p>
-          )}
+            {subline && (
+              <p className="mt-1 line-clamp-3 pl-4 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
+                {subline}
+              </p>
+            )}
+          </div>
+          {/* On phones too the action sits beside the statement, so the
+              card stays short. */}
+          {action && <div className="shrink-0">{action}</div>}
         </div>
-        {action}
+        <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
+        {next && (
+          <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
+            <span className="w-12 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:w-16">
+              Next
+            </span>
+            <span className="min-w-0">{next}</span>
+          </p>
+        )}
+        <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
       </div>
-      {children && <div className="border-t px-3 py-3">{children}</div>}
+      {children && (
+        <div>
+          {/* Phones keep the document first: the decision folds into one
+              line that still names what is pending. */}
+          <button
+            type="button"
+            aria-expanded={decisionOpen}
+            aria-controls={decisionId}
+            onClick={() => setDecisionOpen((open) => !open)}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:hidden"
+          >
+            {amendment && (
+              <TriangleAlert
+                aria-hidden
+                className="size-3.5 shrink-0 text-warning"
+              />
+            )}
+            <span className="min-w-0 flex-1">
+              {amendment && current
+                ? `Revision ${current.number} is not accepted for delivery`
+                : "Delivery decision"}
+            </span>
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                decisionOpen && "rotate-180",
+              )}
+            />
+          </button>
+          <div
+            id={decisionId}
+            className={cn(
+              "px-4 pb-3 sm:pt-3",
+              !decisionOpen && "max-sm:hidden",
+            )}
+          >
+            {children}
+          </div>
+        </div>
+      )}
     </section>
+  );
+}
+
+function EvidenceRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <dt className="w-12 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:w-16">
+        {label}
+      </dt>
+      <dd>
+        <ul className="flex flex-wrap items-center gap-1.5">{children}</ul>
+      </dd>
+    </div>
+  );
+}
+
+// Evidence chips share the status grammar: a tint, a hairline ring of the
+// same hue, and color only when it means something.
+function Pill({
+  tone,
+  mono = false,
+  children,
+}: {
+  tone: "neutral" | "good" | "info" | "danger";
+  mono?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 font-medium whitespace-nowrap ring-1 ring-inset",
+        mono && "font-mono text-[11px] tracking-[0.02em]",
+        tone === "neutral" && "bg-muted text-foreground/80 ring-foreground/8",
+        tone === "good" && "bg-success/8 text-success ring-success/20",
+        tone === "info" && "bg-ring/8 text-ring ring-ring/20",
+        tone === "danger" &&
+          "bg-destructive/8 text-destructive ring-destructive/20",
+      )}
+    >
+      {children}
+    </span>
   );
 }

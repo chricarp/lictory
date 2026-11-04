@@ -100,9 +100,10 @@
 }
 
 .rs-lines {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
+  margin: 14px 0 0;
+  color: var(--ss-text);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .rs-tail {

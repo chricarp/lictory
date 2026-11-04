@@ -345,7 +345,11 @@ function PeekContent({
                 <Value muted={!iteration}>
                   {iteration ? iterationLabel(iteration) : "Backlog"}
                   {iteration?.state === "active" && (
-                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                    <span className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+                      <span
+                        aria-hidden
+                        className="size-1.5 rounded-full bg-success"
+                      />
                       Active
                     </span>
                   )}
@@ -377,7 +381,6 @@ function PeekContent({
                 label="Readiness checks"
                 done={item.readinessPassed}
                 total={item.readinessTotal}
-                warn={notReady}
               />
               {required.length > 0 && (
                 <Meter
@@ -516,14 +519,11 @@ function Meter({
   label,
   done,
   total,
-  warn,
 }: {
   label: string;
   done: number;
   total: number;
-  warn?: boolean;
 }) {
-  const complete = total > 0 && done >= total;
   return (
     <div className="text-xs">
       <div className="mb-1 flex items-center justify-between text-muted-foreground">
@@ -532,21 +532,25 @@ function Meter({
           {done}/{total}
         </span>
       </div>
+      {/* One segment per check or approval: passed green, pending neutral,
+          the same rule as the item's readiness meter. */}
       <div
         role="progressbar"
         aria-label={label}
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={done}
-        className="h-1 overflow-hidden rounded-full bg-muted-foreground/15"
+        className="flex gap-0.5"
       >
-        <div
-          className={cn(
-            "h-full rounded-full",
-            complete ? "bg-success" : warn ? "bg-amber-500" : "bg-primary",
-          )}
-          style={{ width: total ? `${(done / total) * 100}%` : 0 }}
-        />
+        {Array.from({ length: Math.max(total, 1) }, (_, index) => (
+          <span
+            key={index}
+            className={cn(
+              "h-1.5 flex-1 rounded-full",
+              index < done ? "bg-success" : "bg-foreground/10",
+            )}
+          />
+        ))}
       </div>
     </div>
   );

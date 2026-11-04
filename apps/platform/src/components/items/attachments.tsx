@@ -1,5 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Paperclip, Trash2, Upload } from "lucide-react";
+import {
+  File as FileIcon,
+  FileImage,
+  FileText,
+  Paperclip,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { Button } from "@lictory/ui/button";
+import { SectionLabel } from "@lictory/ui/primitives";
+
+// A file's kind at a glance, from its name.
+function iconFor(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext))
+    return FileImage;
+  if (["pdf", "md", "txt", "doc", "docx"].includes(ext)) return FileText;
+  return FileIcon;
+}
 import {
   ACCEPT_FILES,
   fileUrl,
@@ -69,26 +87,29 @@ export function Attachments({
   }
   return (
     <section
-      className="mt-8 border-t pt-5"
+      className="mt-10"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
         if (available) void add(e.dataTransfer.files);
       }}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Paperclip className="size-4" /> Attachments
-        </h3>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <SectionLabel className="flex items-center gap-1.5">
+          <Paperclip aria-hidden className="size-3.5" /> Attachments
+          {files.length > 0 && (
+            <span className="tabular-nums">· {files.length}</span>
+          )}
+        </SectionLabel>
         {available && (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="secondary"
             disabled={busy}
             onClick={() => input.current?.click()}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-muted disabled:opacity-50"
           >
             <Upload className="size-3.5" /> {busy ? "Uploading…" : "Add files"}
-          </button>
+          </Button>
         )}
       </div>
       <input
@@ -113,52 +134,64 @@ export function Attachments({
         </p>
       )}
       {files.length ? (
-        <ul className="space-y-1">
-          {files.map((file) => (
-            <li
-              key={file.id}
-              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-            >
-              <a
-                className="min-w-0 flex-1 truncate text-primary hover:underline"
-                href={`${fileUrl(file.id)}?download=1`}
+        // Files sit as cards in a tray, like the rest of the item's evidence.
+        <ul className="space-y-1 rounded-[1.25rem] bg-tray p-1.5 ring-1 ring-border/70 ring-inset">
+          {files.map((file) => {
+            const Icon = iconFor(file.filename);
+            return (
+              <li
+                key={file.id}
+                className="flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 text-[13px] shadow-(--shadow-border)"
               >
-                {file.filename}
-              </a>
-              <span className="text-xs text-muted-foreground">
-                {Math.ceil(file.size / 1024)} KB
-              </span>
-              {file.createdById === userId && (
-                <button
-                  type="button"
-                  aria-label={`Remove ${file.filename}`}
-                  className="rounded p-1 hover:bg-muted"
-                  onClick={async () => {
-                    try {
-                      await removeFile(file.id, context.organizationId);
-                      setFiles((current) =>
-                        current.filter((x) => x.id !== file.id),
-                      );
-                    } catch (e) {
-                      setError(
-                        e instanceof Error
-                          ? e.message
-                          : "Could not remove file.",
-                      );
-                    }
-                  }}
+                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+                  <Icon aria-hidden className="size-4" />
+                </span>
+                <a
+                  className="min-w-0 flex-1 truncate font-medium hover:underline"
+                  href={`${fileUrl(file.id)}?download=1`}
                 >
-                  <Trash2 className="size-3.5" />
-                </button>
-              )}
-            </li>
-          ))}
+                  {file.filename}
+                </a>
+                <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                  {Math.ceil(file.size / 1024)} KB
+                </span>
+                {file.createdById === userId && (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${file.filename}`}
+                    className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={async () => {
+                      try {
+                        await removeFile(file.id, context.organizationId);
+                        setFiles((current) =>
+                          current.filter((x) => x.id !== file.id),
+                        );
+                      } catch (e) {
+                        setError(
+                          e instanceof Error
+                            ? e.message
+                            : "Could not remove file.",
+                        );
+                      }
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         available && (
-          <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-            Drop files here, or use Add files.
-          </p>
+          <button
+            type="button"
+            onClick={() => input.current?.click()}
+            className="flex w-full items-center justify-center gap-2 rounded-[1.25rem] border border-dashed px-4 py-5 text-[13px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+          >
+            <Upload aria-hidden className="size-3.5" /> Drop files here, or
+            choose files
+          </button>
         )
       )}
     </section>

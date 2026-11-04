@@ -24,6 +24,8 @@ export type DockReview = {
   open: (runId: string) => void;
   // The review the person is reading in the item, if any.
   viewing: string | null;
+  // The revision number a run read for this item, for its provenance.
+  revisionOf: (run: Run) => number | undefined;
 };
 
 export type DockItem = {
@@ -47,16 +49,27 @@ export type DockRequest = {
   prompt?: string;
   send?: boolean;
   assess?: boolean;
+  // Closes the sheet when it is already open (a launcher pressed again).
+  toggle?: boolean;
+  // Opens on the item's AI assessment.
+  showReview?: boolean;
 };
 
 type DockState = {
   item: DockItem | null;
   selection: DockSelection | null;
   request: DockRequest | null;
+  // Whether the side sheet is open. Launchers in the page chrome read it.
+  expanded: boolean;
 };
 
 export class DockStore {
-  private state: DockState = { item: null, selection: null, request: null };
+  private state: DockState = {
+    item: null,
+    selection: null,
+    request: null,
+    expanded: false,
+  };
   private listeners = new Set<() => void>();
   private next = 1;
 
@@ -93,9 +106,23 @@ export class DockStore {
   open(request: Omit<DockRequest, "id"> = {}) {
     this.set({ request: { ...request, id: this.next++ } });
   }
+  setExpanded(expanded: boolean) {
+    if (this.state.expanded !== expanded) this.set({ expanded });
+  }
   consume(id: number) {
     if (this.state.request?.id === id) this.set({ request: null });
   }
+}
+
+// The item review the dock and its launchers show: the newest run, and the
+// newest completed one (it stays visible while a new run is queued).
+export function reviewState(review: DockReview) {
+  const [latest] = review.runs;
+  const completed = review.runs.find((r) => r.status === "completed");
+  const active =
+    !!latest && (latest.status === "queued" || latest.status === "running");
+  const failed = latest?.status === "failed" ? latest : undefined;
+  return { latest, completed, active, failed };
 }
 
 const DockContext = createContext<DockStore | null>(null);
@@ -110,7 +137,12 @@ export function useDock() {
   return useContext(DockContext);
 }
 
-const empty: DockState = { item: null, selection: null, request: null };
+const empty: DockState = {
+  item: null,
+  selection: null,
+  request: null,
+  expanded: false,
+};
 const noop = () => () => undefined;
 
 export function useDockState() {

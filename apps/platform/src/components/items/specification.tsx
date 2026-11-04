@@ -5,8 +5,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
+import {
+  CircleAlert,
+  MessageSquare,
+  MessageSquarePlus,
+  Pencil,
+  PenLine,
+} from "lucide-react";
 import { relativeTime } from "@lictory/core/lib/work-items";
+import { cn } from "@lictory/core/lib/utils";
 import { CONTEXT_QUOTE_LIMIT } from "@lictory/core/intelligence/chat/shared";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
@@ -146,6 +153,8 @@ function Reader({
     document.addEventListener("selectionchange", clear);
     return () => document.removeEventListener("selectionchange", clear);
   }, []);
+  const [markers, setMarkers] = useState<Marker[]>([]);
+  const [layout, setLayout] = useState(0);
   // Highlight quoted text of open discussions where the browser supports the
   // CSS Custom Highlight API. Purely progressive: threads still show quotes.
   useLayoutEffect(() => {
@@ -169,17 +178,42 @@ function Reader({
     const open = threads.filter((t) => t.status === "open" && t.anchor?.quote);
     const blocking: Range[] = [];
     const normal: Range[] = [];
+    const found: Marker[] = [];
+    const origin = root.getBoundingClientRect().top;
     for (const thread of open) {
       const range = findRange(root, thread.anchor!.quote!);
-      if (range) (thread.blocking ? blocking : normal).push(range);
+      if (!range) continue;
+      (thread.blocking ? blocking : normal).push(range);
+      const line = range.getClientRects()[0];
+      if (line)
+        found.push({
+          id: thread.id,
+          top: line.top - origin + line.height / 2,
+          blocking: thread.blocking,
+          quote: thread.anchor!.quote!,
+        });
     }
+    setMarkers(found);
     highlights.set("lictory-anchor", new HighlightCtor(...normal));
     highlights.set("lictory-anchor-blocking", new HighlightCtor(...blocking));
     return () => {
       highlights.delete("lictory-anchor");
       highlights.delete("lictory-anchor-blocking");
     };
-  }, [threads, content]);
+  }, [threads, content, layout]);
+  // Markers follow the text when the column reflows.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+    let width = root.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (root.clientWidth === width) return;
+      width = root.clientWidth;
+      setLayout((n) => n + 1);
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [isEmpty]);
   return (
     <div className="relative">
       {isEmpty ? (
@@ -203,6 +237,36 @@ function Reader({
           className="relative"
         >
           <Markdown source={content} />
+          {/* Each highlighted sentence gets a marker in the gutter that opens
+              its discussion, so the highlight never needs explaining. */}
+          {markers.map((marker) => (
+            <button
+              key={marker.id}
+              type="button"
+              aria-label={`${marker.blocking ? "Blocking discussion" : "Discussion"} on “${marker.quote}”`}
+              title={marker.blocking ? "Blocking discussion" : "Discussion"}
+              style={{ top: marker.top }}
+              onClick={() => {
+                const target = document.querySelector<HTMLElement>(
+                  `[data-thread-id="${marker.id}"]`,
+                );
+                target?.scrollIntoView({ block: "center", behavior: "smooth" });
+                target?.focus({ preventScroll: true });
+              }}
+              className={cn(
+                "absolute -left-7 hidden size-5 -translate-y-1/2 place-items-center rounded-full shadow-(--shadow-border) transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 lg:grid",
+                marker.blocking
+                  ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
+                  : "bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {marker.blocking ? (
+                <CircleAlert aria-hidden className="size-3" />
+              ) : (
+                <MessageSquare aria-hidden className="size-3" />
+              )}
+            </button>
+          ))}
           {selection && (canComment || canAsk) && (
             <div
               role="toolbar"
@@ -233,7 +297,7 @@ function Reader({
                   onClick={() => dock.open()}
                 >
                   <IntelligenceMark className="size-3.5 text-primary" /> Ask
-                  Lictory
+                  Litto
                 </Button>
               )}
             </div>
@@ -243,6 +307,8 @@ function Reader({
     </div>
   );
 }
+
+type Marker = { id: string; top: number; blocking: boolean; quote: string };
 
 // Finds the first occurrence of `text` in the rendered document as a Range,
 // tolerating whitespace differences produced by rendering.
@@ -319,7 +385,7 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
   return (
     <div className="space-y-3">
       {conflicted && (
-        <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-[13px]">
+        <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-[13px]">
           <p>
             Revision {current.number} was saved while you were editing revision{" "}
             {baseRevision.number}. Your text is kept; review the difference

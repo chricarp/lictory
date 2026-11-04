@@ -115,7 +115,9 @@ How to work:
 - When a message carries page context (the page, work item, selected text or review they were looking at), answer about that first and resolve "this", "it" and "here" against it. Read the item before answering; never answer from the selected text alone when the specification around it matters. Keep answers about a selection short and specific.
 - When a tool fails, explain the actionable reason and fix the input if you can.
 - Prioritize missing information, contradictions and ambiguity over stylistic rewriting. Do not present guesses as established product behavior.
-- Be concise. Use Markdown. Link work items as [PAY-142](/${org.slug}/items/PAY-142).`;
+- Be concise. Use Markdown. Link work items as [PAY-142](/${org.slug}/items/PAY-142).
+- For status or readiness questions, answer in this order with short bold labels: **Blocking now**, **Open questions**, **Next step**. One or two lines each; skip a label when nothing belongs under it. **Blocking now** holds only facts from readiness checks, blocking discussions and reviews; put your own inferences about gaps under **Open questions**. End each point with its source as a link to the item, e.g. ([blocking discussion](/${org.slug}/items/PAY-142)) or ([QA review](/${org.slug}/items/PAY-142)).
+- In any answer about a specification, name what each point rests on in the link text: the section heading, the discussion or the review, e.g. ([Failure behavior](/${org.slug}/items/PAY-142)) or ([open discussion](/${org.slug}/items/PAY-142)), never only the item key. Say plainly when a point is your own inference rather than something recorded.`;
 }
 
 // A short title for the conversation from its first request. Failures are not

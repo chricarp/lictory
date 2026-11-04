@@ -115,8 +115,10 @@ one branch and pull request per affected item and invites the requester as a
 collaborator. It reviews like any other pull request.
 
 People start an item review from the Litto dock ("Assess PAY-142") while
-the item is open. The dock follows the run and shows its score and top
-findings; the full findings and corrective pull requests open in the item.
+the item is open. The dock follows the run and shows its proposed concerns,
+the revision they read and whether that is still current; the item header
+counts them ("2 AI concerns", or "earlier revision" once stale). The full
+findings and corrective pull requests open in the item.
 
 ## Litto conversations
 
@@ -167,9 +169,13 @@ on a user message expose an interrupted state with Retry.
 
 ## The Litto dock
 
-Every workspace page except the Litto page has a small dock at the
-bottom (⌘J / Ctrl+J). It opens into a conversation with the same assistant,
-tools and approvals as the Litto page, without the history list.
+Every workspace page except the Litto page can open Litto as a side sheet:
+the "Ask Litto" button at the end of the page header, ⌘J / Ctrl+J, "Ask
+Litto" on a text selection, or the command palette. On wide screens the sheet
+sits beside the page, which narrows instead of being covered; on small
+screens it is a modal sheet over the page. It holds a conversation with the
+same assistant, tools and approvals as the Litto page, without the history
+list.
 
 - **Page context.** Each message the person sends from the dock carries what
   they were looking at: the page, the project, the open work item, the text
@@ -178,9 +184,9 @@ tools and approvals as the Litto page, without the history list.
   the transcript and shown above the message. It only names things; the
   assistant still reads them through tools with the person's permissions, so
   context cannot widen access.
-- **Adapts to the page.** The bar offers what fits: explaining a selection,
-  assessing the open item (or its score once assessed), or questions for the
-  board, backlog, inbox and other pages.
+- **Adapts to the page.** The sheet offers what fits: explaining a
+  selection, assessing the open item (or its proposed concerns once
+  assessed), or questions for the board, backlog, inbox and other pages.
 - **Unlisted conversations.** Dock conversations are saved like any chat but
   stay out of the history (`intelligence_chat.listed = false`) until the person
   opens them on the Litto page, which lists them.

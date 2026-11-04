@@ -61,8 +61,7 @@ export function RevisionDiff({
             key={i}
             className={cn(
               "flex whitespace-pre-wrap",
-              row.kind === "added" &&
-                "bg-emerald-500/12 text-emerald-900 dark:text-emerald-200",
+              row.kind === "added" && "bg-success/12 text-success",
               row.kind === "removed" &&
                 "bg-red-500/10 text-red-900 line-through decoration-red-900/30 dark:text-red-200",
             )}

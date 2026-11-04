@@ -1,7 +1,14 @@
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, CirclePlay, Flag, Plus, Repeat } from "lucide-react";
+import {
+  BarChart3,
+  CircleAlert,
+  CirclePlay,
+  Flag,
+  Plus,
+  Repeat,
+} from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
@@ -44,6 +51,7 @@ import {
   TeamFilterPicker,
   useTeamFilter,
 } from "@lictory/platform/components/delivery/board";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 const DAY = 86_400_000;
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
@@ -218,43 +226,46 @@ function ProjectBacklog({ project }: { project: Project }) {
           {empty}
         </p>
       ) : (
-        <ul className="border-t">
-          {rows.map((item, index) => (
-            <li key={item.id}>
-              {over?.section === id && over.index === index && drag && (
-                <div className="h-0.5 bg-primary" aria-hidden />
-              )}
-              <BacklogRow
-                item={item}
-                label={identifier(project, item.number)}
-                href={paths.item(
-                  organization.slug,
-                  project.key,
-                  identifier(project, item.number),
+        <>
+          <BacklogColumns />
+          <ul className="border-t sm:border-t-0">
+            {rows.map((item, index) => (
+              <li key={item.id}>
+                {over?.section === id && over.index === index && drag && (
+                  <div className="h-0.5 bg-primary" aria-hidden />
                 )}
-                teamName={
-                  teamFilter.value
-                    ? undefined
-                    : teamFilter.teamName(item.teamId)
-                }
-                estimate={estimateLabel(project, item.estimate)}
-                memberName={memberName}
-                draggable={capabilities.changeProperties}
-                dragging={drag === item.id}
-                selected={peek.peeked === identifier(project, item.number)}
-                onOpen={peek.onLinkClick}
-                onDragStart={() => setDrag(item.id)}
-                onDragEnd={() => {
-                  setDrag(undefined);
-                  setOver(undefined);
-                }}
-              />
-            </li>
-          ))}
-          {over?.section === id && over.index >= rows.length && drag && (
-            <div className="h-0.5 bg-primary" aria-hidden />
-          )}
-        </ul>
+                <BacklogRow
+                  item={item}
+                  label={identifier(project, item.number)}
+                  href={paths.item(
+                    organization.slug,
+                    project.key,
+                    identifier(project, item.number),
+                  )}
+                  teamName={
+                    teamFilter.value
+                      ? undefined
+                      : teamFilter.teamName(item.teamId)
+                  }
+                  estimate={estimateLabel(project, item.estimate)}
+                  memberName={memberName}
+                  draggable={capabilities.changeProperties}
+                  dragging={drag === item.id}
+                  selected={peek.peeked === identifier(project, item.number)}
+                  onOpen={peek.onLinkClick}
+                  onDragStart={() => setDrag(item.id)}
+                  onDragEnd={() => {
+                    setDrag(undefined);
+                    setOver(undefined);
+                  }}
+                />
+              </li>
+            ))}
+            {over?.section === id && over.index >= rows.length && drag && (
+              <div className="h-0.5 bg-primary" aria-hidden />
+            )}
+          </ul>
+        </>
       )}
     </section>
   );
@@ -312,6 +323,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 <Plus className="size-3.5" /> New item
               </Button>
             )}
+            <LittoLauncher className="ml-1" />
           </div>
         </header>
         <p className="text-[13px] text-muted-foreground">
@@ -441,7 +453,7 @@ function ProjectBacklog({ project }: { project: Project }) {
               backlog,
               <div className="flex items-center gap-2 px-4 py-3">
                 <h2 className="text-sm font-semibold">Backlog</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">
+                <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase tabular-nums">
                   {backlog.length} items
                   {project.estimateScale !== "none" &&
                     ` · ${points(backlog)} pts`}
@@ -451,7 +463,7 @@ function ProjectBacklog({ project }: { project: Project }) {
             )}
             {iterations.some((i) => i.state === "completed") && (
               <div>
-                <h2 className="mb-2 px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                <h2 className="mb-2 px-1 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
                   Completed
                 </h2>
                 <ul className="space-y-1">
@@ -540,19 +552,21 @@ function IterationHeader({
         <Repeat className="size-3.5 text-muted-foreground" />
         <h2 className="text-sm font-semibold">{iterationLabel(iteration)}</h2>
         {iteration.state === "active" && (
-          <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+          <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+            <span aria-hidden className="size-1.5 rounded-full bg-success" />
             Active
           </span>
         )}
-        <span className="text-xs text-muted-foreground">
+        <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase">
           {shortRange(iteration)}
+        </span>
+        <span aria-hidden className="text-muted-foreground/50">
+          ·
         </span>
         <span
           className={cn(
-            "text-xs tabular-nums",
-            over
-              ? "text-amber-700 dark:text-amber-400"
-              : "text-muted-foreground",
+            "font-mono text-[11px] tracking-[0.04em] uppercase tabular-nums",
+            over ? "text-warning" : "text-muted-foreground",
           )}
           title={
             capacity !== undefined
@@ -694,6 +708,27 @@ function IterationHeader({
   );
 }
 
+// Names the row's state columns once per list, so refinement ("In review")
+// and delivery ("In Progress") never have to be told apart by icon alone.
+// The cells carry the same meaning in their titles for assistive technology.
+export function BacklogColumns() {
+  return (
+    <div
+      aria-hidden
+      className="hidden h-7 items-center gap-2 border-t border-b bg-muted/30 px-4 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:flex"
+    >
+      <span className="min-w-0 flex-1">Item</span>
+      <span className="w-36 shrink-0">Specification</span>
+      <span className="size-3.5 shrink-0 @min-[65rem]/frame:hidden" />
+      <span className="hidden w-24 shrink-0 @min-[65rem]/frame:inline">
+        Delivery
+      </span>
+      <span className="w-7 shrink-0 text-center">Est.</span>
+      <span className="size-4 shrink-0" />
+    </div>
+  );
+}
+
 export function BacklogRow({
   item,
   label,
@@ -765,23 +800,48 @@ export function BacklogRow({
           {teamName}
         </span>
       )}
-      {item.refinementState && item.refinementState !== "ready" && (
-        <span
-          title="Specification not ready"
-          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
-        >
-          <RefinementIcon state={item.refinementState} />
-          <span className="hidden sm:inline">
-            {refinementMeta[item.refinementState].label}
+      {/* Fixed slots keep the columns aligned from row to row. */}
+      <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
+        {item.refinementState && item.refinementState !== "ready" && (
+          <span
+            title="Specification not ready"
+            className="inline-flex items-center gap-1"
+          >
+            <RefinementIcon state={item.refinementState} />
+            <span className="hidden sm:inline">
+              {refinementMeta[item.refinementState].label}
+            </span>
           </span>
+        )}
+        {item.blockingThreads > 0 && (
+          <span
+            title={`${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`}
+            className="hidden items-center gap-1 font-medium text-destructive sm:inline-flex"
+          >
+            <CircleAlert aria-hidden className="size-3.5" />
+            {item.blockingThreads} blocker
+            {item.blockingThreads === 1 ? "" : "s"}
+          </span>
+        )}
+      </span>
+      {/* Delivery status, named where there is room so it is never mistaken
+          for the specification's refinement state. */}
+      <span
+        className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground @min-[65rem]/frame:w-24"
+        title={status ? `Delivery status: ${status.name}` : undefined}
+      >
+        <StatusIcon category={status?.category} color={status?.color} />
+        <span className="hidden truncate @min-[65rem]/frame:inline">
+          {status?.name}
         </span>
-      )}
-      <StatusIcon category={status?.category} color={status?.color} />
-      {estimate && (
-        <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
-          {estimate}
-        </span>
-      )}
+      </span>
+      <span className="inline-flex w-7 shrink-0 justify-center">
+        {estimate && (
+          <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
+            {estimate}
+          </span>
+        )}
+      </span>
       {item.assigneeId ? (
         <Avatar
           userId={item.assigneeId}

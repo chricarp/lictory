@@ -158,7 +158,7 @@ export function HandleForm({
             status?.tone === "error"
               ? "text-destructive"
               : status?.tone === "ok"
-                ? "text-emerald-700 dark:text-emerald-300"
+                ? "text-success"
                 : "text-muted-foreground",
           )}
         >
@@ -184,10 +184,13 @@ export function HandleForm({
         </div>
       )}
       <FormMessage>{error}</FormMessage>
+      {/* Changing a handle in settings is a small save like the other
+          settings; choosing one during sign-up is the page's main action. */}
       <Button
-        size="lg"
+        size={current ? "sm" : "lg"}
+        variant={current ? "secondary" : "primary"}
         type="submit"
-        className="mt-1 w-full"
+        className={current ? "mt-1 justify-self-start" : "mt-1 w-full"}
         disabled={blocked}
       >
         {pending ? "Saving…" : submitLabel}

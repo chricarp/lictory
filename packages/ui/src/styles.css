@@ -5,146 +5,167 @@
    Include tablets, landscape phones and devices with both touch and a mouse. */
 @custom-variant touch (@media (any-pointer: coarse));
 
-/* Default (Lictory) palette. Also applied to any element carrying a theme so a
-   nested preview never inherits the surrounding page's mode. */
+/* Default (Lictory) palette, shared by the application, the website and the
+   documentation. Cool, nearly neutral grays: white surfaces on a gray shell
+   (--shell, also the sidebar), recessed trays (--tray) holding raised cards,
+   ink text, black primary actions and one orange accent (--brand) for marks
+   and live highlights. Blue is kept for focus. Also applied to any element
+   carrying a theme so a nested preview never inherits the surrounding page's
+   mode. */
 :root,
 [data-theme] {
   color-scheme: light;
-  /* Status text/icon colors, tuned for >= 4.5:1 on background and card.
-     Primary and destructive are dark enough for 4.5:1 with their foregrounds
-     and as text on their 10% tints (WCAG 2.2 AA; checked by the browser suite). */
-  --success: oklch(0.508 0.118 165.612);
-  --warning: oklch(0.555 0.163 48.998);
-  --background: oklch(0.9946 0.0026 286.3519);
-  --foreground: oklch(0.1615 0.0105 285.1663);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.1615 0.0105 285.1663);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.1615 0.0105 285.1663);
-  --primary: oklch(0.53 0.2188 258.8797);
-  --primary-foreground: oklch(0.967 0.0029 264.5419);
-  --secondary: oklch(0.9518 0.0231 277.9569);
-  --secondary-foreground: oklch(0.4446 0.0983 268.5283);
-  --muted: oklch(0.9601 0.0093 286.2229);
-  --muted-foreground: oklch(0.5052 0.0379 284.964);
-  --accent: oklch(0.9712 0.0136 258.3446);
-  --accent-foreground: oklch(0.6081 0.2114 266.213);
-  --destructive: oklch(0.55 0.2078 25.3313);
-  --destructive-foreground: oklch(0.9842 0.0034 247.8575);
-  --border: oklch(0.9163 0.0162 286.0759);
-  --input: oklch(0.9163 0.0162 286.0759);
-  --ring: oklch(0.5565 0.243 261.9529);
-  --chart-1: oklch(0.5553 0.2554 283.4559);
-  --chart-2: oklch(0.6037 0.2141 267.5162);
-  --chart-3: oklch(0.7495 0.1297 210.9704);
-  --chart-4: oklch(0.8023 0.1492 175.5763);
-  --chart-5: oklch(0.6945 0.1422 167.0638);
-  --sidebar: oklch(0.9946 0.0026 286.3519);
-  --sidebar-foreground: oklch(0.1615 0.0105 285.1663);
-  --sidebar-primary: oklch(0.53 0.2188 258.8797);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.9634 0.0175 279.0619);
-  --sidebar-accent-foreground: oklch(0.6256 0.2009 264.0684);
-  --sidebar-border: oklch(0.9163 0.0162 286.0759);
-  --sidebar-ring: oklch(0.53 0.2188 258.8797);
+  /* Status text/icon colors, >= 4.5:1 on background, card and muted.
+     Primary, brand and destructive are dark enough for 4.5:1 with their
+     foregrounds (WCAG 2.2 AA; checked by the browser suite). */
+  --success: #15803d;
+  --warning: #b45309;
+  --shell: #f2f3f5;
+  /* Recessed groups (trays) hold raised cards. */
+  --tray: #f3f4f6;
+  --background: #ffffff;
+  --foreground: #111214;
+  --card: #ffffff;
+  --card-foreground: #111214;
+  --popover: #ffffff;
+  --popover-foreground: #111214;
+  --primary: #111214;
+  --primary-foreground: #ffffff;
+  /* Decoration (markers, dots, live highlights), never body text. */
+  --brand: #ea6a2f;
+  --secondary: #f4f4f6;
+  --secondary-foreground: #111214;
+  --muted: #f4f4f6;
+  --muted-foreground: #6b6e76;
+  --accent: #f1f2f4;
+  --accent-foreground: #111214;
+  --destructive: #c81e1e;
+  --destructive-foreground: #ffffff;
+  --border: #e7e8eb;
+  --input: #dcdee2;
+  --ring: #3b5bdb;
+  --chart-1: #4f6ef7;
+  --chart-2: #2f9e8f;
+  --chart-3: #8b5cf6;
+  --chart-4: #c0507a;
+  --chart-5: #f0773a;
+  --sidebar: #f2f3f5;
+  --sidebar-foreground: #111214;
+  --sidebar-primary: #111214;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #111214;
+  --sidebar-border: #e4e5e9;
+  --sidebar-ring: #3b5bdb;
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: "Merriweather", serif;
+  --font-serif: Geist, ui-sans-serif, sans-serif, system-ui;
+  --font-display: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 1rem;
+  --radius: 0.75rem;
+  /* A faint diagonal hatch for backdrops behind floating panels. */
+  --hatch: repeating-linear-gradient(
+    135deg,
+    rgb(17 18 20 / 0.04) 0 1px,
+    transparent 1px 10px
+  );
   --shadow-x: 0px;
-  --shadow-y: 4px;
-  --shadow-blur: 15px;
+  --shadow-y: 1px;
+  --shadow-blur: 3px;
   --shadow-spread: 0px;
-  --shadow-opacity: 0.15;
-  --shadow-color: #000000;
-  --shadow-2xs: 0px 4px 15px 0px hsl(0 0% 0% / 0.07);
-  --shadow-xs: 0px 4px 15px 0px hsl(0 0% 0% / 0.07);
+  --shadow-opacity: 0.08;
+  --shadow-color: #111214;
+  --shadow-2xs: 0 1px 1px 0 rgb(17 18 20 / 0.04);
+  --shadow-xs: 0 1px 2px 0 rgb(17 18 20 / 0.05);
   --shadow-sm:
-    0px 4px 15px 0px hsl(0 0% 0% / 0.15), 0px 1px 2px -1px hsl(0 0% 0% / 0.15);
+    0 1px 2px 0 rgb(17 18 20 / 0.05), 0 1px 3px 0 rgb(17 18 20 / 0.04);
   --shadow:
-    0px 4px 15px 0px hsl(0 0% 0% / 0.15), 0px 1px 2px -1px hsl(0 0% 0% / 0.15);
+    0 1px 2px 0 rgb(17 18 20 / 0.05), 0 2px 6px -1px rgb(17 18 20 / 0.06);
   --shadow-md:
-    0px 4px 15px 0px hsl(0 0% 0% / 0.15), 0px 2px 4px -1px hsl(0 0% 0% / 0.15);
+    0 1px 2px 0 rgb(17 18 20 / 0.05), 0 8px 20px -8px rgb(17 18 20 / 0.12);
   --shadow-lg:
-    0px 4px 15px 0px hsl(0 0% 0% / 0.15), 0px 4px 6px -1px hsl(0 0% 0% / 0.15);
+    0 1px 3px 0 rgb(17 18 20 / 0.05), 0 16px 36px -14px rgb(17 18 20 / 0.16);
   --shadow-xl:
-    0px 4px 15px 0px hsl(0 0% 0% / 0.15), 0px 8px 10px -1px hsl(0 0% 0% / 0.15);
-  --shadow-2xl: 0px 4px 15px 0px hsl(0 0% 0% / 0.38);
+    0 2px 4px 0 rgb(17 18 20 / 0.05), 0 24px 48px -18px rgb(17 18 20 / 0.2);
+  --shadow-2xl: 0 32px 64px -24px rgb(17 18 20 / 0.28);
   --shadow-border:
-    0 0 0 1px oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.06),
-    0 2px 4px oklch(0 0 0 / 0.04);
+    0 0 0 1px rgb(17 18 20 / 0.07), 0 1px 2px -1px rgb(17 18 20 / 0.06);
   --shadow-border-hover:
-    0 0 0 1px oklch(0 0 0 / 0.08), 0 1px 2px -1px oklch(0 0 0 / 0.08),
-    0 2px 4px oklch(0 0 0 / 0.06);
+    0 0 0 1px rgb(17 18 20 / 0.12), 0 2px 4px -1px rgb(17 18 20 / 0.08);
   --shadow-panel:
-    0 0 0 1px oklch(0 0 0 / 0.05), 0 12px 40px -16px oklch(0 0 0 / 0.16);
-  --tracking-normal: -0.01em;
+    0 0 0 1px rgb(17 18 20 / 0.06), 0 1px 2px rgb(17 18 20 / 0.04),
+    0 20px 48px -24px rgb(17 18 20 / 0.18);
+  --tracking-normal: -0.006em;
   --spacing: 0.25rem;
 }
 
 .dark {
   color-scheme: dark;
-  --success: oklch(0.765 0.177 163.223);
-  --warning: oklch(0.828 0.189 84.429);
-  --background: oklch(0.144 0.0028 247.0906);
-  --foreground: oklch(0.9643 0.0083 271.3283);
-  --card: oklch(0.1809 0.0052 248.1162);
-  --card-foreground: oklch(0.9643 0.0083 271.3283);
-  --popover: oklch(0.1899 0.0051 248.0992);
-  --popover-foreground: oklch(0.9643 0.0083 271.3283);
-  --primary: oklch(0.5668 0.211 258.7461);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.2673 0.0433 266.5444);
-  --secondary-foreground: oklch(0.8818 0.0577 274.3908);
-  --muted: oklch(0.2303 0.0125 264.2926);
-  --muted-foreground: oklch(0.7364 0.0183 248.0773);
-  --accent: oklch(0.3071 0.044 265.8618);
-  --accent-foreground: oklch(0.8761 0.0629 250.7253);
-  --destructive: oklch(0.637 0.208 25.331);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.2258 0.0025 247.9355);
-  --input: oklch(0.2989 0.0165 275.4735);
-  --ring: oklch(0.7034 0.1543 265.1217);
-  --chart-1: oklch(0.6231 0.188 259.8145);
-  --chart-2: oklch(0.6268 0.2325 303.9004);
-  --chart-3: oklch(0.5854 0.2041 277.1173);
-  --chart-4: oklch(0.6056 0.2189 292.7172);
-  --chart-5: oklch(0.7845 0.1325 181.912);
-  --sidebar: oklch(0.1809 0.0052 248.1162);
-  --sidebar-foreground: oklch(0.9197 0.004 286.3202);
-  --sidebar-primary: oklch(0.5668 0.211 258.7461);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.2753 0.0392 259.3583);
-  --sidebar-accent-foreground: oklch(0.8877 0.0543 270.3821);
-  --sidebar-border: oklch(0.2793 0.0034 228.9134);
-  --sidebar-ring: oklch(0.7429 0.1344 255.6155);
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --shell: #0c0d0f;
+  --tray: #0f1012;
+  --background: #141518;
+  --foreground: #eceef1;
+  --card: #1b1c20;
+  --card-foreground: #eceef1;
+  --popover: #212226;
+  --popover-foreground: #eceef1;
+  --primary: #f2f3f5;
+  --primary-foreground: #111214;
+  --brand: #f0773a;
+  --secondary: #1f2024;
+  --secondary-foreground: #eceef1;
+  --muted: #1c1d21;
+  --muted-foreground: #a4a7ae;
+  --accent: #222327;
+  --accent-foreground: #eceef1;
+  --destructive: #f87171;
+  --destructive-foreground: #1a0b0b;
+  --border: #25272c;
+  --input: #303237;
+  --ring: #7c93ff;
+  --chart-1: #7c93ff;
+  --chart-2: #4fc2ad;
+  --chart-3: #a78bfa;
+  --chart-4: #e07aa0;
+  --chart-5: #f0773a;
+  --sidebar: #0c0d0f;
+  --sidebar-foreground: #e4e6ea;
+  --sidebar-primary: #f2f3f5;
+  --sidebar-primary-foreground: #111214;
+  --sidebar-accent: #1a1b1f;
+  --sidebar-accent-foreground: #eceef1;
+  --sidebar-border: #1d1e22;
+  --sidebar-ring: #7c93ff;
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: "Merriweather", serif;
+  --font-serif: Geist, ui-sans-serif, sans-serif, system-ui;
+  --font-display: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 1rem;
+  --radius: 0.75rem;
+  --hatch: repeating-linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.035) 0 1px,
+    transparent 1px 10px
+  );
   --shadow-x: 0px;
-  --shadow-y: 10px;
-  --shadow-blur: 25px;
+  --shadow-y: 1px;
+  --shadow-blur: 3px;
   --shadow-spread: 0px;
-  --shadow-opacity: 0.15;
+  --shadow-opacity: 0.4;
   --shadow-color: #000000;
-  --shadow-2xs: 0px 10px 25px 0px hsl(0 0% 0% / 0.07);
-  --shadow-xs: 0px 10px 25px 0px hsl(0 0% 0% / 0.07);
-  --shadow-sm:
-    0px 10px 25px 0px hsl(0 0% 0% / 0.15), 0px 1px 2px -1px hsl(0 0% 0% / 0.15);
-  --shadow:
-    0px 10px 25px 0px hsl(0 0% 0% / 0.15), 0px 1px 2px -1px hsl(0 0% 0% / 0.15);
-  --shadow-md:
-    0px 10px 25px 0px hsl(0 0% 0% / 0.15), 0px 2px 4px -1px hsl(0 0% 0% / 0.15);
-  --shadow-lg:
-    0px 10px 25px 0px hsl(0 0% 0% / 0.15), 0px 4px 6px -1px hsl(0 0% 0% / 0.15);
+  --shadow-2xs: 0 1px 1px 0 rgb(0 0 0 / 0.25);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.2);
+  --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 2px 6px -1px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 8px 20px -8px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 16px 36px -14px rgb(0 0 0 / 0.6);
   --shadow-xl:
-    0px 10px 25px 0px hsl(0 0% 0% / 0.15), 0px 8px 10px -1px hsl(0 0% 0% / 0.15);
-  --shadow-2xl: 0px 10px 25px 0px hsl(0 0% 0% / 0.38);
-  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
-  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
+    0 2px 4px 0 rgb(0 0 0 / 0.3), 0 24px 48px -18px rgb(0 0 0 / 0.65);
+  --shadow-2xl: 0 32px 64px -24px rgb(0 0 0 / 0.75);
+  --shadow-border: 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-border-hover: 0 0 0 1px rgb(255 255 255 / 0.12);
   --shadow-panel:
-    0 0 0 1px oklch(1 0 0 / 0.08), 0 16px 48px -18px oklch(0 0 0 / 0.65);
+    0 0 0 1px rgb(255 255 255 / 0.07), 0 20px 48px -24px rgb(0 0 0 / 0.7);
 }
 
 /* Personal colour themes (see `~/lib/appearance`). Each overrides colour tokens
@@ -508,6 +529,10 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+  --font-display: var(--font-display);
+  --color-brand: var(--brand);
+  --color-shell: var(--shell);
+  --color-tray: var(--tray);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -713,16 +738,6 @@
   }
   to {
     background-position: -150% 0;
-  }
-}
-/* Ambient glow behind the Intelligence greeting. */
-@keyframes intelligence-orb {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(0, -6px, 0) scale(1.06);
   }
 }
 /* Lictory Intelligence working indicator: a 3×3 grid whose cells light up in

@@ -2,7 +2,6 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowDown,
   ArrowUpRight,
-  ChevronDown,
   Loader2,
   LocateFixed,
   MessagesSquare,
@@ -28,10 +27,9 @@ import {
 } from "react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Button } from "@lictory/ui/button";
-import { Badge, Kbd } from "@lictory/ui/primitives";
+import { Badge } from "@lictory/ui/primitives";
 import {
   counts,
-  ScoreRing,
   severityMeta,
 } from "@lictory/platform/components/review/ai-review";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -39,7 +37,6 @@ import type { ChatContext } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
-import { aiScoreBand } from "@lictory/core/contracts/ai";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import {
   createChat,
@@ -63,6 +60,7 @@ import {
 import {
   useDock,
   useDockState,
+  reviewState,
   type DockItem,
   type DockReview,
   type DockSelection,
@@ -77,21 +75,6 @@ type SendExtra = {
 
 // Strong ease-out: immediate response, soft landing.
 const ease = [0.23, 1, 0.32, 1] as const;
-const noSubscribe = () => () => undefined;
-const isMac = () =>
-  typeof navigator !== "undefined" &&
-  /Mac|iPhone|iPad/.test(navigator.platform);
-
-// The item review a dock shows: the newest run, and the newest completed one
-// (the score stays visible while a new run is queued).
-function reviewState(review: DockReview) {
-  const [latest] = review.runs;
-  const completed = review.runs.find((r) => r.status === "completed");
-  const active =
-    !!latest && (latest.status === "queued" || latest.status === "running");
-  const failed = latest?.status === "failed" ? latest : undefined;
-  return { latest, completed, active, failed };
-}
 
 function itemSuggestions(item: DockItem): Suggestion[] {
   if (item.review?.viewing)
@@ -155,6 +138,19 @@ const selectionSuggestions: Suggestion[] = [
 // the person is doing (the page, the open item, the text they select) and
 // opens into a conversation that knows that context. Conversations are saved
 // unlisted and can continue on the Intelligence page.
+const wideQuery = "(min-width: 1024px)";
+function useWide() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(wideQuery);
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(wideQuery).matches,
+    () => true,
+  );
+}
+
 export function IntelligenceDock() {
   const { directory, organization, projects } = useWorkspace();
   const store = useDock();
@@ -171,6 +167,12 @@ export function IntelligenceDock() {
 
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState<LittoChat | null>(null);
+  // Launchers in the page chrome show whether the sheet is open.
+  const expanded = open && !hidden;
+  useEffect(() => {
+    store?.setExpanded(expanded);
+    return () => store?.setExpanded(false);
+  }, [store, expanded]);
   // The selection travels with the next message, even after the page loses
   // it to the composer's focus.
   const [attached, setAttached] = useState<DockSelection | null>(null);
@@ -179,11 +181,6 @@ export function IntelligenceDock() {
     error: string | null;
   } | null>(null);
   const composer = useRef<ComposerHandle>(null);
-  const shortcut = useSyncExternalStore(
-    noSubscribe,
-    () => (isMac() ? "⌘J" : "Ctrl J"),
-    () => "Ctrl J",
-  );
 
   // A new selection while the dock is open replaces the attached one; leaving
   // the item drops it.
@@ -275,7 +272,12 @@ export function IntelligenceDock() {
     store.consume(request.id);
     if (hidden) return;
     /* eslint-disable react-hooks/set-state-in-effect */
+    if (request.toggle && open) {
+      setOpen(false);
+      return;
+    }
     setOpen(true);
+    if (request.showReview) setAssessing({ pending: false, error: null });
     const current = store.get().selection;
     if (current) setAttached(current);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -284,7 +286,7 @@ export function IntelligenceDock() {
       if (request.send) send(request.prompt);
       else requestAnimationFrame(() => composer.current?.fill(request.prompt!));
     } else requestAnimationFrame(() => composer.current?.focus());
-  }, [request, store, hidden, assess, send]);
+  }, [request, store, hidden, open, assess, send]);
 
   // ⌘J / Ctrl+J opens and minimizes the dock from anywhere.
   useEffect(() => {
@@ -308,11 +310,6 @@ export function IntelligenceDock() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [hidden, open, store]);
-
-  const openDock = () => {
-    if (selection) setAttached(selection);
-    setOpen(true);
-  };
 
   const newChat = () => {
     const current = chat;
@@ -345,279 +342,53 @@ export function IntelligenceDock() {
   };
 
   if (hidden) return null;
-  const liveSelection =
-    selection && selection.itemId === openItem?.id ? selection : null;
 
   return (
-    // Bar and panel share one grid cell anchored to the bottom center: the
-    // panel grows out of the bar's place instead of morphing from it.
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 grid items-end justify-items-center px-3 pb-3 sm:pb-4">
-      <Bar
-        reduce={!!reduce}
-        hidden={open}
-        item={openItem}
-        selection={liveSelection}
-        chat={chat}
-        shortcut={shortcut}
-        onOpen={openDock}
-        onAsk={(prompt) => send(prompt, { selection: liveSelection })}
-        onAssess={() => void assess()}
-        onShowReview={() => {
-          setAssessing({ pending: false, error: null });
-          setOpen(true);
-        }}
-      />
-      <AnimatePresence initial={false}>
-        {open && (
-          <Panel
-            key="panel"
-            reduce={!!reduce}
-            chat={chat}
-            item={openItem}
-            pageLabel={page.label}
-            suggestions={
-              attached
-                ? selectionSuggestions
-                : openItem
-                  ? itemSuggestions(openItem)
-                  : pageSuggestions(page.kind, project)
-            }
-            attached={attached}
-            onDetach={() => setAttached(null)}
-            assessing={assessing}
-            onAssess={() => void assess()}
-            onDismissAssessment={() => setAssessing(null)}
-            composer={composer}
-            onSend={send}
-            onNewChat={newChat}
-            onContinue={(id) => void continueOnPage(id)}
-            onClose={() => setOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// Width of an element's content, kept current, so a container can animate
-// to it without scaling (and distorting) what is inside.
-function useContentWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState<number>();
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setWidth(el.offsetWidth);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, width] as const;
-}
-
-// Content swaps inside the bar: a quick blur-in, no movement.
-const swap = {
-  initial: { opacity: 0, filter: "blur(4px)" },
-  animate: { opacity: 1, filter: "blur(0px)" },
-  transition: { duration: 0.2, ease },
-} as const;
-
-// Collapsed: one line that changes with what the person is doing. It stays
-// mounted while the panel is open, so closing never replays its entrance.
-function Bar({
-  reduce,
-  hidden,
-  item,
-  selection,
-  chat,
-  shortcut,
-  onOpen,
-  onAsk,
-  onAssess,
-  onShowReview,
-}: {
-  reduce: boolean;
-  hidden: boolean;
-  item: DockItem | null;
-  selection: DockSelection | null;
-  chat: LittoChat | null;
-  shortcut: string;
-  onOpen: () => void;
-  onAsk: (prompt: string) => void;
-  onAssess: () => void;
-  onShowReview: () => void;
-}) {
-  const label = selection
-    ? "Ask about the selection"
-    : chat
-      ? "Continue the conversation"
-      : item
-        ? `Ask about ${item.key}`
-        : "Ask Litto";
-  // Buttons keep the page's text selection when pressed.
-  const keep = (e: React.MouseEvent) => e.preventDefault();
-  const [content, width] = useContentWidth();
-  const motionProps = reduce ? { initial: false as const } : swap;
-  return (
-    <motion.div
-      initial={false}
-      animate={{
-        opacity: hidden ? 0 : 1,
-        transform:
-          hidden && !reduce
-            ? "translateY(4px) scale(0.96)"
-            : "translateY(0px) scale(1)",
-        width: width ?? "auto",
-      }}
-      transition={{
-        opacity: {
-          duration: hidden ? 0.12 : 0.2,
-          ease,
-          delay: hidden ? 0 : 0.06,
-        },
-        transform: {
-          duration: hidden ? 0.12 : 0.2,
-          ease,
-          delay: hidden ? 0 : 0.06,
-        },
-        width: { duration: 0.28, ease },
-      }}
-      inert={hidden}
-      aria-hidden={hidden || undefined}
-      style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
-      className={cn(
-        "box-content max-w-full overflow-hidden rounded-full border bg-popover/95 shadow-[0_1px_2px_oklch(0_0_0/0.06),0_12px_32px_-12px_oklch(0_0_0/0.25)] backdrop-blur supports-[backdrop-filter]:bg-popover/80",
-        !hidden && "pointer-events-auto",
-      )}
-      data-intelligence-dock="bar"
-    >
-      <div ref={content} className="flex w-max items-center gap-1 p-1">
-        <button
+    // A side sheet beside the framed page on wide screens (the page narrows
+    // instead of being covered); a sheet over the page on small ones.
+    <AnimatePresence initial={false}>
+      {open && (
+        // Small screens: the page dims behind the sheet; tapping it closes.
+        <motion.button
+          key="scrim"
           type="button"
-          onMouseDown={keep}
-          onClick={onOpen}
-          aria-label={`${label} (${shortcut})`}
-          className="group flex h-8 min-w-0 items-center gap-2 rounded-full pr-2 pl-2.5 text-[13px] text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.97]"
-        >
-          <DockMark chat={chat} review={item?.review} />
-          <motion.span key={label} {...motionProps} className="truncate">
-            {label}
-          </motion.span>
-          <span className="hidden sm:inline-flex">
-            <Kbd>{shortcut}</Kbd>
-          </span>
-        </button>
-        {selection ? (
-          <motion.div
-            key="selection"
-            {...motionProps}
-            className="flex items-center gap-1"
-          >
-            {selectionSuggestions.slice(0, 2).map((s) => (
-              <BarChip
-                key={s.label}
-                onMouseDown={keep}
-                onClick={() => onAsk(s.prompt)}
-              >
-                {s.label}
-              </BarChip>
-            ))}
-          </motion.div>
-        ) : item?.review ? (
-          <motion.div key={`review-${item.id}`} {...motionProps}>
-            <ReviewChip
-              item={item}
-              review={item.review}
-              onAssess={onAssess}
-              onShow={onShowReview}
-            />
-          </motion.div>
-        ) : null}
-      </div>
-    </motion.div>
-  );
-}
-
-function BarChip({
-  children,
-  className,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 text-[12px] font-medium whitespace-nowrap transition-[background-color,transform] duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-const bandDot = {
-  good: "bg-success",
-  fair: "bg-amber-500",
-  poor: "bg-destructive",
-} as const;
-
-// The item's assessment at a glance: start one, follow it, or open it.
-function ReviewChip({
-  item,
-  review,
-  onAssess,
-  onShow,
-}: {
-  item: DockItem;
-  review: DockReview;
-  onAssess: () => void;
-  onShow: () => void;
-}) {
-  const { completed, active, failed } = reviewState(review);
-  if (active)
-    return (
-      <BarChip onClick={onShow} aria-live="polite">
-        <Loader2 className="size-3.5 animate-spin text-primary motion-reduce:animate-none" />
-        Assessing {item.key}…
-      </BarChip>
-    );
-  if (completed && !completed.staleAt && !failed)
-    return (
-      <BarChip
-        onClick={onShow}
-        title={`Lictory Intelligence assessment of ${item.key}`}
-      >
-        <span
-          aria-hidden
-          className={cn(
-            "size-2 rounded-full",
-            bandDot[aiScoreBand(completed.score ?? 0)],
-          )}
+          aria-label="Close Litto"
+          tabIndex={-1}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.12 } }}
+          transition={{ duration: 0.16, ease }}
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 bg-black/25 lg:hidden"
         />
-        <span className="tabular-nums">{completed.score ?? 0}</span>
-        <span className="text-muted-foreground">
-          ·{" "}
-          {completed.findings.length
-            ? `${completed.findings.length} ${completed.findings.length === 1 ? "finding" : "findings"}`
-            : "No findings"}
-        </span>
-      </BarChip>
-    );
-  return (
-    <BarChip
-      onClick={onAssess}
-      disabled={!!review.blocked}
-      title={
-        review.blocked ??
-        "Check this item and its parent and child items for missing information, ambiguity and gaps."
-      }
-    >
-      <Sparkles className="size-3.5 text-primary" aria-hidden />
-      {completed ? `Re-assess ${item.key}` : `Assess ${item.key}`}
-    </BarChip>
+      )}
+      {open && (
+        <Panel
+          key="panel"
+          reduce={!!reduce}
+          chat={chat}
+          item={openItem}
+          pageLabel={page.label}
+          suggestions={
+            attached
+              ? selectionSuggestions
+              : openItem
+                ? itemSuggestions(openItem)
+                : pageSuggestions(page.kind, project)
+          }
+          attached={attached}
+          onDetach={() => setAttached(null)}
+          assessing={assessing}
+          onAssess={() => void assess()}
+          onDismissAssessment={() => setAssessing(null)}
+          composer={composer}
+          onSend={send}
+          onNewChat={newChat}
+          onContinue={(id) => void continueOnPage(id)}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -655,11 +426,54 @@ function Panel({
   onClose: () => void;
 }) {
   const { organization } = useWorkspace();
-  // Esc minimizes; the conversation stays.
+  // Wide screens: a complementary sheet beside the page. Small screens: a
+  // modal over it, so the page behind is inert and focus stays in the sheet.
+  const modal = !useWide();
+  const sheet = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!modal) return;
+    const page = document.querySelector<HTMLElement>("[data-app-frame]");
+    if (!page) return;
+    page.inert = true;
+    return () => {
+      page.inert = false;
+    };
+  }, [modal]);
+  // Esc closes; the conversation stays. Focus returns to the launcher that
+  // is on screen (the page header's, or the top bar's on small screens).
+  const dismiss = () => {
+    onClose();
+    requestAnimationFrame(() => {
+      // The page stops being inert before the sheet finishes leaving.
+      const page = document.querySelector<HTMLElement>("[data-app-frame]");
+      if (page) page.inert = false;
+      [...document.querySelectorAll<HTMLElement>("[data-litto-launcher]")]
+        .find((el) => el.offsetParent !== null)
+        ?.focus();
+    });
+  };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && !e.defaultPrevented) {
       e.preventDefault();
-      onClose();
+      dismiss();
+      return;
+    }
+    if (modal && e.key === "Tab" && sheet.current) {
+      const focusable = [
+        ...sheet.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], textarea, input, select, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => el.offsetParent !== null);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   };
   const itemReview = item?.review;
@@ -684,38 +498,40 @@ function Panel({
       />
     ) : null;
   return (
-    <motion.div
-      initial={
-        reduce
-          ? { opacity: 0 }
-          : { opacity: 0, transform: "translateY(12px) scale(0.97)" }
-      }
-      animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
+    <motion.aside
+      initial={reduce ? { opacity: 0 } : { opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
       exit={
         reduce
           ? { opacity: 0, transition: { duration: 0.12 } }
-          : {
-              opacity: 0,
-              transform: "translateY(8px) scale(0.98)",
-              transition: { duration: 0.14, ease },
-            }
+          : { opacity: 0, x: 8, transition: { duration: 0.14, ease } }
       }
-      transition={{ duration: 0.22, ease, opacity: { duration: 0.12, ease } }}
-      style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
+      transition={{ duration: 0.2, ease, opacity: { duration: 0.12, ease } }}
+      ref={sheet}
       onKeyDown={onKeyDown}
-      role="dialog"
+      role={modal ? "dialog" : "complementary"}
+      aria-modal={modal || undefined}
       aria-label="Litto"
       data-intelligence-dock="panel"
       className={cn(
-        "pointer-events-auto flex max-h-[min(680px,calc(100dvh-5rem))] w-[min(600px,100%)] flex-col overflow-hidden rounded-[18px] border bg-popover shadow-[0_1px_2px_oklch(0_0_0/0.06),0_24px_64px_-16px_oklch(0_0_0/0.35)]",
-        // A conversation keeps one height while it streams.
-        chat && "h-[min(680px,calc(100dvh-5rem))]",
+        "flex flex-col overflow-hidden bg-background",
+        // Small screens: a sheet over the page, anchored to the bottom.
+        "fixed inset-x-2 bottom-2 z-40 max-h-[min(640px,calc(100dvh-4rem))] rounded-[1.25rem] shadow-(--shadow-panel)",
+        chat && "h-[min(640px,calc(100dvh-4rem))]",
+        // Wide screens: a second framed surface beside the page.
+        "min-[1440px]:w-[400px] min-[1440px]:rounded-[20px] min-[2200px]:w-[420px] lg:static lg:h-auto lg:max-h-none lg:w-[360px] lg:shrink-0 lg:rounded-2xl lg:shadow-(--shadow-border) lg:dark:shadow-(--shadow-border-hover)",
       )}
     >
       <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
         <DockMark chat={chat} review={item?.review} />
-        <div className="mr-auto min-w-0">
-          <p className="truncate text-[13px] font-medium">Litto</p>
+        <div className="mr-auto flex min-w-0 items-baseline gap-2">
+          <p className="text-[13px] font-semibold">Litto</p>
+          {/* What Litto is looking at, so answers are read in context. */}
+          {item && (
+            <p className="truncate font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+              {item.key}
+            </p>
+          )}
         </div>
         {chat && <ChatActions chat={chat} onContinue={onContinue} />}
         {chat && (
@@ -723,8 +539,8 @@ function Panel({
             <SquarePen className="size-4" />
           </HeaderButton>
         )}
-        <HeaderButton label="Minimize (Esc)" onClick={onClose}>
-          <ChevronDown className="size-4" />
+        <HeaderButton label="Close Litto (Esc)" onClick={dismiss}>
+          <X className="size-4" />
         </HeaderButton>
       </header>
       {chat ? (
@@ -787,7 +603,7 @@ function Panel({
           />
         </>
       )}
-    </motion.div>
+    </motion.aside>
   );
 }
 
@@ -1029,7 +845,6 @@ function ReviewCard({
   onDismiss?: () => void;
   onDiscuss: (runId: string) => void;
 }) {
-  const { memberName } = useWorkspace();
   const { completed, active, failed, latest } = reviewState(review);
   const error = assessing?.error ?? (failed ? failed.error : null);
   const shown: Run | undefined = completed;
@@ -1079,23 +894,47 @@ function ReviewCard({
             className="space-y-2.5"
           >
             <div className="flex items-start gap-3 pr-6">
-              <ScoreRing score={shown.score ?? 0} />
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted">
+                <IntelligenceMark className="size-4" />
+              </span>
               <div className="min-w-0 flex-1">
+                <p className="mb-0.5 font-mono text-[10px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+                  AI assessment · proposal
+                </p>
                 <p className="text-[13px] font-medium">
                   {shown.findings.length
-                    ? `${shown.findings.length} ${shown.findings.length === 1 ? "finding" : "findings"} in ${item.key}`
-                    : `No gaps found in ${item.key}`}
+                    ? `${shown.findings.length} proposed ${shown.findings.length === 1 ? "concern" : "concerns"} in ${item.key}`
+                    : `No proposed concerns in ${item.key}`}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {shown.staleAt
-                    ? `Outdated: ${shown.staleReason ?? "content changed"}`
-                    : `${memberName(shown.requestedById)} · ${relativeTime(shown.completedAt ?? shown.createdAt)}`}
+                <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-medium ring-1 ring-inset",
+                      shown.staleAt
+                        ? "bg-warning/8 text-warning ring-warning/25"
+                        : "bg-success/8 text-success ring-success/20",
+                    )}
+                  >
+                    {shown.staleAt ? "Outdated" : "Current"}
+                  </span>
+                  <span className="truncate">
+                    {shown.staleAt
+                      ? (shown.staleReason ?? "content changed")
+                      : [
+                          item.review?.revisionOf(shown) != null
+                            ? `Read revision ${item.review.revisionOf(shown)}`
+                            : null,
+                          relativeTime(shown.completedAt ?? shown.createdAt),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                  </span>
                 </p>
                 {counts(shown.findings).length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {counts(shown.findings).map(([s, n]) => (
                       <Badge key={s} tone={severityMeta[s].tone}>
-                        {n} {severityMeta[s].label.toLowerCase()}
+                        {n} proposed {severityMeta[s].label.toLowerCase()}
                       </Badge>
                     ))}
                   </div>
@@ -1113,7 +952,7 @@ function ReviewCard({
                         f.severity === "blocker"
                           ? "bg-destructive"
                           : f.severity === "major"
-                            ? "bg-amber-500"
+                            ? "bg-warning"
                             : "bg-muted-foreground/50",
                       )}
                     />

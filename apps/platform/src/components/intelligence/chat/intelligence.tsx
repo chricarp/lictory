@@ -6,6 +6,7 @@ import {
 } from "motion/react";
 import {
   ArrowDown,
+  CircleAlert,
   FileText,
   ListChecks,
   MessageSquareDashed,
@@ -197,18 +198,22 @@ function Header({
   toolbar: ReactNode;
 }) {
   const { newChat } = useChats();
+  // No new conversations while Litto cannot answer.
+  const ai = useAiState();
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
       {toolbar}
       <div className="min-w-0 flex-1">{children}</div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={newChat}
-        title="New conversation (⌘⇧O)"
-      >
-        <SquarePen className="size-3.5" /> New chat
-      </Button>
+      {ai.ok && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={newChat}
+          title="New conversation (⌘⇧O)"
+        >
+          <SquarePen className="size-3.5" /> New chat
+        </Button>
+      )}
     </header>
   );
 }
@@ -219,13 +224,20 @@ function useAiState() {
   if (!available)
     return {
       ok: false as const,
+      title: "Litto isn't available yet",
       message:
-        "Lictory Intelligence is not configured on this server. Ask an administrator to set OPENAI_API_KEY.",
-      action: null,
+        "This server has no AI provider connected. An administrator can connect one; everything else in Lictory works without it.",
+      action: isAdmin
+        ? {
+            label: "Open Lictory Intelligence settings",
+            href: `${paths.settings(organization.slug)}#ai`,
+          }
+        : null,
     };
   if (!enabled)
     return {
       ok: false as const,
+      title: "Litto is turned off",
       message: isAdmin
         ? "Lictory Intelligence is turned off for this organization. Turn it on to start chatting; organization content is sent to the configured AI provider only after you opt in."
         : "Lictory Intelligence is turned off for this organization. Ask an administrator to enable it in Settings.",
@@ -236,7 +248,7 @@ function useAiState() {
           }
         : null,
     };
-  return { ok: true as const, message: null, action: null };
+  return { ok: true as const, title: null, message: null, action: null };
 }
 
 function greeting(name: string) {
@@ -255,7 +267,7 @@ function greeting(name: string) {
 
 function NewConversation({ toolbar }: { toolbar: ReactNode }) {
   const { start } = useChats();
-  const { directory, userId, projects, delivery, organization } =
+  const { directory, userId, projects, delivery, organization, items } =
     useWorkspace();
   const ai = useAiState();
   const reduce = useReducedMotion();
@@ -274,7 +286,23 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
   const team = [...delivery.teams.values()].find(
     (t) => !t.archivedAt && t.memberIds.includes(userId),
   );
+  // Lead with real work: the specification that is blocked most.
+  const blocked = [...items]
+    .filter((i) => !i.archivedAt && i.blockingThreads > 0)
+    .sort((a, b) => b.blockingThreads - a.blockingThreads)[0];
+  const blockedKey =
+    blocked &&
+    `${projects.find((p) => p.id === blocked.projectId)?.key ?? ""}-${blocked.number}`;
   const suggestions = [
+    ...(blocked
+      ? [
+          {
+            icon: <CircleAlert className="size-4" />,
+            title: `What's blocking ${blockedKey}?`,
+            prompt: `What is blocking ${blockedKey} from being ready, and what should we do next?`,
+          },
+        ]
+      : []),
     {
       icon: <FileText className="size-4" />,
       title: "Draft a story",
@@ -299,7 +327,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
       title: "Find gaps in a spec",
       prompt: "Find missing acceptance criteria and failure behavior in ",
     },
-  ];
+  ].slice(0, 4);
   const stagger = (i: number) =>
     reduce
       ? {}
@@ -315,10 +343,6 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
         <span className="text-[13px] font-medium">Litto</span>
       </Header>
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-16">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-[18%] left-1/2 size-[420px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_65%)] blur-2xl motion-safe:animate-[intelligence-orb_8s_ease-in-out_infinite]"
-        />
         <div className="relative w-full max-w-2xl">
           <motion.div
             {...stagger(0)}
@@ -332,50 +356,61 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
               />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {greeting(me?.name ?? "")}
+              {ai.ok ? greeting(me?.name ?? "") : ai.title}
             </h1>
-            <p className="mt-1.5 text-[14px] text-muted-foreground">
-              Ask Litto about your work, or say what to create, refine or
-              update.
-            </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Powered by Lictory Intelligence and your workspace context.
-            </p>
+            {ai.ok && (
+              <>
+                <p className="mt-1.5 text-[14px] text-muted-foreground">
+                  Ask Litto about your work, or say what to create, refine or
+                  update.
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Powered by Lictory Intelligence and your workspace context.
+                </p>
+              </>
+            )}
           </motion.div>
           {ai.ok ? (
             <motion.div
               layoutId="intelligence-composer"
               transition={{ type: "spring", duration: 0.5, bounce: 0.1 }}
-              onInputCapture={onInput}
+              // Bubble phase: a state update in the capture phase re-renders
+              // the controlled composer before it stores the first keystroke.
+              onInput={onInput}
             >
               <Composer
                 ref={composer}
                 autoFocus
                 onSend={start}
                 organizationId={organization.id}
-                context={`Acts as you in ${organization.name}`}
+                context={`${organization.name} permissions · you decide`}
               />
             </motion.div>
           ) : (
             <AiUnavailable message={ai.message} action={ai.action} />
           )}
           {ai.ok && (
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {suggestions.map((s, i) => (
-                <motion.button
-                  key={s.title}
-                  type="button"
-                  {...stagger(i + 1)}
-                  whileTap={reduce ? undefined : { scale: 0.98 }}
-                  onClick={() => composer.current?.fill(s.prompt)}
-                  className="group flex items-center gap-3 rounded-xl border bg-card/60 px-3 py-2.5 text-left text-[13px] transition-colors hover:border-foreground/15 hover:bg-card"
-                >
-                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:text-primary">
-                    {s.icon}
-                  </span>
-                  <span className="font-medium">{s.title}</span>
-                </motion.button>
-              ))}
+            <div className="mt-5">
+              <p className="mb-2 px-1 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+                Start with
+              </p>
+              <div className="grid gap-1.5 rounded-[1.25rem] bg-tray p-1.5 ring-1 ring-border/70 ring-inset sm:grid-cols-2">
+                {suggestions.map((s, i) => (
+                  <motion.button
+                    key={s.title}
+                    type="button"
+                    {...stagger(i + 1)}
+                    whileTap={reduce ? undefined : { scale: 0.98 }}
+                    onClick={() => composer.current?.fill(s.prompt)}
+                    className="group flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover)"
+                  >
+                    <span className="grid size-7 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+                      {s.icon}
+                    </span>
+                    <span className="font-medium">{s.title}</span>
+                  </motion.button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -392,12 +427,21 @@ function AiUnavailable({
   action: { label: string; href: string } | null;
 }) {
   return (
-    <div className="rounded-2xl border bg-card p-5 text-center">
-      <p className="text-[13px] text-muted-foreground">{message}</p>
+    // A quiet notice in a tray, like the product's other unavailable states.
+    <div className="mx-auto max-w-md rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset">
+      <div className="flex items-start gap-3 rounded-2xl bg-card px-4 py-3.5 text-left shadow-(--shadow-border)">
+        <span
+          aria-hidden
+          className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/50"
+        />
+        <p className="text-[13px] leading-relaxed text-muted-foreground">
+          {message}
+        </p>
+      </div>
       {action && (
         <Link
           href={action.href}
-          className="mt-3 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+          className="m-2 inline-flex h-8 items-center rounded-full bg-primary px-3.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/88"
         >
           {action.label}
         </Link>
@@ -530,7 +574,7 @@ function ChatThread({ chat }: { chat: LittoChat }) {
                 void stop().catch(() => undefined);
               }}
               organizationId={organization.id}
-              context={`Acts as you in ${organization.name}`}
+              context={`${organization.name} permissions · you decide`}
             />
           ) : (
             <AiUnavailable message={ai.message} action={ai.action} />

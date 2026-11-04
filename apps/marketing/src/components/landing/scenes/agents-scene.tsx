@@ -10,7 +10,7 @@ import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Stage } from "@lictory/marketing/vendor/stageshow/stage";
 import type { Act } from "@lictory/marketing/vendor/stageshow/act";
 import type { Layout } from "@lictory/marketing/vendor/stageshow/looks";
-import { Bar, Window } from "@lictory/marketing/vendor/stageshow/window";
+import { Window } from "@lictory/marketing/vendor/stageshow/window";
 import { Avatar } from "@lictory/marketing/vendor/stageshow/parts/Avatar";
 import { States } from "@lictory/marketing/vendor/stageshow/motion/States";
 import { Collapse } from "@lictory/marketing/vendor/stageshow/motion/Collapse";
@@ -257,16 +257,8 @@ function History({ s }: { s: S }) {
             </div>
           </Collapse>
         ))}
-        {/* Earlier entries: new ones push them down and out of the card */}
-        {[180, 150, 200].map((w) => (
-          <div key={w} className="ag-row ag-row--old">
-            <Avatar plain size={24} />
-            <Bar w={w} h={7} r={3.5} tone={3} />
-            <span />
-            <Bar w={34} h={16} r={8} tone={2} />
-          </div>
-        ))}
       </div>
+      <div className="ag-more">12 earlier entries on revision 12</div>
     </div>
   );
 }

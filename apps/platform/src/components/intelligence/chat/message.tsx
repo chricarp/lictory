@@ -156,7 +156,7 @@ export function MessageView({
         className="flex flex-col items-end gap-1.5"
       >
         {context && <SentContext context={context} />}
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-[14px] leading-6 whitespace-pre-wrap">
+        <div className="max-w-[85%] rounded-[1.25rem] rounded-br-md bg-card px-4 py-2.5 text-[14px] leading-6 whitespace-pre-wrap shadow-(--shadow-border)">
           {text}
         </div>
       </motion.div>
@@ -267,7 +267,9 @@ export function MessageView({
           <Markdown
             source={part.text}
             className={cn(
-              "chat-prose text-[14px] leading-7 [&_h2]:mt-5 [&_h2]:text-base",
+              // Reading rhythm for answers: comfortable, not airy; lists
+              // keep their items close and bold leads read as labels.
+              "chat-prose text-[14px] leading-[1.65] [&_h2]:mt-5 [&_h2]:text-base [&_li]:my-0.5 [&_li>strong:first-child]:font-semibold [&_ol]:my-2.5 [&_p]:my-2.5 [&_ul]:my-2.5",
               live &&
                 i === lastTextIndex &&
                 part.state === "streaming" &&

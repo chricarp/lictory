@@ -36,7 +36,7 @@ not commit the team to building it. Material edits make earlier approvals stale.
 
 ### Review changes and the delivery breakdown
 
-![A specification pull request with a proposed implementation subtask and required QA approval](apps/docs/public/screenshots/reviewed-breakdown.webp)
+![A specification pull request ready to merge after its required QA approval, with the proposed breakdown below](apps/docs/public/screenshots/reviewed-breakdown.webp)
 
 Branches let teammates and agents propose changes without overwriting the agreed
 specification. Review the resulting text and proposed child work together;

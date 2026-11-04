@@ -80,7 +80,9 @@ export function WatchButton({
       ) : (
         <BellOff className="size-3.5" />
       )}
-      {watching ? "Watching" : "Watch"}
+      <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
+        {watching ? "Watching" : "Watch"}
+      </span>
     </Button>
   );
 }

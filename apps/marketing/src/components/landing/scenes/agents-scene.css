@@ -1,6 +1,6 @@
-/* The agents scene, on the ink band. Three windows at one height and one
-   gap, the history card straddling their foot as the one satellite: the
-   place where all three arrive. Compact stacks the terminal over the
+/* The agents scene, on the ink band. Three entry points side by side, one
+   gap apart, and beneath them, full width and never overlapping, the one
+   history every call lands in. Compact stacks the terminal over the
    history. */
 
 .ag .ss-stage {
@@ -11,8 +11,7 @@
   position: absolute;
   top: 24px;
   width: 360px;
-  /* Down to where the history card overlaps, no further */
-  height: 254px;
+  height: 218px;
 }
 
 .ag-win--app {
@@ -81,7 +80,7 @@
   padding: 0 14px;
   border-radius: var(--ss-radius-md);
   background: var(--ss-accent);
-  color: #fff;
+  color: var(--lx-on-accent);
   font-size: 13px;
   font-weight: 600;
   transition:
@@ -171,9 +170,11 @@
 /* ---- Over MCP ---- */
 
 .ag-term {
+  /* Asides stay readable: dim, not faint */
+  --ss-term-dim: #b4b6bc;
   padding: 4px 18px 0;
   font-family: var(--ss-mono);
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 22px;
   white-space: pre;
 }
@@ -191,19 +192,37 @@
 
 .ag-history {
   position: absolute;
-  top: 236px;
-  left: 232px;
+  top: 258px;
+  left: 28px;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  width: 720px;
-  /* A fixed size: the newest entry arrives at the top and the oldest leave
-     through a soft foot, so the card never grows on the stage */
-  height: 256px;
+  width: 1128px;
+  /* A fixed size that fits its three entries and the summary of older
+     ones, so the card never grows on the stage */
+  height: 252px;
   padding: 6px 18px 8px;
   border-radius: var(--ss-radius-lg);
   background: var(--ss-raised);
   box-shadow: var(--ss-shadow-satellite);
+}
+
+/* Each entry point visibly feeds the record: a short line from every window
+   down to the history card. */
+.ag .ss-stage[data-layout="wide"] .ag-history::before {
+  content: "";
+  position: absolute;
+  top: -16px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background:
+    linear-gradient(var(--ss-text-faint), var(--ss-text-faint)) 180px 0 / 1.5px
+      100% no-repeat,
+    linear-gradient(var(--ss-text-faint), var(--ss-text-faint)) 564px 0 / 1.5px
+      100% no-repeat,
+    linear-gradient(var(--ss-text-faint), var(--ss-text-faint)) 948px 0 / 1.5px
+      100% no-repeat;
 }
 
 .ag .ss-stage[data-layout="compact"] .ag-history {
@@ -220,12 +239,16 @@
 .ag-track {
   flex: 1;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 calc(100% - 40px),
-    transparent
-  );
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+
+/* Older entries are summarized, never half-shown */
+.ag-more {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  border-top: 1px solid var(--ss-line);
+  color: var(--ss-text);
+  font-size: 12.5px;
 }
 
 .ag-history-head {
@@ -247,13 +270,30 @@
 
 .ag-row {
   display: grid;
-  /* Fixed tracks, so the capabilities line up as one column */
-  grid-template-columns: 24px minmax(0, 1fr) 196px 52px;
+  /* The human-readable action leads; the capability it called sits beneath
+     it, quieter, in mono */
+  grid-template-columns: 24px minmax(0, 1fr) 52px;
   align-items: center;
-  gap: 12px;
-  height: 44px;
+  column-gap: 12px;
+  row-gap: 1px;
+  padding-block: 9px;
   border-top: 1px solid var(--ss-line);
-  font-size: 13px;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+
+.ag-row > :first-child {
+  grid-row: 1 / span 2;
+}
+
+.ag-row .ag-capability {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.ag-row .ag-from {
+  grid-column: 3;
+  grid-row: 1 / span 2;
 }
 
 .ag .ss-stage[data-layout="compact"] .ag-row {
@@ -284,7 +324,7 @@
 
 .ag-row-text {
   overflow: hidden;
-  color: var(--ss-text);
+  color: var(--ss-text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -297,7 +337,8 @@
 .ag-capability {
   color: var(--ss-text);
   font-family: var(--ss-mono);
-  font-size: 11.5px;
+  font-size: 13px;
+  letter-spacing: -0.01em;
 }
 
 .ag-from {
@@ -311,7 +352,7 @@
 }
 
 .ag-row--old {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .ag-rest {
@@ -331,15 +372,18 @@
 .ag-call {
   display: inline-flex;
   align-items: center;
-  height: 22px;
+  height: 26px;
   gap: 6px;
   margin-left: 34px;
   padding: 0 10px;
   border-radius: var(--ss-radius-pill);
   background: var(--ss-success-soft);
   color: var(--ss-success-text);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--ss-success-text) 28%, transparent);
+  font-weight: 500;
   font-family: var(--ss-mono);
-  font-size: 11.5px;
+  font-size: 13px;
 }
 
 .ag-call svg {

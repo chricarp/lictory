@@ -961,7 +961,7 @@ function BranchEditorBody({
                 ]}
               />
               {head.id !== start.id && changed && (
-                <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                <div className="space-y-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
                   <p>
                     {result.conflicted
                       ? "Another commit overlaps your edits. Resolve the conflicts before committing."
@@ -1208,7 +1208,7 @@ function CommitBox({
         <span className="ml-auto text-muted-foreground">
           {changed ? (
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-amber-500" />
+              <span className="size-1.5 rounded-full bg-warning" />
               Uncommitted edits
             </span>
           ) : (
@@ -1395,7 +1395,7 @@ function CreatePR({
           {noChanges ? (
             <span className="text-muted-foreground">Nothing to compare</span>
           ) : preview?.conflicted ? (
-            <span className="text-amber-700 dark:text-amber-400">
+            <span className="text-warning">
               Has conflicts — you can resolve them after opening
             </span>
           ) : (
@@ -1564,7 +1564,7 @@ export function ConflictResolver({
     (!result.decompositionConflict || breakdownSide !== null) &&
     title.trim().length > 0;
   return (
-    <section className="space-y-4 rounded-lg border border-amber-500/40 bg-card p-4">
+    <section className="space-y-4 rounded-lg border border-warning/40 bg-card p-4">
       <h2 className="text-base font-semibold">Resolve changes</h2>
       <p className="text-sm text-muted-foreground">
         Both sides edited the same text. Pick what to keep for each conflict;
@@ -2015,7 +2015,8 @@ function PullRequestView({
     ...(noChanges ? ["This branch has no changes to merge."] : []),
     ...(!required.length ? ["Request at least one required review."] : []),
     ...pendingRequired.map(
-      (r) => `${roleName(r.disciplineId)} approval is pending or stale.`,
+      (r) =>
+        `${roleName(r.disciplineId)} approval ${r.decision === "approved" && r.resultHash !== hash ? "is stale" : "is pending"}.`,
     ),
     ...(changesRequested ? ["A reviewer requested changes."] : []),
     ...(openBlocking ? ["Blocking discussions remain open."] : []),
@@ -2078,12 +2079,20 @@ function PullRequestView({
       text: "Request at least one required review.",
       detail: "Choose who must approve in Reviewers.",
     });
-  for (const r of pendingRequired)
+  // Name the condition and who can resolve it: a stale approval needs a new
+  // look at the changed result, a pending one needs a first decision.
+  for (const r of pendingRequired) {
+    const stale = r.decision === "approved" && r.resultHash !== hash;
+    const who = r.reviewerId ? memberName(r.reviewerId) : undefined;
     rows.push({
       key: `review-${r.id}`,
       state: "pending",
-      text: `${roleName(r.disciplineId)} approval is pending or stale.`,
+      text: `${roleName(r.disciplineId)} approval ${stale ? "is stale" : "is pending"}${who ? ` · ${who}` : ""}`,
+      detail: stale
+        ? "The merge result changed since the approval. Ask for another review."
+        : "Waiting for a decision on this exact merge result.",
     });
+  }
   if (changesRequested)
     rows.push({
       key: "changes",
@@ -2259,107 +2268,7 @@ function PullRequestView({
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="min-w-0 space-y-4">
-            {tab === "commits" ? (
-              <CommitHistory commits={shownHistory} memberName={memberName} />
-            ) : tab === "changes" ? (
-              display && before ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-0 flex-1 text-sm">
-                      <span className="text-muted-foreground">
-                        Resulting work item title:
-                      </span>{" "}
-                      <span className="font-medium">{display.title}</span>
-                      {display.title !== before.title && (
-                        <span className="block text-xs text-muted-foreground">
-                          Previous title: {before.title}
-                        </span>
-                      )}
-                    </p>
-                    {!readOnly && p.status !== "merged" && ours && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setDraft({ section: "Merge result" });
-                          setTab("conversation");
-                        }}
-                      >
-                        <MessageSquare className="size-3.5" />
-                        Discuss this change
-                      </Button>
-                    )}
-                  </div>
-                  <RevisionDiff
-                    before={before.content}
-                    after={display.content}
-                  />
-                  <BreakdownProposal
-                    includeApplied
-                    proposals={pendingEntries(
-                      display.proposedChildren,
-                      before.proposedChildren,
-                    )}
-                  />
-                  <details className="rounded-md border p-3">
-                    <summary className="cursor-pointer text-sm">
-                      Read the complete merge result
-                    </summary>
-                    <div className="mt-3">
-                      <Markdown source={display.content} />
-                    </div>
-                  </details>
-                </>
-              ) : (
-                <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  The merge result is unavailable until the conflicts are
-                  resolved.
-                </p>
-              )
-            ) : (
-              <>
-                <article className="overflow-hidden rounded-lg border">
-                  <p className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-                    <Avatar userId={p.authorId} name={memberName(p.authorId)} />
-                    <span className="font-medium text-foreground">
-                      {memberName(p.authorId)}
-                    </span>
-                    opened this {relativeTime(p.createdAt)}
-                  </p>
-                  <div className="p-4">
-                    <Markdown source={p.description} />
-                  </div>
-                </article>
-                {display && (
-                  <BreakdownProposal
-                    includeApplied
-                    proposals={pendingEntries(
-                      display.proposedChildren,
-                      before?.proposedChildren,
-                    )}
-                  />
-                )}
-                <section className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <SectionLabel>Discussions</SectionLabel>
-                    <span className="text-xs text-muted-foreground">
-                      {threads.filter((t) => t.status === "open").length} open
-                    </span>
-                  </div>
-                  {threads.map((t) => (
-                    <Thread key={t.id} thread={t} />
-                  ))}
-                  {!readOnly && p.status !== "merged" && ours && (
-                    <ThreadComposer
-                      draft={draft}
-                      onDraftChange={setDraft}
-                      pullRequestId={p.id}
-                      commitId={ours.id}
-                    />
-                  )}
-                </section>
-              </>
-            )}
+            {/* What blocks the merge comes first, before the conversation. */}
             {p.status !== "merged" ? (
               <section
                 aria-label="Merge status"
@@ -2494,6 +2403,107 @@ function PullRequestView({
                   )}
                 </p>
               </section>
+            )}
+            {tab === "commits" ? (
+              <CommitHistory commits={shownHistory} memberName={memberName} />
+            ) : tab === "changes" ? (
+              display && before ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="min-w-0 flex-1 text-sm">
+                      <span className="text-muted-foreground">
+                        Resulting work item title:
+                      </span>{" "}
+                      <span className="font-medium">{display.title}</span>
+                      {display.title !== before.title && (
+                        <span className="block text-xs text-muted-foreground">
+                          Previous title: {before.title}
+                        </span>
+                      )}
+                    </p>
+                    {!readOnly && p.status !== "merged" && ours && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setDraft({ section: "Merge result" });
+                          setTab("conversation");
+                        }}
+                      >
+                        <MessageSquare className="size-3.5" />
+                        Discuss this change
+                      </Button>
+                    )}
+                  </div>
+                  <RevisionDiff
+                    before={before.content}
+                    after={display.content}
+                  />
+                  <BreakdownProposal
+                    includeApplied
+                    proposals={pendingEntries(
+                      display.proposedChildren,
+                      before.proposedChildren,
+                    )}
+                  />
+                  <details className="rounded-md border p-3">
+                    <summary className="cursor-pointer text-sm">
+                      Read the complete merge result
+                    </summary>
+                    <div className="mt-3">
+                      <Markdown source={display.content} />
+                    </div>
+                  </details>
+                </>
+              ) : (
+                <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                  The merge result is unavailable until the conflicts are
+                  resolved.
+                </p>
+              )
+            ) : (
+              <>
+                <article className="overflow-hidden rounded-lg border">
+                  <p className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+                    <Avatar userId={p.authorId} name={memberName(p.authorId)} />
+                    <span className="font-medium text-foreground">
+                      {memberName(p.authorId)}
+                    </span>
+                    opened this {relativeTime(p.createdAt)}
+                  </p>
+                  <div className="p-4">
+                    <Markdown source={p.description} />
+                  </div>
+                </article>
+                {display && (
+                  <BreakdownProposal
+                    includeApplied
+                    proposals={pendingEntries(
+                      display.proposedChildren,
+                      before?.proposedChildren,
+                    )}
+                  />
+                )}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <SectionLabel>Discussions</SectionLabel>
+                    <span className="text-xs text-muted-foreground">
+                      {threads.filter((t) => t.status === "open").length} open
+                    </span>
+                  </div>
+                  {threads.map((t) => (
+                    <Thread key={t.id} thread={t} />
+                  ))}
+                  {!readOnly && p.status !== "merged" && ours && (
+                    <ThreadComposer
+                      draft={draft}
+                      onDraftChange={setDraft}
+                      pullRequestId={p.id}
+                      commitId={ours.id}
+                    />
+                  )}
+                </section>
+              </>
             )}
           </div>
           <aside className="space-y-5 text-sm">

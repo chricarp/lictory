@@ -5,7 +5,7 @@ import { RootProvider } from "fumadocs-ui/provider/next";
 
 import "./styles.css";
 import StaticSearchDialog from "@lictory/docs/components/search";
-import { baseOptions } from "@lictory/docs/lib/layout.shared";
+import { baseOptions, LegalLinks } from "@lictory/docs/lib/layout.shared";
 import { site } from "@lictory/docs/lib/site";
 import { source } from "@lictory/docs/lib/source";
 
@@ -32,7 +32,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-screen flex-col">
         <RootProvider search={{ SearchDialog: StaticSearchDialog }}>
-          <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
+          <DocsLayout
+            tree={source.getPageTree()}
+            {...baseOptions()}
+            sidebar={{ footer: <LegalLinks /> }}
+          >
             {children}
           </DocsLayout>
         </RootProvider>

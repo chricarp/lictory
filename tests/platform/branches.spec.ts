@@ -490,9 +490,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     .getByRole("button", { name: "Request required review", exact: true })
     .click();
   await expect(
-    page
-      .getByRole("listitem")
-      .filter({ hasText: "QA approval is pending or stale." }),
+    page.getByRole("listitem").filter({ hasText: /^QA approval is pending/ }),
   ).toBeVisible();
   const reviewerContext = await browser.newContext({
     extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
@@ -740,9 +738,7 @@ test("a breakdown-only pull request creates children only after review and merge
   await expect(
     page.getByRole("button", { name: "Merge pull request", exact: true }),
   ).toBeDisabled();
-  const hasReview = await page
-    .getByText("QA approval is pending or stale.", { exact: true })
-    .count();
+  const hasReview = await page.getByText(/^QA approval is pending/).count();
   if (!hasReview) {
     await page
       .getByRole("combobox", { name: "PR reviewing discipline" })

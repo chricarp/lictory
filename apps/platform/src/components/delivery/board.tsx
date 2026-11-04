@@ -4,8 +4,10 @@ import {
   useRouter,
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Plus,
   Repeat,
   Rows3,
@@ -57,6 +59,7 @@ import {
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
@@ -368,7 +371,11 @@ function ProjectBoard({ project }: { project: Project }) {
                 <Repeat className="size-3.5" />
                 {iteration ? iterationLabel(iteration) : "All work"}
                 {iteration?.state === "active" && (
-                  <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                  <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+                    <span
+                      aria-hidden
+                      className="size-1.5 rounded-full bg-success"
+                    />
                     Active
                   </span>
                 )}
@@ -514,6 +521,8 @@ function ProjectBoard({ project }: { project: Project }) {
               </Button>
             </Link>
           )}
+          <span aria-hidden className="mx-1 h-4 w-px bg-border max-lg:hidden" />
+          <LittoLauncher />
         </div>
       </header>
       {usesIterations && iterationParam !== "all" && !iteration ? (
@@ -538,17 +547,21 @@ function ProjectBoard({ project }: { project: Project }) {
             : "Start a sprint from the backlog, or view all work on the board."}
         </EmptyState>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <BoardScroller>
           <div
             className={cn(
-              "inline-flex min-w-full flex-col gap-3 p-3",
+              "inline-flex min-h-full min-w-full flex-col gap-3 p-3 pr-4",
               // Room to scroll the last column and cards out from under the
               // docked preview.
               peek.peeked && "pb-[60dvh] sm:pr-[400px] sm:pb-3 2xl:pr-[440px]",
             )}
           >
             {lanes.map((l) => (
-              <section key={l.key} aria-label={l.label || "Board"}>
+              <section
+                key={l.key}
+                aria-label={l.label || "Board"}
+                className={cn(lanes.length === 1 && "flex flex-1 flex-col")}
+              >
                 {lane !== "none" && (
                   <h2 className="sticky left-3 mb-1.5 inline-flex items-center gap-2 text-xs font-medium">
                     {lane === "priority" && (
@@ -560,7 +573,9 @@ function ProjectBoard({ project }: { project: Project }) {
                     </span>
                   </h2>
                 )}
-                <div className="flex gap-3">
+                <div
+                  className={cn("flex gap-2.5", lanes.length === 1 && "flex-1")}
+                >
                   {columns.map((status) => {
                     const cards = l.items.filter(
                       (i) => i.statusId === status.id,
@@ -574,8 +589,9 @@ function ProjectBoard({ project }: { project: Project }) {
                     return (
                       <div
                         key={status.id}
+                        data-board-column={status.id}
                         className={cn(
-                          "flex w-[272px] shrink-0 flex-col rounded-xl bg-muted/50 p-1.5",
+                          "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-tray p-1.5 ring-1 ring-border/60 ring-inset",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {
@@ -688,7 +704,7 @@ function ProjectBoard({ project }: { project: Project }) {
                 : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
             </EmptyState>
           )}
-        </div>
+        </BoardScroller>
       )}
       <ItemPeek project={project} peek={peek} />
     </div>
@@ -729,6 +745,110 @@ function ColumnHeader({
           <Plus className="size-3.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+// The board scrolls sideways when its columns outgrow the frame (Litto open
+// on a laptop). A fade on the edge that has more columns says so, instead of
+// the last column looking cut off.
+function BoardScroller({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const left = el.scrollLeft > 1;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setMore((m) =>
+        m.left === left && m.right === right ? m : { left, right },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    el.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("scroll", measure);
+    };
+  }, []);
+  // Steps to the next column that is partly out of view, aligning its edge
+  // with the board's, so repeated presses never stop mid-column.
+  const step = (side: "left" | "right") => {
+    const el = ref.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const edges = [...el.querySelectorAll<HTMLElement>("[data-board-column]")]
+      .map((column) => {
+        const r = column.getBoundingClientRect();
+        return {
+          left: r.left - box.left + el.scrollLeft,
+          right: r.right - box.left + el.scrollLeft,
+        };
+      })
+      .sort((a, b) => a.left - b.left);
+    const view = { left: el.scrollLeft, right: el.scrollLeft + el.clientWidth };
+    const gutter = 12;
+    const target =
+      side === "right"
+        ? edges.find((c) => c.right > view.right + 1)
+        : edges.findLast((c) => c.left < view.left - 1);
+    const left = target
+      ? side === "right"
+        ? target.right - el.clientWidth + gutter
+        : target.left - gutter
+      : side === "right"
+        ? el.scrollWidth
+        : 0;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
+  };
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div ref={ref} className="h-full [scrollbar-width:thin] overflow-auto">
+        {children}
+      </div>
+      {(["left", "right"] as const).map((side) => (
+        <div
+          key={side}
+          className={cn(
+            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150",
+            side === "left"
+              ? "left-0 w-12 justify-start bg-linear-to-r pl-1.5"
+              : "right-0 w-16 justify-end bg-linear-to-l pr-1.5",
+            "from-background to-transparent",
+            more[side] ? "opacity-100" : "opacity-0",
+          )}
+        >
+          {/* More columns that way: one press scrolls by a column. */}
+          <button
+            type="button"
+            tabIndex={more[side] ? 0 : -1}
+            aria-hidden={!more[side] || undefined}
+            aria-label={
+              side === "left"
+                ? "Scroll to earlier columns"
+                : "Scroll to later columns"
+            }
+            onClick={() => step(side)}
+            className={cn(
+              "grid size-8 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) transition-[color,transform] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.95]",
+              more[side] && "pointer-events-auto",
+            )}
+          >
+            {side === "left" ? (
+              <ChevronLeft className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

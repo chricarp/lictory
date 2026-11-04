@@ -3,14 +3,15 @@ title: Getting started
 description: Set up a team in Lictory and take a first specification from proposal through review and approval to delivery.
 ---
 
-Lictory runs on your own server. Start by [installing
-it](/self-hosting/install); the steps below happen at your installation's
-address (for example `https://lictory.example.com`).
+**Joining a team that already uses Lictory?** Start at [Sign in](#sign-in).
+Setting it up for your team? Lictory runs on your own server: the first step
+installs it, and the rest happen at your installation's address (for example
+`https://lictory.example.com`).
 
 <Steps>
 <Step>
 
-### Install Lictory
+### Install Lictory (administrators)
 
 Follow [Install](/self-hosting/install) to set up a server with the `lictory`
 command, then open its address in your browser. The
@@ -21,27 +22,25 @@ command, then open its address in your browser. The
 
 ### Sign in
 
-The installer creates the first administrator and your organization
-(`sudo lictory admin setup` does it later). Sign in with that email address
-and choose a handle. Your handle is how teammates mention you; you can change
-it later in account settings.
+Open your installation's address and sign in the way your team was invited:
+accept the invitation email, use your company's single sign-on, or sign in
+with an account you already have. Then choose a handle: it is how teammates
+mention you, and you can change it later in account settings.
 
-Everyone else gets an account the way your installation's
-[access policy](/self-hosting/configuration#access-policy) allows: by default
-an organization administrator invites them, or an instance administrator
-creates the account in the admin console (`/admin`). With single sign-on,
-people from your identity provider can sign in directly.
+<Callout title="For administrators">
+  Sign in first with the administrator the installer created (`sudo lictory
+  admin setup` adds one later), then invite people as the [access
+  policy](/self-hosting/configuration#access-policy) allows.
+</Callout>
 
 </Step>
 <Step>
 
-### Create an organization and its first project
+### Create your first project
 
-Open your organization and name its first project. (Where the access policy
-lets everyone create organizations, people without one can create their own
-from the welcome page.) The project **key** becomes part of
-every identifier (`PAY-142`) and does not change, so pick it with care; the
-name can change later.
+Open your organization and name its first project. The project **key**
+becomes part of every identifier (`PAY-142`) and does not change, so pick it
+with care; the name can change later.
 
 Guided setup then asks only for the decisions that change how the project
 behaves:
@@ -60,6 +59,11 @@ behaves:
 Work item types, the workflow and the Product, Engineering and QA
 disciplines are created for you, and you become a project administrator in
 Product. Every choice can be changed later in settings.
+
+<Callout title="More than one organization">
+  Where the access policy lets everyone create organizations, people without one
+  can create their own from the welcome page.
+</Callout>
 
 </Step>
 <Step>

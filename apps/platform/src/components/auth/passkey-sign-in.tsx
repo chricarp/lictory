@@ -47,7 +47,7 @@ export function PasskeySignIn({ callbackURL }: { callbackURL: string }) {
   }
 
   return (
-    <div className="grid gap-2.5">
+    <div className="mb-5 grid gap-2.5">
       <FormMessage>{error}</FormMessage>
       <Button
         size="lg"

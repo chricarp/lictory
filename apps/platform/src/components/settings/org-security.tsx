@@ -160,10 +160,7 @@ export function OrganizationSecurity() {
         )}
         <InlineError>{error}</InlineError>
         {notice && (
-          <p
-            role="status"
-            className="text-xs text-emerald-700 dark:text-emerald-400"
-          >
+          <p role="status" className="text-xs text-success">
             {notice}
           </p>
         )}

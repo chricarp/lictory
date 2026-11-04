@@ -121,9 +121,11 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
     });
   return (
     <article
+      data-thread-id={thread.id}
+      tabIndex={-1}
       className={cn(
-        "rounded-md border",
-        isOpen && thread.blocking && "border-red-500/40",
+        "scroll-mt-24 rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        isOpen && thread.blocking && "border-destructive/40",
         !isOpen && "opacity-75",
       )}
       aria-label={`${thread.blocking ? "Blocking " : ""}discussion`}

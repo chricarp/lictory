@@ -3,7 +3,7 @@
 import { Stage } from "@lictory/marketing/vendor/stageshow/stage";
 import type { Act } from "@lictory/marketing/vendor/stageshow/act";
 import type { Layout } from "@lictory/marketing/vendor/stageshow/looks";
-import { Bar, Window } from "@lictory/marketing/vendor/stageshow/window";
+import { Window } from "@lictory/marketing/vendor/stageshow/window";
 import { Check } from "@lictory/marketing/vendor/stageshow/parts/Check";
 import { Avatar } from "@lictory/marketing/vendor/stageshow/parts/Avatar";
 import { Badge } from "@lictory/marketing/vendor/stageshow/controls/Badge";
@@ -185,10 +185,10 @@ function Scene({ s, layout }: { s: S; layout: Layout }) {
           {wide ? (
             <>
               <div className="rs-heading">Failure behavior</div>
-              <div className="rs-lines">
-                <Bar w="92%" h={7} r={3.5} tone={2} />
-                <Bar w="64%" h={7} r={3.5} tone={2} />
-              </div>
+              <p className="rs-lines">
+                A payment fails when the provider declines it or does not answer
+                within 30 seconds.
+              </p>
             </>
           ) : null}
           <p className="rs-sentence">
@@ -222,11 +222,9 @@ function Scene({ s, layout }: { s: S; layout: Layout }) {
               />
             </div>
           )}
-          <div className="rs-lines rs-tail">
-            <Bar w="88%" h={7} r={3.5} tone={2} />
-            <Bar w="72%" h={7} r={3.5} tone={2} />
-            <Bar w="80%" h={7} r={3.5} tone={2} />
-          </div>
+          <p className="rs-lines rs-tail">
+            The merchant sees every attempt in the payment’s history.
+          </p>
           <span className="rs-rest" data-target="rest" />
         </div>
         {wide ? (

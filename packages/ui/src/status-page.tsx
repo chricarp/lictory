@@ -10,7 +10,7 @@ type Icon = ComponentType<{ className?: string; strokeWidth?: number }>;
 
 const wells = {
   neutral: "bg-muted text-muted-foreground",
-  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  warning: "bg-warning/10 text-warning",
   danger: "bg-destructive/10 text-destructive",
 } as const;
 

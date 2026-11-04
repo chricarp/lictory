@@ -70,6 +70,7 @@ import {
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { PriorityIcon } from "@lictory/platform/components/items/properties";
 import { ColorDot } from "@lictory/platform/components/items/labels";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 export function IssueList({
   items,
@@ -107,7 +108,7 @@ export function IssueList({
   allowEpicFilter?: boolean;
   header?: ReactNode;
   summary?: ReactNode;
-  groupBy?: "status" | "refinement" | "lifecycle";
+  groupBy?: "status" | "refinement" | "lifecycle" | "review";
   itemHint?: (item: WorkItem) => string;
   createLabel?: string;
   createIntent?: "proposal" | "work";
@@ -280,6 +281,33 @@ export function IssueList({
           ),
         }))
         .filter((g) => g.items.length);
+    // Review queues group by what is asked: each requested responsibility,
+    // then proposed changes (suggestions and pull requests) waiting on you.
+    if (groupBy === "review") {
+      const byResponsibility = new Map<string, WorkItem[]>();
+      const proposed: WorkItem[] = [];
+      for (const item of visible) {
+        const open = item.reviews.filter(
+          (r) => r.status !== "cancelled" && r.status !== "completed",
+        );
+        if (!open.length) proposed.push(item);
+        for (const r of open)
+          byResponsibility.set(r.responsibility, [
+            ...(byResponsibility.get(r.responsibility) ?? []),
+            item,
+          ]);
+      }
+      return [
+        ...[...byResponsibility].map(([responsibility, items]) => ({
+          key: `review-${responsibility}`,
+          label: `${responsibility} review`,
+          items,
+        })),
+        ...(proposed.length
+          ? [{ key: "proposed", label: "Proposed changes", items: proposed }]
+          : []),
+      ];
+    }
     if (groupBy === "refinement") {
       const refinementGroups = refinementOrder
         .map((state) => ({
@@ -517,7 +545,7 @@ export function IssueList({
                   <span
                     aria-hidden
                     data-count={activeFilterCount}
-                    className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary before:content-[attr(data-count)]"
+                    className="rounded-full bg-foreground px-1.5 text-[10px] font-semibold text-background before:content-[attr(data-count)]"
                   />
                 )}
               </Button>
@@ -596,7 +624,9 @@ export function IssueList({
                   ? "lifecycle"
                   : groupBy === "refinement"
                     ? "refinement"
-                    : "status"}
+                    : groupBy === "review"
+                      ? "review"
+                      : "status"}
               </label>
               {showArchivedToggle && (
                 <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
@@ -626,6 +656,7 @@ export function IssueList({
               {!compact && (createLabel ?? "New item")}
             </Button>
           )}
+          {!compact && <LittoLauncher className="ml-1" />}
         </div>
       </header>
       {description && !compact && (
@@ -890,7 +921,7 @@ export function IssueList({
           </EmptyState>
         ) : (
           <ul ref={listRef}>
-            {groups.map((g) => (
+            {groups.map((g, groupIndex) => (
               <li key={g.key}>
                 {g.label && (
                   <div className="sticky top-0 z-1 flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs font-medium backdrop-blur">
@@ -899,6 +930,27 @@ export function IssueList({
                     <span className="text-muted-foreground tabular-nums">
                       {g.items.length}
                     </span>
+                    {!compact &&
+                      groupIndex === 0 &&
+                      project?.deliveryMode !== "external" && (
+                        // Column names, aligned with the rows' fixed slots.
+                        <span
+                          aria-hidden
+                          className="ml-auto hidden items-center gap-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase md:flex"
+                        >
+                          <span className="w-7 text-center">Est.</span>
+                          <span className="mr-3 w-36 @min-[65rem]/frame:w-52">
+                            Review
+                          </span>
+                          <span className="w-16 @min-[65rem]/frame:w-24">
+                            Checks
+                          </span>
+                          <span className="w-7 text-center">Who</span>
+                          <span className="hidden w-14 text-right sm:block">
+                            Updated
+                          </span>
+                        </span>
+                      )}
                   </div>
                 )}
                 <ul>

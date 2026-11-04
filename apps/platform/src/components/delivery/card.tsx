@@ -97,10 +97,6 @@ export const ItemCard = memo(function ItemCard({
   const id = identifier(project, item.number);
   const status = delivery.statuses.get(item.statusId);
   const estimate = estimateLabel(project, item.estimate);
-  const notReady =
-    type.hasSpecification &&
-    item.refinementState !== "ready" &&
-    project?.readinessPolicy !== "off";
   return (
     <div
       data-card={item.id}
@@ -109,7 +105,7 @@ export const ItemCard = memo(function ItemCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group relative rounded-lg bg-card p-2.5 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-panel)",
+        "group relative rounded-xl bg-card p-3 text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover)",
         draggable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-40",
         selected && "ring-2 ring-primary/60",
@@ -147,20 +143,23 @@ export const ItemCard = memo(function ItemCard({
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {item.priority !== "none" && <PriorityIcon priority={item.priority} />}
         {teamName && (
-          <span className="max-w-28 truncate rounded bg-muted px-1.5">
+          <span className="max-w-28 truncate rounded-full bg-muted px-2">
             {teamName}
           </span>
         )}
         {estimate && (
-          <span className="rounded bg-muted px-1.5 tabular-nums">
+          <span className="rounded-full bg-muted px-2 font-mono text-[11px] tabular-nums">
             {estimate}
           </span>
         )}
         {item.refinementState && (
           <span
             className={cn(
-              "inline-flex items-center gap-1",
-              notReady && "text-amber-700 dark:text-amber-400",
+              "inline-flex h-5 items-center gap-1 rounded-full px-1.5 ring-1 ring-inset",
+              // Color only when it needs attention: blockers carry it.
+              item.refinementState === "ready"
+                ? "bg-success/8 text-success ring-success/20"
+                : "bg-muted text-foreground/80 ring-foreground/8",
             )}
             title={
               item.refinementState !== "ready"
@@ -169,23 +168,25 @@ export const ItemCard = memo(function ItemCard({
             }
           >
             <RefinementIcon state={item.refinementState} />
-            {refinementMeta[item.refinementState].label}
+            {/* "Spec" keeps refinement apart from the delivery column. */}
+            Spec: {refinementMeta[item.refinementState].label.toLowerCase()}
             {item.refinementState !== "ready" &&
-              ` · ${item.readinessPassed}/${item.readinessTotal}`}
+              ` · ${item.readinessPassed}/${item.readinessTotal} checks`}
           </span>
         )}
         {item.blockingThreads > 0 && (
           <span
-            className="inline-flex items-center gap-1 text-destructive"
+            className="inline-flex h-5 items-center gap-1 rounded-full bg-destructive/8 px-1.5 text-destructive ring-1 ring-destructive/20 ring-inset"
             title="Open blocking discussions"
           >
             <CircleAlert className="size-3" />
-            {item.blockingThreads}
+            {item.blockingThreads} blocker
+            {item.blockingThreads === 1 ? "" : "s"}
           </span>
         )}
         {item.childCount > 0 && (
           <span className="tabular-nums" title="Children done">
-            {item.childDoneCount}/{item.childCount}
+            {item.childDoneCount}/{item.childCount} done
           </span>
         )}
       </div>

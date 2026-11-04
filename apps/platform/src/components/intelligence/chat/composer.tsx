@@ -208,8 +208,10 @@ export const Composer = forwardRef<
         send();
       }}
       className={cn(
-        "group/composer relative rounded-2xl border bg-card shadow-[0_1px_2px_oklch(0_0_0/0.04),0_8px_24px_-12px_oklch(0_0_0/0.12)] transition-[border-color,box-shadow] duration-200",
-        "focus-within:border-primary/40 focus-within:shadow-[0_0_0_4px_color-mix(in_oklch,var(--primary)_10%,transparent),0_8px_24px_-12px_oklch(0_0_0/0.16)]",
+        // A hairline card at rest; focus adds one quiet ring, never a
+        // heavy frame.
+        "group/composer relative rounded-[1.25rem] bg-card shadow-(--shadow-border) transition-shadow duration-200",
+        "focus-within:shadow-[0_0_0_1px_color-mix(in_srgb,var(--foreground)_22%,transparent),0_0_0_4px_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
         disabled && "opacity-70",
       )}
     >
@@ -282,7 +284,10 @@ export const Composer = forwardRef<
           </span>
         ) : (
           context && (
-            <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground">
+            <span
+              title="Litto uses your permissions and asks before decisions such as approvals and merges."
+              className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground"
+            >
               <ShieldCheck className="size-3 shrink-0" aria-hidden />
               <span className="truncate">{context}</span>
             </span>

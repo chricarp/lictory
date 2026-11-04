@@ -84,7 +84,7 @@ export const IssueRow = memo(function IssueRow({
         "group relative flex items-center gap-2 border-b px-3 text-[13px] last:border-b-0",
         compact ? "h-9" : hint ? "min-h-14" : "h-10",
         selected
-          ? "bg-primary/6"
+          ? "bg-card shadow-(--shadow-border)"
           : focused
             ? "bg-muted/70"
             : "hover:bg-muted/50",
@@ -122,7 +122,7 @@ export const IssueRow = memo(function IssueRow({
       <IssueIdentifier
         project={project}
         number={item.number}
-        className="w-18"
+        className={compact ? "w-12" : "w-18"}
       />
       <Link
         href={href}
@@ -149,13 +149,13 @@ export const IssueRow = memo(function IssueRow({
         </span>
       )}
       {!compact && milestone && (
-        <span className="hidden xl:inline-flex">
+        <span className="hidden @min-[65rem]/frame:inline-flex">
           <MilestoneBadge milestone={milestone} />
         </span>
       )}
       {!compact && parent && (
         <span
-          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground xl:inline-flex"
+          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground @min-[81rem]/frame:inline-flex"
           title={parent.title}
         >
           <TypeIcon
@@ -173,19 +173,32 @@ export const IssueRow = memo(function IssueRow({
           {item.childDoneCount}/{item.childCount} done
         </span>
       )}
-      {!compact &&
-        project?.deliveryMode !== "external" &&
-        item.estimate !== null && (
-          <span
-            className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
-            title="Estimate"
-          >
-            {item.estimate}
-          </span>
-        )}
-      <ReviewSignal item={item} />
+      {!compact && project?.deliveryMode !== "external" && (
+        <span className="inline-flex shrink-0 justify-center md:w-7">
+          {item.estimate !== null && (
+            <span
+              className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
+              title="Estimate"
+            >
+              {item.estimate}
+            </span>
+          )}
+        </span>
+      )}
+      <ReviewSignal
+        item={item}
+        compact={compact}
+        className={
+          compact
+            ? undefined
+            : "md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
+        }
+      />
       {!compact && (
-        <ReadinessBar item={item} className="hidden md:inline-flex" />
+        // A fixed slot keeps assignee and time aligned on rows without checks.
+        <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
+          <ReadinessBar item={item} labelled />
+        </span>
       )}
       {project?.deliveryMode === "external" ? (
         <span
@@ -205,11 +218,14 @@ export const IssueRow = memo(function IssueRow({
           onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
         />
       ) : (
+        // Compact rows give the title the room; the assignee shows on wide
+        // screens only.
         item.assigneeId && (
           <Avatar
             userId={item.assigneeId}
             name={memberName(item.assigneeId)}
             size="xs"
+            className="hidden @min-[81rem]/frame:inline-grid"
           />
         )
       )}

@@ -37,7 +37,7 @@ export function WorkItemListToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="hidden xl:inline-flex"
+      className="hidden @min-[65rem]/frame:inline-flex"
       aria-label={label}
       title={label}
       aria-expanded={!panel.collapsed}
@@ -111,9 +111,11 @@ export function SplitView({ children }: { children: ReactNode }) {
       <div className="flex h-full">
         <div
           id={listId}
+          data-work-item-list
           className={cn(
-            "hidden w-[320px] shrink-0 border-r",
-            !collapsed && "xl:block",
+            // A quarter of the frame, so titles stay readable wherever it fits.
+            "hidden w-[clamp(272px,26cqw,400px)] shrink-0 border-r bg-shell/50",
+            !collapsed && "@min-[65rem]/frame:block",
           )}
         >
           {!collapsed && (

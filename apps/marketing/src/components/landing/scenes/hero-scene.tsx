@@ -12,7 +12,7 @@ import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Stage } from "@lictory/marketing/vendor/stageshow/stage";
 import type { Act } from "@lictory/marketing/vendor/stageshow/act";
 import type { Layout } from "@lictory/marketing/vendor/stageshow/looks";
-import { Bar, Window } from "@lictory/marketing/vendor/stageshow/window";
+import { Window } from "@lictory/marketing/vendor/stageshow/window";
 import { Check } from "@lictory/marketing/vendor/stageshow/parts/Check";
 import { Facepile } from "@lictory/marketing/vendor/stageshow/parts/Facepile";
 import { Avatar } from "@lictory/marketing/vendor/stageshow/parts/Avatar";
@@ -490,15 +490,13 @@ function Changes({ layout }: { layout: Layout }) {
       </div>
       <div className="hs-diff" data-kind="add">
         <span className="hs-sign">+</span>
-        <Bar w={wide ? 360 : 200} h={7} r={3.5} tone={3} />
+        {wide
+          ? "A retry after the provider confirms is ignored."
+          : "Late confirmations are ignored."}
       </div>
-      <div className="hs-diff">
+      <div className="hs-diff" data-context>
         <span className="hs-sign" />
-        <Bar w={wide ? 260 : 150} h={7} r={3.5} tone={2} />
-      </div>
-      <div className="hs-diff">
-        <span className="hs-sign" />
-        <Bar w={wide ? 330 : 170} h={7} r={3.5} tone={2} />
+        Retries stop after three attempts.
       </div>
     </div>
   );

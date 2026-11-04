@@ -61,7 +61,7 @@ export function ProjectGeneral({
               defaultValue={project.description ?? ""}
               disabled={!canEdit}
               placeholder="What this product area covers, e.g. checkout, payments and refunds."
-              className="w-full resize-y rounded-xl border border-input bg-card px-3.5 py-2 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-3 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-60 touch:text-base"
+              className="w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-3 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-60 touch:text-base"
               onBlur={(e) => {
                 const description = e.currentTarget.value.trim() || null;
                 if (description !== (project.description ?? null))

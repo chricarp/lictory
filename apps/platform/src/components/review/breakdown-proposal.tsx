@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ListTree, Plus, Trash2 } from "lucide-react";
 import {
   isChildChange,
   isNewChild,
@@ -50,6 +50,17 @@ export function BreakdownProposal({
     .filter(isChildChange)
     .filter((change) => includeApplied || !applied.has(change.changeId));
   if (!types.length && !pending.length && !changes.length) return null;
+  // Nothing proposed and nothing to edit: one quiet line, not a card.
+  if (!pending.length && !changes.length && !onChange)
+    return (
+      <section
+        aria-label="Proposed breakdown"
+        className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-2.5 text-[13px] text-muted-foreground"
+      >
+        <ListTree aria-hidden className="size-3.5 shrink-0" />
+        No additional children are proposed.
+      </section>
+    );
   const field =
     "w-full rounded-md border border-input bg-card px-3 py-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
   return (
@@ -199,11 +210,6 @@ export function BreakdownProposal({
           proposals={proposals}
           onAdd={(change) => onChange([...proposals, change])}
         />
-      )}
-      {!pending.length && !changes.length && !onChange && (
-        <p className="text-sm text-muted-foreground">
-          No additional children are proposed.
-        </p>
       )}
     </section>
   );

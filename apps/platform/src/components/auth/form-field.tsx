@@ -39,7 +39,7 @@ export function FormMessage({
         tone === "error"
           ? "rounded-lg bg-destructive/8 px-3 py-2.5 text-[13px] leading-5 text-destructive"
           : tone === "success"
-            ? "rounded-lg bg-emerald-500/10 px-3 py-2.5 text-[13px] leading-5 text-emerald-700 dark:text-emerald-300"
+            ? "rounded-lg bg-success/10 px-3 py-2.5 text-[13px] leading-5 text-success"
             : "rounded-lg bg-primary/8 px-3 py-2.5 text-[13px] leading-5 text-primary"
       }
     >

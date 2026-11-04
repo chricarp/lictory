@@ -1,6 +1,7 @@
-/* Lictory's product tokens (light and dark) from the shared UI package, mapped
-   onto Fumadocs' colors through its shadcn bridge, so the documentation reads
-   like the application it describes. */
+/* Lictory's shared tokens (light and dark) from the UI package, mapped onto
+   Fumadocs' colors through its shadcn bridge, so the documentation reads like
+   the application and the website: a cool gray sidebar, white reading column,
+   ink type, mono capitals for section labels. */
 @import "../../../../packages/ui/src/styles.css";
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
@@ -9,4 +10,175 @@ body {
   --font-sans: var(--font-geist-sans), ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   font-family: var(--font-sans);
+  background: var(--background);
+}
+
+/* Sidebar: the application's shell, mono section labels, rounded rows. */
+#nd-sidebar {
+  font-size: 0.875rem;
+}
+#nd-sidebar p.inline-flex {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#nd-sidebar a[data-active="true"] {
+  border-radius: 0.625rem;
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 500;
+  box-shadow: var(--shadow-border);
+}
+#nd-sidebar a[data-active="false"]:hover {
+  background: var(--sidebar-accent);
+}
+
+/* Page title and lede. */
+.docs-title {
+  font-size: clamp(2rem, 1.5rem + 1.4vw, 2.5rem);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+.docs-lede {
+  font-size: 1.1875rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+/* Reading column: comfortable measure and rhythm. */
+.docs-body {
+  --tw-prose-body: color-mix(in srgb, var(--foreground) 86%, var(--background));
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-links: var(--foreground);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: color-mix(
+    in srgb,
+    var(--muted-foreground) 60%,
+    transparent
+  );
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--primary);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+.docs-body :where(h2):not(:where(.not-prose *)) {
+  font-size: 1.375rem;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  margin-top: 2.25em;
+}
+.docs-body :where(h3):not(:where(.not-prose *)) {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.docs-body :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *)) {
+  font-weight: 500;
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--foreground) 28%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  border-bottom: 0;
+  transition: text-decoration-color 150ms ease-out;
+}
+.docs-body :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *)):hover {
+  text-decoration-color: var(--foreground);
+}
+/* Inline code: a warm chip, no border. */
+.docs-body :where(:not(pre) > code):not(:where(.not-prose *)) {
+  background: var(--muted);
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875em;
+  font-weight: 450;
+  /* A command that wraps keeps its chip on both lines. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Tables and code blocks sit on cards with the shared hairline. */
+.docs-body :where(table):not(:where(.not-prose *)) {
+  font-size: 0.9375rem;
+}
+.docs-body :where(figure.shiki, pre):not(:where(.not-prose *)) {
+  border-color: var(--border);
+}
+/* A 65-75 character measure for reading, also inside steps and callouts;
+   tables and code blocks keep the full column. */
+.docs-title,
+.docs-lede,
+.docs-body
+  :where(p, ul, ol, blockquote, h2, h3, h4):not(:where(table *, .not-prose *)) {
+  max-width: 42rem;
+}
+
+/* Callouts keep the reading measure and a quiet frame. */
+.docs-body div.rounded-xl.border.bg-fd-card {
+  max-width: 42rem;
+  border-color: transparent;
+  border-radius: 1rem;
+  background: var(--muted);
+}
+
+/* Secondary controls (search, theme switch, sidebar footer) take the warm
+   neutrals instead of the cobalt tint. */
+:root,
+.dark {
+  --color-fd-secondary: var(--muted);
+  --color-fd-secondary-foreground: var(--foreground);
+}
+#nd-sidebar button[data-search-full],
+#nd-sidebar [data-search-full] {
+  background: var(--card);
+}
+
+/* On this page: one current section, marked by a cobalt dot on the rail;
+   other sections in view stay quiet instead of all turning blue. */
+#nd-toc a {
+  transition: color 120ms ease-out;
+}
+#nd-toc svg:has(path.stroke-fd-primary),
+#nd-toc div.bg-fd-primary.rounded-full {
+  display: none;
+}
+#nd-toc a[data-active="true"] {
+  color: var(--muted-foreground);
+}
+#nd-toc a[data-active="true"]:not(a[data-active="true"] ~ a) {
+  color: var(--foreground);
+  font-weight: 500;
+}
+#nd-toc a[data-active="true"]:not(a[data-active="true"] ~ a)::before {
+  content: "";
+  position: absolute;
+  top: calc(0.375rem + 3px);
+  left: 13px;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--brand);
+  box-shadow: 0 0 0 3px var(--background);
+}
+/* The dot sits on the rail, which is indented with the heading depth. */
+#nd-toc a[style*="padding-inline-start:20px"]::before {
+  left: 5.5px !important;
+}
+#nd-toc a[style*="padding-inline-start:44px"]::before {
+  left: 25px !important;
+}
+/* The first entry has no top padding. */
+#nd-toc a.pt-0[data-active="true"]::before {
+  top: 3px;
 }

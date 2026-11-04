@@ -1,6 +1,6 @@
 /* The Lictory look for Stageshow scenes: the product's own tokens
-   (packages/ui/src/styles.css) mapped onto the kit's, so a scene reads as
-   the real app. The page around a scene is the marketing site's paper; the
+   (packages/ui/src/styles.css) mapped onto the kit's, so a
+   scene reads as the real app. The page around a scene is the marketing site's paper; the
    window inside it is the product, in the product's colors, type and radii.
    Each scene sets `theme` from the site's light or dark preference. */
 
@@ -8,36 +8,37 @@
   --ss-font: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --ss-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  --ss-canvas: oklch(0.9946 0.0026 286.35);
-  --ss-surface: oklch(1 0 0);
-  --ss-chrome: oklch(0.9946 0.0026 286.35);
-  --ss-raised: oklch(1 0 0);
-  --ss-line: oklch(0.9163 0.0162 286.08);
-  --ss-line-faint: oklch(0.9601 0.0093 286.22);
-  --ss-text-strong: oklch(0.1615 0.0105 285.17);
-  --ss-text: oklch(0.5052 0.0379 284.96);
-  --ss-text-faint: oklch(0.68 0.025 285);
-  --ss-icon: oklch(0.5052 0.0379 284.96);
-  --ss-icon-faint: oklch(0.8 0.015 285);
+  --ss-canvas: #ffffff;
+  --ss-surface: #ffffff;
+  --ss-chrome: #fafafb;
+  --ss-raised: #ffffff;
+  --ss-line: #e7e8eb;
+  --ss-line-faint: #f1f2f4;
+  --ss-text-strong: #111214;
+  --ss-text: #646770;
+  --ss-text-faint: #9a9ca3;
+  --ss-icon: #646770;
+  --ss-icon-faint: #c9cbd0;
 
-  --ss-accent: oklch(0.5828 0.2188 258.88);
-  --ss-accent-2: oklch(0.5828 0.2188 258.88);
-  --ss-accent-soft: oklch(0.5828 0.2188 258.88 / 0.12);
-  --ss-success: oklch(0.6 0.13 162);
-  --ss-success-text: oklch(0.508 0.118 165.61);
-  --ss-success-soft: oklch(0.6 0.13 162 / 0.12);
-  --ss-warning-text: oklch(0.555 0.163 49);
-  --ss-warning-soft: oklch(0.75 0.15 70 / 0.16);
+  --ss-accent: #111214;
+  --lx-on-accent: #ffffff;
+  --ss-accent-2: #111214;
+  --ss-accent-soft: rgb(17 18 20 / 0.06);
+  --ss-success: #16a34a;
+  --ss-success-text: #15803d;
+  --ss-success-soft: rgb(22 163 74 / 0.1);
+  --ss-warning-text: #b45309;
+  --ss-warning-soft: rgb(180 83 9 / 0.1);
 
   --ss-radius-sm: 6px;
   --ss-radius-md: 8px;
-  --ss-radius-lg: 12px;
+  --ss-radius-lg: 10px;
   --ss-radius-window: 14px;
 
   /* Each collaborator keeps one color everywhere: their lane, their dots,
      their avatar. None of them is the product's accent, which belongs to the
      action. */
-  --lx-main: oklch(0.32 0.012 285);
+  --lx-main: #111214;
   --lx-theo: oklch(0.62 0.17 45);
   --lx-litto: oklch(0.56 0.1 180);
   --lx-ana: oklch(0.58 0.17 350);
@@ -51,28 +52,29 @@
 }
 
 .lx .ss-stage[data-theme="dark"] {
-  --ss-canvas: oklch(0.144 0.0028 247.09);
-  --ss-surface: oklch(0.1809 0.0052 248.12);
-  --ss-chrome: oklch(0.144 0.0028 247.09);
-  --ss-raised: oklch(0.2303 0.0125 264.29);
-  --ss-line: oklch(0.2758 0.0035 248);
-  --ss-line-faint: oklch(0.2258 0.0025 247.94);
-  --ss-text-strong: oklch(0.9643 0.0083 271.33);
-  --ss-text: oklch(0.7364 0.0183 248.08);
-  --ss-text-faint: oklch(0.56 0.015 248);
-  --ss-icon: oklch(0.7364 0.0183 248.08);
-  --ss-icon-faint: oklch(0.42 0.01 248);
+  --ss-canvas: #141518;
+  --ss-surface: #141518;
+  --ss-chrome: #141518;
+  --ss-raised: #1c1d21;
+  --ss-line: #2a2c31;
+  --ss-line-faint: #1f2024;
+  --ss-text-strong: #eceef1;
+  --ss-text: #b0b3ba;
+  --ss-text-faint: #8f929a;
+  --ss-icon: #aeb1b8;
+  --ss-icon-faint: #4b4e55;
 
-  --ss-accent: oklch(0.62 0.2 258.75);
-  --ss-accent-2: oklch(0.62 0.2 258.75);
-  --ss-accent-soft: oklch(0.62 0.2 258.75 / 0.22);
-  --ss-success: oklch(0.7 0.15 163);
-  --ss-success-text: oklch(0.765 0.177 163.22);
-  --ss-success-soft: oklch(0.7 0.15 163 / 0.16);
-  --ss-warning-text: oklch(0.828 0.189 84.43);
-  --ss-warning-soft: oklch(0.828 0.189 84.43 / 0.16);
+  --ss-accent: #f2f3f5;
+  --lx-on-accent: #111214;
+  --ss-accent-2: #7c93ff;
+  --ss-accent-soft: rgb(255 255 255 / 0.08);
+  --ss-success: #4ade80;
+  --ss-success-text: #4ade80;
+  --ss-success-soft: rgb(74 222 128 / 0.12);
+  --ss-warning-text: #fbbf24;
+  --ss-warning-soft: rgb(251 191 36 / 0.12);
 
-  --lx-main: oklch(0.86 0.01 270);
+  --lx-main: #eceef1;
   --lx-theo: oklch(0.74 0.15 50);
   --lx-litto: oklch(0.74 0.11 180);
   --lx-ana: oklch(0.74 0.15 350);
@@ -91,4 +93,51 @@
 .lx .ss-stage svg.lucide {
   flex: none;
   stroke-width: 1.75;
+}
+
+/* Product panels, not desktop windows: no traffic lights, a mono title bar
+   like the application's own panel headers, and the panel radius. */
+.lx .ss-window__lights {
+  display: none;
+}
+.lx .ss-window {
+  border-radius: 16px;
+}
+
+/* The application's status grammar inside every scene: soft pills with a
+   hairline ring of the same hue. */
+.lx .ss-badge {
+  height: 22px;
+  padding-inline: 9px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* Tabs read like the application's: an underline under the current one. */
+.lx .hs-tabs > span {
+  border-radius: 0;
+  box-shadow: inset 0 -1.5px 0 transparent;
+}
+.lx .hs-tabs > [data-active] {
+  background: transparent;
+  box-shadow: inset 0 -1.5px 0 var(--ss-text-strong);
+}
+
+/* Revisions are mono pills with a ring, as on the item page. */
+.lx .rs-revision {
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  background: var(--ss-chrome);
+}
+
+/* Buttons and revision chips match the application's pills. */
+.lx :is(.hs-button, .ag-button, .dl-button) {
+  border-radius: 999px;
+}
+.lx .dl-from {
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  font-family: var(--ss-mono);
+  font-size: 11px;
 }

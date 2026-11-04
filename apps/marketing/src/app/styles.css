@@ -5,81 +5,87 @@
 @source "../../../../packages/ui/src";
 
 /*
- * The public website. Specifications are documents, so the page is paper and
- * ink: warm neutrals, Lictory's cobalt as the one accent, a serif for
- * headlines only. It follows the visitor's light or dark preference. Color
- * belongs to the moments (the branch graph, the review demo); the chrome stays
- * quiet. One easing curve, a few durations, no looping motion.
+ * The public website, in the product's own language: cool neutral grays, ink
+ * type, white panels resting on a faint hatched ground, mono capitals for
+ * labels and one orange brand accent for the main call to action. Color
+ * belongs to the moments (the branch graph, the review demo); the chrome
+ * stays quiet. One easing curve, a few durations, no looping motion.
  */
 .marketing-site {
   color-scheme: light;
   --radius: 0.75rem;
-  --background: #f6f4ef;
-  --foreground: #1b1a17;
-  --card: #fdfcf9;
-  --card-foreground: #1b1a17;
-  --popover: #fdfcf9;
-  --popover-foreground: #1b1a17;
-  --muted: #eeebe4;
-  --muted-foreground: #6e6961;
-  --secondary-text: #57534c;
-  --primary: #2a59d1;
+  --background: #f4f5f7;
+  --foreground: #111214;
+  --card: #ffffff;
+  --card-foreground: #111214;
+  --popover: #ffffff;
+  --popover-foreground: #111214;
+  --muted: #eceef1;
+  --muted-foreground: #646770;
+  --secondary-text: #4b4e56;
+  --primary: #111214;
   --primary-foreground: #ffffff;
-  --accent: #eeebe4;
-  --accent-foreground: #1b1a17;
-  --border: #1b1a171a;
-  --input: #1b1a1724;
-  --ring: #2a59d1;
-  --hairline: #1b1a1714;
-  --positive: #1d7a4f;
-  --caution: #9a5806;
-  --negative: #b4321f;
-  --lane-main: #1b1a17;
-  --lane-eng: #2a59d1;
-  --lane-ai: #0e7c6b;
-  --lane-mcp: #a85b08;
-  --window-shadow: 0 1px 2px #1b1a170a, 0 24px 48px -24px #1b1a1729;
+  --accent: #eceef1;
+  --accent-foreground: #111214;
+  --border: #1112141a;
+  --input: #11121424;
+  --ring: #3b5bdb;
+  --hairline: #11121412;
+  --positive: #15803d;
+  --caution: #b45309;
+  --negative: #dc2626;
+  --lane-main: #111214;
+  --lane-eng: #4f6ef7;
+  --lane-ai: #2f9e8f;
+  --lane-mcp: #c0507a;
+  --window-shadow:
+    0 0 0 1px #1112140f, 0 1px 2px #1112140a, 0 28px 56px -28px #11121433;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   color: var(--foreground);
-  background: var(--background);
+  background-color: var(--background);
   font-family: var(--font-geist-sans), sans-serif;
-  letter-spacing: 0;
+  letter-spacing: -0.006em;
 }
 .dark .marketing-site,
 .marketing-site .ink {
   color-scheme: dark;
-  --background: #141311;
-  --foreground: #ede9e1;
-  --card: #1b1a17;
-  --card-foreground: #ede9e1;
-  --popover: #1f1d1a;
-  --popover-foreground: #ede9e1;
-  --muted: #26241f;
-  --muted-foreground: #8c877d;
-  --secondary-text: #aaa59b;
-  --primary: #86a6ff;
-  --primary-foreground: #10131c;
-  --accent: #26241f;
-  --accent-foreground: #ede9e1;
-  --border: #ede9e11a;
-  --input: #ede9e124;
-  --ring: #86a6ff;
-  --hairline: #ede9e112;
-  --positive: #5cc59a;
-  --caution: #e2a54a;
-  --negative: #ef7b6c;
-  --lane-main: #ede9e1;
-  --lane-eng: #86a6ff;
+  --hatch: repeating-linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.035) 0 1px,
+    transparent 1px 10px
+  );
+  --background: #0c0d0f;
+  --foreground: #eceef1;
+  --card: #141518;
+  --card-foreground: #eceef1;
+  --popover: #1a1b1f;
+  --popover-foreground: #eceef1;
+  --muted: #1c1d21;
+  --muted-foreground: #8f929a;
+  --secondary-text: #b0b3ba;
+  --primary: #f2f3f5;
+  --primary-foreground: #111214;
+  --accent: #1c1d21;
+  --accent-foreground: #eceef1;
+  --border: #ffffff17;
+  --input: #ffffff24;
+  --ring: #7c93ff;
+  --hairline: #ffffff10;
+  --positive: #4ade80;
+  --caution: #fbbf24;
+  --negative: #f87171;
+  --lane-main: #eceef1;
+  --lane-eng: #7c93ff;
   --lane-ai: #4fc2ad;
-  --lane-mcp: #e0a052;
-  --window-shadow: 0 0 0 1px #00000040, 0 24px 48px -24px #00000080;
+  --lane-mcp: #e07aa0;
+  --window-shadow: 0 0 0 1px #ffffff12, 0 28px 56px -28px #000000b3;
 }
 .marketing-site .ink {
   color: var(--foreground);
-  background: #1b1a17;
+  background-color: #111214;
 }
 .dark .marketing-site .ink {
-  background: #0f0e0d;
+  background-color: #08090a;
 }
 .marketing-site ::selection {
   background: color-mix(in srgb, var(--primary) 22%, transparent);
@@ -237,7 +243,7 @@ html {
   height: 40px;
   padding-inline: 14px;
   font-size: 14px;
-  border-radius: 10px;
+  border-radius: 9999px;
 }
 .mobile-nav {
   display: none;
@@ -269,11 +275,11 @@ html {
   gap: 64px;
 }
 .hero-copy h1 {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(48px, 6vw, 76px);
-  font-weight: 400;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(44px, 5.6vw, 72px);
+  font-weight: 600;
   line-height: 1.02;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.045em;
   text-wrap: balance;
 }
 .hero-side {
@@ -292,9 +298,9 @@ html {
   margin-top: 32px;
 }
 .hero-actions > a {
-  height: 48px;
-  padding-inline: 20px;
-  border-radius: 10px;
+  height: 46px;
+  padding-inline: 22px;
+  border-radius: 9999px;
   font-size: 15px;
 }
 
@@ -303,6 +309,19 @@ html {
 .scene {
   position: relative;
   margin: 0;
+}
+/* Illustrations sit in a tray: the one place the hatch appears, so it frames
+   the product instead of wallpapering the page. On the ink band the tray is
+   plain, so the history reads first. */
+.marketing-site .ink .scene-stage {
+  background-image: none;
+}
+.scene-stage {
+  padding: 14px;
+  border-radius: 28px;
+  background-color: var(--muted);
+  background-image: var(--hatch);
+  box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .scene-replay {
   position: absolute;
@@ -331,35 +350,48 @@ html {
 
 /* Sections */
 .section {
-  padding-block: 128px 0;
+  padding-block: 112px 0;
   scroll-margin-top: 24px;
 }
 .section-heading {
   max-width: 720px;
+}
+.section-heading.compact h2 {
+  font-size: clamp(28px, 3vw, 36px);
+  letter-spacing: -0.035em;
+}
+.section-heading.compact .section-intro {
+  font-size: 16px;
+  line-height: 26px;
 }
 .marker {
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--secondary-text);
-  font-size: 14px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 20px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .marker > span {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  border: 1.5px solid var(--primary);
+  background: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .section-heading h2,
 .open-source h2,
 .final-cta h2 {
   margin-top: 20px;
-  font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(36px, 4.2vw, 52px);
-  font-weight: 400;
-  line-height: 1.06;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(32px, 3.8vw, 46px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
   text-wrap: balance;
 }
 .section-intro {
@@ -384,7 +416,7 @@ html {
 .shift-chart {
   padding: 28px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 22px;
   background: var(--card);
 }
 .shift-chart figcaption {
@@ -443,7 +475,7 @@ html {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 48px;
-  margin-top: 80px;
+  margin-top: 64px;
 }
 .principles > div {
   padding-top: 20px;
@@ -459,50 +491,69 @@ html {
 }
 
 /* How it works: the steps hang from the graph's main line. */
+/* How it works: four steps read left to right in one tray, each a card with
+   its index and the git-like move it stands for. */
 .workflow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 80px;
+  gap: 48px;
 }
 .steps {
-  position: relative;
   display: grid;
-  gap: 32px;
-  padding-top: 8px;
-}
-.steps::before {
-  content: "";
-  position: absolute;
-  top: 16px;
-  bottom: 24px;
-  left: 5px;
-  width: 1.5px;
-  background: var(--border);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border-radius: 26px;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .steps li {
-  position: relative;
-  padding-left: 36px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 20px 22px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--hairline),
+    0 1px 2px rgb(17 18 20 / 0.04);
 }
-.steps li::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  left: 0;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1.5px solid var(--primary);
-  background: var(--background);
+.step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
 }
-.steps li:last-child::before {
+.step-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--foreground);
+}
+.steps li:last-child .step-icon {
   background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: none;
+}
+.step-index {
+  color: var(--muted-foreground);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.steps h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 .steps p {
-  margin-top: 4px;
+  margin-top: 6px;
   color: var(--secondary-text);
-  font-size: 15px;
-  line-height: 24px;
+  font-size: 14px;
+  line-height: 22px;
 }
 .review-stage {
   display: grid;
@@ -512,11 +563,11 @@ html {
   margin-top: 96px;
 }
 .review-stage-copy h3 {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 32px;
-  font-weight: 400;
+  font-family: var(--font-display), sans-serif;
+  font-size: 28px;
+  font-weight: 600;
   line-height: 1.15;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.035em;
 }
 .review-stage-copy p {
   margin-top: 16px;
@@ -546,7 +597,7 @@ html {
 
 /* Agents: the one ink band */
 .agents {
-  margin-top: 128px;
+  margin-top: 112px;
   padding-block: 128px;
   scroll-margin-top: 0;
 }
@@ -563,8 +614,7 @@ html {
 /* Disciplines and FAQ: heading beside a list. Long lists keep their heading
    in view. */
 @media (min-width: 960px) {
-  .split > .section-heading,
-  .workflow > .section-heading {
+  .split > .section-heading {
     position: sticky;
     top: 112px;
   }
@@ -588,12 +638,17 @@ html {
 }
 .discipline-list span {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .discipline-list p {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 22px;
-  line-height: 30px;
+  font-family: var(--font-display), sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+  letter-spacing: -0.02em;
 }
 
 /* Delivery */
@@ -606,7 +661,7 @@ html {
 .delivery-options article {
   padding: 32px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 22px;
   background: var(--card);
 }
 .delivery-options h3 {
@@ -653,7 +708,7 @@ html {
   margin-top: 128px;
   padding: 40px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 22px;
   background: var(--card);
   scroll-margin-top: 104px;
 }
@@ -738,7 +793,7 @@ html {
   align-items: end;
   justify-content: space-between;
   gap: 40px;
-  padding-block: 160px 128px;
+  padding-block: 128px 112px;
 }
 .final-cta h2 {
   margin-top: 0;
@@ -758,7 +813,7 @@ html {
 .final-cta-actions > a {
   height: 48px;
   padding-inline: 24px;
-  border-radius: 10px;
+  border-radius: 9999px;
   font-size: 15px;
 }
 
@@ -778,20 +833,22 @@ html {
 }
 .marketing-article h1 {
   max-width: 760px;
-  font-family: var(--font-display), Georgia, serif;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 .marketing-article h2 {
-  font-family: var(--font-display), Georgia, serif;
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 @media (max-width: 1100px) {
-  .shift,
-  .workflow {
+  .shift {
     gap: 56px;
+  }
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -910,7 +967,6 @@ html {
     max-width: 14ch;
   }
   .shift,
-  .workflow,
   .split,
   .review-stage {
     grid-template-columns: minmax(0, 1fr);
@@ -996,7 +1052,7 @@ html {
     margin-top: 56px;
   }
   .steps {
-    gap: 24px;
+    grid-template-columns: minmax(0, 1fr);
   }
   .review-stage {
     margin-top: 64px;

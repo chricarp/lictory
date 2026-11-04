@@ -82,6 +82,7 @@ import { DockProvider } from "@lictory/platform/components/intelligence/dock/sto
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -379,7 +380,7 @@ export function Shell({
             id={sidebarId}
             ref={sidebarRef}
             className={cn(
-              "hidden shrink-0 flex-col border-r bg-sidebar lg:flex",
+              "hidden shrink-0 flex-col bg-sidebar lg:flex",
               sidebarCollapsed ? "w-12" : "w-[232px]",
             )}
           >
@@ -397,47 +398,57 @@ export function Shell({
               </aside>
             </div>
           )}
-          <div className="relative flex min-w-0 flex-1 flex-col bg-background lg:my-0">
-            <div className="flex h-11 items-center gap-2 border-b px-3 lg:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Open navigation"
-                onClick={() => setDrawer(true)}
-              >
-                <Menu className="size-4" />
-              </Button>
-              <span className="text-sm font-medium">
-                {project?.name ?? organization.name}
-              </span>
-              <div className="ml-auto flex items-center gap-1">
+          {/* The work sits in one framed surface on the shell; Litto's side
+              sheet, when open, is a second surface beside it. Panes inside
+              the frame size to the frame (a named container), not to the
+              window, so opening Litto only folds what no longer fits. */}
+          <div className="flex min-w-0 flex-1 min-[1440px]:gap-3 min-[1440px]:py-3 min-[1440px]:pr-3 lg:gap-2 lg:py-2 lg:pr-2">
+            <div
+              data-app-frame
+              className="@container/frame relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background min-[1440px]:rounded-[20px] lg:rounded-2xl lg:shadow-(--shadow-border)"
+            >
+              <div className="flex h-11 items-center gap-2 border-b px-3 lg:hidden">
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Search"
-                  onClick={() => openPalette()}
+                  aria-label="Open navigation"
+                  onClick={() => setDrawer(true)}
                 >
-                  <Search className="size-4" />
+                  <Menu className="size-4" />
                 </Button>
-                {project && canCreate && (
+                <span className="text-sm font-medium">
+                  {project?.name ?? organization.name}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Create"
-                    onClick={() => openCreate()}
+                    aria-label="Search"
+                    onClick={() => openPalette()}
                   >
-                    <Plus className="size-4" />
+                    <Search className="size-4" />
                   </Button>
-                )}
+                  {project && canCreate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Create"
+                      onClick={() => openCreate()}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  )}
+                  <LittoLauncher compact />
+                </div>
               </div>
+              <main
+                id="main"
+                tabIndex={-1}
+                className="min-h-0 flex-1 overflow-hidden outline-none"
+              >
+                {children}
+              </main>
             </div>
-            <main
-              id="main"
-              tabIndex={-1}
-              className="min-h-0 flex-1 overflow-hidden outline-none"
-            >
-              {children}
-            </main>
             {dockReady && (
               <Suspense fallback={null}>
                 <IntelligenceDock />
@@ -655,7 +666,7 @@ function Sidebar({
         )}
         aria-label="Workspace"
       >
-        <div className="space-y-px">
+        <div className="space-y-0.5">
           <InboxLink
             organizationId={organization.id}
             href={paths.inbox(org)}
@@ -819,7 +830,7 @@ function InboxLink({
                 : "ml-auto px-1.5",
               !collapsed &&
                 (unread
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-foreground text-background"
                   : "text-muted-foreground"),
             )}
           >
@@ -944,7 +955,7 @@ function NavGroup({
           type="button"
           aria-expanded={toggle.open}
           onClick={toggle.onToggle}
-          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
+          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase hover:text-foreground"
         >
           {label}
           <ChevronRight
@@ -956,12 +967,12 @@ function NavGroup({
           />
         </button>
       ) : (
-        <p className="mb-1 px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="mb-1 px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
           {label}
         </p>
       )}
       {(!toggle || toggle.open || collapsed) && (
-        <div className="space-y-px">{children}</div>
+        <div className="space-y-0.5">{children}</div>
       )}
     </div>
   );
@@ -1174,18 +1185,22 @@ function NavLink({
       title={collapsed ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center rounded-md text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        collapsed ? "size-8 justify-center" : "h-7 gap-2 px-2",
+        "relative flex items-center rounded-lg text-[13px] transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        collapsed ? "size-8 justify-center" : "h-8 gap-2.5 px-2.5",
+        // The current page is a raised card on the shell.
         active
-          ? "bg-sidebar-accent font-medium text-foreground"
-          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+          ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"
+          : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
       )}
     >
       {icon ? (
         // Decorative next to the label (type icons are named images).
         <span
           aria-hidden
-          className="grid size-4 place-items-center text-muted-foreground"
+          className={cn(
+            "grid size-4 place-items-center",
+            active ? "text-foreground" : "text-muted-foreground",
+          )}
         >
           {icon}
         </span>

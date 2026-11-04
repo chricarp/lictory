@@ -69,7 +69,7 @@ export function RecommendationCard({
       className="max-w-lg overflow-hidden rounded-xl bg-card shadow-[0_0_0_1px_var(--border),0_8px_24px_-14px_oklch(0_0_0/0.25)]"
     >
       <div className="px-4 pt-3.5 pb-3">
-        <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
           <Lightbulb className="size-3.5 text-warning" aria-hidden />
           Recommendation
         </p>

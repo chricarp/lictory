@@ -70,19 +70,19 @@ export const prStatusMeta: Record<
   draft: {
     label: "Draft",
     icon: GitPullRequestDraft,
-    pill: "bg-muted text-muted-foreground",
+    pill: "bg-muted text-muted-foreground ring-1 ring-foreground/8 ring-inset",
     text: "text-muted-foreground",
   },
   open: {
     label: "Open",
     icon: GitPullRequest,
-    pill: "bg-emerald-600 text-white dark:bg-emerald-500/90",
-    text: "text-emerald-600 dark:text-emerald-400",
+    pill: "bg-success/8 text-success ring-1 ring-success/20 ring-inset",
+    text: "text-success",
   },
   merged: {
     label: "Merged",
     icon: GitMerge,
-    pill: "bg-violet-600 text-white dark:bg-violet-500/90",
+    pill: "bg-violet-500/10 text-violet-700 ring-1 ring-violet-500/25 ring-inset dark:text-violet-300",
     text: "text-violet-600 dark:text-violet-400",
   },
 };
@@ -218,7 +218,7 @@ export function Tabs<T extends string>({
               <span
                 role="img"
                 aria-label="has uncommitted edits"
-                className="size-1.5 rounded-full bg-amber-500"
+                className="size-1.5 rounded-full bg-warning"
               />
             )}
           </button>
@@ -300,7 +300,7 @@ export function NextStep({
       className={cn(
         "flex flex-wrap items-center gap-3 rounded-lg border px-3.5 py-2.5",
         tone === "success" && "border-success/30 bg-success/5",
-        tone === "warning" && "border-amber-500/40 bg-amber-500/5",
+        tone === "warning" && "border-warning/40 bg-warning/5",
         tone === "neutral" && "bg-muted/30",
       )}
     >

@@ -18,9 +18,11 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
   const Content = page.data.body;
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
-      <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
-      <DocsBody>
+      <DocsTitle className="docs-title">{page.data.title}</DocsTitle>
+      <DocsDescription className="docs-lede mb-8">
+        {page.data.description}
+      </DocsDescription>
+      <DocsBody className="docs-body">
         <Content
           components={getMDXComponents({ a: createRelativeLink(source, page) })}
         />
