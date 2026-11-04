@@ -143,15 +143,15 @@ versioning, hotfixes and deploying a release.
 
 ## Scripts
 
-| Command             | Purpose                                             |
-| ------------------- | --------------------------------------------------- |
-| `bun run dev`       | Platform, API, worker, zero-cache and website       |
-| `bun run typecheck` | TypeScript check of every workspace                 |
-| `bun run lint`      | ESLint (flat config, type-aware)                    |
-| `bun run format`    | Format the repository with Prettier                 |
-| `bun run check`     | Types, lint, format, unused code and PR assets      |
-| `bun test src`      | Domain and unit tests (disposable PostgreSQL)       |
-| `bun run test:e2e`  | Production builds and browser workflows (all sites) |
+| Command                  | Purpose                                             |
+| ------------------------ | --------------------------------------------------- |
+| `bun run dev`            | Platform, API, worker, zero-cache and website       |
+| `bun run typecheck`      | TypeScript check of every workspace                 |
+| `bun run lint`           | ESLint (flat config, type-aware)                    |
+| `bun run format`         | Format the repository with Prettier                 |
+| `bun run check`          | Types, lint, format, unused code and PR assets      |
+| `bun test --isolate src` | Domain and unit tests (disposable PostgreSQL)       |
+| `bun run test:e2e`       | Production builds and browser workflows (all sites) |
 
 `bun run check` never modifies files.
 
