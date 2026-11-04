@@ -162,6 +162,9 @@ test("guides and comparisons are linked, indexable and described", async ({
     page.getByRole("heading", { level: 1, name: "Lictory vs Jira" }),
   ).toBeVisible();
   await expect(page).toHaveTitle(/^Lictory vs Jira: /);
+  // Client navigation replaces the previous page's metadata; exactly one
+  // canonical link must remain once it settles.
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     /\/compare\/jira$/,

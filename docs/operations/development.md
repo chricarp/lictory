@@ -104,7 +104,10 @@ than grow it.
 
 ## Tests
 
-Domain tests are colocated as `*/src/**/*.test.ts` in every workspace and run with `bun test src`. Tests
+Domain tests are colocated as `*/src/**/*.test.ts` in every workspace and run with
+`bun test --isolate src`: each file gets its own module registry and globals, so
+a file that points `DATABASE_URL` at its own database never receives a client
+another file already created. Tests
 that need PostgreSQL create their own database from `SCHEMA_TEST_DATABASE_URL`
 (the admin `postgres` database), so they never touch your development data.
 
@@ -131,12 +134,12 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command              | Runs on pull requests               | Nightly                |
-| ----------------- | ----------------------------------------------------------------- | -------------------- | ----------------------------------- | ---------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`      | Always                              | Yes                    |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun test src`       | Unless the change is prose          | Yes                    |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke` | When applications or tests change   | Yes                    |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`   | Manual (`CI` → Run workflow → full) | Yes, before publishing |
+| Tier              | Proves                                                            | Command                  | Runs on pull requests               | Nightly                |
+| ----------------- | ----------------------------------------------------------------- | ------------------------ | ----------------------------------- | ---------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`          | Always                              | Yes                    |
+| Domain            | Invariants and contracts against real PostgreSQL                  | `bun test --isolate src` | Unless the change is prose          | Yes                    |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`     | When applications or tests change   | Yes                    |
+| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`       | Manual (`CI` → Run workflow → full) | Yes, before publishing |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. A change to the documentation site (or what
@@ -193,7 +196,7 @@ bun audit --audit-level=high
 bun run check
 bun run db:check
 bun run db:migrate
-bun test src
+bun test --isolate src
 bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 

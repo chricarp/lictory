@@ -129,7 +129,7 @@ jobs:
       - name: Committed migrations apply to an empty database
         run: bun run db:migrate
       - name: Domain tests
-        run: bun test src
+        run: bun test --isolate src
 
   browser:
     name: Browser workflows (${{ inputs.suite || 'smoke' }})

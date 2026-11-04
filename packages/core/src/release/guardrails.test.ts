@@ -426,7 +426,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   assert.ok(runs("static").includes("bun run check"));
   assert.ok(runs("static").includes("bun run db:check"));
   assert.ok(runs("domain").includes("bun run db:migrate"));
-  assert.ok(runs("domain").includes("bun test src"));
+  assert.ok(runs("domain").includes("bun test --isolate src"));
   assert.ok(runs("browser").some((run) => run.includes("--grep @smoke")));
   // Static checks are never skipped; the gate waits for every job and
   // accepts only success or a deliberate skip.
