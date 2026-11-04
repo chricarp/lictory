@@ -174,7 +174,7 @@ export const IssueRow = memo(function IssueRow({
         </span>
       )}
       {!compact && project?.deliveryMode !== "external" && (
-        <span className="inline-flex w-7 shrink-0 justify-center">
+        <span className="inline-flex shrink-0 justify-center md:w-7">
           {item.estimate !== null && (
             <span
               className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
@@ -188,7 +188,7 @@ export const IssueRow = memo(function IssueRow({
       <ReviewSignal
         item={item}
         compact={compact}
-        className={compact ? undefined : "min-w-28 justify-end"}
+        className={compact ? undefined : "md:min-w-28 md:justify-end"}
       />
       {!compact && (
         // A fixed slot keeps assignee and time aligned on rows without checks.

@@ -18,10 +18,6 @@ export function Readiness() {
   const checks = readiness?.checks ?? [];
   const passed = checks.filter((c) => c.passed).length;
   const latest = directory.readiness.find((r) => r.projectId === project.id);
-  // Sign-offs explain themselves in place; other failing checks need work.
-  const next = checks.find(
-    (check) => !check.passed && (!check.signOff || check.intelligence),
-  );
   return (
     <section>
       <div className="mb-2 flex items-center gap-2">
@@ -58,11 +54,6 @@ export function Readiness() {
           ? "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
-      {next?.detail && (
-        <p className="mt-2 rounded-md bg-muted/60 px-2 py-1.5 text-xs leading-relaxed">
-          <span className="font-medium">Next concern:</span> {next.detail}
-        </p>
-      )}
       {readiness?.pinned && latest && (
         <p className="mt-1 text-[11px] text-muted-foreground">
           Kept on Definition of Ready{" "}

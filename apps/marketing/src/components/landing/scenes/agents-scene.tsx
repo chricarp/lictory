@@ -233,25 +233,6 @@ const HISTORY = [
   },
 ];
 
-// What happened before the scene: quiet, but real entries.
-const EARLIER = [
-  {
-    who: "Priya Shah",
-    what: "approved revision 12",
-    capability: "decideReview",
-  },
-  {
-    who: "Jonas Weber",
-    what: "resolved a discussion",
-    capability: "setThreadState",
-  },
-  {
-    who: "Maya Chen",
-    what: "saved revision 12",
-    capability: "updateSpecification",
-  },
-];
-
 function History({ s }: { s: S }) {
   return (
     <div className="ag-history">
@@ -276,18 +257,8 @@ function History({ s }: { s: S }) {
             </div>
           </Collapse>
         ))}
-        {/* Earlier entries: new ones push them down and out of the card */}
-        {EARLIER.map((row) => (
-          <div key={row.capability} className="ag-row ag-row--old">
-            <Avatar name={row.who} size={24} />
-            <span className="ag-row-text">
-              <strong>{row.who}</strong> {row.what}
-            </span>
-            <span className="ag-capability">{row.capability}</span>
-            <span className="ag-from">App</span>
-          </div>
-        ))}
       </div>
+      <div className="ag-more">12 earlier entries on revision 12</div>
     </div>
   );
 }

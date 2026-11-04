@@ -54,8 +54,9 @@ navigation item and the workflow steps.
 
 Illustrations are built with the Stageshow kit (`apps/marketing/src/vendor/stageshow`,
 from the skill in `.agents/skills/stageshow`): the product's own window, in the
-product's tokens, with only the words the story needs and quiet placeholder
-lines elsewhere. Each tells one story from real product concepts and capability
+product's tokens, with only the words the story needs and short, quiet
+supporting sentences around them (never skeleton bars, which read as
+unfinished). Each tells one story from real product concepts and capability
 names, plays once when it comes into view, ends on its result and offers Replay.
 With reduced motion it shows that result as a still frame. The page is the
 ground: a window sits a gutter in from the column and fades out at its foot

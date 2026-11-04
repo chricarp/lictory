@@ -194,24 +194,19 @@ export function ItemWorkflow({
           {refinementMeta[item.refinementState].label}
         </span>
       )}
-      <Dot />
-      <span className="font-mono tabular-nums">Revision {current.number}</span>
+      <Segment className="font-mono tabular-nums">
+        Revision {current.number}
+      </Segment>
       {item.readinessTotal > 0 && (
-        <>
-          <Dot />
-          <span className="tabular-nums">
-            {item.readinessPassed} of {item.readinessTotal} checks pass
-          </span>
-        </>
+        <Segment className="tabular-nums">
+          {item.readinessPassed} of {item.readinessTotal} checks pass
+        </Segment>
       )}
       {item.blockingThreads > 0 && (
-        <>
-          <Dot />
-          <span className="font-medium text-destructive">
-            {item.blockingThreads} blocking discussion
-            {item.blockingThreads === 1 ? "" : "s"}
-          </span>
-        </>
+        <span className="ml-0.5 rounded-full bg-destructive/8 px-2 py-0.5 font-medium whitespace-nowrap text-destructive">
+          {item.blockingThreads} blocking discussion
+          {item.blockingThreads === 1 ? "" : "s"}
+        </span>
       )}
     </StateRow>
   );
@@ -223,13 +218,9 @@ export function ItemWorkflow({
           {status.name}
         </span>
       )}
-      <Dot />
-      <span>Accepted revision {item.committedRevisionNumber}</span>
+      <Segment>Accepted revision {item.committedRevisionNumber}</Segment>
       {item.deliveredRevisionNumber != null && (
-        <>
-          <Dot />
-          <span>Delivered revision {item.deliveredRevisionNumber}</span>
-        </>
+        <Segment>Delivered revision {item.deliveredRevisionNumber}</Segment>
       )}
     </StateRow>
   );
@@ -243,12 +234,19 @@ export function ItemWorkflow({
     >
       <div className="px-4 pt-3 pb-3.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {/* An amendment names itself; the delivery status it would repeat is
+              in the Delivery row below. */}
           <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium tracking-[-0.01em]">
-            {label}
-            {amendment && (
-              <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+            {amendment ? (
+              <>
+                <span
+                  className="size-1.5 rounded-full bg-warning"
+                  aria-hidden
+                />
                 Amendment in refinement
-              </span>
+              </>
+            ) : (
+              label
             )}
           </p>
           {stages}
@@ -261,8 +259,8 @@ export function ItemWorkflow({
         {(Boolean(specificationRow) ||
           Boolean(deliveryRow) ||
           Boolean(action)) && (
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2.5 sm:flex-nowrap">
-            <dl className="grid min-w-0 flex-1 gap-1.5 text-xs text-muted-foreground">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+            <dl className="grid min-w-0 flex-1 gap-2 text-xs text-muted-foreground sm:gap-1.5">
               {specificationRow}
               {deliveryRow}
             </dl>
@@ -279,7 +277,7 @@ export function ItemWorkflow({
 
 function StateRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[5.5rem_1fr] items-baseline gap-x-2">
+    <div className="grid gap-0.5 sm:grid-cols-[5.5rem_1fr] sm:items-baseline sm:gap-x-2">
       <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </dt>
@@ -290,6 +288,19 @@ function StateRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Dot() {
-  return <span aria-hidden>·</span>;
+// A separator travels with the fact after it, so a wrapped line never starts
+// or ends with a stray dot.
+function Segment({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span aria-hidden>·</span>
+      <span className={className}>{children}</span>
+    </span>
+  );
 }

@@ -75,7 +75,7 @@ test.describe("touch devices", () => {
         .tap();
       const title = page.getByRole("textbox", { name: "Title", exact: true });
       await expect(title).toBeFocused();
-      await expect(title).toHaveCSS("font-size", "24px");
+      await expect(title).toHaveCSS("font-size", "32px");
       await title.press("Escape");
 
       await page.getByRole("button", { name: "Edit", exact: true }).tap();

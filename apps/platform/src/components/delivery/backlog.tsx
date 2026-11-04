@@ -1,7 +1,14 @@
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, CirclePlay, Flag, Plus, Repeat } from "lucide-react";
+import {
+  BarChart3,
+  CircleAlert,
+  CirclePlay,
+  Flag,
+  Plus,
+  Repeat,
+} from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
@@ -764,7 +771,7 @@ export function BacklogRow({
         </span>
       )}
       {/* Fixed slots keep the columns aligned from row to row. */}
-      <span className="inline-flex w-4 shrink-0 items-center gap-1 text-xs text-muted-foreground sm:w-22">
+      <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {item.refinementState && item.refinementState !== "ready" && (
           <span
             title="Specification not ready"
@@ -776,8 +783,26 @@ export function BacklogRow({
             </span>
           </span>
         )}
+        {item.blockingThreads > 0 && (
+          <span
+            title={`${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`}
+            className="hidden items-center gap-1 font-medium text-destructive sm:inline-flex"
+          >
+            <CircleAlert aria-hidden className="size-3.5" />
+            {item.blockingThreads} blocker
+            {item.blockingThreads === 1 ? "" : "s"}
+          </span>
+        )}
       </span>
-      <StatusIcon category={status?.category} color={status?.color} />
+      {/* Delivery status, named where there is room so it is never mistaken
+          for the specification's refinement state. */}
+      <span
+        className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground xl:w-24"
+        title={status ? `Delivery status: ${status.name}` : undefined}
+      >
+        <StatusIcon category={status?.category} color={status?.color} />
+        <span className="hidden truncate xl:inline">{status?.name}</span>
+      </span>
       <span className="inline-flex w-7 shrink-0 justify-center">
         {estimate && (
           <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">

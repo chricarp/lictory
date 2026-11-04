@@ -161,11 +161,9 @@ export function DeliveryScope({
                 : "The project's readiness policy allows accepting before every check passes; the exception is recorded with the decision."
             }
           >
-            {item.readinessPassed} of {item.readinessTotal} readiness checks
-            pass.{" "}
             {blocked
               ? "Complete the readiness checks before accepting this revision."
-              : "Accepting now records an exception under the readiness policy."}
+              : "Readiness checks are incomplete: accepting now records an exception."}
           </p>
         )}
         {error && (

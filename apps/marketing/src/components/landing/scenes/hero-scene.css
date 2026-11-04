@@ -313,6 +313,10 @@
   font-size: 13px;
 }
 
+.hs-diff[data-context] {
+  color: var(--ss-text);
+}
+
 .hs-diff[data-kind="add"] {
   background: var(--lx-diff-add);
 }
