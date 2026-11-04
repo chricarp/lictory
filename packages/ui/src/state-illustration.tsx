@@ -29,7 +29,7 @@ export function StateIllustration({
         loading="lazy"
         decoding="async"
         draggable={false}
-        className="size-32 object-contain opacity-90 contrast-[1.05] grayscale"
+        className="size-[80%] object-contain opacity-90 contrast-[1.05] grayscale"
       />
     </span>
   );

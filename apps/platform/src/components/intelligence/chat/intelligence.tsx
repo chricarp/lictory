@@ -6,6 +6,7 @@ import {
 } from "motion/react";
 import {
   ArrowDown,
+  CircleAlert,
   FileText,
   ListChecks,
   MessageSquareDashed,
@@ -266,7 +267,7 @@ function greeting(name: string) {
 
 function NewConversation({ toolbar }: { toolbar: ReactNode }) {
   const { start } = useChats();
-  const { directory, userId, projects, delivery, organization } =
+  const { directory, userId, projects, delivery, organization, items } =
     useWorkspace();
   const ai = useAiState();
   const reduce = useReducedMotion();
@@ -285,7 +286,23 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
   const team = [...delivery.teams.values()].find(
     (t) => !t.archivedAt && t.memberIds.includes(userId),
   );
+  // Lead with real work: the specification that is blocked most.
+  const blocked = [...items]
+    .filter((i) => !i.archivedAt && i.blockingThreads > 0)
+    .sort((a, b) => b.blockingThreads - a.blockingThreads)[0];
+  const blockedKey =
+    blocked &&
+    `${projects.find((p) => p.id === blocked.projectId)?.key ?? ""}-${blocked.number}`;
   const suggestions = [
+    ...(blocked
+      ? [
+          {
+            icon: <CircleAlert className="size-4" />,
+            title: `What's blocking ${blockedKey}?`,
+            prompt: `What is blocking ${blockedKey} from being ready, and what should we do next?`,
+          },
+        ]
+      : []),
     {
       icon: <FileText className="size-4" />,
       title: "Draft a story",
@@ -310,7 +327,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
       title: "Find gaps in a spec",
       prompt: "Find missing acceptance criteria and failure behavior in ",
     },
-  ];
+  ].slice(0, 4);
   const stagger = (i: number) =>
     reduce
       ? {}
@@ -366,29 +383,34 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
                 autoFocus
                 onSend={start}
                 organizationId={organization.id}
-                context={`Acts as you in ${organization.name}`}
+                context={`Your permissions in ${organization.name} · decisions stay with you`}
               />
             </motion.div>
           ) : (
             <AiUnavailable message={ai.message} action={ai.action} />
           )}
           {ai.ok && (
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {suggestions.map((s, i) => (
-                <motion.button
-                  key={s.title}
-                  type="button"
-                  {...stagger(i + 1)}
-                  whileTap={reduce ? undefined : { scale: 0.98 }}
-                  onClick={() => composer.current?.fill(s.prompt)}
-                  className="group flex items-center gap-3 rounded-xl border bg-card/60 px-3 py-2.5 text-left text-[13px] transition-colors hover:border-foreground/15 hover:bg-card"
-                >
-                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:text-primary">
-                    {s.icon}
-                  </span>
-                  <span className="font-medium">{s.title}</span>
-                </motion.button>
-              ))}
+            <div className="mt-5">
+              <p className="mb-2 px-1 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+                Start with
+              </p>
+              <div className="grid gap-1.5 rounded-[1.25rem] bg-tray p-1.5 ring-1 ring-border/70 ring-inset sm:grid-cols-2">
+                {suggestions.map((s, i) => (
+                  <motion.button
+                    key={s.title}
+                    type="button"
+                    {...stagger(i + 1)}
+                    whileTap={reduce ? undefined : { scale: 0.98 }}
+                    onClick={() => composer.current?.fill(s.prompt)}
+                    className="group flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover)"
+                  >
+                    <span className="grid size-7 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+                      {s.icon}
+                    </span>
+                    <span className="font-medium">{s.title}</span>
+                  </motion.button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -552,7 +574,7 @@ function ChatThread({ chat }: { chat: LittoChat }) {
                 void stop().catch(() => undefined);
               }}
               organizationId={organization.id}
-              context={`Acts as you in ${organization.name}`}
+              context={`Your permissions in ${organization.name} · decisions stay with you`}
             />
           ) : (
             <AiUnavailable message={ai.message} action={ai.action} />

@@ -351,7 +351,9 @@ export function IntelligenceDock() {
   return (
     // Bar and panel share one grid cell anchored to the bottom center: the
     // panel grows out of the bar's place instead of morphing from it.
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 grid items-end justify-items-center px-3 pb-3 sm:pb-4">
+    // Bottom right on wide screens: the dock sits over the side rail, beside
+    // the document it supports rather than on top of it.
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 grid items-end justify-items-center px-3 pb-3 sm:justify-items-end sm:px-4 sm:pb-4">
       <Bar
         reduce={!!reduce}
         hidden={open}
@@ -485,9 +487,9 @@ function Bar({
       }}
       inert={hidden}
       aria-hidden={hidden || undefined}
-      style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
+      style={{ gridArea: "1 / 1", transformOrigin: "bottom right" }}
       className={cn(
-        "box-content max-w-full overflow-hidden rounded-full border bg-popover/95 shadow-[0_1px_2px_oklch(0_0_0/0.06),0_12px_32px_-12px_oklch(0_0_0/0.25)] backdrop-blur supports-[backdrop-filter]:bg-popover/80",
+        "box-content max-w-full overflow-hidden rounded-full bg-popover/95 shadow-(--shadow-panel) backdrop-blur supports-[backdrop-filter]:bg-popover/85",
         !hidden && "pointer-events-auto",
       )}
       data-intelligence-dock="bar"
@@ -701,21 +703,27 @@ function Panel({
             }
       }
       transition={{ duration: 0.22, ease, opacity: { duration: 0.12, ease } }}
-      style={{ gridArea: "1 / 1", transformOrigin: "bottom center" }}
+      style={{ gridArea: "1 / 1", transformOrigin: "bottom right" }}
       onKeyDown={onKeyDown}
       role="dialog"
       aria-label="Litto"
       data-intelligence-dock="panel"
       className={cn(
-        "pointer-events-auto flex max-h-[min(680px,calc(100dvh-5rem))] w-[min(600px,100%)] flex-col overflow-hidden rounded-[18px] border bg-popover shadow-[0_1px_2px_oklch(0_0_0/0.06),0_24px_64px_-16px_oklch(0_0_0/0.35)]",
+        "pointer-events-auto flex max-h-[min(620px,calc(100dvh-5rem))] w-[min(460px,100%)] flex-col overflow-hidden rounded-[1.5rem] bg-popover shadow-(--shadow-panel)",
         // A conversation keeps one height while it streams.
-        chat && "h-[min(680px,calc(100dvh-5rem))]",
+        chat && "h-[min(620px,calc(100dvh-5rem))]",
       )}
     >
       <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
         <DockMark chat={chat} review={item?.review} />
-        <div className="mr-auto min-w-0">
-          <p className="truncate text-[13px] font-medium">Litto</p>
+        <div className="mr-auto flex min-w-0 items-baseline gap-2">
+          <p className="text-[13px] font-semibold">Litto</p>
+          {/* What Litto is looking at, so answers are read in context. */}
+          {item && (
+            <p className="truncate font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+              {item.key}
+            </p>
+          )}
         </div>
         {chat && <ChatActions chat={chat} onContinue={onContinue} />}
         {chat && (

@@ -34,7 +34,7 @@ function AiPolicySection() {
         />
       }
       title="Lictory Intelligence"
-      description="Powers Litto, your assistant, and AI reviews of work items and pull requests, using shared Lictory Intelligence Context. Findings and changes are proposals; people decide what becomes part of a specification."
+      description="Litto and AI reviews of work items and pull requests. Findings and changes are proposals; people decide."
       action={
         <button
           role="switch"
@@ -51,7 +51,7 @@ function AiPolicySection() {
           }}
           className={cn(
             "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-40",
-            enabled ? "bg-primary" : "bg-muted-foreground/25",
+            enabled ? "bg-foreground" : "bg-muted-foreground/25",
           )}
         >
           <span
@@ -65,17 +65,52 @@ function AiPolicySection() {
       }
       footer={
         available
-          ? "When enabled, the content of reviewed items (specifications, open discussions, pull request changes) and the Lictory Intelligence Context that applies to them is sent to OpenAI without being retained for training. Each project chooses how the Lictory Intelligence review action treats its pull requests in its project settings."
-          : "This server has no AI provider configured. Set OPENAI_API_KEY to make Lictory Intelligence available."
+          ? "Content is sent to OpenAI without being retained for training. Each project chooses how the review action treats its pull requests."
+          : "This server has no AI provider connected. Set OPENAI_API_KEY to make Lictory Intelligence available."
       }
     >
-      <SettingsBody className="space-y-1 text-[13px]">
-        <p>
-          {enabled
-            ? "Enabled. Members who can request reviews in a project can ask for Lictory Intelligence reviews."
-            : "Off. No content is sent to an AI provider."}
-          {!isAdmin && " Only organization administrators can change this."}
+      <SettingsBody className="space-y-3 text-[13px]">
+        <p className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ring-1 ring-inset",
+              enabled
+                ? "bg-success/8 text-success ring-success/20"
+                : "bg-muted text-muted-foreground ring-foreground/8",
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "size-1.5 rounded-full",
+                enabled ? "bg-success" : "bg-muted-foreground/60",
+              )}
+            />
+            {enabled ? "On" : "Off"}
+          </span>
+          {!enabled && "No content is sent to an AI provider."}
         </p>
+        {/* The decisions, as rows instead of prose. */}
+        <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[10rem_1fr]">
+          <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+            Who can use it
+          </dt>
+          <dd>Members who can request reviews in a project.</dd>
+          <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+            Data sent
+          </dt>
+          <dd>
+            Reviewed items (specifications, open discussions, pull request
+            changes) and the context that applies to them.
+          </dd>
+          <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+            Who can change this
+          </dt>
+          <dd>
+            Organization administrators
+            {!isAdmin && " (not you)"}.
+          </dd>
+        </dl>
         <InlineError>{error}</InlineError>
       </SettingsBody>
     </SettingsSection>
