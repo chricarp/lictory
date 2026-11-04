@@ -57,8 +57,8 @@ preference; one ink band marks the agent section.
 Color and motion belong to the product illustrations, not the chrome. Each
 contributor in the hero's branch graph keeps one color wherever it appears.
 
-Illustrations are built with the Stageshow kit (`apps/marketing/src/vendor/stageshow`,
-from the skill in `.agents/skills/stageshow`): the product's own window, in the
+Illustrations are built with the upstream [Stageshow kit](https://github.com/benjitaylor/skills/tree/main/stageshow)
+(`apps/marketing/src/vendor/stageshow`): the product's own window, in the
 product's tokens, with only the words the story needs and short, quiet
 supporting sentences around them (never skeleton bars, which read as
 unfinished). Each tells one story from real product concepts and capability
