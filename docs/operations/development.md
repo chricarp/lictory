@@ -23,6 +23,11 @@ Bun does not enforce `engines`, so `bun run check` starts with
 different Node major release or a missing tool, and warns when only Bun's patch
 release differs from CI.
 
+**Shell for release-tooling tests.** The deployment CLI targets Linux and uses
+Bash 4+ syntax. macOS ships Bash 3.2; install a current version (for example
+`brew install bash`) and put it before `/bin` on `PATH` when running verification.
+Check `bash --version` before the full suite.
+
 **Platforms.** macOS and Linux are supported directly. On **Windows, use WSL2**:
 clone the repository inside the WSL file system (not under `/mnt/c`) and run
 every command there, with Docker Desktop's WSL2 backend or Docker Engine

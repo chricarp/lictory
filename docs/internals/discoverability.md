@@ -103,3 +103,21 @@ Search-engine ownership (Google Search Console, Bing Webmaster Tools) is
 verified through DNS records on the domain, so no verification tokens live in
 the code. Submit `/sitemap.xml` in both after deployment; Bing also feeds
 Copilot and DuckDuckGo.
+
+## Social link previews
+
+Public cards must never disclose workspace data. Workspace routes select a
+closed page category: no titles, identifiers, organization or project names,
+custom type names, people, content, progress or approval state. Building a card
+never queries the database or confirms that an item exists.
+
+The API injects category metadata into the platform's SPA HTML, alongside its
+public configuration. The shell contains no work item data; protected APIs and
+synchronized queries enforce authentication and membership. HTML responses use
+`Cache-Control: no-store` and `X-Robots-Tag: noindex, nofollow`.
+
+The marketing website generates `/og/<kind>` images at build time with Next.js
+ImageResponse and local assets. Absolute image URLs use the configured
+`SITE_URL`, never the request Host header. Only category images can be publicly
+cached. Richer previews would need an explicit disclosure policy and recipient
+authorization; private fields must never be added to these public cards.

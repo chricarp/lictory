@@ -1,7 +1,3 @@
-> The schema descriptions below document the original domain foundation. The implemented
-> mutation, revision, authorization, activity, and synchronization guarantees are defined in
-> [synchronization.md](synchronization.md), which supersedes the original deferred-service notes.
-
 # Database model
 
 ## Ownership and identity
@@ -36,72 +32,59 @@ deferred.
 ## Tenancy and authorization
 
 All domain records have an explicit organization foreign key. Composite foreign
-keys include organization and, where necessary, proposal, project, and revision.
+keys include organization and, where necessary, work item, project, and revision.
 They prevent attaching a review, comment, approval, suggestion, decision source,
 or delivery child to a different context, even if an ID is otherwise valid.
 Nullable provenance is constrained so a missing parent cannot bypass the
 corresponding composite foreign key.
 
 These constraints ensure referential isolation; they do not authorize reads or
-writes. No PostgreSQL row-level security or domain API is introduced here. Future
-server queries must scope by an organization validated against the authenticated
-Better Auth member, before fetching data. User references preserve attribution,
-not proof of current membership. The server must validate current membership and
-responsibility when assigning roles/reviews or performing domain actions. Role
-membership and old assignments must never grant access after organization
-membership has been removed; the directory filters role membership through
-current organization membership. Historical actor references deliberately survive
-removal of a Better Auth membership.
+writes. Domain services validate the authenticated person's current membership
+and project discipline capabilities inside transactions before reading or
+changing organization-owned data. The browser, MCP and embedded agent use those
+same services. Historical actor and review references preserve attribution;
+they do not grant access after membership is removed. PostgreSQL row-level
+security is not the application's authorization mechanism.
 
 ## Specification history
 
-A proposal can start with only a title and no revision. Its problem statement and
-lifecycle status are mutable working metadata. The reviewed artifact is a
-specification revision, containing a title and the full Markdown specification
-(including any approved problem statement and acceptance criteria). Each revision
-has an author, creation time, positive number, and unique proposal-local ordering.
-The highest number is the latest snapshot; no redundant current-revision pointer
-needs synchronization. Revision numbers must be allocated transactionally; the
-unique constraint rejects concurrent duplicates.
+A work item type determines whether the item carries a specification. Refinement
+state and delivery status are separate. The reviewed artifact is an immutable
+revision containing the title and full Markdown, with an author, creation time
+and item-local revision number. Domain writes allocate numbers transactionally
+and the unique constraint rejects duplicates.
 
-Revisions are append-only by contract: an edit or restore inserts a new snapshot.
-There is no update timestamp or mutable document stored in place of history.
-This schema does **not** install an UPDATE/DELETE prevention trigger or database
-role grants. SQL issued with the migration owner's privileges can still change
-snapshots. Before exposing revision writes, the server must implement append-only
-writes and restrict the runtime database role accordingly; database-level write
-protection needs a deliberate migration when deployment roles are defined.
+Edits and restores insert snapshots rather than updating historical content.
+Once readiness has passed, main stays protected and later proposals use branches
+and reviewed pull requests. Commits preserve immutable snapshots and parent
+relationships; branches point to commits. See
+[revision and branch semantics](synchronization.md#revisions-reviews-and-conflicts).
 
-Each review targets one revision and one named responsibility. Approvals target
-that exact review/revision pair; the review supplies their responsibility. An
-approval cannot be moved to another revision simply by changing its revision ID.
-Revocation/staleness records an end time and reason. A subsequent grant is a new
-record; only one grant per reviewer/review can be active. New revisions do not
-inherit approvals, and no automatic approval invalidation workflow runs yet.
-Readiness calculations must compare the reviewed revision to the current one and
-apply materiality policy when that workflow is implemented. Proposal status is a
-summary, never authorization or proof of readiness.
+Immutability of specification snapshots is a domain write invariant, not an
+UPDATE/DELETE prevention trigger. Runtime roles have DML access; operators must
+not treat direct SQL as a supported way to edit historical content. Production
+role boundaries are described in [deployment](../operations/deployment.md#database-roles).
 
-Threads always retain their originating revision and can optionally belong to a
-review on that revision. Messages are separate records. Optional JSON anchors
-leave room for editor-specific ranges and quoted text without choosing an editor
-now. Resolution/reopening changes thread state without deleting messages; this
-initial model does not retain a separate audit event for every state transition.
+Reviews and approvals reference the exact work item and revision through
+composite keys. Material main revisions stale earlier approvals and request
+active reviews again; earlier decisions remain in history. Pull request reviews
+bind to the complete proposed merge result. A different result needs review.
 
-Suggestions contain replacement Markdown against a base revision, a status
-(`draft`, `open`, `merged`, `closed`), a version counter and, once merged, the
-resulting later revision (`accepted_revision_id`, kept under its original column
-name). `suggestion_reviewer` records who was asked (withdrawal keeps the row) and
-`suggestion_decision` records each reviewer's decision about one version; a later
-version or decision supersedes it with a reason rather than deleting it. Threads
-may reference a suggestion. The legacy `anchor` and `thread_id` columns are never
-written. Merge semantics live in the sync service (see synchronization.md).
+Threads retain their originating revision, quoted text or editor anchor, and
+optional review or pull request context. Resolution and reopening preserve
+messages and record activity. Decisions can retain the source discussion.
 
-Readiness checks are revision-scoped evaluations with a key, evaluator identity,
-status, blocking flag, and explanation/metadata. Each rerun inserts a result;
-previous evidence is retained. Checks affected by mutable discussion/review state
-must be reevaluated by future workflows even when the revision does not change.
-There is no generic workflow engine or preconfigured readiness policy.
+Legacy suggestions and their versioned decisions remain readable for historical
+records. New proposals use branches and pull requests; merging creates a new
+main revision. Child work proposed in a commit is applied atomically only when
+the pull request merges.
+
+Readiness is evaluated from current evidence: text, sections, blocking threads,
+reviews, discipline approvals, sign-offs, child readiness and optional AI checks.
+A project's Definition of Ready is versioned separately from the specification;
+items pin the applicable policy version according to the
+[delivery model](delivery.md#definition-of-ready). A ready label is a summary of
+these facts, never independent authority to start or publish work.
 
 ## Decisions and delivery
 
@@ -110,8 +93,8 @@ They can be archived without erasing the source discussion. Archiving and
 restoring are project capabilities: specification editors curate every decision,
 and an author may curate their own only while a discipline still lets them
 record decisions (edit specifications or review). Authorship adds to a current
-capability and never replaces it. Editable decisions
-are not themselves versioned in this initial model.
+capability and never replaces it. Decision edits preserve their activity history; the decision text is not a
+separate specification revision chain.
 
 Delivery work is ordinary work items (see [delivery.md](delivery.md)); there is
 no separate delivery-item table. Composite foreign keys keep a work item's
@@ -140,8 +123,8 @@ external status is a read-only copy. Adapters live behind
 ## Retention
 
 Domain history and actor references use restrictive foreign keys. Deleting a
-project/proposal/organization with referenced history, or a referenced author,
-fails instead of silently cascading. Archive timestamps on projects, proposals,
+project/work item/organization with referenced history, or a referenced author,
+fails instead of silently cascading. Archive timestamps on projects, work items,
 disciplines, teams, types, statuses, and decisions support reversible removal
 from active views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
@@ -171,7 +154,3 @@ server account with CREATE DATABASE permission if needed. It deliberately ignore
 `DATABASE_URL`. The tests upgrade an auth-only database with existing records,
 reapply migrations, exercise Better Auth organization creation, and verify domain
 constraints. They do not modify the application database.
-
-Policies, project membership, integration configuration, Lictory Intelligence,
-realtime events, complete audit logging, editor-specific anchors, and application
-workflow services are deferred until concrete behavior requires them.

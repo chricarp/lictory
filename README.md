@@ -1,178 +1,189 @@
-# Lictory
+<p align="center">
+  <img src="packages/ui/public/brand/lictory-logo.svg" alt="Lictory" width="240" />
+</p>
 
-Collaborative requirements and engineering readiness: specifications are
-drafted, reviewed, revised and approved like code, then delivered natively or
-handed off to Jira. Product philosophy, the glossary and engineering
-conventions live in [`AGENTS.md`](./AGENTS.md); documentation is indexed in
-[`docs/README.md`](./docs/README.md). Read [CONTRIBUTING.md](./CONTRIBUTING.md)
-before opening a pull request.
+<h1 align="center">Agree on what to build. Then ship it.</h1>
 
-## Architecture
+<p align="center">
+  Open-source work management for software teams, with requirements reviewed like code.
+</p>
 
-One repository, Bun workspaces:
+<p align="center">
+  <a href="https://lictory.com">Website</a> ·
+  <a href="https://docs.lictory.com">Documentation</a> ·
+  <a href="https://docs.lictory.com/self-hosting/install">Install</a> ·
+  <a href="https://github.com/chricarp/lictory/releases">Releases</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-| Workspace        | What it is                                                                          |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| `apps/platform`  | React + Vite + TanStack Router SPA, synchronized with Rocicorp Zero                 |
-| `apps/api`       | Hono on Node.js: Better Auth, Zero query/mutate endpoints, files, AI, MCP, delivery |
-| `apps/worker`    | Supervised background jobs: AI runs, email, delivery exports, Jira status, cycles   |
-| `apps/marketing` | Next.js public website (`lictory.com`), static export, no database                  |
-| `apps/docs`      | Fumadocs documentation (`docs.lictory.com`), static export, no database             |
-| `packages/core`  | Domain logic, contracts, database access (Drizzle) and adapters                     |
-| `packages/zero`  | Zero schema, server-defined queries and the mutator                                 |
-| `packages/ui`    | Shared React primitives, theme and consent UI                                       |
+Lictory helps Product, Engineering and QA turn rough proposals into specifications
+that a team can safely commit to. Review the behavior, discuss the exact text,
+propose changes on branches and approve a specific revision. Then deliver the
+work in Lictory or hand it off to Jira Cloud.
 
-PostgreSQL is the source of truth. Every domain write maintains read
-projections in the same transaction; Zero replicates only those projections
-(and membership) to browsers. See
-[synchronization](docs/internals/synchronization.md) and
-[deployment](docs/operations/deployment.md) (single-server Docker Compose).
+Self-hosted. MIT licensed. Core collaboration works without AI or analytics.
 
-## Self-hosting
+## See how it works
 
-Run Lictory on your own Linux server with Docker:
+### Refine the specification together
 
-```bash
+![A specification with Engineering's approval of revision 4 and four passing readiness checks](apps/docs/public/screenshots/specification-review.webp)
+
+The specification stays in the center. The right panel shows who reviewed which
+revision and the evidence behind readiness. **Ready for delivery** is separate
+from **Accept revision 4 for delivery**: agreeing that the behavior is clear does
+not commit the team to building it. Material edits make earlier approvals stale.
+
+### Review changes and the delivery breakdown
+
+![A specification pull request with a proposed implementation subtask and required QA approval](apps/docs/public/screenshots/reviewed-breakdown.webp)
+
+Branches let teammates and agents propose changes without overwriting the agreed
+specification. Review the resulting text and proposed child work together;
+approvals and unresolved blockers gate merging. Discussions and history stay
+attached to the revision or change they describe.
+
+### Keep the agreement visible during delivery
+
+![An accepted specification showing the current and accepted revisions alongside review evidence](apps/docs/public/screenshots/accepted-scope.webp)
+
+Accepting a revision records what the team agreed to build. Later edits remain
+reviewable, and completing work records the delivered revision. Each project
+chooses its delivery owner:
+
+- **In Lictory:** custom work item types and statuses, ranked boards and backlogs,
+  teams, sprints or automatic cycles, estimates, burndown, velocity and relations.
+- **In Jira Cloud:** publish ready work, update it explicitly after changes and
+  read Jira's delivery status back. Jira owns delivery status and assignment.
+
+Screenshots show the application with fictional data. See the
+[team guide](https://docs.lictory.com/getting-started) for the complete workflow.
+
+## Install on your server
+
+Use a Linux server (amd64 or arm64) with Docker Engine 25+ and Compose 2.24+,
+a host name and at least 2 GB RAM (4 GB recommended). For automatic HTTPS,
+point DNS at the server and open ports 80 and 443.
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh | sudo sh
 sudo lictory install
 ```
 
-`lictory upgrade`, `backup`, `restore`, `status`, `doctor` and `logs` operate
-it afterwards. See [self-hosting](docs/operations/self-hosting.md).
+The terminal guides you through server checks, the address and certificates,
+email, attachments, SSO, backups, access policy and the first administrator.
+Use **↑/↓** or **j/k** to choose and **Enter** to confirm. Before applying
+configuration, the installer shows a summary with secrets masked; progress and
+failure logs keep long steps understandable. Re-running it preserves settings
+and secrets you do not change.
 
-## Getting started
+SMTP or Resend enables invitations and password recovery. Attachments use an
+optional S3-compatible bucket. Single sign-on supports OpenID Connect. See
+[installation](https://docs.lictory.com/self-hosting/install) and
+[configuration](https://docs.lictory.com/self-hosting/configuration).
 
-Requirements: Bun (version in `packageManager`), Node.js 24 LTS, Docker and Git.
-Bun is the only supported package manager. Node.js runs the application builds
-and provides the supported ABI for Zero's native SQLite module.
-On Windows, use WSL2; a dev container is also provided (see the
-[development runbook](docs/operations/development.md#first-checkout)).
+### Operate from the terminal
 
-```bash
+```sh
+lictory status                      # version, services and access policy
+lictory doctor                      # diagnose the host and installation
+lictory logs worker -f --tail 100    # follow a service's logs
+sudo lictory backup                  # back up before making changes
+sudo lictory upgrade                 # newest release of your configured channel
+sudo lictory admin setup             # create the first administrator if deferred
+```
+
+Every command supports `--env <name>` for multiple environments. `--yes` runs
+without questions; flags or `LICTORY_<FLAG>` environment variables supply install
+settings. Pipes receive plain output, `NO_COLOR=1` disables styling, and
+`lictory status --json` provides machine-readable status. `lictory help` and
+`lictory admin help` list the commands.
+
+The [terminal guide](https://docs.lictory.com/self-hosting/terminal) covers
+unattended installation, reconfiguration, account recovery, rollback and restore
+drills. The [operator runbook](docs/operations/self-hosting.md) includes every
+install option.
+
+## Work with your coding agent
+
+Connect an MCP client to your installation's `https://<host>/api/mcp` using a
+personal access token from **Account settings → AI agents (MCP)**. Give each
+agent its own name, access level and expiry. The agent works with your current
+permissions, and its actions are attributed to you and its token's name.
+
+For example, ask your terminal's coding agent:
+
+> Read PAY-142 and its unresolved discussions. Propose the missing timeout
+> behavior on a branch and open a pull request for Engineering and QA to review.
+
+Agents can read specifications, search product knowledge, propose revisions and
+break down delivery work through the same domain operations as the browser.
+Approving, merging, resolving discussions and publishing record human decisions
+and require your explicit instruction. Account security, membership and secrets
+stay in the browser.
+
+See [connecting agents](https://docs.lictory.com/integrations/agents) for setup,
+example prompts and troubleshooting. This uses your MCP client's model;
+Lictory's built-in **Litto** assistant and automated Intelligence checks are
+optional and require a configured OpenAI key and organization enablement.
+
+## Develop locally
+
+Install the Bun version in `packageManager`, Node.js 24 LTS, Docker, Git and
+Bash 4+ (including on macOS for the release-tooling tests).
+On Windows, use WSL2. A dev container is also included.
+
+```sh
+git clone https://github.com/chricarp/lictory.git
+cd lictory
 cp .env.example .env
-bun install
-docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit
-bun run dev            # SPA, API, worker and website
+bun install --frozen-lockfile
+docker compose up -d
+bun run dev
 ```
 
-- Platform: http://localhost:3000 (API on 3002, zero-cache on 4848)
-- Website: http://localhost:3100
+- App: http://localhost:3000
+- Marketing website: http://localhost:3100
 - Documentation: `bun run --cwd apps/docs dev`, http://localhost:3200
-- Mailpit inbox: http://localhost:8025
+- Mailpit: http://localhost:8025; MinIO console: http://localhost:9001
 
-Every optional integration (OAuth, Resend, S3-compatible file storage, OpenAI,
-PostHog, Jira) stays disabled until its variables are set in `.env`; core
-refinement works without them. See [the development runbook](docs/operations/development.md) for daily
-commands, tests and the full verification sequence.
+The [development runbook](docs/operations/development.md) covers environment
+settings, OAuth callbacks, database migrations, daily commands and the complete
+required verification sequence.
 
-## Telemetry and privacy
+### Repository layout
 
-Lictory sends no telemetry by default. Nothing leaves your installation unless
-you configure a service that needs it:
+| Workspace        | Purpose                                                                |
+| ---------------- | ---------------------------------------------------------------------- |
+| `apps/platform`  | React + Vite application with TanStack Router and Zero synchronization |
+| `apps/api`       | Hono on Node.js: authentication, capabilities, MCP, files and delivery |
+| `apps/worker`    | Background email, AI, Jira exports/status sync and cycles              |
+| `apps/marketing` | Static Next.js website at lictory.com                                  |
+| `apps/docs`      | Static Fumadocs site at docs.lictory.com                               |
+| `packages/core`  | Domain rules, contracts, Drizzle/PostgreSQL access and adapters        |
+| `packages/zero`  | Synchronized projections, queries and mutations                        |
+| `packages/ui`    | Shared UI, theme and assets                                            |
 
-- **AI** (`OPENAI_API_KEY`): content you ask Lictory Intelligence to analyze,
-  transcribe or discuss goes to OpenAI. Uploaded documents are converted to
-  text on your server.
-- **Product analytics** (`POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`): off without
-  both. When off, the app shows no consent banner and makes no analytics
-  requests. When on, browsers reach PostHog only through your own `/relay`
-  route; see the consent modes in
-  [product analytics](docs/internals/analytics.md#consent).
-- **Email** (Resend or your SMTP server), **file storage** (your S3-compatible
-  bucket), **delivery** (the Jira site a project connects to) and **sign-in
-  providers** (Google, Microsoft) when you enable them.
+PostgreSQL is authoritative. Domain writes and browser projections update in one
+transaction; Zero replicates the projections. Start with the
+[documentation index](docs/README.md) and [product principles](AGENTS.md).
 
-The deployment's own operations (TLS certificates, backups, alerts and
-monitoring pings) contact only the services you configure for them; see
-[deployment](docs/operations/deployment.md#telemetry-and-privacy).
+## Privacy
 
-## Transactional email
+Telemetry is off by default. AI analysis, analytics, outbound email, object
+storage, Jira and external sign-in providers contact their configured services
+only when enabled. Self-hosted data stays under your control; connecting an MCP
+client also gives that client's agent access to the data your token permits.
+See [privacy and telemetry](https://docs.lictory.com/self-hosting/privacy).
 
-Authentication emails use typed React Email templates from
-`packages/core/src/emails`. With `RESEND_API_KEY` set, email goes through
-Resend (with idempotency keys); otherwise it is delivered to the configured
-SMTP server, which Mailpit captures locally.
+## Contributing and support
 
-## OAuth setup
+Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md) and the
+[Code of conduct](CODE_OF_CONDUCT.md). Use [Support](SUPPORT.md) for setup and
+usage questions; report vulnerabilities through the
+[security policy](.github/SECURITY.md).
 
-Each OAuth button appears once its provider has credentials in `.env`.
-Configure these redirect URIs in the provider consoles (and their equivalents
-on your installation's address, such as `https://lictory.example.com`):
-
-- Google: `http://localhost:3000/api/auth/callback/google`
-- Microsoft: `http://localhost:3000/api/auth/callback/microsoft`
-
-Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, and
-`MICROSOFT_CLIENT_SECRET`. Microsoft defaults to the `common` tenant; override
-`MICROSOFT_TENANT_ID` when the app should be tenant-specific. See
-[sign-in methods and account linking](docs/internals/onboarding.md#sign-in-methods-and-account-linking)
-for how provider sign-ins attach to existing accounts, and the optional
-[OAuth proxy](docs/operations/oauth-proxy.md) for changing local URLs.
-
-## Database workflow
-
-The schema entry point is `packages/core/src/db/schema.ts`. See
-[the database model](docs/internals/database-model.md) and
-[database migrations](docs/operations/migrations.md), including the Zero
-expand/contract deployment order.
-
-```bash
-bun run auth:generate # regenerate auth tables after changing Better Auth schema options
-bun run db:generate  # create a committed SQL migration after schema changes
-bun run db:generate:data # empty SQL migration for small reference-data changes
-bun run db:check     # fail when the schema has changes without a migration
-bun run db:migrate   # apply committed migrations (local by default)
-bun run db:migrate:status # list pending migrations
-bun run db:studio    # inspect local data
-bun run db:test      # verify migrations and constraints in a disposable local database
-```
-
-## Versions and releases
-
-Conventional Commit PR titles determine semantic versions. GitHub Actions
-calculates versions, writes release notes from the merged PRs and publishes a
-daily nightly prerelease when the platform changed, after every browser
-workflow passed on it. One **Release** button, for release managers only,
-promotes the exact commit of a tested nightly to stable when the platform
-changed and deploys the marketing and documentation websites when they
-changed. Releases deploy nothing else: every installation upgrades itself
-(`lictory upgrade`). Every release carries multi-architecture images (amd64
-and arm64) and a `release.env` with their digests. Nobody bumps versions, edits a changelog or pushes
-tags by hand. See [the release runbook](docs/operations/releases.md) for
-versioning, hotfixes and deploying a release.
-
-## Scripts
-
-| Command                  | Purpose                                             |
-| ------------------------ | --------------------------------------------------- |
-| `bun run dev`            | Platform, API, worker, zero-cache and website       |
-| `bun run typecheck`      | TypeScript check of every workspace                 |
-| `bun run lint`           | ESLint (flat config, type-aware)                    |
-| `bun run format`         | Format the repository with Prettier                 |
-| `bun run check`          | Types, lint, format, unused code and PR assets      |
-| `bun test --isolate src` | Domain and unit tests (disposable PostgreSQL)       |
-| `bun run test:e2e`       | Production builds and browser workflows (all sites) |
-
-`bun run check` never modifies files.
-
-## Editor setup
-
-VS Code and Cursor users should install the recommended workspace extensions
-when prompted (`.vscode/extensions.json`): Prettier, ESLint, and Tailwind CSS
-IntelliSense.
-
-Workspace settings in `.vscode/settings.json` format files with Prettier on
-save and apply ESLint fixes on save. Tailwind classes are sorted automatically
-by `prettier-plugin-tailwindcss`.
-
-## Community and open-source preparation
-
-Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md),
-[Support](SUPPORT.md), the [Code of conduct](CODE_OF_CONDUCT.md), and the
-[Security policy](.github/SECURITY.md).
-
-Lictory is licensed under the [MIT License](LICENSE). Third-party components
-retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Open-source launch is being prepared: the
-[launch runbook](docs/operations/open-source.md) tracks rights review, GitHub
-configuration and the remaining publication gates. Package manifests remain
-private to prevent accidental package publication.
+Release notes live in [GitHub Releases](https://github.com/chricarp/lictory/releases).
+See the [release runbook](docs/operations/releases.md) for versioning and stable
+promotion. Lictory uses the [MIT License](LICENSE); bundled materials retain
+their own [third-party notices](THIRD_PARTY_NOTICES.md).

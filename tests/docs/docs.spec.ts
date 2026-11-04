@@ -25,3 +25,37 @@ test("the static documentation serves its pages and searches them in the browser
     page.getByRole("heading", { level: 2, name: "Roll back" }),
   ).toBeVisible();
 });
+
+test("terminal guides are discoverable and product screenshots load", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "lictory CLI", exact: true }).click();
+  await expect(page).toHaveURL(/\/self-hosting\/terminal/);
+  await expect(
+    page.getByRole("heading", { level: 2, name: /^Unattended installation/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "AI agents and MCP", exact: true })
+    .last()
+    .click();
+  await expect(page).toHaveURL(/\/integrations\/agents/);
+  await expect(
+    page.getByRole("heading", {
+      level: 2,
+      name: /^Propose a change for review/,
+    }),
+  ).toBeVisible();
+
+  for (const path of ["specifications", "reviews", "delivery"]) {
+    await page.goto(`/concepts/${path}`);
+    const screenshot = page.locator("article img");
+    await screenshot.scrollIntoViewIfNeeded();
+    await expect(screenshot).toBeVisible();
+    await expect
+      .poll(() =>
+        screenshot.evaluate((img: HTMLImageElement) => img.naturalWidth),
+      )
+      .toBeGreaterThan(0);
+  }
+});
