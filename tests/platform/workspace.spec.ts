@@ -620,6 +620,16 @@ test("panes resize by dragging or keyboard, snap, fold, reset and persist", asyn
     };
   };
 
+  // The list's header and the item's header share one bottom border.
+  const bottom = async (header: typeof list) => {
+    const box = (await header.boundingBox())!;
+    return box.y + box.height;
+  };
+  const itemHeader = page.locator("header", {
+    has: page.getByRole("navigation", { name: "Breadcrumb" }),
+  });
+  expect(await bottom(list.locator("header"))).toBe(await bottom(itemHeader));
+
   // Dragging the list's edge widens it and the document gives up the room.
   const listDefault = await width(list);
   await (await drag(listEdge, 40)).release();

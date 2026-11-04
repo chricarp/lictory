@@ -427,8 +427,10 @@ export function IssueList({
     <div className="flex h-full min-h-0 flex-col">
       <header
         className={cn(
-          "flex min-h-11 shrink-0 items-center gap-2 border-b px-3 py-2",
-          !compact && "flex-wrap",
+          "flex shrink-0 items-center gap-2 border-b px-3",
+          // Beside an item, exactly as tall as the item's header so the two
+          // borders line up; on its own page it may wrap onto more lines.
+          compact ? "h-11" : "min-h-11 flex-wrap py-2",
         )}
       >
         <div className={cn("min-w-0", compact && "relative h-7 flex-1")}>
