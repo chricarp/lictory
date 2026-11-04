@@ -147,7 +147,7 @@ test("without an AI provider or file storage, refinement works and those feature
   await page.goto(`/${seeded.slug}/intelligence`);
   await expect(
     page.getByText(
-      "Litto isn't available on this server yet. An administrator can connect an AI provider; everything else in Lictory works without it.",
+      "This server has no AI provider connected. An administrator can connect one; everything else in Lictory works without it.",
     ),
   ).toBeVisible();
 
