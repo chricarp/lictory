@@ -2015,7 +2015,8 @@ function PullRequestView({
     ...(noChanges ? ["This branch has no changes to merge."] : []),
     ...(!required.length ? ["Request at least one required review."] : []),
     ...pendingRequired.map(
-      (r) => `${roleName(r.disciplineId)} approval is pending or stale.`,
+      (r) =>
+        `${roleName(r.disciplineId)} approval ${r.decision === "approved" && r.resultHash !== hash ? "is stale" : "is pending"}.`,
     ),
     ...(changesRequested ? ["A reviewer requested changes."] : []),
     ...(openBlocking ? ["Blocking discussions remain open."] : []),
@@ -2078,12 +2079,20 @@ function PullRequestView({
       text: "Request at least one required review.",
       detail: "Choose who must approve in Reviewers.",
     });
-  for (const r of pendingRequired)
+  // Name the condition and who can resolve it: a stale approval needs a new
+  // look at the changed result, a pending one needs a first decision.
+  for (const r of pendingRequired) {
+    const stale = r.decision === "approved" && r.resultHash !== hash;
+    const who = r.reviewerId ? memberName(r.reviewerId) : undefined;
     rows.push({
       key: `review-${r.id}`,
       state: "pending",
-      text: `${roleName(r.disciplineId)} approval is pending or stale.`,
+      text: `${roleName(r.disciplineId)} approval ${stale ? "is stale" : "is pending"}${who ? ` · ${who}` : ""}`,
+      detail: stale
+        ? "The merge result changed since the approval. Ask for another review."
+        : "Waiting for a decision on this exact merge result.",
     });
+  }
   if (changesRequested)
     rows.push({
       key: "changes",

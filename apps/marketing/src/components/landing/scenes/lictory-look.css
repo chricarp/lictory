@@ -103,3 +103,30 @@
 .lx .ss-window {
   border-radius: 16px;
 }
+
+/* The application's status grammar inside every scene: soft pills with a
+   hairline ring of the same hue. */
+.lx .ss-badge {
+  height: 22px;
+  padding-inline: 9px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* Tabs read like the application's: an underline under the current one. */
+.lx .hs-tabs > span {
+  border-radius: 0;
+  box-shadow: inset 0 -1.5px 0 transparent;
+}
+.lx .hs-tabs > [data-active] {
+  background: transparent;
+  box-shadow: inset 0 -1.5px 0 var(--ss-text-strong);
+}
+
+/* Revisions are mono pills with a ring, as on the item page. */
+.lx .rs-revision {
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  background: var(--ss-chrome);
+}

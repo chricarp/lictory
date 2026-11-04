@@ -193,6 +193,14 @@ export function ItemWorkflow({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const decisionId = useId();
   const refinement = item.refinementState;
+  // What happens next, in one line: the specification's open concern first,
+  // then the delivery decision.
+  const next =
+    type.hasSpecification && refinement && refinement !== "ready"
+      ? nextRefinementAction(item)
+      : stage === "ready" && native
+        ? `Accept revision ${current?.number ?? ""} for delivery when the team is ready to build it.`
+        : null;
   // One dominant statement, then the evidence behind it. An amendment names
   // both revisions in one sentence: the one under refinement and the one
   // delivery still uses.
@@ -200,10 +208,13 @@ export function ItemWorkflow({
     amendment && current
       ? `Revision ${current.number} is ${refinement ? refinementMeta[refinement].label.toLowerCase() : "in refinement"}`
       : label;
+  // When a NEXT line names the step, the general guidance would repeat it.
   const subline =
     amendment && agreed != null
       ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
-      : description;
+      : next
+        ? null
+        : description;
   // Evidence, grouped by what it is about: the specification's refinement
   // (always the current revision) and, once a revision is accepted, delivery.
   const specEvidence = type.hasSpecification && (
@@ -280,14 +291,6 @@ export function ItemWorkflow({
       )}
     </>
   );
-  // What happens next, in one line: the specification's open concern first,
-  // then the delivery decision.
-  const next =
-    type.hasSpecification && refinement && refinement !== "ready"
-      ? nextRefinementAction(item)
-      : stage === "ready" && native
-        ? `Accept revision ${current?.number ?? ""} for delivery when the team is ready to build it.`
-        : null;
   const evidence = (
     <dl className="grid gap-2 text-[11.5px]">
       {specEvidence && <EvidenceRow label="Spec">{specEvidence}</EvidenceRow>}

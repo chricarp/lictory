@@ -200,7 +200,7 @@
   width: 1128px;
   /* A fixed size that fits its three entries and the summary of older
      ones, so the card never grows on the stage */
-  height: 224px;
+  height: 252px;
   padding: 6px 18px 8px;
   border-radius: var(--ss-radius-lg);
   background: var(--ss-raised);
@@ -270,13 +270,30 @@
 
 .ag-row {
   display: grid;
-  /* Fixed tracks, so the capabilities line up as one column */
-  grid-template-columns: 24px minmax(0, 1fr) 196px 52px;
+  /* The human-readable action leads; the capability it called sits beneath
+     it, quieter, in mono */
+  grid-template-columns: 24px minmax(0, 1fr) 52px;
   align-items: center;
-  gap: 12px;
-  height: 44px;
+  column-gap: 12px;
+  row-gap: 1px;
+  padding-block: 9px;
   border-top: 1px solid var(--ss-line);
   font-size: 13.5px;
+  line-height: 1.35;
+}
+
+.ag-row > :first-child {
+  grid-row: 1 / span 2;
+}
+
+.ag-row .ag-capability {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.ag-row .ag-from {
+  grid-column: 3;
+  grid-row: 1 / span 2;
 }
 
 .ag .ss-stage[data-layout="compact"] .ag-row {
@@ -307,7 +324,7 @@
 
 .ag-row-text {
   overflow: hidden;
-  color: var(--ss-text);
+  color: var(--ss-text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -318,10 +335,9 @@
 }
 
 .ag-capability {
-  color: var(--ss-text-strong);
+  color: var(--ss-text-faint);
   font-family: var(--ss-mono);
-  font-size: 12.5px;
-  opacity: 0.8;
+  font-size: 11.5px;
 }
 
 .ag-from {

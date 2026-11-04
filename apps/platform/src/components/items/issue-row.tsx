@@ -84,7 +84,7 @@ export const IssueRow = memo(function IssueRow({
         "group relative flex items-center gap-2 border-b px-3 text-[13px] last:border-b-0",
         compact ? "h-9" : hint ? "min-h-14" : "h-10",
         selected
-          ? "bg-primary/6"
+          ? "bg-card shadow-(--shadow-border)"
           : focused
             ? "bg-muted/70"
             : "hover:bg-muted/50",
@@ -191,7 +191,7 @@ export const IssueRow = memo(function IssueRow({
         className={
           compact
             ? undefined
-            : "md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap xl:w-52"
+            : "md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap xl:w-52"
         }
       />
       {!compact && (

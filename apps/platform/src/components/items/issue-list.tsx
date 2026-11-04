@@ -517,7 +517,7 @@ export function IssueList({
                   <span
                     aria-hidden
                     data-count={activeFilterCount}
-                    className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary before:content-[attr(data-count)]"
+                    className="rounded-full bg-foreground px-1.5 text-[10px] font-semibold text-background before:content-[attr(data-count)]"
                   />
                 )}
               </Button>
@@ -908,7 +908,7 @@ export function IssueList({
                           className="ml-auto hidden items-center gap-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase md:flex"
                         >
                           <span className="w-7 text-center">Est.</span>
-                          <span className="w-36 xl:w-52">Review</span>
+                          <span className="mr-3 w-36 xl:w-52">Review</span>
                           <span className="w-16 xl:w-24">Checks</span>
                           <span className="w-7 text-center">Who</span>
                           <span className="hidden w-14 text-right sm:block">

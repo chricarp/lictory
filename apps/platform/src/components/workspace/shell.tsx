@@ -819,7 +819,7 @@ function InboxLink({
                 : "ml-auto px-1.5",
               !collapsed &&
                 (unread
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-foreground text-background"
                   : "text-muted-foreground"),
             )}
           >
