@@ -778,7 +778,9 @@ export function ItemDetail({
               {!focusScreen && (
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
-                    {native && (
+                    {/* Once a revision is accepted the workflow card shows the
+                        delivery status; the panel still changes it. */}
+                    {native && item.committedRevisionNumber == null && (
                       <IssueStatus
                         projectId={item.projectId}
                         statusId={item.statusId}

@@ -169,7 +169,8 @@ export const ItemCard = memo(function ItemCard({
             }
           >
             <RefinementIcon state={item.refinementState} />
-            {refinementMeta[item.refinementState].label}
+            {/* "Spec" keeps refinement apart from the delivery column. */}
+            Spec: {refinementMeta[item.refinementState].label.toLowerCase()}
             {item.refinementState !== "ready" &&
               ` · ${item.readinessPassed}/${item.readinessTotal} checks`}
           </span>

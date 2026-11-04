@@ -232,7 +232,7 @@ export function ItemWorkflow({
       aria-label="Item workflow"
       className="mt-5 overflow-hidden rounded-xl bg-card shadow-(--shadow-border)"
     >
-      <div className="px-4 pt-3 pb-3.5">
+      <div className="px-4 pt-3 pb-3 sm:pb-3.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {/* An amendment names itself; the delivery status it would repeat is
               in the Delivery row below. */}
@@ -269,7 +269,9 @@ export function ItemWorkflow({
         )}
       </div>
       {children && (
-        <div className="border-t bg-muted/40 px-4 py-3">{children}</div>
+        <div className="border-t bg-muted/40 px-4 py-2.5 sm:py-3">
+          {children}
+        </div>
       )}
     </section>
   );

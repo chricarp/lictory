@@ -79,6 +79,9 @@ export function ReviewSignal({
             <ShieldEllipsis className="size-3.5" />
           )}
           {approved}/{total}
+          {!compact && state !== "approved" && (
+            <span className="ml-0.5 hidden xl:inline">approved</span>
+          )}
         </span>
       )}
     </span>

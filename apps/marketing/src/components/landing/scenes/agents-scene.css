@@ -172,10 +172,10 @@
 
 .ag-term {
   /* Asides stay readable: dim, not faint */
-  --ss-term-dim: #9a958b;
+  --ss-term-dim: #aaa498;
   padding: 4px 18px 0;
   font-family: var(--ss-mono);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 22px;
   white-space: pre;
 }
@@ -259,7 +259,7 @@
   gap: 12px;
   height: 44px;
   border-top: 1px solid var(--ss-line);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .ag .ss-stage[data-layout="compact"] .ag-row {
@@ -301,9 +301,10 @@
 }
 
 .ag-capability {
-  color: var(--ss-text);
+  color: var(--ss-text-strong);
   font-family: var(--ss-mono);
-  font-size: 12px;
+  font-size: 12.5px;
+  opacity: 0.8;
 }
 
 .ag-from {
@@ -337,7 +338,7 @@
 .ag-call {
   display: inline-flex;
   align-items: center;
-  height: 22px;
+  height: 24px;
   gap: 6px;
   margin-left: 34px;
   padding: 0 10px;
@@ -345,7 +346,7 @@
   background: var(--ss-success-soft);
   color: var(--ss-success-text);
   font-family: var(--ss-mono);
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 
 .ag-call svg {
