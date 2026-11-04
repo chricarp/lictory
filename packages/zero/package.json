@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@lictory/core": "workspace:*",
-    "@rocicorp/zero": "1.11.2",
+    "@rocicorp/zero": "1.11.3",
     "zod": "^4.6.7"
   },
   "license": "MIT"
