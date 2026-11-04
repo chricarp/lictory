@@ -99,6 +99,11 @@ and approvals stay as they were, so reactivating restores the account as it
 was. Deactivation is the reversible alternative to deleting an account, which
 the console does not offer. A person cannot deactivate their own account.
 
+People delete their own account from Account settings, which
+[anonymizes it](./account-deletion.md). The console lists a deleted account
+by name as "Deleted" and refuses every change to it: reactivating it or
+setting a password would bring back an account its owner deleted.
+
 ## History
 
 Instance administration is recorded in `instance_audit_event`, which no

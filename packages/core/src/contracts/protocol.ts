@@ -910,6 +910,9 @@ export const directorySchema = z.object({
   ),
   projects: z.array(entitySchema.options[0]),
   members: z.array(directoryMemberSchema),
+  // People who left (or deleted their account), by name only, so their
+  // history stays attributed. They grant and receive nothing.
+  formerMembers: z.array(z.object({ id, name: z.string() })).default([]),
   projectMembers: z.array(projectMemberSchema),
   disciplines: z.array(disciplineSchema),
   teams: z.array(teamSchema),
@@ -932,6 +935,19 @@ export const directorySchema = z.object({
     .default({ enabled: false, available: false }),
 });
 export type Directory = z.infer<typeof directorySchema>;
+// How history names someone who is no longer in the organization.
+export const formerMemberName = (name: string) =>
+  name.trim() ? `${name} (former member)` : "Former member";
+// A person's name in the directory, including people who left.
+export function directoryName(
+  directory: Pick<Directory, "members" | "formerMembers">,
+  userId: string,
+) {
+  const member = directory.members.find((m) => m.id === userId);
+  if (member) return member.name;
+  const former = directory.formerMembers.find((m) => m.id === userId);
+  return formerMemberName(former?.name ?? "");
+}
 export const PROTOCOL = 15 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),

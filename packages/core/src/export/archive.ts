@@ -263,6 +263,32 @@ function memberRows(tx: Tx, organizationId: string) {
   );
 }
 
+// People who left, by name, so exported history stays attributed. Their
+// email is not exported: they are no longer part of the organization.
+function formerMemberRows(tx: Tx, organizationId: string) {
+  return keyset<string>(
+    (after) =>
+      tx
+        .select({
+          organizationId: s.formerMember.organizationId,
+          userId: s.formerMember.userId,
+          leftAt: s.formerMember.leftAt,
+          name: s.user.name,
+        })
+        .from(s.formerMember)
+        .innerJoin(s.user, eq(s.user.id, s.formerMember.userId))
+        .where(
+          and(
+            eq(s.formerMember.organizationId, organizationId),
+            after ? gt(s.formerMember.userId, after) : undefined,
+          ),
+        )
+        .orderBy(asc(s.formerMember.userId))
+        .limit(PAGE),
+    (row) => row.userId as string,
+  );
+}
+
 const workItemCsvHeader = [
   "Identifier",
   "ID",
@@ -426,6 +452,18 @@ export async function writeSnapshot(
       file,
       "",
       () => memberRows(tx, organizationId),
+      jsonLine,
+      heartbeat,
+    ),
+  };
+  const formerFile = "entities/former_member.jsonl";
+  summary.entities.former_member = {
+    file: formerFile,
+    rows: await twoPass(
+      writer,
+      formerFile,
+      "",
+      () => formerMemberRows(tx, organizationId),
       jsonLine,
       heartbeat,
     ),

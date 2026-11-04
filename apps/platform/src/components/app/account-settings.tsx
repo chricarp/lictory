@@ -949,7 +949,7 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
       id="delete"
       icon={<Trash2 className="text-destructive" />}
       title="Delete account"
-      description="Permanently removes your account and signs out every session. This cannot be undone."
+      description="Removes your sign-in methods, email address, photo and memberships, and signs out every session. This cannot be undone."
       action={
         !open ? (
           <Button size="sm" variant="danger" onClick={() => setOpen(true)}>
@@ -998,7 +998,9 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
       ) : (
         <SettingsBody>
           <p className="text-[13px] text-muted-foreground">
-            You will lose access to every organization you belong to.
+            You will lose access to every organization you belong to. Your name
+            stays on the revisions, comments and approvals you contributed,
+            shown as a former member; what you wrote is not changed.
             {hasPassword
               ? " You will be asked for your password to confirm."
               : ""}

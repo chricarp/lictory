@@ -41,6 +41,8 @@ adding domain writes or synchronized entities.
 - [Notifications](./internals/notifications.md)
 - [Account and workspace onboarding](./internals/onboarding.md): including
   sign-in methods and account linking
+- [Account deletion](./internals/account-deletion.md): anonymization, what is
+  removed and kept, former members
 - [Instance administration](./internals/instance-administration.md): instance
   administrators, the access policy (who may sign up and create
   organizations), deactivation and its history

@@ -26,6 +26,7 @@ export const user = pgTable("user", {
   theme: text("theme").default("lictory").notNull(),
   instanceAdmin: boolean("instance_admin").default(false).notNull(),
   deactivatedAt: timestamp("deactivated_at"),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const session = pgTable(

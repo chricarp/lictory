@@ -33,6 +33,8 @@ export type AdminUser = {
   instanceAdmin: boolean;
   twoFactorEnabled: boolean | null;
   deactivatedAt: string | null;
+  // Deleted by its owner: an anonymized tombstone the console cannot change.
+  deletedAt: string | null;
   createdAt: string;
   lastActiveAt: string | null;
   organizations: { id: string; name: string; slug: string; role: string }[];

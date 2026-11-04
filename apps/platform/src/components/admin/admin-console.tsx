@@ -701,36 +701,53 @@ function PersonRow({
             <span className="truncate">{user.name || user.email}</span>
             {self && <Badge>You</Badge>}
             {user.instanceAdmin && <Badge tone="info">Administrator</Badge>}
-            {user.deactivatedAt && <Badge tone="danger">Deactivated</Badge>}
-            {!user.emailVerified && <Badge tone="warning">Unverified</Badge>}
+            {user.deletedAt ? (
+              <Badge tone="danger">Deleted</Badge>
+            ) : (
+              <>
+                {user.deactivatedAt && <Badge tone="danger">Deactivated</Badge>}
+                {!user.emailVerified && (
+                  <Badge tone="warning">Unverified</Badge>
+                )}
+              </>
+            )}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {user.email}
-            {user.handle && ` · @${user.handle}`}
-            {" · "}
-            {user.organizations.length
-              ? user.organizations
-                  .map((o) => `${o.name} (${o.role})`)
-                  .join(", ")
-              : "no organization"}
-          </p>
+          {user.deletedAt ? (
+            <p className="truncate text-xs text-muted-foreground">
+              Deleted by its owner {date(user.deletedAt)}. Only the name is
+              kept, for history.
+            </p>
+          ) : (
+            <p className="truncate text-xs text-muted-foreground">
+              {user.email}
+              {user.handle && ` · @${user.handle}`}
+              {" · "}
+              {user.organizations.length
+                ? user.organizations
+                    .map((o) => `${o.name} (${o.role})`)
+                    .join(", ")
+                : "no organization"}
+            </p>
+          )}
         </div>
         <p className="hidden text-xs text-muted-foreground sm:block">
           {user.lastActiveAt
             ? `Active ${date(user.lastActiveAt)}`
             : `Created ${date(user.createdAt)}`}
         </p>
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-expanded={open}
-          aria-label={`Manage ${user.name || user.email}`}
-          onClick={() => setOpen((o) => !o)}
-        >
-          Manage
-        </Button>
+        {!user.deletedAt && (
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-expanded={open}
+            aria-label={`Manage ${user.name || user.email}`}
+            onClick={() => setOpen((o) => !o)}
+          >
+            Manage
+          </Button>
+        )}
       </div>
-      {open && (
+      {open && !user.deletedAt && (
         <ManagePerson
           user={user}
           self={self}

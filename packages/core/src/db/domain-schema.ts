@@ -402,6 +402,27 @@ export const teamMember = pgTable(
   ],
 );
 
+// People who left the organization (removed, left, or deleted their
+// account). Their history stays, and the directory lists them by name so it
+// is still attributed. Grants nothing; a person who rejoins is listed as a
+// member again.
+export const formerMember = pgTable(
+  "former_member",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    leftAt: timestamp("left_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.userId] }),
+    index("former_member_user_idx").on(t.userId),
+  ],
+);
+
 // Organization-wide type registry. Hierarchy level orders parents above
 // children (Epic 2, Story/Task/Bug 1, Subtask 0). Spec-backed types carry
 // revisions, reviews, approvals and readiness; others are plain work.

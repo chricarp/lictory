@@ -27,6 +27,7 @@ import {
   applicationRoleOf,
   canManageProject,
   capabilitiesOf,
+  formerMemberName,
   mutationSchema,
   type Capabilities,
   type Command,
@@ -384,6 +385,9 @@ export function WorkspaceProvider({
   const roles = useMemo(() => {
     const admin = applicationRoleOf(membership.role) === "admin";
     const memberNames = new Map(directory.members.map((m) => [m.id, m.name]));
+    // History by people who left stays attributed by name.
+    for (const m of directory.formerMembers)
+      memberNames.set(m.id, formerMemberName(m.name));
     const disciplineNames = new Map(
       directory.disciplines.map((d) => [d.id, d.name]),
     );
