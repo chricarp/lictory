@@ -159,7 +159,7 @@ and normalizes pixels to a static, centered 256×256 WebP, honors orientation an
 strips metadata. Small normalized bytes live in a separate PostgreSQL row, like
 organization branding, rather than in session data or object storage. Replacement
 updates the photo and user image URL in one transaction under a user row lock;
-removal clears both. Deleting the account cascades to its photo.
+removal clears both. Deleting the account removes its photo.
 
 The stable image URL carries a content hash to refresh avatars after replacement.
 Reads require authentication and either ownership or current membership in an

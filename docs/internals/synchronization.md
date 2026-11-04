@@ -152,7 +152,8 @@ commit. Never write domain rows that a projection depends on without writing
 the projection in the same transaction.
 
 The directory (`directory:{organizationId}`) carries the organization's
-members (name, email, photo, handle, application role), projects, project
+members (name, email, photo, handle, application role), former members (name
+only, see [account deletion](./account-deletion.md#former-members)), projects, project
 members, disciplines, teams, types, statuses, iterations, delivery connections
 and targets (never credentials), the AI policy and each project's current
 readiness checks. `organizationProfile:{organizationId}` carries name, slug and

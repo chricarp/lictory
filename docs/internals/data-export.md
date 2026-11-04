@@ -48,8 +48,8 @@ Everything that is the organization's record, read by organization id in
 every query:
 
 - the organization (`organization.json`) and its logos (`organization/`);
-- members with their application role, name, email and handle, and
-  invitations;
+- members with their application role, name, email and handle, former
+  members by name (so history stays attributed), and invitations;
 - projects, project members, disciplines and their members, teams, labels,
   milestones, work item types and project type settings, workflow statuses,
   iterations and their events, readiness policy revisions;

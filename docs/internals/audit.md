@@ -76,9 +76,10 @@ reference is cleared.
 Entries are kept for the life of the organization. There is no automatic
 expiry and no setting for one yet; an operator who must shorten retention does
 so deliberately in the database, outside the application. Deleting an
-organization deletes its log. Deleting an account keeps that person's
-`audit_event` and `configuration_audit` entries (with their name and email at
-the time) and removes their agent call records.
+organization deletes its log. Deleting an account
+([anonymizing it](./account-deletion.md)) keeps that person's `audit_event` and
+`configuration_audit` entries (with their name and email at the time) and
+removes their agent call records.
 
 ## Reading and exporting
 

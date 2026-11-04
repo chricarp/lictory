@@ -66,6 +66,7 @@ export type { DirectoryProjection, OrganizationProfile };
 export const emptyDirectoryProjection: DirectoryProjection = {
   projects: [],
   members: [],
+  formerMembers: [],
   projectMembers: [],
   disciplines: [],
   teams: [],

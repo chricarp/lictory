@@ -41,6 +41,11 @@ export const authSchemaOptions = {
       // sessions or access tokens work until it is reactivated. Nothing else
       // about the account changes, so reactivating restores it.
       deactivatedAt: { type: "date", required: false, input: false },
+      // Set when the person deletes their account. The row stays as a
+      // tombstone (id and display name) because history refers to it; its
+      // credentials, contact details and memberships are gone, and it is
+      // deactivated for good. See `~/domain/account-deletion`.
+      deletedAt: { type: "date", required: false, input: false },
     },
   },
   // Counters live in PostgreSQL so every API replica shares them and they

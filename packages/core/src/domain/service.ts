@@ -236,6 +236,7 @@ export async function directory(
       organizations,
       projects: [],
       members: [],
+      formerMembers: [],
       projectMembers: [],
       disciplines: [],
       teams: [],
@@ -270,6 +271,7 @@ export async function organizationDirectory(
   const [
     projectRows,
     memberRows,
+    formerMemberRows,
     projectMemberRows,
     disciplineMembers,
     disciplineRows,
@@ -297,6 +299,12 @@ export async function organizationDirectory(
       .innerJoin(s.user, eq(s.member.userId, s.user.id))
       .where(eq(s.member.organizationId, organizationId))
       .orderBy(asc(s.user.name), asc(s.user.email), asc(s.user.id)),
+    db
+      .select({ id: s.user.id, name: s.user.name })
+      .from(s.formerMember)
+      .innerJoin(s.user, eq(s.formerMember.userId, s.user.id))
+      .where(eq(s.formerMember.organizationId, organizationId))
+      .orderBy(asc(s.user.name), asc(s.user.id)),
     db
       .select()
       .from(s.projectMember)
@@ -333,6 +341,8 @@ export async function organizationDirectory(
     owner: rawRole.split(",").includes("owner"),
   }));
   const memberIds = new Set(members.map((m) => m.id));
+  // Someone who rejoined is a member again, not a former one.
+  const formerMembers = formerMemberRows.filter((m) => !memberIds.has(m.id));
   // Project and discipline memberships never outlive organization membership.
   const projectMembers = projectMemberRows
     .filter((m) => memberIds.has(m.userId))
@@ -369,6 +379,7 @@ export async function organizationDirectory(
   return {
     projects,
     members,
+    formerMembers,
     projectMembers,
     disciplines,
     ...configuration,

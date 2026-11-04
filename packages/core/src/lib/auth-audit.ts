@@ -51,23 +51,3 @@ export async function recordAuthAudit(
     logFailure(planned.action, error);
   }
 }
-
-// An account deletion removes the person from every organization; each of
-// them records it. The account row is already gone, so the actor's name and
-// email come from the deleted user.
-export async function recordAccountDeleted(
-  user: { id: string; name: string; email: string },
-  organizationIds: readonly string[],
-) {
-  for (const organizationId of organizationIds)
-    try {
-      await recordAuditEvent(db, {
-        organizationId,
-        actor: { id: user.id, name: user.name, email: user.email },
-        action: "member.account_deleted",
-        target: { type: "member", id: user.id, label: user.name || user.email },
-      });
-    } catch (error) {
-      logFailure("member.account_deleted", error);
-    }
-}

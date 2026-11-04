@@ -128,9 +128,10 @@ fails instead of silently cascading. Archive timestamps on projects, work items,
 disciplines, teams, types, statuses, and decisions support reversible removal
 from active views. Better Auth's original auth-table cascades are preserved, but domain
 references intentionally prevent its hard-delete user/organization flows where
-history exists. A future account erasure/anonymization policy and actionable error
-handling must account for this. Removing an organization membership remains
-possible and does not delete reviews or approvals. Only project, discipline and
+history exists. Accounts are therefore never removed: deleting one anonymizes
+the row and keeps it ([account deletion](./account-deletion.md)). Removing an
+organization membership remains possible and does not delete reviews or
+approvals. Only project, discipline and
 team membership rows cascade with their parent rows.
 
 ## Generation and verification

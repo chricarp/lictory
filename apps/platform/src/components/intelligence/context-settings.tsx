@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
+import { directoryName } from "@lictory/core/contracts/protocol";
 import {
   ACCEPT_CONTEXT_DOCUMENTS,
   CONTEXT_PROMPT_BUDGET,
@@ -193,8 +194,7 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
     (api.listing.canManage ||
       (!!targetProjectId &&
         (api.listing.manageableProjectIds ?? []).includes(targetProjectId)));
-  const nameOf = (id: string) =>
-    directory.members.find((m) => m.id === id)?.name ?? "Former member";
+  const nameOf = (id: string) => directoryName(directory, id);
   const inherited =
     pinned.scope === "project"
       ? (api.listing?.entries ?? []).filter(

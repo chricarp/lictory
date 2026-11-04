@@ -47,6 +47,7 @@ const directory: Directory = {
   ai: { enabled: false, available: false },
   organizations: [],
   members: [],
+  formerMembers: [],
   projectMembers: [],
   disciplines: [],
   iterations: [],

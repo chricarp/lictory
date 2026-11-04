@@ -29,15 +29,15 @@ import {
 } from "@lictory/core/lib/password-policy";
 import { deliverAuthEmail } from "@lictory/core/lib/email";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { refreshDirectories } from "@lictory/core/domain/projections";
 import {
-  organizationsOf,
-  refreshDirectories,
-} from "@lictory/core/domain/projections";
+  AccountDeletionError,
+  deleteAccount,
+  directoriesListing,
+  recordDeparture,
+} from "@lictory/core/domain/account-deletion";
 import { trackServer } from "@lictory/core/lib/analytics/server";
-import {
-  recordAccountDeleted,
-  recordAuthAudit,
-} from "@lictory/core/lib/auth-audit";
+import { recordAuthAudit } from "@lictory/core/lib/auth-audit";
 import {
   auditedAuthPaths,
   rememberPreviousRole,
@@ -96,15 +96,14 @@ const validateAccountCreation = accountCreationGate(
 );
 
 // Directories list each member's name, email, photo, handle and application
-// role, and organization profiles carry names and slugs. Better Auth commits
-// these writes itself (the adapter runs without transactions), so the
-// projections are refreshed right after, each under its organization lock.
+// role (and former members by name), and organization profiles carry names
+// and slugs. Better Auth commits these writes itself (the adapter runs
+// without transactions), so the projections are refreshed right after, each
+// under its organization lock.
 const refreshOrganizations = (organizationIds: Iterable<string>) =>
   refreshDirectories(db, organizationIds);
 const refreshUserOrganizations = async (userId: string) =>
-  refreshOrganizations(await organizationsOf(db, userId));
-// Memberships of users being deleted, captured before the cascade removes them.
-const deletedMemberships = new Map<string, string[]>();
+  refreshOrganizations(await directoriesListing(db, userId));
 
 export const auth = betterAuth({
   ...authSchemaOptions,
@@ -147,7 +146,24 @@ export const auth = betterAuth({
   user: {
     ...authSchemaOptions.user,
     changeEmail: { enabled: true },
-    deleteUser: { enabled: true },
+    // "Delete account" anonymizes: `beforeDelete` does the whole change in
+    // one transaction (or refuses it with a reason), and the user row is
+    // then kept as a tombstone (see the user delete hook below).
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async (user) => {
+        try {
+          await deleteAccount(db, user.id);
+        } catch (error) {
+          if (error instanceof AccountDeletionError)
+            throw new APIError("BAD_REQUEST", {
+              code: error.code.toUpperCase(),
+              message: error.message,
+            });
+          throw error;
+        }
+      },
+    },
     validateUserInfo: async (info, context) =>
       (await validateMicrosoftAccountLink(info, context)) ??
       (await validateOidcAccountLink(info, context)) ??
@@ -205,16 +221,11 @@ export const auth = betterAuth({
           await refreshUserOrganizations(user.id);
         },
       },
+      // Accounts are never removed: history refers to them. Deletion
+      // anonymizes the row first (`deleteUser.beforeDelete`), and returning
+      // false keeps it.
       delete: {
-        before: async (user) => {
-          deletedMemberships.set(user.id, await organizationsOf(db, user.id));
-        },
-        after: async (user) => {
-          const organizationIds = deletedMemberships.get(user.id) ?? [];
-          deletedMemberships.delete(user.id);
-          await recordAccountDeleted(user, organizationIds);
-          await refreshOrganizations(organizationIds);
-        },
+        before: async () => false,
       },
       create: {
         after: async (user, ctx) => {
@@ -296,8 +307,13 @@ export const auth = betterAuth({
         ctx.path === "/organization/leave" &&
         typeof left === "string" &&
         !(ctx.context.returned instanceof APIError)
-      )
-        await refreshOrganizations([left]);
+      ) {
+        // The after hook's context may not carry the session; resolve it.
+        const leaverId =
+          userId ?? (await getSessionFromCtx(ctx).catch(() => null))?.user.id;
+        if (leaverId) await recordDeparture(db, left, leaverId);
+        else await refreshOrganizations([left]);
+      }
       if (event && userId && !(ctx.context.returned instanceof APIError))
         trackServer(userId, event, {}, ctx.headers);
       // Membership changes are audited whether or not analytics is enabled.
@@ -477,8 +493,8 @@ export const auth = betterAuth({
         afterAddMember: async ({ organization }) => {
           await refreshOrganizations([organization.id]);
         },
-        afterRemoveMember: async ({ organization }) => {
-          await refreshOrganizations([organization.id]);
+        afterRemoveMember: async ({ organization, member }) => {
+          await recordDeparture(db, organization.id, member.userId);
         },
         afterUpdateMemberRole: async ({
           organization,

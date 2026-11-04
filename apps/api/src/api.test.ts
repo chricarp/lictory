@@ -95,7 +95,11 @@ const directoryOf = async (organizationId: string) =>
       .from(s.syncEntity)
       .where(eq(s.syncEntity.key, `directory:${organizationId}`))
   )[0]?.data as
-    { members: { id: string; name: string; role: string }[] } | undefined;
+    | {
+        members: { id: string; name: string; role: string }[];
+        formerMembers: { id: string; name: string }[];
+      }
+    | undefined;
 
 void test("auth rate limits use the gateway's single client address and ignore other IP headers", async () => {
   const context = await m.auth.$context;
@@ -257,10 +261,12 @@ void test(
       body: JSON.stringify({ organizationId: organization.id }),
     });
     assert.equal(left.status, 200);
-    assert.ok(
-      !(await directoryOf(organization.id))!.members.some(
-        (x) => x.id === leaver.id,
-      ),
+    const afterLeaving = (await directoryOf(organization.id))!;
+    assert.ok(!afterLeaving.members.some((x) => x.id === leaver.id));
+    // People who left or were removed keep their history attributed by name.
+    assert.deepEqual(
+      afterLeaving.formerMembers.map((x) => x.id).sort(),
+      [leaver.id, member.id].sort(),
     );
   },
 );

@@ -63,6 +63,7 @@ export const instanceAuditActions = {
   "user.created": "Created an account",
   "user.deactivated": "Deactivated an account",
   "user.reactivated": "Reactivated an account",
+  "user.deleted": "Deleted their account",
   "user.password_set": "Set an account's password",
   "user.password_reset_sent": "Sent a password reset link",
   "instance_admin.granted": "Made an instance administrator",
@@ -127,6 +128,9 @@ const userSummary = (u: { id: string; name: string; email: string }) => ({
   email: u.email,
 });
 
+// Every console action changes the account, so a deleted one (an anonymized
+// tombstone kept for history) is refused: reactivating it or giving it a
+// password would bring back an account its owner deleted.
 async function userById(db: Database, id: string) {
   const [user] = await db.select().from(s.user).where(eq(s.user.id, id));
   if (!user)
@@ -134,6 +138,12 @@ async function userById(db: Database, id: string) {
       "not_found",
       "That account no longer exists.",
       404,
+    );
+  if (user.deletedAt)
+    throw new InstanceAdminError(
+      "deleted",
+      "This account was deleted by its owner and can't be changed.",
+      409,
     );
   return user;
 }
@@ -263,6 +273,7 @@ export async function listUsers(
       instanceAdmin: s.user.instanceAdmin,
       twoFactorEnabled: s.user.twoFactorEnabled,
       deactivatedAt: s.user.deactivatedAt,
+      deletedAt: s.user.deletedAt,
       createdAt: s.user.createdAt,
       lastActiveAt: sql<Date | null>`(select max(${s.session.updatedAt}) from ${s.session} where ${s.session.userId} = ${s.user.id})`,
     })
