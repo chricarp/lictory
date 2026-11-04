@@ -125,6 +125,14 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 | `OAUTH_PROXY_SECRET`          | No                  |                                                         | api         | Yes, ≥ 32 bytes | Secret shared by the OAuth proxy and its participants (at least 32 characters).                                                                                                                    |
 | `OAUTH_PROXY_TRUSTED_ORIGINS` | No                  |                                                         | api         | No              | Comma-separated origins the OAuth callback server returns to. Exact origins or a narrow pattern, never a whole hosting domain.                                                                     |
 
+## Access policy
+
+| Variable                        | Required | Default          | Read by | Secret | Description                                                                                                                                                                                                                                                  |
+| ------------------------------- | -------- | ---------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `LICTORY_SIGNUP_MODE`           | No       | `invite`         | api     | No     | Who may create an account: `invite` (only people with a pending invitation), `closed` (only instance administrators create accounts) or `open` (anyone). Instance administrators see it in the admin console; see docs/internals/instance-administration.md. |
+| `LICTORY_ALLOWED_EMAIL_DOMAINS` | No       | any domain       | api     | No     | Space- or comma-separated email domains (`example.com`) new accounts must belong to. Invalid domains stop the API at startup.                                                                                                                                |
+| `LICTORY_ORGANIZATION_CREATION` | No       | `administrators` | api     | No     | Who may create organizations: `administrators` (instance administrators only) or `everyone` (any signed-in person).                                                                                                                                          |
+
 ## Synchronization
 
 | Variable              | Required            | Default | Read by | Secret          | Description                                                                                |

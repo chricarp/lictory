@@ -387,6 +387,32 @@ export const declarations: readonly Declaration[] = [
       "Comma-separated origins the OAuth callback server returns to. Exact origins or a narrow pattern, never a whole hosting domain.",
   },
 
+  // ---------------------------------------------------------- access policy
+  {
+    name: "LICTORY_SIGNUP_MODE",
+    group: "Access policy",
+    services: ["api"],
+    default: "`invite`",
+    description:
+      "Who may create an account: `invite` (only people with a pending invitation), `closed` (only instance administrators create accounts) or `open` (anyone). Instance administrators see it in the admin console; see docs/internals/instance-administration.md.",
+  },
+  {
+    name: "LICTORY_ALLOWED_EMAIL_DOMAINS",
+    group: "Access policy",
+    services: ["api"],
+    default: "any domain",
+    description:
+      "Space- or comma-separated email domains (`example.com`) new accounts must belong to. Invalid domains stop the API at startup.",
+  },
+  {
+    name: "LICTORY_ORGANIZATION_CREATION",
+    group: "Access policy",
+    services: ["api"],
+    default: "`administrators`",
+    description:
+      "Who may create organizations: `administrators` (instance administrators only) or `everyone` (any signed-in person).",
+  },
+
   // ------------------------------------------------------------- sync (Zero)
   {
     name: "ZERO_QUERY_API_KEY",

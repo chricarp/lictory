@@ -41,7 +41,8 @@ import {
 } from "@lictory/platform/routes/errors";
 
 // URL map (app host): /{org}/... workspace, /account, /new-organization,
-// /invitation, account flows at the top level. Workspace data comes from Zero,
+// /invitation, /admin (instance administration), account flows at the top
+// level. Workspace data comes from Zero,
 // so routes load code, never data: pending skeletons cover chunk loading.
 
 const here = (location: { pathname: string; searchStr: string }) =>
@@ -193,6 +194,32 @@ const invitationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/invitation",
   component: InvitationPage,
+});
+// Instance administration (instance administrators; the API authorizes).
+const adminRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/admin"),
+    "AdminRoute",
+  ),
+  pendingComponent: () => <SettingsSectionSkeleton />,
+});
+const adminIndexRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/admin"),
+    "AdminPage",
+  ),
+});
+const adminSectionRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/$section",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/admin"),
+    "AdminPage",
+  ),
 });
 
 const orgRoute = createRoute({
@@ -476,6 +503,7 @@ const routeTree = rootRoute.addChildren([
     accountRoute,
     newOrganizationRoute,
     invitationRoute,
+    adminRoute.addChildren([adminIndexRoute, adminSectionRoute]),
     orgRoute.addChildren([
       orgIndexRoute,
       orgAccountRoute,

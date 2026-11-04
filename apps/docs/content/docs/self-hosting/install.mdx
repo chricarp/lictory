@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Install Lictory on a server with the lictory command, then check that sign-in, email and realtime updates work.
+description: Install Lictory on a server with the guided lictory command, create the first administrator, then check that sign-in, email and realtime updates work.
 ---
 
 <CliNotice />
@@ -23,17 +23,25 @@ Install the `lictory` command, then run the installer as root:
 
 <Cli command={["bootstrap", "install"]} />
 
-`lictory install` first checks the server (Docker and Compose versions,
-memory, disk, free ports, DNS), then asks for the settings it needs. For an
-unattended install, pass them as flags with `--yes`, or as `LICTORY_<FLAG>`
-environment variables to keep secrets out of the shell history (for example
-`LICTORY_SMTP_PASSWORD`). The bootstrap installs the newest stable release;
-set `LICTORY_CHANNEL=nightly` or `LICTORY_VERSION=<version>` before it to
-choose another. It verifies the release's image digests before pulling
-anything. Settings and generated secrets are written to the
-environment's `.env` file (by default `/srv/lictory/production/.env`, mode
-`0600`): database passwords, `BETTER_AUTH_SECRET`,
-`DELIVERY_CREDENTIALS_KEY` and the Zero keys are generated for you.
+`lictory install` guides you through eight steps: it checks the server
+(Docker and Compose versions, memory, disk), asks for the address and checks
+DNS and ports, asks for email, attachment storage, single sign-on and
+backups, then for the [access policy](/self-hosting/configuration#access-policy):
+who may create accounts and organizations. It shows a review of every
+answer, with secrets masked, before it changes anything. On a terminal the
+choices are menus (arrow keys and Enter) and long steps show progress while
+their output goes to a log under `/srv/lictory/production/logs`.
+
+For an unattended install, pass the settings as flags with `--yes`, or as
+`LICTORY_<FLAG>` environment variables to keep secrets out of the shell
+history (for example `LICTORY_SMTP_PASSWORD`). The bootstrap installs the
+newest stable release; set `LICTORY_CHANNEL=nightly` or
+`LICTORY_VERSION=<version>` before it to choose another. It verifies the
+release's image digests before pulling anything. Settings and generated
+secrets are written to the environment's `.env` file (by default
+`/srv/lictory/production/.env`, mode `0600`): database passwords,
+`BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY` and the Zero keys are
+generated for you.
 
 <Callout type="warn" title="Keep a copy of .env">
   Store the `.env` file in your password manager. Two values matter in a
@@ -42,17 +50,29 @@ environment's `.env` file (by default `/srv/lictory/production/.env`, mode
   rotate `DELIVERY_CREDENTIALS_KEY` once Jira is connected.
 </Callout>
 
-<Callout type="warn" title="Sign-up is open">
-  Anyone who can reach the address can create an account and an organization.
-  Until sign-up can be restricted, keep the server on your company network or
-  behind your VPN, or use [single
-  sign-on](/self-hosting/configuration#sign-in-and-single-sign-on) with password
-  sign-in turned off.
-</Callout>
-
 On an empty database the first release does everything in order: PostgreSQL
 creates its roles and databases, the migrations run, zero-cache performs its
 initial sync, then the proxy, API and worker start.
+
+## The first administrator
+
+The last step creates the first **instance administrator**, the account that
+runs Lictory, and the organization they own: the organization's name and
+handle (its address, `https://<your host>/<handle>`), your name, work email
+and a password. The email counts as verified, so this works before email is
+configured. With `--yes`, pass `--organization`, `--admin-name` and
+`--admin-email`, and the password in `LICTORY_ADMIN_PASSWORD`; without them
+the step waits for `sudo lictory admin setup`.
+
+<Cli command={["admin-setup", "admin-grant"]} />
+
+Sign in as the administrator and open the admin console at
+`https://<your host>/admin`: invite people, create accounts and
+organizations, and appoint other administrators. From the server,
+`lictory admin` does the same when nobody can sign in, for example to recover
+the only administrator:
+
+<Cli command={["admin-create-user", "admin-set-password"]} />
 
 ## Check the installation
 
@@ -60,8 +80,9 @@ initial sync, then the proxy, API and worker start.
 
 Then, in a browser:
 
-- sign up, verify your email address and reset a password;
-- create an organization;
+- sign in as the administrator and open the admin console;
+- invite a colleague, accept the invitation in another browser and reset a
+  password (this needs outbound email);
 - open the same specification in two browsers and check that a change in one
   appears in the other (the realtime connection);
 - upload and download an attachment, if file storage is configured;

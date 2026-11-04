@@ -98,6 +98,12 @@ const appEnv = {
   // only when it is requested; never a developer's own identity provider.
   ...oidcEnv(process.env.E2E_OIDC_ISSUER?.trim()),
   PASSWORD_LOGIN_ENABLED: "",
+  // Browser workflows sign up and create organizations themselves. The
+  // self-hosted defaults (invitations only, organizations by instance
+  // administrators) are proven by apps/api/src/api.test.ts.
+  LICTORY_SIGNUP_MODE: "open",
+  LICTORY_ALLOWED_EMAIL_DOMAINS: "",
+  LICTORY_ORGANIZATION_CREATION: "everyone",
   // Production startup validation requires at least 32 bytes. The shared
   // prefix is what the client bundle scan looks for.
   ZERO_QUERY_API_KEY: "e2e-zero-api-key-for-query-local-only",

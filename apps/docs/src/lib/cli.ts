@@ -13,11 +13,32 @@ export const commands = {
   install: {
     usage: "sudo lictory install",
     summary:
-      "Install Lictory on this server: checks the host, asks for the settings it needs (or takes them as flags with --yes), then starts the first release. Re-running it changes only the settings you change.",
+      "Install Lictory on this server, guided step by step: checks the host, asks for the address, services and access policy (or takes them as flags with --yes), starts the first release and creates the first administrator. Re-running it changes only the settings you change.",
+  },
+  "admin-setup": {
+    usage: "sudo lictory admin setup",
+    summary:
+      "Create the first instance administrator and the organization they own, when install did not (for example with --yes).",
+  },
+  "admin-grant": {
+    usage: "sudo lictory admin grant <email>",
+    summary:
+      "Make an existing account an instance administrator; revoke removes it. Works from the server when nobody can sign in.",
+  },
+  "admin-create-user": {
+    usage: "sudo lictory admin create-user <email> --name <name>",
+    summary:
+      "Create an account with a verified email, optionally an administrator (--admin) or a member of an organization (--organization <handle>).",
+  },
+  "admin-set-password": {
+    usage: "sudo lictory admin set-password <email>",
+    summary:
+      "Set a new password for an account and sign it out everywhere; deactivate and reactivate block or restore sign-in.",
   },
   status: {
     usage: "lictory status [--json]",
-    summary: "Active version, release channel and the health of each service.",
+    summary:
+      "Active version, release channel, the health of each service and the access policy.",
   },
   doctor: {
     usage: "lictory doctor",

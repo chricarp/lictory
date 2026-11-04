@@ -3,9 +3,11 @@ import { build } from "esbuild";
 // Bundles the API and the workspace sources it imports into one ESM file for
 // Node 24. npm dependencies stay external (native modules such as sharp and
 // @firecrawl/anydoc cannot be bundled) and resolve from node_modules.
+// admin.js is the server command line for instance administration
+// (src/admin-cli.ts), run by `lictory admin` inside the API container.
 await build({
-  entryPoints: ["src/index.ts"],
-  outfile: "dist/index.js",
+  entryPoints: { index: "src/index.ts", admin: "src/admin-cli.ts" },
+  outdir: "dist",
   bundle: true,
   platform: "node",
   target: "node24",

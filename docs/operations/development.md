@@ -57,6 +57,14 @@ bun run dev            # SPA, API, worker and website on the host
 - MinIO console (attachment bucket, user `lictory`, password
   `lictory-development`): http://127.0.0.1:9001
 
+`.env.example` lets anyone sign up and create organizations
+(`LICTORY_SIGNUP_MODE=open`, `LICTORY_ORGANIZATION_CREATION=everyone`). Remove
+both to work with the self-hosted defaults (invitations only, organizations by
+instance administrators); then create the first instance administrator with
+`echo '<password>' | bun run admin setup --organization Acme --name "Ada Admin" --email ada@example.test --password-stdin`
+and open the admin console at http://localhost:3000/admin. See
+[instance administration](../internals/instance-administration.md).
+
 Every optional integration (OAuth, Resend, OpenAI, PostHog, Jira) stays
 disabled until its variables are set in `.env`. Core refinement works without any
 of them. Attachments use the MinIO service: `.env.example` already points
@@ -119,6 +127,7 @@ Production images and the single-server stack are described in
 | `bun run test:smoke`  | Production build plus the `@smoke` workflows only                               |
 | `bun run db:generate` | Committed SQL migration after a schema change                                   |
 | `bun run db:check`    | Fail when the schema has no matching migration                                  |
+| `bun run admin <cmd>` | Instance administration against `.env`'s database                               |
 
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and

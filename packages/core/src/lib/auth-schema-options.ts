@@ -27,6 +27,20 @@ export const authSchemaOptions = {
         defaultValue: "lictory",
         input: false,
       },
+      // Instance administrator: manages accounts, organizations and access
+      // policy of the installation (see `~/lib/instance-policy`). Separate
+      // from organization roles. Set only by the admin console or the server
+      // CLI, never by the person.
+      instanceAdmin: {
+        type: "boolean",
+        required: true,
+        defaultValue: false,
+        input: false,
+      },
+      // Set when an instance administrator deactivates the account: no new
+      // sessions or access tokens work until it is reactivated. Nothing else
+      // about the account changes, so reactivating restores it.
+      deactivatedAt: { type: "date", required: false, input: false },
     },
   },
   // Counters live in PostgreSQL so every API replica shares them and they

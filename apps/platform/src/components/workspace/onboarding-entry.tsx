@@ -7,8 +7,10 @@ import {
   Building2,
   Mail,
   RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 import { authClient } from "@lictory/platform/lib/auth-client";
+import { useSessionState } from "@lictory/platform/lib/session";
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
 import { StateIllustration } from "@lictory/ui/state-illustration";
@@ -42,7 +44,14 @@ export function OnboardingEntry({
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  const intent = createOnly ? "create" : params.get("intent");
+  // Instance policy may reserve organization creation to instance
+  // administrators; then joining is the only way in (the server refuses
+  // creation either way).
+  const sessionUser = useSessionState().session?.user;
+  const canCreate = sessionUser?.canCreateOrganization ?? false;
+  const instanceAdmin = sessionUser?.instanceAdmin ?? false;
+  const requested = createOnly ? "create" : params.get("intent");
+  const intent = canCreate ? requested : createOnly ? "unavailable" : "join";
   const [invites, setInvites] = useState(invitations);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -90,20 +99,30 @@ export function OnboardingEntry({
       <Steps step={intent ?? "discover"} direction={intent ? 1 : -1}>
         <OnboardingHeading
           title={
-            intent === "join"
-              ? "Join your organization"
-              : intent === "create"
-                ? "Create your workspace"
-                : userName
-                  ? `Welcome, ${userName.split(" ")[0]}.`
-                  : "Welcome to Lictory"
+            intent === "unavailable"
+              ? "Organizations are created by your administrator"
+              : intent === "join"
+                ? canCreate
+                  ? "Join your organization"
+                  : userName
+                    ? `Welcome, ${userName.split(" ")[0]}.`
+                    : "Join your organization"
+                : intent === "create"
+                  ? "Create your workspace"
+                  : userName
+                    ? `Welcome, ${userName.split(" ")[0]}.`
+                    : "Welcome to Lictory"
           }
         >
-          {intent === "join"
-            ? undefined
-            : intent === "create"
-              ? "Name your company and the first thing you’ll spec."
-              : "Turn rough product ideas into specs your team has agreed to build."}
+          {intent === "unavailable"
+            ? "Ask your Lictory administrator to create the organization, or to add you to an existing one."
+            : intent === "join"
+              ? canCreate
+                ? undefined
+                : "You’re not a member of an organization yet. Your organization’s administrators add you with an invitation."
+              : intent === "create"
+                ? "Name your company and the first thing you’ll spec."
+                : "Turn rough product ideas into specs your team has agreed to build."}
         </OnboardingHeading>
         {!intent && (
           <div className="space-y-3">
@@ -131,6 +150,17 @@ export function OnboardingEntry({
           </div>
         )}
         {intent === "create" && <CreateOrganization userId={userId} />}
+        {instanceAdmin && !intent && (
+          <div className="mt-3">
+            <Choice
+              title="Open the admin console"
+              icon={<ShieldCheck />}
+              onClick={() => router.push(paths.admin())}
+            >
+              Manage accounts and organizations for this installation.
+            </Choice>
+          </div>
+        )}
         {intent === "join" && (
           <div className="space-y-4">
             {pending.length ? (
@@ -204,7 +234,7 @@ export function OnboardingEntry({
             {error}
           </p>
         )}
-        {intent && !createOnly && (
+        {intent && !createOnly && canCreate && (
           <Button
             variant="ghost"
             className="mt-6 -ml-3"

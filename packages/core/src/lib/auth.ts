@@ -55,6 +55,17 @@ import {
   passwordLoginEnabled,
   validateOidcAccountLink,
 } from "@lictory/core/lib/sso";
+import {
+  canCreateOrganization,
+  instancePolicy,
+  type InstanceRoleHolder,
+} from "@lictory/core/lib/instance-policy";
+import {
+  accountCreationGate,
+  assertSelfServiceSignUp,
+  assertSessionAllowed,
+  instanceAdministration,
+} from "@lictory/core/lib/instance-auth";
 
 const NEW_PASSWORD_FIELD: Record<string, string> = {
   "/sign-up/email": "password",
@@ -74,6 +85,14 @@ const oidc = oidcSettings(process.env);
 const passwordLogin = passwordLoginEnabled(
   process.env,
   Boolean(oidc) || googleEnabled || microsoftEnabled,
+);
+// Who may get an account and create organizations (LICTORY_SIGNUP_MODE,
+// LICTORY_ALLOWED_EMAIL_DOMAINS, LICTORY_ORGANIZATION_CREATION).
+export const policy = instancePolicy(process.env);
+const validateAccountCreation = accountCreationGate(
+  db,
+  policy,
+  OIDC_PROVIDER_ID,
 );
 
 // Directories list each member's name, email, photo, handle and application
@@ -131,7 +150,8 @@ export const auth = betterAuth({
     deleteUser: { enabled: true },
     validateUserInfo: async (info, context) =>
       (await validateMicrosoftAccountLink(info, context)) ??
-      validateOidcAccountLink(info, context),
+      (await validateOidcAccountLink(info, context)) ??
+      validateAccountCreation(info, context),
   },
   socialProviders: {
     ...(googleEnabled
@@ -211,6 +231,10 @@ export const auth = betterAuth({
     },
     session: {
       create: {
+        // Deactivated accounts get no session, whichever way they sign in.
+        before: async (session) => {
+          await assertSessionAllowed(db, session.userId);
+        },
         after: async (session, ctx) => {
           trackServer(
             session.userId,
@@ -297,6 +321,12 @@ export const auth = betterAuth({
     // password that already exists.
     before: createAuthMiddleware(async (ctx) => {
       passwordFlowClosed(ctx.path, passwordLogin);
+      if (ctx.path === "/sign-up/email")
+        await assertSelfServiceSignUp(
+          db,
+          policy,
+          (ctx.body as { email?: unknown } | undefined)?.email,
+        );
       // Normalize before Better Auth's uniqueness checks, including direct API
       // callers. Name-only updates leave legacy generated handles untouched.
       const body = ctx.body as
@@ -370,8 +400,14 @@ export const auth = betterAuth({
       : []),
     // Company identity provider (OpenID Connect), when configured.
     ...oidcPlugins(oidc),
+    // Server-only account provisioning for the admin console and CLI.
+    instanceAdministration(),
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
+      // Instance policy decides who may create organizations; instance
+      // administrators create them for others from the admin console.
+      allowUserToCreateOrganization: (user) =>
+        canCreateOrganization(policy, user as InstanceRoleHolder),
       sendInvitationEmail: async ({
         id,
         email,
@@ -477,4 +513,5 @@ export const authProviders = {
 export const signInOptions = {
   password: passwordLogin,
   ssoName: oidc?.displayName ?? null,
+  signUpMode: policy.signUpMode,
 };

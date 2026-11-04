@@ -89,3 +89,39 @@ export const auditEvent = pgTable(
     check("audit_event_action_present", sql`length(${t.action}) > 0`),
   ],
 );
+
+// Instance administration history: accounts created, deactivated or
+// reactivated, instance administrators granted or revoked, organizations
+// created by an administrator, and the first administrator set up on the
+// server. Written by `recordInstanceAudit` (domain/instance-admin.ts). Not
+// scoped to an organization, and readable only by instance administrators.
+// The actor is a plain id with the name and email it had at the time (null
+// when the server CLI acted). A database trigger refuses updates and deletes.
+export const instanceAuditEvent = pgTable(
+  "instance_audit_event",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actorId: text("actor_id"),
+    actorName: text("actor_name"),
+    actorEmail: text("actor_email"),
+    // `cli` (server command line) or `web` (admin console).
+    via: text("via").notNull(),
+    // A catalogued action (`instanceAuditActions`), e.g. `user.deactivated`.
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    targetLabel: text("target_label"),
+    detail: jsonb("detail")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("instance_audit_event_created_idx").on(t.createdAt, t.id),
+    check("instance_audit_event_action_present", sql`length(${t.action}) > 0`),
+    check("instance_audit_event_via", sql`${t.via} in ('cli', 'web')`),
+  ],
+);

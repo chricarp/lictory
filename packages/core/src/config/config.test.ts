@@ -193,8 +193,9 @@ const readers = [
   /import\.meta\.env\.([A-Z][A-Z0-9_]*)/g,
   // env("X"), envInteger("X"), envBoolean("X"), setting("X", …),
   // milliseconds(env, "X"), value(env, "X"), the mailer's sender("X", …),
-  // read(env, "X") and flag(env, "X", …) (storage and SSO settings)
-  /\b(?:env|envInteger|envBoolean|setting|milliseconds|value|sender|read|flag)\(\s*(?:[A-Za-z_]+\s*,\s*)?["']([A-Z][A-Z0-9_]*)["']/g,
+  // read(env, "X") and flag(env, "X", …) (storage and SSO settings) and
+  // oneOf(env, "X", …) (the instance access policy)
+  /\b(?:env|envInteger|envBoolean|setting|milliseconds|value|sender|read|flag|oneOf)\(\s*(?:[A-Za-z_]+\s*,\s*)?["']([A-Z][A-Z0-9_]*)["']/g,
   // Functions that take the environment as `env` or `source`.
   /(?<![.\w])(?:env|source)\.([A-Z][A-Z0-9_]*)\b/g,
 ];

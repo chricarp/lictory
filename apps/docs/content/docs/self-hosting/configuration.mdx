@@ -84,6 +84,31 @@ users' browsers, and the bucket needs a CORS rule allowing `PUT` from your
 A partial or contradictory configuration stops the API at start-up with the
 names of the settings to fix.
 
+## Access policy
+
+Nobody can create an account or an organization on their own unless you
+allow it. Instance administrators always can, in the admin console
+(`https://<your host>/admin`) or with `lictory admin` on the server.
+`lictory install` asks for these settings (`--signup-mode`,
+`--allowed-email-domains`, `--organization-creation`).
+
+| Setting                         | Meaning                                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LICTORY_SIGNUP_MODE`           | `invite` (default): a new account needs a pending invitation. `closed`: only instance administrators create accounts. `open`: anyone who can reach the server |
+| `LICTORY_ALLOWED_EMAIL_DOMAINS` | Comma-separated email domains for self-service accounts, single sign-on included (empty: any)                                                                 |
+| `LICTORY_ORGANIZATION_CREATION` | `administrators` (default) or `everyone`                                                                                                                      |
+
+The rules hold for password sign-up, Google and Microsoft alike, and the
+server enforces them. Your company identity provider is the directory: with
+`OIDC_AUTO_CREATE_USERS` it creates accounts for the people it admits in
+every mode, limited to the allowed domains.
+
+Instance administration is separate from organization roles: instance
+administrators manage accounts, organizations and other instance
+administrators; organization owners and admins manage their own organization.
+From the server, `sudo lictory admin grant <email>` appoints one and
+`sudo lictory admin set-password <email>` recovers a lost password.
+
 ## Sign-in and single sign-on
 
 Password sign-in works out of the box. Each additional provider appears on

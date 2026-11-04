@@ -47,6 +47,12 @@ export type MailSettings =
 
 export class MailConfigurationError extends Error {}
 
+// Whether the operator configured a way to send email. Outside production,
+// mailSettings falls back to a local development server without SMTP_HOST;
+// that fallback does not count.
+export const emailConfigured = (source: Environment = process.env) =>
+  Boolean(env("RESEND_API_KEY", source) ?? env("SMTP_HOST", source));
+
 const missingTransport =
   "Email is not configured, so verification, invitation, password reset and notification email are not delivered; password sign-up cannot be completed (single sign-on still works). To send email, " +
   "set SMTP_HOST, SMTP_PORT and SMTP_FROM (plus SMTP_USER and SMTP_PASSWORD when the server requires authentication), " +

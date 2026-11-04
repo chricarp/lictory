@@ -32,10 +32,27 @@ function useCallbackPath(name = "callbackUrl") {
   return safeCallbackPath(useSearchParams().get(name));
 }
 
+// Invitation emails send people without an account to sign-up with the
+// invitation as their destination.
+const fromInvitation = (callbackURL: string) =>
+  callbackURL.startsWith("/invitation");
+
+// Whether this installation lets someone create an account from here
+// (instance policy; the server refuses otherwise either way).
+function canSignUp(
+  signUpMode: "invite" | "closed" | "open",
+  callbackURL: string,
+) {
+  return (
+    signUpMode === "open" ||
+    (signUpMode === "invite" && fromInvitation(callbackURL))
+  );
+}
+
 export function SignInPage() {
   const params = useSearchParams();
   const providers = useAuthProviders();
-  const { password, ssoName } = useSignInOptions();
+  const { password, ssoName, signUpMode } = useSignInOptions();
   const callbackURL = useCallbackPath();
   const here = `/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`;
   return (
@@ -57,12 +74,23 @@ export function SignInPage() {
           <PasskeySignIn callbackURL={callbackURL} />
           <SignInForm callbackURL={callbackURL} />
           <AuthFooter>
-            New to Lictory?{" "}
-            <AuthLink
-              href={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
-            >
-              Create an account
-            </AuthLink>
+            {canSignUp(signUpMode, callbackURL) ? (
+              <>
+                New to Lictory?{" "}
+                <AuthLink
+                  href={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
+                >
+                  Create an account
+                </AuthLink>
+              </>
+            ) : (
+              <>
+                No account yet? Your Lictory administrator{" "}
+                {signUpMode === "closed"
+                  ? "creates it for you."
+                  : "or an organization admin invites you."}
+              </>
+            )}
           </AuthFooter>
         </>
       )}
@@ -73,12 +101,23 @@ export function SignInPage() {
 export function SignUpPage() {
   const params = useSearchParams();
   const providers = useAuthProviders();
-  const { password, ssoName } = useSignInOptions();
+  const { password, ssoName, signUpMode } = useSignInOptions();
   const callbackURL = useCallbackPath();
+  if (signUpMode === "closed")
+    return <SignUpClosed callbackURL={callbackURL} />;
   return (
     <>
       <PageTitle title="Create your account" />
-      <AuthHeading title="Create your account" />
+      <AuthHeading
+        title="Create your account"
+        description={
+          signUpMode === "invite"
+            ? fromInvitation(callbackURL)
+              ? "Use the email address your invitation was sent to."
+              : "Accounts on this installation need an invitation. Use the link in your invitation email, with the address it was sent to."
+            : undefined
+        }
+      />
       <AccountLegalNotice />
       <SocialButtons
         providers={providers}
@@ -89,6 +128,28 @@ export function SignUpPage() {
         error={params.get("error") ?? undefined}
       />
       {password && <SignUpForm callbackURL={callbackURL} />}
+      <AuthFooter>
+        Already have an account?{" "}
+        <AuthLink
+          href={`/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`}
+        >
+          Sign in
+        </AuthLink>
+      </AuthFooter>
+    </>
+  );
+}
+
+// Closed installations: accounts are created by instance administrators.
+function SignUpClosed({ callbackURL }: { callbackURL: string }) {
+  return (
+    <>
+      <PageTitle title="Accounts are managed by your administrator" />
+      <StateIllustration kind="inbox" />
+      <AuthHeading
+        title="Ask your administrator for an account"
+        description="Accounts on this installation are created by its administrators. Once yours exists, sign in with the email address they used."
+      />
       <AuthFooter>
         Already have an account?{" "}
         <AuthLink
