@@ -1,5 +1,12 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { platformOrigin } from "../helpers/app-urls";
+import { useClientAddress } from "../helpers/client-address";
+
+// Sign-in and sign-up are rate limited per client address: this page
+// authenticates from its own.
+test.beforeEach(async ({ page }) => {
+  await useClientAddress(page);
+});
 
 async function emailLink(
   request: APIRequestContext,

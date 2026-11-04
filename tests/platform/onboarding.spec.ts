@@ -15,11 +15,12 @@ import {
 import { reloadWhenSaved } from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
 import { consentStatePath } from "../consent-setup";
+import { clientAddress } from "../helpers/client-address";
 const password = "Onboarding-test-password-123";
 
-test.beforeEach(async ({ page, context }, testInfo) => {
+test.beforeEach(async ({ page, context }) => {
   await context.setExtraHTTPHeaders({
-    "x-forwarded-for": `198.51.100.${testInfo.line}`,
+    "x-forwarded-for": clientAddress(),
   });
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
@@ -200,7 +201,7 @@ test("organizations choose and change URL handles with server validation and adm
     storageState: consentStatePath,
     extraHTTPHeaders: {
       Origin: platformOrigin,
-      "x-forwarded-for": "198.51.100.250",
+      "x-forwarded-for": clientAddress(),
     },
   });
   try {

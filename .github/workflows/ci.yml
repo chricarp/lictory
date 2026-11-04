@@ -107,10 +107,6 @@ jobs:
         run: bun run check
       - name: Schema changes have committed migrations
         run: bun run db:check
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: needs.changes.outputs.docs == 'true'
-        with:
-          node-version: "24.22.1"
       - name: Documentation site builds
         if: needs.changes.outputs.docs == 'true'
         run: bun run --cwd apps/docs build
@@ -149,10 +145,6 @@ jobs:
       - uses: ./.github/actions/services
         with:
           mailpit: "true"
-      # Node runs the application builds and provides Zero's native ABI.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "24.22.1"
       - uses: ./.github/actions/setup
         with:
           release-version: ${{ inputs.release_version }}

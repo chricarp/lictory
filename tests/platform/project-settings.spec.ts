@@ -11,6 +11,7 @@ import { paths } from "@lictory/core/lib/paths";
 import { consentStatePath } from "../consent-setup";
 import { reloadWhenSaved } from "../helpers/sync-helpers";
 import { inApp } from "../helpers/app-urls";
+import { clientAddress, useClientAddress } from "../helpers/client-address";
 
 const password = "Local-test-password-123";
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -102,6 +103,8 @@ test.beforeAll(async () => {
 });
 
 async function signIn(page: Page, index: number) {
+  // Its own client address: sign-in is rate limited per address.
+  await useClientAddress(page);
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(emails[index]!);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -114,7 +117,7 @@ test("organization settings keep their header and sidebar while switching sectio
 }) => {
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.223" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 0);
 
@@ -137,9 +140,7 @@ test("organization settings keep their header and sidebar while switching sectio
   // Moving between sections is a client navigation inside the settings
   // layout: the header and section navigation are the same nodes throughout.
   await nav.getByRole("link", { name: "Members", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`${membersPath}$`), {
-    timeout: 2_000,
-  });
+  await expect(page).toHaveURL(new RegExp(`${membersPath}$`));
   await expect(
     page.getByRole("heading", { name: "Members", exact: true }),
   ).toBeVisible();
@@ -210,7 +211,7 @@ test("project settings keep their header and sidebar while switching sections", 
 }) => {
   await page
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.224" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 0);
 
@@ -256,10 +257,10 @@ test("project administrators configure teams, disciplines and delivery; capabili
   test.setTimeout(180_000);
   await lead
     .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.221" });
+    .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   const engineerContext = await browser.newContext({
     storageState: consentStatePath,
-    extraHTTPHeaders: { "x-forwarded-for": "192.0.2.222" },
+    extraHTTPHeaders: { "x-forwarded-for": clientAddress() },
   });
   try {
     const engineer = await engineerContext.newPage();

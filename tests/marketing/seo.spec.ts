@@ -163,12 +163,23 @@ test("guides and comparisons are linked, indexable and described", async ({
   ).toBeVisible();
   await expect(page).toHaveTitle(/^Lictory vs Jira: /);
   // Client navigation replaces the previous page's metadata; exactly one
-  // canonical link must remain once it settles.
-  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-    "href",
-    /\/compare\/jira$/,
-  );
+  // canonical link must remain once it settles. Each link is reported with its
+  // parent, so a rare failure shows whether the previous page's link survived
+  // or this page's was mounted twice.
+  await expect
+    .poll(
+      () =>
+        page
+          .locator('link[rel="canonical"]')
+          .evaluateAll((links) =>
+            links.map(
+              (link) =>
+                `${link.getAttribute("href")} in <${link.parentElement?.localName}>`,
+            ),
+          ),
+      { message: "exactly one canonical link, the comparison's" },
+    )
+    .toEqual([expect.stringMatching(/\/compare\/jira in <\w+>$/)]);
   await expect(
     page.getByRole("rowheader", {
       name: "Approvals bound to a specific revision",

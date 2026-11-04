@@ -9,6 +9,7 @@ import {
   getChatSnapshot,
 } from "@lictory/core/intelligence/chat/store";
 import { seedWorkspace, signIn, withDb } from "../helpers/seed";
+import { clientAddress } from "../helpers/client-address";
 
 // The conversation list shows which conversations are still working and which
 // wait for the person, including unread replies completed in the background.
@@ -36,16 +37,12 @@ const row = (page: Page, title: string) =>
     .getByRole("navigation", { name: "Conversations" })
     .getByRole("link", { name: new RegExp(title) });
 
-for (const [index, outcome] of (
-  ["waiting", "unread", "viewed", "failed"] as const
-).entries()) {
+for (const outcome of ["waiting", "unread", "viewed", "failed"] as const) {
   test(`the conversation list tracks ${outcome} responses after processing`, async ({
     page,
     context,
   }) => {
-    await context.setExtraHTTPHeaders({
-      "x-forwarded-for": `192.0.2.${171 + index}`,
-    });
+    await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
     const seeded = await seedWorkspace({
       name: "Status Lab",
       key: "STA",

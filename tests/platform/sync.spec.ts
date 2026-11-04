@@ -98,8 +98,8 @@ test("two people see each other's work live; concurrent specification edits neve
     title: "Settlement retries",
     description: "# Behavior\n\nRetries reuse the transaction ID.",
   });
-  const ada = await newPerson(browser, "192.0.2.160");
-  const ben = await newPerson(browser, "192.0.2.161");
+  const ada = await newPerson(browser);
+  const ben = await newPerson(browser);
   try {
     await signIn(ada.page, seeded.users[0]!.email);
     await signIn(ben.page, seeded.users[1]!.email);
@@ -194,7 +194,7 @@ test("a specification saved against an outdated revision is refused by the serve
     title: "Payout schedule",
     description: "# Behavior\n\nPayouts run daily.",
   });
-  const ben = await newPerson(browser, "192.0.2.162");
+  const ben = await newPerson(browser);
   try {
     const zero = await controlZeroConnection(ben.context);
     await signIn(ben.page, seeded.users[1]!.email);
@@ -247,7 +247,7 @@ test("a comment on an item archived meanwhile is rolled back, explained and reco
   test.setTimeout(120_000);
   const seeded = await seed("ARCH");
   const workItemId = await seedItem(seeded, { title: "Legacy exports" });
-  const ben = await newPerson(browser, "192.0.2.163");
+  const ben = await newPerson(browser);
   try {
     const zero = await controlZeroConnection(ben.context);
     await signIn(ben.page, seeded.users[1]!.email);
@@ -303,8 +303,8 @@ test("removing a member takes the organization away from their open workspace an
   test.setTimeout(120_000);
   const seeded = await seed("GONE");
   const workItemId = await seedItem(seeded, { title: "Dispute evidence" });
-  const ada = await newPerson(browser, "192.0.2.164");
-  const ben = await newPerson(browser, "192.0.2.165");
+  const ada = await newPerson(browser);
+  const ben = await newPerson(browser);
   try {
     await signIn(ada.page, seeded.users[0]!.email);
     const zero = await controlZeroConnection(ben.context);
@@ -360,8 +360,8 @@ test("changes made offline survive a reload, apply once back online and reach ot
   test.setTimeout(120_000);
   const seeded = await seed("OFFL");
   const workItemId = await seedItem(seeded, { title: "Ledger export" });
-  const ada = await newPerson(browser, "192.0.2.166");
-  const ben = await newPerson(browser, "192.0.2.167");
+  const ada = await newPerson(browser);
+  const ben = await newPerson(browser);
   try {
     await signIn(ada.page, seeded.users[0]!.email);
     await ada.page.goto(seeded.itemPath(1));
@@ -457,7 +457,7 @@ test("signing out removes the workspace from the browser before someone else sig
     key: "OTH",
     users: ["Cleo Other"],
   });
-  const shared = await newPerson(browser, "192.0.2.168");
+  const shared = await newPerson(browser);
   const page = shared.page;
   try {
     await signIn(page, seeded.users[0]!.email);
@@ -506,7 +506,7 @@ test("a session ended on the server asks to sign in again, then work continues",
   test.setTimeout(120_000);
   const seeded = await seed("AUTH");
   const workItemId = await seedItem(seeded, { title: "Tax reports" });
-  const ben = await newPerson(browser, "192.0.2.169");
+  const ben = await newPerson(browser);
   try {
     await signIn(ben.page, seeded.users[1]!.email);
     await ben.page.goto(seeded.itemPath(1));

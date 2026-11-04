@@ -8,6 +8,7 @@ import {
   signIn,
   type Seeded,
 } from "../helpers/seed";
+import { clientAddress } from "../helpers/client-address";
 
 // Automated WCAG 2.2 AA checks (axe-core) on the main flows: account pages,
 // specification review, native delivery and settings. A new serious or critical
@@ -15,17 +16,8 @@ import {
 
 // Each test signs in from its own client address: sign-in is rate limited per
 // address, and these tests run back to back.
-const addresses: Record<string, string> = {
-  "account pages meet WCAG 2.2 AA automated checks": "192.0.2.182",
-  "specification review meets WCAG 2.2 AA automated checks": "192.0.2.186",
-  "board and backlog meet WCAG 2.2 AA automated checks": "192.0.2.187",
-  "settings meet WCAG 2.2 AA automated checks": "192.0.2.188",
-};
-
-test.beforeEach(async ({ context, page }, testInfo) => {
-  const address = addresses[testInfo.title];
-  if (!address) throw new Error(`No client address for "${testInfo.title}".`);
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": address });
+test.beforeEach(async ({ context, page }) => {
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   // Scan settled pages, not frames of an entrance animation.
   await page.emulateMedia({ reducedMotion: "reduce" });
 });

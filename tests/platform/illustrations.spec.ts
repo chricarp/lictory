@@ -6,6 +6,13 @@ import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "../helpers/onboarding-helpers";
 import { illustrationAssets } from "@lictory/ui/illustration-assets";
 import { appHome, inApp } from "../helpers/app-urls";
+import { useClientAddress } from "../helpers/client-address";
+
+// Sign-in and sign-up are rate limited per client address: this page
+// authenticates from its own.
+test.beforeEach(async ({ page }) => {
+  await useClientAddress(page);
+});
 
 const email = "illustration-states@example.test";
 const password = "Local-test-password-123";
@@ -213,6 +220,9 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
     ).toBeVisible();
     await expect(art).toHaveAttribute("src", illustrationAssets.recovery);
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page).toHaveURL(/\/sign-in$/);
+    // "Try again" opens sign-in, which sends a signed-in person on to their
+    // workspace, so /sign-in may already be gone when the address is read.
+    await expect(page).not.toHaveURL(/auth-error/);
+    await expect(page).toHaveURL(inApp);
   }
 });

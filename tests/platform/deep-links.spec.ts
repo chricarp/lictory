@@ -6,6 +6,7 @@ import {
   signIn,
   type Seeded,
 } from "../helpers/seed";
+import { clientAddress } from "../helpers/client-address";
 
 // The SPA serves every address from one document: a hard load or reload of
 // any nested route must render that route directly, and addresses that do
@@ -34,7 +35,7 @@ test.beforeAll(async () => {
 });
 
 test.beforeEach(async ({ context }) => {
-  await context.setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.150" });
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
 test("nested routes render directly on load and reload", async ({ page }) => {
@@ -149,7 +150,7 @@ test("signed-in people skip the signed-out account pages", async ({ page }) => {
 test("an anonymous deep link signs in and returns to the same place", async ({
   browser,
 }) => {
-  const { context, page } = await newPerson(browser, "192.0.2.151");
+  const { context, page } = await newPerson(browser);
   try {
     const target = `${seeded.itemPath(1)}?branches=1`;
     await page.goto(target);

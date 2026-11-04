@@ -361,7 +361,8 @@ invalid_reason() {
     organization-creation) word_in "$value" "administrators everyone" || echo "administrators or everyone" ;;
     allowed-email-domains)
       for item in ${value//,/ }; do
-        [[ "${item,,}" =~ $domain_pattern ]] || { echo "comma-separated lowercase email domains such as example.com" && return; }
+        # tr, not ${item,,}: macOS ships bash 3.2.
+        [[ "$(printf '%s' "$item" | tr '[:upper:]' '[:lower:]')" =~ $domain_pattern ]] || { echo "comma-separated lowercase email domains such as example.com" && return; }
       done
       ;;
     admin-email | user-email) [[ "$value" =~ $email_pattern ]] || echo "an email address" ;;
