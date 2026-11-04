@@ -87,14 +87,17 @@ function SectionHeading({
   label,
   title,
   children,
+  compact = false,
 }: {
   id: string;
   label: string;
   title: ReactNode;
   children?: ReactNode;
+  // Supporting sections take a smaller scale, so the main arguments lead.
+  compact?: boolean;
 }) {
   return (
-    <div className="section-heading">
+    <div className={compact ? "section-heading compact" : "section-heading"}>
       <Marker>{label}</Marker>
       <h2 id={`${id}-title`}>{title}</h2>
       {children ? <p className="section-intro">{children}</p> : null}
@@ -371,6 +374,7 @@ function Disciplines() {
     >
       <SectionHeading
         id="collaboration"
+        compact
         label="Disciplines"
         title="Every perspective, before the sprint"
       >
@@ -399,6 +403,7 @@ function Delivery() {
     >
       <SectionHeading
         id="delivery"
+        compact
         label="Delivery"
         title="Agreed. Now ship it where your team works"
       >
@@ -440,6 +445,7 @@ function Comparison() {
     >
       <SectionHeading
         id="compare"
+        compact
         label="Compared"
         title="Your tracker starts with a task. Lictory starts with agreement"
       >
@@ -486,7 +492,12 @@ function Faq() {
       aria-labelledby="faq-title"
       className="section site-width split"
     >
-      <SectionHeading id="faq" label="Questions" title="Before you begin" />
+      <SectionHeading
+        id="faq"
+        compact
+        label="Questions"
+        title="Before you begin"
+      />
       <div className="faq-list">
         {faqs.map(({ question, answer }) => (
           <details key={question}>

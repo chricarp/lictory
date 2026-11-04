@@ -173,7 +173,7 @@ body {
 }
 /* The dot sits on the rail, which is indented with the heading depth. */
 #nd-toc a[style*="padding-inline-start:20px"]::before {
-  left: 1px !important;
+  left: 5.5px !important;
 }
 #nd-toc a[style*="padding-inline-start:44px"]::before {
   left: 25px !important;

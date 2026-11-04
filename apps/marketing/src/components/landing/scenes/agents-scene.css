@@ -207,6 +207,24 @@
   box-shadow: var(--ss-shadow-satellite);
 }
 
+/* Each entry point visibly feeds the record: a short line from every window
+   down to the history card. */
+.ag .ss-stage[data-layout="wide"] .ag-history::before {
+  content: "";
+  position: absolute;
+  top: -16px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background:
+    linear-gradient(var(--ss-text-faint), var(--ss-text-faint)) 180px 0 / 1.5px
+      100% no-repeat,
+    linear-gradient(var(--ss-text-faint), var(--ss-text-faint)) 564px 0 / 1.5px
+      100% no-repeat,
+    linear-gradient(var(--ss-text-faint), var(--ss-text-faint)) 948px 0 / 1.5px
+      100% no-repeat;
+}
+
 .ag .ss-stage[data-layout="compact"] .ag-history {
   /* Ends a gutter above the stage's foot; older entries leave through the
      track's soft foot as on the wide card */

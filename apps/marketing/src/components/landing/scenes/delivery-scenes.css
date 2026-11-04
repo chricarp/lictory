@@ -66,11 +66,6 @@
   box-shadow: 0 0 0 1px var(--ss-line);
 }
 
-.dl-card--filler {
-  gap: 12px;
-  padding-block: 12px;
-}
-
 .dl-card-title {
   color: var(--ss-text-strong);
   font-size: 12.5px;
@@ -152,10 +147,6 @@
 
 .dl .ss-stage[data-layout="compact"] .dl-publish-row {
   grid-template-columns: 16px minmax(0, 1fr) auto;
-}
-
-.dl-publish-row--filler {
-  grid-template-columns: 16px minmax(0, 1fr);
 }
 
 .dl-done {

@@ -5,7 +5,7 @@ import { Check as CheckIcon, Send } from "lucide-react";
 
 import { Stage } from "@lictory/marketing/vendor/stageshow/stage";
 import type { Layout } from "@lictory/marketing/vendor/stageshow/looks";
-import { Bar, Window } from "@lictory/marketing/vendor/stageshow/window";
+import { Window } from "@lictory/marketing/vendor/stageshow/window";
 import { Avatar } from "@lictory/marketing/vendor/stageshow/parts/Avatar";
 import { Facepile } from "@lictory/marketing/vendor/stageshow/parts/Facepile";
 import { useSiteTheme } from "@lictory/marketing/components/landing/scenes/scene-frame";
@@ -30,18 +30,6 @@ function Story({ id, title }: { id: string; title: string }) {
   );
 }
 
-function Filler({ w }: { w: number }) {
-  return (
-    <div className="dl-card dl-card--filler">
-      <Bar w={w} h={7} r={3.5} tone={3} />
-      <div className="dl-card-meta">
-        <Bar w={44} h={6} r={3} tone={2} />
-        <Avatar plain size={16} />
-      </div>
-    </div>
-  );
-}
-
 function Board({ layout }: { layout: Layout }) {
   const wide = layout === "wide";
   return (
@@ -61,14 +49,14 @@ function Board({ layout }: { layout: Layout }) {
             Backlog <span>2</span>
           </div>
           <Story id="PAY-145" title="Add timeout scenarios to tests" />
-          <Filler w={120} />
+          <Story id="PAY-146" title="Log every retry attempt" />
         </div>
         <div className="dl-column">
           <div className="dl-column-head">
             Started <span>2</span>
           </div>
           <Story id="PAY-143" title="Cap retries at three attempts" />
-          <Filler w={104} />
+          <Story id="PAY-144" title="Reject retries after settlement" />
         </div>
         {wide ? (
           <div className="dl-column">
@@ -84,7 +72,13 @@ function Board({ layout }: { layout: Layout }) {
                 <Avatar plain size={16} />
               </div>
             </div>
-            <Filler w={86} />
+            <div className="dl-card">
+              <div className="dl-card-title">Document the retry limit</div>
+              <div className="dl-card-meta">
+                <span className="dl-id">PAY-137</span>
+                <Avatar plain size={16} />
+              </div>
+            </div>
           </div>
         ) : null}
       </div>
@@ -123,10 +117,6 @@ function Publish({ layout }: { layout: Layout }) {
             <span className="dl-key">{key}</span>
           </div>
         ))}
-        <div className="dl-publish-row dl-publish-row--filler">
-          <Bar w={16} h={16} r={8} tone={2} />
-          <Bar w={160} h={7} r={3.5} tone={2} />
-        </div>
         <div className="dl-publish-foot">
           <span className="dl-button">
             <Send /> Published

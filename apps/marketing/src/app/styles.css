@@ -352,6 +352,14 @@ html {
 .section-heading {
   max-width: 720px;
 }
+.section-heading.compact h2 {
+  font-size: clamp(28px, 3vw, 36px);
+  letter-spacing: -0.035em;
+}
+.section-heading.compact .section-intro {
+  font-size: 16px;
+  line-height: 26px;
+}
 .marker {
   display: flex;
   align-items: center;
@@ -626,7 +634,10 @@ html {
 }
 .discipline-list span {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .discipline-list p {
   font-family: var(--font-display), sans-serif;

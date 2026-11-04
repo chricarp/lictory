@@ -908,9 +908,7 @@ export function IssueList({
                           className="ml-auto hidden items-center gap-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase md:flex"
                         >
                           <span className="w-7 text-center">Est.</span>
-                          <span className="w-36 text-right xl:w-52">
-                            Review
-                          </span>
+                          <span className="w-36 xl:w-52">Review</span>
                           <span className="w-16 xl:w-24">Checks</span>
                           <span className="w-7 text-center">Who</span>
                           <span className="hidden w-14 text-right sm:block">

@@ -191,7 +191,7 @@ export const IssueRow = memo(function IssueRow({
         className={
           compact
             ? undefined
-            : "md:w-36 md:shrink-0 md:justify-end md:whitespace-nowrap xl:w-52"
+            : "md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap xl:w-52"
         }
       />
       {!compact && (

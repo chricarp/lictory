@@ -94,3 +94,12 @@
   flex: none;
   stroke-width: 1.75;
 }
+
+/* Product panels, not desktop windows: no traffic lights, a mono title bar
+   like the application's own panel headers, and the panel radius. */
+.lx .ss-window__lights {
+  display: none;
+}
+.lx .ss-window {
+  border-radius: 16px;
+}

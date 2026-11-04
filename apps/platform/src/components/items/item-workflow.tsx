@@ -204,12 +204,11 @@ export function ItemWorkflow({
     amendment && agreed != null
       ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
       : description;
-  const evidence = (
-    <ul
-      aria-label="Evidence"
-      className="flex flex-wrap items-center gap-1.5 text-[11.5px]"
-    >
-      {type.hasSpecification && refinement && (
+  // Evidence, grouped by what it is about: the specification's refinement
+  // (always the current revision) and, once a revision is accepted, delivery.
+  const specEvidence = type.hasSpecification && (
+    <>
+      {refinement && (
         <li>
           <Pill
             tone={
@@ -232,7 +231,7 @@ export function ItemWorkflow({
           </Pill>
         </li>
       )}
-      {type.hasSpecification && item.readinessTotal > 0 && (
+      {item.readinessTotal > 0 && (
         <li>
           <Pill
             tone={
@@ -251,28 +250,51 @@ export function ItemWorkflow({
           </Pill>
         </li>
       )}
-      {native && item.committedRevisionNumber != null && (
+    </>
+  );
+  const deliveryEvidence = native && item.committedRevisionNumber != null && (
+    <>
+      {status && (
         <li>
-          <Pill tone="neutral">
-            {status && (
-              <StatusIcon
-                category={status.category}
-                color={status.color}
-                className="size-3"
-              />
-            )}
-            Accepted revision {item.committedRevisionNumber}
+          <Pill tone={status.category === "done" ? "good" : "neutral"}>
+            <StatusIcon
+              category={status.category}
+              color={status.color}
+              className="size-3"
+            />
+            {status.name}
           </Pill>
         </li>
       )}
-      {native && item.deliveredRevisionNumber != null && (
+      <li>
+        <Pill tone="neutral">
+          Accepted revision {item.committedRevisionNumber}
+        </Pill>
+      </li>
+      {item.deliveredRevisionNumber != null && (
         <li>
           <Pill tone="good">
             Delivered revision {item.deliveredRevisionNumber}
           </Pill>
         </li>
       )}
-    </ul>
+    </>
+  );
+  // What happens next, in one line: the specification's open concern first,
+  // then the delivery decision.
+  const next =
+    type.hasSpecification && refinement && refinement !== "ready"
+      ? nextRefinementAction(item)
+      : stage === "ready" && native
+        ? `Accept revision ${current?.number ?? ""} for delivery when the team is ready to build it.`
+        : null;
+  const evidence = (
+    <dl className="grid gap-2 text-[11.5px]">
+      {specEvidence && <EvidenceRow label="Spec">{specEvidence}</EvidenceRow>}
+      {deliveryEvidence && (
+        <EvidenceRow label="Delivery">{deliveryEvidence}</EvidenceRow>
+      )}
+    </dl>
   );
   return (
     <section
@@ -305,11 +327,19 @@ export function ItemWorkflow({
           </div>
           {action && <div className="shrink-0 max-sm:hidden">{action}</div>}
         </div>
-        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pl-4">
-          {evidence}
-          {stages}
+        <div className="mt-3.5 pl-4">{evidence}</div>
+        {next && (
+          <p className="mt-3 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px]">
+            <span className="w-16 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+              Next
+            </span>
+            <span className="min-w-0">{next}</span>
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 pl-4 sm:hidden">
+          {action}
         </div>
-        {action && <div className="mt-3 pl-4 sm:hidden">{action}</div>}
+        <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
       </div>
       {children && (
         <div>
@@ -353,6 +383,25 @@ export function ItemWorkflow({
         </div>
       )}
     </section>
+  );
+}
+
+function EvidenceRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <dt className="w-16 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd>
+        <ul className="flex flex-wrap items-center gap-1.5">{children}</ul>
+      </dd>
+    </div>
   );
 }
 
