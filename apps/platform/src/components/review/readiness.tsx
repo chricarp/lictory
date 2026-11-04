@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
-import { CircleCheck, CircleDashed } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
@@ -43,7 +43,11 @@ export function Readiness() {
               key={c.key}
               className={cn(
                 "h-1.5 flex-1 rounded-full",
-                c.passed ? "bg-success" : "bg-foreground/10",
+                c.passed
+                  ? "bg-success"
+                  : blocks(c)
+                    ? "bg-destructive"
+                    : "bg-foreground/10",
               )}
             />
           ))}
@@ -92,11 +96,18 @@ export function Readiness() {
   );
 }
 
+// A failing check caused by an open blocker is red: it stops readiness, it
+// is not merely waiting.
+const blocks = (check: ReadinessCheck) =>
+  !check.passed && check.key.includes("blocking");
+
 function CheckRow({ check }: { check: ReadinessCheck }) {
   return (
     <li className="flex items-start gap-2 text-[13px] leading-5">
       {check.passed ? (
         <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
+      ) : blocks(check) ? (
+        <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
       ) : (
         <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       )}

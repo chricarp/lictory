@@ -171,7 +171,7 @@
 
 .ag-term {
   /* Asides stay readable: dim, not faint */
-  --ss-term-dim: #aaa498;
+  --ss-term-dim: #b4b6bc;
   padding: 4px 18px 0;
   font-family: var(--ss-mono);
   font-size: 13.5px;
@@ -337,7 +337,8 @@
 .ag-capability {
   color: var(--ss-text);
   font-family: var(--ss-mono);
-  font-size: 12px;
+  font-size: 13px;
+  letter-spacing: -0.01em;
 }
 
 .ag-from {
@@ -371,7 +372,7 @@
 .ag-call {
   display: inline-flex;
   align-items: center;
-  height: 24px;
+  height: 26px;
   gap: 6px;
   margin-left: 34px;
   padding: 0 10px;
@@ -382,7 +383,7 @@
     color-mix(in srgb, var(--ss-success-text) 28%, transparent);
   font-weight: 500;
   font-family: var(--ss-mono);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 .ag-call svg {

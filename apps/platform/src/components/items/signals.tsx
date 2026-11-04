@@ -117,7 +117,12 @@ export function ReadinessBar({
             key={index}
             className={cn(
               "h-1.5 flex-1 rounded-full",
-              index < item.readinessPassed ? "bg-success" : "bg-foreground/12",
+              index < item.readinessPassed
+                ? "bg-success"
+                : // An open blocker fails one check: show it in red.
+                  index === item.readinessPassed && item.blockingThreads > 0
+                  ? "bg-destructive"
+                  : "bg-foreground/12",
             )}
           />
         ))}

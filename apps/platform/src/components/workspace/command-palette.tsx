@@ -188,7 +188,8 @@ export function CommandPalette({
     list.push(
       {
         id: "intelligence",
-        label: "Ask Litto",
+        // Truthful while Litto is unavailable: the page explains the setup.
+        label: aiOn ? "Ask Litto" : "Litto setup",
         group: "Navigate",
         icon: <IntelligenceMark className="size-4" />,
         keywords: "ai assistant chat lictory intelligence",

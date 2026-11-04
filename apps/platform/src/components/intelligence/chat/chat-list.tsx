@@ -54,6 +54,9 @@ export function chatLabel(chat: Pick<ChatSummary, "title" | "preview">) {
 // rename, pin and delete.
 export function ChatList({ onNavigate }: { onNavigate?: () => void }) {
   const { chats, loaded, listError, activeId, newChat } = useChats();
+  const { directory } = useWorkspace();
+  // No new conversations while Litto cannot answer.
+  const available = directory.ai.available && directory.ai.enabled;
   const [query, setQuery] = useState("");
   const [now] = useState(() => Date.now());
   const groups = useMemo(() => {
@@ -77,18 +80,20 @@ export function ChatList({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-1 px-3 pt-3 pb-2">
         <h2 className="flex-1 text-[13px] font-semibold">Conversations</h2>
-        <button
-          type="button"
-          onClick={() => {
-            newChat();
-            onNavigate?.();
-          }}
-          aria-label="New conversation"
-          title="New conversation"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
-        >
-          <SquarePen className="size-4" aria-hidden />
-        </button>
+        {available && (
+          <button
+            type="button"
+            onClick={() => {
+              newChat();
+              onNavigate?.();
+            }}
+            aria-label="New conversation"
+            title="New conversation"
+            className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+          >
+            <SquarePen className="size-4" aria-hidden />
+          </button>
+        )}
       </div>
       <div className="px-3 pb-2">
         <label className="flex h-8 items-center gap-2 rounded-md bg-muted/60 px-2 text-[13px] focus-within:ring-2 focus-within:ring-ring/40">
