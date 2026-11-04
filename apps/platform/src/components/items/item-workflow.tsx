@@ -198,7 +198,7 @@ export function ItemWorkflow({
         <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
           {description}
         </p>
-        {(current || action) && (
+        {(current ?? action) && (
           <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             {current ? (
               <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
