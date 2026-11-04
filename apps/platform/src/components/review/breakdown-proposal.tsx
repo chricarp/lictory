@@ -337,17 +337,6 @@ function ChangeExisting({
       )
       .map((row) => row.id),
   ];
-  // Nothing proposed and nothing to edit: one quiet line, not a card.
-  if (!pending.length && !changes.length && !onChange)
-    return (
-      <section
-        aria-label="Proposed breakdown"
-        className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-2.5 text-[13px] text-muted-foreground"
-      >
-        <ListTree aria-hidden className="size-3.5 shrink-0" />
-        No additional children are proposed.
-      </section>
-    );
   const field =
     "w-full rounded-md border border-input bg-card px-3 py-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
   const ready =
