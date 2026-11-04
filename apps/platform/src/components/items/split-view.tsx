@@ -111,6 +111,7 @@ export function SplitView({ children }: { children: ReactNode }) {
       <div className="flex h-full">
         <div
           id={listId}
+          data-work-item-list
           className={cn(
             "hidden w-[272px] shrink-0 border-r bg-shell/50 2xl:w-[320px]",
             !collapsed && "xl:block",

@@ -355,14 +355,16 @@ export function AiReviewView({
                   Assessment
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  score out of 100
+                  how ready the text reads · /100
                 </p>
               </div>
               <ScoreRing score={run.score ?? 0} size={44} />
             </div>
           </div>
           {run.summary && (
-            <p className="mt-3 text-[14px] leading-relaxed">{run.summary}</p>
+            <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed">
+              {run.summary}
+            </p>
           )}
           {/* Provenance: which revision was read, whether it is still
               current, how much context, which model. */}
@@ -432,9 +434,16 @@ export function AiReviewView({
         </p>
       )}
       {run.strengths.length > 0 && (
-        <section>
-          <SectionLabel className="mb-1.5">What works</SectionLabel>
-          <ul className="space-y-1 text-[13px]">
+        // Reassurance on demand; the concerns come first.
+        <details className="group/works">
+          <summary className="flex cursor-pointer items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
+            <ChevronRight
+              aria-hidden
+              className="size-3 transition-transform group-open/works:rotate-90"
+            />
+            What works · {run.strengths.length}
+          </summary>
+          <ul className="mt-2 space-y-1 text-[13px]">
             {run.strengths.map((s) => (
               <li key={s} className="flex gap-2">
                 <Check className="mt-0.5 size-3.5 shrink-0 text-success" />
@@ -442,23 +451,27 @@ export function AiReviewView({
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
       <nav aria-label="Filter findings" className="flex flex-wrap gap-1.5">
-        {([["all", run.findings.length] as const, ...kinds] as const).map(
-          ([k, n]) => (
-            <Button
-              key={k}
-              size="sm"
-              variant={filter === k ? "secondary" : "ghost"}
-              aria-pressed={filter === k}
-              onClick={() => setFilter(k)}
-            >
-              {k === "all" ? "All" : kindMeta[k].label + "s"}
-              <span className="text-muted-foreground tabular-nums">{n}</span>
-            </Button>
-          ),
-        )}
+        {(
+          [
+            ["all", run.findings.length] as const,
+            // Only the kinds this review found.
+            ...kinds.filter(([, n]) => n > 0),
+          ] as const
+        ).map(([k, n]) => (
+          <Button
+            key={k}
+            size="sm"
+            variant={filter === k ? "secondary" : "ghost"}
+            aria-pressed={filter === k}
+            onClick={() => setFilter(k)}
+          >
+            {k === "all" ? "All" : kindMeta[k].label + "s"}
+            <span className="text-muted-foreground tabular-nums">{n}</span>
+          </Button>
+        ))}
       </nav>
       {groups.length === 0 && (
         <p className="rounded-lg border p-6 text-center text-sm text-muted-foreground">

@@ -116,7 +116,7 @@ How to work:
 - When a tool fails, explain the actionable reason and fix the input if you can.
 - Prioritize missing information, contradictions and ambiguity over stylistic rewriting. Do not present guesses as established product behavior.
 - Be concise. Use Markdown. Link work items as [PAY-142](/${org.slug}/items/PAY-142).
-- For status or readiness questions, answer in this order with short bold labels: **Blocking now**, **Open questions**, **Next step**. One or two lines each; name the discussion, review or check each point comes from. Skip a label when nothing belongs under it.`;
+- For status or readiness questions, answer in this order with short bold labels: **Blocking now**, **Open questions**, **Next step**. One or two lines each; skip a label when nothing belongs under it. **Blocking now** holds only facts from readiness checks, blocking discussions and reviews; put your own inferences about gaps under **Open questions**. End each point with its source as a link to the item, e.g. ([blocking discussion](/${org.slug}/items/PAY-142)) or ([QA review](/${org.slug}/items/PAY-142)).`;
 }
 
 // A short title for the conversation from its first request. Failures are not

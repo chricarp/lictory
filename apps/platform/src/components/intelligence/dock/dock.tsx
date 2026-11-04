@@ -31,7 +31,6 @@ import { Button } from "@lictory/ui/button";
 import { Badge, Kbd } from "@lictory/ui/primitives";
 import {
   counts,
-  ScoreRing,
   severityMeta,
 } from "@lictory/platform/components/review/ai-review";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -171,6 +170,17 @@ export function IntelligenceDock() {
 
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState<LittoChat | null>(null);
+  // While the dock is open on a wide screen, the page reserves a column for
+  // it (see app.css), so it sits beside the document instead of on top.
+  const expanded = open && !hidden;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (expanded) root.dataset.dockOpen = "";
+    else delete root.dataset.dockOpen;
+    return () => {
+      delete root.dataset.dockOpen;
+    };
+  }, [expanded]);
   // The selection travels with the next message, even after the page loses
   // it to the composer's focus.
   const [attached, setAttached] = useState<DockSelection | null>(null);
@@ -599,12 +609,10 @@ function ReviewChip({
             bandDot[aiScoreBand(completed.score ?? 0)],
           )}
         />
-        <span className="tabular-nums">{completed.score ?? 0}</span>
         <span className="text-muted-foreground">
-          ·{" "}
           {completed.findings.length
-            ? `${completed.findings.length} ${completed.findings.length === 1 ? "finding" : "findings"}`
-            : "No findings"}
+            ? `${completed.findings.length} ${completed.findings.length === 1 ? "concern" : "concerns"}`
+            : "No concerns"}
         </span>
       </BarChip>
     );
@@ -712,6 +720,9 @@ function Panel({
         "pointer-events-auto flex max-h-[min(620px,calc(100dvh-5rem))] w-[min(460px,100%)] flex-col overflow-hidden rounded-[1.5rem] bg-popover shadow-(--shadow-panel)",
         // A conversation keeps one height while it streams.
         chat && "h-[min(620px,calc(100dvh-5rem))]",
+        // Wide screens: a full-height column beside the page (app.css
+        // reserves its width).
+        "xl:h-[calc(100dvh-2rem)] xl:max-h-none xl:w-[420px]",
       )}
     >
       <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
@@ -1087,23 +1098,40 @@ function ReviewCard({
             className="space-y-2.5"
           >
             <div className="flex items-start gap-3 pr-6">
-              <ScoreRing score={shown.score ?? 0} />
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted">
+                <IntelligenceMark className="size-4" />
+              </span>
               <div className="min-w-0 flex-1">
+                <p className="mb-0.5 font-mono text-[10px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+                  AI assessment · proposal
+                </p>
                 <p className="text-[13px] font-medium">
                   {shown.findings.length
-                    ? `${shown.findings.length} ${shown.findings.length === 1 ? "finding" : "findings"} in ${item.key}`
-                    : `No gaps found in ${item.key}`}
+                    ? `${shown.findings.length} proposed ${shown.findings.length === 1 ? "concern" : "concerns"} in ${item.key}`
+                    : `No proposed concerns in ${item.key}`}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {shown.staleAt
-                    ? `Outdated: ${shown.staleReason ?? "content changed"}`
-                    : `${memberName(shown.requestedById)} · ${relativeTime(shown.completedAt ?? shown.createdAt)}`}
+                <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-medium ring-1 ring-inset",
+                      shown.staleAt
+                        ? "bg-warning/8 text-warning ring-warning/25"
+                        : "bg-success/8 text-success ring-success/20",
+                    )}
+                  >
+                    {shown.staleAt ? "Outdated" : "Current"}
+                  </span>
+                  <span className="truncate">
+                    {shown.staleAt
+                      ? (shown.staleReason ?? "content changed")
+                      : `${memberName(shown.requestedById)} · ${relativeTime(shown.completedAt ?? shown.createdAt)}`}
+                  </span>
                 </p>
                 {counts(shown.findings).length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {counts(shown.findings).map(([s, n]) => (
                       <Badge key={s} tone={severityMeta[s].tone}>
-                        {n} {severityMeta[s].label.toLowerCase()}
+                        {n} proposed {severityMeta[s].label.toLowerCase()}
                       </Badge>
                     ))}
                   </div>

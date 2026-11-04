@@ -383,7 +383,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
                 autoFocus
                 onSend={start}
                 organizationId={organization.id}
-                context={`Your permissions in ${organization.name} · decisions stay with you`}
+                context={`${organization.name} permissions · you decide`}
               />
             </motion.div>
           ) : (
@@ -574,7 +574,7 @@ function ChatThread({ chat }: { chat: LittoChat }) {
                 void stop().catch(() => undefined);
               }}
               organizationId={organization.id}
-              context={`Your permissions in ${organization.name} · decisions stay with you`}
+              context={`${organization.name} permissions · you decide`}
             />
           ) : (
             <AiUnavailable message={ai.message} action={ai.action} />

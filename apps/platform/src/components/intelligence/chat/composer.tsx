@@ -284,7 +284,10 @@ export const Composer = forwardRef<
           </span>
         ) : (
           context && (
-            <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground">
+            <span
+              title="Litto uses your permissions and asks before decisions such as approvals and merges."
+              className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground"
+            >
               <ShieldCheck className="size-3 shrink-0" aria-hidden />
               <span className="truncate">{context}</span>
             </span>
