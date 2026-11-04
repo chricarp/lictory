@@ -32,7 +32,10 @@ Three append-only tables, all scoped to one organization, are read together:
   authenticator; see [two-factor authentication](two-factor-authentication.md)).
 - **Organization**: `organization.created`, `organization.updated` (name or
   handle), `audit_log.exported`, `data_export.requested` and
-  `data_export.downloaded` ([data export](data-export.md)).
+  `data_export.downloaded` ([data export](data-export.md)),
+  `organization.deletion_scheduled` (with the date) and
+  `organization.deletion_cancelled`
+  ([organization deletion](organization-deletion.md)).
 
 Each entry keeps the actor's id together with their name and email at the
 time, the target (a member, invitation or token, with a readable label) and a
@@ -42,9 +45,9 @@ whether or not PostHog is configured, which matters because self-hosted
 installations run without it by default.
 
 Not recorded here: sign-ins and personal account changes (password, email,
-sessions), which belong to the person rather than an organization, and
-organization deletion, which removes the organization's log with it (see
-retention). Features that add security events (SSO, two-factor resets, data
+sessions), which belong to the person rather than an organization, and the
+organization's deletion itself, which removes the organization's log with it.
+That is recorded in the installation's history instead (see retention). Features that add security events (SSO, two-factor resets, data
 export) add their actions to the catalogue.
 
 ## When it is written
@@ -76,7 +79,9 @@ reference is cleared.
 Entries are kept for the life of the organization. There is no automatic
 expiry and no setting for one yet; an operator who must shorten retention does
 so deliberately in the database, outside the application. Deleting an
-organization deletes its log. Deleting an account
+organization deletes its log; `instance_audit_event` keeps
+`organization.deleted`, with who scheduled it and what was removed
+([organization deletion](./organization-deletion.md)). Deleting an account
 ([anonymizing it](./account-deletion.md)) keeps that person's `audit_event` and
 `configuration_audit` entries (with their name and email at the time) and
 removes their agent call records.

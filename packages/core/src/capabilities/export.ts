@@ -20,6 +20,7 @@ const requestExport = defineCapability({
   kind: "command",
   surfaces: webOnly,
   humanOnly: { reason: "export", where },
+  whileDeletionScheduled: "owners",
   idempotent: true,
   input: z.object({ organizationId }),
   run: (ctx, input) =>
@@ -38,6 +39,7 @@ const listExports = defineCapability({
   kind: "query",
   surfaces: webOnly,
   humanOnly: { reason: "export", where },
+  whileDeletionScheduled: "owners",
   idempotent: true,
   input: z.object({ organizationId }),
   run: (ctx, input) =>

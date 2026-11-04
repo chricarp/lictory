@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as s from "@lictory/core/db/schema";
-import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
+import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
 import type { ConvertedDocument } from "@lictory/core/intelligence/convert";
 import {
@@ -46,7 +46,7 @@ async function membership(
     );
   if (!row)
     throw new ContextError("You are not a member of this organization.", 403);
-  await assertTwoFactorSatisfied(db, userId, organizationId);
+  await assertOrganizationAccess(db, userId, organizationId);
   return applicationRoleOf(row.role);
 }
 export async function canManageIntelligenceContext(

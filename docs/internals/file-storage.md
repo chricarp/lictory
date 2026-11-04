@@ -128,7 +128,9 @@ storage fails part-way, the removal is still recorded and the caller gets a
 retryable error; repeating the removal finishes the move (and reports
 `removed: false`, since the attachment was already removed).
 Files are online-only and are not persisted in the workspace's offline mutation
-queue; the attachment list is a membership-checked live query. Files inherit the
+queue; the attachment list is a membership-checked live query. Deleting an organization deletes all of its objects (pending, ready and
+removed) before its metadata ([organization deletion](./organization-deletion.md)).
+Files inherit the
 current organization-wide work item visibility policy. If private projects are
 introduced, extend both the file API and sync ACLs together.
 

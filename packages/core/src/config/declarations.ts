@@ -428,6 +428,14 @@ export const declarations: readonly Declaration[] = [
     description:
       "Who may create organizations: `administrators` (instance administrators only) or `everyone` (any signed-in person).",
   },
+  {
+    name: "LICTORY_ORGANIZATION_DELETION_GRACE_DAYS",
+    group: "Access policy",
+    services: ["api"],
+    default: "`30`",
+    description:
+      "Days between an owner scheduling an organization's deletion and the deletion itself (1 to 365). The organization is locked meanwhile, and an owner can cancel. Applies to deletions scheduled after a change.",
+  },
 
   // ------------------------------------------------------------- sync (Zero)
   {

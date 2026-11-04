@@ -10,7 +10,7 @@ import { paths } from "@lictory/core/lib/paths";
 import {
   categoryLabels,
   notificationCategories,
-  notificationKindList,
+  configurableKinds,
   notificationKinds,
   resolveChannels,
   type NotificationKind,
@@ -161,7 +161,7 @@ export function NotificationSettings() {
     },
   ) =>
     void save(
-      notificationKindList.map((kind) => ({
+      configurableKinds.map((kind) => ({
         kind,
         ...patch(resolveChannels(rules ?? [], kind, context)),
       })),
@@ -266,83 +266,91 @@ export function NotificationSettings() {
           {!rules ? (
             <LoadingState label="Loading notification settings" />
           ) : (
-            notificationCategories.map((category) => (
-              <section
-                key={category}
-                aria-labelledby={`category-${category}`}
-                className="rounded-xl bg-card shadow-(--shadow-border)"
-              >
-                <div className="flex items-center gap-3 border-b px-4 py-2.5">
-                  <h2
-                    id={`category-${category}`}
-                    className="flex-1 text-[13px] font-semibold"
-                  >
-                    {categoryLabels[category]}
-                  </h2>
-                </div>
-                <ul className="divide-y">
-                  {notificationKindList
-                    .filter((k) => notificationKinds[k].category === category)
-                    .map((kind) => {
-                      const def = notificationKinds[kind];
-                      const mine = own(kind);
-                      const effective = mine ?? inherited(kind);
-                      const origin = mine
-                        ? null
-                        : inherited(kind).source === "organization"
-                          ? "From organization settings"
-                          : "Default";
-                      const set = (inApp: boolean, email: boolean) =>
-                        void save([{ kind, inApp, email }]);
-                      return (
-                        <li
-                          key={kind}
-                          className="flex items-center gap-3 px-4 py-2.5"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="flex items-center gap-2 text-[13px] font-medium">
-                              {def.label}
-                              {origin ? (
-                                <span className="text-[11px] font-normal text-muted-foreground">
-                                  {origin}
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() =>
-                                    void save([{ kind, reset: true }])
-                                  }
-                                  className="text-[11px] font-normal text-primary hover:underline"
-                                >
-                                  Reset
-                                </button>
+            notificationCategories
+              .filter((category) =>
+                configurableKinds.some(
+                  (k) => notificationKinds[k].category === category,
+                ),
+              )
+              .map((category) => (
+                <section
+                  key={category}
+                  aria-labelledby={`category-${category}`}
+                  className="rounded-xl bg-card shadow-(--shadow-border)"
+                >
+                  <div className="flex items-center gap-3 border-b px-4 py-2.5">
+                    <h2
+                      id={`category-${category}`}
+                      className="flex-1 text-[13px] font-semibold"
+                    >
+                      {categoryLabels[category]}
+                    </h2>
+                  </div>
+                  <ul className="divide-y">
+                    {configurableKinds
+                      .filter((k) => notificationKinds[k].category === category)
+                      .map((kind) => {
+                        const def = notificationKinds[kind];
+                        const mine = own(kind);
+                        const effective = mine ?? inherited(kind);
+                        const origin = mine
+                          ? null
+                          : inherited(kind).source === "organization"
+                            ? "From organization settings"
+                            : "Default";
+                        const set = (inApp: boolean, email: boolean) =>
+                          void save([{ kind, inApp, email }]);
+                        return (
+                          <li
+                            key={kind}
+                            className="flex items-center gap-3 px-4 py-2.5"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="flex items-center gap-2 text-[13px] font-medium">
+                                {def.label}
+                                {origin ? (
+                                  <span className="text-[11px] font-normal text-muted-foreground">
+                                    {origin}
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      void save([{ kind, reset: true }])
+                                    }
+                                    className="text-[11px] font-normal text-primary hover:underline"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </p>
+                              <p className="text-xs leading-5 text-muted-foreground">
+                                {def.description}
+                              </p>
+                              {effective.inApp && (
+                                <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <input
+                                    type="checkbox"
+                                    className="size-3.5 accent-primary"
+                                    checked={effective.email}
+                                    onChange={(e) =>
+                                      set(true, e.target.checked)
+                                    }
+                                  />
+                                  Also send an email
+                                </label>
                               )}
-                            </p>
-                            <p className="text-xs leading-5 text-muted-foreground">
-                              {def.description}
-                            </p>
-                            {effective.inApp && (
-                              <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <input
-                                  type="checkbox"
-                                  className="size-3.5 accent-primary"
-                                  checked={effective.email}
-                                  onChange={(e) => set(true, e.target.checked)}
-                                />
-                                Also send an email
-                              </label>
-                            )}
-                          </div>
-                          <Toggle
-                            label={def.label}
-                            checked={effective.inApp}
-                            onChange={(v) => set(v, v && effective.email)}
-                          />
-                        </li>
-                      );
-                    })}
-                </ul>
-              </section>
-            ))
+                            </div>
+                            <Toggle
+                              label={def.label}
+                              checked={effective.inApp}
+                              onChange={(v) => set(v, v && effective.email)}
+                            />
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </section>
+              ))
           )}
         </div>
       </div>

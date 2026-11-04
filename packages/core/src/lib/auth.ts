@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { createInvitationEmail } from "@lictory/core/emails/invitation-email";
 import { sendEmail } from "@lictory/core/lib/mailer";
 import * as schema from "@lictory/core/db/auth-schema";
+import { organizationDeletion } from "@lictory/core/db/configuration-schema";
 import {
   APIError,
   createAuthMiddleware,
@@ -29,6 +30,7 @@ import {
 } from "@lictory/core/lib/password-policy";
 import { deliverAuthEmail } from "@lictory/core/lib/email";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { deletionDay } from "@lictory/core/domain/organization-access";
 import { refreshDirectories } from "@lictory/core/domain/projections";
 import {
   AccountDeletionError,
@@ -104,6 +106,29 @@ const refreshOrganizations = (organizationIds: Iterable<string>) =>
   refreshDirectories(db, organizationIds);
 const refreshUserOrganizations = async (userId: string) =>
   refreshOrganizations(await directoriesListing(db, userId));
+
+// An organization scheduled for deletion is locked: nobody joins it, is
+// invited or added to it, changes roles in it or renames it until an owner
+// cancels the deletion. Leaving and removing members stay possible.
+async function refuseWhileDeletionScheduled(organizationId: unknown) {
+  if (typeof organizationId !== "string") return;
+  const [row] = await db
+    .select({
+      name: schema.organization.name,
+      deleteAfter: organizationDeletion.deleteAfter,
+    })
+    .from(organizationDeletion)
+    .innerJoin(
+      schema.organization,
+      eq(schema.organization.id, organizationDeletion.organizationId),
+    )
+    .where(eq(organizationDeletion.organizationId, organizationId));
+  if (row)
+    throw new APIError("BAD_REQUEST", {
+      code: "ORGANIZATION_DELETION_SCHEDULED",
+      message: `${row.name} is scheduled for deletion on ${deletionDay(row.deleteAfter)}. An owner can cancel the deletion to make changes again.`,
+    });
+}
 
 export const auth = betterAuth({
   ...authSchemaOptions,
@@ -337,6 +362,19 @@ export const auth = betterAuth({
     // password that already exists.
     before: createAuthMiddleware(async (ctx) => {
       passwordFlowClosed(ctx.path, passwordLogin);
+      // The organization hooks below cover membership; renaming has no
+      // organization id in its hook, so it is checked here.
+      if (ctx.path === "/organization/update") {
+        const given = (ctx.body as { organizationId?: unknown } | undefined)
+          ?.organizationId;
+        const session = given
+          ? null
+          : await getSessionFromCtx(ctx).catch(() => null);
+        const active = (
+          session?.session as { activeOrganizationId?: unknown } | undefined
+        )?.activeOrganizationId;
+        await refuseWhileDeletionScheduled(given ?? active);
+      }
       if (ctx.path === "/sign-up/email")
         await assertSelfServiceSignUp(
           db,
@@ -420,6 +458,11 @@ export const auth = betterAuth({
     instanceAdministration(),
     // Same schema as `authSchemaOptions`; hooks do not affect generation.
     organization({
+      // Deleting an organization is scheduled by an owner, locks it for a
+      // grace period and runs as a background job
+      // (domain/organization-deletion.ts); Better Auth's immediate delete
+      // would skip all of that, so its endpoint answers not found.
+      disableOrganizationDeletion: true,
       // Instance policy decides who may create organizations; instance
       // administrators create them for others from the admin console.
       allowUserToCreateOrganization: (user) =>
@@ -457,6 +500,18 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
+        beforeCreateInvitation: async ({ invitation }) => {
+          await refuseWhileDeletionScheduled(invitation.organizationId);
+        },
+        beforeAcceptInvitation: async ({ organization }) => {
+          await refuseWhileDeletionScheduled(organization.id);
+        },
+        beforeAddMember: async ({ organization }) => {
+          await refuseWhileDeletionScheduled(organization.id);
+        },
+        beforeUpdateMemberRole: async ({ organization }) => {
+          await refuseWhileDeletionScheduled(organization.id);
+        },
         // Every organization starts with the default work item types; its
         // first project (with disciplines and workflow) comes from onboarding.
         afterCreateOrganization: async ({ organization, user }) => {

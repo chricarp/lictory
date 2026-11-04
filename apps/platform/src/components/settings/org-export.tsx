@@ -42,7 +42,7 @@ const statusLabel: Record<ExportSummaryView["status"], string> = {
 // Organization data export for administrators: start an export, watch it
 // finish in the background, download the archive while it is kept.
 export function OrganizationExport() {
-  const { isAdmin } = useWorkspace();
+  const { isAdmin, organization } = useWorkspace();
   if (!isAdmin)
     return (
       <ReadOnlyNotice>
@@ -50,11 +50,12 @@ export function OrganizationExport() {
         data.
       </ReadOnlyNotice>
     );
-  return <Exports />;
+  return <Exports organizationId={organization.id} />;
 }
 
-function Exports() {
-  const { organization } = useWorkspace();
+// Also shown to owners on the page of an organization scheduled for
+// deletion, outside the (locked) workspace.
+export function Exports({ organizationId }: { organizationId: string }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -63,13 +64,13 @@ function Exports() {
     try {
       setListing(
         await callCapability<Listing>("listOrganizationExports", {
-          organizationId: organization.id,
+          organizationId,
         }),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load exports.");
     }
-  }, [organization.id]);
+  }, [organizationId]);
 
   const active = listing?.exports.some(
     (e) => e.status === "queued" || e.status === "running",
@@ -77,7 +78,7 @@ function Exports() {
   useEffect(() => {
     let current = true;
     callCapability<Listing>("listOrganizationExports", {
-      organizationId: organization.id,
+      organizationId,
     })
       .then((result) => current && setListing(result))
       .catch(
@@ -88,7 +89,7 @@ function Exports() {
     return () => {
       current = false;
     };
-  }, [organization.id]);
+  }, [organizationId]);
   // While an export is being prepared, check back now and then.
   useEffect(() => {
     if (!active) return;
@@ -101,7 +102,7 @@ function Exports() {
     setError("");
     try {
       await callCapability("requestOrganizationExport", {
-        organizationId: organization.id,
+        organizationId,
       });
       await load();
     } catch (e) {
@@ -175,7 +176,7 @@ function Exports() {
                   variant="ghost"
                   onClick={() =>
                     window.location.assign(
-                      `/api/organizations/${encodeURIComponent(organization.id)}/exports/${encodeURIComponent(e.id)}/archive`,
+                      `/api/organizations/${encodeURIComponent(organizationId)}/exports/${encodeURIComponent(e.id)}/archive`,
                     )
                   }
                 >

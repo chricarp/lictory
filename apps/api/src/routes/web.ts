@@ -129,6 +129,7 @@ export function webRoutes() {
         signIn: signInOptions,
         // False when the server has no object storage: attachments disabled.
         attachments: attachmentsAvailable(),
+        organizationDeletionGraceDays: policy.organizationDeletionGraceDays,
       },
       200,
       noStore,

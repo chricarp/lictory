@@ -4,6 +4,7 @@ import { createDeliveryService } from "@lictory/core/delivery/service";
 import { trackPublicationCompleted } from "@lictory/core/lib/analytics/server";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
 import { processOrganizationExports } from "@lictory/core/export/service";
+import { processOrganizationDeletions } from "@lictory/core/domain/organization-deletion";
 import { storage } from "@lictory/core/storage";
 
 export {
@@ -47,6 +48,15 @@ export function processDataExports(
   options?: { signal?: AbortSignal },
 ) {
   return processOrganizationExports(db, { storage, ...options });
+}
+
+// Carries out at most one organization deletion whose grace period has
+// ended: stored files first, then every organization row.
+export function processDueOrganizationDeletions(
+  db: Database,
+  options?: { signal?: AbortSignal },
+) {
+  return processOrganizationDeletions(db, { storage, ...options });
 }
 
 // Read-only status sync of exported items, least recently checked first.

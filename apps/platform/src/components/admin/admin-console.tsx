@@ -292,6 +292,11 @@ function AdminOverview() {
             }
           />
           <PolicyRow
+            label="Organization deletion"
+            value={`${data.policy.organizationDeletionGraceDays} days after an owner schedules it`}
+            detail="The organization is locked meanwhile, and its owners can cancel."
+          />
+          <PolicyRow
             label="Sign-in"
             value={[
               data.signIn.password ? "Email and password" : null,
@@ -1177,7 +1182,21 @@ function OrganizationRow({
           {organization.name.slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{organization.name}</p>
+          <p className="flex items-center gap-2 truncate font-medium">
+            {organization.name}
+            {organization.deletion && (
+              <Badge tone="danger">
+                {organization.deletion.status === "deleting"
+                  ? "Being deleted"
+                  : `Deletion scheduled for ${date(organization.deletion.deleteAfter)}`}
+              </Badge>
+            )}
+          </p>
+          {organization.deletion?.error && (
+            <p className="text-xs text-destructive">
+              {organization.deletion.error}
+            </p>
+          )}
           <p className="truncate text-xs text-muted-foreground">
             /{organization.slug} · {organization.members}{" "}
             {organization.members === 1 ? "member" : "members"}

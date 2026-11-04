@@ -13,6 +13,7 @@ export const notificationCategories = [
   "delivery",
   "iterations",
   "export",
+  "organization",
 ] as const;
 export type NotificationCategory = (typeof notificationCategories)[number];
 
@@ -23,6 +24,7 @@ export const categoryLabels: Record<NotificationCategory, string> = {
   delivery: "Work items",
   iterations: "Iterations",
   export: "Exports",
+  organization: "Organization",
 };
 
 type Definition = {
@@ -31,6 +33,9 @@ type Definition = {
   description: string;
   inApp: boolean;
   email: boolean;
+  // Service notices every member receives in the app and by email, whatever
+  // their preferences; not listed in notification settings.
+  required?: true;
 };
 
 export const notificationKinds = {
@@ -236,6 +241,23 @@ export const notificationKinds = {
     inApp: true,
     email: false,
   },
+  organization_deletion_scheduled: {
+    category: "organization",
+    label: "Organization scheduled for deletion",
+    description:
+      "An owner scheduled the organization's deletion; it is locked until then.",
+    inApp: true,
+    email: true,
+    required: true,
+  },
+  organization_deletion_cancelled: {
+    category: "organization",
+    label: "Organization deletion cancelled",
+    description: "An owner cancelled the organization's scheduled deletion.",
+    inApp: true,
+    email: true,
+    required: true,
+  },
 } as const satisfies Record<string, Definition>;
 
 export type NotificationKind = keyof typeof notificationKinds;
@@ -245,6 +267,12 @@ export const notificationKindList = Object.keys(
 export function isNotificationKind(kind: string): kind is NotificationKind {
   return kind in notificationKinds;
 }
+const isRequired = (kind: NotificationKind) =>
+  (notificationKinds[kind] as Definition).required === true;
+// Kinds a person can turn on or off in notification settings.
+export const configurableKinds = notificationKindList.filter(
+  (kind) => !isRequired(kind),
+);
 
 // Preferences are layered: team, then project, then organization, then the
 // catalog default. The most specific rule for a kind wins. A team rule wins
@@ -279,6 +307,7 @@ export function resolveChannels(
     pick("project", context.projectId) ??
     pick("organization", context.organizationId);
   const fallback = notificationKinds[kind];
+  if (isRequired(kind)) return { inApp: true, email: true };
   const channels = rule ?? fallback;
   // Email is a delivery of the in-app notification, never on its own.
   return { inApp: channels.inApp, email: channels.inApp && channels.email };

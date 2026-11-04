@@ -150,8 +150,14 @@ async function organizationProfile(
         id: s.organization.id,
         name: s.organization.name,
         slug: s.organization.slug,
+        deleteAfter: s.organizationDeletion.deleteAfter,
+        requestedBy: s.organizationDeletion.requestedByName,
       })
       .from(s.organization)
+      .leftJoin(
+        s.organizationDeletion,
+        eq(s.organizationDeletion.organizationId, s.organization.id),
+      )
       .where(eq(s.organization.id, organizationId)),
     tx
       .select({
@@ -171,6 +177,12 @@ async function organizationProfile(
     name: organization.name,
     slug: organization.slug,
     logos: { mark: url("mark"), full: url("full") },
+    deletion: organization.deleteAfter
+      ? {
+          deleteAfter: organization.deleteAfter.toISOString(),
+          requestedBy: organization.requestedBy,
+        }
+      : null,
   };
 }
 

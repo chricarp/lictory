@@ -103,10 +103,14 @@ export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError } from "@lictory/core/domain/errors";
 import {
-  assertTwoFactorSatisfied,
   isTwoFactorHeld,
   twoFactorRequiredError,
 } from "@lictory/core/domain/two-factor-policy";
+import {
+  assertOrganizationAccess,
+  deletionScheduledError,
+  isOwnerRole,
+} from "@lictory/core/domain/organization-access";
 import { logoUrl, type LogoKind } from "@lictory/core/branding/logo";
 import {
   advanceProjectSchedule,
@@ -142,7 +146,8 @@ function serializeSuggestion(row: SuggestionRow): Entity {
   });
 }
 // Membership counts only while the organization's two-factor requirement is
-// met (see two-factor-policy.ts); one query answers both.
+// met (see two-factor-policy.ts) and the organization is not scheduled for
+// deletion (organization-access.ts); one query answers all three.
 export async function authorize(
   tx: Database | Tx,
   userId: string,
@@ -155,15 +160,25 @@ export async function authorize(
           member: s.member,
           requireTwoFactor: s.organizationSecurityPolicy.requireTwoFactor,
           twoFactorEnabled: s.user.twoFactorEnabled,
+          deleteAfter: s.organizationDeletion.deleteAfter,
+          organizationName: s.organization.name,
         })
         .from(s.member)
         .innerJoin(s.user, eq(s.user.id, s.member.userId))
+        .innerJoin(
+          s.organization,
+          eq(s.organization.id, s.member.organizationId),
+        )
         .leftJoin(
           s.organizationSecurityPolicy,
           eq(
             s.organizationSecurityPolicy.organizationId,
             s.member.organizationId,
           ),
+        )
+        .leftJoin(
+          s.organizationDeletion,
+          eq(s.organizationDeletion.organizationId, s.member.organizationId),
         )
         .where(
           and(
@@ -177,6 +192,12 @@ export async function authorize(
   );
   if (isTwoFactorHeld(row.requireTwoFactor, row.twoFactorEnabled))
     throw twoFactorRequiredError();
+  if (row.deleteAfter)
+    throw deletionScheduledError(
+      row.organizationName,
+      row.deleteAfter,
+      isOwnerRole(row.member.role),
+    );
   return row.member;
 }
 export async function lock(tx: Tx, organizationId: string) {
@@ -253,7 +274,7 @@ export async function directory(
     "You are not a member of this organization.",
     "forbidden",
   );
-  await assertTwoFactorSatisfied(db, userId, organizationId);
+  await assertOrganizationAccess(db, userId, organizationId);
   return {
     organizations,
     ...(await organizationDirectory(db, organizationId)),

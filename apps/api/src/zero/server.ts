@@ -25,6 +25,11 @@ import {
   heldOrganizations,
   twoFactorRequiredError,
 } from "@lictory/core/domain/two-factor-policy";
+import {
+  deletionScheduledError,
+  isOwnerRole,
+  organizationsScheduledForDeletion,
+} from "@lictory/core/domain/organization-access";
 
 // Zero's custom query and mutate endpoints. zero-cache calls them with the
 // browser's forwarded cookies; the host resolves the session and passes the
@@ -115,6 +120,15 @@ export function createZeroEndpoints(
       const held = new Set(
         (await heldOrganizations(db, userID)).map((o) => o.id),
       );
+      // Organizations scheduled for deletion are locked for everyone; the
+      // memberships query (no organization) still lists them, with the
+      // date, so the app can say so.
+      const locked = new Map(
+        (await organizationsScheduledForDeletion(db, userID)).map((o) => [
+          o.id,
+          o,
+        ]),
+      );
       return handleQueryRequest({
         handler: (name, args) => {
           const organizationId =
@@ -123,6 +137,18 @@ export function createZeroEndpoints(
               : undefined;
           if (typeof organizationId === "string" && held.has(organizationId))
             throw applicationError(twoFactorRequiredError());
+          const scheduled =
+            typeof organizationId === "string"
+              ? locked.get(organizationId)
+              : undefined;
+          if (scheduled)
+            throw applicationError(
+              deletionScheduledError(
+                scheduled.name,
+                scheduled.deleteAfter,
+                isOwnerRole(scheduled.role),
+              ),
+            );
           const query = mustGetQuery(queries, name);
           const ctx: ZeroContext = { userID };
           return query.fn({ args, ctx });

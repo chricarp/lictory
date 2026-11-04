@@ -32,7 +32,9 @@ const formatList = (names: string[]) =>
     : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 // Organizations whose only owner is this person. Leaving them without an
-// owner would strand them, so deletion is refused until ownership moves.
+// owner would strand them, so deletion is refused until ownership moves or
+// the organization is scheduled for deletion (which then runs on its date
+// without an owner to cancel it).
 async function soleOwnerships(tx: Tx, userId: string) {
   const owned = await tx
     .select({
@@ -42,7 +44,16 @@ async function soleOwnerships(tx: Tx, userId: string) {
     })
     .from(s.member)
     .innerJoin(s.organization, eq(s.organization.id, s.member.organizationId))
-    .where(eq(s.member.userId, userId));
+    .leftJoin(
+      s.organizationDeletion,
+      eq(s.organizationDeletion.organizationId, s.member.organizationId),
+    )
+    .where(
+      and(
+        eq(s.member.userId, userId),
+        isNull(s.organizationDeletion.organizationId),
+      ),
+    );
   const ownedIds = owned.filter((o) => isOwner(o.role)).map((o) => o.id);
   if (!ownedIds.length) return [];
   const others = await tx
@@ -68,7 +79,7 @@ async function assertDeletable(tx: Tx, user: typeof s.user.$inferSelect) {
   if (sole.length)
     throw new AccountDeletionError(
       "sole_owner",
-      `You are the only owner of ${formatList(sole)}. Make another member an owner first, then delete your account.`,
+      `You are the only owner of ${formatList(sole)}. Make another member an owner, or delete the organization in Organization settings → Delete organization, then delete your account.`,
     );
   if (user.instanceAdmin && !user.deactivatedAt) {
     const [other] = await tx

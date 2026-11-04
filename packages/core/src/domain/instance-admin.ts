@@ -70,6 +70,9 @@ export const instanceAuditActions = {
   "instance_admin.revoked": "Removed an instance administrator",
   "organization.created": "Created an organization",
   "organization.member_added": "Added someone to an organization",
+  "organization.deletion_scheduled": "Scheduled an organization's deletion",
+  "organization.deletion_cancelled": "Cancelled an organization's deletion",
+  "organization.deleted": "Deleted an organization",
 } as const;
 export type InstanceAuditAction = keyof typeof instanceAuditActions;
 
@@ -216,6 +219,7 @@ export async function instanceOverview(db: Database) {
       signUpMode: policy.signUpMode,
       allowedEmailDomains: [...policy.allowedEmailDomains],
       organizationCreation: policy.organizationCreation,
+      organizationDeletionGraceDays: policy.organizationDeletionGraceDays,
     },
     signIn: {
       password: signInOptions.password,
@@ -328,8 +332,15 @@ export async function listOrganizations(db: Database) {
       createdAt: s.organization.createdAt,
       members: sql<number>`(select count(*) from ${s.member} where ${s.member.organizationId} = ${s.organization.id})`,
       pendingInvitations: sql<number>`(select count(*) from ${s.invitation} where ${s.invitation.organizationId} = ${s.organization.id} and ${s.invitation.status} = 'pending' and ${s.invitation.expiresAt} > now())`,
+      deletionStatus: s.organizationDeletion.status,
+      deleteAfter: s.organizationDeletion.deleteAfter,
+      deletionError: s.organizationDeletion.error,
     })
     .from(s.organization)
+    .leftJoin(
+      s.organizationDeletion,
+      eq(s.organizationDeletion.organizationId, s.organization.id),
+    )
     .orderBy(asc(sql`lower(${s.organization.name})`));
   const owners = organizations.length
     ? await db
@@ -343,14 +354,25 @@ export async function listOrganizations(db: Database) {
         .innerJoin(s.user, eq(s.user.id, s.member.userId))
         .where(eq(s.member.role, "owner"))
     : [];
-  return organizations.map((o) => ({
-    ...o,
-    members: Number(o.members),
-    pendingInvitations: Number(o.pendingInvitations),
-    owners: owners
-      .filter((owner) => owner.organizationId === o.id)
-      .map(({ organizationId: _, ...owner }) => owner),
-  }));
+  return organizations.map(
+    ({ deletionStatus, deleteAfter, deletionError, ...o }) => ({
+      ...o,
+      // Scheduled by an owner (see organization-deletion.ts); instance
+      // administrators see it but cannot change it.
+      deletion: deleteAfter
+        ? {
+            status: deletionStatus as "scheduled" | "deleting",
+            deleteAfter: deleteAfter.toISOString(),
+            error: deletionError,
+          }
+        : null,
+      members: Number(o.members),
+      pendingInvitations: Number(o.pendingInvitations),
+      owners: owners
+        .filter((owner) => owner.organizationId === o.id)
+        .map(({ organizationId: _, ...owner }) => owner),
+    }),
+  );
 }
 
 export type OrganizationRole = "owner" | "admin" | "member";

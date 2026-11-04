@@ -54,6 +54,8 @@ import {
 } from "@lictory/platform/components/workspace/sync-issue";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { WorkspaceNotFound } from "@lictory/platform/routes/errors";
+import { DeletionScheduledNotice } from "@lictory/platform/components/settings/org-deletion";
+import { Exports } from "@lictory/platform/components/settings/org-export";
 import { PageTitle } from "@lictory/platform/routes/title";
 import { useConnectionState } from "@rocicorp/zero/react";
 
@@ -131,6 +133,18 @@ export function OrganizationLayout() {
   // two-factor authentication; say so instead of showing sync errors.
   if (held.some((o) => o.id === organization.id))
     return <TwoFactorRequired organizationName={organization.name} />;
+  // Scheduled for deletion: locked for everyone until it is deleted or an
+  // owner cancels (the server refuses its data either way).
+  if (organization.deletion)
+    return (
+      <main className="min-h-dvh">
+        <PageTitle title={`${organization.name} is scheduled for deletion`} />
+        <DeletionScheduledNotice
+          organization={{ ...organization, deletion: organization.deletion }}
+          exports={<Exports organizationId={organization.id} />}
+        />
+      </main>
+    );
   return (
     <OrganizationWorkspace
       key={organization.id}

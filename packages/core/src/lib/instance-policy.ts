@@ -24,6 +24,9 @@ export type InstancePolicy = {
   // Lowercase domains; empty means any domain.
   allowedEmailDomains: readonly string[];
   organizationCreation: OrganizationCreation;
+  // Days between an owner scheduling an organization's deletion and the
+  // deletion itself (docs/internals/organization-deletion.md).
+  organizationDeletionGraceDays: number;
 };
 
 // How a new account would come to exist.
@@ -71,6 +74,25 @@ export function parseEmailDomains(value: string | undefined) {
   return [...domains];
 }
 
+export const DEFAULT_ORGANIZATION_DELETION_GRACE_DAYS = 30;
+const MAX_ORGANIZATION_DELETION_GRACE_DAYS = 365;
+
+function graceDays(env: Environment) {
+  const name = "LICTORY_ORGANIZATION_DELETION_GRACE_DAYS";
+  const value = setting(env.LICTORY_ORGANIZATION_DELETION_GRACE_DAYS);
+  if (value === undefined) return DEFAULT_ORGANIZATION_DELETION_GRACE_DAYS;
+  const days = Number(value);
+  if (
+    !/^\d+$/.test(value) ||
+    days < 1 ||
+    days > MAX_ORGANIZATION_DELETION_GRACE_DAYS
+  )
+    throw new Error(
+      `${name} must be a whole number of days from 1 to ${MAX_ORGANIZATION_DELETION_GRACE_DAYS}.`,
+    );
+  return days;
+}
+
 // Unset variables give the self-hosted defaults: invitations only, and only
 // instance administrators create organizations. Invalid values stop the
 // server at startup rather than silently opening the installation.
@@ -84,6 +106,7 @@ export function instancePolicy(env: Environment = process.env): InstancePolicy {
       ORGANIZATION_CREATION,
       "administrators",
     ),
+    organizationDeletionGraceDays: graceDays(env),
   };
 }
 

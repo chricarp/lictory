@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   SquareKanban,
   Upload,
+  Building2,
 } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
@@ -61,6 +62,7 @@ const categoryIcons: Record<NotificationCategory, typeof Bell> = {
   delivery: SquareKanban,
   iterations: RefreshCw,
   export: Upload,
+  organization: Building2,
 };
 
 function kindCategory(kind: string): NotificationCategory | null {

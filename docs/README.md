@@ -43,6 +43,8 @@ adding domain writes or synchronized entities.
   sign-in methods and account linking
 - [Account deletion](./internals/account-deletion.md): anonymization, what is
   removed and kept, former members
+- [Organization deletion](./internals/organization-deletion.md): scheduling by
+  an owner, the locked grace period, the deletion job and what remains
 - [Instance administration](./internals/instance-administration.md): instance
   administrators, the access policy (who may sign up and create
   organizations), deactivation and its history

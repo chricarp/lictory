@@ -51,7 +51,9 @@ still show as "Former member".
 ## When deletion is refused
 
 - The person is the only owner of an organization. They must make another
-  member an owner first (organization deletion does not exist yet).
+  member an owner first, or [delete the organization](./organization-deletion.md).
+  Organizations already scheduled for deletion do not block it: the deletion
+  still runs on its date, though nobody is left to cancel it.
 - The person is the installation's only active instance administrator.
 
 The error names the organizations involved, and nothing changes.

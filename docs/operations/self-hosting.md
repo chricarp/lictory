@@ -149,11 +149,12 @@ Lictory is an administered product: by default nobody can create an account
 or an organization on their own. Three settings decide what people may do
 without an administrator; `install` asks for them and writes them to `.env`.
 
-| Setting (`.env`)                | Install option            | Values                                                                                                                                                                      |
-| ------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LICTORY_SIGNUP_MODE`           | `--signup-mode`           | `invite` (default): a new account needs a pending invitation for its email. `closed`: only instance administrators create accounts. `open`: anyone who can reach the server |
-| `LICTORY_ALLOWED_EMAIL_DOMAINS` | `--allowed-email-domains` | Comma-separated domains for self-service accounts, single sign-on included; empty: any. Administrators may create any address                                               |
-| `LICTORY_ORGANIZATION_CREATION` | `--organization-creation` | `administrators` (default): only instance administrators create organizations. `everyone`: any signed-in person                                                             |
+| Setting (`.env`)                           | Install option            | Values                                                                                                                                                                      |
+| ------------------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LICTORY_SIGNUP_MODE`                      | `--signup-mode`           | `invite` (default): a new account needs a pending invitation for its email. `closed`: only instance administrators create accounts. `open`: anyone who can reach the server |
+| `LICTORY_ALLOWED_EMAIL_DOMAINS`            | `--allowed-email-domains` | Comma-separated domains for self-service accounts, single sign-on included; empty: any. Administrators may create any address                                               |
+| `LICTORY_ORGANIZATION_CREATION`            | `--organization-creation` | `administrators` (default): only instance administrators create organizations. `everyone`: any signed-in person                                                             |
+| `LICTORY_ORGANIZATION_DELETION_GRACE_DAYS` | (not asked)               | Days between an owner scheduling an organization's deletion and the deletion (1 to 365, default 30). The organization is locked meanwhile, and an owner can cancel          |
 
 The server enforces them for every way an account can appear (password
 sign-up, Google, Microsoft), never only in the browser. The company identity
