@@ -3,13 +3,17 @@ import {
   createContext,
   useCallback,
   useContext,
-  useId,
   useMemo,
   type ReactNode,
 } from "react";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
+import {
+  PaneResizer,
+  usePaneResize,
+  type PaneSpec,
+} from "@lictory/platform/components/workspace/pane-resizer";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { identifier, matchesView } from "@lictory/core/lib/work-items";
@@ -49,6 +53,19 @@ export function WorkItemListToggle() {
   );
 }
 
+// A quarter of the frame by default, so titles stay readable wherever it fits.
+const listPane: PaneSpec = {
+  pane: "work-item-list",
+  label: "work item list",
+  edge: "end",
+  min: 240,
+  max: 560,
+  share: { fraction: 0.3, floor: 272, of: "frame" },
+  preferred: ({ frame }) => Math.min(400, Math.max(272, frame * 0.26)),
+  neighbour: () => document.querySelector("[data-pane-document]"),
+  keep: 440,
+};
+
 // List + detail side by side on wide screens. Every item type shares one
 // address; `?from=` keeps the queue the item was opened from beside it. Both
 // read from the organization store, so selecting another item only changes
@@ -58,11 +75,15 @@ export function SplitView({ children }: { children: ReactNode }) {
   const segment = useParams<{ id: string }>().id;
   const searchParams = useSearchParams();
   const { items, organization, userId, disciplineIds } = useWorkspace();
-  const [collapsed, toggle] = usePanelCollapsed(
+  const [collapsed, toggle, setCollapsed] = usePanelCollapsed(
     organization.id,
     "work-item-list",
   );
-  const listId = useId();
+  const resize = usePaneResize(listPane, {
+    collapse: { collapsed, setCollapsed },
+  });
+  const listId = resize.pane.id;
+  const { attach: attachList } = resize.pane;
   const project = useProject();
   const queues = useLifecycleQueues(project);
   const origin = itemOrigin(searchParams);
@@ -111,10 +132,12 @@ export function SplitView({ children }: { children: ReactNode }) {
       <div className="flex h-full">
         <div
           id={listId}
+          ref={attachList}
+          style={resize.pane.style}
           data-work-item-list
           className={cn(
-            // A quarter of the frame, so titles stay readable wherever it fits.
-            "hidden w-[clamp(272px,26cqw,400px)] shrink-0 border-r bg-shell/50",
+            "hidden shrink-0 border-r bg-shell/50",
+            resize.pane.sized ? "w-(--pane-w)" : "w-[clamp(272px,26cqw,400px)]",
             !collapsed && "@min-[65rem]/frame:block",
           )}
         >
@@ -142,6 +165,15 @@ export function SplitView({ children }: { children: ReactNode }) {
             />
           )}
         </div>
+        {/* Stays while a drag folds the list, so pulling back reopens it. */}
+        <PaneResizer
+          resize={resize.handle}
+          className={cn(
+            "hidden",
+            (!collapsed || resize.handle.dragging) &&
+              "@min-[65rem]/frame:block",
+          )}
+        />
         <div className="min-w-0 flex-1">{children}</div>
       </div>
     </ListPanelContext.Provider>

@@ -38,16 +38,19 @@ export function usePanelCollapsed(
     () => read(key),
     () => false,
   );
-  const toggle = useCallback(() => {
-    const next = !read(key);
-    try {
-      window.localStorage.setItem(key, String(next));
-      fallback.delete(key);
-    } catch {
-      // Keep the control usable when browser storage is unavailable.
-      fallback.set(key, next);
-    }
-    listeners.forEach((listener) => listener());
-  }, [key]);
-  return [collapsed, toggle] as const;
+  const set = useCallback(
+    (next: boolean) => {
+      try {
+        window.localStorage.setItem(key, String(next));
+        fallback.delete(key);
+      } catch {
+        // Keep the control usable when browser storage is unavailable.
+        fallback.set(key, next);
+      }
+      listeners.forEach((listener) => listener());
+    },
+    [key],
+  );
+  const toggle = useCallback(() => set(!read(key)), [set, key]);
+  return [collapsed, toggle, set] as const;
 }

@@ -6,3 +6,14 @@
 @source "./";
 @source "../../../packages/ui/src";
 @source "../../../packages/core/src/lib";
+
+/* While a pane edge is dragged, the whole page keeps the resize cursor and
+   nothing (text, embedded frames) steals the pointer. */
+:root[data-pane-resizing],
+:root[data-pane-resizing] * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+:root[data-pane-resizing] iframe {
+  pointer-events: none;
+}

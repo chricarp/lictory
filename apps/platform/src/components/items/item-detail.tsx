@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
+import { cn } from "@lictory/core/lib/utils";
 import { track } from "@lictory/core/lib/analytics/client";
 import {
   identifier,
@@ -28,6 +29,11 @@ import {
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
 import { Popover } from "@lictory/ui/popover";
+import {
+  PaneResizer,
+  usePaneResize,
+  type PaneSpec,
+} from "@lictory/platform/components/workspace/pane-resizer";
 import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import {
   useItemView,
@@ -252,6 +258,8 @@ export function ItemDetail({
   // Full-width surfaces that replace the specification.
   const focusScreen = branchScreen || mode.kind === "ai";
   const [panelOpen, setPanelOpen] = useState(false);
+  const rail = usePaneResize<HTMLElement>(railPane);
+  const { attach: attachRail } = rail.pane;
   const [exporting, setExporting] = useState(false);
   const exportAvailability = useExportAvailability(item);
   // Hand-off is offered for ready specifications of projects delivered in an
@@ -720,7 +728,7 @@ export function ItemDetail({
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
-          <div className="min-w-0 flex-1 overflow-y-auto">
+          <div data-pane-document className="min-w-0 flex-1 overflow-y-auto">
             <div
               className={
                 branchScreen
@@ -906,12 +914,26 @@ export function ItemDetail({
             </div>
           </div>
           {!branchScreen && (
-            <aside
-              data-desktop-item-panel
-              className="hidden w-72 shrink-0 overflow-y-auto border-l bg-shell/60 @min-[53rem]/frame:block @min-[100rem]/frame:w-80"
-            >
-              {panel}
-            </aside>
+            <>
+              <PaneResizer
+                resize={rail.handle}
+                className="hidden @min-[53rem]/frame:block"
+              />
+              <aside
+                id={rail.pane.id}
+                ref={attachRail}
+                style={rail.pane.style}
+                data-desktop-item-panel
+                className={cn(
+                  "hidden shrink-0 overflow-y-auto border-l bg-shell/60 @min-[53rem]/frame:block",
+                  rail.pane.sized
+                    ? "w-(--pane-w)"
+                    : "w-72 @min-[100rem]/frame:w-80",
+                )}
+              >
+                {panel}
+              </aside>
+            </>
           )}
           {panelOpen && (
             <div className="fixed inset-0 z-40 @min-[53rem]/frame:hidden">
@@ -944,6 +966,19 @@ export function ItemDetail({
     </ItemContext.Provider>
   );
 }
+
+// Review & details beside the document: 18rem, 20rem on large frames.
+const railPane: PaneSpec = {
+  pane: "review-rail",
+  label: "review and details",
+  edge: "start",
+  min: 256,
+  max: 560,
+  share: { fraction: 0.28, floor: 288, of: "frame" },
+  preferred: ({ frame }) => (frame >= 1600 ? 320 : 288),
+  neighbour: () => document.querySelector("[data-pane-document]"),
+  keep: 440,
+};
 
 function Property({
   label,

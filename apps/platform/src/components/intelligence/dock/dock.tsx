@@ -65,6 +65,11 @@ import {
   type DockReview,
   type DockSelection,
 } from "@lictory/platform/components/intelligence/dock/store";
+import {
+  PaneResizer,
+  usePaneResize,
+  type PaneSpec,
+} from "@lictory/platform/components/workspace/pane-resizer";
 
 type Run = EntityOf<"aiRun">;
 type SendExtra = {
@@ -139,6 +144,20 @@ const selectionSuggestions: Suggestion[] = [
 // opens into a conversation that knows that context. Conversations are saved
 // unlisted and can continue on the Intelligence page.
 const wideQuery = "(min-width: 1024px)";
+
+// The side sheet: 360px, 400px from 1440px windows, 420px from 2200px.
+const littoPane: PaneSpec = {
+  pane: "litto",
+  label: "Litto",
+  edge: "start",
+  min: 320,
+  max: 720,
+  share: { fraction: 0.32, floor: 360, of: "viewport" },
+  preferred: ({ viewport }) =>
+    viewport >= 2200 ? 420 : viewport >= 1440 ? 400 : 360,
+  neighbour: () => document.querySelector("[data-app-frame]"),
+  keep: 600,
+};
 function useWide() {
   return useSyncExternalStore(
     (onChange) => {
@@ -430,6 +449,8 @@ function Panel({
   // modal over it, so the page behind is inert and focus stays in the sheet.
   const modal = !useWide();
   const sheet = useRef<HTMLElement>(null);
+  const resize = usePaneResize<HTMLElement>(littoPane);
+  const { attach } = resize.pane;
   useEffect(() => {
     if (!modal) return;
     const page = document.querySelector<HTMLElement>("[data-app-frame]");
@@ -507,7 +528,12 @@ function Panel({
           : { opacity: 0, x: 8, transition: { duration: 0.14, ease } }
       }
       transition={{ duration: 0.2, ease, opacity: { duration: 0.12, ease } }}
-      ref={sheet}
+      ref={(element) => {
+        sheet.current = element;
+        attach(element);
+      }}
+      id={resize.pane.id}
+      style={resize.pane.style}
       onKeyDown={onKeyDown}
       role={modal ? "dialog" : "complementary"}
       aria-modal={modal || undefined}
@@ -518,10 +544,23 @@ function Panel({
         // Small screens: a sheet over the page, anchored to the bottom.
         "fixed inset-x-2 bottom-2 z-40 max-h-[min(640px,calc(100dvh-4rem))] rounded-[1.25rem] shadow-(--shadow-panel)",
         chat && "h-[min(640px,calc(100dvh-4rem))]",
-        // Wide screens: a second framed surface beside the page.
-        "min-[1440px]:w-[400px] min-[1440px]:rounded-[20px] min-[2200px]:w-[420px] lg:static lg:h-auto lg:max-h-none lg:w-[360px] lg:shrink-0 lg:rounded-2xl lg:shadow-(--shadow-border) lg:dark:shadow-(--shadow-border-hover)",
+        // Wide screens: a second framed surface beside the page, as wide as
+        // the person dragged it or the default for the window. The default
+        // tiers use `min-[…]` alone: Tailwind orders those by value, but
+        // emits `lg:` after them, so a `lg:` width would win at every size.
+        "min-[1440px]:rounded-[20px] lg:relative lg:inset-auto lg:z-auto lg:h-auto lg:max-h-none lg:shrink-0 lg:rounded-2xl lg:shadow-(--shadow-border) lg:dark:shadow-(--shadow-border-hover)",
+        resize.pane.sized
+          ? "lg:w-(--pane-w)"
+          : "min-[1024px]:w-[360px] min-[1440px]:w-[400px] min-[2200px]:w-[420px]",
       )}
     >
+      {!modal && (
+        <PaneResizer
+          resize={resize.handle}
+          inset
+          className="absolute inset-y-0 left-0"
+        />
+      )}
       <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
         <DockMark chat={chat} review={item?.review} />
         <div className="mr-auto flex min-w-0 items-baseline gap-2">

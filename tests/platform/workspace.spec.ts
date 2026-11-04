@@ -25,6 +25,7 @@ const revisitEmail = "revisit@example.test";
 // Native delivery scenarios create their own organizations: they must not
 // depend on another test having created one (the smoke tier runs them alone).
 const deliveryEmail = "delivery@example.test";
+const panesEmail = "panes@example.test";
 const password = "Local-test-password-123";
 // Give independent browser scenarios distinct client addresses. Production auth
 // throttles rapid sign-ins by IP; unrelated tests must not share that budget.
@@ -42,6 +43,7 @@ test.beforeAll(async () => {
     ["Jordan Lee", loadingEmail, "jordan_lee"],
     ["Casey Park", revisitEmail, "casey_park"],
     ["Sam Ortiz", deliveryEmail, "sam_ortiz"],
+    ["Robin Hale", panesEmail, "robin_hale"],
   ] as const) {
     const id = crypto.randomUUID();
     // A worker restarted after a failure re-runs this hook on the same database.
@@ -574,6 +576,110 @@ test("work item panels collapse independently and persist across routes and relo
   await expect(filter).toBeVisible();
   await page.getByRole("button", { name: "Hide work item list" }).click();
   await expect(filter).toBeHidden();
+});
+
+test("panes resize by dragging or keyboard, snap, fold, reset and persist", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, panesEmail);
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await createWorkspace(page, {
+    organization: "Pane widths",
+    project: "Pane project",
+    key: "PWD",
+  });
+  await page.getByRole("button", { name: "New proposal", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Resizable story");
+  await page.getByRole("button", { name: "Create & open" }).click();
+  await expect(page).toHaveURL(/\/items\/PWD-1(\?.*)?$/);
+
+  const list = page.locator("[data-work-item-list]");
+  const rail = page.locator("[data-desktop-item-panel]");
+  const listEdge = page.getByRole("separator", {
+    name: "Resize work item list",
+  });
+  const railEdge = page.getByRole("separator", {
+    name: "Resize review and details",
+  });
+  const width = async (pane: typeof list) =>
+    Math.round((await pane.boundingBox())!.width);
+  const drag = async (edge: typeof listEdge, dx: number) => {
+    const box = (await edge.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y, { steps: 6 });
+    return {
+      release: () => page.mouse.up(),
+    };
+  };
+
+  // The list's header and the item's header share one bottom border.
+  const bottom = async (header: typeof list) => {
+    const box = (await header.boundingBox())!;
+    return box.y + box.height;
+  };
+  const itemHeader = page.locator("header", {
+    has: page.getByRole("navigation", { name: "Breadcrumb" }),
+  });
+  expect(await bottom(list.locator("header"))).toBe(await bottom(itemHeader));
+
+  // Dragging the list's edge widens it and the document gives up the room.
+  const listDefault = await width(list);
+  await (await drag(listEdge, 40)).release();
+  await expect.poll(() => width(list)).toBe(listDefault + 40);
+  await expect(listEdge).toHaveAttribute(
+    "aria-valuenow",
+    String(listDefault + 40),
+  );
+
+  // A drag that ends near the default settles on it.
+  await (await drag(listEdge, -35)).release();
+  await expect.poll(() => width(list)).toBe(listDefault);
+
+  // Arrow keys move the edge in 16px steps; the width survives a reload.
+  await listEdge.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => width(list)).toBe(listDefault + 32);
+  await page.reload();
+  await expect.poll(() => width(list)).toBe(listDefault + 32);
+
+  // Esc during a drag puts the edge back where the drag started.
+  const cancelled = await drag(listEdge, 12);
+  await expect.poll(() => width(list)).toBe(listDefault + 44);
+  await page.keyboard.press("Escape");
+  await cancelled.release();
+  await expect.poll(() => width(list)).toBe(listDefault + 32);
+
+  // Double-click returns to the responsive default.
+  await listEdge.dblclick();
+  await expect.poll(() => width(list)).toBe(listDefault);
+
+  // The review rail resizes from its own edge, independently of the list.
+  const railDefault = await width(rail);
+  await (await drag(railEdge, -40)).release();
+  await expect.poll(() => width(rail)).toBe(railDefault + 40);
+  await expect.poll(() => width(list)).toBe(listDefault);
+
+  // Dragging the list well past its minimum folds it away; the toggle
+  // brings it back at the width it had.
+  await (await drag(listEdge, -400)).release();
+  await expect(list).toBeHidden();
+  await expect(listEdge).toBeHidden();
+  await page.getByRole("button", { name: "Show work item list" }).click();
+  await expect.poll(() => width(list)).toBe(listDefault);
+
+  // Phones keep the drawers; nothing to drag there.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(listEdge).toBeHidden();
+  await expect(railEdge).toBeHidden();
 });
 
 test("epic and story refinement: create, review, block, branch, PR, approve, stale, ready @smoke", async ({

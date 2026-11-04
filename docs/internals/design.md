@@ -52,6 +52,14 @@ panel for agreeing on what to build.
   1040px of frame, the review rail from 848px (a "Review & details" drawer
   otherwise). Opening Litto therefore folds only what no longer fits; a large
   display keeps everything open.
+- **Resizable panes.** The item list, the review rail and Litto's sheet can be
+  resized from their edge: drag it, or focus it and use the arrow keys
+  (Shift for larger steps, Home and End for the limits). A drag that ends
+  near the default width settles on it, double-click returns to the default,
+  Esc cancels a drag, and dragging the list well past its minimum folds it
+  away. A pane never grows past what keeps the document readable, and a wider
+  pane gives its extra room back when the window narrows. Widths describe the
+  screen, so they are kept per browser, not per organization or account.
 
 Personal colour themes override colours only, so structure, type and radius
 stay Lictory's.
