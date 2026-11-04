@@ -10,6 +10,32 @@ A bare Bun-only container can fall back to compiling Zero's SQLite module;
 it is not the supported development environment. The production Dockerfile
 also pairs Bun with Node 24.
 
+Both versions are recorded where version managers find them: `engines` in
+`package.json`, `.nvmrc` (`nvm use`, `fnm use`) and `.tool-versions`
+(`mise install`, `asdf install`). Bun does not enforce `engines`, so these
+files help rather than guard; `node --version` and `bun --version` remain the
+check. Update them together with `packageManager` and the Bun images in the
+Dockerfile, `.devcontainer/Dockerfile` and `compose.yaml`.
+
+**Platforms.** macOS and Linux are supported directly. On **Windows, use WSL2**:
+clone the repository inside the WSL file system (not under `/mnt/c`) and run
+every command there, with Docker Desktop's WSL2 backend or Docker Engine
+installed in WSL. The scripts assume a POSIX system (`scripts/dev.ts` stops
+services through process groups, the deployment tooling is Bash, and browser
+test results go to `/tmp`), so native Windows shells are not supported.
+
+**Dev container.** `.devcontainer/` describes the same environment for VS Code
+Dev Containers, GitHub Codespaces or the `devcontainer` CLI: Node 24 with the
+exact Bun release, and a Docker daemon of its own (the docker-in-docker
+feature) so `docker compose up -d` runs the services inside the container and
+the commands below work unchanged. Creating it copies `.env.example` to `.env`
+when there is none and runs `bun install`; the app, website and Mailpit ports
+are forwarded to the host. Give Docker at least 8 GB of memory, as below. On
+macOS and Windows, a clone in a container volume ("Clone Repository in
+Container Volume") is much faster than a bind-mounted checkout. With rootless
+Docker on Linux, the container's `node` user cannot write a bind-mounted
+checkout; use a container volume there too, or the native setup.
+
 For a memory-limited container, allow at least 8 GB of Docker memory. The full
 type-aware ESLint check peaks near 4 GB and can exceed Node's default heap (CI
 raises it for that step); if it reports a JavaScript heap limit, run

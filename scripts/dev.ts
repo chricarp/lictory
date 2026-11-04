@@ -17,6 +17,15 @@ const env: NodeJS.ProcessEnv = {
   SITE_URL: or(process.env.SITE_URL, "http://localhost:3100"),
 };
 
+// Stopping relies on POSIX process groups (process.kill(-pid)).
+if (process.platform === "win32") {
+  console.error(
+    "bun run dev needs macOS or Linux. On Windows, run it inside WSL2 " +
+      "(see docs/operations/development.md).",
+  );
+  process.exit(1);
+}
+
 // zero-cache runs in Docker (compose.yaml) after the migrations; without it
 // the SPA cannot load data, so refuse to start rather than half-work.
 const zeroReady = await fetch("http://localhost:4848/keepalive")
