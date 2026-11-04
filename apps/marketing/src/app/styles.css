@@ -331,7 +331,7 @@ html {
 
 /* Sections */
 .section {
-  padding-block: 128px 0;
+  padding-block: 112px 0;
   scroll-margin-top: 24px;
 }
 .section-heading {
@@ -443,7 +443,7 @@ html {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 48px;
-  margin-top: 80px;
+  margin-top: 64px;
 }
 .principles > div {
   padding-top: 20px;
@@ -546,7 +546,7 @@ html {
 
 /* Agents: the one ink band */
 .agents {
-  margin-top: 128px;
+  margin-top: 112px;
   padding-block: 128px;
   scroll-margin-top: 0;
 }
@@ -738,7 +738,7 @@ html {
   align-items: end;
   justify-content: space-between;
   gap: 40px;
-  padding-block: 160px 128px;
+  padding-block: 128px 112px;
 }
 .final-cta h2 {
   margin-top: 0;

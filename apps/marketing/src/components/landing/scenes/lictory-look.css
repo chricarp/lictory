@@ -21,6 +21,7 @@
   --ss-icon-faint: #cfc9bd;
 
   --ss-accent: #2a59d1;
+  --lx-on-accent: #ffffff;
   --ss-accent-2: #2a59d1;
   --ss-accent-soft: rgb(42 89 209 / 0.1);
   --ss-success: #2b8a5c;
@@ -63,7 +64,8 @@
   --ss-icon: #aaa499;
   --ss-icon-faint: #57534b;
 
-  --ss-accent: #3d68dc;
+  --ss-accent: #86a6ff;
+  --lx-on-accent: #10131c;
   --ss-accent-2: #86a6ff;
   --ss-accent-soft: rgb(134 166 255 / 0.18);
   --ss-success: #4fb487;

@@ -81,7 +81,7 @@
   padding: 0 14px;
   border-radius: var(--ss-radius-md);
   background: var(--ss-accent);
-  color: #fff;
+  color: var(--lx-on-accent);
   font-size: 13px;
   font-weight: 600;
   transition:
@@ -311,7 +311,7 @@
 }
 
 .ag-row--old {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .ag-rest {

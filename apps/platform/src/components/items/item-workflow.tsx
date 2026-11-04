@@ -3,7 +3,7 @@ import { ArrowRight, Check, FilePenLine, ListTree } from "lucide-react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { isTopLevel } from "@lictory/core/lib/work-items";
+import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
 import {
   externalLinksByItem,
   isAmended,
@@ -14,6 +14,10 @@ import {
 import { Button } from "@lictory/ui/button";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  RefinementIcon,
+  StatusIcon,
+} from "@lictory/platform/components/items/status";
 
 const labels: Record<LifecycleStage, string> = {
   proposal: "Shape the proposal",
@@ -178,6 +182,60 @@ export function ItemWorkflow({
       })}
     </ol>
   );
+  const status = delivery.statuses.get(item.statusId);
+  // The two states an item can be in at once, each named: the specification's
+  // refinement (always about the current revision) and, once a revision is
+  // accepted, its delivery.
+  const specificationRow = type.hasSpecification && current && (
+    <StateRow label="Specification">
+      {item.refinementState && (
+        <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+          <RefinementIcon state={item.refinementState} />
+          {refinementMeta[item.refinementState].label}
+        </span>
+      )}
+      <Dot />
+      <span className="font-mono tabular-nums">Revision {current.number}</span>
+      {item.readinessTotal > 0 && (
+        <>
+          <Dot />
+          <span className="tabular-nums">
+            {item.readinessPassed} of {item.readinessTotal} checks pass
+          </span>
+        </>
+      )}
+      {item.blockingThreads > 0 && (
+        <>
+          <Dot />
+          <span className="font-medium text-destructive">
+            {item.blockingThreads} blocking discussion
+            {item.blockingThreads === 1 ? "" : "s"}
+          </span>
+        </>
+      )}
+    </StateRow>
+  );
+  const deliveryRow = native && item.committedRevisionNumber != null && (
+    <StateRow label="Delivery">
+      {status && (
+        <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+          <StatusIcon category={status.category} color={status.color} />
+          {status.name}
+        </span>
+      )}
+      <Dot />
+      <span>Accepted revision {item.committedRevisionNumber}</span>
+      {item.deliveredRevisionNumber != null && (
+        <>
+          <Dot />
+          <span>Delivered revision {item.deliveredRevisionNumber}</span>
+        </>
+      )}
+    </StateRow>
+  );
+  // The delivery scope below explains an amendment and its decision; the
+  // guidance would only repeat it.
+  const guidance = !(amendment && children);
   return (
     <section
       aria-label="Item workflow"
@@ -195,46 +253,20 @@ export function ItemWorkflow({
           </p>
           {stages}
         </div>
-        <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
-          {description}
-        </p>
-        {(current ?? action) && (
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            {current ? (
-              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-                <span className="font-mono tabular-nums">
-                  Revision {current.number}
-                </span>
-                {!children && item.committedRevisionNumber != null && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>
-                      Accepted revision {item.committedRevisionNumber}
-                    </span>
-                  </>
-                )}
-                {!children && item.deliveredRevisionNumber != null && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>
-                      Delivered revision {item.deliveredRevisionNumber}
-                    </span>
-                  </>
-                )}
-                {item.blockingThreads > 0 && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span className="font-medium text-destructive">
-                      {item.blockingThreads} blocking discussion
-                      {item.blockingThreads === 1 ? "" : "s"}
-                    </span>
-                  </>
-                )}
-              </p>
-            ) : (
-              <span />
-            )}
-            {action}
+        {guidance && (
+          <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
+            {description}
+          </p>
+        )}
+        {(Boolean(specificationRow) ||
+          Boolean(deliveryRow) ||
+          Boolean(action)) && (
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2.5 sm:flex-nowrap">
+            <dl className="grid min-w-0 flex-1 gap-1.5 text-xs text-muted-foreground">
+              {specificationRow}
+              {deliveryRow}
+            </dl>
+            {action && <div className="shrink-0">{action}</div>}
           </div>
         )}
       </div>
@@ -243,4 +275,21 @@ export function ItemWorkflow({
       )}
     </section>
   );
+}
+
+function StateRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[5.5rem_1fr] items-baseline gap-x-2">
+      <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+function Dot() {
+  return <span aria-hidden>·</span>;
 }

@@ -10,7 +10,7 @@ import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Stage } from "@lictory/marketing/vendor/stageshow/stage";
 import type { Act } from "@lictory/marketing/vendor/stageshow/act";
 import type { Layout } from "@lictory/marketing/vendor/stageshow/looks";
-import { Bar, Window } from "@lictory/marketing/vendor/stageshow/window";
+import { Window } from "@lictory/marketing/vendor/stageshow/window";
 import { Avatar } from "@lictory/marketing/vendor/stageshow/parts/Avatar";
 import { States } from "@lictory/marketing/vendor/stageshow/motion/States";
 import { Collapse } from "@lictory/marketing/vendor/stageshow/motion/Collapse";
@@ -233,6 +233,25 @@ const HISTORY = [
   },
 ];
 
+// What happened before the scene: quiet, but real entries.
+const EARLIER = [
+  {
+    who: "Priya Shah",
+    what: "approved revision 12",
+    capability: "decideReview",
+  },
+  {
+    who: "Jonas Weber",
+    what: "resolved a discussion",
+    capability: "setThreadState",
+  },
+  {
+    who: "Maya Chen",
+    what: "saved revision 12",
+    capability: "updateSpecification",
+  },
+];
+
 function History({ s }: { s: S }) {
   return (
     <div className="ag-history">
@@ -258,12 +277,14 @@ function History({ s }: { s: S }) {
           </Collapse>
         ))}
         {/* Earlier entries: new ones push them down and out of the card */}
-        {[180, 150, 200].map((w) => (
-          <div key={w} className="ag-row ag-row--old">
-            <Avatar plain size={24} />
-            <Bar w={w} h={7} r={3.5} tone={3} />
-            <span />
-            <Bar w={34} h={16} r={8} tone={2} />
+        {EARLIER.map((row) => (
+          <div key={row.capability} className="ag-row ag-row--old">
+            <Avatar name={row.who} size={24} />
+            <span className="ag-row-text">
+              <strong>{row.who}</strong> {row.what}
+            </span>
+            <span className="ag-capability">{row.capability}</span>
+            <span className="ag-from">App</span>
           </div>
         ))}
       </div>

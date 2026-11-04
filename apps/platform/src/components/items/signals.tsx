@@ -88,9 +88,12 @@ export function ReviewSignal({
 export function ReadinessBar({
   item,
   className,
+  labelled = false,
 }: {
   item: WorkItem;
   className?: string;
+  // Spells out "checks" where there is room.
+  labelled?: boolean;
 }) {
   if (!item.readinessTotal) return null;
   const ratio = item.readinessPassed / item.readinessTotal;
@@ -112,6 +115,7 @@ export function ReadinessBar({
         />
       </span>
       {item.readinessPassed}/{item.readinessTotal}
+      {labelled && <span className="-ml-1 hidden xl:inline">checks</span>}
     </span>
   );
 }

@@ -171,7 +171,7 @@ export const ItemCard = memo(function ItemCard({
             <RefinementIcon state={item.refinementState} />
             {refinementMeta[item.refinementState].label}
             {item.refinementState !== "ready" &&
-              ` · ${item.readinessPassed}/${item.readinessTotal}`}
+              ` · ${item.readinessPassed}/${item.readinessTotal} checks`}
           </span>
         )}
         {item.blockingThreads > 0 && (
@@ -180,12 +180,13 @@ export const ItemCard = memo(function ItemCard({
             title="Open blocking discussions"
           >
             <CircleAlert className="size-3" />
-            {item.blockingThreads}
+            {item.blockingThreads} blocker
+            {item.blockingThreads === 1 ? "" : "s"}
           </span>
         )}
         {item.childCount > 0 && (
           <span className="tabular-nums" title="Children done">
-            {item.childDoneCount}/{item.childCount}
+            {item.childDoneCount}/{item.childCount} done
           </span>
         )}
       </div>

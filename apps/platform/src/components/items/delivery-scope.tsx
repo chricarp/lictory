@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCheck, GitCompareArrows, TriangleAlert } from "lucide-react";
 import { Button } from "@lictory/ui/button";
+import { cn } from "@lictory/core/lib/utils";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -59,13 +60,17 @@ export function DeliveryScope({
       setPending(false);
     }
   };
+  // Embedded in the item workflow, the accepted revision is already named in
+  // its Delivery row.
   const status = item.committedRevisionId ? (
-    <p className="text-muted-foreground">
-      Accepted for delivery:{" "}
-      <span className="font-medium text-foreground">
-        revision {item.committedRevisionNumber ?? "—"}
-      </span>
-    </p>
+    embedded ? null : (
+      <p className="text-muted-foreground">
+        Accepted for delivery:{" "}
+        <span className="font-medium text-foreground">
+          revision {item.committedRevisionNumber ?? "—"}
+        </span>
+      </p>
+    )
   ) : (
     <p className="text-muted-foreground">
       {closed
@@ -73,6 +78,9 @@ export function DeliveryScope({
         : "Not accepted for delivery yet. Planning an iteration alone is tentative."}
     </p>
   );
+  // Accepting before the checks pass is allowed by policy, but it is an
+  // exception and must look like one.
+  const exception = canAccept && early && !blocked;
   const actions = (changed || canAccept) && (
     <div className="flex flex-wrap items-center gap-1.5">
       {changed && (
@@ -90,8 +98,13 @@ export function DeliveryScope({
           size="sm"
           variant="secondary"
           disabled={pending || blocked}
+          className={cn(
+            exception &&
+              "text-warning shadow-[0_0_0_1px_color-mix(in_srgb,var(--warning)_40%,transparent)] hover:bg-warning/10",
+          )}
           onClick={() => void accept()}
         >
+          {exception && <TriangleAlert aria-hidden className="size-3.5" />}
           {pending
             ? "Accepting…"
             : `Accept revision ${current.number} for delivery`}
@@ -110,7 +123,7 @@ export function DeliveryScope({
         }
       >
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 basis-64 space-y-1">
             {status}
             {item.deliveredRevisionId && (
               <p className="flex items-center gap-1.5">
@@ -119,7 +132,7 @@ export function DeliveryScope({
               </p>
             )}
             {changed && (
-              <p className="flex items-start gap-1.5 text-xs text-foreground">
+              <p className="flex items-start gap-1.5 text-[13px] text-foreground">
                 <TriangleAlert
                   aria-hidden
                   className="mt-px size-3.5 shrink-0 text-warning"
@@ -137,10 +150,22 @@ export function DeliveryScope({
         </div>
         {!embedded && actions}
         {canAccept && early && (
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p
+            className={cn(
+              "text-xs leading-relaxed",
+              blocked ? "text-muted-foreground" : "text-warning",
+            )}
+            title={
+              blocked
+                ? undefined
+                : "The project's readiness policy allows accepting before every check passes; the exception is recorded with the decision."
+            }
+          >
+            {item.readinessPassed} of {item.readinessTotal} readiness checks
+            pass.{" "}
             {blocked
               ? "Complete the readiness checks before accepting this revision."
-              : "Readiness checks are incomplete. Accepting records this exception under the project's readiness policy."}
+              : "Accepting now records an exception under the readiness policy."}
           </p>
         )}
         {error && (

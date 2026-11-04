@@ -192,8 +192,8 @@ export const IssueRow = memo(function IssueRow({
       />
       {!compact && (
         // A fixed slot keeps assignee and time aligned on rows without checks.
-        <span className="hidden w-16 shrink-0 md:inline-flex">
-          <ReadinessBar item={item} />
+        <span className="hidden w-16 shrink-0 md:inline-flex xl:w-24">
+          <ReadinessBar item={item} labelled />
         </span>
       )}
       {project?.deliveryMode === "external" ? (

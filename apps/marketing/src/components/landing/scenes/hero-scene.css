@@ -466,7 +466,7 @@
 
 .hs-button[data-ready] {
   background: var(--ss-accent);
-  color: #fff;
+  color: var(--lx-on-accent);
 }
 
 .hs-button[data-ready][data-hover] {
