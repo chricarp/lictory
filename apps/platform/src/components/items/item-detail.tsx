@@ -97,6 +97,10 @@ import {
   ExternalDelivery,
   useExportAvailability,
 } from "@lictory/platform/components/delivery/export";
+import {
+  LittoConcerns,
+  LittoLauncher,
+} from "@lictory/platform/components/intelligence/dock/launcher";
 
 export type DetailMode =
   | { kind: "read" }
@@ -544,7 +548,7 @@ export function ItemDetail({
                   title={parent.title}
                 >
                   <TypeIcon type={typeOf(workspace.delivery, parent)} />
-                  <span className="truncate max-sm:sr-only">
+                  <span className="truncate max-sm:sr-only @max-[62rem]/frame:sr-only">
                     {parent.title}
                   </span>
                 </Link>
@@ -585,7 +589,9 @@ export function ItemDetail({
                   }
                 >
                   <GitCompareArrows className="size-3.5" />
-                  <span className="max-sm:sr-only">Changes</span>
+                  <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
+                    Changes
+                  </span>
                 </Button>
               )
             )}
@@ -690,15 +696,27 @@ export function ItemDetail({
                 </div>
               )}
             </Popover>
+            {/* The review rail folded away: say what it holds. */}
             <Button
               variant="ghost"
-              size="icon"
-              className="xl:hidden"
-              aria-label="Details"
+              size="sm"
+              className="max-sm:size-8 max-sm:px-0 @min-[53rem]/frame:hidden"
+              aria-label="Review & details"
               onClick={() => setPanelOpen(true)}
             >
               <PanelRight className="size-4" />
+              <span className="max-sm:hidden">Review & details</span>
             </Button>
+            {!pendingCreate && (
+              <>
+                <span
+                  aria-hidden
+                  className="mx-1 h-4 w-px bg-border max-lg:hidden"
+                />
+                <LittoConcerns />
+                <LittoLauncher />
+              </>
+            )}
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
@@ -707,7 +725,7 @@ export function ItemDetail({
               className={
                 branchScreen
                   ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
-                  : "mx-auto max-w-3xl px-5 py-7 lg:px-8 2xl:px-10"
+                  : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
               }
             >
               {changedSinceSeen && !focusScreen && mode.kind !== "compare" && (
@@ -777,7 +795,7 @@ export function ItemDetail({
               )}
               {!focusScreen && (
                 <>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 xl:hidden">
+                  <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 @min-[53rem]/frame:hidden">
                     {/* Once a revision is accepted the workflow card shows the
                         delivery status; the panel still changes it. */}
                     {native && item.committedRevisionNumber == null && (
@@ -890,13 +908,13 @@ export function ItemDetail({
           {!branchScreen && (
             <aside
               data-desktop-item-panel
-              className="hidden w-72 shrink-0 overflow-y-auto border-l bg-shell/60 xl:block 2xl:w-80"
+              className="hidden w-72 shrink-0 overflow-y-auto border-l bg-shell/60 @min-[53rem]/frame:block @min-[100rem]/frame:w-80"
             >
               {panel}
             </aside>
           )}
           {panelOpen && (
-            <div className="fixed inset-0 z-40 xl:hidden">
+            <div className="fixed inset-0 z-40 @min-[53rem]/frame:hidden">
               <button
                 aria-label="Close details"
                 className="absolute inset-0 bg-black/30"
@@ -904,7 +922,7 @@ export function ItemDetail({
               />
               <aside className="absolute inset-y-0 right-0 w-[min(360px,90vw)] overflow-y-auto border-l bg-background shadow-xl">
                 <div className="flex h-11 items-center justify-between border-b px-4 text-sm font-medium">
-                  Details
+                  Review & details
                   <Button
                     variant="ghost"
                     size="icon"

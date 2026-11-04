@@ -32,6 +32,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 type Entry = {
   item: WorkItem;
@@ -324,6 +325,7 @@ export function Inbox() {
         >
           <Settings2 className="size-3.5" /> Notification settings
         </Link>
+        <LittoLauncher />
       </header>
       <div className="min-h-0 flex-1">
         {view === "todo" ? (

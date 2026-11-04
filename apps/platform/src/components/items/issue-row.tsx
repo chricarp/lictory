@@ -149,13 +149,13 @@ export const IssueRow = memo(function IssueRow({
         </span>
       )}
       {!compact && milestone && (
-        <span className="hidden xl:inline-flex">
+        <span className="hidden @min-[65rem]/frame:inline-flex">
           <MilestoneBadge milestone={milestone} />
         </span>
       )}
       {!compact && parent && (
         <span
-          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground 2xl:inline-flex"
+          className="hidden max-w-45 items-center gap-1 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground @min-[81rem]/frame:inline-flex"
           title={parent.title}
         >
           <TypeIcon
@@ -191,12 +191,12 @@ export const IssueRow = memo(function IssueRow({
         className={
           compact
             ? undefined
-            : "md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap xl:w-52"
+            : "md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
         }
       />
       {!compact && (
         // A fixed slot keeps assignee and time aligned on rows without checks.
-        <span className="hidden w-16 shrink-0 md:inline-flex xl:w-24">
+        <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
           <ReadinessBar item={item} labelled />
         </span>
       )}
@@ -225,7 +225,7 @@ export const IssueRow = memo(function IssueRow({
             userId={item.assigneeId}
             name={memberName(item.assigneeId)}
             size="xs"
-            className="hidden 2xl:inline-grid"
+            className="hidden @min-[81rem]/frame:inline-grid"
           />
         )
       )}

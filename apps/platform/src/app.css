@@ -6,15 +6,3 @@
 @source "./";
 @source "../../../packages/ui/src";
 @source "../../../packages/core/src/lib";
-
-/* Litto's dock, when open on a wide screen, takes a column of its own: the
-   page narrows instead of being covered, and the item list beside an item
-   steps aside so the document and its review rail stay readable. */
-@media (min-width: 1280px) {
-  html[data-dock-open] #main {
-    padding-right: 452px;
-  }
-  html[data-dock-open] [data-work-item-list] {
-    display: none;
-  }
-}

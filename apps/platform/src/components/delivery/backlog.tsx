@@ -51,6 +51,7 @@ import {
   TeamFilterPicker,
   useTeamFilter,
 } from "@lictory/platform/components/delivery/board";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 const DAY = 86_400_000;
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
@@ -322,6 +323,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 <Plus className="size-3.5" /> New item
               </Button>
             )}
+            <LittoLauncher className="ml-1" />
           </div>
         </header>
         <p className="text-[13px] text-muted-foreground">
@@ -717,8 +719,10 @@ export function BacklogColumns() {
     >
       <span className="min-w-0 flex-1">Item</span>
       <span className="w-36 shrink-0">Specification</span>
-      <span className="size-3.5 shrink-0 xl:hidden" />
-      <span className="hidden w-24 shrink-0 xl:inline">Delivery</span>
+      <span className="size-3.5 shrink-0 @min-[65rem]/frame:hidden" />
+      <span className="hidden w-24 shrink-0 @min-[65rem]/frame:inline">
+        Delivery
+      </span>
       <span className="w-7 shrink-0 text-center">Est.</span>
       <span className="size-4 shrink-0" />
     </div>
@@ -823,11 +827,13 @@ export function BacklogRow({
       {/* Delivery status, named where there is room so it is never mistaken
           for the specification's refinement state. */}
       <span
-        className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground xl:w-24"
+        className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground @min-[65rem]/frame:w-24"
         title={status ? `Delivery status: ${status.name}` : undefined}
       >
         <StatusIcon category={status?.category} color={status?.color} />
-        <span className="hidden truncate xl:inline">{status?.name}</span>
+        <span className="hidden truncate @min-[65rem]/frame:inline">
+          {status?.name}
+        </span>
       </span>
       <span className="inline-flex w-7 shrink-0 justify-center">
         {estimate && (

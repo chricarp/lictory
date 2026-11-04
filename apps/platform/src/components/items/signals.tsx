@@ -52,7 +52,7 @@ export function ReviewSignal({
           className={cn(
             "inline-flex items-center gap-0.5",
             // Below xl a blocked row keeps the blocker and approvals.
-            !compact && blocked && "max-xl:hidden",
+            !compact && blocked && "@max-[65rem]/frame:hidden",
           )}
           title={`${item.openThreads} open discussion${item.openThreads > 1 ? "s" : ""}`}
         >
@@ -84,7 +84,9 @@ export function ReviewSignal({
           )}
           {approved}/{total}
           {!compact && state !== "approved" && (
-            <span className="ml-0.5 hidden xl:inline">approved</span>
+            <span className="ml-0.5 hidden @min-[65rem]/frame:inline">
+              approved
+            </span>
           )}
         </span>
       )}
@@ -128,7 +130,9 @@ export function ReadinessBar({
         ))}
       </span>
       {item.readinessPassed}/{item.readinessTotal}
-      {labelled && <span className="-ml-1 hidden xl:inline">checks</span>}
+      {labelled && (
+        <span className="-ml-1 hidden @min-[65rem]/frame:inline">checks</span>
+      )}
     </span>
   );
 }

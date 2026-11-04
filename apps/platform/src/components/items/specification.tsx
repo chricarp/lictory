@@ -297,7 +297,7 @@ function Reader({
                   onClick={() => dock.open()}
                 >
                   <IntelligenceMark className="size-3.5 text-primary" /> Ask
-                  Lictory
+                  Litto
                 </Button>
               )}
             </div>

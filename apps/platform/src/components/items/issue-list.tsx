@@ -70,6 +70,7 @@ import {
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { PriorityIcon } from "@lictory/platform/components/items/properties";
 import { ColorDot } from "@lictory/platform/components/items/labels";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 export function IssueList({
   items,
@@ -655,6 +656,7 @@ export function IssueList({
               {!compact && (createLabel ?? "New item")}
             </Button>
           )}
+          {!compact && <LittoLauncher className="ml-1" />}
         </div>
       </header>
       {description && !compact && (
@@ -937,8 +939,12 @@ export function IssueList({
                           className="ml-auto hidden items-center gap-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase md:flex"
                         >
                           <span className="w-7 text-center">Est.</span>
-                          <span className="mr-3 w-36 xl:w-52">Review</span>
-                          <span className="w-16 xl:w-24">Checks</span>
+                          <span className="mr-3 w-36 @min-[65rem]/frame:w-52">
+                            Review
+                          </span>
+                          <span className="w-16 @min-[65rem]/frame:w-24">
+                            Checks
+                          </span>
                           <span className="w-7 text-center">Who</span>
                           <span className="hidden w-14 text-right sm:block">
                             Updated

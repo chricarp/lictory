@@ -44,6 +44,15 @@ panel for agreeing on what to build.
   their columns and keep them aligned. A faint diagonal hatch (`--hatch`) only
   fills the trays that frame illustrations and the sign-in backdrop.
 
+- **Layout.** On desktop the navigation sits on the gray shell and the work
+  sits in one rounded white frame beside it, so pane dividers end at the
+  frame instead of the window edge. Litto's side sheet is a second frame
+  beside the first. Panes inside the frame size to the frame (a named
+  container, `@container/frame`), not the window: the item list shows from
+  1040px of frame, the review rail from 848px (a "Review & details" drawer
+  otherwise). Opening Litto therefore folds only what no longer fits; a large
+  display keeps everything open.
+
 Personal colour themes override colours only, so structure, type and radius
 stay Lictory's.
 

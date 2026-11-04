@@ -82,6 +82,7 @@ import { DockProvider } from "@lictory/platform/components/intelligence/dock/sto
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
+import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -379,7 +380,7 @@ export function Shell({
             id={sidebarId}
             ref={sidebarRef}
             className={cn(
-              "hidden shrink-0 flex-col border-r bg-sidebar lg:flex",
+              "hidden shrink-0 flex-col bg-sidebar lg:flex",
               sidebarCollapsed ? "w-12" : "w-[232px]",
             )}
           >
@@ -397,47 +398,57 @@ export function Shell({
               </aside>
             </div>
           )}
-          <div className="relative flex min-w-0 flex-1 flex-col bg-background lg:my-0">
-            <div className="flex h-11 items-center gap-2 border-b px-3 lg:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Open navigation"
-                onClick={() => setDrawer(true)}
-              >
-                <Menu className="size-4" />
-              </Button>
-              <span className="text-sm font-medium">
-                {project?.name ?? organization.name}
-              </span>
-              <div className="ml-auto flex items-center gap-1">
+          {/* The work sits in one framed surface on the shell; Litto's side
+              sheet, when open, is a second surface beside it. Panes inside
+              the frame size to the frame (a named container), not to the
+              window, so opening Litto only folds what no longer fits. */}
+          <div className="flex min-w-0 flex-1 min-[1440px]:gap-3 min-[1440px]:py-3 min-[1440px]:pr-3 lg:gap-2 lg:py-2 lg:pr-2">
+            <div
+              data-app-frame
+              className="@container/frame relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background min-[1440px]:rounded-[20px] lg:rounded-2xl lg:shadow-(--shadow-border)"
+            >
+              <div className="flex h-11 items-center gap-2 border-b px-3 lg:hidden">
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Search"
-                  onClick={() => openPalette()}
+                  aria-label="Open navigation"
+                  onClick={() => setDrawer(true)}
                 >
-                  <Search className="size-4" />
+                  <Menu className="size-4" />
                 </Button>
-                {project && canCreate && (
+                <span className="text-sm font-medium">
+                  {project?.name ?? organization.name}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Create"
-                    onClick={() => openCreate()}
+                    aria-label="Search"
+                    onClick={() => openPalette()}
                   >
-                    <Plus className="size-4" />
+                    <Search className="size-4" />
                   </Button>
-                )}
+                  {project && canCreate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Create"
+                      onClick={() => openCreate()}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  )}
+                  <LittoLauncher compact />
+                </div>
               </div>
+              <main
+                id="main"
+                tabIndex={-1}
+                className="min-h-0 flex-1 overflow-hidden outline-none"
+              >
+                {children}
+              </main>
             </div>
-            <main
-              id="main"
-              tabIndex={-1}
-              className="min-h-0 flex-1 overflow-hidden outline-none"
-            >
-              {children}
-            </main>
             {dockReady && (
               <Suspense fallback={null}>
                 <IntelligenceDock />
