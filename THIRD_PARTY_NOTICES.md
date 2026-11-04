@@ -9,19 +9,14 @@ of third-party dependencies or a guarantee of copyright in generated artwork.
 
 ## Materials distributed as source
 
-| Material                                          | Location                              | Upstream and retained terms                                                                                                                                                 |
-| ------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Better UI agent skill                             | `.agents/skills/better-ui`            | [Jakub Krehel's skills](https://github.com/jakubkrehel/skills), MIT; notice alongside the skill                                                                             |
-| Emil design engineering skill                     | `.agents/skills/emil-design-eng`      | [Emil Kowalski's skills](https://github.com/emilkowalski/skills), MIT; notice alongside the skill                                                                           |
-| Stageshow agent skill, kit, examples and tools    | `.agents/skills/stageshow`            | [Benji Taylor's skills](https://github.com/benjitaylor/skills/tree/main/stageshow), MIT; license and `NOTICE.md` (third-party names, marks and artwork) alongside the skill |
-| Stageshow kit used by the website's illustrations | `apps/marketing/src/vendor/stageshow` | The same Stageshow kit, MIT; license alongside the copy                                                                                                                     |
-| shadcn skill and its assets                       | `.agents/skills/shadcn`               | [shadcn/ui](https://github.com/shadcn-ui/ui), MIT; notice alongside the skill                                                                                               |
-| UI primitives adapted through shadcn              | `packages/ui/src`                     | [shadcn/ui](https://github.com/shadcn-ui/ui), [MIT notice](LICENSES/shadcn-ui.txt)                                                                                          |
+| Material                                          | Location                              | Upstream and retained terms                                                                                                |
+| ------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Stageshow kit used by the website's illustrations | `apps/marketing/src/vendor/stageshow` | [Benji Taylor's Stageshow kit](https://github.com/benjitaylor/skills/tree/main/stageshow), MIT; license alongside the copy |
+| UI primitives adapted through shadcn              | `packages/ui/src`                     | [shadcn/ui](https://github.com/shadcn-ui/ui), [MIT notice](LICENSES/shadcn-ui.txt)                                         |
 
-`skills-lock.json` records the installed skill source and content fingerprint.
-The license notices were retrieved from the listed upstream projects. The
-original upstream commit IDs were not recorded by the installer; preserve the
-fingerprints and notices when updating or redistributing these copies.
+Third-party agent skills are not vendored. `skills-lock.json` records their
+sources and content fingerprints so they can be restored locally with the skills
+CLI; see [agent setup](docs/operations/development.md#agents).
 The app verification skill is project-specific original material.
 
 ## Fonts and icons shipped through dependencies

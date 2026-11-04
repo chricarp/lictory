@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Third-party agent skills are restored locally from skills-lock.json.
+.agents/skills/*
+!.agents/skills/test-lictory-app/
+
 # Next.js
 .next/
 .open-next/
