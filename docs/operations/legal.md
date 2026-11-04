@@ -6,7 +6,9 @@ Two different things need legal notices, and they never share them:
   `/privacy` and `/terms-of-service` pages of `apps/marketing` are the
   website operator's own notices for these two sites only. They are operator
   content kept in this repository; the websites are never shipped to
-  self-hosting users ([websites](websites.md)).
+  self-hosting users ([websites](websites.md)). They link to the
+  [self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy)
+  for what an installation processes.
 - **A Lictory installation.** Each self-hosted installation is run by its own
   operator, who is the controller for its users and publishes their own terms
   and privacy notice. The platform links to them through `LEGAL_TERMS_URL` and
@@ -16,9 +18,11 @@ Two different things need legal notices, and they never share them:
 
 The websites accept no user input: no accounts, forms, comments or uploads,
 and documentation search runs in the browser. The notices therefore cover only
-request data at Cloudflare, PostHog analytics on `lictory.com` (cookieless
+request data at Cloudflare, PostHog analytics on `lictory.com` (through the
+Worker's first-party `/relay`, behind the c15t consent banner; cookieless
 without consent, a first-party identifier with it; the docs have no
-analytics) and email correspondence. The terms are website terms of use: they
+analytics, see [product analytics](../internals/analytics.md#consent)) and
+email correspondence. The terms are website terms of use: they
 form no account contract, do not govern the MIT-licensed software and choose no
 governing law, exclusive court or liability limitation. Do not add clauses that
 would need a separately accepted contract (for Italy, Civil Code Articles
@@ -59,9 +63,16 @@ them in the provider consoles, and change the notice if any stops being true:
 - **Email:** the provider of the published contact address processes
   correspondence; replies and requests are kept for at most 24 months unless a
   claim or obligation requires longer.
-- `NEXT_PUBLIC_ANALYTICS_CONSENT` stays unset (cookieless before consent). If
-  it is set to `strict`, rewrite the analytics section: nothing would then be
-  collected without consent.
+- `ANALYTICS_CONSENT` stays unset in the `websites` environment (built in as
+  `NEXT_PUBLIC_ANALYTICS_CONSENT`; cookieless before consent). If it is set to
+  `strict`, rewrite the analytics section: nothing would then be collected
+  without consent. Removing the PostHog variables or adding any other script or
+  provider also changes the processing: update
+  `apps/marketing/src/lib/legal/privacy.ts` in the same change.
+- **Legitimate interest:** before relying on cookieless analytics, assess and
+  document the legitimate interest and how an objection is honored. Cookieless
+  IP/user-agent hashes are not assumed anonymous. Consent is stored locally by
+  c15t; its offline mode keeps no server-side consent evidence register.
 
 Change `legalVersion` in `apps/marketing/src/lib/site.ts` whenever the text
 changes; it dates both pages and their sitemap entries.
@@ -98,5 +109,5 @@ accounts. An operator who needs that evidence must arrange it separately.
   necessary storage, separate optional consent and access to the extended
   notice.
 
-Reassess the text when the websites start accepting input, add vendors or
-analytics features, or begin offering a paid or hosted service.
+Reassess the text when the websites start accepting input, their processing
+or vendors change, or the project begins offering a paid or hosted service.

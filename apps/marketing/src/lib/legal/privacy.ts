@@ -4,6 +4,8 @@ import type { LegalSection } from "@lictory/marketing/components/legal/legal-doc
 // operator content, not part of the Lictory software: self-hosted
 // installations never show it (docs/operations/legal.md). The operator's
 // identity comes from the build environment (LegalOperator), never from here.
+// When the websites' processing changes (analytics settings, ANALYTICS_CONSENT,
+// hosting, new third-party services), update this notice in the same change.
 export const privacySections: LegalSection[] = [
   {
     id: "scope",
@@ -15,7 +17,9 @@ This notice covers the two public websites of the Lictory open-source project:
 - **lictory.com** (and www.lictory.com), the project website; and
 - **docs.lictory.com**, the documentation.
 
-It does not cover a Lictory installation. Lictory is self-hosted software: each installation is run by its own operator, who controls the data of its users and is responsible for its own privacy notice. Installations send no telemetry to the Lictory project or to us. It also does not cover GitHub, where the source code, issues and discussions are hosted; GitHub is a separate controller under its own privacy statement.`,
+It does not cover a Lictory installation. Lictory is self-hosted software: each installation is run by its own operator, who controls the data of its users and is responsible for its own privacy notice. Installations send no telemetry to the Lictory project or to us, and connect to external services only when their operator configures them; the [self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy) lists each one. We cannot see, export, correct or delete data in an installation: send requests about that data to the installation's operator.
+
+It also does not cover GitHub, where the source code, issues, discussions and release images (ghcr.io/chricarp/lictory-*) are hosted; GitHub is a separate controller under its own privacy statement. Downloading the source code or the release images sends no data to us.`,
   },
   {
     id: "no-input",
@@ -28,7 +32,7 @@ We therefore process only:
 2. on lictory.com only, privacy-friendly usage statistics (section 4); and
 3. the messages you choose to send us (section 5).
 
-We do not sell personal data, use it for advertising, build profiles of visitors or make automated decisions about anyone.`,
+We do not sell personal data, use it for advertising, build profiles of visitors or make automated decisions about anyone. Analytics are never required to read the websites or to download, install or use Lictory.`,
   },
   {
     id: "delivery",
@@ -37,7 +41,7 @@ We do not sell personal data, use it for advertising, build profiles of visitors
 
 **Why and on what basis.** To deliver the pages, keep them available and protect them against attacks and abuse. This is necessary for our legitimate interests in operating secure websites (Article 6(1)(f) GDPR), and you cannot use a website without it.
 
-**Who.** Both websites are static files served by **Cloudflare, Inc.**, which processes these data on our behalf as a processor under its data processing addendum. We keep no access logs of our own. Cloudflare may keep security and network records for a short period, as described in its own documentation.
+**Who.** Both websites are static files served by **Cloudflare, Inc.**, which processes these data on our behalf as a processor under its data processing addendum. We keep no access logs of our own. Cloudflare may keep security and network records for a short period, as described in its own documentation. Cloudflare operates a global network, so a request can be handled in a data centre outside the European Economic Area; such transfers rely on the safeguards in Cloudflare's data processing addendum, such as the European Commission's standard contractual clauses.
 
 The pages load no third-party scripts, fonts, images or embedded content: fonts and images are served from the same website.`,
   },
@@ -46,21 +50,21 @@ The pages load no third-party scripts, fonts, images or embedded content: fonts 
     title: "Usage statistics on lictory.com",
     body: `We use **PostHog** to understand how many people visit lictory.com and which pages they find useful. docs.lictory.com uses no analytics at all.
 
-Your browser never contacts PostHog directly: requests go to lictory.com/relay and are forwarded to PostHog's EU servers. The relay forwards the event with your IP address and your browser's user-agent and language (PostHog needs the first two for the visitor count described below), never cookies. Session recording, heatmaps, click capture, page text and form capture are all disabled. Addresses are sent without their query string or fragment.
+Your browser never contacts PostHog directly: requests go to lictory.com/relay and are forwarded to PostHog's EU servers. The relay forwards the event with your IP address and your browser's user-agent and language (PostHog needs the first two for the visitor count described below), never cookies. Session recording, heatmaps, click capture, page text and form capture are all disabled. Addresses are sent without their query string or fragment, and page titles are removed.
 
 The first time you visit, a banner lets you choose. Until you accept, and whenever you reject or withdraw consent, statistics are collected **without cookies**:
 
 - **Without your consent (cookieless).** Nothing is stored on your device to recognize you: no analytics cookie and no identifier in local storage. PostHog counts unique visitors with a hash of your IP address, user-agent and a secret salt that changes every day, so the same visitor cannot be followed from one day to the next. PostHog does not store your IP address with the events. Events record the page viewed, the referring page, browser, operating system, device type, screen size and an approximate location (country and city) derived from your IP address. These events are pseudonymous rather than anonymous, so we treat them as personal data. The legal basis is our legitimate interest in measuring the reach and usefulness of an open-source project with minimal data (Article 6(1)(f) GDPR). We consider this interest not to be overridden by your interests or rights, because the data are minimized, cannot be linked to your name, and are never used for advertising.
 - **With your consent.** PostHog also stores a random identifier in a first-party cookie and in local storage on lictory.com, so that repeat visits from the same browser can be recognized. The identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR and the national rules implementing Article 5(3) of the ePrivacy Directive). You can withdraw it at any time.
 
-Open **Privacy preferences** in the footer of lictory.com to change your choice at any time. Withdrawing consent deletes PostHog's cookie and storage from your browser and returns to cookieless statistics. It does not affect the lawfulness of processing before withdrawal.
+Open **Privacy preferences** in the footer of lictory.com to change your choice at any time. Your choice is stored in your browser by the c15t consent manager, without an external consent service. Withdrawing consent deletes PostHog's cookie and storage from your browser and reloads the page, which returns to cookieless statistics. It does not affect the lawfulness of processing before withdrawal, and it does not erase events already collected.
 
 **Processor and location.** PostHog Inc. processes these data on our behalf under its data processing agreement, in its EU cloud region. If PostHog or one of its subprocessors accesses data from outside the European Economic Area, the transfer relies on the safeguards in that agreement, such as the European Commission's standard contractual clauses or the EU-U.S. Data Privacy Framework where the recipient is certified.`,
   },
   {
     id: "contact",
     title: "Messages you send us",
-    body: `If you email us, we process your email address, your name if you give it, and the content of your message, to answer you and handle your request. The legal basis is our legitimate interest in responding to people who contact us (Article 6(1)(f) GDPR), or steps you ask us to take before entering into an agreement (Article 6(1)(b)). Where you exercise a privacy right, we process the request to comply with our legal obligations (Article 6(1)(c)).
+    body: `If you email us, we process your email address, your name if you give it, and the content of your message, to answer you and handle your request. The legal basis is our legitimate interest in responding to people who contact us (Article 6(1)(f) GDPR), or steps you ask us to take before entering into an agreement (Article 6(1)(b)). Where you exercise a privacy right, or binding law otherwise requires it, we process the request to comply with our legal obligations (Article 6(1)(c)).
 
 Our email provider processes these messages on our behalf. Do not send sensitive information, such as health data, that your message does not need.
 
@@ -106,7 +110,7 @@ You also have the right to lodge a complaint with a data protection supervisory 
   {
     id: "changes",
     title: "Security, children and changes",
-    body: `Both websites are served only over HTTPS. The analytics relay strips cookies and authorization headers before forwarding anything.
+    body: `Both websites are served only over HTTPS. The analytics relay strips cookies and authorization headers before forwarding anything. Report a security vulnerability in Lictory or the websites privately through [GitHub private vulnerability reporting](https://github.com/chricarp/lictory/security/advisories/new), not in a public issue.
 
 The websites are aimed at software professionals and are not directed at children.
 

@@ -14,7 +14,9 @@ The websites only provide information about Lictory: you cannot create an accoun
 These terms do not govern the Lictory software or any installation of it:
 
 - **The software** is open source. Your rights to use, copy, modify and distribute it come solely from its license, the MIT License, published with the [source code](https://github.com/chricarp/lictory). Nothing in these terms restricts those rights.
-- **An installation** of Lictory is operated by whoever runs it, under that operator's own terms and privacy notice. We do not operate a hosted Lictory service and are not a party to your relationship with an installation's operator.`,
+- **An installation** of Lictory is operated by whoever runs it, usually your employer or organization, under that operator's own terms and privacy notice. We do not operate a hosted Lictory service and are not a party to your relationship with an installation's operator.
+
+The [Privacy Notice](/privacy) explains how personal data is handled on the websites. It is information, not part of these terms.`,
   },
   {
     id: "content",
@@ -28,21 +30,21 @@ The license covers copyright, not the “Lictory” name and logo, which identif
     title: "Information, not advice",
     body: `We write the websites carefully, but they describe software that changes. Features, instructions, comparisons with other products and guides may be incomplete, out of date or not suited to your situation. Check the documentation for the version you run and test changes before relying on them.
 
-Comparisons with other products reflect our understanding at the date shown on the page and are not endorsed by their owners. Product names belong to their respective owners. Guides are general information about software practice, not professional, legal or security advice.
+Comparisons with other products reflect our understanding at the date shown on the page and are not endorsed by their owners. Product names belong to their respective owners. Guides are general information about software practice, not professional, legal or security advice: following an installation or security guide does not make an installation secure or compliant, and its operator remains responsible for it.
 
-Links to other websites, such as GitHub, are provided for convenience. Those websites are operated by others under their own terms; we are not responsible for their content.`,
+Links to other websites, such as GitHub, are provided for convenience. Those websites are operated by others under their own terms; we are not responsible for their content. Taking part in the project on GitHub, for example by opening an issue or pull request, is also governed by the repository's contribution guide and code of conduct.`,
   },
   {
     id: "use",
     title: "Acceptable use",
-    body: `Do not misuse the websites: do not attempt to gain unauthorized access, disrupt or overload them, circumvent their security, or use them to distribute malicious software. Automated access, including by search engines and AI assistants, is welcome within the limits published in robots.txt, provided it does not impair the websites for others.
+    body: `Do not misuse the websites: do not attempt to gain unauthorized access, disrupt or overload them, circumvent their security, misuse the analytics relay for anything other than the website's own statistics, or use them to distribute malicious software. Automated access, including by search engines and AI assistants, is welcome within the limits published in robots.txt, provided it does not impair the websites for others.
 
-Please report security vulnerabilities in the websites or the software privately, as described in the project's security policy on GitHub, rather than publicly.`,
+Security research must avoid disruption and must not access other people's data. Please report security vulnerabilities in the websites or the software privately through [GitHub private vulnerability reporting](https://github.com/chricarp/lictory/security/advisories/new), rather than in a public issue.`,
   },
   {
     id: "availability",
     title: "Availability and changes",
-    body: `We provide the websites free of charge and may change, suspend or discontinue them, or any part of them, at any time. We do not guarantee that they will always be available or error free.
+    body: `We provide the websites free of charge and may change, suspend or discontinue them, or any part of them, at any time. We do not guarantee that they will always be available or error free. Released versions of the software remain available under their license independently of the websites.
 
 We may update these terms when the websites change. The version date at the top of this page shows when they last changed; the version in force when you use the websites applies.`,
   },

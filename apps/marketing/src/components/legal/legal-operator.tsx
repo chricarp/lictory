@@ -1,13 +1,10 @@
+import { setting } from "@lictory/marketing/lib/setting";
+
 // The website operator's identity and contact, compiled in at build time from
 // the deployment's environment (for lictory.com, the GitHub environment
 // `websites`). Never committed and never inferred from a brand, repository
 // author, hosting provider or authentication identity: without a name and an
 // email the notices say they are drafts.
-function setting(value: string | undefined) {
-  const trimmed = value?.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
-
 export function LegalOperator() {
   const name = setting(process.env.LICTORY_LEGAL_NAME);
   const email = setting(process.env.LICTORY_LEGAL_EMAIL);

@@ -47,6 +47,8 @@ x-server-environment: &server-environment
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-}
+  SMTP_SECURE: ${SMTP_SECURE:-}
+  SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:-}
@@ -194,7 +196,7 @@ services:
         condition: service_healthy
 
   zero-cache:
-    image: ${ZERO_IMAGE:-rocicorp/zero:1.11.2@sha256:a76d2247c7030793e849f82a5e762616e91e648212e5e064a326870cabe3c4f1}
+    image: ${ZERO_IMAGE:-rocicorp/zero:1.11.3@sha256:d1ad384ea14eee10e0a3180a281ef8b943924993c06d8e47a36017b9bdcc7c55}
     <<: *hardening
     restart: unless-stopped
     networks: [internal]

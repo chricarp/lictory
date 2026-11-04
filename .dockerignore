@@ -24,7 +24,6 @@ tests
 docs
 *.log
 .DS_Store
-.vercel
 deploy/**/*.env
 !deploy/**/*.env.example
 # The documentation site deploys only to Cloudflare; no image builds or ships

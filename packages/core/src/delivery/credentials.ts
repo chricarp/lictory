@@ -5,6 +5,8 @@ import {
   randomBytes,
 } from "node:crypto";
 
+import { env, type Environment } from "@lictory/core/lib/env";
+
 // Delivery credentials (API tokens) are encrypted at rest with AES-256-GCM.
 // The key comes from DELIVERY_CREDENTIALS_KEY, or is derived from
 // BETTER_AUTH_SECRET so local development needs no extra setup. The
@@ -12,6 +14,20 @@ import {
 // organization's row fails to decrypt.
 
 const VERSION = "v1";
+
+/**
+ * Production without DELIVERY_CREDENTIALS_KEY. A new installation (no stored
+ * credentials) must then not store any: its tokens would depend on
+ * BETTER_AUTH_SECRET. An installation that already stored credentials with the
+ * derived key keeps using it, so upgrades never make them unreadable (the API
+ * and worker warn at startup). See docs/operations/configuration.md.
+ */
+export function derivedCredentialsKeyInProduction(environment: Environment) {
+  return (
+    env("NODE_ENV", environment) === "production" &&
+    env("DELIVERY_CREDENTIALS_KEY", environment) === undefined
+  );
+}
 
 function key(secret = process.env.DELIVERY_CREDENTIALS_KEY) {
   const material = secret?.trim() ? secret : process.env.BETTER_AUTH_SECRET;

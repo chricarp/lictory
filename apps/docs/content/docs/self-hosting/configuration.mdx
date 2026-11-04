@@ -39,9 +39,15 @@ email through **Resend** when `RESEND_API_KEY` is set, otherwise through your
 | Setting                               | Meaning                                                  |
 | ------------------------------------- | -------------------------------------------------------- |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Resend, with the sender address                          |
-| `SMTP_HOST`, `SMTP_PORT`              | Your SMTP server                                         |
+| `SMTP_HOST`, `SMTP_PORT`              | Your SMTP server: 587 (STARTTLS), 465 (TLS) or 25        |
+| `SMTP_SECURE`                         | TLS from the first byte; `true` by default on port 465   |
+| `SMTP_REQUIRE_TLS`                    | `true` refuses to send unless STARTTLS succeeds          |
 | `SMTP_USER`, `SMTP_PASSWORD`          | Credentials, when the server requires them               |
 | `SMTP_FROM`                           | Sender address, such as `Lictory <no-reply@example.com>` |
+
+A transport needs its sender: a partial setting stops the API and worker with
+the problem listed. Without any transport they start, log a warning, and send
+no email, so password sign-up cannot be completed (single sign-on still works).
 
 ## File storage
 

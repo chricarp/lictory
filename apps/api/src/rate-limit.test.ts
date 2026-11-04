@@ -40,8 +40,12 @@ async function startReplica(): Promise<Replica> {
       HOST: "127.0.0.1",
       PORT: "0",
       SHUTDOWN_TIMEOUT_MS: "1000",
-      ZERO_QUERY_API_KEY: "zero-test-key",
-      ZERO_MUTATE_API_KEY: "zero-test-key",
+      // Production startup validation: secrets of at least 32 bytes and a
+      // sender for whichever mail transport the environment provides.
+      ZERO_QUERY_API_KEY: "zero-test-key-for-rate-limit-tests-only",
+      ZERO_MUTATE_API_KEY: "zero-test-key-for-rate-limit-tests-only",
+      SMTP_FROM: "Lictory <no-reply@lictory.local>",
+      RESEND_FROM_EMAIL: "Lictory <no-reply@lictory.local>",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

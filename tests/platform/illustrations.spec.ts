@@ -5,7 +5,7 @@ import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "../helpers/onboarding-helpers";
 import { illustrationAssets } from "@lictory/ui/illustration-assets";
-import { appHome } from "../helpers/app-urls";
+import { appHome, inApp } from "../helpers/app-urls";
 
 const email = "illustration-states@example.test";
 const password = "Local-test-password-123";
@@ -203,7 +203,10 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(320);
     await page.getByRole("button", { name: "Go to your workspace" }).click();
-    await expect(page).toHaveURL(appHome);
+    // "/" forwards straight into the person's workspace, so the root may
+    // already be gone when the address is read.
+    await expect(page).not.toHaveURL(/missing-illustration-page/);
+    await expect(page).toHaveURL(inApp);
     await page.goto("/auth-error");
     await expect(
       page.getByRole("heading", { name: "Sign-in interrupted" }),

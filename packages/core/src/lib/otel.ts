@@ -4,12 +4,15 @@ import {
   BatchLogRecordProcessor,
   LoggerProvider,
 } from "@opentelemetry/sdk-logs";
+import { posthogServerConfig } from "@lictory/core/lib/analytics/config";
+import type { Environment } from "@lictory/core/lib/env";
 
-const projectToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-
-function createLogProvider() {
-  if (!projectToken || !host) return null;
+// Server log export to PostHog, on when POSTHOG_PROJECT_TOKEN and
+// POSTHOG_HOST are set.
+export function createLogProvider(source: Environment = process.env) {
+  const config = posthogServerConfig(source);
+  if (!config) return null;
+  const { token: projectToken, host } = config;
   try {
     return new LoggerProvider({
       resource: resourceFromAttributes({ "service.name": "lictory" }),

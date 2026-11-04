@@ -23,7 +23,7 @@ https://<your app host> ──▶ Caddy gateway (TLS, SPA assets)
 | `proxy`      | `lictory-proxy`         | Private app gateway: API, streaming, Zero and retained SPA assets                 |
 | `api`        | `lictory-api`           | Hono API, Better Auth, files, Zero query/mutate endpoints and document metadata   |
 | `worker`     | `lictory-api`           | Durable AI, email and delivery jobs; delivery status refresh and automatic cycles |
-| `zero-cache` | `rocicorp/zero:1.11.2`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume   |
+| `zero-cache` | `rocicorp/zero:1.11.3`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume   |
 | `postgres`   | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                  |
 | `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before activation                          |
 | `ops`        | `lictory-ops`           | One-shot backups, restores and monitoring                                         |
@@ -34,7 +34,8 @@ container is built, pulled or started.
 
 File bytes stay in a private S3-compatible bucket (see
 [private file storage](../internals/file-storage.md)); email goes through
-your SMTP server or Resend. File storage, OAuth and AI are optional.
+your SMTP server or Resend (see [Email](#email)). File storage, OAuth and AI
+are optional.
 
 ## Telemetry and privacy
 
@@ -75,7 +76,7 @@ the maintainer's choice and may change.
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
 worker and ops tooling also join an egress-only network for external
-APIs (object storage, Resend, OpenAI, Jira, PostHog, OAuth providers). The host firewall
+APIs (object storage, Resend or SMTP, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only.
 
 The proxy:
@@ -173,14 +174,17 @@ templates, under `/opt/lictory/deploy`.
 
 `deploy/provision/new-environment.sh <environment>` creates `.env` from
 `deploy/env/self-hosted.env.example` (or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
-`ZERO_ADMIN_PASSWORD`. Fill in the rest by hand:
+`ZERO_ADMIN_PASSWORD`. Fill in the rest by hand. The API, the worker and the
+migration runner validate their settings at startup and stop with every problem
+listed (missing required values, placeholders, secrets shorter than 32 bytes);
+see the [configuration reference](./configuration.md).
 
 | Setting                                                    | Notes                                                                                                                                                                          |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically. `SITE_HOST` (the marketing site) is optional: without it, website links use `PLATFORM_URL`                                |
 | `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                                                                                                 |
 | `R2_*` or `S3_*`                                           | Optional attachment bucket and object read/write credentials; one of the two, see file storage docs                                                                            |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL`                      | Required for production email                                                                                                                                                  |
+| `RESEND_*` or `SMTP_*`                                     | A mail transport and sender ([Email](#email)); without one, email is disabled                                                                                                  |
 | `BACKUP_*`                                                 | `BACKUP_TARGET` (`s3`, `local`, `rclone`, `none`) and its storage with its own credentials; `BACKUP_AGE_RECIPIENTS` is a public key ([recovery](recovery.md#where-backups-go)) |
 | `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                                                                                                      |
 | `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                                                                                                       |
@@ -198,9 +202,34 @@ website origin from `SITE_URL`, the legal links from `LEGAL_TERMS_URL`/
 `LEGAL_PRIVACY_URL` and the browser analytics settings from
 `POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST`) into each SPA document it serves; the
 browser reads it there instead of from the bundle. Change `.env` and restart
-the API to change them. When Cloudflare serves the platform SPA (lictory.com),
-its Worker writes the same configuration from its own variables
-([websites on Cloudflare](websites.md)).
+the API to change them.
+
+## Email
+
+Sign-up requires email verification and invitations arrive by email. Without
+a mail transport, production email is disabled: the API and worker start and
+log a `config.warning` naming the settings to add, sending fails with the same
+message, and password sign-up cannot be completed (single sign-on still
+works). Production never falls back to a local mail server. A partial setting,
+such as a transport without an explicit sender, stops the API and worker with
+the problem listed. Each service logs the transport it uses (without
+credentials) when it starts.
+
+Resend is used when `RESEND_API_KEY` is set, with `RESEND_FROM_EMAIL` as sender
+(a domain verified in Resend). Otherwise Lictory sends through any SMTP server:
+
+| Setting                      | Meaning                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `SMTP_HOST`                  | Server name; required in production without Resend                                                    |
+| `SMTP_PORT`                  | `587` by default (submission with STARTTLS); `465` for TLS from the first byte; `25` for a relay      |
+| `SMTP_SECURE`                | TLS from the first byte; defaults to `true` on port 465 and `false` elsewhere                         |
+| `SMTP_REQUIRE_TLS`           | `true` refuses to send unless STARTTLS succeeds; recommended for any server reached over the internet |
+| `SMTP_USER`, `SMTP_PASSWORD` | Authentication, when the server requires it                                                           |
+| `SMTP_FROM`                  | Sender, for example `Lictory <no-reply@mail.example.com>`; required in production                     |
+
+Message-IDs use the platform host (`PLATFORM_URL`). Configure SPF, DKIM and
+DMARC for the sender's domain with your provider. Outside production, blank
+settings fall back to Mailpit (`localhost:1025`).
 
 ## Database roles
 
@@ -249,12 +278,11 @@ and rollback targets retain their original marketing digest.
 Dependency installation precedes copying application source; release versions
 are stamped only in the browser/website build stages.
 
-Production builds and exact-candidate verification run concurrently. The
-platform SPA is prepared alongside backend images, then uploaded only after
-stable publication and healthy backend activation. Its artifact is scoped to
-the current workflow run and selected version. The marketing website and the
+Release builds and exact-candidate verification run concurrently. The
+platform SPA is built into the proxy and API images, so every installation
+serves the client from its own gateway. The marketing website and the
 documentation are not released with the product; they deploy from `main`. No
-production deployment skips verification, backup, migration or Zero catch-up.
+deployment skips verification, backup, migration or Zero catch-up.
 See [release performance](development.md#release-performance) for measuring the
 two-minute warm-run target and the cold-run limits.
 
@@ -361,8 +389,8 @@ steps:
    no requests; replacing the proxy itself refuses connections for about two
    seconds (open WebSockets reconnect).
 
-This is Zero's expand order: database, then API, then the Cloudflare client
-release. The private gateway retains compatible SPA assets for origin fallback. Contract changes (drop or
+This is Zero's expand order: database, then API, then the client the gateway
+serves. The gateway retains the previous release's SPA assets for open tabs. Contract changes (drop or
 rename) go the other way across releases: first a release that stops using
 the column, table, query or mutator, then a later release with the contract
 migration. The previous release must always work against the new schema,

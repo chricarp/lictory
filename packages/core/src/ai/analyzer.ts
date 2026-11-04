@@ -7,6 +7,7 @@ import {
   aiSeverities,
 } from "@lictory/core/contracts/ai";
 import { itemReviewSystem, pullRequestSystem } from "@lictory/core/ai/prompts";
+import { env, type Environment } from "@lictory/core/lib/env";
 import type {
   ItemReviewContext,
   PullRequestContext,
@@ -98,6 +99,10 @@ export type Analyzer = {
 };
 
 export const DEFAULT_AI_MODEL = "gpt-6-luna";
+// LICTORY_AI_MODEL, or the default when it is unset or blank.
+export function aiModelId(source: Environment = process.env) {
+  return env("LICTORY_AI_MODEL", source) ?? DEFAULT_AI_MODEL;
+}
 export function aiConfigured() {
   return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
@@ -107,11 +112,9 @@ export class AnalyzerError extends Error {}
 export function createAnalyzer(
   options: { model?: LanguageModel; modelId?: string } = {},
 ): Analyzer {
-  const modelId =
-    options.modelId ?? process.env.LICTORY_AI_MODEL?.trim() ?? DEFAULT_AI_MODEL;
+  const modelId = options.modelId ?? aiModelId();
   const model =
-    options.model ??
-    createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
+    options.model ?? createOpenAI({ apiKey: env("OPENAI_API_KEY") })(modelId);
   const run = <T>(
     schema: z.ZodType<T>,
     name: string,
