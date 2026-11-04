@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Domain and TLS, email, file storage, single sign-on, Lictory Intelligence and analytics. Every optional integration stays off until you configure it.
+description: Domain and TLS, email, file storage, single sign-on, Lictory Intelligence, legal notices and analytics. Every optional integration stays off until you configure it.
 ---
 
 Settings live in the environment's `.env` file, by default
@@ -21,7 +21,7 @@ picks the change up:
 | ---------------------- | -------------------------------------------------------------------------------------------- |
 | `APP_HOST`             | The host Lictory is served on, such as `lictory.example.com`                                 |
 | `ACME_EMAIL`           | Contact address for certificate issuance                                                     |
-| `SITE_HOST`            | The host of the public website the application links to (required)                           |
+| `SITE_HOST`            | Your public website, where the logo links (optional; without it, the app itself)             |
 | `PLATFORM_URL`         | The origin users open, when it is not `https://APP_HOST` (another proxy, port or plain HTTP) |
 | `CADDY_GLOBAL_OPTIONS` | Gateway options, for example an internal ACME CA (`acme_ca https://…`) or `local_certs`      |
 
@@ -151,6 +151,20 @@ With a key configured, an organization administrator still decides whether
 Lictory Intelligence may run for their organization (**Organization settings
 → Lictory Intelligence**). Content people ask it to analyze is sent to
 OpenAI; uploaded documents are converted to text on your server first.
+
+## Legal notices
+
+| Setting             | Meaning                                         |
+| ------------------- | ----------------------------------------------- |
+| `LEGAL_TERMS_URL`   | Your terms of service (an absolute `https` URL) |
+| `LEGAL_PRIVACY_URL` | Your privacy notice (an absolute `https` URL)   |
+
+As the operator of your installation, you are responsible for its terms and
+privacy notice; Lictory ships none. With either setting, the sign-up and
+sign-in pages tell people that creating an account accepts your terms or
+acknowledges your notice, and the consent banner links to your notice.
+Without them, the app shows no acceptance notice and no legal links: it
+never points your users to another operator's terms.
 
 ## Analytics
 

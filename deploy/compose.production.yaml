@@ -34,6 +34,10 @@ x-server-environment: &server-environment
   # The public website (legal pages, product home). Optional: without
   # SITE_HOST (self-hosted installations) the API uses PLATFORM_URL.
   SITE_URL: ${SITE_HOST:+https://${SITE_HOST}}
+  # The operator's own legal notices, linked at sign-up and from the consent
+  # banner. Unset: the app shows no acceptance notice and no legal links.
+  LEGAL_TERMS_URL: ${LEGAL_TERMS_URL:-}
+  LEGAL_PRIVACY_URL: ${LEGAL_PRIVACY_URL:-}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
   DELIVERY_CREDENTIALS_KEY: ${DELIVERY_CREDENTIALS_KEY:?}
   # zero-cache presents this key to /api/zero/{query,mutate}.

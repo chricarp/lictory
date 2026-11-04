@@ -10,6 +10,7 @@ import { siteUrl } from "@lictory/core/lib/auth-base-url";
 import { env } from "@lictory/core/lib/env";
 import {
   analyticsSettings,
+  legalLinks,
   publicConfigTag,
 } from "@lictory/core/lib/public-config";
 import { socialPreviewHead } from "@lictory/core/lib/social-preview-kind";
@@ -74,6 +75,10 @@ export function documentRoutes() {
       socialPreviewHead(url.pathname, site) +
       publicConfigTag({
         siteUrl: site,
+        legal: legalLinks({
+          LEGAL_TERMS_URL: process.env.LEGAL_TERMS_URL,
+          LEGAL_PRIVACY_URL: process.env.LEGAL_PRIVACY_URL,
+        }),
         analytics: analyticsSettings({
           POSTHOG_PROJECT_TOKEN: process.env.POSTHOG_PROJECT_TOKEN,
           POSTHOG_HOST: process.env.POSTHOG_HOST,

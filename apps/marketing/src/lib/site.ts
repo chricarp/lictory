@@ -119,7 +119,7 @@ export const publicPages: readonly PublicPage[] = [
     path: "/privacy",
     title: "Privacy Notice",
     description:
-      "How the Lictory websites handle personal data and analytics consent, and who controls the data in self-hosted installations.",
+      "Which personal data the Lictory websites process, including cookieless analytics on lictory.com, and how to exercise your privacy rights.",
     changeFrequency: "yearly",
     priority: 0.3,
     lastModified: legalVersion.date,
@@ -128,7 +128,7 @@ export const publicPages: readonly PublicPage[] = [
     path: "/terms-of-service",
     title: "Terms of Service",
     description:
-      "Terms for using the Lictory websites. The self-hosted software is licensed separately under the MIT License.",
+      "Terms for using the Lictory project websites, lictory.com and docs.lictory.com.",
     changeFrequency: "yearly",
     priority: 0.3,
     lastModified: legalVersion.date,

@@ -6,6 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { appearanceBootScript } from "../../packages/core/src/lib/appearance";
 import {
   analyticsSettings,
+  legalLinks,
   publicConfigTag,
 } from "../../packages/core/src/lib/public-config";
 
@@ -65,6 +66,7 @@ function developmentConfig(env: Record<string, string>): Plugin {
         publicConfigTag({
           // Empty: the browser falls back to the page's own origin.
           siteUrl: site ? new URL(site).origin : "",
+          legal: legalLinks(env),
           analytics: analyticsSettings(env),
         }),
       );

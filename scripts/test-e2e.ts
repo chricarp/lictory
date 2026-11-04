@@ -82,6 +82,9 @@ const appEnv = {
   R2_SECRET_ACCESS_KEY: "",
   R2_BUCKET_NAME: "",
   R2_S3_ENDPOINT: "",
+  // The installation's own legal notices (synthetic): sign-up links to them.
+  LEGAL_TERMS_URL: `${siteUrl}/terms-of-service`,
+  LEGAL_PRIVACY_URL: `${siteUrl}/privacy`,
   // Analytics stay off: no browser or server event leaves the test machine.
   POSTHOG_PROJECT_TOKEN: "",
   NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "",
@@ -290,6 +293,11 @@ try {
       ...buildEnv,
       NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
       NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
+      // A synthetic operator, never a developer's own legal details.
+      LICTORY_LEGAL_NAME: "Example Operator",
+      LICTORY_LEGAL_EMAIL: "privacy@example.org",
+      LICTORY_LEGAL_ADDRESS: "",
+      LICTORY_LEGAL_REGISTRATION: "",
     });
     await run("bun", ["run", "--filter", "@lictory/docs", "build"], {
       ...buildEnv,

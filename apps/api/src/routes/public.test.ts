@@ -5,8 +5,8 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { documentRoutes } from "@lictory/api/routes/public";
 
-// One build, two installations: the SPA document takes its site URL and
-// analytics settings from the environment of the process serving it.
+// One build, two installations: the SPA document takes its site URL, legal
+// links and analytics settings from the environment of the process serving it.
 const saved = { ...process.env };
 let directory: string;
 
@@ -46,12 +46,18 @@ void test("the same build serves each installation its own origins and analytics
   const first = await documentFor({
     PLATFORM_URL: "https://work.first.example",
     SITE_URL: "https://first.example",
+    LEGAL_TERMS_URL: "https://first.example/terms",
+    LEGAL_PRIVACY_URL: "https://first.example/privacy",
     POSTHOG_PROJECT_TOKEN: "phc_first",
     POSTHOG_HOST: "https://eu.i.posthog.com",
     ANALYTICS_CONSENT: "strict",
   });
   assert.deepEqual(configOf(first), {
     siteUrl: "https://first.example",
+    legal: {
+      termsUrl: "https://first.example/terms",
+      privacyUrl: "https://first.example/privacy",
+    },
     analytics: {
       projectToken: "phc_first",
       host: "https://eu.i.posthog.com",
@@ -63,11 +69,14 @@ void test("the same build serves each installation its own origins and analytics
   const second = await documentFor({
     PLATFORM_URL: "https://lictory.second.example",
     SITE_URL: "",
+    LEGAL_TERMS_URL: "",
+    LEGAL_PRIVACY_URL: "",
     POSTHOG_PROJECT_TOKEN: "",
     POSTHOG_HOST: "",
   });
   assert.deepEqual(configOf(second), {
     siteUrl: "https://lictory.second.example",
+    legal: { termsUrl: null, privacyUrl: null },
     analytics: null,
   });
   assert.ok(!second.includes("first.example"));

@@ -1,71 +1,113 @@
 # Public legal notices
 
-The `/privacy` and `/terms-of-service` pages on `lictory.com` cover only the
-project's websites, `lictory.com` and `docs.lictory.com`. The hosted Lictory
-service is retired: the project hosts no installation and receives no data
-from any. Lictory is self-hosted software under the MIT License; each
-installation's operator is the controller for its data and writes its own
-notices. The pages say so and link to the
-[self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy).
+Two different things need legal notices, and they never share them:
 
-What the pages describe, and where it comes from:
+- **The Lictory websites** (`lictory.com` and `docs.lictory.com`). The
+  `/privacy` and `/terms-of-service` pages of `apps/marketing` are the
+  website operator's own notices for these two sites only. They are operator
+  content kept in this repository; the websites are never shipped to
+  self-hosting users ([websites](websites.md)). They link to the
+  [self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy)
+  for what an installation processes.
+- **A Lictory installation.** Each self-hosted installation is run by its own
+  operator, who is the controller for its users and publishes their own terms
+  and privacy notice. The platform links to them through `LEGAL_TERMS_URL` and
+  `LEGAL_PRIVACY_URL` (below) and never to the lictory.com notices.
 
-- **Hosting:** both websites are static exports served by Cloudflare Workers
-  ([websites on Cloudflare](websites.md)). The documentation loads no
-  analytics or third-party scripts.
-- **Analytics:** `lictory.com` uses PostHog EU Cloud through the Worker's
-  first-party `/relay`, behind the c15t consent banner
-  ([product analytics](../internals/analytics.md#consent)). The privacy notice
-  describes the default consent mode (`ANALYTICS_CONSENT` unset in the
-  `websites` environment): cookieless, anonymous capture before a choice or
-  after rejection, and a stored PostHog identifier only after consent.
-  Setting `ANALYTICS_CONSENT=strict`, removing the PostHog variables or
-  adding any other script or provider changes the processing: update
-  `apps/marketing/src/lib/legal/privacy.ts` and `legalVersion` in the same
-  change.
-- **Operator:** Christian Carpinelli, an individual in Italy, confirmed as the
-  websites' operator. Provider configurations (Cloudflare, PostHog EU) are
-  operator declarations, not guarantees inferred from SDK options or verified
-  vendor contracts.
+## Website notices
 
-Set `LICTORY_LEGAL_ADDRESS` and `LICTORY_LEGAL_EMAIL` to a correspondence address
-and monitored public contact. Without either, both pages explicitly display a
-draft notice. `LICTORY_LEGAL_NAME` overrides the operator name and
-`LICTORY_LEGAL_REGISTRATION` supplies registration/VAT details if applicable.
-These public values are compiled into the website at build time: for
+The websites accept no user input: no accounts, forms, comments or uploads,
+and documentation search runs in the browser. The notices therefore cover only
+request data at Cloudflare, PostHog analytics on `lictory.com` (through the
+Worker's first-party `/relay`, behind the c15t consent banner; cookieless
+without consent, a first-party identifier with it; the docs have no
+analytics, see [product analytics](../internals/analytics.md#consent)) and
+email correspondence. The terms are website terms of use: they
+form no account contract, do not govern the MIT-licensed software and choose no
+governing law, exclusive court or liability limitation. Do not add clauses that
+would need a separately accepted contract (for Italy, Civil Code Articles
+1341–1342).
+
+The operator's identity is never committed. `LegalOperator` reads it at build
+time:
+
+| Variable                     | Shown as                                      |
+| ---------------------------- | --------------------------------------------- |
+| `LICTORY_LEGAL_NAME`         | Operator (controller); required               |
+| `LICTORY_LEGAL_EMAIL`        | Privacy and legal contact; required           |
+| `LICTORY_LEGAL_ADDRESS`      | Postal address; optional, shown only when set |
+| `LICTORY_LEGAL_REGISTRATION` | VAT/registration details; optional            |
+
+Without a name and email both pages display a draft notice; nothing falls back
+to a person's name. GDPR Article 13 requires the controller's identity and
+contact details, so a published notice needs at least those two. For
 lictory.com they are variables of the GitHub environment `websites`
-([websites on Cloudflare](websites.md#github-configuration)). Rerun **Deploy
-marketing website** after changing them.
+([websites on Cloudflare](websites.md#github-configuration)); rerun **Deploy
+marketing website** after changing them, since they are compiled into the
+pages. Whether a postal address is also required (for example by national
+e-commerce rules for a commercial service) is the operator's decision.
 
-The terms avoid contractual liability caps, exclusive jurisdiction or other
-clauses that would need separate acceptance under Italian Civil Code Articles
-1341–1342. Do not add such clauses without designing that acceptance. The
-software's warranty disclaimer is the MIT License's, not the website terms'.
+### Operator declarations the website notice relies on
 
-Before relying on cookieless analytics on the websites, assess and document
-the legitimate interest and how an objection is honored. Cookieless IP/user-agent
-hashes are not assumed anonymous. Consent is stored locally by c15t; its offline
-mode keeps no server-side consent evidence register.
+The privacy notice states facts engineering cannot verify from code. Confirm
+them in the provider consoles, and change the notice if any stops being true:
 
-## Self-hosted installations
+- **PostHog:** an EU Cloud project; _Cookieless server hash mode_ enabled
+  (otherwise cookieless events are dropped); _Discard client IP data_ enabled
+  (the notice says IP addresses are not stored with events); session replay, heatmaps,
+  autocapture and surveys off; event retention of at most 12 months; the
+  PostHog DPA accepted.
+- **Cloudflare:** the DPA accepted; Workers Logs and Logpush not enabled for
+  `lictory-marketing` and `lictory-docs` (the notice says no access logs are
+  kept).
+- **Email:** the provider of the published contact address processes
+  correspondence; replies and requests are kept for at most 24 months unless a
+  claim or obligation requires longer.
+- `ANALYTICS_CONSENT` stays unset in the `websites` environment (built in as
+  `NEXT_PUBLIC_ANALYTICS_CONSENT`; cookieless before consent). If it is set to
+  `strict`, rewrite the analytics section: nothing would then be collected
+  without consent. Removing the PostHog variables or adding any other script or
+  provider also changes the processing: update
+  `apps/marketing/src/lib/legal/privacy.ts` in the same change.
+- **Legitimate interest:** before relying on cookieless analytics, assess and
+  document the legitimate interest and how an objection is honored. Cookieless
+  IP/user-agent hashes are not assumed anonymous. Consent is stored locally by
+  c15t; its offline mode keeps no server-side consent evidence register.
 
-The platform's sign-up and sign-in screens still say that creating an account
-accepts "our" Terms of Service and acknowledges "our" Privacy Notice, linked
-on the installation's website origin (`SITE_URL`, otherwise the
-installation's own origin, which serves no legal pages). That wording dates
-from the hosted service. Replacing it with operator-configurable notice links
-is a product change outside these pages. Until it lands, operators
-should know that those links do not lead to notices that describe their
-installation.
+Change `legalVersion` in `apps/marketing/src/lib/site.ts` whenever the text
+changes; it dates both pages and their sitemap entries.
+
+## Installation notices
+
+`LEGAL_TERMS_URL` and `LEGAL_PRIVACY_URL` (absolute http(s) URLs, read by the
+API at runtime and written into the SPA document) are the installation
+operator's terms and privacy notice. With them, sign-up and social sign-in say
+that creating an account accepts the terms and acknowledges the notice, and
+the consent banner links to the notice. Without them there is no acceptance
+notice and no legal link: Lictory never presents another operator's terms as
+an installation's own. Invalid values count as unset. Analytics and their
+consent banner exist only when the installation configures PostHog
+([product analytics](../internals/analytics.md#consent)).
+
+Acceptance is not recorded: the platform does not persist a versioned
+acceptance receipt or collect acceptance of amended terms from existing
+accounts. An operator who needs that evidence must arrange it separately.
 
 ## Legal basis for the drafting choices
 
-- [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj): transparency, lawful bases,
-  processor agreements, rights, retention and international transfers.
-- [European Commission: controller and processor responsibilities](https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/application-gdpr_en).
-- [Garante cookie guidance](https://www.garanteprivacy.it/home/docweb/-/docweb-display/docweb/9677876): necessary storage, separate optional consent and access to the extended notice.
-- [Italian Legislative Decree 70/2003](https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2003-04-09;70): accessible provider and contracting information.
-- [Italian Civil Code Article 1341](https://def.giustiziatributaria.gov.it/DocTribFrontend/executePrintArticolo.do?articolo=Articolo+1341&codiceOrdinamento=0000000000013410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000&id=%7B9E93F1BE-06AE-4F24-8E9D-B838F7E0C2E6%7D): specific acceptance of certain standard terms.
+- [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj): Articles 6 (lawful
+  bases), 7(3) (withdrawal), 11 (processing not requiring identification),
+  12–13 (transparency), 15–21 (rights), 28 (processors), 44–49 (transfers) and
+  77 (complaints).
+- [ePrivacy Directive Article 5(3)](https://eur-lex.europa.eu/eli/dir/2002/58/oj):
+  consent for storing or reading information on a device unless strictly
+  necessary for a service the user requested.
+- [EDPB Guidelines 2/2023 on the technical scope of Article 5(3)](https://www.edpb.europa.eu/our-work-tools/documents/public-consultations/2023/guidelines-22023-technical-scope-art-53-eprivacy_en):
+  why cookieless analytics still involves personal data and why the notice
+  treats it as pseudonymous.
+- [Garante cookie guidance](https://www.garanteprivacy.it/home/docweb/-/docweb-display/docweb/9677876):
+  necessary storage, separate optional consent and access to the extended
+  notice.
 
-Reassess the text when the websites' processing or vendors change, or if the
-project ever offers a service again.
+Reassess the text when the websites start accepting input, their processing
+or vendors change, or the project begins offering a paid or hosted service.

@@ -142,7 +142,23 @@ export const declarations: readonly Declaration[] = [
     default:
       "PLATFORM_URL (API, worker); `https://lictory.com` in production, else `http://localhost:3100` (website)",
     description:
-      "The marketing website's origin, for legal pages and other public links.",
+      "The marketing website's origin, for public links such as the platform's home link.",
+  },
+  {
+    name: "LEGAL_TERMS_URL",
+    group: "Public URLs",
+    services: ["api", "platform"],
+    default: "no acceptance notice and no terms link",
+    description:
+      "The installation operator's terms of service (an absolute http(s) URL; anything else counts as unset), linked at sign-up and sign-in. See docs/operations/legal.md.",
+  },
+  {
+    name: "LEGAL_PRIVACY_URL",
+    group: "Public URLs",
+    services: ["api", "platform"],
+    default: "no acceptance notice and no privacy link",
+    description:
+      "The installation operator's privacy notice (an absolute http(s) URL; anything else counts as unset), linked at sign-up, sign-in and from the consent banner.",
   },
   {
     name: "API_ORIGIN",
@@ -697,16 +713,15 @@ export const declarations: readonly Declaration[] = [
     name: "LICTORY_LEGAL_NAME",
     group: "Website legal notices",
     services: ["website"],
-    default: "Christian Carpinelli",
     description:
-      "Operator named on the legal pages. Publicly displayed. See docs/operations/legal.md.",
+      "Operator (controller) named on the website's legal pages; without it they remain drafts. Publicly displayed. See docs/operations/legal.md.",
   },
   {
     name: "LICTORY_LEGAL_ADDRESS",
     group: "Website legal notices",
     services: ["website"],
     description:
-      "Operator correspondence address; without it the legal pages remain drafts.",
+      "Optional operator postal address, shown on the legal pages when set.",
   },
   {
     name: "LICTORY_LEGAL_EMAIL",
