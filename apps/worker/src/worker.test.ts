@@ -366,7 +366,7 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
   }
 });
 
-void test("in production the worker refuses to start without a mail transport", async () => {
+void test("in production the worker refuses to start with partial mail settings", async () => {
   const child = spawn(process.execPath, ["apps/worker/src/index.ts"], {
     env: {
       ...process.env,
@@ -375,7 +375,8 @@ void test("in production the worker refuses to start without a mail transport", 
       NODE_ENV: "production",
       PLATFORM_URL: "http://localhost:3001",
       RESEND_API_KEY: "",
-      SMTP_HOST: "",
+      SMTP_HOST: "smtp.example.com",
+      SMTP_FROM: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -386,7 +387,6 @@ void test("in production the worker refuses to start without a mail transport", 
     child.on("exit", (exitCode) => resolve(exitCode)),
   );
   assert.notEqual(code, 0);
-  assert.match(output, /Email is not configured/);
-  assert.match(output, /SMTP_HOST/);
+  assert.match(output, /SMTP_FROM is required in production/);
   assert.doesNotMatch(output, /worker\.started/);
 });

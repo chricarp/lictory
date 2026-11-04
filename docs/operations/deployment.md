@@ -206,10 +206,14 @@ its Worker writes the same configuration from its own variables
 
 ## Email
 
-Sign-up requires email verification and invitations arrive by email, so in
-production the API and worker refuse to start until a mail transport and an
-explicit sender are configured; the error names the settings to add. Each
-service logs the transport it uses (without credentials) when it starts.
+Sign-up requires email verification and invitations arrive by email. Without
+a mail transport, production email is disabled: the API and worker start and
+log a `config.warning` naming the settings to add, sending fails with the same
+message, and password sign-up cannot be completed (single sign-on still
+works). Production never falls back to a local mail server. A partial setting,
+such as a transport without an explicit sender, stops the API and worker with
+the problem listed. Each service logs the transport it uses (without
+credentials) when it starts.
 
 Resend is used when `RESEND_API_KEY` is set, with `RESEND_FROM_EMAIL` as sender
 (a domain verified in Resend). Otherwise Lictory sends through any SMTP server:

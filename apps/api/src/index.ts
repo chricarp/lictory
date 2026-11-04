@@ -18,8 +18,8 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 const port = envInteger("PORT") ?? 3002;
 const hostname = env("HOST") ?? "0.0.0.0";
 const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
-// Sign-up requires email verification: production refuses to start without a
-// mail transport or sender, with a message naming the settings to add.
+// Partial mail settings stop the API (configuration rules); without any
+// transport it starts with email disabled and a startup warning.
 const mail = mailTransportSummary();
 
 // File storage is optional: without it attachments are disabled. A partial or

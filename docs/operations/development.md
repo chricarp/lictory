@@ -82,17 +82,17 @@ Production images and the single-server stack are described in
 
 ## Daily commands
 
-| Command               | Purpose                                            |
-| --------------------- | -------------------------------------------------- |
-| `bun run dev`         | Applications (after `docker compose up -d`)        |
+| Command               | Purpose                                                                         |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `bun run dev`         | Applications (after `docker compose up -d`)                                     |
 | `bun run check`       | Types, lint, formatting, unused code, PR assets and the configuration reference |
-| `bun run format`      | Apply Prettier                                     |
-| `bun test src/<area>` | Focused domain tests while you work                |
-| `bun run test:sync`   | Synchronization invariants against PostgreSQL      |
-| `bun run test:e2e`    | Production build plus browser workflows            |
-| `bun run test:smoke`  | Production build plus the `@smoke` workflows only  |
-| `bun run db:generate` | Committed SQL migration after a schema change      |
-| `bun run db:check`    | Fail when the schema has no matching migration     |
+| `bun run format`      | Apply Prettier                                                                  |
+| `bun test src/<area>` | Focused domain tests while you work                                             |
+| `bun run test:sync`   | Synchronization invariants against PostgreSQL                                   |
+| `bun run test:e2e`    | Production build plus browser workflows                                         |
+| `bun run test:smoke`  | Production build plus the `@smoke` workflows only                               |
+| `bun run db:generate` | Committed SQL migration after a schema change                                   |
+| `bun run db:check`    | Fail when the schema has no matching migration                                  |
 
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and

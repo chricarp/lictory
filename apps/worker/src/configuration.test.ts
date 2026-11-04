@@ -28,13 +28,12 @@ void test("the worker refuses to start with every configuration problem listed",
     assert.equal(result.status, 1, result.stderr);
     assert.match(
       result.stderr,
-      /Lictory worker cannot start: 4 configuration problems/,
+      /Lictory worker cannot start: 3 configuration problems/,
     );
     for (const name of [
       "DATABASE_URL is required",
       "PLATFORM_URL is required in production",
       "WORKER_DB_POOL_MAX must be a whole number of at least 1",
-      "Email is not configured",
     ])
       assert.ok(result.stderr.includes(name), name);
   } finally {

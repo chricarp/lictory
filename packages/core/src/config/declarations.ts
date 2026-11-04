@@ -145,23 +145,6 @@ export const declarations: readonly Declaration[] = [
       "The marketing website's origin, for legal pages and other public links.",
   },
   {
-    name: "NEXT_PUBLIC_PLATFORM_URL",
-    group: "Public URLs",
-    services: ["website"],
-    default:
-      "`https://app.lictory.com` in production, else `http://localhost:3000`",
-    description:
-      "Platform origin the website links to for sign-in and sign-up. Embedded at build time.",
-  },
-  {
-    name: "VITE_SITE_URL",
-    group: "Public URLs",
-    services: ["platform"],
-    default: "`https://lictory.com`",
-    description:
-      "Website origin the platform links to for legal pages and the product home. Embedded at build time.",
-  },
-  {
     name: "API_ORIGIN",
     group: "Public URLs",
     services: ["platform", "website", "edge-proxy"],
@@ -328,6 +311,60 @@ export const declarations: readonly Declaration[] = [
     description: "Entra tenant that may sign in.",
   },
   {
+    name: "OIDC_ISSUER",
+    group: "Authentication",
+    services: ["api"],
+    value: { type: "origin" },
+    description:
+      "Company single sign-on through OpenID Connect: the issuer URL (HTTPS; `http://localhost` only for development). Set it with `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`; see docs/operations/sso.md.",
+  },
+  {
+    name: "OIDC_CLIENT_ID",
+    group: "Authentication",
+    services: ["api"],
+    description: "Client ID of Lictory's application at the identity provider.",
+  },
+  {
+    name: "OIDC_CLIENT_SECRET",
+    group: "Authentication",
+    services: ["api"],
+    secret: "issued",
+    description:
+      "Client secret of Lictory's application at the identity provider.",
+  },
+  {
+    name: "OIDC_SCOPES",
+    group: "Authentication",
+    services: ["api"],
+    default: "`profile` (plus `openid` and `email`, always requested)",
+    description: "Additional scopes, separated by spaces or commas.",
+  },
+  {
+    name: "OIDC_DISPLAY_NAME",
+    group: "Authentication",
+    services: ["api"],
+    default: "`SSO`",
+    description: "Name on the sign-in button.",
+  },
+  {
+    name: "OIDC_AUTO_CREATE_USERS",
+    group: "Authentication",
+    services: ["api"],
+    default: "`true`",
+    value: { type: "boolean" },
+    description:
+      "`false` lets only people who already have a Lictory account sign in with the identity provider.",
+  },
+  {
+    name: "PASSWORD_LOGIN_ENABLED",
+    group: "Authentication",
+    services: ["api"],
+    default: "`true`",
+    value: { type: "boolean" },
+    description:
+      "`false` makes an SSO-only installation: no password sign-up or sign-in. Requires an identity provider (OIDC, Google or Microsoft).",
+  },
+  {
     name: "OAUTH_PROXY_URL",
     group: "Authentication",
     services: ["api"],
@@ -459,11 +496,56 @@ export const declarations: readonly Declaration[] = [
 
   // ----------------------------------------------------------------- files
   {
+    name: "S3_ENDPOINT",
+    group: "File storage",
+    services: server,
+    value: { type: "origin" },
+    default: "AWS S3 in `S3_REGION`",
+    description:
+      "Endpoint of any S3-compatible service holding attachments (MinIO, Garage, Ceph, AWS, R2). It must be reachable from browsers. Without S3_* (or the R2_* preset) attachments are disabled; a partial setting stops the API. See docs/internals/file-storage.md.",
+  },
+  {
+    name: "S3_REGION",
+    group: "File storage",
+    services: server,
+    default: "`us-east-1` when `S3_ENDPOINT` is set; required for AWS",
+    description: "Region of the attachment bucket.",
+  },
+  {
+    name: "S3_BUCKET",
+    group: "File storage",
+    services: server,
+    description: "Private bucket for attachments.",
+  },
+  {
+    name: "S3_ACCESS_KEY_ID",
+    group: "File storage",
+    services: server,
+    description:
+      "Access key ID with object read and write access to the bucket.",
+  },
+  {
+    name: "S3_SECRET_ACCESS_KEY",
+    group: "File storage",
+    services: server,
+    secret: "issued",
+    description: "Secret for `S3_ACCESS_KEY_ID`.",
+  },
+  {
+    name: "S3_FORCE_PATH_STYLE",
+    group: "File storage",
+    services: server,
+    default: "`true` with `S3_ENDPOINT`, otherwise `false`",
+    value: { type: "boolean" },
+    description:
+      "Address the bucket in the path rather than as a subdomain (most self-hosted services need this).",
+  },
+  {
     name: "R2_ACCOUNT_ID",
     group: "File storage",
     services: server,
     description:
-      "Cloudflare account of the private file bucket. File uploads are unavailable until the account, keys and bucket are set.",
+      "Cloudflare R2 preset instead of S3_* (kept for existing deployments): the account of the private file bucket. Set the account, keys and bucket together.",
   },
   {
     name: "R2_ACCESS_KEY_ID",
@@ -547,6 +629,21 @@ export const declarations: readonly Declaration[] = [
     services: [...server, "website"],
     description:
       "PostHog host embedded in the website build; also a fallback for the server's host.",
+  },
+  {
+    name: "ANALYTICS_CONSENT",
+    group: "Product analytics",
+    services: server,
+    default: "cookieless until consent",
+    description:
+      "`strict`: no analytics load and no server events are sent until a visitor grants Analytics consent. Otherwise PostHog runs cookieless and anonymous before a choice. Only applies with PostHog settings; see docs/operations/deployment.md#telemetry-and-privacy.",
+  },
+  {
+    name: "NEXT_PUBLIC_ANALYTICS_CONSENT",
+    group: "Product analytics",
+    services: ["website"],
+    default: "cookieless until consent",
+    description: "`ANALYTICS_CONSENT` for the website build.",
   },
   {
     name: "VITE_POSTHOG_PROJECT_TOKEN",

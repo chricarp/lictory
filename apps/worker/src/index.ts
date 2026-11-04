@@ -23,8 +23,8 @@ const listenUrl = process.env.DATABASE_URL_UNPOOLED?.trim()
   ? process.env.DATABASE_URL_UNPOOLED.trim()
   : databaseUrl;
 const config = workerConfig(process.env);
-// Notification email needs a transport: production refuses to start without
-// one, with a message naming the settings to add.
+// Partial mail settings stop the worker (configuration rules); without any
+// transport it starts and email jobs fail with the settings to add.
 const mail = mailTransportSummary();
 
 const database = createJobDatabase(databaseUrl, { max: config.poolMax });

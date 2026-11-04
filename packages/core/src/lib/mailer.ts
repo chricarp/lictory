@@ -1,8 +1,9 @@
 // Transport shared by auth and notification email: Resend when RESEND_API_KEY
-// is set, otherwise any SMTP server (Mailpit in local development). Sign-up
-// requires email verification, so production refuses to start without one of
-// them (see docs/operations/deployment.md#email). Deliberately free of
-// Next.js-only imports so background workers can send too.
+// is set, otherwise any SMTP server (Mailpit in local development). Production
+// never falls back to a local server: without a transport, email is disabled
+// (startup warns, sending fails with the settings to add), and partial
+// settings stop the service (see docs/operations/deployment.md#email).
+// Deliberately free of Next.js-only imports so background workers can send too.
 import type { ReactElement } from "react";
 
 import { render } from "@react-email/render";
@@ -26,6 +27,8 @@ export type OutgoingEmail = {
 };
 
 export type MailSettings =
+  // Production without RESEND_API_KEY or SMTP_HOST: nothing is delivered.
+  | { transport: "none"; reason: string }
   | { transport: "resend"; apiKey: string; from: string }
   | {
       transport: "smtp";
@@ -45,7 +48,7 @@ export type MailSettings =
 export class MailConfigurationError extends Error {}
 
 const missingTransport =
-  "Email is not configured. Sign-up and invitations send email, so production needs a mail transport: " +
+  "Email is not configured, so verification, invitation, password reset and notification email are not delivered; password sign-up cannot be completed (single sign-on still works). To send email, " +
   "set SMTP_HOST, SMTP_PORT and SMTP_FROM (plus SMTP_USER and SMTP_PASSWORD when the server requires authentication), " +
   "or RESEND_API_KEY and RESEND_FROM_EMAIL. See docs/operations/deployment.md#email.";
 
@@ -63,8 +66,8 @@ function sender(
   return developmentDefault;
 }
 
-// Blank variables count as unset. Throws MailConfigurationError when
-// production has no transport or no explicit sender.
+// Blank variables count as unset. Throws MailConfigurationError when a
+// production transport has no explicit sender.
 export function mailSettings(source: Environment = process.env): MailSettings {
   const apiKey = env("RESEND_API_KEY", source);
   if (apiKey)
@@ -79,7 +82,8 @@ export function mailSettings(source: Environment = process.env): MailSettings {
     };
   const production = source.NODE_ENV === "production";
   const host = env("SMTP_HOST", source);
-  if (!host && production) throw new MailConfigurationError(missingTransport);
+  if (!host && production)
+    return { transport: "none", reason: missingTransport };
   // 587 (submission) for a configured server; Mailpit's 1025 in development.
   const port = envInteger("SMTP_PORT", source) ?? (production ? 587 : 1025);
   const user = env("SMTP_USER", source);
@@ -101,6 +105,7 @@ export function mailSettings(source: Environment = process.env): MailSettings {
 // with an actionable message) and describes the transport without secrets.
 export function mailTransportSummary(source: Environment = process.env) {
   const settings = mailSettings(source);
+  if (settings.transport === "none") return { transport: "none" as const };
   return settings.transport === "resend"
     ? { transport: "resend" as const }
     : {
@@ -116,6 +121,8 @@ export function mailTransportSummary(source: Environment = process.env) {
 type Sender = (email: OutgoingEmail) => Promise<void>;
 
 export function createSender(settings: MailSettings): Sender {
+  if (settings.transport === "none")
+    return () => Promise.reject(new MailConfigurationError(settings.reason));
   if (settings.transport === "resend") {
     const resend = new Resend(settings.apiKey);
     return async (email) => {

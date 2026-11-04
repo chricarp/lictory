@@ -56,15 +56,27 @@ void test("the production deployment's configuration starts the API and the work
     });
 });
 
-void test("the mail transport rule is reported with the other problems", () => {
-  const { problems } = checkConfiguration(
+void test("the mail transport rule: no transport warns, a partial one is a problem", () => {
+  const none = checkConfiguration(
     "worker",
     { ...production, RESEND_API_KEY: "", SMTP_SECURE: "maybe" },
     rules,
   );
-  assert.equal(problems.length, 2, problems.join("\n"));
-  assert.match(problems[0]!, /SMTP_SECURE must be true or false/);
-  assert.match(problems[1]!, /Email is not configured/);
+  assert.equal(none.problems.length, 1, none.problems.join("\n"));
+  assert.match(none.problems[0]!, /SMTP_SECURE must be true or false/);
+  assert.ok(
+    none.warnings.some((warning) =>
+      warning.includes("Email is not configured"),
+    ),
+    none.warnings.join("\n"),
+  );
+  const partial = checkConfiguration(
+    "worker",
+    { ...production, RESEND_API_KEY: "", SMTP_HOST: "smtp.example.com" },
+    rules,
+  );
+  assert.equal(partial.problems.length, 1, partial.problems.join("\n"));
+  assert.match(partial.problems[0]!, /SMTP_FROM is required in production/);
 });
 
 void test("every problem is listed at once and secrets are never echoed", () => {
@@ -180,8 +192,9 @@ const readers = [
   /process\.env\[\s*["'`]([A-Z][A-Z0-9_]*)["'`]\s*\]/g,
   /import\.meta\.env\.([A-Z][A-Z0-9_]*)/g,
   // env("X"), envInteger("X"), envBoolean("X"), setting("X", …),
-  // milliseconds(env, "X"), value(env, "X"), the mailer's sender("X", …)
-  /\b(?:env|envInteger|envBoolean|setting|milliseconds|value|sender)\(\s*(?:[A-Za-z_]+\s*,\s*)?["']([A-Z][A-Z0-9_]*)["']/g,
+  // milliseconds(env, "X"), value(env, "X"), the mailer's sender("X", …),
+  // read(env, "X") and flag(env, "X", …) (storage and SSO settings)
+  /\b(?:env|envInteger|envBoolean|setting|milliseconds|value|sender|read|flag)\(\s*(?:[A-Za-z_]+\s*,\s*)?["']([A-Z][A-Z0-9_]*)["']/g,
   // Functions that take the environment as `env` or `source`.
   /(?<![.\w])(?:env|source)\.([A-Z][A-Z0-9_]*)\b/g,
 ];

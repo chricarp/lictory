@@ -13,9 +13,12 @@ export type ConfigurationReport = { problems: string[]; warnings: string[] };
 
 /**
  * A rule that spans several variables and lives with the code it protects
- * (such as the mail transport). Returns the problem, or undefined.
+ * (such as the mail transport). Returns the problem (the service does not
+ * start), a warning (it starts and logs it), or undefined.
  */
-export type ConfigurationRule = (source: Environment) => string | undefined;
+export type ConfigurationRule = (
+  source: Environment,
+) => string | { warning: string } | undefined;
 
 const minimumSecretBytes = 32;
 
@@ -123,8 +126,9 @@ export function checkConfiguration(
     if (problem) problems.push(problem);
   }
   for (const rule of rules) {
-    const problem = rule(source);
-    if (problem) problems.push(problem);
+    const result = rule(source);
+    if (typeof result === "string") problems.push(result);
+    else if (result) warnings.push(result.warning);
   }
   // Existing installations may have stored Jira credentials with the key
   // derived from BETTER_AUTH_SECRET; they keep working. New installations

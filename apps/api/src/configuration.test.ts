@@ -30,7 +30,7 @@ void test("the API refuses to start in production with every configuration probl
     assert.equal(result.status, 1, result.stderr);
     assert.match(
       result.stderr,
-      /Lictory api cannot start: 6 configuration problems/,
+      /Lictory api cannot start: 5 configuration problems/,
     );
     for (const name of [
       "DATABASE_URL is required",
@@ -38,9 +38,10 @@ void test("the API refuses to start in production with every configuration probl
       "BETTER_AUTH_SECRET is a placeholder",
       "ZERO_QUERY_API_KEY is shorter than 32 bytes",
       "ZERO_MUTATE_API_KEY is required in production",
-      "Email is not configured",
     ])
       assert.ok(result.stderr.includes(name), name);
+    // Without a mail transport the API warns rather than refusing to start.
+    assert.match(result.stderr, /config\.warning.*Email is not configured/);
     assert.ok(!result.stderr.includes("short-zero-key"));
   } finally {
     rmSync(cwd, { recursive: true, force: true });

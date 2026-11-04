@@ -116,18 +116,29 @@ void test("credentials, sender and Message-ID host come from the configuration",
   );
 });
 
-void test("production without a mail transport or sender refuses to start", () => {
+void test("production without a mail transport disables email instead of using a local server", async () => {
   for (const source of [
     production,
     { ...production, RESEND_API_KEY: " ", SMTP_HOST: "" },
-  ])
-    assert.throws(
-      () => mailTransportSummary(source),
+  ]) {
+    assert.deepEqual(mailTransportSummary(source), { transport: "none" });
+    await assert.rejects(
+      createSender(mailSettings(source))({
+        to: "a@b.c",
+        subject: "Verify",
+        text: "Verify",
+        react: createElement("p", null, "Verify"),
+        idempotencyKey: "none",
+      }),
       (error: unknown) =>
         error instanceof MailConfigurationError &&
         error.message.includes("SMTP_HOST") &&
         error.message.includes("RESEND_API_KEY"),
     );
+  }
+});
+
+void test("a production transport without an explicit sender refuses to start", () => {
   assert.throws(
     () => mailSettings({ ...production, SMTP_HOST: "smtp.example.com" }),
     /SMTP_FROM is required in production/,
