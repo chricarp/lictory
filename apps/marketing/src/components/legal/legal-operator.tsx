@@ -12,17 +12,16 @@ export function LegalOperator() {
 
   return (
     <section
-      aria-label="Service provider and privacy contact"
+      aria-label="Website operator and privacy contact"
       className="mt-8 max-w-3xl rounded-xl border border-border p-5 text-sm leading-6"
     >
       {!complete && (
         <p role="note" className="mb-4 font-medium">
-          Draft: the operator’s contact email and postal address must be
-          completed before public launch. This document is not yet a complete
-          legal notice.
+          Draft: the operator’s contact email and postal address have not been
+          published yet. This document is not yet a complete legal notice.
         </p>
       )}
-      <h2 className="font-semibold">Service provider and privacy contact</h2>
+      <h2 className="font-semibold">Website operator and privacy contact</h2>
       <dl className="mt-3 space-y-2 text-muted-foreground">
         <div>
           <dt className="font-medium text-foreground">Legal name</dt>
@@ -34,7 +33,7 @@ export function LegalOperator() {
         </div>
         <div>
           <dt className="font-medium text-foreground">
-            Email for privacy, support and legal requests
+            Email for privacy and legal requests
           </dt>
           <dd>
             {email ? (

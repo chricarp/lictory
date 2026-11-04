@@ -126,7 +126,7 @@ export const declarations: readonly Declaration[] = [
       "BETTER_AUTH_URL, then `http://localhost:3000` (outside production)",
     value: { type: "origin" },
     description:
-      "The platform's one public origin (`https://app.lictory.com`): Better Auth's base URL, links in email, Jira backlinks and the exact-origin check for cookie-authenticated writes.",
+      "The platform's one public origin (`https://lictory.example.com`): Better Auth's base URL, links in email, Jira backlinks and the exact-origin check for cookie-authenticated writes.",
   },
   {
     name: "BETTER_AUTH_URL",
