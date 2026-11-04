@@ -11,9 +11,9 @@ it is not the supported development environment. The production Dockerfile
 also pairs Bun with Node 24.
 
 For a memory-limited container, allow at least 8 GB of Docker memory. The full
-type-aware ESLint check can exceed Node's default 2 GB heap in that environment;
-if it reports a JavaScript heap limit, run
-`export NODE_OPTIONS=--max-old-space-size=4096` before the verification commands.
+type-aware ESLint check peaks near 4 GB and can exceed Node's default heap (CI
+raises it for that step); if it reports a JavaScript heap limit, run
+`export NODE_OPTIONS=--max-old-space-size=6144` before the verification commands.
 This increases the process heap allowance without filtering or disabling checks.
 
 ```sh
