@@ -1,5 +1,5 @@
 // The supplied Lictory artwork as a mask, so it takes the text color in light
-// and dark themes (docs/internals/brand.md).
+// and dark themes (docs/internals/design.md).
 export function Wordmark() {
   return (
     <span className="inline-flex items-center gap-2">

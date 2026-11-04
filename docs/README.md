@@ -3,10 +3,14 @@
 Product principles, the glossary and engineering conventions live in
 [`AGENTS.md`](../AGENTS.md). Read it first; these documents build on it.
 
-User documentation (concepts, a team guide, self-hosting and integrations) is
+User documentation (concepts, a team guide, terminal workflows, self-hosting
+and integrations) is
 the documentation site in [`apps/docs`](../apps/docs/content/docs), published at
 [docs.lictory.com](https://docs.lictory.com). The documents below are for
 people working on Lictory and operating lictory.com.
+
+For everyday terminal use, start with the hosted [server CLI guide](https://docs.lictory.com/self-hosting/terminal)
+and [coding agent / MCP guide](https://docs.lictory.com/integrations/agents).
 
 ## Working on Lictory
 
@@ -42,13 +46,11 @@ adding domain writes or synchronized entities.
   organizations), deactivation and its history
 - [Two-factor authentication and passkeys](./internals/two-factor-authentication.md):
   factors, the organization requirement and recovery
-- [Private file storage](./internals/file-storage.md)
-- [Profile photos](./internals/profile-photos.md)
-- [Social link previews](./internals/social-previews.md)
-- [Search and AI discoverability](./internals/discoverability.md)
+- [Private file storage and profile photos](./internals/file-storage.md)
+- [Search, AI discoverability and safe social previews](./internals/discoverability.md)
 - [Product analytics](./internals/analytics.md)
-- [Brand identity](./internals/brand.md)
-- [State illustrations and design brief](./internals/illustrations.md)
+- [Identity and illustrations](./internals/design.md): shared artwork, product
+  scenes, empty states and asset delivery
 - [Accessibility](./internals/accessibility.md): the WCAG 2.2 AA target,
   automated lint and browser checks, and known gaps
 
@@ -76,4 +78,4 @@ adding domain writes or synchronized entities.
 - [Versions, release preparation and hotfixes](./operations/releases.md)
 - [Database migrations](./operations/migrations.md)
 - [Public legal notices](./operations/legal.md)
-- [Open-source launch and repository administration](./operations/open-source.md)
+- [Repository administration and publication checks](./operations/open-source.md)

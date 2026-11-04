@@ -1,328 +1,100 @@
-# Open-source launch
+# Repository administration
 
-This runbook separates committed preparation from owner decisions and GitHub
-settings. It is not a certification that the repository is safe to publish.
-Keep the repository private until every blocking gate below has evidence.
-No repository settings, visibility, Git history or credentials are changed by
-adding these files.
+Lictory is distributed as self-hosted software under the root MIT license.
+Contribution terms are in [CONTRIBUTING.md](../../CONTRIBUTING.md); ownership
+declarations and bundled-material provenance are in
+[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Those are the sources
+of truth rather than a second licensing discussion here. Packages remain
+`private` to prevent accidental package publication.
 
-## Licensing
+This runbook covers repository settings and distribution checks. It does not
+certify that an artifact is safe to publish or authorize changing repository
+visibility. Keep completion evidence in the publication issue or release
+record, tied to the exact commit and artifact digests.
 
-The owner selected **MIT**, with Christian Carpinelli named as copyright holder.
-The root `LICENSE` contains the license text; first-party package manifests
-use SPDX `MIT`. CONTRIBUTING.md adopts inbound-equals-outbound terms with no
-CLA, copyright assignment or DCO requirement. Contributors retain copyright.
+## Before first publication
 
-Christian Carpinelli confirmed that the original code and artwork were created
-by him with no third-party ownership exceptions. The bundled third-party source,
-fonts and icons are inventoried in [third-party notices](../../THIRD_PARTY_NOTICES.md).
-Preserved notices accompany those materials. Dependency artifact review remains
-separate: the installed package report flags missing notice files and does not
-establish license compatibility or binary-distribution compliance.
+- Review the rights to contributed code, artwork and fixtures. Preserve the
+  project license and each bundled material's required notices.
+- Inventory the exact distributed dependency binaries, Linux variants and
+  container layers. `bun run licenses:report /tmp/lictory-licenses` inventories
+  the installed tree, not every release artifact; see the notices for its limits.
+- Scan every history ref being published, plus LFS objects, release assets,
+  Actions logs/artifacts, images/layers and issue/PR attachments. Check for
+  credentials, personal data, customer content and internal hostnames. Keep
+  findings outside Git and revoke exposed credentials before cleanup.
+- Test a clean checkout without private dependencies, personal files or paid
+  integrations. Verify core review without AI, both delivery modes, migrations,
+  the published installer, backup and restoration. Record the full local
+  [verification sequence](development.md#full-verification-before-a-pull-request).
+- Review historical releases independently: an old tag or image may predate
+  the current license and notices. Review registry visibility separately from
+  repository visibility.
+- Review remaining hosted-era GitHub environments and variables. Delete only
+  settings confirmed unused after checking deployment history and current workflows.
+- Have the owner review the evidence and decide visibility. Test private
+  vulnerability reporting immediately after publication; the endpoint in
+  [SECURITY.md](../../.github/SECURITY.md) is unavailable while the repo is private.
 
-| Option     | What recipients may do                                                                                                           | Commercial implication                                                                |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| MIT        | Use, modify and redistribute, including proprietary products, retaining the required notice                                      | Very simple adoption; no explicit patent grant in the text                            |
-| Apache-2.0 | Use, modify and redistribute, including proprietary products, with notice obligations and an explicit patent grant               | Alternative with an explicit patent grant; competitors can offer hosted forks         |
-| AGPL-3.0   | Use commercially under copyleft; a modified network service must offer its corresponding source to remote users under section 13 | Encourages sharing service modifications; adds compliance considerations for adopters |
-
-All three permit commercial activity. AGPL does not prohibit competing hosts or
-require everyone merely using a service to publish unrelated code. A
-noncommercial or no-competing-host clause would change the open-source promise.
-Discuss compatibility and obligations for the actual distribution with counsel.
-Do not append custom restrictions to a standard license and keep its name.
-
-MIT permits commercial hosting and proprietary forks. The project itself runs
-no hosted Lictory: the former hosted service is retired, and Lictory is
-distributed only as self-hosted software (release images
-`ghcr.io/chricarp/lictory-*`). Do not split the domain model or weaken
-self-hosted refinement to invent a paywall.
-
-The owner must:
-
-- Confirm the rights holder, employment/contractor assignments and any
-  contributor permissions. AI assistance does not establish ownership.
-- Inventory copied code, vendored agent skills, fonts, icons, illustrations,
-  screenshots, fixtures, transitive dependencies and container contents. Record
-  provenance, exact version, license and required notices. Bun audit reports
-  vulnerabilities; it does not establish license compatibility.
-- Keep the MIT license text, copyright notices and SPDX metadata consistent.
-  Keep packages `private` until intentional package publishing is designed.
-- Preserve third-party notices; add a third-party notice inventory based on the
-  actual artifacts. Do not claim all dependencies use the project's license.
-- The initial contribution policy is inbound-equals-outbound MIT without a
-  mandatory DCO or CLA. Reassess it before changing the licensing strategy.
-  A DCO certifies origin; it does not assign copyright or grant blanket future
-  relicensing rights. If commercial dual licensing is intended, decide whether
-  a reviewed CLA or assignments are needed before contributions arrive.
-- Keep README and CONTRIBUTING aligned with the adopted policy. If DCO is
-  introduced later, document `git commit -s`, the
-  public identity record and recovery for missing sign-offs, and install the
-  DCO check before requiring it. Never let an agent sign for another person.
-- Decide and document name/logo usage separately. Trademark rights and hosted
-  terms are distinct from the software license; retain all rights already
-  granted for third-party assets. The legal notices on `lictory.com` cover only
-  the websites ([public legal notices](legal.md)); they are not a software
-  license and not a self-hosted installation's privacy policy.
-
-Sources: [MIT](https://opensource.org/license/mit),
-[Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0),
-[AGPL-3.0](https://opensource.org/license/agpl-3.0), and
-[Developer Certificate of Origin](https://developercertificate.org/).
-
-## Publication gates
-
-The owner records completion evidence in the launch issue. None of these gates
-is implied complete by the templates in this change.
-
-- [x] Record the owner's original-code/artwork declaration and preserve verified
-      notices for bundled source, agent skills, fonts and icons.
-- [ ] Review the exact notices and obligations for distributed dependency binaries,
-      Linux variants and container OS layers; see THIRD_PARTY_NOTICES.md.
-- [ ] Scan **all history and refs to be published**, not just the working tree,
-      with a current secret scanner (for example Gitleaks). Review findings privately;
-      also inspect Git LFS objects, tags, release assets, Actions logs/artifacts,
-      container images/layers and issue/PR attachments. Check internal hostnames,
-      personal data and real customer fixtures. Keep scan output out of Git.
-- [ ] Revoke/rotate exposed credentials first. Removing a file or rewriting
-      history does not revoke a secret. If history needs rewriting, agree on scope
-      and coordinate clones/forks before doing it; this runbook authorizes no rewrite.
-- [x] Publish the owner-confirmed private conduct contact (`me@chricarp.com`)
-      and enforcement owner in CODE_OF_CONDUCT.md.
-- [x] Document the sole-maintainer reporting limitation; add an independent
-      fallback when a trusted person is available.
-- [ ] Enable GitHub private vulnerability reporting immediately after
-      publication and test it. SECURITY.md routes reports only there; the
-      endpoint is unavailable while the repository is private. Do not route
-      vulnerabilities to public issues.
-- [x] Apply standard labels and protect `main` with PRs, resolved
-      conversations, and no force pushes/deletion.
-- [ ] Require the **Verify** check on `main` (only **Conventional PR title**
-      is required today; see [remaining operator actions](#remaining-operator-actions)).
-- [ ] Complete publication-only settings and review artifact/log exposure below.
-- [ ] Reproduce first checkout from a clean clone with no private packages,
-      company credentials, personal files or optional paid integrations. Verify both
-      delivery modes, core review without AI, migrations and backup restoration.
-- [ ] Run the complete local verification sequence in the development runbook
-      on the final tree. Record the exact commit, commands and results, including
-      environment limitations; never use the application database for this gate.
-- [x] Publish a supported-release/security policy: SECURITY.md supports the
-      latest stable release line only.
-- [ ] Rehearse the published release images and the `lictory` installer on a
-      clean machine; do not advertise one-click self-hosting until it has been
-      demonstrated.
-- [ ] Prepare synthetic demo content and an approved screenshot/short walkthrough
-      for the README, with no customer content. Explain the review workflow first.
-- [ ] Owner makes the visibility decision only after reviewing the evidence.
+Documentation screenshots belong in `apps/docs/public/screenshots`, use
+fictional data and explain current behavior. PR-only evidence belongs on the PR.
+Neither is proof that the other publication checks are complete.
 
 ## GitHub configuration
 
-These are administrator actions, not effects of merging YAML. Use
-[repository settings](https://github.com/chricarp/lictory/settings) and record
-what was actually enabled. No GitHub App installation is needed for issue forms,
-CODEOWNERS, labels or the existing title check.
+Repository settings are live state. Verify them in GitHub; do not treat a
+snapshot in a Markdown file as evidence that protection is enabled.
 
-1. Enable Issues. Keep proposals as issues initially; add Discussions only when
-   someone can moderate it. Set an accurate description, homepage and topics
-   (requirements, collaboration, self-hosted). Set the license to MIT consistently in public project descriptions.
-2. The standard labels have been applied through the API. For future updates, run **Repository labels**
-   manually from Actions. It creates/updates `.github/labels.json` entries without
-   deleting other labels. Review name/color/description changes before running;
-   the token has issues write permission only in that job. The existing
-   `release:stable-api` label has release semantics; it is not a triage marker.
-3. Protect `main` and release branches with a ruleset: block deletion and force
-   pushes, require a PR, resolved conversations, and the **Verify** and
-   **Conventional PR title** checks. Select actual check runs in GitHub (the
-   `main` ruleset requires only **Conventional PR title** today). Require
-   CODEOWNERS approval once an independent reviewer is available. With a sole
-   maintainer, self-approval is impossible: record a narrowly scoped, audited
-   maintainer bypass rather than creating a rule nobody can satisfy. Dismiss
-   stale approvals when new commits land. Keep bypass access minimal.
-4. Prefer squash merges with the conventional PR title. Preserve the maintenance
-   branch merge semantics in the release runbook. Automatically delete merged
-   topic branches; do not automatically merge dependency or AI-generated changes.
-5. Default Actions tokens to read-only and require approval for workflows from
-   outside contributors. Run untrusted PRs only on GitHub-hosted disposable
-   runners without secrets; do not attach public PRs to production/self-hosted
-   runners. Keep third-party actions pinned to full SHAs (Dependabot updates them).
-6. Keep the title workflow's `pull_request_target` metadata-only: never check out
-   PR code, load its scripts or execute its title/body. Use `pull_request` for
-   code checks. Do not grant PR jobs deployment credentials or repository write
-   tokens. Review `workflow_run`, reusable workflows and artifacts for trust
-   boundaries before adding automation.
-7. Limit the deployment branches of the `release` and `websites`
-   environments to `main` (a custom branch policy, no tags), and optionally add
-   required reviewers. Who may run **Release** or redeploy a website is the
-   `RELEASE_MANAGERS` repository variable; when unset, only the repository
-   owner can ([who can release](releases.md#who-can-release)). Audit
-   repository/environment secrets, Cloudflare permissions, registry ownership
-   and release dispatch permissions. Forks must be able to test without
-   Lictory infrastructure and must not publish Lictory releases: the release
-   and website workflows only run in `chricarp/lictory`.
-8. Enable dependency graph, Dependabot alerts/security updates, secret scanning
-   and push protection where available; confirm scope/plan support. Dependabot
-   configuration alone does not enable every security feature. Security
-   scanning workflows are already in the repository (see "Security scanning"
-   below). Minimal CI checks only types and migrations; local evidence remains
-   required.
-   Revisit hosted domain/browser checks as external contribution volume grows.
-9. Enable private vulnerability reporting, verify who receives notifications,
-   and give a backup maintainer access. Keep the supported versions in
-   `.github/SECURITY.md` aligned with the releases actually maintained. Do not
-   promise remediation deadlines or a bounty.
-10. Before container/package distribution, inventory shipped licenses and plan
-    SBOM/provenance generation tied to the exact artifact digest. Keep stable
-    promotion human-controlled. Do not describe unsigned artifacts as verified.
+- Protect `main` and maintained release branches against deletion and force
+  pushes. Require PRs, resolved conversations, **Verify** and **Conventional PR
+  title**. Add CODEOWNERS approval when an independent reviewer is available;
+  record any necessary sole-maintainer bypass narrowly and audit its use.
+- Prefer squash merges with the conventional PR title. Preserve maintenance
+  ancestry as described in [releases](releases.md). Delete merged topic branches.
+- Default Actions tokens to read-only. Require approval for outside workflows
+  and run untrusted PR code on disposable runners without deployment secrets.
+  Keep third-party actions pinned to full commit SHAs.
+- Keep the title workflow's `pull_request_target` metadata-only: never execute
+  PR code or title/body text. Review reusable workflows, `workflow_run` and
+  artifact consumption for trust boundaries.
+- Restrict `release` and `websites` environment branches to `main`, with
+  required reviewers if appropriate. `RELEASE_MANAGERS` controls who may
+  release; when unset only the owner can. See [release access](releases.md#who-can-release)
+  and [website credentials](websites.md#github-configuration).
+- Enable dependency/security alerts, secret scanning, push protection and
+  private vulnerability reporting where available. Verify who receives reports;
+  the code of conduct documents the sole-maintainer reporting limitation.
+- Apply labels through **Repository labels**, which updates `.github/labels.json`
+  entries without deleting other labels. Keep `release:stable-api` for its
+  documented release semantics.
 
-### Security scanning
+## Security scanning
 
-| Workflow                                                           | Runs on                                           | Private repository |
-| ------------------------------------------------------------------ | ------------------------------------------------- | ------------------ |
-| `codeql.yml` (TypeScript and Actions, `security-extended`)         | PRs and pushes to `main`, except docs             | Skipped            |
-| `dependency-review.yml` (fails on high/critical advisories)        | PRs that change dependencies, workflows or images | Skipped            |
-| `scorecard.yml` (OpenSSF Scorecard, published)                     | Pushes to `main`, branch protection changes       | Skipped            |
-| `workflow-lint.yml` (actionlint and zizmor)                        | Changes under `.github/`                          | Runs               |
-| `gitleaks.yml` (commits a PR adds; full history when run manually) | PRs                                               | Runs               |
+| Workflow                | Scope                                                            | Private repository |
+| ----------------------- | ---------------------------------------------------------------- | ------------------ |
+| `codeql.yml`            | TypeScript and Actions, security-extended                        | Skipped            |
+| `dependency-review.yml` | Dependency, workflow and image changes; high/critical advisories | Skipped            |
+| `scorecard.yml`         | OpenSSF Scorecard                                                | Skipped            |
+| `workflow-lint.yml`     | actionlint and zizmor for workflow changes                       | Runs               |
+| `gitleaks.yml`          | Added PR commits; full history on manual dispatch                | Runs               |
 
-Code scanning and dependency review need GitHub Code Security on a private
-repository, and Scorecard only publishes public repositories, so those jobs are
-skipped (not failed) unless `github.event.repository.visibility` is `public`.
-They activate by themselves when the repository becomes public; scheduled runs
-are avoided because scheduled events carry no repository visibility. Public
-repositories pay no Actions minutes for these jobs.
+The first three require a public repository under the current workflow guards.
+They activate when visibility becomes public. Reviewed suppressions belong in
+`.github/zizmor.yml` or inline with a reason; reviewed secret-scanner false
+positives use `.gitleaksignore` fingerprints.
 
-zizmor reads `.github/zizmor.yml`; justify every suppression there or inline.
-Reviewed gitleaks false positives go in `.gitleaksignore` by fingerprint.
-Dependabot refreshes the digests of base images pinned as
-`image:tag@sha256:digest` in `Dockerfile` and the compose files. It may not
-recognize the `${VAR:-image}` defaults in `deploy/compose*.yaml`; when merging
-an image update, keep those equal to the matching images by hand.
+PR CI runs static checks and selects domain and browser smoke tests by changed
+paths. Nightly runs every browser workflow. Neither replaces the complete local
+verification gate in the development runbook.
 
-References: [Actions security](https://docs.github.com/en/actions/reference/security/secure-use),
-[private reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
+Dependabot updates pinned image digests. Check variable-default image references
+in deployment Compose files by hand when it cannot recognize them.
 
 ## Triage and review
 
-Start new reports with `needs-triage`. A maintainer reproduces bugs, asks for
-missing context with `needs-information`, links duplicates or records why a
-request is declined. Apply `accepted` only after explicit scope agreement.
-Use `good first issue` only for bounded work with reproduction, expected behavior
-and verification guidance; security-sensitive invariants are poor starter tasks.
-`help wanted` means implementation help is welcome, not that review is guaranteed.
-Avoid automatic stale closure: old unresolved defects remain useful evidence.
-
-Review in this order: agreed problem and scope; tenant isolation and human
-review authority; data/history and migration safety; behavior in both delivery
-modes; verification evidence; then maintainability. PR templates are prompts,
-not enforceable proof. Do not let an AI review or passing type check replace a
-maintainer's decision. See CONTRIBUTING.md for the actual required local checks.
-
-For the first public month, reserve maintainer time for setup failures, question
-triage, a few bounded contributor issues and a release rehearsal. Review the
-volume and quality of reports before adding bots, project boards or new channels.
-Keep core refinement usable without hosted AI, analytics or proprietary services.
-
-## Inspiration
-
-[T3 Code's contribution guide](https://github.com/pingdotgg/t3code/blob/main/CONTRIBUTING.md)
-is useful for agreed scope and evidence; its
-[MIT license](https://github.com/pingdotgg/t3code/blob/main/LICENSE) is one business
-choice, not a requirement to copy. Lictory already follows much of this review
-approach. [Ghostfolio](https://github.com/ghostfolio/ghostfolio#readme) provides
-another useful example: it documents self-hosting alongside a paid managed
-service and uses AGPL. These examples demonstrate possible structures, not proof
-that a particular license or business model will succeed for Lictory.
-
-## Remaining operator actions
-
-The following describes the settings checked on 4 November 2026. Recheck
-them immediately before publication; GitHub settings are not versioned here.
-The repository remains private.
-
-**`main` ruleset** (active, no bypass actors): blocks deletion and force
-pushes; requires a pull request with resolved conversations, dismisses stale
-approvals on push, and requires zero approvals while there is only one
-maintainer. The only required status check is **Conventional PR title** (from
-the GitHub Actions app); branches need not be up to date before merging.
-
-**Environments.** `release` and `websites` limit deployment branches to `main`
-with a custom branch policy and have no required reviewers. `websites` holds
-the only secret (`CLOUDFLARE_API_TOKEN`); `release` holds none.
-`RELEASE_MANAGERS` is not set, so only the repository owner can run
-**Release** or redeploy a website. `marketing-site`, `docs-site`,
-`production-intent` and `nightly-intent` are deployment journals written by
-the workflows, not protection boundaries.
-
-The default workflow token is read-only; Actions cannot approve PRs, and there
-are no registered self-hosted runners. The nightly, release and website
-workflows skip forks.
-
-**Settings to-dos:**
-
-1. **Require `Verify`** in the `main` ruleset next to **Conventional PR
-   title**, selecting the check run from the GitHub Actions app. Until then,
-   CI runs on every pull request but nothing stops a merge while it fails.
-   Consider also requiring branches to be up to date.
-2. **Delete hosted-era leftovers.** The `Production` and `Preview`
-   environments and the repository variables `PRODUCTION_DATABASE_HOST`,
-   `PRODUCTION_VERCEL_PROJECT_ID`, `VERCEL_PROJECT_ID`, `STAGING_PLATFORM_URL`
-   and `STAGING_SITE_URL` belong to the retired hosted service; no workflow
-   reads them. Review their deployment history for internal information
-   before publication.
-3. Optionally add required reviewers to `release` and `websites`.
-
-Node 24 is documented alongside Bun; a bare Bun-only clean installation failed
-in Zero's native install, whereas the paired environment uses the supported
-Node ABI. Both versions are pinned in `engines`, `.nvmrc` and
-`.tool-versions`, a dev container provides them, and Windows contributors use
-WSL2 (see the [development runbook](development.md#first-checkout)).
-
-Before changing visibility:
-
-1. Merge pending source changes through reviewed PRs and keep the full
-   verification evidence with the reviewed SHA.
-2. Review all historical releases and their descriptions for internal information.
-   Existing release tags predate the new MIT notice: publish the first public
-   source release from a commit containing LICENSE and the notices, and describe
-   exactly which version you support. Do not imply that an old artifact contains
-   the new notice files. Current Docker targets copy the project/bundled notices;
-   dependency and OS-layer obligations still need release-specific review.
-3. Inspect Actions logs and any issue/PR attachments for credentials, personal
-   information and private hostnames. Git history and artifact scans do not cover
-   those surfaces. Review container registry package visibility independently of
-   repository visibility; do not make old images public without inspecting them.
-4. In **Actions → Caches**, delete old caches immediately before making the
-   repository public. The audit found 20 caches totaling about 8.7 GB. Treat this
-   as a launch-time purge, since private CI can recreate caches before then.
-5. In **Settings → General → Danger Zone → Change visibility**, choose Public
-   only when the above review is complete. This is the owner's publication action.
-
-Immediately after changing visibility:
-
-1. Open **Settings → Actions → General → Approval for running fork pull request
-   workflows** and select **Require approval for all outside collaborators**.
-   The API rejected this setting while private with HTTP 422, so it cannot be
-   preconfigured here. The current title workflow remains metadata-only.
-2. Open **Settings → Code security** (or **Security & analysis**) and enable
-   available secret scanning, push protection, Dependabot alerts and security
-   updates. Confirm the dependency graph is populated. Public-repository features
-   are not assumed enabled just because their configuration files exist.
-3. Activate the security scanning workflows: keep CodeQL **default setup** off
-   (the repository uses the advanced `codeql.yml` workflow; both cannot run),
-   then run **CodeQL** and **Scorecard** once from Actions so alerts appear in
-   the Security tab. Optionally require **Dependency review** and **Secret scan**
-   on `main` once they have run green.
-4. Enable **Private vulnerability reporting** there; verify notifications reach
-   you. The endpoint returns 404 while private, and SECURITY.md routes reports
-   only through it, so do this before announcing the repository.
-5. Check the repository signed out: license detection, README, issue forms,
-   private security reporting, and contribution links. Use synthetic content for
-   the product walkthrough and announce the documented support level.
-
-When adding a second maintainer, agree an independent conduct reporting contact
-and update CODE_OF_CONDUCT.md, require one approval and CODEOWNERS review,
-add `release` and `websites` environment reviewers, and review release-branch
-protections.
-No release branches currently exist. Until then, protect each new `release/*`
-branch before accepting changes to it; do not weaken the documented maintenance
-merge semantics just to enforce a linear-history rule.
+Start reports with `needs-triage`; use `needs-information` for missing context
+and `accepted` only after explicit scope agreement. `good first issue` needs a
+bounded problem and verification guidance. Avoid automatic stale closure of
+unresolved defects. See [contributing](../../CONTRIBUTING.md) for scope and
+review requirements, [support](../../SUPPORT.md) for help and
+[governance](../../GOVERNANCE.md) for decisions and maintainership.

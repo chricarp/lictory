@@ -105,6 +105,6 @@ Preserve third-party license notices and identify copied code, assets or
 generated material that needs attribution. A human contributor remains
 responsible for AI-assisted work, its correctness and the right to submit it.
 
-The owner must complete the existing-code rights and third-party review in the
-[launch runbook](docs/operations/open-source.md#licensing) before soliciting or
-merging outside contributions.
+The owner must complete the rights and artifact checks in the
+[publication runbook](docs/operations/open-source.md#before-first-publication)
+before soliciting or merging outside contributions.

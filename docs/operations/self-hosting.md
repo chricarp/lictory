@@ -14,6 +14,11 @@ An installation is one environment (`production` unless you name another)
 served on one host name, for example `lictory.example.com`. It needs no
 marketing site: links to "the website" go to the app itself.
 
+The hosted [terminal guide](https://docs.lictory.com/self-hosting/terminal)
+covers the day-to-day experience and automation examples. This runbook keeps
+the complete flag reference and operational details. To work on specifications
+from a terminal agent, use [MCP](https://docs.lictory.com/integrations/agents).
+
 ## Requirements
 
 | Requirement             | Minimum                                   | Why                                                                                                               |
@@ -355,7 +360,3 @@ Start with `lictory doctor`; every failure line names the fix.
 Logs of the tooling itself are in `/srv/lictory/<env>/deploy.log` and
 `release-history.log`. The layout, database roles, health checks and scaling
 limits are the same as in [deployment](deployment.md).
-
-## Not yet covered
-
-- Helm charts, air-gapped installation bundles and one-click templates.

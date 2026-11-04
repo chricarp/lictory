@@ -1,0 +1,123 @@
+---
+title: AI agents and MCP
+description: Connect a terminal or editor agent to Lictory, read specifications and propose reviewed changes using your own permissions.
+---
+
+Lictory exposes an MCP server so a coding agent in your terminal or editor can
+work with the same specifications, discussions and delivery items you see in
+the browser. The connection uses your agent client's model; it does not require
+Lictory Intelligence or an OpenAI key on the Lictory server.
+
+The `lictory` server administration command is a separate tool. Use the
+[terminal guide](/self-hosting/terminal) to install, upgrade or recover a server.
+
+## Connect your agent
+
+1. In Lictory, open **Account settings → AI agents (MCP)**.
+2. Choose **New token**, name the agent, select **Read only** or **Read & write**,
+   and choose an expiry. Create one token per agent so activity is attributable.
+3. Copy the token immediately; it is shown only once.
+4. In your MCP client's remote-server settings, use your installation's endpoint
+   and a bearer header:
+
+| Setting   | Value                                 |
+| --------- | ------------------------------------- |
+| Transport | Streamable HTTP                       |
+| URL       | `https://<your-lictory-host>/api/mcp` |
+| Header    | `Authorization: Bearer <your-token>`  |
+
+The endpoint is also displayed in Account settings. Store the token in the
+client's private credential configuration, outside version control. It can
+access the organizations you belong to, subject to your current permissions
+and the token's access level. It is not an organization-scoped credential.
+
+Client configuration formats differ. Choose a client that supports a remote
+Streamable HTTP server and custom authorization headers. Lictory uses personal
+tokens for this connection; signing into Lictory in a browser does not authorize
+your terminal client.
+
+## A first session
+
+Ask the agent:
+
+> List my Lictory organizations and the projects in the Payments organization.
+> Read PAY-142, including its current revision and open discussions. Summarize
+> the unresolved decisions with links to their context. Make no changes.
+
+The agent starts with `listOrganizations`, then `getWorkspace` to discover the
+project's types, workflow, teams and people. `listWorkItems` and `getWorkItem`
+read the work; item references can use a key such as `PAY-142`.
+`organizationId` accepts an exact ID or slug returned by `listOrganizations`.
+
+For established behavior, ask it to search product knowledge and cite the exact
+revision. Draft discussion is evidence of an open question, not an approved
+product decision.
+
+## Propose a change for review
+
+With a read/write token, ask:
+
+> Read PAY-142 and its current branch heads. Propose timeout and retry behavior
+> on a new branch, including acceptance criteria and a delivery breakdown.
+> Open a pull request for the team to inspect. Leave approval and merging to us.
+
+The supported proposal flow is:
+
+```text
+read current specification and heads
+→ createBranch
+→ commitBranch (text and optional proposedChildren)
+→ createPullRequest
+→ people review the resulting change in Lictory
+```
+
+Proposed child work becomes shared work only when the pull request merges.
+Protected specifications remain protected. A direct `updateSpecification`
+is for an explicitly requested edit to an unprotected draft.
+
+Commands can carry a `mutationId`: reusing it for a retry prevents the same
+change from being applied twice. A stale `baseRevisionId` returns a conflict
+with the current revision, so the agent must read and reconcile the new state.
+
+## Permissions and human decisions
+
+An agent acts as the person who created its token. Project disciplines determine
+work item permissions; organization or project administrator roles do not grant
+them. A read-only token exposes queries only. Changing memberships or revoking
+the token takes effect on subsequent requests.
+
+Approving reviews, merging, accepting delivery scope, resolving discussions,
+recording decisions and handing work to Jira record human decisions. The MCP
+tools instruct the agent to perform them only when you explicitly ask. A
+read/write token is **not** a technical confirmation gate for each decision:
+use read-only access when the agent should only inspect work. Several agents
+using one person's identity do not count as independent reviewers.
+
+Account security, organization membership, administrator roles, token creation
+and integration credentials stay with you in the browser. The agent can call
+`listHumanOnlyOperations` to explain where to complete an unavailable operation.
+
+## Audit and disconnect
+
+Activity attributes changes to the person and named agent. Organization
+administrators can inspect agent calls and their outcomes in the audit log.
+Token settings show expiry and last use. Choose **Revoke** beside a token to
+disconnect its agent immediately; create a new token to reconnect.
+
+Connecting a model client gives that client access to the content it reads.
+Apply your organization's policy for sending product data to that provider.
+
+## Troubleshooting
+
+| Symptom                    | What to check                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Unauthorized               | Send the bearer header; replace an expired or revoked token.                                                        |
+| No tools that make changes | The token is read-only; create a read/write token if needed.                                                        |
+| Forbidden operation        | Check current organization membership, project disciplines and the human-only explanation.                          |
+| Organization not found     | Rediscover with `listOrganizations`; use its exact ID or slug.                                                      |
+| Revision conflict          | Read the latest item and branch heads, then reconcile before retrying.                                              |
+| Client cannot connect      | Use `/api/mcp`, remote Streamable HTTP and a reachable HTTPS address; check your reverse proxy and custom CA trust. |
+
+For server diagnostics, use `lictory doctor` and `lictory logs api` on the
+installation's host. See [reverse proxies](/self-hosting/reverse-proxy) if
+another gateway sits in front of Lictory.

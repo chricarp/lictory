@@ -22,7 +22,7 @@ calls. Routes, MCP and the agent adapter contain no business logic.
 The principal (user id plus surface) always comes from authentication: the
 Better Auth session for the browser and the embedded agent, a personal access
 token for MCP. Capabilities never accept a user id from the caller. Membership,
-application roles (administrators) and organization-role capabilities are
+application roles (administrators) and project discipline capabilities are
 checked inside the domain services' transactions, the same code for every
 surface, so an agent can never do what its person could not do in the browser.
 Tenant isolation follows from the same checks; tests assert identical refusals
@@ -124,6 +124,9 @@ when later commands have changed the item or branch. Receipts written before
 result capture was introduced replay without these additional fields.
 
 ## MCP
+
+The [user guide](https://docs.lictory.com/integrations/agents) covers creating
+a named token, client connection settings, proposal workflows and troubleshooting.
 
 `POST /api/mcp` implements stateless Streamable HTTP (JSON responses, protocol
 versions 2025-06-18, 2025-03-26 and 2024-11-05) with `initialize`, `ping`,

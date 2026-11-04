@@ -24,5 +24,5 @@ how another maintainer can handle private reports and emergency releases.
 
 Changes to governance, licensing and contribution terms require an explicit
 maintainer decision. They cannot retroactively remove rights already granted
-under an applicable license. The launch decisions still pending are tracked in
-[the open-source launch runbook](docs/operations/open-source.md).
+under an applicable license. Publication and repository administration checks are described in
+[the repository runbook](docs/operations/open-source.md).

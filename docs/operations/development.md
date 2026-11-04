@@ -3,7 +3,7 @@
 ## First checkout
 
 Requirements: [Bun](https://bun.sh) at the version in `package.json`
-(`packageManager`), **Node.js 24 LTS**, Docker, and Git. Bun is the only supported
+(`packageManager`), **Node.js 24 LTS**, Docker, Git and **Bash 4+**. Bun is the only supported
 package manager; Node runs workspace build scripts and supplies Zero's supported
 native SQLite ABI. Install Node before `bun install`, and check `node --version`.
 A bare Bun-only container can fall back to compiling Zero's SQLite module;
@@ -16,6 +16,11 @@ Both versions are recorded where version managers find them: `engines` in
 files help rather than guard; `node --version` and `bun --version` remain the
 check. Update them together with `packageManager` and the Bun images in the
 Dockerfile, `.devcontainer/Dockerfile` and `compose.yaml`.
+
+**Shell for release-tooling tests.** The deployment CLI targets Linux and uses
+Bash 4+ syntax. macOS ships Bash 3.2; install a current version (for example
+`brew install bash`) and put it before `/bin` on `PATH` when running verification.
+Check `bash --version` before the full suite.
 
 **Platforms.** macOS and Linux are supported directly. On **Windows, use WSL2**:
 clone the repository inside the WSL file system (not under `/mnt/c`) and run

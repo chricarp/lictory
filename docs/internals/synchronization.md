@@ -425,9 +425,9 @@ Domain tests (`bun test --isolate src`) run real PostgreSQL transactions in disp
 databases, including Zero's own `handleMutateRequest` with the server
 mutators, forced projection failures and the projection rebuild invariant.
 `bun run test:e2e` builds every application, migrates a disposable database
-and starts the API, worker, zero-cache, the marketing server and a local
-stand-in for the production edge proxy, then runs the browser workflows of
-both origins. It does not touch the development database.
+and starts the API, worker, zero-cache, the marketing server, the static
+documentation and a local stand-in for the production edge proxy, then runs
+the browser workflows for all three sites. It does not touch the development database.
 
 Server logs contain metadata only, never specification or comment content.
 Normal UI errors retain actionable text.

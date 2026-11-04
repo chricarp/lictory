@@ -9,7 +9,7 @@ not declared. Empty or whitespace-only values count as unset, so a deployment
 that forwards every variable still gets the defaults.
 
 Where to set them: [`.env.example`](../../.env.example) for local development,
-[`deploy/env/production.env.example`](../../deploy/env/production.env.example)
+[`deploy/env/self-hosted.env.example`](../../deploy/env/self-hosted.env.example)
 and [`deploy/compose.production.yaml`](../../deploy/compose.production.yaml) for
 a server (Compose maps a few names: `ZERO_API_KEY` becomes both Zero keys,
 `APP_HOST` becomes `PLATFORM_URL`). Deployment-only settings (hosts, database

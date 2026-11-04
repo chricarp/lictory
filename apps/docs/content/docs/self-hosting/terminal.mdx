@@ -1,0 +1,159 @@
+---
+title: Terminal guide
+description: Use the guided installer, automate setup, reconfigure a server, inspect health and recover accounts with the lictory CLI.
+---
+
+The `lictory` command installs and operates a self-hosted server. Run it on
+that server over SSH or at its console, as root or the deploy user. To work on
+specifications from a coding agent instead, see [AI agents and MCP](/integrations/agents).
+
+## The guided experience
+
+<Cli command={["bootstrap", "install"]} />
+
+The bootstrap installs the command; `install` starts the guided setup:
+
+1. Check Docker, Compose, required tools, memory and disk.
+2. Choose the address and certificate mode; check DNS and ports.
+3. Configure email, optional attachments and single sign-on, and backups.
+4. Choose who can sign up and create organizations.
+5. Review the configuration, with secrets masked and changed keys identified.
+6. Confirm, write the settings and install the release.
+7. Check that the application is ready and start the scheduled jobs.
+8. Create the first instance administrator and their organization.
+
+Use **↑/↓**, **j/k**, or a choice's number to select a menu entry, then
+**Enter**. At text prompts, Enter keeps the displayed default. Passwords are
+hidden; new passwords are confirmed twice. Invalid answers are explained at
+the prompt so you can correct them before continuing.
+
+On a styled terminal, long tasks show elapsed progress while detailed output
+is written to `/srv/lictory/<env>/logs/install-<timestamp>.log`. If a task
+fails, the command shows the log's tail and its path. The final summary gives
+the application address, administrator, admin console and remaining tasks.
+
+`NO_COLOR=1` disables styling and uses text prompts. Redirected output and
+pipes are plain text. `--yes` disables questions, and is the right mode for
+automation; input from a pipe also uses unattended mode. No terminal UI is
+required in CI.
+
+## Inspect health and logs
+
+<Cli command={["status", "doctor", "logs"]} />
+
+`status` summarizes the active release, channel, services and access policy.
+`status --json` returns JSON for scripts. `doctor` checks the host,
+configuration, DNS, certificates, backup setup and replication, and gives
+remediation advice without sending alerts.
+
+To follow only the background worker:
+
+```sh
+lictory logs worker -f --tail 100
+```
+
+Services include `proxy`, `api`, `worker`, `zero-cache` and `postgres`.
+Tooling history lives in `/srv/lictory/<env>/deploy.log` and
+`release-history.log`; service logs and installer logs are separate.
+
+## Reconfigure an installation
+
+Run `sudo lictory install` again. Enter keeps current values; generated
+secrets and settings you do not change are retained. The review step lists
+changed `.env` keys before applying them. Change just one setting without a
+questionnaire by supplying flags:
+
+```sh
+sudo lictory install --yes --signup-mode closed
+```
+
+For settings outside the installer's flags, use the
+[configuration reference](/self-hosting/configuration).
+
+## Unattended installation
+
+Supply required answers as flags with `--yes`. For example, on a server whose
+DNS and ports are ready for automatic HTTPS:
+
+```sh
+sudo lictory install --yes \
+  --host lictory.example.com \
+  --acme-email ops@example.com \
+  --email smtp \
+  --smtp-host smtp.example.com \
+  --smtp-port 587 \
+  --smtp-user lictory \
+  --smtp-from 'Lictory <no-reply@example.com>' \
+  --signup-mode invite \
+  --organization-creation administrators
+```
+
+Replace the example values. Every install flag also accepts a
+`LICTORY_<FLAG>` environment variable, replacing hyphens with underscores.
+Supply `LICTORY_SMTP_PASSWORD` through your automation's secret store to the
+privileged process. Variables set in your user shell may be removed by
+`sudo`; ensure the command receives them. Do the same for
+`LICTORY_ADMIN_PASSWORD` if creating the administrator unattended with
+`--organization`, `--admin-name` and `--admin-email`.
+
+Without administrator details, installation defers account setup. Complete it
+at the terminal afterwards:
+
+<Cli command="admin-setup" />
+
+The bootstrap defaults to the newest stable release. To bootstrap nightly,
+pass the variable to the shell running the download:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh \
+  | sudo LICTORY_CHANNEL=nightly sh
+```
+
+`LICTORY_VERSION` pins an exact bootstrap release. See the
+[operator runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/self-hosting.md#command-reference)
+for all flags, TLS modes, backup destinations and validation rules.
+
+## Multiple environments
+
+Every command accepts `--env <name>` (or `-e`). If only one environment exists,
+the command finds it automatically. Select it explicitly in scripts:
+
+```sh
+lictory status --env production --json
+lictory doctor --env staging
+lictory logs api --env staging --tail 50
+```
+
+Each environment has its own configuration and deployment lock. Check the
+environment before a write such as upgrade, restore or account administration.
+
+## Recover access
+
+Instance administration works inside the API container even when nobody can
+sign in. Create the first administrator with `admin setup`, or grant instance
+administration to an existing account:
+
+<Cli command={["admin-grant", "admin-create-user", "admin-set-password"]} />
+
+`admin set-password` signs the account out everywhere. Passwords are read at
+the prompt or from `LICTORY_USER_PASSWORD`. Use `admin deactivate <email>` to
+block sign-in and end sessions; `admin reactivate <email>` restores access.
+`admin revoke <email>` removes instance administration. Deactivation and
+revocation ask for confirmation; the last active administrator is protected.
+
+Instance administrators manage accounts and organizations. That role grants no
+access to an organization's work. The first setup also creates an organization
+the administrator owns; the two kinds of authority remain separate.
+
+## Upgrade, roll back and test recovery
+
+<Cli command={["backup", "upgrade", "rollback"]} />
+
+Upgrade verifies release digests, backs up, applies migrations and activates
+the newer release. Rollback reactivates the previous images; **it does not
+undo database migrations**. Read [upgrades](/self-hosting/upgrades) before
+switching versions, and use a [restore drill](/self-hosting/backups#restore-drill)
+to prove a backup is usable before an incident.
+
+`lictory help` and `lictory admin help` show usage. The
+[self-hosting overview](/self-hosting#operating-the-server) lists the commands.

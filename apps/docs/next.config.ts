@@ -10,6 +10,8 @@ const monorepoRoot = fileURLToPath(new URL("../..", import.meta.url));
 // serves the files, and search downloads a prebuilt index (/search.json).
 const nextConfig: NextConfig = {
   output: "export",
+  // The docs are static files: screenshots need no image-optimization server.
+  images: { unoptimized: true },
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   outputFileTracingRoot: monorepoRoot,
   turbopack: { root: monorepoRoot },
