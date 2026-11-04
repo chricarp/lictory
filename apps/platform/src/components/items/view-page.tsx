@@ -188,7 +188,7 @@ export function ViewPage({
       description={
         overview
           ? proposals
-            ? "A place for rough ideas. Capture the problem now; start refinement when it is worth exploring with the team."
+            ? "A place for rough ideas. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs."
             : "Clarify behavior, resolve questions and review changes together. When the checks pass, the work is ready for delivery."
           : meta.description
       }
@@ -253,7 +253,9 @@ export function ViewPage({
       createLabel="New proposal"
       itemHint={
         overview
-          ? itemHint
+          ? proposals
+            ? undefined
+            : itemHint
           : view === "needs-my-review" || view === "needs-review"
             ? reviewHint
             : undefined
