@@ -12,8 +12,14 @@ import {
 } from "./analytics/consent";
 
 export type PublicConfig = {
-  /** Public website origin: legal pages and the home link. */
+  /** Public website origin: the home link. */
   siteUrl: string;
+  /**
+   * The installation operator's own legal notices (LEGAL_TERMS_URL,
+   * LEGAL_PRIVACY_URL), or null where none is configured. Lictory never
+   * links to someone else's terms: without them the app shows no legal links.
+   */
+  legal: LegalLinks;
   /** Browser analytics, or null when analytics are not configured. */
   analytics: {
     projectToken: string;
@@ -23,10 +29,30 @@ export type PublicConfig = {
   } | null;
 };
 
+export type LegalLinks = {
+  termsUrl: string | null;
+  privacyUrl: string | null;
+};
+
 // Empty variables count as unset.
 function setting(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * The operator's legal notices from LEGAL_TERMS_URL and LEGAL_PRIVACY_URL.
+ * Only absolute http(s) URLs count; anything else is treated as unset, so a
+ * typo hides a link rather than pointing it somewhere unexpected.
+ */
+export function legalLinks(env: {
+  readonly LEGAL_TERMS_URL?: string;
+  readonly LEGAL_PRIVACY_URL?: string;
+}): LegalLinks {
+  return {
+    termsUrl: httpUrl(setting(env.LEGAL_TERMS_URL))?.href ?? null,
+    privacyUrl: httpUrl(setting(env.LEGAL_PRIVACY_URL))?.href ?? null,
+  };
 }
 
 /**
@@ -77,7 +103,7 @@ function httpUrl(value: unknown): URL | undefined {
 /**
  * Reads the configuration the document carries. A document without it (the
  * Vite development server, or a misconfigured host) gets safe defaults: the
- * page's own origin as the site and no analytics.
+ * page's own origin as the site, no legal links and no analytics.
  */
 export function readPublicConfig(
   document: Pick<Document, "getElementById">,
@@ -98,6 +124,9 @@ export function readPublicConfig(
       ? value.analytics
       : {}
   ) as Record<string, unknown>;
+  const legal = (
+    value.legal && typeof value.legal === "object" ? value.legal : {}
+  ) as Record<string, unknown>;
   const projectToken =
     typeof analytics.projectToken === "string" ? analytics.projectToken : "";
   const host = httpUrl(analytics.host)
@@ -105,6 +134,10 @@ export function readPublicConfig(
     : undefined;
   return {
     siteUrl: httpUrl(value.siteUrl)?.origin ?? pageOrigin,
+    legal: {
+      termsUrl: httpUrl(legal.termsUrl)?.href ?? null,
+      privacyUrl: httpUrl(legal.privacyUrl)?.href ?? null,
+    },
     analytics:
       projectToken && host
         ? {

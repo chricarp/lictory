@@ -1,95 +1,63 @@
 import type { LegalSection } from "@lictory/marketing/components/legal/legal-document";
 
+// The lictory.com operator's terms for the two public websites. Operator
+// content, never shown by a self-hosted installation (docs/operations/legal.md).
+// They form no account contract: the websites accept no user input.
 export const termsSections: LegalSection[] = [
   {
-    id: "agreement",
-    title: "The operator and your agreement",
-    body: `Lictory is provided by the individual in Italy identified in the service-provider details above (“we”, “us”). “You” means the person using an account. Creating an account, including an account first created through Google or Microsoft sign-in, signifies agreement to these terms. The account-creation notice links to them before you continue. Existing-account sign-in does not by itself accept a future material amendment.
+    id: "scope",
+    title: "What these terms cover",
+    body: `These terms apply to your use of the Lictory project websites, **lictory.com** and **docs.lictory.com**, operated by the person identified in the box above (“we”, “us”). By using the websites you agree to them. If you do not agree, please do not use the websites.
 
-Lictory is intended for professional use by adults aged 18 or over. Provide accurate account details and use the service only if you have authority to do so. Creating an account does not automatically mean you can enter a contract on behalf of an employer. An organization’s commercial agreement, if separately concluded by an authorized person, governs its purchased service and prevails over conflicting provisions here for that subject.
+The websites only provide information about Lictory: you cannot create an account, buy anything or submit content here. Using them is free.
 
-The service and these terms are provided in English. Correct registration details before submitting the form; use account settings or contact us to request later corrections. You can print or save these terms. Acknowledging the [Privacy Notice](/privacy) is separate from agreeing to this contract and from choosing optional analytics.`,
-  },
-  {
-    id: "service",
-    title: "What Lictory does",
-    body: `Lictory helps software teams turn proposals into reviewed specifications and implementation work. It supports revisions and diffs, contextual discussions, suggestions, reviewer decisions, revision-specific approvals, readiness checks and collaboration history.
+These terms do not govern the Lictory software or any installation of it:
 
-A team can manage delivery within Lictory using work items, workflows, boards, backlogs and iterations, or publish work through a configured external delivery provider. A team’s delivery mode determines which system owns delivery state; refinement remains in Lictory. Integrations and Lictory Intelligence are available only where configured and authorized.
-
-Readiness checks and recorded approvals are evidence of the review performed. They are not a certification that a design is secure, legally compliant, complete or free of defects. Your team decides whether the specification is suitable and whether to begin or publish work.`,
-  },
-  {
-    id: "accounts",
-    title: "Accounts and organization access",
-    body: `Keep your credentials confidential, do not share accounts and promptly report suspected compromise. You are responsible for actions you authorize through your account. We remain responsible for our own obligations, including appropriate service security.
-
-Organization administrators manage invitations, membership, roles, team policies and available integrations. Use only organizations and content you are authorized to access. An administrator can remove your organization access; this does not transfer ownership of the organization’s work to you. Before leaving, arrange any necessary handover of administration or work through an authorized administrator.
-
-The service can send essential verification, password-reset, invitation and service communications. Notification preferences govern supported optional workflow notifications; they do not prevent messages needed to secure or administer your account.`,
+- **The software** is open source. Your rights to use, copy, modify and distribute it come solely from its license, the MIT License, published with the [source code](https://github.com/chricarp/lictory). Nothing in these terms restricts those rights.
+- **An installation** of Lictory is operated by whoever runs it, under that operator's own terms and privacy notice. We do not operate a hosted Lictory service and are not a party to your relationship with an installation's operator.`,
   },
   {
     id: "content",
-    title: "Your content and confidentiality",
-    body: `You and the applicable rights holders retain ownership of specifications, discussions, files and other content supplied to Lictory. You grant us only the permission needed to host, copy, transmit, display and process that content to provide the service, follow authorized instructions and meet legal obligations. This does not transfer ownership or grant permission to advertise with your content.
+    title: "Website content",
+    body: `The source of both websites, including their texts and illustrations, is part of the Lictory repository and is available under the MIT License, unless a file says otherwise. Third-party materials keep their own licenses, listed in the repository's third-party notices.
 
-Ensure that you have the necessary rights and lawful basis to upload content, invite people and share information with members, AI providers or integrations. Avoid unnecessary personal data and secrets in specifications or discussions. The service is not designed for special-category personal data or criminal-record records.
+The license covers copyright, not the “Lictory” name and logo, which identify the project. You may use them to refer to the project truthfully, but not in a way that suggests we endorse, sponsor or are affiliated with you, your product or your installation unless we are.`,
+  },
+  {
+    id: "information",
+    title: "Information, not advice",
+    body: `We write the websites carefully, but they describe software that changes. Features, instructions, comparisons with other products and guides may be incomplete, out of date or not suited to your situation. Check the documentation for the version you run and test changes before relying on them.
 
-We treat non-public workspace content as confidential. Access and disclosure are limited to providing the service, authorized sharing, support, security or legal requirements. Revisions, discussions, approvals and audit history preserve collaboration context; resolving, archiving or leaving does not necessarily erase those records. Privacy requests remain governed by applicable law.`,
+Comparisons with other products reflect our understanding at the date shown on the page and are not endorsed by their owners. Product names belong to their respective owners. Guides are general information about software practice, not professional, legal or security advice.
+
+Links to other websites, such as GitHub, are provided for convenience. Those websites are operated by others under their own terms; we are not responsible for their content.`,
   },
   {
     id: "use",
     title: "Acceptable use",
-    body: `Do not use Lictory to break the law, infringe intellectual-property or privacy rights, harass people, distribute malicious software, gain unauthorized access, defeat organization permissions, interfere with the service or send spam. Do not expose another organization’s confidential information or impersonate another person.
+    body: `Do not misuse the websites: do not attempt to gain unauthorized access, disrupt or overload them, circumvent their security, or use them to distribute malicious software. Automated access, including by search engines and AI assistants, is welcome within the limits published in robots.txt, provided it does not impair the websites for others.
 
-Security research must respect access boundaries and avoid disruption or disclosure of other users’ data. Report vulnerabilities privately using the contact above. You may exercise any rights that cannot lawfully be restricted by contract.`,
+Please report security vulnerabilities in the websites or the software privately, as described in the project's security policy on GitHub, rather than publicly.`,
   },
   {
-    id: "ai",
-    title: "Lictory Intelligence and human review",
-    body: `An organization administrator must enable Lictory Intelligence before its content is analyzed. When enabled, analysis can run at an authorized user’s request or according to the team’s review policy. Relevant specifications, related work and discussion context can be sent to OpenAI as explained in the Privacy Notice. Check the organization’s confidentiality and data-protection requirements before enabling it.
+    id: "availability",
+    title: "Availability and changes",
+    body: `We provide the websites free of charge and may change, suspend or discontinue them, or any part of them, at any time. We do not guarantee that they will always be available or error free.
 
-Lictory Intelligence findings, questions and proposed edits may be inaccurate or incomplete. Review them before accepting or relying on them. Humans decide what changes become part of a specification, what discussions are resolved, and what is approved or published. A Lictory Intelligence result does not constitute professional, legal or security advice. OpenAI Zero Data Retention concerns provider-side request handling; Lictory still records Lictory Intelligence runs and results in workspace history.`,
-  },
-  {
-    id: "integrations",
-    title: "External delivery and other integrations",
-    body: `Connect a third-party service only with the required authority and provide credentials you are entitled to use. Your organization is responsible for selecting destination projects and mappings and reviewing the content to be published. Lictory acts on authorized publishing instructions or explicitly configured automation.
-
-Publishing can create or update records in an external system and may partly succeed. Inspect the recorded outcomes and resolve configuration or conflicts before retrying. Removing a Lictory connection or closing an account does not erase external issues, revoke credentials at the provider, or override that provider’s retention rules.
-
-Third-party services operate under their own agreements with you or your organization. We remain responsible for our own processing and integration behavior; the external provider controls its own service and delivery state.`,
-  },
-  {
-    id: "fees",
-    title: "Fees and service changes",
-    body: `Account creation alone does not authorize a charge. A paid service requires a separate, clearly disclosed offer accepted by an authorized customer, including price, applicable taxes, duration, billing and cancellation terms. These terms do not create an automatic renewal or authorize later charging for a free account.
-
-Features may evolve and maintenance or failures may affect availability. We communicate material changes affecting your contracted service and honor applicable contractual and statutory obligations. No specific service-level commitment is created by these terms; a separate agreement may provide one. This does not exclude duties imposed by law or rights to remedies.`,
-  },
-  {
-    id: "closure",
-    title: "Leaving, closure and legal remedies",
-    body: `You can stop using Lictory, leave an organization through supported controls, or request account closure using account settings or the contact above. Organization deletion must be requested by an authorized administrator. Coordinate the handover of shared work before requesting deletion and request an accessible copy of your data where applicable law entitles you to it.
-
-Account closure and organization deletion have different effects, as explained in the Privacy Notice. Organization history may require assisted erasure or anonymization of personal references. Copies already published to another service remain subject to that service and your organization’s instructions. We do not promise that closing an account deletes other people’s work.
-
-Misuse, serious breach or unlawful content may require action under applicable law, including appropriate protective measures or termination for breach. We explain the reason and provide a way to contact us and challenge an error, unless prohibited by law or incompatible with addressing an immediate security risk. These terms do not grant us an unrestricted discretionary right to terminate or suspend your contract. Statutory termination rights and remedies remain available to both parties.`,
+We may update these terms when the websites change. The version date at the top of this page shows when they last changed; the version in force when you use the websites applies.`,
   },
   {
     id: "liability",
-    title: "Responsibility and mandatory protections",
-    body: `Each party is responsible for its obligations under these terms and applicable law. We do not exclude or cap liability through these terms. In particular, nothing excludes liability for intentional misconduct, gross negligence, or any responsibility that cannot lawfully be excluded under Italian law.
+    title: "Liability",
+    body: `Each of us is responsible under applicable law; these terms neither exclude nor limit that liability. The software itself is provided under its license, which contains its own warranty disclaimer and limitation of liability.
 
-If you qualify as a consumer under applicable law, mandatory protections under the Italian Consumer Code (Legislative Decree 206/2005), including applicable digital-service conformity, remedy and distance-contract rights, remain unaffected. Describing Lictory as a professional service does not remove those protections where they apply. No acceptance here waives a statutory withdrawal right or requests early performance that extinguishes such a right; any paid consumer offer must supply the required information separately.`,
+If you use the websites as a consumer, nothing in these terms limits the rights mandatory consumer law of your country of residence gives you.`,
   },
   {
     id: "law",
-    title: "Applicable law, disputes and amendments",
-    body: `These terms are governed by Italian law, subject to mandatory protections that apply in your country under EU or other applicable rules. Courts with jurisdiction under applicable law handle disputes. We do not impose an exclusive court, arbitration, or a waiver of your right to seek remedies from a competent authority or court. You may first contact us to try to resolve a problem, but this is not a condition for exercising your rights.
+    title: "Applicable law and contact",
+    body: `These terms do not choose a governing law or an exclusive court: the law and courts that have jurisdiction are those determined by the applicable rules, and you always keep the protection of the mandatory law of your country of residence.
 
-We identify the terms’ version on this page. Material amendments affecting an existing agreement require appropriate notice and acceptance where required; merely changing the page does not silently replace that agreement. If you do not accept a proposed material change, contact us about continuing under the existing agreement or closing your account, subject to applicable law and any separate customer contract.
-
-Contact the operator using the details above for questions, complaints or account and organization requests.`,
+For questions about these terms, write to the email address in the box above. Personal data processed when you use the websites is described in the [Privacy Notice](/privacy).`,
   },
 ];

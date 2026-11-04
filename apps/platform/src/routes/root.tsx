@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
 import { Toaster } from "@lictory/ui/toast";
-import { siteLink } from "@lictory/platform/lib/site";
+import { publicConfig } from "@lictory/platform/lib/public-config";
 
 export function RootLayout() {
   return (
-    <ConsentProvider privacyHref={siteLink("/privacy")}>
+    <ConsentProvider privacyHref={publicConfig.legal.privacyUrl ?? undefined}>
       <Outlet />
       <RouteAnnouncer />
       <Toaster />

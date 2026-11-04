@@ -81,11 +81,8 @@ function PreferencesButton({
   );
 }
 
-export function ConsentBanner({
-  privacyHref = "/privacy",
-}: {
-  privacyHref?: string;
-}) {
+/** Without `privacyHref` (no configured notice) the banner links nowhere. */
+export function ConsentBanner({ privacyHref }: { privacyHref?: string }) {
   const { banner, performBannerAction, openDialog } = useHeadlessConsentUI();
   const t = useTranslations();
   const [pending, setPending] = useState(false);
@@ -120,14 +117,20 @@ export function ConsentBanner({
             <span className="font-medium text-foreground">
               {t.cookieBanner.title}.
             </span>{" "}
-            Optional analytics cookies need your permission. Read our{" "}
-            <a
-              href={privacyHref}
-              className="rounded text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-            >
-              Privacy Notice
-            </a>
-            .
+            Optional analytics cookies need your permission.
+            {privacyHref && (
+              <>
+                {" "}
+                Read the{" "}
+                <a
+                  href={privacyHref}
+                  className="rounded text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                >
+                  Privacy Notice
+                </a>
+                .
+              </>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:ml-auto sm:flex-nowrap">

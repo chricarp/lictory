@@ -184,6 +184,7 @@ templates, under `/opt/lictory/deploy`.
 | `BACKUP_*`                                                 | `BACKUP_TARGET` (`s3`, `local`, `rclone`, `none`) and its storage with its own credentials; `BACKUP_AGE_RECIPIENTS` is a public key ([recovery](recovery.md#where-backups-go)) |
 | `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                                                                                                      |
 | `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                                                                                                       |
+| `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`                     | The operator's own terms and privacy notice, linked at sign-up and from the consent banner; unset shows no acceptance notice and no legal links                                |
 | `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` by default for `production`, `nightly` otherwise)                                                      |
 
 Each service receives only the variables it needs (see
@@ -193,7 +194,8 @@ in.
 
 Images carry no domain or analytics settings, so the same image runs on any
 hostname. The API writes the platform's public runtime configuration (the
-website origin from `SITE_URL` and the browser analytics settings from
+website origin from `SITE_URL`, the legal links from `LEGAL_TERMS_URL`/
+`LEGAL_PRIVACY_URL` and the browser analytics settings from
 `POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST`) into each SPA document it serves; the
 browser reads it there instead of from the bundle. Change `.env` and restart
 the API to change them. When Cloudflare serves the platform SPA (lictory.com),

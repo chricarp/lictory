@@ -11,15 +11,23 @@ test("legal notices are public, linked from the landing footer, and usable on mo
   await expect(
     page.getByRole("heading", { name: "Privacy Notice", exact: true }),
   ).toBeVisible();
+  // The operator comes from the build environment (synthetic in tests).
+  const operator = page.getByRole("region", {
+    name: "Website operator and privacy contact",
+  });
   await expect(
-    page.getByText("Christian Carpinelli", { exact: true }),
+    operator.getByText("Example Operator", { exact: true }),
   ).toBeVisible();
+  await expect(
+    operator.getByRole("link", { name: "privacy@example.org" }),
+  ).toHaveAttribute("href", "mailto:privacy@example.org");
+  await expect(operator.getByRole("note")).toHaveCount(0);
   await page
     .getByRole("navigation", { name: "Privacy Notice contents" })
-    .getByRole("link", { name: "Your rights and how to contact us" })
+    .getByRole("link", { name: "Your rights", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: /Your rights and how to contact us/ }),
+    page.getByRole("heading", { name: /Your rights$/ }),
   ).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     320,

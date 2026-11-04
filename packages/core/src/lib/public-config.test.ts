@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   analyticsSettings,
+  legalLinks,
   publicConfigTag,
   readPublicConfig,
   type PublicConfig,
@@ -21,6 +22,10 @@ function documentWith(html: string) {
 void test("the browser reads back the configuration the server wrote", () => {
   const config: PublicConfig = {
     siteUrl: "https://www.example.org",
+    legal: {
+      termsUrl: "https://www.example.org/legal/terms",
+      privacyUrl: "https://www.example.org/privacy",
+    },
     analytics: {
       projectToken: "phc_test",
       host: "https://eu.i.posthog.com",
@@ -39,6 +44,7 @@ void test("the browser reads back the configuration the server wrote", () => {
 void test("configuration values can never close the element or inject markup", () => {
   const tag = publicConfigTag({
     siteUrl: "https://example.org",
+    legal: { termsUrl: null, privacyUrl: null },
     analytics: {
       projectToken: "</script><script>alert(1)</script>&",
       host: "https://posthog.example.org",
@@ -54,14 +60,18 @@ void test("configuration values can never close the element or inject markup", (
   );
 });
 
-void test("a document without valid configuration falls back to the page origin and no analytics", () => {
+void test("a document without valid configuration falls back to the page origin, no legal links and no analytics", () => {
   const origin = "https://app.example.org";
-  const fallback = { siteUrl: origin, analytics: null };
+  const fallback = {
+    siteUrl: origin,
+    legal: { termsUrl: null, privacyUrl: null },
+    analytics: null,
+  };
   assert.deepEqual(readPublicConfig(documentWith(""), origin), fallback);
   for (const body of [
     "not json",
     "null",
-    '{"siteUrl":"javascript:alert(1)","analytics":{"projectToken":"x","host":"ftp://x"}}',
+    '{"siteUrl":"javascript:alert(1)","legal":{"termsUrl":"javascript:alert(1)","privacyUrl":"/privacy"},"analytics":{"projectToken":"x","host":"ftp://x"}}',
     '{"siteUrl":"","analytics":{"projectToken":"","host":"https://eu.i.posthog.com"}}',
   ])
     assert.deepEqual(
@@ -104,4 +114,21 @@ void test("analytics are configured only when both settings are non-empty", () =
     })?.consent,
     "strict",
   );
+});
+
+void test("legal links come only from the operator's own absolute URLs", () => {
+  // Unset: no links at all, never a fallback to another operator's terms.
+  assert.deepEqual(legalLinks({}), { termsUrl: null, privacyUrl: null });
+  assert.deepEqual(
+    legalLinks({
+      LEGAL_TERMS_URL: " https://example.org/terms ",
+      LEGAL_PRIVACY_URL: " ",
+    }),
+    { termsUrl: "https://example.org/terms", privacyUrl: null },
+  );
+  for (const invalid of ["/privacy", "example.org/privacy", "javascript:x"])
+    assert.deepEqual(legalLinks({ LEGAL_PRIVACY_URL: invalid }), {
+      termsUrl: null,
+      privacyUrl: null,
+    });
 });
