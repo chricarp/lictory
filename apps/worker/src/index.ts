@@ -1,5 +1,9 @@
+// First: stops with every configuration problem before other modules load.
+import "@lictory/worker/configuration";
+
 import { createJobDatabase, listenForWork } from "@lictory/core/jobs";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
+import { mailTransportSummary } from "@lictory/core/lib/mailer";
 import { flushPosthogLogs } from "@lictory/core/lib/posthog-logs";
 import { startHealthServer } from "@lictory/worker/health";
 import { workerConfig, workerJobs } from "@lictory/worker/jobs";
@@ -19,6 +23,9 @@ const listenUrl = process.env.DATABASE_URL_UNPOOLED?.trim()
   ? process.env.DATABASE_URL_UNPOOLED.trim()
   : databaseUrl;
 const config = workerConfig(process.env);
+// Partial mail settings stop the worker (configuration rules); without any
+// transport it starts and email jobs fail with the settings to add.
+const mail = mailTransportSummary();
 
 const database = createJobDatabase(databaseUrl, { max: config.poolMax });
 const supervisor = createSupervisor(workerJobs(database.db, config), {
@@ -52,6 +59,7 @@ log("info", "worker.started", {
     schedules: config.schedulesIntervalMs,
   },
   shutdownTimeoutMs: config.shutdownTimeoutMs,
+  mail,
 });
 supervisor.start();
 

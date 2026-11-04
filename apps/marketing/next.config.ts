@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 import { configuredOrigin } from "./src/lib/origin";
+import { setting } from "./src/lib/setting";
 
 // The website imports sources from other workspaces (`@lictory/ui`,
 // `@lictory/core`), so bundling and file tracing start at the monorepo root.
@@ -9,7 +10,7 @@ const monorepoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const staticExport = process.env.MARKETING_STATIC_EXPORT === "true";
 
 const nextConfig: NextConfig = {
-  distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  distDir: setting(process.env.NEXT_DIST_DIR) ?? ".next",
   // A self-contained server (`.next/standalone/apps/marketing/server.js`) for
   // container images; public files and static chunks are copied next to it.
   output: staticExport ? "export" : "standalone",
@@ -58,7 +59,7 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         {
           source: "/relay/:path*",
-          destination: `${process.env.API_ORIGIN ?? (process.env.NODE_ENV === "production" ? "http://api:3002" : "http://localhost:3002")}/relay/:path*`,
+          destination: `${setting(process.env.API_ORIGIN) ?? (process.env.NODE_ENV === "production" ? "http://api:3002" : "http://localhost:3002")}/relay/:path*`,
         },
         { source: "/guides.md", destination: "/markdown/guides.md" },
         {

@@ -10,8 +10,9 @@ import postgres from "postgres";
 
 import * as s from "@lictory/core/db/schema";
 import { rebuildProjections } from "@lictory/core/domain/projections";
+import { env } from "@lictory/core/lib/env";
 
-const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+const url = env("DATABASE_URL_UNPOOLED") ?? env("DATABASE_URL");
 if (!url) throw new Error("Set DATABASE_URL (or DATABASE_URL_UNPOOLED).");
 const client = postgres(url, { max: 1, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });

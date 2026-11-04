@@ -51,6 +51,8 @@ adding domain writes or synchronized entities.
 
 ## Operations
 
+- [Configuration reference](./operations/configuration.md): every environment
+  variable, which service reads it, defaults, secrets and startup validation
 - [Self-hosting](./operations/self-hosting.md): install and operate Lictory on
   your own Linux server with `get.sh` and the `lictory` command (install,
   upgrade, backup, restore, doctor)

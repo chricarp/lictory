@@ -1,7 +1,12 @@
+// First: stops with every configuration problem before other modules load.
+import "@lictory/api/configuration";
+
 import { serve } from "@hono/node-server";
 import { closeDatabase } from "@lictory/core/db";
 import { realtime } from "@lictory/core/domain/realtime";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
+import { env, envInteger } from "@lictory/core/lib/env";
+import { mailTransportSummary } from "@lictory/core/lib/mailer";
 import { storageConfiguration } from "@lictory/core/storage";
 import { createApp } from "@lictory/api/app";
 import { closeEventStreams } from "@lictory/api/routes/events";
@@ -10,9 +15,12 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 // mutate endpoints, event streams and the SPA document. Background work runs
 // in the worker, never here.
 
-const port = Number(process.env.PORT ?? 3002);
-const hostname = process.env.HOST ?? "0.0.0.0";
-const DRAIN_MS = Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 25_000);
+const port = envInteger("PORT") ?? 3002;
+const hostname = env("HOST") ?? "0.0.0.0";
+const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
+// Partial mail settings stop the API (configuration rules); without any
+// transport it starts with email disabled and a startup warning.
+const mail = mailTransportSummary();
 
 // File storage is optional: without it attachments are disabled. A partial or
 // malformed configuration stops the API with the variables to fix.
@@ -63,7 +71,12 @@ const server = serve(
   },
   (info) =>
     console.info(
-      JSON.stringify({ event: "api.listening", port: info.port, hostname }),
+      JSON.stringify({
+        event: "api.listening",
+        port: info.port,
+        hostname,
+        mail,
+      }),
     ),
 );
 
