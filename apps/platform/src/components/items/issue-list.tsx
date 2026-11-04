@@ -107,7 +107,7 @@ export function IssueList({
   allowEpicFilter?: boolean;
   header?: ReactNode;
   summary?: ReactNode;
-  groupBy?: "status" | "refinement" | "lifecycle";
+  groupBy?: "status" | "refinement" | "lifecycle" | "review";
   itemHint?: (item: WorkItem) => string;
   createLabel?: string;
   createIntent?: "proposal" | "work";
@@ -280,6 +280,33 @@ export function IssueList({
           ),
         }))
         .filter((g) => g.items.length);
+    // Review queues group by what is asked: each requested responsibility,
+    // then proposed changes (suggestions and pull requests) waiting on you.
+    if (groupBy === "review") {
+      const byResponsibility = new Map<string, WorkItem[]>();
+      const proposed: WorkItem[] = [];
+      for (const item of visible) {
+        const open = item.reviews.filter(
+          (r) => r.status !== "cancelled" && r.status !== "completed",
+        );
+        if (!open.length) proposed.push(item);
+        for (const r of open)
+          byResponsibility.set(r.responsibility, [
+            ...(byResponsibility.get(r.responsibility) ?? []),
+            item,
+          ]);
+      }
+      return [
+        ...[...byResponsibility].map(([responsibility, items]) => ({
+          key: `review-${responsibility}`,
+          label: `${responsibility} review`,
+          items,
+        })),
+        ...(proposed.length
+          ? [{ key: "proposed", label: "Proposed changes", items: proposed }]
+          : []),
+      ];
+    }
     if (groupBy === "refinement") {
       const refinementGroups = refinementOrder
         .map((state) => ({
@@ -596,7 +623,9 @@ export function IssueList({
                   ? "lifecycle"
                   : groupBy === "refinement"
                     ? "refinement"
-                    : "status"}
+                    : groupBy === "review"
+                      ? "review"
+                      : "status"}
               </label>
               {showArchivedToggle && (
                 <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">

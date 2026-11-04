@@ -96,13 +96,19 @@ export function Lifecycle() {
             <ChevronUp className="size-3" />
           </span>
         </div>
-        <p className="text-fd-muted-foreground flex items-center gap-2 px-3 pt-1 pb-1.5 text-xs sm:justify-center">
-          <CornerLeftUp aria-hidden className="size-3.5 shrink-0 sm:hidden" />
+        <p className="flex items-start gap-2 px-3 pt-1 pb-2 text-[13px] leading-snug sm:justify-center sm:text-center">
+          <CornerLeftUp
+            aria-hidden
+            className="text-fd-muted-foreground mt-0.5 size-3.5 shrink-0 sm:hidden"
+          />
           <span>
-            <span className="text-fd-foreground font-medium">
-              Changes requested or a material edit → Refinement.
-            </span>{" "}
-            Earlier approvals become stale.
+            <span className="text-fd-foreground block font-medium">
+              Changes requested or a material edit → back to Refinement
+            </span>
+            <span className="text-fd-muted-foreground block">
+              Approvals of the earlier revision become stale and are asked
+              again.
+            </span>
           </span>
         </p>
       </div>

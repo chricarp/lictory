@@ -243,7 +243,11 @@ export function ViewPage({
         ) : undefined
       }
       showArchivedToggle={false}
-      groupBy="refinement"
+      groupBy={
+        view === "needs-my-review" || view === "needs-review"
+          ? "review"
+          : "refinement"
+      }
       createKind={overview && canPropose ? "story" : undefined}
       createIntent="proposal"
       createLabel="New proposal"

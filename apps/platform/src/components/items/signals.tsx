@@ -103,7 +103,6 @@ export function ReadinessBar({
   labelled?: boolean;
 }) {
   if (!item.readinessTotal) return null;
-  const ratio = item.readinessPassed / item.readinessTotal;
   return (
     <span
       className={cn(
@@ -112,14 +111,16 @@ export function ReadinessBar({
       )}
       title={`${item.readinessPassed} of ${item.readinessTotal} readiness checks pass`}
     >
-      <span className="h-1.5 w-8 overflow-hidden rounded-full bg-muted">
-        <span
-          className={cn(
-            "block h-full rounded-full",
-            ratio === 1 ? "bg-success" : "bg-foreground/40",
-          )}
-          style={{ width: `${ratio * 100}%` }}
-        />
+      <span aria-hidden className="flex w-8 gap-px">
+        {Array.from({ length: item.readinessTotal }, (_, index) => (
+          <span
+            key={index}
+            className={cn(
+              "h-1.5 flex-1 rounded-full",
+              index < item.readinessPassed ? "bg-success" : "bg-foreground/12",
+            )}
+          />
+        ))}
       </span>
       {item.readinessPassed}/{item.readinessTotal}
       {labelled && <span className="-ml-1 hidden xl:inline">checks</span>}

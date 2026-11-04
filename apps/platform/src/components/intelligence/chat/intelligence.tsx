@@ -197,18 +197,22 @@ function Header({
   toolbar: ReactNode;
 }) {
   const { newChat } = useChats();
+  // No new conversations while Litto cannot answer.
+  const ai = useAiState();
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
       {toolbar}
       <div className="min-w-0 flex-1">{children}</div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={newChat}
-        title="New conversation (⌘⇧O)"
-      >
-        <SquarePen className="size-3.5" /> New chat
-      </Button>
+      {ai.ok && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={newChat}
+          title="New conversation (⌘⇧O)"
+        >
+          <SquarePen className="size-3.5" /> New chat
+        </Button>
+      )}
     </header>
   );
 }
@@ -219,13 +223,20 @@ function useAiState() {
   if (!available)
     return {
       ok: false as const,
+      title: "Litto isn't available yet",
       message:
-        "Litto isn't available on this server yet. An administrator can connect an AI provider; everything else in Lictory works without it.",
-      action: null,
+        "This server has no AI provider connected. An administrator can connect one; everything else in Lictory works without it.",
+      action: isAdmin
+        ? {
+            label: "Open Lictory Intelligence settings",
+            href: `${paths.settings(organization.slug)}#ai`,
+          }
+        : null,
     };
   if (!enabled)
     return {
       ok: false as const,
+      title: "Litto is turned off",
       message: isAdmin
         ? "Lictory Intelligence is turned off for this organization. Turn it on to start chatting; organization content is sent to the configured AI provider only after you opt in."
         : "Lictory Intelligence is turned off for this organization. Ask an administrator to enable it in Settings.",
@@ -236,7 +247,7 @@ function useAiState() {
           }
         : null,
     };
-  return { ok: true as const, message: null, action: null };
+  return { ok: true as const, title: null, message: null, action: null };
 }
 
 function greeting(name: string) {
@@ -328,15 +339,19 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
               />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {greeting(me?.name ?? "")}
+              {ai.ok ? greeting(me?.name ?? "") : ai.title}
             </h1>
-            <p className="mt-1.5 text-[14px] text-muted-foreground">
-              Ask Litto about your work, or say what to create, refine or
-              update.
-            </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Powered by Lictory Intelligence and your workspace context.
-            </p>
+            {ai.ok && (
+              <>
+                <p className="mt-1.5 text-[14px] text-muted-foreground">
+                  Ask Litto about your work, or say what to create, refine or
+                  update.
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Powered by Lictory Intelligence and your workspace context.
+                </p>
+              </>
+            )}
           </motion.div>
           {ai.ok ? (
             <motion.div
