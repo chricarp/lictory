@@ -1,15 +1,15 @@
 # Backups and recovery
 
 PostgreSQL is the only state that must survive. Everything else is either in
-another system (file bytes in R2, email in Resend) or rebuildable from
-PostgreSQL (Zero's replica, client view records and change log; container
-images in the registry).
+another system (file bytes in object storage, email with your provider) or
+rebuildable from PostgreSQL (Zero's replica, client view records and change
+log; container images in the registry).
 
 | Data                           | Protection                                                     | Loss means                   |
 | ------------------------------ | -------------------------------------------------------------- | ---------------------------- |
 | Application database           | Nightly encrypted logical backup (`BACKUP_TARGET`); pre-deploy | Restore (below)              |
 | Zero replica, CVRs, change log | Not backed up                                                  | Automatic resync             |
-| File bytes (R2 files bucket)   | R2 durability; object versioning or a lifecycle copy (below)   | Missing attachments          |
+| File bytes (files bucket)      | Provider durability; object versioning or a daily copy (below) | Missing attachments          |
 | Secrets (`.env`)               | Password manager, never in backups or Git                      | Re-create; see notes per key |
 | Images                         | The image registry, by digest                                  | Rebuild the tag from Git     |
 
@@ -199,7 +199,7 @@ reports work stuck past its expected time. Inspect with
 
 ## File storage
 
-Attachment bytes are in the R2 files bucket, not in database backups.
+Attachment bytes are in the files bucket, not in database backups.
 Deletes are rare by design (removed attachments are moved to a
 `removed-files/` prefix and retained, not deleted), so the main risks are a mistaken bulk delete or a leaked
 token. Use object versioning where the provider offers it; otherwise copy the

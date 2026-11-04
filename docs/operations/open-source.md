@@ -32,12 +32,11 @@ noncommercial or no-competing-host clause would change the open-source promise.
 Discuss compatibility and obligations for the actual distribution with counsel.
 Do not append custom restrictions to a standard license and keep its name.
 
-MIT permits commercial hosting and proprietary forks. Decide whether the
-business is managed hosting/support around
-an open product, or whether separate proprietary functionality is intended.
-Recommendation: start with one coherent open product and paid hosting/support;
-do not split the domain model or weaken self-hosted refinement to invent a paywall.
-This is a recommendation, not a commercial commitment.
+MIT permits commercial hosting and proprietary forks. The project itself runs
+no hosted Lictory: the former hosted service is retired, and Lictory is
+distributed only as self-hosted software (release images
+`ghcr.io/chricarp/lictory-*`). Do not split the domain model or weaken
+self-hosted refinement to invent a paywall.
 
 The owner must:
 
@@ -61,9 +60,10 @@ The owner must:
   public identity record and recovery for missing sign-offs, and install the
   DCO check before requiring it. Never let an agent sign for another person.
 - Decide and document name/logo usage separately. Trademark rights and hosted
-  service terms are distinct from the software license; retain all rights
-  already granted for third-party assets. The current web service legal notices
-  are not a software license and are not a self-hoster's privacy policy.
+  terms are distinct from the software license; retain all rights already
+  granted for third-party assets. The legal notices on `lictory.com` cover only
+  the websites ([public legal notices](legal.md)); they are not a software
+  license and not a self-hosted installation's privacy policy.
 
 Sources: [MIT](https://opensource.org/license/mit),
 [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0),
@@ -91,11 +91,14 @@ is implied complete by the templates in this change.
       and enforcement owner in CODE_OF_CONDUCT.md.
 - [x] Document the sole-maintainer reporting limitation; add an independent
       fallback when a trusted person is available.
-- [ ] Enable GitHub private vulnerability reporting after publication and test it.
-      Until available, keep the repository private or publish an owner-approved
-      monitored private security contact. Do not route vulnerabilities to public issues.
-- [x] Apply standard labels and protect `main` with PRs, required checks, current
-      branch status, resolved conversations, and no force pushes/deletion.
+- [ ] Enable GitHub private vulnerability reporting immediately after
+      publication and test it. SECURITY.md routes reports only there; the
+      endpoint is unavailable while the repository is private. Do not route
+      vulnerabilities to public issues.
+- [x] Apply standard labels and protect `main` with PRs, resolved
+      conversations, and no force pushes/deletion.
+- [ ] Require the **Verify** check on `main` (only **Conventional PR title**
+      is required today; see [remaining operator actions](#remaining-operator-actions)).
 - [ ] Complete publication-only settings and review artifact/log exposure below.
 - [ ] Reproduce first checkout from a clean clone with no private packages,
       company credentials, personal files or optional paid integrations. Verify both
@@ -103,10 +106,11 @@ is implied complete by the templates in this change.
 - [ ] Run the complete local verification sequence in the development runbook
       on the final tree. Record the exact commit, commands and results, including
       environment limitations; never use the application database for this gate.
-- [ ] Publish a supported-release/security policy, deployable release artifacts
-      and installation instructions that work for independent operators. Existing
-      operator-specific deployment instructions need a clean-machine rehearsal;
-      do not advertise one-click self-hosting until it has been demonstrated.
+- [x] Publish a supported-release/security policy: SECURITY.md supports the
+      latest stable release line only.
+- [ ] Rehearse the published release images and the `lictory` installer on a
+      clean machine; do not advertise one-click self-hosting until it has been
+      demonstrated.
 - [ ] Prepare synthetic demo content and an approved screenshot/short walkthrough
       for the README, with no customer content. Explain the review workflow first.
 - [ ] Owner makes the visibility decision only after reviewing the evidence.
@@ -127,8 +131,9 @@ CODEOWNERS, labels or the existing title check.
    the token has issues write permission only in that job. The existing
    `release:stable-api` label has release semantics; it is not a triage marker.
 3. Protect `main` and release branches with a ruleset: block deletion and force
-   pushes, require a PR, resolved conversations, and the existing **Verify** and
-   **Conventional PR title** checks. Select actual check runs in GitHub. Require
+   pushes, require a PR, resolved conversations, and the **Verify** and
+   **Conventional PR title** checks. Select actual check runs in GitHub (the
+   `main` ruleset requires only **Conventional PR title** today). Require
    CODEOWNERS approval once an independent reviewer is available. With a sole
    maintainer, self-approval is impossible: record a narrowly scoped, audited
    maintainer bypass rather than creating a rule nobody can satisfy. Dismiss
@@ -145,13 +150,15 @@ CODEOWNERS, labels or the existing title check.
    code checks. Do not grant PR jobs deployment credentials or repository write
    tokens. Review `workflow_run`, reusable workflows and artifacts for trust
    boundaries before adding automation.
-7. Protect the `release` and `websites` environments with reviewers and allowed branches,
-   and restrict the `websites` environment to `main`.
-   Audit repository/environment secrets, SSH and Cloudflare permissions, registry
-   ownership and release dispatch permissions. Forks must be able to test without
-   Lictory infrastructure and must not automatically publish Lictory releases.
-   Existing deployment workflows assume operator configuration: independently
-   review their behavior before enabling Actions on a fork.
+7. Limit the deployment branches of the `release` and `websites`
+   environments to `main` (a custom branch policy, no tags), and optionally add
+   required reviewers. Who may run **Release** or redeploy a website is the
+   `RELEASE_MANAGERS` repository variable; when unset, only the repository
+   owner can ([who can release](releases.md#who-can-release)). Audit
+   repository/environment secrets, Cloudflare permissions, registry ownership
+   and release dispatch permissions. Forks must be able to test without
+   Lictory infrastructure and must not publish Lictory releases: the release
+   and website workflows only run in `chricarp/lictory`.
 8. Enable dependency graph, Dependabot alerts/security updates, secret scanning
    and push protection where available; confirm scope/plan support. Dependabot
    configuration alone does not enable every security feature. Security
@@ -160,10 +167,11 @@ CODEOWNERS, labels or the existing title check.
    required.
    Revisit hosted domain/browser checks as external contribution volume grows.
 9. Enable private vulnerability reporting, verify who receives notifications,
-   and give a backup maintainer access. Align `.github/SECURITY.md` with the
-   releases actually maintained. Do not promise remediation deadlines or a bounty.
+   and give a backup maintainer access. Keep the supported versions in
+   `.github/SECURITY.md` aligned with the releases actually maintained. Do not
+   promise remediation deadlines or a bounty.
 10. Before container/package distribution, inventory shipped licenses and plan
-    SBOM/provenance generation tied to the exact artifact digest. Keep production
+    SBOM/provenance generation tied to the exact artifact digest. Keep stable
     promotion human-controlled. Do not describe unsigned artifacts as verified.
 
 ### Security scanning
@@ -227,29 +235,50 @@ that a particular license or business model will succeed for Lictory.
 
 ## Remaining operator actions
 
-The following describes the preparation checked on 28 October 2026. Recheck
-settings immediately before publication; GitHub settings are not versioned here.
-The project remains private, and no release or deployment was triggered.
+The following describes the settings checked on 4 November 2026. Recheck
+them immediately before publication; GitHub settings are not versioned here.
+The repository remains private.
 
-Already applied: 14 standard labels (other labels preserved), vulnerability
-alerts enabled, and `main` branch protection. Its required checks are `Verify`
-and `Conventional PR title`, restricted to the GitHub Actions app. PRs must be
-up to date, conversations resolved, and administrators are subject to the rules.
-Required approval count is zero while there is only one maintainer. The default
-workflow token was already read-only; Actions cannot approve PRs, and there are
-no registered self-hosted runners. Production already restricts deployment to
-`main` but has no required environment reviewer.
+**`main` ruleset** (active, no bypass actors): blocks deletion and force
+pushes; requires a pull request with resolved conversations, dismisses stale
+approvals on push, and requires zero approvals while there is only one
+maintainer. The only required status check is **Conventional PR title** (from
+the GitHub Actions app); branches need not be up to date before merging.
 
-The nightly workflow in this change skips forks. Fork operators who want their
-own release pipeline must adapt that repository guard and configure their own
-infrastructure. Node 24 is now documented alongside Bun; a bare Bun-only clean
-installation failed in Zero's native install, whereas the paired environment
-uses the supported Node ABI.
+**Environments.** `release` and `websites` limit deployment branches to `main`
+with a custom branch policy and have no required reviewers. `websites` holds
+the only secret (`CLOUDFLARE_API_TOKEN`); `release` holds none.
+`RELEASE_MANAGERS` is not set, so only the repository owner can run
+**Release** or redeploy a website. `marketing-site`, `docs-site`,
+`production-intent` and `nightly-intent` are deployment journals written by
+the workflows, not protection boundaries.
+
+The default workflow token is read-only; Actions cannot approve PRs, and there
+are no registered self-hosted runners. The nightly, release and website
+workflows skip forks.
+
+**Settings to-dos:**
+
+1. **Require `Verify`** in the `main` ruleset next to **Conventional PR
+   title**, selecting the check run from the GitHub Actions app. Until then,
+   CI runs on every pull request but nothing stops a merge while it fails.
+   Consider also requiring branches to be up to date.
+2. **Delete hosted-era leftovers.** The `Production` and `Preview`
+   environments and the repository variables `PRODUCTION_DATABASE_HOST`,
+   `PRODUCTION_VERCEL_PROJECT_ID`, `VERCEL_PROJECT_ID`, `STAGING_PLATFORM_URL`
+   and `STAGING_SITE_URL` belong to the retired hosted service; no workflow
+   reads them. Review their deployment history for internal information
+   before publication.
+3. Optionally add required reviewers to `release` and `websites`.
+
+Node 24 is documented alongside Bun; a bare Bun-only clean installation failed
+in Zero's native install, whereas the paired environment uses the supported
+Node ABI.
 
 Before changing visibility:
 
-1. Review and merge the prepared source changes through a PR; this task does
-   not publish a PR. Keep the full verification evidence with the reviewed SHA.
+1. Merge pending source changes through reviewed PRs and keep the full
+   verification evidence with the reviewed SHA.
 2. Review all historical releases and their descriptions for internal information.
    Existing release tags predate the new MIT notice: publish the first public
    source release from a commit containing LICENSE and the notices, and describe
@@ -282,15 +311,16 @@ Immediately after changing visibility:
    the Security tab. Optionally require **Dependency review** and **Secret scan**
    on `main` once they have run green.
 4. Enable **Private vulnerability reporting** there; verify notifications reach
-   you. The endpoint returned 404 while private. SECURITY.md now provides
-   `me@chricarp.com` as the private fallback, so reporters have a working channel.
+   you. The endpoint returns 404 while private, and SECURITY.md routes reports
+   only through it, so do this before announcing the repository.
 5. Check the repository signed out: license detection, README, issue forms,
    private security reporting, and contribution links. Use synthetic content for
    the product walkthrough and announce the documented support level.
 
 When adding a second maintainer, agree an independent conduct reporting contact
 and update CODE_OF_CONDUCT.md, require one approval and CODEOWNERS review,
-add a Production environment reviewer, and review release-branch protections.
+add `release` and `websites` environment reviewers, and review release-branch
+protections.
 No release branches currently exist. Until then, protect each new `release/*`
 branch before accepting changes to it; do not weaken the documented maintenance
 merge semantics just to enforce a linear-history rule.

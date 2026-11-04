@@ -11,7 +11,7 @@ export default function TermsPage() {
     <>
       <LegalDocument
         title="Terms of Service"
-        introduction="These terms govern your use of Lictory, a service for refining, reviewing and delivering software requirements. Please read them before creating an account. You can save or print this page for your records."
+        introduction="These terms govern your use of the Lictory websites. The Lictory software is licensed separately under the MIT License, and each self-hosted installation is governed by its operator. You can save or print this page for your records."
         sections={termsSections}
       />
       <JsonLd data={publicPageStructuredData("/terms-of-service")} />

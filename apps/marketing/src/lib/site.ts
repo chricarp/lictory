@@ -64,7 +64,7 @@ export const marketingImage = {
  * Date the published legal notices took effect. Shown on the pages and
  * reported to search engines, so change it only when their text changes.
  */
-export const legalVersion = { date: "2026-10-09", label: "9 October 2026" };
+export const legalVersion = { date: "2026-11-04", label: "4 November 2026" };
 
 export type PublicPage = {
   path: string;
@@ -119,7 +119,7 @@ export const publicPages: readonly PublicPage[] = [
     path: "/privacy",
     title: "Privacy Notice",
     description:
-      "How Lictory processes account, collaboration and technical data, and how to exercise your privacy rights.",
+      "How the Lictory websites handle personal data and analytics consent, and who controls the data in self-hosted installations.",
     changeFrequency: "yearly",
     priority: 0.3,
     lastModified: legalVersion.date,
@@ -128,7 +128,7 @@ export const publicPages: readonly PublicPage[] = [
     path: "/terms-of-service",
     title: "Terms of Service",
     description:
-      "Terms for using Lictory’s collaborative requirements review and work-management service.",
+      "Terms for using the Lictory websites. The self-hosted software is licensed separately under the MIT License.",
     changeFrequency: "yearly",
     priority: 0.3,
     lastModified: legalVersion.date,

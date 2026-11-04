@@ -1,10 +1,9 @@
 # Self-hosting
 
 This runbook is for a company that runs Lictory on its own Linux server. The
-server pulls published releases from GitHub; nothing pushes to it. The
-maintainer's own production (lictory.com, released by GitHub Actions over
-SSH) is described in [deployment](deployment.md). Both use the same release
-tooling, images and safeguards.
+server pulls published releases from GitHub; nothing pushes to it. How the
+server tooling works underneath (services, network boundaries, upgrades,
+rollback) is described in [deployment](deployment.md).
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh | sudo sh

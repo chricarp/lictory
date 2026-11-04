@@ -196,9 +196,7 @@ hostname. The API writes the platform's public runtime configuration (the
 website origin from `SITE_URL` and the browser analytics settings from
 `POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST`) into each SPA document it serves; the
 browser reads it there instead of from the bundle. Change `.env` and restart
-the API to change them. When Cloudflare serves the platform SPA (lictory.com),
-its Worker writes the same configuration from its own variables
-([websites on Cloudflare](websites.md)).
+the API to change them.
 
 ## Database roles
 
@@ -247,12 +245,11 @@ and rollback targets retain their original marketing digest.
 Dependency installation precedes copying application source; release versions
 are stamped only in the browser/website build stages.
 
-Production builds and exact-candidate verification run concurrently. The
-platform SPA is prepared alongside backend images, then uploaded only after
-stable publication and healthy backend activation. Its artifact is scoped to
-the current workflow run and selected version. The marketing website and the
+Release builds and exact-candidate verification run concurrently. The
+platform SPA is built into the proxy and API images, so every installation
+serves the client from its own gateway. The marketing website and the
 documentation are not released with the product; they deploy from `main`. No
-production deployment skips verification, backup, migration or Zero catch-up.
+deployment skips verification, backup, migration or Zero catch-up.
 See [release performance](development.md#release-performance) for measuring the
 two-minute warm-run target and the cold-run limits.
 
@@ -359,8 +356,8 @@ steps:
    no requests; replacing the proxy itself refuses connections for about two
    seconds (open WebSockets reconnect).
 
-This is Zero's expand order: database, then API, then the Cloudflare client
-release. The private gateway retains compatible SPA assets for origin fallback. Contract changes (drop or
+This is Zero's expand order: database, then API, then the client the gateway
+serves. The gateway retains the previous release's SPA assets for open tabs. Contract changes (drop or
 rename) go the other way across releases: first a release that stops using
 the column, table, query or mutator, then a later release with the contract
 migration. The previous release must always work against the new schema,
