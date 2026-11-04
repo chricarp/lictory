@@ -54,8 +54,8 @@ NotificationEmail.PreviewProps = {
   headline: "Ada Lovelace requested Engineering review of PAY-142",
   body: "Revision 3 · required",
   title: "Retry failed card payments",
-  actionUrl: "https://app.lictory.com/app/acme/items/PAY-142",
-  preferencesUrl: "https://app.lictory.com/app/acme/inbox/settings",
+  actionUrl: "https://lictory.example.com/acme/items/PAY-142",
+  preferencesUrl: "https://lictory.example.com/acme/inbox/settings",
 } satisfies NotificationEmailProps;
 
 export default NotificationEmail;

@@ -87,6 +87,7 @@ export function EpicPicker({
         else close();
       }}
       trigger={(props) => (
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- pointer convenience that focuses the field's own input, which keyboard users reach directly.
         <div
           ref={props.ref}
           data-state={props["data-state"]}

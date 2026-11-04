@@ -50,7 +50,7 @@ test.beforeEach(async ({ page, context }, testInfo) => {
 });
 
 for (const mode of ["native", "external"] as const)
-  test(`${mode} onboarding resumes, invites reviewers, and saves the complete setup`, async ({
+  test(`${mode} onboarding resumes, invites reviewers, and saves the complete setup @smoke`, async ({
     page,
   }) => {
     if (mode === "native") {

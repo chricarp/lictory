@@ -7,21 +7,25 @@ application boot, image builds or containers starting.
 
 ## Connections
 
-| Variable                               | Used by                                             | Where it lives                                 |
-| -------------------------------------- | --------------------------------------------------- | ---------------------------------------------- |
-| `DATABASE_URL`                         | API and worker (`lictory_app`, DML only)            | Built by Compose from the server's `.env`      |
-| `DATABASE_MIGRATION_URL`               | `scripts/migrate.ts`, backfills (owner)             | Only in the `migrate` service on the server    |
-| `DATABASE_MIGRATION_EXPECTED_HOST`     | Guard: host the migration URL must match            | Compose (`postgres`)                           |
-| `DATABASE_MIGRATION_EXPECTED_DATABASE` | Guard: database name the URL must match             | Compose (`LICTORY_DB_NAME` of the environment) |
-| `DATABASE_MIGRATION_TRANSPORT`         | `tls` (default) or `compose-internal`               | Compose sets `compose-internal`                |
-| `DATABASE_MIGRATION_TARGET`            | `local`, `test`, `preview`, `staging`, `production` | Compose sets the environment; default `local`  |
-| `LICTORY_ENVIRONMENT`                  | Confirms the target for `compose-internal`          | Server `.env`                                  |
+| Variable                               | Used by                                           | Where it lives                                 |
+| -------------------------------------- | ------------------------------------------------- | ---------------------------------------------- |
+| `DATABASE_URL`                         | API and worker (`lictory_app`, DML only)          | Built by Compose from the server's `.env`      |
+| `DATABASE_MIGRATION_URL`               | `scripts/migrate.ts`, backfills (owner)           | Only in the `migrate` service on the server    |
+| `DATABASE_MIGRATION_EXPECTED_HOST`     | Guard: host the migration URL must match          | Compose (`postgres`)                           |
+| `DATABASE_MIGRATION_EXPECTED_DATABASE` | Guard: database name the URL must match           | Compose (`LICTORY_DB_NAME` of the environment) |
+| `DATABASE_MIGRATION_TRANSPORT`         | `tls` (default) or `compose-internal`             | Compose sets `compose-internal`                |
+| `DATABASE_MIGRATION_TARGET`            | `local`, `test`, `preview` or an environment name | Compose sets the environment; default `local`  |
+| `LICTORY_ENVIRONMENT`                  | Confirms the target for `compose-internal`        | Server `.env`                                  |
 
 The runtime role only has DML on application tables; the migration role owns
 the schema ([database roles](deployment.md#database-roles)). The migration
 credential exists only in the one-shot `migrate` container, so a compromised
 API process cannot run DDL. Databases are never reachable from GitHub Actions
 or developer machines; migrations always run on their server.
+
+Targets other than `local` and `test` are remote: `preview`, `staging`,
+`production` and any custom environment name (lowercase letters, digits and
+hyphens) get exactly the same protections.
 
 `scripts/migrate.ts` refuses to run when:
 
@@ -33,7 +37,8 @@ or developer machines; migrations always run on their server.
   `require`/`verify-full`;
 - transport `compose-internal` (the single-server deployment, where the
   database is the Compose service `postgres` on an internal network without
-  TLS): the target is not `staging` or `production`, the host is not
+  TLS): the target is `local`, `test` or `preview` instead of a server
+  environment (`staging`, `production` or a custom name such as `qa`), the host is not
   `postgres`, `sslmode=disable` is not stated explicitly,
   `DATABASE_MIGRATION_EXPECTED_DATABASE` is missing or differs, or
   `LICTORY_ENVIRONMENT` does not equal the target.
@@ -72,34 +77,31 @@ silently; regenerate such a migration on top of main.
 
 `bun run db:migrate:status` lists pending migrations without applying them.
 
-## Production rollout
+## Rollout on an installation
 
-`Release to Production` (`.github/workflows/deploy-production.yml`) runs when a
-maintainer selects a verified nightly in GitHub Actions and the Production
-environment's reviewers approve. Every application and migration step uses
-that nightly's exact SHA, never the current main HEAD; see
-[versions and releases](releases.md).
+Releases only publish images ([versions and releases](releases.md)); each
+installation applies one when its operator runs `lictory upgrade`, which
+drives `deploy.sh release` with that release's `release.env`
+([self-hosting](self-hosting.md)):
 
-1. **Validate and verify**: matching nightly provenance and predicted stable
-   version, then the CI workflow, including `db:check`.
-2. **Build**: images of that commit, pushed by digest; nothing serves them yet.
-3. **Prepare and migrate on the server** (`deploy.sh migrate`): a pre-deploy
+1. **Prepare** (`deploy.sh prepare`): validate the release file, pull its
+   images by digest and check the gateway configuration; nothing serves them
+   yet.
+2. **Migrate** (`deploy.sh migrate`): a pre-deploy
    backup when migrations are pending, then the `migrate` image's runner, then
    a wait until zero-cache has replicated past the migration.
-4. **Activate**: zero-cache, proxy, API, worker and website switch to the new
-   images ([deployment](deployment.md#deploying-a-release)).
+3. **Activate**: zero-cache, proxy, API and worker switch to the new images
+   ([deployment](deployment.md#deploying-a-release)).
 
-A failed verification, build or migration leaves the previous version serving.
-Publication failure after activation is repaired without reactivation. Releases
-and manual migration recovery share the retained `lictory-production-release`
-concurrency queue, and deployments on the server hold a lock; the runner also
-uses a PostgreSQL advisory lock, so even a manual run cannot overlap. All
+A failed preparation or migration leaves the previous version serving.
+Deployments on the server hold a lock, and the runner also uses a PostgreSQL
+advisory lock, so even a manual run cannot overlap. All
 pending migrations apply in one transaction with `lock_timeout` (default
 `10s`) and `statement_timeout` (default `10min`): either all commit or none
 do. Override with `MIGRATION_LOCK_TIMEOUT` and `MIGRATION_STATEMENT_TIMEOUT`
 when needed.
 
-Always migrate through `deploy.sh` (or the workflows that call it): it
+Always migrate through `deploy.sh` (or `lictory`, which calls it): it
 re-applies the database roles first, including the migration role's access to
 Zero's DDL event triggers, which run as the role issuing the DDL.
 
@@ -124,17 +126,11 @@ and clients run queries and mutators compiled into the previous release.
 
 ### Recovery
 
-To re-run migrations without code changes, dispatch **Database migrations** on
-`main` with the environment and a release version already prepared on that
-server (`deploy.sh <env> migrate <version>` over the restricted SSH key). It
-never activates an application. To fix a failed migration, merge a fix and
-release a new nightly. Restoring data is covered in [recovery](recovery.md).
-
-### Setup
-
-The `Production` and `staging` GitHub environments hold the deployment SSH
-key (`DEPLOY_SSH_KEY` secret), the pinned host key (`DEPLOY_SSH_KNOWN_HOSTS`
-variable) and `DEPLOY_SSH_TARGET`. No database credential is stored in GitHub.
+To re-run migrations without code changes, run
+`deploy.sh <env> migrate <version>` on the server with a release version
+already prepared there. It never activates an application. To fix a failed
+migration, merge a fix and release a new nightly. Restoring data is covered
+in [recovery](recovery.md). No database credential is ever stored in GitHub.
 
 ## Data changes
 
@@ -155,10 +151,10 @@ calls external services, or could take longer than a few seconds. Backfills:
 - ship after the expand migration and before any contract migration that
   depends on them.
 
-The migrate image bundles every backfill of its commit. Run one with the
-manual **Data backfill** workflow (staging first), naming a release prepared on
-that server; it runs `deploy.sh <env> backfill <version> <name>` in the
-environment's `migrate` container. That container has no internet access;
+The migrate image bundles every backfill of its commit. Run one on the server
+(a test environment first) with `deploy.sh <env> backfill <version> <name>`,
+naming a release prepared there; it runs in the environment's `migrate`
+container. That container has no internet access;
 work that calls external services belongs in the worker's job queue. Backfills
 are never part of the deployment path.
 

@@ -380,11 +380,97 @@ void test("external edits after the last export are reported per owned field", a
   );
 });
 
-void test("site URLs normalize to an https origin", () => {
+void test("site URLs normalize to an https Jira Cloud origin", () => {
   const { provider } = fakeJira({});
   assert.equal(
     provider.normalizeBaseUrl("acme.atlassian.net/jira/"),
     "https://acme.atlassian.net",
   );
+  assert.equal(
+    provider.normalizeBaseUrl(" https://ACME.atlassian.net/browse/PAY-1 "),
+    "https://acme.atlassian.net",
+  );
+  assert.equal(
+    provider.normalizeBaseUrl("https://legacy.jira.com"),
+    "https://legacy.jira.com",
+  );
   assert.throws(() => provider.normalizeBaseUrl("http://acme.atlassian.net"));
+});
+
+void test("connections cannot point the server at hosts other than Jira Cloud", () => {
+  const { provider } = fakeJira({});
+  for (const url of [
+    "https://169.254.169.254",
+    "https://10.0.0.5",
+    "https://[::1]",
+    "https://intranet.corp",
+    "https://jira.internal.example.com",
+    "https://atlassian.net",
+    "https://acme.atlassian.net.evil.test",
+    "https://acmeatlassian.net",
+    "https://acme.atlassian.net:8443",
+    "https://acme.atlassian.net@10.0.0.1",
+    "https://10.0.0.1#.atlassian.net",
+    "https://10.0.0.1/?.atlassian.net",
+    "ftp://acme.atlassian.net",
+  ])
+    assert.throws(
+      () => provider.normalizeBaseUrl(url),
+      (e: DeliveryError) => e.kind === "validation",
+      url,
+    );
+});
+
+void test("a local Jira stand-in is accepted only outside production", (t) => {
+  const { provider } = fakeJira({});
+  assert.equal(
+    provider.normalizeBaseUrl("http://localhost:4010"),
+    "http://localhost:4010",
+  );
+  const previous = process.env.NODE_ENV;
+  t.after(() => {
+    process.env.NODE_ENV = previous;
+  });
+  process.env.NODE_ENV = "production";
+  assert.throws(() => provider.normalizeBaseUrl("http://localhost:4010"));
+});
+
+void test("a stored connection to another host sends no request", async () => {
+  let requests = 0;
+  const provider = createJiraCloudProvider({
+    fetch: async () => {
+      requests++;
+      return new Response("{}");
+    },
+  });
+  await assert.rejects(
+    provider.getItem(
+      { ...connection, baseUrl: "https://metadata.internal" },
+      "PAY-1",
+    ),
+    (e: DeliveryError) =>
+      e.kind === "validation" && !e.message.includes("secret-token"),
+  );
+  assert.equal(requests, 0);
+});
+
+void test("Jira redirects are not followed", async () => {
+  const seen: RequestInit[] = [];
+  const provider = createJiraCloudProvider({
+    sleep: async () => undefined,
+    fetch: (async (_url: string, init: RequestInit) => {
+      seen.push(init);
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "https://169.254.169.254/latest/meta-data/" },
+      });
+    }) as typeof globalThis.fetch,
+  });
+  await assert.rejects(
+    provider.getItem(connection, "PAY-1"),
+    (e: DeliveryError) =>
+      e.kind === "validation" && /reconnect/i.test(e.message),
+  );
+  assert.equal(seen.length, 1, "a redirect is not retried");
+  assert.equal(seen[0]?.redirect, "manual");
 });

@@ -1,0 +1,1473 @@
+#!/usr/bin/env bash
+# lictory: install and operate a self-hosted Lictory environment on this
+# server. A thin layer over the release tooling (install.sh,
+# new-environment.sh, deploy.sh, lictory-compose, lictory-backup,
+# lictory-restore-drill): it asks for what a first installation needs, pulls
+# releases from GitHub Releases and surfaces the safeguards of deploy.sh.
+# Installed by deploy/get.sh; see docs/operations/self-hosting.md.
+#
+#   lictory install                 interactive (or --yes with flags/LICTORY_* variables)
+#   lictory status [--json]         active release and service health
+#   lictory doctor                  host and runtime checks, with what to fix
+#   lictory upgrade [version]       newest release of the environment's channel, or that version
+#   lictory rollback                re-activate the previous release's images
+#   lictory backup                  encrypted backup now
+#   lictory restore <identity|none> [latest|<key>|<file>] [--drill]
+#   lictory logs [service] [-f] [--tail N]
+#   lictory registry-login [--username U]   token on stdin, for private images
+#
+# Every command takes --env <name> when the server hosts several environments.
+set -euo pipefail
+
+repository="${LICTORY_REPOSITORY:-chricarp/lictory}"
+github_api="${LICTORY_GITHUB_API:-https://api.github.com}"
+default_registry="${LICTORY_DEFAULT_REGISTRY:-ghcr.io/chricarp}"
+root="${LICTORY_ROOT:-/srv/lictory}"
+cli_path="${LICTORY_CLI_PATH:-/usr/local/bin/lictory}"
+services="postgres zero-cache api worker proxy"
+# Placeholder for ACME_EMAIL, which Compose requires even when the gateway
+# requests no certificates (proxy, local CA and plain HTTP modes).
+unused_email=unused@example.invalid
+
+say() { printf '%s\n' "$*"; }
+step() { printf '\n== %s\n' "$*"; }
+warn() { printf 'Warning: %s\n' "$*" >&2; }
+die() {
+  printf 'Error: %s\n' "$1" >&2
+  exit "${2:-1}"
+}
+usage_error() {
+  printf 'Error: %s\nRun "lictory help" for usage.\n' "$1" >&2
+  exit 64
+}
+
+usage() {
+  cat <<'USAGE'
+Usage: lictory <command> [options]
+
+  install            Install or reconfigure an environment (interactive, or --yes)
+  status [--json]    Active release and service health
+  doctor             Check the host and the running environment
+  upgrade [version]  Upgrade to the newest release of the channel, or to <version>
+  rollback           Re-activate the previous release (database schema stays)
+  backup             Take an encrypted backup now
+  restore <identity-file|none> [latest|<key>|<file>]
+                     Replace the database with a backup (--drill: test only)
+  logs [service]     Service logs (-f to follow, --tail N)
+  registry-login     Log in to the image registry (token on stdin)
+  help               This text
+
+Options for every command: --env <name> (when several environments exist),
+--yes (no questions). Install options: docs/operations/self-hosting.md.
+USAGE
+}
+
+# ------------------------------------------------------------- option parsing
+# Options are stored as opt_<name>; "given" records which ones were supplied
+# (on the command line, by a LICTORY_<NAME> variable or answered at a prompt).
+given=" "
+set_opt() {
+  local var
+  var="opt_$(printf '%s' "$1" | tr '-' '_')"
+  printf -v "$var" '%s' "$2"
+  case "$given" in *" $1 "*) ;; *) given="$given$1 " ;; esac
+}
+opt() {
+  local var
+  var="opt_$(printf '%s' "$1" | tr '-' '_')"
+  printf '%s' "${!var:-}"
+}
+is_given() { case "$given" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+word_in() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+install_values="host tls acme-email acme-ca http-port bind public-url trusted-proxies
+  email smtp-host smtp-port smtp-user smtp-password smtp-from resend-api-key email-from
+  storage s3-endpoint s3-region s3-bucket s3-access-key-id s3-secret-access-key s3-force-path-style
+  oidc oidc-issuer oidc-client-id oidc-client-secret oidc-display-name
+  backup backup-path backup-bucket backup-s3-provider backup-s3-endpoint backup-s3-region
+  backup-s3-access-key-id backup-s3-secret-access-key backup-rclone-remote
+  backup-age-recipient backup-identity-file channel version deploy-user"
+
+positional=()
+parse() { # parse <value options> <flag options> <arguments...>
+  local values="env $1" flags="yes help $2" name value has_value
+  values=$(printf '%s' "$values" | tr -s ' \n' '  ')
+  shift 2
+  positional=()
+  while [ $# -gt 0 ]; do
+    has_value=false
+    case "$1" in
+      --)
+        shift
+        positional+=("$@")
+        break
+        ;;
+      --*=*)
+        name="${1%%=*}"
+        name="${name#--}"
+        value="${1#*=}"
+        has_value=true
+        ;;
+      --*) name="${1#--}" ;;
+      -y) name=yes ;;
+      -h) name=help ;;
+      -f) name=follow ;;
+      -e) name="env" ;;
+      -?*) usage_error "Unknown option: $1" ;;
+      *)
+        positional+=("$1")
+        shift
+        continue
+        ;;
+    esac
+    if word_in "$name" "$flags"; then
+      [ "$has_value" = false ] || usage_error "--$name takes no value."
+      set_opt "$name" true
+      shift
+    elif word_in "$name" "$values"; then
+      if [ "$has_value" = false ]; then
+        [ $# -ge 2 ] || usage_error "--$name needs a value."
+        value="$2"
+        shift
+      fi
+      shift
+      set_opt "$name" "$value"
+    else
+      usage_error "Unknown option for lictory $command: --$name"
+    fi
+  done
+  # LICTORY_<NAME> variables supply options not given on the command line
+  # (secrets stay out of the process list and shell history).
+  local env_name
+  for name in $values; do
+    is_given "$name" && continue
+    env_name="LICTORY_$(printf '%s' "$name" | tr '[:lower:]-' '[:upper:]_')"
+    [ -z "${!env_name:-}" ] || set_opt "$name" "${!env_name}"
+  done
+  for name in $values; do
+    is_given "$name" || continue
+    value=$(opt "$name")
+    reason=$(invalid_reason "$name" "$value") || true
+    [ -z "$reason" ] || usage_error "--$name: $reason"
+  done
+  if [ "$(opt help)" = true ]; then
+    usage
+    exit 0
+  fi
+}
+
+# ----------------------------------------------------------------- validation
+host_pattern='^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
+version_pattern='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+origin_pattern='^https?://([a-z0-9.-]+|\[[0-9a-f:]+\])(:[0-9]+)?$'
+age_pattern='^age1[0-9a-z]{20,}([ ,]+age1[0-9a-z]{20,})*$'
+
+valid_environment() {
+  [[ "$1" =~ ^[a-z][a-z0-9-]{0,31}$ ]] && case "$1" in local | test | preview) false ;; esac
+}
+valid_port() { [[ "$1" =~ ^[0-9]{1,5}$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+
+# Prints why <value> is not acceptable for option <name>; nothing when it is.
+invalid_reason() {
+  local name="$1" value="$2" item
+  case "$value" in
+    *$'\n'* | *$'\r'*) echo "must be a single line" && return ;;
+    *"'"*) echo "must not contain a single quote (edit .env by hand for such values)" && return ;;
+  esac
+  case "$name" in
+    env) valid_environment "$value" || echo "use lowercase letters, digits and hyphens (local, test and preview are reserved)" ;;
+    host) [[ "$value" =~ $host_pattern ]] || echo "a lowercase host name such as lictory.example.com (no scheme, port or path)" ;;
+    tls) word_in "$value" "acme proxy internal http" || echo "one of acme, proxy, internal, http" ;;
+    acme-email) [[ "$value" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || echo "an email address" ;;
+    acme-ca | oidc-issuer) [ -z "$value" ] || [[ "$value" =~ ^https://[^[:space:]]+$ ]] || echo "an https:// URL" ;;
+    http-port | smtp-port) valid_port "$value" || echo "a port number" ;;
+    bind) word_in "$value" "127.0.0.1 0.0.0.0" || echo "127.0.0.1 (this host only) or 0.0.0.0 (all interfaces)" ;;
+    public-url) [[ "$value" =~ $origin_pattern ]] || echo "an origin such as https://lictory.example.com (lowercase, no path or trailing slash)" ;;
+    trusted-proxies)
+      for item in $value; do
+        [[ "$item" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] || { echo "space-separated IP addresses or CIDRs" && return; }
+      done
+      ;;
+    email) word_in "$value" "smtp resend none" || echo "one of smtp, resend, none" ;;
+    storage) word_in "$value" "s3 none" || echo "s3 or none" ;;
+    s3-endpoint | backup-s3-endpoint) [ -z "$value" ] || [[ "$value" =~ ^https?://[^/[:space:]@]+$ ]] || echo "an http(s)://host[:port] URL without a path" ;;
+    s3-force-path-style) word_in "$value" "true false" || echo "true or false" ;;
+    oidc) word_in "$value" "yes no" || echo "yes or no" ;;
+    backup) word_in "$value" "local s3 rclone none" || echo "one of local, s3, rclone, none" ;;
+    backup-path | backup-identity-file) [ -z "$value" ] || [[ "$value" =~ ^/[A-Za-z0-9._/-]+$ ]] || echo "an absolute path without spaces" ;;
+    backup-age-recipient) [[ "$value" =~ $age_pattern ]] || word_in "$value" "none generate" || echo "an age public key (age1…), generate or none" ;;
+    channel) word_in "$value" "stable nightly" || echo "stable or nightly" ;;
+    version) [[ "$value" =~ $version_pattern ]] || echo "a release version such as 1.4.2" ;;
+    deploy-user | username) [[ "$value" =~ ^[A-Za-z0-9_][A-Za-z0-9._@+\$-]{0,127}$ ]] || echo "a user name" ;;
+    tail) [[ "$value" =~ ^[0-9]{1,6}$ ]] || echo "a number of lines" ;;
+  esac
+}
+
+# -------------------------------------------------------------- environment
+valid_root() { [[ "$root" =~ ^/[A-Za-z0-9._/-]+$ ]] && [[ "$root" != *..* ]]; }
+valid_root || die "LICTORY_ROOT must be an absolute path without spaces or '..'." 64
+root="${root%/}"
+bin="$root/bin"
+
+env_value() { # env_value <file> <key> (the last assignment, one pair of quotes removed)
+  local line
+  line=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 || true)
+  line="${line#*=}"
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+  printf '%s' "$line"
+}
+setting() { env_value "$home/.env" "$1"; }
+
+configured_environments() {
+  local file
+  for file in "$root"/*/.env; do
+    [ -f "$file" ] || continue
+    basename "$(dirname "$file")"
+  done
+}
+
+# select_environment [install]: --env, else the only configured environment.
+select_environment() {
+  local found count
+  environment=$(opt env)
+  if [ -z "$environment" ]; then
+    found=$(configured_environments 2>/dev/null || true)
+    count=$(printf '%s' "$found" | grep -c . || true)
+    if [ "$count" = 1 ]; then
+      environment="$found"
+    elif [ "$count" = 0 ] && [ "${1:-}" = install ]; then
+      environment=production
+    elif [ "$count" = 0 ]; then
+      die "No Lictory environment is configured under $root. Run: sudo lictory install"
+    else
+      die "This server hosts several environments ($(printf '%s' "$found" | tr '\n' ' ' | sed 's/ $//')): pass --env <name>." 64
+    fi
+  fi
+  home="$root/$environment"
+  if [ "${1:-}" != install ]; then
+    [ -r "$home/.env" ] || {
+      [ -e "$home/.env" ] && die "Cannot read $home/.env: run with sudo or as the deploy user."
+      die "Environment $environment is not configured ($home/.env does not exist). Run: sudo lictory install --env $environment"
+    }
+  fi
+}
+
+is_root() { [ "$(id -u)" = 0 ]; }
+require_root() { is_root || die "Run as root: sudo lictory $command"; }
+owner_of() { stat -c %U "$1" 2>/dev/null || stat -f %Su "$1"; }
+deploy_user() {
+  if [ -n "$(opt deploy-user)" ]; then
+    opt deploy-user
+  elif [ -n "${DEPLOY_USER:-}" ]; then
+    printf '%s' "$DEPLOY_USER"
+  elif [ -d "$root" ]; then
+    owner_of "$root"
+  else
+    printf deploy
+  fi
+}
+# Release tooling runs as the deploy user, so files it creates stay
+# writable by the timers (systemd runs them as that user).
+as_deploy() {
+  if ! is_root; then
+    env LICTORY_ROOT="$root" "$@"
+    return
+  fi
+  local user
+  user=$(deploy_user)
+  if command -v runuser >/dev/null; then
+    runuser -u "$user" -- env LICTORY_ROOT="$root" "$@"
+  elif command -v sudo >/dev/null; then
+    sudo -H --preserve-env=RESTORE_PGPASSWORD -u "$user" env LICTORY_ROOT="$root" "$@"
+  else
+    die "Neither runuser nor sudo is available to run commands as $user."
+  fi
+}
+deploy_sh() { as_deploy "$bin/deploy.sh" "$environment" "$@"; }
+compose() { as_deploy "$bin/lictory-compose" "$environment" "$@"; }
+
+current_version() {
+  [ -f "$home/current/release.env" ] || return 0
+  env_value "$home/current/release.env" LICTORY_VERSION
+}
+platform_url() {
+  local url host
+  url=$(setting PLATFORM_URL)
+  host=$(setting PUBLIC_APP_HOST)
+  host="${host:-$(setting APP_HOST)}"
+  printf '%s' "${url:-https://$host}"
+}
+channel_of_environment() {
+  local channel
+  channel=$(setting LICTORY_RELEASE_CHANNEL)
+  printf '%s' "${channel:-stable}"
+}
+
+# Writes KEY=VALUE into an .env file: replaces existing assignments, appends
+# new keys, leaves every other line (comments, secrets) untouched. Values
+# with `$` or `#` are single-quoted for Compose.
+set_env() { # set_env <file> <key> <value>
+  local file="$1" key="$2" value="$3" tmp
+  if ! grep -qE "^$key=" "$file"; then
+    [ -n "$value" ] || return 0
+    printf '%s=%s\n' "$key" "$(env_quote "$value")" >>"$file"
+    return 0
+  fi
+  tmp=$(mktemp "$(dirname "$file")/.env.XXXXXX")
+  LICTORY_KEY="$key" LICTORY_VALUE="$(env_quote "$value")" awk '
+    BEGIN { key = ENVIRON["LICTORY_KEY"]; value = ENVIRON["LICTORY_VALUE"] }
+    index($0, key "=") == 1 { print key "=" value; next }
+    { print }
+  ' "$file" >"$tmp"
+  chmod 0600 "$tmp"
+  is_root && chown "$(owner_of "$file")" "$tmp" 2>/dev/null || true
+  mv -f "$tmp" "$file"
+}
+env_quote() {
+  case "$1" in
+    *'$'* | *'#'* | ' '* | *' ' | '"'*) printf "'%s'" "$1" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# ------------------------------------------------------------------- releases
+api_get() { # api_get <path> <output file>; prints the HTTP status
+  local headers status
+  headers=$(mktemp)
+  chmod 0600 "$headers"
+  printf 'Accept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' >"$headers"
+  [ -z "${GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" >>"$headers"
+  status=$(curl -sSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 30 --retry 3 \
+    -H "@$headers" -o "$2" -w '%{http_code}' "$github_api/repos/$repository$1" || echo 000)
+  rm -f "$headers"
+  printf '%s' "$status"
+}
+
+nightly_tag='^v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[0-9]+$'
+stable_tag='^v[0-9]+\.[0-9]+\.[0-9]+$'
+
+# resolve_release <channel> [version]: sets release_tag, release_version,
+# release_notes, release_asset_url and release_digest.
+resolve_release() {
+  local channel="$1" version="${2:-}" json status path
+  json=$(mktemp)
+  if [ -n "$version" ]; then
+    path="/releases/tags/v${version#v}"
+  elif [ "$channel" = stable ]; then
+    path=/releases/latest
+  else
+    path="/releases?per_page=50"
+  fi
+  status=$(api_get "$path" "$json")
+  case "$status" in
+    200) ;;
+    404)
+      rm -f "$json"
+      [ -n "$version" ] && die "Release ${version#v} of $repository does not exist: https://github.com/$repository/releases"
+      die "No $channel release of $repository is published yet. Choose another channel (--channel nightly) or a version."
+      ;;
+    403 | 429)
+      rm -f "$json"
+      die "GitHub refused the request (HTTP $status, usually its rate limit for anonymous requests). Retry later, or set GITHUB_TOKEN."
+      ;;
+    *)
+      rm -f "$json"
+      die "Could not reach GitHub Releases ($github_api, HTTP $status). Check this server's outbound HTTPS access."
+      ;;
+  esac
+  if [ -z "$version" ] && [ "$channel" = nightly ]; then
+    jq --arg pattern "$nightly_tag" '
+      [.[] | select(.draft == false and .prerelease == true and (.tag_name | test($pattern)))]
+      | sort_by(.published_at) | last // empty' "$json" >"$json.one" && mv "$json.one" "$json"
+    [ -s "$json" ] || {
+      rm -f "$json"
+      die "No nightly release of $repository is published yet."
+    }
+  fi
+  release_tag=$(jq -r '.tag_name // ""' "$json")
+  release_notes=$(jq -r '.html_url // ""' "$json")
+  release_asset_url=$(jq -r '[.assets[]? | select(.name == "release.env")][0].browser_download_url // ""' "$json")
+  release_digest=$(jq -r '[.assets[]? | select(.name == "release.env")][0].digest // ""' "$json")
+  local draft prerelease
+  draft=$(jq -r '.draft' "$json")
+  prerelease=$(jq -r '.prerelease' "$json")
+  rm -f "$json"
+  [ "$draft" = false ] || die "$release_tag is a draft, not a published release."
+  if [[ "$release_tag" =~ $stable_tag ]] && [ "$prerelease" = false ]; then
+    release_channel=stable
+  elif [[ "$release_tag" =~ $nightly_tag ]] && [ "$prerelease" = true ]; then
+    release_channel=nightly
+  else
+    die "$release_tag is not a Lictory stable or nightly release."
+  fi
+  [ "$release_channel" = "$channel" ] ||
+    die "${release_tag#v} is a $release_channel release; environment $environment follows $channel releases (LICTORY_RELEASE_CHANNEL in $home/.env)."
+  release_version="${release_tag#v}"
+  [ -n "$release_asset_url" ] || die "Release $release_version has no release.env asset; it cannot be installed with this tool."
+  [[ "$release_asset_url" =~ ^https:// ]] || die "Release $release_version has an unexpected asset URL."
+}
+
+sha256_of() { openssl dgst -sha256 -r "$1" | cut -d' ' -f1 | tr -d '*'; }
+
+# fetch_release <output file>: downloads the resolved release.env, verifies
+# it against GitHub's asset digest and checks it names the resolved release.
+fetch_release() {
+  local file="$1" actual
+  curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+    -o "$file" "$release_asset_url" || die "Could not download release.env of $release_version."
+  if [ -n "$release_digest" ]; then
+    actual="sha256:$(sha256_of "$file")"
+    [ "$actual" = "$release_digest" ] ||
+      die "release.env of $release_version does not match the digest GitHub publishes ($release_digest, downloaded $actual). Nothing was installed."
+  else
+    warn "GitHub publishes no digest for release.env of $release_version; relying on HTTPS alone."
+  fi
+  [ "$(env_value "$file" LICTORY_VERSION)" = "$release_version" ] ||
+    die "release.env of $release_tag names version $(env_value "$file" LICTORY_VERSION)."
+  [ "$(env_value "$file" LICTORY_CHANNEL)" = "$release_channel" ] ||
+    die "release.env of $release_tag names channel $(env_value "$file" LICTORY_CHANNEL)."
+}
+
+# Pulls a release's images as the deploy user (deploy.sh pulls again from the
+# cache) to turn registry refusals into an actionable message.
+pull_release_images() { # pull_release_images <release file>
+  local file="$1" key image output
+  for key in OPS_IMAGE API_IMAGE PROXY_IMAGE MIGRATE_IMAGE; do
+    image=$(env_value "$file" "$key")
+    [ -n "$image" ] || die "The release file has no $key."
+    if ! output=$(as_deploy docker pull -q "$image" 2>&1); then
+      case "$output" in
+        *denied* | *unauthorized* | *forbidden* | *"authentication required"*)
+          die "The registry refused to pull $image.
+The Lictory images may not be public yet. Log in with a token that can read
+packages, then retry:  sudo lictory registry-login --username <github-user>" ;;
+        *) die "Could not pull $image: $output" ;;
+      esac
+    fi
+  done
+}
+
+# semver_cmp <a> <b>: prints -1, 0 or 1 (prerelease identifiers per SemVer).
+semver_cmp() {
+  local a="$1" b="$2" a_pre="" b_pre="" i x y
+  [[ "$a" == *-* ]] && a_pre="${a#*-}"
+  [[ "$b" == *-* ]] && b_pre="${b#*-}"
+  local IFS=.
+  local -a ac bc ap bp
+  read -r -a ac <<<"${a%%-*}"
+  read -r -a bc <<<"${b%%-*}"
+  for i in 0 1 2; do
+    x=$((10#${ac[i]:-0}))
+    y=$((10#${bc[i]:-0}))
+    [ "$x" -gt "$y" ] && echo 1 && return
+    [ "$x" -lt "$y" ] && echo -1 && return
+  done
+  [ -z "$a_pre" ] && [ -z "$b_pre" ] && echo 0 && return
+  [ -z "$a_pre" ] && echo 1 && return
+  [ -z "$b_pre" ] && echo -1 && return
+  read -r -a ap <<<"$a_pre"
+  read -r -a bp <<<"$b_pre"
+  i=0
+  while :; do
+    x="${ap[i]:-}"
+    y="${bp[i]:-}"
+    [ -z "$x" ] && [ -z "$y" ] && echo 0 && return
+    [ -z "$x" ] && echo -1 && return
+    [ -z "$y" ] && echo 1 && return
+    if [[ "$x" =~ ^[0-9]+$ ]] && [[ "$y" =~ ^[0-9]+$ ]]; then
+      [ $((10#$x)) -gt $((10#$y)) ] && echo 1 && return
+      [ $((10#$x)) -lt $((10#$y)) ] && echo -1 && return
+    elif [[ "$x" =~ ^[0-9]+$ ]]; then
+      echo -1 && return
+    elif [[ "$y" =~ ^[0-9]+$ ]]; then
+      echo 1 && return
+    else
+      [[ "$x" > "$y" ]] && echo 1 && return
+      [[ "$x" < "$y" ]] && echo -1 && return
+    fi
+    i=$((i + 1))
+  done
+}
+
+# The bundle (install.sh, templates, timers) of the newest release on this
+# server: the environment's active release, else the copy get.sh installed.
+bundle_dir() {
+  if [ -f "$home/current/bundle/provision/install.sh" ]; then
+    printf '%s' "$home/current/bundle"
+  elif [ -f "$root/share/bundle/provision/install.sh" ]; then
+    printf '%s' "$root/share/bundle"
+  else
+    die "No installation bundle under $root/share. Run the bootstrap first:
+  curl -fsSL https://raw.githubusercontent.com/$repository/main/deploy/get.sh | sudo sh"
+  fi
+}
+
+# Keeps <root>/share/bundle at the active release, for later installs.
+refresh_share() {
+  [ -f "$home/current/bundle/provision/install.sh" ] || return 0
+  as_deploy sh -c 'set -e
+    rm -rf "$1/share/.bundle.new"
+    mkdir -p "$1/share"
+    cp -R "$2/bundle" "$1/share/.bundle.new"
+    cp "$2/release.env" "$1/share/.bundle.new/release.env"
+    rm -rf "$1/share/bundle"
+    mv "$1/share/.bundle.new" "$1/share/bundle"' refresh "$root" "$home/current" ||
+    warn "Could not refresh $root/share/bundle."
+}
+
+confirm() { # confirm <question>: true with --yes, else asks (default yes)
+  [ "$(opt yes)" = true ] && return 0
+  [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
+  local answer
+  printf '%s [Y/n] ' "$1" >/dev/tty
+  IFS= read -r answer </dev/tty || true
+  case "$answer" in "" | y | Y | yes | Yes) return 0 ;; *) return 1 ;; esac
+}
+
+start_timers() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
+  is_root || return 0
+  systemctl start "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" ||
+    warn "Could not start the backup and monitor timers (systemctl start lictory-backup@$environment.timer lictory-monitor@$environment.timer)."
+}
+
+# wait_until_ready <seconds>: the public /readyz through DNS and certificates.
+wait_until_ready() {
+  local url deadline insecure=()
+  url="$(platform_url)/readyz"
+  [ -z "$(setting CADDY_GLOBAL_OPTIONS)" ] || insecure=(-k)
+  deadline=$(($(date +%s) + $1))
+  while :; do
+    curl -fsS ${insecure[@]+"${insecure[@]}"} -m 10 -o /dev/null "$url" 2>/dev/null && return 0
+    [ "$(date +%s)" -lt "$deadline" ] || return 1
+    sleep 5
+  done
+}
+
+# ------------------------------------------------------------------ preflight
+failures=0
+warnings=0
+check_ok() { printf '  ok    %s\n' "$*"; }
+check_warn() {
+  printf '  warn  %s\n' "$*"
+  warnings=$((warnings + 1))
+}
+check_fail() {
+  printf '  FAIL  %s\n' "$*"
+  failures=$((failures + 1))
+}
+version_ge() { # version_ge <have> <need>: dotted numeric comparison
+  local IFS=. i x y
+  local -a have need
+  read -r -a have <<<"${1#v}"
+  read -r -a need <<<"$2"
+  for i in 0 1 2; do
+    x="${have[i]:-0}"
+    x="${x%%[!0-9]*}"
+    y="${need[i]:-0}"
+    [ "$((10#${x:-0}))" -gt "$((10#$y))" ] && return 0
+    [ "$((10#${x:-0}))" -lt "$((10#$y))" ] && return 1
+  done
+  return 0
+}
+port_in_use() { ss -Htln "( sport = :$1 )" 2>/dev/null | grep -q .; }
+
+# Minimums: Docker Engine 25 (health check start_interval, used by every
+# service) and Compose 2.24. Memory: the services' limits add up to about
+# 4 GB and production measures about 1 GB, so 2 GB works for a small team
+# and 4 GB is recommended. Disk: images take about 3 GB and PostgreSQL may
+# keep up to 2 GB of WAL plus, while zero-cache is down, up to 8 GB for its
+# replication slot (max_slot_wal_keep_size), so 10 GB free is the floor.
+preflight() { # preflight [host]: host requirements; failures abort install
+  local kernel arch docker_version compose_version tool memory free docker_root
+  local relax
+  relax=$(opt ignore-requirements)
+  kernel=$(uname -s)
+  [ "$kernel" = Linux ] && check_ok "Linux" || check_fail "Lictory servers run Linux (found $kernel)."
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64 | amd64 | aarch64 | arm64) check_ok "architecture $arch" ;;
+    *) check_fail "Lictory images exist for amd64 and arm64 only (found $arch)." ;;
+  esac
+  for tool in bash curl jq openssl flock; do
+    command -v "$tool" >/dev/null ||
+      check_fail "$tool is missing. Install it (Debian/Ubuntu: apt-get install -y curl jq openssl util-linux; RHEL/Fedora: dnf install -y curl jq openssl util-linux)."
+  done
+  if ! command -v docker >/dev/null; then
+    check_fail "Docker Engine is missing: https://docs.docker.com/engine/install/"
+  elif ! docker_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null); then
+    check_fail "Cannot reach the Docker daemon: start it (systemctl start docker) and run as root or the deploy user."
+  elif version_ge "$docker_version" 25.0; then
+    check_ok "Docker Engine $docker_version"
+  else
+    check_fail "Docker Engine $docker_version is too old: 25.0 or newer is required."
+  fi
+  if command -v docker >/dev/null; then
+    compose_version=$(docker compose version --short 2>/dev/null || true)
+    if [ -z "$compose_version" ]; then
+      check_fail "The Docker Compose v2 plugin is missing (package docker-compose-plugin)."
+    elif version_ge "$compose_version" 2.24; then
+      check_ok "Docker Compose ${compose_version#v}"
+    else
+      check_fail "Docker Compose ${compose_version#v} is too old: 2.24 or newer is required."
+    fi
+  fi
+  if [ -r /proc/meminfo ]; then
+    memory=$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)
+    if [ "$memory" -lt 1800 ]; then
+      [ "$relax" = true ] && check_warn "${memory} MB of memory; at least 2 GB is required (4 GB recommended)." ||
+        check_fail "${memory} MB of memory; at least 2 GB is required (4 GB recommended). --ignore-requirements overrides."
+    elif [ "$memory" -lt 3500 ]; then
+      check_warn "${memory} MB of memory: enough for a small team; 4 GB is recommended."
+    else
+      check_ok "${memory} MB of memory"
+    fi
+  else
+    check_warn "Cannot read /proc/meminfo; make sure the server has at least 2 GB of memory."
+  fi
+  docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)
+  [ -d "$docker_root" ] || docker_root=/
+  free=$(df -Pk "$docker_root" 2>/dev/null | awk 'NR == 2 { print int($4 / 1048576) }')
+  if [ -z "$free" ]; then
+    check_warn "Cannot determine free disk space of $docker_root."
+  elif [ "$free" -lt 10 ]; then
+    [ "$relax" = true ] && check_warn "${free} GB free on $docker_root; at least 10 GB is required (20 GB recommended)." ||
+      check_fail "${free} GB free on $docker_root; at least 10 GB is required (20 GB recommended). --ignore-requirements overrides."
+  elif [ "$free" -lt 20 ]; then
+    check_warn "${free} GB free on $docker_root; 20 GB is recommended."
+  else
+    check_ok "${free} GB free on $docker_root"
+  fi
+}
+
+# DNS is a warning: behind NAT, a proxy or split-horizon DNS the name may
+# legitimately resolve elsewhere.
+check_dns() { # check_dns <host>
+  local host="$1" resolved local_addresses address match=false
+  if ! command -v getent >/dev/null; then
+    check_warn "Cannot check DNS for $host (getent is missing)."
+    return
+  fi
+  resolved=$(getent ahosts "$host" 2>/dev/null | awk '{ print $1 }' | sort -u || true)
+  if [ -z "$resolved" ]; then
+    check_warn "$host does not resolve yet: create its A/AAAA record pointing at this server before certificates can be issued."
+    return
+  fi
+  local_addresses=$(hostname -I 2>/dev/null || ip -o addr show 2>/dev/null | awk '{ sub("/.*", "", $4); print $4 }' || true)
+  for address in $resolved; do
+    word_in "$address" "$(printf '%s' "$local_addresses" | tr '\n' ' ')" && match=true
+  done
+  if [ "$match" = true ]; then
+    check_ok "$host resolves to this server"
+  else
+    check_warn "$host resolves to $(printf '%s' "$resolved" | tr '\n' ' ')which is not an address of this server (expected behind NAT or a load balancer)."
+  fi
+}
+
+check_ports() { # check_ports <port...>: free unless this environment holds them
+  local port
+  if ! command -v ss >/dev/null; then
+    check_warn "Cannot check whether ports $* are free (ss is missing)."
+    return
+  fi
+  for port in "$@"; do
+    if port_in_use "$port"; then
+      check_fail "Port $port is in use by another program. Stop it, or install behind it with --tls proxy (docs/operations/reverse-proxy.md)."
+    else
+      check_ok "port $port is free"
+    fi
+  done
+}
+
+# -------------------------------------------------------------------- install
+interactive=false
+
+# ask <option> <question> <default> [secret]: sets the option unless it was
+# given; asks in interactive mode (re-asking until valid), else the default.
+ask() {
+  local name="$1" question="$2" default="$3" secret="${4:-}" answer reason
+  is_given "$name" && return 0
+  if [ "$interactive" != true ]; then
+    [ -z "$default" ] || set_opt "$name" "$default"
+    return 0
+  fi
+  while :; do
+    if [ -n "$secret" ]; then
+      printf '%s%s: ' "$question" "$([ -n "$default" ] && printf ' [keep current]')" >/dev/tty
+      IFS= read -r -s answer </dev/tty || true
+      printf '\n' >/dev/tty
+    else
+      printf '%s%s: ' "$question" "${default:+ [$default]}" >/dev/tty
+      IFS= read -r answer </dev/tty || true
+    fi
+    answer="${answer:-$default}"
+    if [ -z "$answer" ]; then
+      return 0
+    fi
+    reason=$(invalid_reason "$name" "$answer") || true
+    [ -z "$reason" ] && break
+    printf '  %s\n' "$reason" >/dev/tty
+  done
+  set_opt "$name" "$answer"
+}
+require_opt() { # require_opt <option> <what>
+  [ -n "$(opt "$1")" ] || die "$2 is required (--$1)." 64
+}
+
+current() { [ -f "$home/.env" ] && setting "$1" || true; }
+current_tls() {
+  if [ "$(current PROXY_SCHEME)" = http ]; then
+    case "$(current PLATFORM_URL)" in https://*) echo proxy ;; *) echo http ;; esac
+  elif [ -n "$(current CADDY_GLOBAL_OPTIONS)" ]; then
+    echo internal
+  else
+    echo acme
+  fi
+}
+current_email() {
+  if [ -n "$(current RESEND_API_KEY)" ]; then echo resend
+  elif [ -n "$(current SMTP_HOST)" ]; then echo smtp
+  else echo none; fi
+}
+current_storage() {
+  if [ -n "$(current R2_ACCOUNT_ID)" ]; then echo r2
+  elif [ -n "$(current S3_BUCKET)" ]; then echo s3
+  else echo none; fi
+}
+
+# Collects the answers into the planned .env assignments ($changes).
+changes=""
+plan() { changes="$changes$1=$2"$'\n'; }
+
+collect_settings() {
+  local tls host port bind url email storage backup recipient ca
+  ask tls "TLS: acme (automatic HTTPS), proxy (your reverse proxy terminates TLS), internal (internal CA), http (evaluation)" "$(current_tls)"
+  tls=$(opt tls)
+  local host_default
+  host_default=$(current APP_HOST)
+  [ -n "$host_default" ] || { [ "$tls" = http ] && host_default=localhost; }
+  ask host "Host name users open (DNS name of this server)" "$host_default"
+  require_opt host "The host name"
+  host=$(opt host)
+  [ "$tls" = acme ] && [[ "$host" != *.* ]] && die "Automatic HTTPS needs a public DNS name (got $host); use --tls internal, proxy or http." 64
+
+  local email_default
+  email_default=$(current ACME_EMAIL)
+  [ "$email_default" != "$unused_email" ] || email_default=""
+  case "$tls" in
+    acme)
+      ask acme-email "Email for certificate expiry notices (Let's Encrypt)" "$email_default"
+      require_opt acme-email "An ACME account email"
+      plan APP_HOST "$host"
+      plan PLATFORM_URL ""
+      plan PROXY_SCHEME ""
+      plan HTTP_PORT ""
+      plan HTTP_BINDING ""
+      plan HTTPS_BINDING ""
+      plan CADDY_GLOBAL_OPTIONS ""
+      plan ACME_EMAIL "$(opt acme-email)"
+      ;;
+    internal)
+      ca=$(current CADDY_GLOBAL_OPTIONS)
+      case "$ca" in "acme_ca "*) ca="${ca#acme_ca }" ;; *) ca="" ;; esac
+      ask acme-ca "ACME directory of your internal CA (empty: the gateway is its own CA)" "$ca"
+      plan APP_HOST "$host"
+      plan PLATFORM_URL ""
+      plan PROXY_SCHEME ""
+      plan HTTP_PORT ""
+      plan HTTP_BINDING ""
+      plan HTTPS_BINDING ""
+      if [ -n "$(opt acme-ca)" ]; then
+        ask acme-email "Email for your CA's ACME account" "$email_default"
+        require_opt acme-email "An ACME account email"
+        plan CADDY_GLOBAL_OPTIONS "acme_ca $(opt acme-ca)"
+        plan ACME_EMAIL "$(opt acme-email)"
+      else
+        plan CADDY_GLOBAL_OPTIONS local_certs
+        email_default="${email_default:-$unused_email}"
+        plan ACME_EMAIL "$(opt acme-email | grep . || printf '%s' "$email_default")"
+      fi
+      ;;
+    proxy | http)
+      port=$(current HTTP_PORT)
+      ask http-port "Port the gateway serves plain HTTP on" "${port:-8080}"
+      port=$(opt http-port)
+      bind=$(current HTTP_BINDING)
+      bind="${bind%%:*}"
+      word_in "$bind" "127.0.0.1 0.0.0.0" || bind=127.0.0.1
+      ask bind "Listen on 127.0.0.1 (this host only) or 0.0.0.0 (all interfaces)" "$bind"
+      bind=$(opt bind)
+      if [ "$tls" = proxy ]; then
+        url=$(current PLATFORM_URL)
+        case "$url" in https://*) ;; *) url="https://$host" ;; esac
+        ask public-url "Public address your proxy serves" "$url"
+        ask trusted-proxies "Address(es) your proxy connects from, space-separated (empty: decide later with lictory doctor)" "$(current CADDY_TRUSTED_PROXIES)"
+        plan PLATFORM_URL "$(opt public-url)"
+        plan CADDY_TRUSTED_PROXIES "$(opt trusted-proxies)"
+      else
+        url="http://$host"
+        [ "$port" = 80 ] || url="$url:$port"
+        plan PLATFORM_URL "$url"
+      fi
+      plan APP_HOST "$host"
+      plan PROXY_SCHEME http
+      plan HTTP_PORT "$port"
+      plan HTTP_BINDING "$bind:$port:80"
+      # 443 stays off the public interface; Docker picks a free local port.
+      plan HTTPS_BINDING "127.0.0.1::443"
+      plan CADDY_GLOBAL_OPTIONS ""
+      plan ACME_EMAIL "${email_default:-$unused_email}"
+      ;;
+  esac
+  is_given trusted-proxies && [ "$tls" != proxy ] && plan CADDY_TRUSTED_PROXIES "$(opt trusted-proxies)"
+
+  ask email "Outbound email: smtp, resend or none" "$(current_email)"
+  email=$(opt email)
+  local from_default="Lictory <no-reply@$host>"
+  case "$email" in
+    smtp)
+      ask smtp-host "SMTP server host" "$(current SMTP_HOST)"
+      require_opt smtp-host "The SMTP host"
+      port=$(current SMTP_PORT)
+      ask smtp-port "SMTP port (587 STARTTLS or 25; 465 is not supported)" "${port:-587}"
+      ask smtp-user "SMTP user (empty: no authentication)" "$(current SMTP_USER)"
+      [ -z "$(opt smtp-user)" ] || ask smtp-password "SMTP password" "$(current SMTP_PASSWORD)" secret
+      url=$(current SMTP_FROM)
+      ask smtp-from "Sender address" "${url:-$from_default}"
+      plan SMTP_HOST "$(opt smtp-host)"
+      plan SMTP_PORT "$(opt smtp-port)"
+      plan SMTP_USER "$(opt smtp-user)"
+      plan SMTP_PASSWORD "$(opt smtp-password)"
+      plan SMTP_FROM "$(opt smtp-from)"
+      plan RESEND_API_KEY ""
+      ;;
+    resend)
+      ask resend-api-key "Resend API key" "$(current RESEND_API_KEY)" secret
+      require_opt resend-api-key "The Resend API key"
+      url=$(current RESEND_FROM_EMAIL)
+      ask email-from "Sender address (a domain verified in Resend)" "${url:-$from_default}"
+      plan RESEND_API_KEY "$(opt resend-api-key)"
+      plan RESEND_FROM_EMAIL "$(opt email-from)"
+      ;;
+    none)
+      plan RESEND_API_KEY ""
+      plan SMTP_HOST ""
+      ;;
+  esac
+
+  storage=$(current_storage)
+  if [ "$storage" != r2 ] || is_given storage; then
+    ask storage "Attachment storage: s3 (any S3-compatible bucket) or none" "${storage/r2/s3}"
+    if [ "$(opt storage)" = s3 ]; then
+      ask s3-endpoint "S3 endpoint reachable from browsers (empty: AWS S3)" "$(current S3_ENDPOINT)"
+      ask s3-region "Region (empty: us-east-1 with an endpoint)" "$(current S3_REGION)"
+      [ -n "$(opt s3-endpoint)" ] || require_opt s3-region "The AWS region"
+      ask s3-bucket "Bucket" "$(current S3_BUCKET)"
+      require_opt s3-bucket "The bucket"
+      ask s3-access-key-id "Access key ID" "$(current S3_ACCESS_KEY_ID)"
+      require_opt s3-access-key-id "The access key ID"
+      ask s3-secret-access-key "Secret access key" "$(current S3_SECRET_ACCESS_KEY)" secret
+      require_opt s3-secret-access-key "The secret access key"
+      for key in S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_FORCE_PATH_STYLE; do
+        plan "$key" "$(opt "$(printf '%s' "$key" | tr '[:upper:]_' '[:lower:]-')")"
+      done
+    else
+      for key in S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_FORCE_PATH_STYLE; do plan "$key" ""; done
+    fi
+    for key in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET_NAME R2_S3_ENDPOINT; do plan "$key" ""; done
+  fi
+
+  ask oidc "Company single sign-on (OpenID Connect): yes or no" "$([ -n "$(current OIDC_ISSUER)" ] && echo yes || echo no)"
+  if [ "$(opt oidc)" = yes ] || is_given oidc-issuer; then
+    ask oidc-issuer "Issuer URL" "$(current OIDC_ISSUER)"
+    require_opt oidc-issuer "The OIDC issuer"
+    ask oidc-client-id "Client ID" "$(current OIDC_CLIENT_ID)"
+    require_opt oidc-client-id "The OIDC client ID"
+    ask oidc-client-secret "Client secret" "$(current OIDC_CLIENT_SECRET)" secret
+    require_opt oidc-client-secret "The OIDC client secret"
+    url=$(current OIDC_DISPLAY_NAME)
+    ask oidc-display-name "Button label" "${url:-SSO}"
+    plan OIDC_ISSUER "$(opt oidc-issuer)"
+    plan OIDC_CLIENT_ID "$(opt oidc-client-id)"
+    plan OIDC_CLIENT_SECRET "$(opt oidc-client-secret)"
+    plan OIDC_DISPLAY_NAME "$(opt oidc-display-name)"
+  elif [ "$(opt oidc)" = no ]; then
+    plan OIDC_ISSUER ""
+    plan OIDC_CLIENT_ID ""
+    plan OIDC_CLIENT_SECRET ""
+  fi
+
+  backup=$(current BACKUP_TARGET)
+  ask backup "Backups: local (this server or a mounted disk), s3, rclone or none" "${backup:-local}"
+  backup=$(opt backup)
+  plan BACKUP_TARGET "$backup"
+  case "$backup" in
+    local)
+      ask backup-path "Backup directory on this host (empty: a Docker volume on this server, not a disaster-recovery copy)" "$(current BACKUP_LOCAL_PATH)"
+      plan BACKUP_LOCAL_PATH "$(opt backup-path)"
+      ;;
+    s3)
+      ask backup-bucket "Backup bucket (never the attachment bucket)" "$(current BACKUP_BUCKET)"
+      require_opt backup-bucket "The backup bucket"
+      ask backup-s3-endpoint "Backup S3 endpoint (empty: AWS S3)" "$(current BACKUP_S3_ENDPOINT)"
+      url=$(current BACKUP_S3_PROVIDER)
+      [ -n "$url" ] || { [ -n "$(opt backup-s3-endpoint)" ] && url=Other || url=AWS; }
+      ask backup-s3-provider "rclone S3 provider (AWS, Cloudflare, Minio, Other…)" "$url"
+      url=$(current BACKUP_S3_REGION)
+      ask backup-s3-region "Backup bucket region" "${url:-auto}"
+      ask backup-s3-access-key-id "Backup access key ID" "$(current BACKUP_S3_ACCESS_KEY_ID)"
+      require_opt backup-s3-access-key-id "The backup access key ID"
+      ask backup-s3-secret-access-key "Backup secret access key" "$(current BACKUP_S3_SECRET_ACCESS_KEY)" secret
+      require_opt backup-s3-secret-access-key "The backup secret access key"
+      for key in BACKUP_BUCKET BACKUP_S3_PROVIDER BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
+        plan "$key" "$(opt "$(printf '%s' "$key" | tr '[:upper:]_' '[:lower:]-')")"
+      done
+      ;;
+    rclone)
+      ask backup-rclone-remote "rclone remote (for example :sftp,host=nas,user=lictory:backups)" "$(current BACKUP_RCLONE_REMOTE)"
+      require_opt backup-rclone-remote "The rclone remote"
+      plan BACKUP_RCLONE_REMOTE "$(opt backup-rclone-remote)"
+      ;;
+  esac
+  if [ "$backup" != none ]; then
+    recipient=$(current BACKUP_AGE_RECIPIENTS)
+    [[ "$recipient" =~ $age_pattern ]] || [ "$recipient" = none ] || recipient=generate
+    ask backup-age-recipient "Backup encryption: an age public key (age1…), generate, or none" "$recipient"
+  fi
+}
+
+# Prints the planned assignments that differ from the current .env.
+pending_changes() {
+  local key value
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    [ "$(setting "$key")" = "$value" ] || printf '%s\n' "$key"
+  done <<<"$changes"
+}
+
+apply_changes() {
+  local key value
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    [ "$(setting "$key")" = "$value" ] || set_env "$home/.env" "$key" "$value"
+  done <<<"$changes"
+}
+
+# An age key pair made with the release's ops image (age-keygen); only the
+# public key goes into .env, the identity is written for the operator to
+# move offline.
+generate_age_key() { # generate_age_key <ops image> <identity file>
+  local image="$1" file="$2" key
+  [ ! -e "$file" ] || die "$file already exists; move it away or pass --backup-age-recipient."
+  (umask 077 && docker run --rm --network none --entrypoint age-keygen "$image" >"$file" 2>/dev/null) ||
+    die "Could not generate a backup key pair."
+  key=$(sed -n 's/^# public key: //p' "$file")
+  [[ "$key" =~ $age_pattern ]] || die "age-keygen returned no public key."
+  printf '%s' "$key"
+}
+
+cmd_install() {
+  parse "$install_values" "ignore-requirements" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "install takes no arguments."
+  require_root
+  select_environment install
+  [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
+  local user existed=false active release_file bundle tmp changed identity=""
+  user=$(deploy_user)
+  [ -f "$home/.env" ] && existed=true
+  active=$(current_version)
+
+  step "Checking this server"
+  preflight
+  [ "$failures" -eq 0 ] || die "Fix the failed checks above, then run lictory install again."
+
+  step "Settings for $environment"
+  [ "$existed" = true ] && say "Existing $home/.env: its secrets are kept; Enter keeps each current value."
+  collect_settings
+  local channel
+  channel=$(opt channel)
+  if [ -z "$channel" ]; then
+    channel=$(current LICTORY_RELEASE_CHANNEL)
+    [ -n "$channel" ] || channel=$(env_value "$root/share/bundle/release.env" LICTORY_CHANNEL)
+    channel="${channel:-stable}"
+  fi
+  plan LICTORY_RELEASE_CHANNEL "$channel"
+  local registry
+  registry=$(current LICTORY_IMAGE_REGISTRY)
+  case "$registry" in "" | *replace-with-owner*) plan LICTORY_IMAGE_REGISTRY "$default_registry" ;; esac
+
+  if [ "$(opt tls)" = acme ] || [ "$(opt tls)" = internal ]; then
+    step "Network"
+    check_dns "$(opt host)"
+    [ -n "$active" ] || check_ports 80 443
+  elif [ -z "$active" ]; then
+    step "Network"
+    check_ports "$(opt http-port)"
+  fi
+  [ "$failures" -eq 0 ] || die "Fix the failed checks above, then run lictory install again."
+
+  step "Host tooling"
+  bundle=$(bundle_dir)
+  LICTORY_ROOT="$root" DEPLOY_USER="$user" LICTORY_ENVIRONMENTS="$environment" \
+    LICTORY_CLI_PATH="$cli_path" SHOW_NEXT_STEPS=false bash "$bundle/provision/install.sh"
+
+  if [ "$existed" = false ]; then
+    step "Environment $environment"
+    tmp=$(as_deploy env LICTORY_ENV_TEMPLATE="$bundle/env/self-hosted.env.example" \
+      LICTORY_IMAGE_REGISTRY="$default_registry" LICTORY_RELEASE_CHANNEL="$channel" \
+      bash "$bundle/provision/new-environment.sh" "$environment" 2>&1) ||
+      die "Could not create $home/.env: $tmp"
+    say "Created $home/.env with generated secrets (mode 0600). Keep a copy in your password manager."
+  fi
+
+  # The release to install: a chosen version, the one get.sh verified, or
+  # the newest of the channel. An active environment keeps its release.
+  release_file=""
+  if [ -z "$active" ]; then
+    step "Release"
+    if [ -z "$(opt version)" ] && [ -f "$root/share/bundle/release.env" ] &&
+      [ "$(env_value "$root/share/bundle/release.env" LICTORY_CHANNEL)" = "$channel" ]; then
+      release_file="$root/share/bundle/release.env"
+      say "Lictory $(env_value "$release_file" LICTORY_VERSION) ($channel), verified by get.sh."
+    else
+      resolve_release "$channel" "$(opt version)"
+      release_file=$(mktemp)
+      fetch_release "$release_file"
+      say "Lictory $release_version ($channel): $release_notes"
+    fi
+    pull_release_images "$release_file"
+  elif [ -n "$(opt version)" ] && [ "$(opt version)" != "$active" ]; then
+    say "$environment already runs $active; use: lictory upgrade $(opt version)"
+  fi
+
+  if [ "$(opt backup-age-recipient)" = generate ]; then
+    identity=$(opt backup-identity-file)
+    identity="${identity:-/root/lictory-$environment-backup-identity.txt}"
+    local ops_image key
+    ops_image=$(env_value "${release_file:-$home/current/release.env}" OPS_IMAGE)
+    key=$(generate_age_key "$ops_image" "$identity")
+    set_opt backup-age-recipient "$key"
+  fi
+  [ "$(opt backup)" = none ] || plan BACKUP_AGE_RECIPIENTS "$(opt backup-age-recipient)"
+  local path
+  path=$(opt backup-path)
+  if [ "$(opt backup)" = local ] && [ -n "$path" ]; then
+    # The ops image's postgres user (uid 70) writes backups there.
+    install -d -m 0700 -o 70 -g 70 "$path" 2>/dev/null || warn "Make $path a directory owned by uid 70 with mode 0700."
+  fi
+
+  changed=$(pending_changes)
+  if [ -n "$changed" ]; then
+    if [ "$existed" = true ]; then
+      say "Changes to $home/.env: $(printf '%s' "$changed" | tr '\n' ' ')"
+      confirm "Apply them?" || die "Nothing changed."
+      cp -p "$home/.env" "$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ)"
+    fi
+    apply_changes
+  fi
+
+  if [ -n "$release_file" ]; then
+    step "Deploying"
+    deploy_sh release <"$release_file" || die "The release did not activate; see the messages above and run: lictory doctor"
+  elif [ -n "$changed" ]; then
+    step "Applying the new settings to $active"
+    deploy_sh activate "$active" || die "Re-activation failed; the previous settings are in $home/.env.backup-*. Run: lictory doctor"
+  else
+    say "Nothing changed; $environment runs $active. New releases: lictory upgrade"
+  fi
+  refresh_share
+  start_timers
+
+  step "Checking $(platform_url)"
+  # Behind a proxy that may not be configured yet, do not wait long.
+  if wait_until_ready "$([ "$(current_tls)" = proxy ] && echo 20 || echo 180)"; then
+    say "Lictory is up: $(platform_url)"
+  else
+    warn "$(platform_url)/readyz is not reachable from this server yet. The services are running; check DNS, firewall and certificates with: lictory doctor"
+  fi
+  summary "$identity"
+}
+
+summary() {
+  local identity="$1"
+  step "Next steps"
+  say "1. Open $(platform_url) and create the first account; it creates your organization."
+  say "   Sign-up is open to anyone who can reach this address: keep it on a private network until you have invited your team."
+  if [ "$(current_email)" = none ]; then
+    say "2. No outbound email: verification, invitation and password reset email will not be delivered,"
+    say "   so password sign-up cannot be completed. Configure SMTP or Resend: sudo lictory install --email smtp"
+  fi
+  if [ -n "$identity" ]; then
+    say "-  Backup identity (private key): $identity"
+    say "   Move it to your password manager or an offline copy, then delete it from this server."
+    say "   Restores and restore drills need it."
+  fi
+  [ "$(setting BACKUP_TARGET)" = local ] && [ -z "$(setting BACKUP_LOCAL_PATH)" ] &&
+    say "-  Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone for disaster recovery."
+  if [ "$(current_tls)" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
+    say "-  Set the address your reverse proxy connects from (lictory doctor suggests it):"
+    say "   sudo lictory install --trusted-proxies <ip>   (docs/operations/reverse-proxy.md)"
+  fi
+  [ "$(current_tls)" = http ] &&
+    say "-  Plain HTTP: session cookies are not Secure. Use it on a trusted machine only (docs/operations/reverse-proxy.md)."
+  say "-  Check the installation at any time: lictory doctor"
+  say "-  Upgrades: lictory upgrade (channel: $(channel_of_environment))"
+}
+
+# ------------------------------------------------------------------ bootstrap
+# Called by deploy/get.sh with the bundle it copied out of a verified release.
+cmd_bootstrap() {
+  parse "bundle release-file deploy-user" "" "$@"
+  require_root
+  local bundle release_file user
+  bundle=$(opt bundle)
+  release_file=$(opt release-file)
+  [ -f "$bundle/provision/install.sh" ] || die "--bundle must be a Lictory deployment bundle." 64
+  [ -f "$release_file" ] || die "--release-file must be a release.env." 64
+  environment=$(opt env)
+  environment="${environment:-production}"
+  user=$(deploy_user)
+  step "Installing the Lictory host tooling ($(env_value "$release_file" LICTORY_VERSION))"
+  LICTORY_ROOT="$root" DEPLOY_USER="$user" LICTORY_ENVIRONMENTS="$environment" \
+    LICTORY_CLI_PATH="$cli_path" SHOW_NEXT_STEPS=false bash "$bundle/provision/install.sh"
+  rm -rf "$root/share/.bundle.new"
+  mkdir -p "$root/share"
+  cp -R "$bundle" "$root/share/.bundle.new"
+  cp "$release_file" "$root/share/.bundle.new/release.env"
+  rm -rf "$root/share/bundle"
+  mv "$root/share/.bundle.new" "$root/share/bundle"
+  chown -R "$user" "$root/share" 2>/dev/null || true
+  step "Ready"
+  say "Install and start Lictory:  sudo lictory install"
+  say "Without questions:          sudo lictory install --yes --host lictory.example.com --acme-email ops@example.com"
+  say "Guide: https://github.com/$repository/blob/main/docs/operations/self-hosting.md"
+}
+
+# ---------------------------------------------------------- everyday commands
+cmd_status() {
+  parse "" "json" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "status takes no arguments."
+  select_environment
+  if [ "$(opt json)" = true ]; then
+    deploy_sh status --json
+  else
+    deploy_sh status
+    say "url: $(platform_url)"
+    say "channel: $(channel_of_environment)"
+  fi
+}
+
+cmd_upgrade() {
+  parse "" "" "$@"
+  [ ${#positional[@]} -le 1 ] || usage_error "upgrade takes at most one version."
+  local target="${positional[0]:-}" reason active channel file order
+  if [ -n "$target" ]; then
+    reason=$(invalid_reason version "$target") || true
+    [ -z "$reason" ] || usage_error "version: $reason"
+  fi
+  select_environment
+  active=$(current_version)
+  [ -n "$active" ] || die "$environment has no active release. Run: sudo lictory install"
+  channel=$(channel_of_environment)
+  resolve_release "$channel" "$target"
+  order=$(semver_cmp "$release_version" "$active")
+  if [ "$order" = 0 ]; then
+    say "$environment already runs $active, the newest $channel release."
+    return 0
+  fi
+  [ "$order" = 1 ] ||
+    die "$release_version is older than the active $active. Upgrades only move forward (migrations are never reverted); to return to the previous release use: lictory rollback"
+  say "Upgrade $environment: $active -> $release_version ($channel)"
+  say "Release notes: $release_notes"
+  confirm "Continue?" || die "Upgrade cancelled."
+  file=$(mktemp)
+  fetch_release "$file"
+  pull_release_images "$file"
+  # deploy.sh takes a backup before pending migrations and keeps the
+  # previous release serving if anything fails.
+  deploy_sh release <"$file" || {
+    rm -f "$file"
+    die "The upgrade to $release_version did not activate; $environment keeps its previous images. See the messages above and run: lictory doctor"
+  }
+  rm -f "$file"
+  refresh_share
+  say "$environment runs $release_version."
+}
+
+cmd_rollback() {
+  parse "" "" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "rollback takes no arguments."
+  select_environment
+  say "Rollback switches application images only; database migrations stay applied."
+  confirm "Roll $environment back from $(current_version) to the previously activated release?" || die "Rollback cancelled."
+  deploy_sh rollback
+}
+
+cmd_backup() {
+  parse "" "" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "backup takes no arguments."
+  select_environment
+  [ "$(setting BACKUP_TARGET)" != none ] || die "Backups are disabled (BACKUP_TARGET=none). Choose a target: sudo lictory install --backup local"
+  as_deploy "$bin/lictory-backup" "$environment" manual
+}
+
+cmd_logs() {
+  parse "tail" "follow" "$@"
+  [ ${#positional[@]} -le 1 ] || usage_error "logs takes at most one service."
+  local service="${positional[0]:-}" args
+  [ -z "$service" ] || word_in "$service" "$services" || usage_error "Unknown service $service (one of: $services)."
+  select_environment
+  args=(logs --tail "$(opt tail)")
+  [ -n "$(opt tail)" ] || args=(logs --tail 200)
+  [ "$(opt follow)" != true ] || args+=(--follow)
+  [ -z "$service" ] || args+=("$service")
+  compose "${args[@]}"
+}
+
+cmd_registry_login() {
+  parse "username" "" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "registry-login takes no arguments."
+  select_environment
+  local registry host user token
+  registry=$(setting LICTORY_IMAGE_REGISTRY)
+  host="${registry%%/*}"
+  host="${host:-ghcr.io}"
+  user=$(opt username)
+  if [ -z "$user" ]; then
+    [ -t 0 ] || die "Pass --username (the token is read from stdin)." 64
+    printf 'Registry user for %s: ' "$host" >/dev/tty
+    IFS= read -r user </dev/tty
+  fi
+  [ -z "$(invalid_reason username "$user")" ] || die "Invalid user name." 64
+  if [ -t 0 ]; then
+    printf 'Token (for GHCR a GitHub token with read:packages): ' >/dev/tty
+    IFS= read -r -s token </dev/tty
+    printf '\n' >/dev/tty
+  else
+    IFS= read -r token || true
+  fi
+  [ -n "$token" ] || die "No token given."
+  printf '%s\n' "$token" | as_deploy docker login "$host" --username "$user" --password-stdin
+  if is_root; then
+    # get.sh pulls the bootstrap image as root.
+    printf '%s\n' "$token" | docker login "$host" --username "$user" --password-stdin >/dev/null
+  fi
+}
+
+# ---------------------------------------------------------------------- restore
+cmd_restore() {
+  parse "" "drill" "$@"
+  [ ${#positional[@]} -ge 1 ] && [ ${#positional[@]} -le 2 ] ||
+    usage_error "Usage: lictory restore <identity-file|none> [latest|<key>|<file>] [--drill]"
+  local identity="${positional[0]}" source="${positional[1]:-latest}"
+  [ "$identity" = none ] || [ -r "$identity" ] || die "Cannot read the backup identity $identity."
+  select_environment
+  local active
+  active=$(current_version)
+  [ -n "$active" ] || die "$environment has no active release; install it first (sudo lictory install), then restore."
+  if [ "$(opt drill)" = true ]; then
+    local copy="$identity"
+    if [ "$identity" != none ] && is_root; then
+      # A private copy the deploy user can read (the identity may be root's).
+      copy=$(as_deploy mktemp)
+      cat "$identity" >"$copy"
+    fi
+    local status=0
+    as_deploy "$bin/lictory-restore-drill" "$environment" "$copy" "$source" || status=$?
+    [ "$copy" = "$identity" ] || rm -f "$copy"
+    return "$status"
+  fi
+  require_root
+  local project="lictory-$environment" stamp keep work db image mounts=() target="$source"
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  keep="${project}_postgres_data-before-restore-$stamp"
+  db=$(setting LICTORY_DB_NAME)
+  say "This replaces the database of $environment with backup '$source'."
+  say "Writes since that backup are lost. The current data is kept in the Docker volume $keep."
+  if [ "$(opt yes)" != true ]; then
+    [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
+    local answer
+    printf 'Type the environment name (%s) to continue: ' "$environment" >/dev/tty
+    IFS= read -r answer </dev/tty || true
+    [ "$answer" = "$environment" ] || die "Restore cancelled."
+  fi
+  work=$(as_deploy mktemp -d)
+  trap 'rm -rf "$work"' EXIT
+  # Readable by the ops container's postgres user; the directory stays private.
+  if [ "$identity" = none ]; then : >"$work/age-identity"; else cp "$identity" "$work/age-identity"; fi
+  chmod 0644 "$work/age-identity"
+  mounts=(-v "$work/age-identity:/run/age-identity:ro")
+  if [ -f "$source" ]; then
+    cp "$source" "$work/"
+    case "$source" in *.dump.age) cp "${source%.dump.age}.manifest.json.age" "$work/" ;; *.dump) cp "${source%.dump}.manifest.json" "$work/" ;; esac ||
+      die "The backup's manifest must sit next to $source."
+    chmod 0644 "$work"/*
+    mounts+=(-v "$work:/restore-source:ro")
+    target="/restore-source/$(basename "$source")"
+  fi
+  image=$(compose config --format json | jq -er '.services.postgres.image') || die "Could not resolve the PostgreSQL image."
+  step "Stopping $environment"
+  compose stop proxy api worker zero-cache postgres
+  step "Keeping the current database in $keep"
+  docker volume create "$keep" >/dev/null
+  docker run --rm --network none --entrypoint cp -v "${project}_postgres_data:/from:ro" -v "$keep:/to" "$image" -a /from/. /to/ ||
+    die "Could not copy the current database; nothing was changed. Start it again: lictory install"
+  trap 'rm -rf "$work"; printf "\nRestore failed. The previous database is in the Docker volume %s.\n" "$keep" >&2' EXIT
+  compose rm -fs postgres zero-cache >/dev/null
+  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume."
+  # zero-cache resyncs from the restored database.
+  docker volume rm "${project}_zero_replica" >/dev/null 2>&1 || true
+  step "Restoring"
+  compose up -d --wait --wait-timeout 180 postgres
+  RESTORE_PGPASSWORD=$(setting POSTGRES_SUPERUSER_PASSWORD) compose run --rm --no-deps -T "${mounts[@]}" \
+    -e AGE_IDENTITY_FILE=/run/age-identity -e RESTORE_PGHOST=postgres -e RESTORE_PGUSER=postgres \
+    -e RESTORE_PGPASSWORD -e RESTORE_DATABASE="$db" ops sh -c 'restore.sh "$1" && verify.sh' restore "$target"
+  step "Starting $active on the restored database"
+  deploy_sh migrate "$active"
+  deploy_sh activate "$active"
+  trap 'rm -rf "$work"' EXIT
+  say "Restored. Check the data, then remove the previous database: docker volume rm $keep"
+}
+
+# ----------------------------------------------------------------------- doctor
+cmd_doctor() {
+  parse "" "" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "doctor takes no arguments."
+  select_environment
+  local tls host url status_json state version insecure=() mode gateway
+  step "Host"
+  preflight
+  step "Configuration ($home/.env)"
+  mode=$(stat -c %a "$home/.env" 2>/dev/null || stat -f %Lp "$home/.env")
+  [ "$mode" = 600 ] && check_ok ".env is private (0600)" || check_fail ".env has mode $mode: chmod 0600 $home/.env"
+  if grep -q '=generate$' "$home/.env"; then check_fail "unreplaced 'generate' placeholders in .env"; fi
+  host=$(setting APP_HOST)
+  [ -n "$host" ] && check_ok "host $host" || check_fail "APP_HOST is empty: sudo lictory install --host <name>"
+  tls=$(current_tls)
+  check_ok "TLS mode $tls, address $(platform_url)"
+  case "$(setting LICTORY_IMAGE_REGISTRY)" in
+    "" | *replace-with-owner*) check_fail "LICTORY_IMAGE_REGISTRY is not set: sudo lictory install" ;;
+  esac
+  case "$(current_email)" in
+    none) check_warn "No outbound email: verification, invitations and password reset are not delivered (sudo lictory install --email smtp)." ;;
+    *) check_ok "outbound email via $(current_email)" ;;
+  esac
+  case "$(setting BACKUP_TARGET)" in
+    none) check_warn "Backups are disabled (BACKUP_TARGET=none)." ;;
+    local) [ -n "$(setting BACKUP_LOCAL_PATH)" ] && check_ok "backups to $(setting BACKUP_LOCAL_PATH)" ||
+      check_warn "Backups stay on this server's disk; add a NAS path, s3 or rclone target for disaster recovery." ;;
+    *) check_ok "backups to $(setting BACKUP_TARGET)" ;;
+  esac
+  case "$(setting BACKUP_AGE_RECIPIENTS)" in
+    none) [ "$(setting BACKUP_TARGET)" = none ] || check_warn "Backups are not encrypted (BACKUP_AGE_RECIPIENTS=none)." ;;
+    age1*) ;;
+    *) [ "$(setting BACKUP_TARGET)" = none ] || check_fail "BACKUP_AGE_RECIPIENTS is not an age public key: backups fail (sudo lictory install --backup-age-recipient generate)." ;;
+  esac
+  if [ "$tls" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
+    gateway=$(docker network inspect "lictory-${environment}_edge" --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null || true)
+    check_warn "CADDY_TRUSTED_PROXIES is empty: every user shares one sign-in rate limit.${gateway:+ A proxy on this host connects from $gateway: sudo lictory install --trusted-proxies $gateway}"
+  fi
+  [ "$tls" = acme ] || [ "$tls" = internal ] && check_dns "$host"
+
+  step "Release"
+  version=$(current_version)
+  if [ -z "$version" ]; then
+    check_fail "No active release: sudo lictory install"
+  else
+    status_json=$(deploy_sh status --json 2>/dev/null) || status_json=""
+    if [ -z "$status_json" ]; then
+      check_fail "deploy.sh status failed: $bin/deploy.sh $environment status"
+    else
+      check_ok "release $version ($(printf '%s' "$status_json" | jq -r .channel))"
+      for service in $services; do
+        state=$(printf '%s' "$status_json" | jq -r --arg s "$service" '.services[$s] // "missing"')
+        case "$state" in
+          running | running/healthy) check_ok "$service $state" ;;
+          *) check_fail "$service is $state: lictory logs $service" ;;
+        esac
+      done
+      [ "$(printf '%s' "$status_json" | jq -r .healthy)" = true ] ||
+        check_warn "Not every service runs the release's images: lictory install re-activates $version."
+    fi
+  fi
+
+  step "Routes and certificates"
+  url="$(platform_url)/readyz"
+  [ -z "$(setting CADDY_GLOBAL_OPTIONS)" ] || insecure=(-k)
+  if curl -fsS ${insecure[@]+"${insecure[@]}"} -m 15 -o /dev/null "$url" 2>/dev/null; then
+    check_ok "$url"
+  else
+    local port scheme
+    scheme=$(setting PROXY_SCHEME)
+    scheme="${scheme:-https}"
+    if [ "$scheme" = http ]; then port=$(setting HTTP_PORT); port="${port:-80}"; else port=$(setting HTTPS_PORT); port="${port:-443}"; fi
+    if curl -fsS -k -m 15 -o /dev/null --resolve "$host:$port:127.0.0.1" "$scheme://$host:$port/readyz" 2>/dev/null; then
+      check_fail "$url is not reachable, but the gateway answers locally: check DNS, the firewall (ports 80/443)${insecure:+, your CA}$([ "$tls" = proxy ] && printf ' and your reverse proxy')."
+    else
+      check_fail "The gateway does not answer on port $port: lictory logs proxy"
+    fi
+  fi
+  if [ "$tls" = acme ] || [ "$tls" = internal ]; then
+    local expiry
+    expiry=$(printf '' | openssl s_client -connect 127.0.0.1:"$(setting HTTPS_PORT | grep . || echo 443)" -servername "$host" 2>/dev/null |
+      openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
+    if [ -n "$expiry" ]; then check_ok "certificate valid until $expiry"; else check_warn "No certificate served for $host yet: lictory logs proxy"; fi
+  fi
+
+  if [ -n "$version" ]; then
+    step "Database, replication and background work"
+    local report
+    if report=$(compose run --rm --no-deps -T ops sh -c '
+      psql -X -A -t -F " | " -v ON_ERROR_STOP=1 -v slot_lag_bytes="${MONITOR_SLOT_LAG_ALERT_BYTES:-2147483648}" \
+        -v wal_bytes="${MONITOR_WAL_ALERT_BYTES:-6442450944}" -f /opt/lictory/sql/checks.sql
+      echo "backup | $(jq -r .completed_at /backups/last-success.json 2>/dev/null || echo none)"' 2>&1); then
+      local problems=0 line
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        case "$line" in
+          "backup | none") [ "$(setting BACKUP_TARGET)" = none ] || check_warn "No successful backup yet: lictory backup" ;;
+          "backup | "*) check_ok "last backup ${line#backup | }" ;;
+          *) check_fail "$line"; problems=$((problems + 1)) ;;
+        esac
+      done <<<"$report"
+      [ "$problems" -gt 0 ] || check_ok "replication slot, WAL and queued work"
+    else
+      check_fail "The database checks could not run: $(printf '%s' "$report" | tail -n 3 | tr '\n' ' ')"
+    fi
+  fi
+
+  if [ -d /run/systemd/system ] && command -v systemctl >/dev/null; then
+    step "Timers"
+    for unit in "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer"; do
+      systemctl is-active --quiet "$unit" && check_ok "$unit" || check_warn "$unit is not active: sudo systemctl start $unit"
+    done
+  fi
+
+  printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  [ "$failures" -eq 0 ]
+}
+
+# ------------------------------------------------------------------------ main
+command="${1:-help}"
+[ $# -eq 0 ] || shift
+case "$command" in
+  install) cmd_install "$@" ;;
+  bootstrap) cmd_bootstrap "$@" ;;
+  status) cmd_status "$@" ;;
+  doctor) cmd_doctor "$@" ;;
+  upgrade) cmd_upgrade "$@" ;;
+  rollback) cmd_rollback "$@" ;;
+  backup) cmd_backup "$@" ;;
+  restore) cmd_restore "$@" ;;
+  logs) cmd_logs "$@" ;;
+  registry-login) cmd_registry_login "$@" ;;
+  help | -h | --help) usage ;;
+  *) usage_error "Unknown command: $command" ;;
+esac

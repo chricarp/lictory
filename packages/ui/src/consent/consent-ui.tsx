@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { analyticsConfigured } from "@lictory/core/lib/analytics/client";
 import { cn } from "@lictory/core/lib/utils";
 
 // Consent surfaces are built on c15t's headless hooks so they share the landing
@@ -52,8 +53,17 @@ function GlassButton({
   );
 }
 
-/** Reopens the consent dialog, e.g. from footers and account menus. */
-export function PrivacyPreferencesButton({
+/**
+ * Reopens the consent dialog, e.g. from footers and account menus. Without
+ * analytics settings there is no choice to make, so it renders nothing.
+ */
+export function PrivacyPreferencesButton(
+  props: ButtonHTMLAttributes<HTMLButtonElement>,
+) {
+  return analyticsConfigured() ? <PreferencesButton {...props} /> : null;
+}
+
+function PreferencesButton({
   onClick,
   type = "button",
   ...props

@@ -2,7 +2,10 @@ import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
-import { mergeArchitectureBuilds } from "@lictory/core/release/parallel-images";
+import {
+  mergeArchitectureBuilds,
+  releaseArchitectures,
+} from "@lictory/core/release/parallel-images";
 import { resolve } from "node:path";
 import {
   GitHub,
@@ -15,6 +18,7 @@ import {
   buildImages,
   imageNames,
   imagesId,
+  releaseFile,
   type BuildConfiguration,
 } from "@lictory/core/release/images";
 import {
@@ -27,17 +31,20 @@ import {
 import { injectVersion } from "@lictory/core/release/build";
 import {
   assertRun,
+  nightlyDue,
+  nightlyEvents,
   planNightly,
   planProduction,
 } from "@lictory/core/release/plan";
 import { executeRelease, type Build } from "@lictory/core/release/pipeline";
-import { git } from "@lictory/core/release/repository";
 import {
-  matchesRelease,
-  Server,
-  sshRemote,
-  type Environment,
-} from "@lictory/core/release/server";
+  changedPaths,
+  collectChanges,
+  git,
+  latestBaseline,
+} from "@lictory/core/release/repository";
+import { touchesSite, type Site } from "@lictory/core/release/paths";
+import { predictedStable } from "@lictory/core/release/version";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -71,26 +78,6 @@ async function savePlan(manifest: Manifest, path: string) {
       `Selected **${manifest.tag}** from \`${manifest.sha}\`. Baseline: ${manifest.baseline.version}.\n`,
     );
 }
-function server(github: GitHub, environment: Environment, registry: string) {
-  return new Server(
-    { environment, registry },
-    sshRemote(required("DEPLOY_SSH_TARGET"), {
-      knownHostsFile: optional("DEPLOY_SSH_KNOWN_HOSTS_FILE"),
-      identityFile: optional("DEPLOY_SSH_KEY_FILE"),
-    }),
-    // A rollback target is a published stable release of exactly that commit.
-    async (version, sha) => {
-      const release = await github.release(`v${version}`);
-      return (
-        !!release &&
-        !release.draft &&
-        !release.prerelease &&
-        (await github.tagSha(`v${version}`)) === sha
-      );
-    },
-  );
-}
-
 // The journaled image build of exactly this manifest, if any.
 async function journaledBuild(
   github: GitHub,
@@ -114,8 +101,15 @@ async function journaledBuild(
   };
 }
 
-async function latestNightlyProxy(github: GitHub, registry: string) {
-  const records = await github.deployments("nightly");
+/** The proxy image of the newest journaled build of a channel (its assets are kept). */
+async function latestProxy(
+  github: GitHub,
+  registry: string,
+  channel: Manifest["channel"],
+) {
+  const records = await github.deployments(
+    channel === "stable" ? "production" : "nightly",
+  );
   for (const record of records) {
     const payload = deploymentPayloadSchema.safeParse(record.payload);
     if (payload.success && payload.data.registry === registry)
@@ -130,23 +124,13 @@ function buildConfiguration(
 ): BuildConfiguration {
   return {
     registry,
-    siteUrl: required("SITE_URL"),
-    platformUrl: required("PLATFORM_URL"),
     sourceUrl: `https://github.com/${required("GITHUB_REPOSITORY")}`,
-    posthogProjectToken: optional("POSTHOG_PROJECT_TOKEN"),
-    posthogHost: optional("POSTHOG_HOST"),
-    legal: {
-      name: optional("LICTORY_LEGAL_NAME"),
-      address: optional("LICTORY_LEGAL_ADDRESS"),
-      email: optional("LICTORY_LEGAL_EMAIL"),
-      registration: optional("LICTORY_LEGAL_REGISTRATION"),
-    },
     previousProxyImage,
     cacheRegistry: optional("IMAGE_CACHE_REGISTRY"),
   };
 }
 
-async function deploy(
+async function publish(
   github: GitHub,
   graphRoot: string,
   root: string,
@@ -156,12 +140,9 @@ async function deploy(
   if ((await git(root, "rev-parse", "HEAD")) !== manifest.sha)
     throw new Error("Source checkout is not the selected release commit.");
   const registry = required("IMAGE_REGISTRY");
-  const production =
-    manifest.channel === "stable"
-      ? server(github, "production", registry)
-      : undefined;
+  // A stable candidate must still be the one the plan selected.
   const validate = async () => {
-    if (!production) return;
+    if (manifest.channel !== "stable") return;
     const current = await planProduction(
       github,
       graphRoot,
@@ -170,37 +151,23 @@ async function deploy(
       bootstrap(),
     );
     sameManifest(current, manifest);
-    await production.assertOrder(manifest);
   };
+  const releaseUrl = `https://github.com/${github.repository}/releases/tag/${manifest.tag}`;
   await injectVersion(root, manifest.version);
   const build = await executeRelease(manifest, {
     validate,
-    active: async () => {
-      const journaled = await journaledBuild(github, manifest, registry);
-      if (!production) return journaled;
-      const status = await production.status();
-      if (!status.version || !matchesRelease(manifest, status))
-        return undefined;
-      if (
-        !journaled ||
-        imageNames.some(
-          (name) => status.images?.[name] !== journaled.images[name],
-        )
-      )
-        throw new Error(
-          "Active release lacks the deployment journal needed for safe recovery.",
-        );
-      return journaled;
-    },
+    active: () => journaledBuild(github, manifest, registry),
     build: async () => {
-      const previousProxyImage = production
-        ? (await production.status()).images?.proxy
-        : await latestNightlyProxy(github, registry);
+      const previousProxyImage = await latestProxy(
+        github,
+        registry,
+        manifest.channel,
+      );
       const directory = optional("NATIVE_BUILDS_DIRECTORY");
       const images = directory
         ? await mergeArchitectureBuilds(
             await Promise.all(
-              ["arm64"].map(
+              releaseArchitectures.map(
                 async (arch) =>
                   JSON.parse(
                     await readFile(resolve(directory, `${arch}.json`), "utf8"),
@@ -235,7 +202,7 @@ async function deploy(
             manifest,
             buildConfiguration(registry, previousProxyImage),
           );
-      return { id: imagesId(images), url: required("PLATFORM_URL"), images };
+      return { id: imagesId(images), url: releaseUrl, images };
     },
     record: async (build) =>
       (
@@ -248,19 +215,14 @@ async function deploy(
       ).id,
     status: (id, state, build) =>
       github.deploymentStatus(id, state, build.url, runId),
-    migrate: async (build) => {
-      if (!production)
-        throw new Error("Nightly releases never migrate production.");
-      await production.prepare(manifest, build.images);
-      await production.migrate(manifest);
-    },
-    reserve: async () => {
+    reserve: async (build) => {
       await github.reserve(manifest);
-    },
-    promote: async (build) => {
-      if (!production)
-        throw new Error("Nightly images cannot be activated in production.");
-      await production.activate(manifest, build);
+      // What self-hosted installations pull: the exact digests of this release.
+      await github.attach(
+        manifest,
+        "release.env",
+        releaseFile(manifest, build.images),
+      );
     },
     publish: async () => {
       await github.publish(manifest);
@@ -279,25 +241,105 @@ async function deploy(
     );
 }
 
-// Optional: runs a published nightly on the staging server (migrations included).
-async function stage(github: GitHub, manifest: Manifest) {
-  if (manifest.channel !== "nightly")
-    throw new Error("Only nightlies are staged.");
+/** The commit a website was last deployed from (its deployment journal). */
+async function lastSiteDeployment(github: GitHub, site: Site) {
+  for (const record of await github.deployments(`${site}-site`)) {
+    const statuses = z
+      .array(z.object({ state: z.string() }))
+      .parse(await github.request(`/deployments/${record.id}/statuses`));
+    if (statuses[0]?.state === "success") return record.sha;
+  }
+  return undefined;
+}
+
+/**
+ * What one press of Release ships: the platform when it has release-worthy
+ * changes (as a stable promotion of a verified nightly), and each website when
+ * its sources changed since its last deployment. Retries keep the platform
+ * decision of their first attempt.
+ */
+async function planRelease(
+  github: GitHub,
+  graphRoot: string,
+  runId: number,
+  planPath: string,
+) {
+  const head = required("GITHUB_SHA");
   const registry = required("IMAGE_REGISTRY");
-  const build = await journaledBuild(github, manifest, registry);
-  if (!build) throw new Error(`${manifest.tag} has no journaled image build.`);
-  const staging = server(github, "staging", registry);
-  await staging.prepare(manifest, build.images);
-  await staging.migrate(manifest);
-  await staging.activate(manifest, build);
-  console.log(`${manifest.tag} is active on staging.`);
+  const intent = await github.releaseIntent("stable", runId);
+  const requested = optional("NIGHTLY_TAG");
+  let manifest: Manifest | undefined;
+  const baseline = await latestBaseline(github, bootstrap());
+  if (intent || requested) {
+    manifest = await planProduction(
+      github,
+      graphRoot,
+      intent?.sourceNightly ?? requested,
+      registry,
+      bootstrap(),
+    );
+  } else {
+    const pending = await collectChanges(github, graphRoot, baseline, head);
+    const next = predictedStable(
+      baseline.version,
+      pending.map((change) => change.title),
+      pending.some((change) => change.stableApi),
+    );
+    if (next.bump !== "none")
+      // Throws when the platform changed but no verified nightly carries it.
+      manifest = await planProduction(
+        github,
+        graphRoot,
+        undefined,
+        registry,
+        bootstrap(),
+      );
+  }
+  if (manifest) {
+    if (intent) sameManifest(intent, manifest);
+    await github.keepReleaseIntent(runId, manifest);
+    await savePlan(manifest, planPath);
+  }
+  const force = process.env.REDEPLOY_WEBSITES === "true";
+  const sites: Record<Site, boolean> = { marketing: false, docs: false };
+  for (const site of Object.keys(sites) as Site[]) {
+    const last = await lastSiteDeployment(github, site);
+    sites[site] =
+      force ||
+      !last ||
+      touchesSite(site, await changedPaths(graphRoot, last, head)) ||
+      // The website shows the current stable version.
+      (site === "marketing" && !!manifest);
+  }
+  const stableTag = manifest?.tag ?? baseline.tag ?? "";
+  const lines = [
+    `platform=${!!manifest}`,
+    `marketing=${sites.marketing}`,
+    `docs=${sites.docs}`,
+    `stable_tag=${stableTag}`,
+  ];
+  if (process.env.GITHUB_OUTPUT)
+    await appendFile(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
+  console.log(lines.join("\n"));
+  if (process.env.GITHUB_STEP_SUMMARY)
+    await appendFile(
+      process.env.GITHUB_STEP_SUMMARY,
+      [
+        manifest
+          ? `Platform: **${manifest.tag}** from \`${manifest.sha}\` (${manifest.sourceNightly}).`
+          : `Platform: no release-worthy changes since ${baseline.version}; nothing to publish.`,
+        `Marketing website: ${sites.marketing ? "deploy" : "unchanged"}.`,
+        `Documentation website: ${sites.docs ? "deploy" : "unchanged"}.`,
+        "",
+      ].join("\n\n"),
+    );
 }
 
 try {
   const [command, planPath, sourcePath, ...extra] = process.argv.slice(2);
   if (!command || !planPath || extra.length)
     throw new Error(
-      "Usage: bun run release <plan-nightly|plan-production|deploy|stage> <plan.json> [source-directory]",
+      "Usage: bun run release <plan-nightly|plan-release|build|publish> <plan.json> [source-directory]",
     );
   const graphRoot = resolve(import.meta.dirname, "..");
   const github = new GitHub(
@@ -306,42 +348,45 @@ try {
   );
   const runId = Number(required("GITHUB_RUN_ID"));
   if (command === "plan-nightly") {
-    const manifest = await planNightly(
+    const due = await nightlyDue(
       github,
       graphRoot,
       required("GITHUB_SHA"),
       required("GITHUB_REF_NAME"),
       runId,
-      bootstrap(),
     );
-    await github.keepReleaseIntent(runId, manifest);
-    await savePlan(manifest, planPath);
-  } else if (command === "plan-production") {
+    if (process.env.GITHUB_OUTPUT)
+      await appendFile(process.env.GITHUB_OUTPUT, `due=${due}\n`);
+    if (!due) {
+      console.log(
+        "The platform has not changed since the newest nightly; skipping.",
+      );
+      if (process.env.GITHUB_STEP_SUMMARY)
+        await appendFile(
+          process.env.GITHUB_STEP_SUMMARY,
+          "No nightly: the platform has not changed since the newest nightly.\n",
+        );
+    } else {
+      const manifest = await planNightly(
+        github,
+        graphRoot,
+        required("GITHUB_SHA"),
+        required("GITHUB_REF_NAME"),
+        runId,
+        bootstrap(),
+      );
+      await github.keepReleaseIntent(runId, manifest);
+      await savePlan(manifest, planPath);
+    }
+  } else if (command === "plan-release") {
     if (
       process.env.GITHUB_REF !== "refs/heads/main" ||
       process.env.GITHUB_EVENT_NAME !== "workflow_dispatch"
     )
       throw new Error(
-        "Production must be intentionally dispatched from protected main.",
+        "Releases are intentionally dispatched from protected main.",
       );
-    const intent =
-      process.env.GITHUB_WORKFLOW === "Release to Production"
-        ? await github.releaseIntent("stable", runId)
-        : undefined;
-    const manifest = await planProduction(
-      github,
-      graphRoot,
-      intent?.sourceNightly ??
-        (process.env.NIGHTLY_TAG?.trim()
-          ? process.env.NIGHTLY_TAG.trim()
-          : undefined),
-      required("IMAGE_REGISTRY"),
-      bootstrap(),
-    );
-    if (intent) sameManifest(intent, manifest);
-    if (process.env.GITHUB_WORKFLOW === "Release to Production")
-      await github.keepReleaseIntent(runId, manifest);
-    await savePlan(manifest, planPath);
+    await planRelease(github, graphRoot, runId, planPath);
   } else if (command === "build") {
     if (!sourcePath)
       throw new Error("Native build requires a source checkout.");
@@ -360,10 +405,11 @@ try {
     if (architecture !== "amd64" && architecture !== "arm64")
       throw new Error("BUILD_ARCHITECTURE must be amd64 or arm64.");
     const registry = required("IMAGE_REGISTRY");
-    const previousProxyImage =
-      manifest.channel === "stable"
-        ? (await server(github, "production", registry).status()).images?.proxy
-        : await latestNightlyProxy(github, registry);
+    const previousProxyImage = await latestProxy(
+      github,
+      registry,
+      manifest.channel,
+    );
     // Older eligible nightlies stamped package.json before invoking Docker.
     // New Dockerfiles stamp only version-sensitive stages, preserving install caches.
     if (
@@ -385,58 +431,35 @@ try {
         images,
       }),
     );
-  } else if (command === "deploy" || command === "stage") {
+  } else if (command === "publish") {
     const manifest = manifestSchema.parse(
       JSON.parse(await readFile(planPath, "utf8")),
     );
     if (manifest.repository !== github.repository)
       throw new Error("Release plan belongs to another repository.");
-    if (command === "stage") {
-      await stage(github, manifest);
-    } else {
-      if (!sourcePath)
-        throw new Error(
-          "Deployment needs the exact source checkout directory.",
-        );
+    if (!sourcePath)
+      throw new Error("Publication needs the exact source checkout directory.");
+    const run = runSchema.parse(await github.request(`/actions/runs/${runId}`));
+    if (manifest.channel === "nightly") {
+      assertRun(manifest, run, false);
       if (
-        manifest.channel === "stable" &&
-        (process.env.GITHUB_REF !== "refs/heads/main" ||
-          process.env.GITHUB_EVENT_NAME !== "workflow_dispatch")
+        manifest.run.id !== runId ||
+        run.head_sha !== manifest.sha ||
+        !nightlyEvents.includes(run.event)
       )
         throw new Error(
-          "Only Release to Production on main can access production activation.",
+          "Nightly publication does not belong to this exact triggering run.",
         );
-      if (manifest.channel === "nightly") {
-        const run = runSchema.parse(
-          await github.request(`/actions/runs/${runId}`),
-        );
-        assertRun(manifest, run, false);
-        if (
-          manifest.run.id !== runId ||
-          run.head_sha !== manifest.sha ||
-          !["push", "repository_dispatch"].includes(run.event)
-        )
-          throw new Error(
-            "Nightly deployment does not belong to this exact triggering run.",
-          );
-      }
-      if (manifest.channel === "stable") {
-        const run = runSchema.parse(
-          await github.request(`/actions/runs/${runId}`),
-        );
-        if (
-          run.path.split("@")[0] !==
-            ".github/workflows/deploy-production.yml" ||
-          run.event !== "workflow_dispatch" ||
-          run.head_branch !== "main" ||
-          (await git(graphRoot, "rev-parse", "HEAD")) !== run.head_sha
-        )
-          throw new Error(
-            "Only the protected Release to Production workflow can activate production.",
-          );
-      }
-      await deploy(github, graphRoot, resolve(sourcePath), manifest, runId);
-    }
+    } else if (
+      run.path.split("@")[0] !== ".github/workflows/release.yml" ||
+      run.event !== "workflow_dispatch" ||
+      run.head_branch !== "main" ||
+      (await git(graphRoot, "rev-parse", "HEAD")) !== run.head_sha
+    )
+      throw new Error(
+        "Only the protected Release workflow on main can publish a stable release.",
+      );
+    await publish(github, graphRoot, resolve(sourcePath), manifest, runId);
   } else throw new Error(`Unknown release command: ${command}`);
 } catch (error) {
   console.error(

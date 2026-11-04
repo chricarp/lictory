@@ -3,6 +3,8 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { accessTokenCapabilities } from "@lictory/core/capabilities/access-tokens";
 import { productKnowledgeCapabilities } from "@lictory/core/capabilities/product-knowledge";
 import { attachmentCapabilities } from "@lictory/core/capabilities/attachments";
+import { auditCapabilities } from "@lictory/core/capabilities/audit";
+import { exportCapabilities } from "@lictory/core/capabilities/export";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
 import {
   CapabilityError,
@@ -17,9 +19,11 @@ import {
   humanOnlyRefusal,
 } from "@lictory/core/capabilities/human-only";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
+import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
 import { intakeCapabilities } from "@lictory/core/capabilities/intake";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
+import { securityCapabilities } from "@lictory/core/capabilities/security";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
@@ -32,6 +36,9 @@ export const capabilities: readonly AnyCapability[] = [
   ...attachmentCapabilities,
   ...brandingCapabilities,
   ...accessTokenCapabilities,
+  ...securityCapabilities,
+  ...auditCapabilities,
+  ...exportCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
   humanOnlyCapability(() => capabilities),
@@ -212,6 +219,15 @@ export async function invoke(
         ? await resolveMcpOrganization(ctx, parsed)
         : parsed;
     organizationId = organizationOf(input);
+    // An organization that requires two-factor holds members without it,
+    // on every surface, before any capability runs (domain services check
+    // again through `authorize`).
+    if (organizationId)
+      await assertTwoFactorSatisfied(
+        ctx.db,
+        ctx.principal.userId,
+        organizationId,
+      );
     const output = await capability.run(ctx, input);
     if (output && typeof output === "object" && "mutationId" in output)
       mutationId = String(output.mutationId);

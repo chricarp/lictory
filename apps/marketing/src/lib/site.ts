@@ -4,17 +4,17 @@
 import { openSource } from "@lictory/marketing/lib/open-source";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
-import { configuredOrigin } from "@lictory/marketing/lib/platform";
+import { configuredOrigin } from "@lictory/marketing/lib/origin";
 
 /**
  * The canonical public origin of this website. Never derived from a request
- * Host header. Pages are prerendered, so it is fixed at build time.
+ * Host header. Pages are prerendered, so it is fixed at build time. Production
+ * builds set SITE_URL (the Dockerfile and the deployment workflow require it);
+ * the fallback is the local development server, never a public domain.
  */
 export const siteUrl = configuredOrigin(
   process.env.SITE_URL,
-  process.env.NODE_ENV === "production"
-    ? "https://lictory.com"
-    : "http://localhost:3100",
+  "http://localhost:3100",
 );
 
 /** RSS feed of the guides, so feed readers and crawlers notice new ones. */
@@ -29,7 +29,7 @@ export const siteTitle = "Lictory: requirements, reviewed like code";
 export const siteTagline = "Requirements, reviewed like code.";
 
 export const siteDescription =
-  "Refine requirements before development. People and agents collaborate on specification branches, review changes and agree on what to build. Deliver in Lictory or Jira. Open source.";
+  "Refine requirements before development. People and agents collaborate on specification branches, review changes and agree on what to build. Deliver in Lictory or Jira. Open source and self-hosted.";
 
 /** A self-contained summary that still makes sense when quoted on its own. */
 export const siteSummary =
@@ -79,8 +79,8 @@ export type PublicPage = {
 const latest = (dates: readonly string[]) => [...dates].sort().at(-1)!;
 
 /**
- * Public, indexable pages of this website. Sign-in, sign-up and the workspace
- * live on the platform origin and are not listed here.
+ * Public, indexable pages of this website. Lictory itself runs on each
+ * team's own server, never on this origin.
  */
 export const publicPages: readonly PublicPage[] = [
   {

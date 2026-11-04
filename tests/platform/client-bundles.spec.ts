@@ -33,6 +33,7 @@ const serverOnly = [
   /\bhashPassword\b/,
   /\bpg_notify\b/,
   /R2_SECRET_ACCESS_KEY/,
+  /S3_SECRET_ACCESS_KEY/,
   /ZERO_(QUERY|MUTATE)_API_KEY/,
   /DATABASE_URL/,
 ];
@@ -41,7 +42,7 @@ for (const [name, directory] of [
   ["platform SPA", "apps/platform/dist"],
   ["website client chunks", "apps/marketing/.next/static"],
 ] as const)
-  test(`${name}: no secrets or server-only code`, () => {
+  test(`${name}: no secrets or server-only code @smoke`, () => {
     const shipped = files(directory).filter((f) =>
       /\.(js|mjs|css|html|json)$/.test(f),
     );

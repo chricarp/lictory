@@ -1,0 +1,12 @@
+/* Lictory's product tokens (light and dark) from the shared UI package, mapped
+   onto Fumadocs' colors through its shadcn bridge, so the documentation reads
+   like the application it describes. */
+@import "../../../../packages/ui/src/styles.css";
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";
+
+body {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-sans);
+}

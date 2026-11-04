@@ -89,7 +89,7 @@ function seed(key: string) {
   });
 }
 
-test("two people see each other's work live; concurrent specification edits never overwrite each other", async ({
+test("two people see each other's work live; concurrent specification edits never overwrite each other @smoke", async ({
   browser,
 }) => {
   test.setTimeout(120_000);
@@ -297,7 +297,7 @@ test("a comment on an item archived meanwhile is rolled back, explained and reco
   }
 });
 
-test("removing a member takes the organization away from their open workspace and refuses their changes", async ({
+test("removing a member takes the organization away from their open workspace and refuses their changes @smoke", async ({
   browser,
 }) => {
   test.setTimeout(120_000);

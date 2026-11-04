@@ -7,6 +7,7 @@ import { realtime } from "@lictory/core/domain/realtime";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
 import { env, envInteger } from "@lictory/core/lib/env";
 import { mailTransportSummary } from "@lictory/core/lib/mailer";
+import { storageConfiguration } from "@lictory/core/storage";
 import { createApp } from "@lictory/api/app";
 import { closeEventStreams } from "@lictory/api/routes/events";
 
@@ -20,6 +21,36 @@ const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
 // Sign-up requires email verification: production refuses to start without a
 // mail transport or sender, with a message naming the settings to add.
 const mail = mailTransportSummary();
+
+// File storage is optional: without it attachments are disabled. A partial or
+// malformed configuration stops the API with the variables to fix.
+try {
+  const files = storageConfiguration();
+  console.info(
+    JSON.stringify(
+      files
+        ? {
+            event: "api.storage",
+            preset: files.preset,
+            endpoint: files.endpoint ?? `aws:${files.region}`,
+            bucket: files.bucket,
+          }
+        : {
+            event: "api.storage",
+            attachments: "disabled",
+            reason: "No S3_* or R2_* storage settings.",
+          },
+    ),
+  );
+} catch (error) {
+  console.error(
+    JSON.stringify({
+      event: "api.storage_invalid",
+      message: error instanceof Error ? error.message : String(error),
+    }),
+  );
+  process.exit(1);
+}
 
 let draining = false;
 let inflight = 0;

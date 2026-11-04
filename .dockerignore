@@ -27,3 +27,6 @@ docs
 .vercel
 deploy/**/*.env
 !deploy/**/*.env.example
+# The documentation site deploys only to Cloudflare; no image builds or ships
+# it, and its dependencies stay out of every image's install.
+apps/docs

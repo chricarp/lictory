@@ -22,6 +22,7 @@
       "@lictory/ui/*": ["./packages/ui/src/*"],
       "@lictory/zero/*": ["./packages/zero/src/*"],
       "@lictory/marketing/*": ["./apps/marketing/src/*"],
+      "@lictory/docs/*": ["./apps/docs/src/*"],
       "@lictory/platform/*": ["./apps/platform/src/*"],
       "@lictory/api/*": ["./apps/api/src/*"],
       "@lictory/worker/*": ["./apps/worker/src/*"]

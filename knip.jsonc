@@ -34,6 +34,9 @@
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}"],
     },
+    "apps/docs": {
+      "project": ["src/**/*.{ts,tsx}", "content/**/*.mdx"],
+    },
     "apps/platform": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}"],

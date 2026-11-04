@@ -12,7 +12,7 @@ x-logging: &logging
 
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17.11-alpine}
+    image: ${POSTGRES_IMAGE:-postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b}
     logging: *logging
     networks: [drill]
     shm_size: 256m
@@ -52,16 +52,20 @@ services:
       RESTORE_PGPASSWORD: ${DRILL_SUPERUSER_PASSWORD:?}
       RESTORE_DATABASE: ${DRILL_DB_NAME:?}
       AGE_IDENTITY_FILE: /run/age-identity
-      BACKUP_BUCKET: ${BACKUP_BUCKET:?}
+      BACKUP_TARGET: ${BACKUP_TARGET:-s3}
+      BACKUP_BUCKET: ${BACKUP_BUCKET:-}
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
       RCLONE_CONFIG_BACKUP_TYPE: s3
       RCLONE_CONFIG_BACKUP_PROVIDER: ${BACKUP_S3_PROVIDER:-Cloudflare}
-      RCLONE_CONFIG_BACKUP_ENDPOINT: ${BACKUP_S3_ENDPOINT:?}
+      RCLONE_CONFIG_BACKUP_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
       RCLONE_CONFIG_BACKUP_REGION: ${BACKUP_S3_REGION:-auto}
-      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:?}
-      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:?}
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
       RCLONE_CONFIG_BACKUP_NO_CHECK_BUCKET: "true"
     volumes:
       - ${AGE_IDENTITY_FILE:?}:/run/age-identity:ro
+      # BACKUP_TARGET=local: the live environment's backup directory, read-only.
+      - ${DRILL_BACKUP_SOURCE:?}:/backup-target:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,10 +100,7 @@ services:
       DELIVERY_CREDENTIALS_KEY: ${DRILL_APP_SECRET:?}
       ZERO_QUERY_API_KEY: ${DRILL_APP_SECRET:?}
       ZERO_MUTATE_API_KEY: ${DRILL_APP_SECRET:?}
-      R2_ACCOUNT_ID: restore-drill
-      R2_ACCESS_KEY_ID: restore-drill
-      R2_SECRET_ACCESS_KEY: restore-drill
-      R2_BUCKET_NAME: restore-drill
+      # No file storage: attachments are disabled in the drill.
       # Production refuses to start without a mail transport; the drill
       # network is internal, so nothing is ever delivered.
       SMTP_HOST: smtp.restore-drill.invalid

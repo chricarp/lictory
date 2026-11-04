@@ -1,0 +1,21 @@
+import defaultMdxComponents from "fumadocs-ui/mdx";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import type { MDXComponents } from "mdx/types";
+
+import { Cli, CliNotice, CliReference } from "@lictory/docs/components/cli";
+
+export function getMDXComponents(components?: MDXComponents) {
+  return {
+    ...defaultMdxComponents,
+    Step,
+    Steps,
+    Cli,
+    CliNotice,
+    CliReference,
+    ...components,
+  } satisfies MDXComponents;
+}
+
+declare global {
+  type MDXProvidedComponents = ReturnType<typeof getMDXComponents>;
+}

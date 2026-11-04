@@ -1,0 +1,79 @@
+---
+title: Specifications and revisions
+description: Proposals, specifications, immutable revisions, branches and pull requests, and the decisions a team records along the way.
+---
+
+## Work items, proposals and specifications
+
+Every piece of work in Lictory is a **work item** with a project identifier
+such as `PAY-142`. Its **type** (Epic, Story, Task, Bug, Subtask by default)
+says what kind of work it is, and whether it carries a **specification**:
+only spec-backed types are refined, reviewed and checked for readiness. Plain
+work (a Task, say) has a revisioned description but no review workflow.
+
+A spec-backed item starts as a **proposal**: the problem, the intent, notes,
+rough stories, files and links. Proposals are expected to be incomplete;
+refinement makes them useful. As the team clarifies the behavior, the
+proposal becomes the **specification**, the Markdown document everybody
+reviews. Its acceptance criteria and failure behavior are part of the text.
+
+The project's **Proposals** view holds specifications that have not started
+refinement; **Refinement** holds those being clarified, reviewed or ready for
+delivery.
+
+## Revisions
+
+Every material change to a specification's title or content creates an
+immutable **revision**. Revisions are never edited afterwards: they give the
+item its history, diffs between any two versions, the anchor for
+[approvals](/concepts/reviews#approvals-belong-to-revisions) and the source
+for restoring an earlier version. Restoring copies an old revision into a new
+one; history is kept.
+
+Property changes (status, owner, priority, iteration, estimate, labels and
+so on) are not material: they create no revision and never affect approvals.
+
+## Main, branches and pull requests
+
+The canonical specification lives on **main**. People with the _edit
+specifications_ capability edit main directly while the specification is
+taking shape. Once it first becomes [ready](/concepts/readiness), main is
+**protected**: from then on every change is proposed and reviewed.
+
+- A **branch** belongs to one specification. Anyone in the organization can
+  create one; its author and invited collaborators commit to it. A commit is
+  an immutable snapshot with an author and a message.
+- A **pull request** proposes merging a branch into main (or into another
+  branch). Reviewers see the diff, discuss it and approve or request changes.
+  Concurrent edits are combined automatically when they do not overlap;
+  overlapping edits are resolved explicitly, side by side.
+- **Merging** into main creates a new revision. The pull request's valid
+  approvals become reviews of exactly that revision, so the team does not
+  approve the same text twice.
+
+A branch can also propose a **breakdown**: new child items (Stories, Tasks)
+and changes to existing children. The breakdown is part of what reviewers
+approve, and the children are created only when the pull request merges, each
+recording the parent revision it came from.
+
+Lictory Intelligence and agents connected through MCP use the same branches
+and pull requests as people. They never write main, approve or merge.
+
+<Callout title="Suggestions">
+  Earlier versions proposed changes as inline suggestions. Existing suggestions
+  remain readable and can still be accepted or rejected; new changes use
+  branches and pull requests.
+</Callout>
+
+## Decisions
+
+Discussions are transient; conclusions should not be. A **decision** is a
+durable record of an important conclusion (_"Retries reuse the original
+transaction ID"_), with its author and the revision it was recorded on. It can
+cite the discussion it came from, whose original context is preserved.
+Recording a decision neither approves the specification nor resolves the
+discussion. Decisions can be archived and restored.
+
+Decisions, approved ready specifications and delivered revisions together
+form the organization's **product knowledge**: a search that people, Litto
+and MCP agents use, where every result names its evidence and exact revision.

@@ -1,0 +1,50 @@
+name: Start test services
+description: >-
+  Disposable PostgreSQL (logical replication, as zero-cache needs) and,
+  optionally, Mailpit, with the images pinned in compose.yaml. Exports the
+  test database and SMTP settings from docs/operations/development.md.
+
+inputs:
+  mailpit:
+    description: Also start Mailpit on port 1025 (browser workflows)
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Start PostgreSQL
+      shell: bash
+      run: |
+        docker run -d --name postgres -p 5432:5432 \
+          -e POSTGRES_DB=lictory -e POSTGRES_USER=lictory -e POSTGRES_PASSWORD=lictory \
+          postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b \
+          postgres -c wal_level=logical -c max_wal_senders=10 -c max_replication_slots=10 \
+          -c fsync=off -c synchronous_commit=off -c full_page_writes=off >/dev/null
+    - name: Start Mailpit
+      if: inputs.mailpit == 'true'
+      shell: bash
+      run: |
+        docker run -d --name mailpit -p 1025:1025 -p 8025:8025 \
+          -e MP_SMTP_AUTH_ACCEPT_ANY=1 -e MP_SMTP_AUTH_ALLOW_INSECURE=1 \
+          axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68 >/dev/null
+    - name: Wait for PostgreSQL and export test settings
+      shell: bash
+      run: |
+        for _ in $(seq 1 60); do
+          docker exec postgres pg_isready -U lictory -d lictory >/dev/null 2>&1 && break
+          sleep 1
+        done
+        docker exec postgres pg_isready -U lictory -d lictory
+        # The migration check gets a database of its own; schema and browser
+        # suites create theirs from the admin database.
+        docker exec postgres createdb -U lictory lictory_verify
+        {
+          echo "DATABASE_URL=postgresql://lictory:lictory@localhost:5432/lictory_verify"
+          echo "DATABASE_URL_UNPOOLED=postgresql://lictory:lictory@localhost:5432/lictory_verify"
+          echo "SCHEMA_TEST_DATABASE_URL=postgresql://lictory:lictory@localhost:5432/postgres"
+          echo "BETTER_AUTH_URL=http://localhost:3001"
+          echo "BETTER_AUTH_SECRET=ci-only-secret-not-a-production-credential-32"
+          echo "RESEND_API_KEY="
+          echo "SMTP_HOST=localhost"
+          echo "SMTP_PORT=1025"
+        } >> "$GITHUB_ENV"

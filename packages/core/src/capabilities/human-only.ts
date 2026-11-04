@@ -39,8 +39,38 @@ export const browserOperations: readonly BrowserOperation[] = [
     title: "Sign in, sign up or sign out",
     reason: "account",
     where: "The sign-in page",
-    authClient: ["signIn.email", "signIn.social", "signUp.email", "signOut"],
+    authClient: [
+      "signIn.email",
+      "signIn.social",
+      "signIn.passkey",
+      "signUp.email",
+      "signOut",
+      "twoFactor.verifyTotp",
+      "twoFactor.verifyBackupCode",
+    ],
     routes: ["GET /api/session"],
+  },
+  {
+    name: "manageTwoFactor",
+    title: "Turn two-factor authentication on or off, or replace backup codes",
+    reason: "account",
+    where: "Account settings → Sign-in & security → Two-factor authentication",
+    authClient: [
+      "twoFactor.enable",
+      "twoFactor.disable",
+      "twoFactor.generateBackupCodes",
+    ],
+  },
+  {
+    name: "managePasskeys",
+    title: "Add or remove passkeys",
+    reason: "account",
+    where: "Account settings → Sign-in & security → Passkeys",
+    authClient: [
+      "passkey.listUserPasskeys",
+      "passkey.addPasskey",
+      "passkey.deletePasskey",
+    ],
   },
   {
     name: "verifyEmail",
@@ -146,6 +176,20 @@ export const browserOperations: readonly BrowserOperation[] = [
     alternative:
       "setProjectMember and setDisciplineMember change project roles and disciplines.",
     authClient: ["organization.updateMemberRole"],
+  },
+  {
+    name: "exportAuditLog",
+    title: "Export the audit log as CSV",
+    reason: "audit",
+    where: "Organization settings → Audit log → Export CSV",
+    routes: ["GET /api/organizations/:id/audit-log.csv"],
+  },
+  {
+    name: "downloadOrganizationExport",
+    title: "Download an organization data export",
+    reason: "export",
+    where: "Organization settings → Data export",
+    routes: ["GET /api/organizations/:id/exports/:exportId/archive"],
   },
   {
     name: "manageLittoChats",
@@ -278,7 +322,7 @@ export function humanOnlyCapability(all: () => readonly AnyCapability[]) {
     name: "listHumanOnlyOperations",
     title: "List human-only operations",
     description:
-      "What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, Litto conversations, browser preferences), with the reason and where the person does each one. Call it before telling someone a tool is missing.",
+      "What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, the audit log, organization data exports, Litto conversations, browser preferences), with the reason and where the person does each one. Call it before telling someone a tool is missing.",
     kind: "query",
     surfaces: everywhere,
     idempotent: true,

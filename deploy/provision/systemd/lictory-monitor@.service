@@ -7,6 +7,7 @@ After=docker.service
 Type=oneshot
 User=deploy
 Group=deploy
+Environment=LICTORY_ROOT=/srv/lictory
 ExecStart=/srv/lictory/bin/lictory-monitor %i
 TimeoutStartSec=4min
 # Exit status 1 means problems were found and reported.

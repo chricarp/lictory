@@ -8,8 +8,10 @@ import { faqs } from "@lictory/marketing/components/landing/content";
 import { StructuredData } from "@lictory/marketing/components/landing/structured-data";
 import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome";
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
-import { StartCta } from "@lictory/marketing/components/marketing/account-cta";
-import { CtaLink } from "@lictory/marketing/components/marketing/cta-link";
+import {
+  GetStartedCta,
+  RepositoryCta,
+} from "@lictory/marketing/components/marketing/get-started-cta";
 import { ReviewScene } from "@lictory/marketing/components/landing/scenes/review-scene";
 import { HeroScene } from "@lictory/marketing/components/landing/scenes/hero-scene";
 import { AgentsScene } from "@lictory/marketing/components/landing/scenes/agents-scene";
@@ -18,8 +20,6 @@ import {
   PublishStill,
 } from "@lictory/marketing/components/landing/scenes/delivery-scenes";
 import { openSource } from "@lictory/marketing/lib/open-source";
-
-const startLabel = "Start for free";
 
 export function Landing() {
   return (
@@ -55,10 +55,8 @@ function Hero() {
             specification in parallel, then approve one reviewed result.
           </p>
           <div className="hero-actions">
-            <StartCta label={startLabel} />
-            <CtaLink href="#features" variant="secondary" size="lg">
-              See how it works
-            </CtaLink>
+            <GetStartedCta />
+            <RepositoryCta />
           </div>
         </div>
       </div>
@@ -491,7 +489,10 @@ function FinalCta() {
           too.
         </p>
       </div>
-      <StartCta label={startLabel} />
+      <div className="final-cta-actions">
+        <GetStartedCta />
+        <RepositoryCta />
+      </div>
     </section>
   );
 }

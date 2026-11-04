@@ -1,0 +1,270 @@
+name: Release
+
+# One button, for release managers only, for everything the public sees:
+#
+#   Platform        when release-worthy pull requests merged since the latest
+#                   stable release: promotes the newest verified nightly (or
+#                   the one given) to stable, rebuilt with its stable version
+#                   and published as multi-platform images plus a GitHub
+#                   Release with release.env. Nothing is deployed anywhere:
+#                   installations upgrade themselves (lictory upgrade).
+#   lictory.com     when its sources changed since its last deployment, or
+#                   the platform was released (it shows the version).
+#   docs.lictory.com when its sources changed since its last deployment.
+#
+# The websites deploy only after the platform release succeeded or was not
+# needed. Each can also be redeployed alone from its own workflow.
+# See docs/operations/releases.md.
+on:
+  workflow_dispatch:
+    inputs:
+      nightly_tag:
+        description: "Verified nightly to promote; empty for the newest eligible one"
+        required: false
+        type: string
+      redeploy_websites:
+        description: "Deploy both websites even if unchanged"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  deployments: read
+
+# Preserve intentional queued releases instead of replacing the pending run.
+concurrency:
+  group: lictory-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  # Runs before any build minutes are spent. Re-runs are checked again: a
+  # re-run by someone else is that person's release.
+  authorize:
+    name: Authorize the release manager
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/release-manager
+        with:
+          managers: ${{ vars.RELEASE_MANAGERS || github.repository_owner }}
+
+  plan:
+    name: Decide what to release
+    needs: authorize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      deployments: write # Release intent journal only; no secrets.
+    outputs:
+      platform: ${{ steps.plan.outputs.platform }}
+      sha: ${{ steps.plan.outputs.sha }}
+      version: ${{ steps.plan.outputs.version }}
+      stable_tag: ${{ steps.plan.outputs.stable_tag }}
+      marketing: ${{ steps.plan.outputs.marketing }}
+      docs: ${{ steps.plan.outputs.docs }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NIGHTLY_TAG: ${{ inputs.nightly_tag }}
+      REDEPLOY_WEBSITES: ${{ inputs.redeploy_websites }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - id: plan
+        run: bun run release plan-release "$RUNNER_TEMP/release-plan.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.plan.outputs.platform == 'true'
+        with:
+          name: release-plan
+          path: ${{ runner.temp }}/release-plan.json
+          retention-days: 30
+          overwrite: true
+
+  # The nightly already passed every browser workflow on this commit; this
+  # re-checks it with the stable version embedded.
+  verify:
+    name: Verify the stable candidate
+    needs: plan
+    if: needs.plan.outputs.platform == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      release_version: ${{ needs.plan.outputs.version }}
+
+  build:
+    name: Build native ${{ matrix.architecture }} backend images
+    needs: plan
+    if: needs.plan.outputs.platform == 'true'
+    strategy:
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      deployments: read
+      packages: write
+      pull-requests: read
+      actions: read
+    env:
+      BUILD_ARCHITECTURE: ${{ matrix.architecture }}
+      GH_TOKEN: ${{ github.token }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+      IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
+    steps:
+      # Control code comes from protected main. Application code is never main HEAD.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: control/package.json
+          no-cache: true # Release builds never restore a cached Bun binary.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-plan
+          path: ${{ runner.temp }}/plan
+      - run: bun install --frozen-lockfile
+        working-directory: control
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          cleanup: false # Disposable hosted runner; avoid BuildKit shutdown on the critical path.
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build the selected source on its native architecture
+        env:
+          NATIVE_BUILD_OUTPUT: ${{ runner.temp }}/${{ matrix.architecture }}.json
+        working-directory: control
+        run: bun run release build "$RUNNER_TEMP/plan/release-plan.json" ../source
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/${{ matrix.architecture }}.json
+          retention-days: 2
+          overwrite: true
+
+  # The release environment holds no secrets: its required reviewers (a
+  # person or a team) approve publication, if configured.
+  publish:
+    name: Publish the stable release
+    needs: [plan, verify, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: release
+      url: https://github.com/${{ github.repository }}/releases/tag/${{ needs.plan.outputs.stable_tag }}
+    permissions:
+      contents: write
+      deployments: write
+      packages: write
+      pull-requests: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+      IMAGE_CACHE_REGISTRY: ${{ vars.IMAGE_CACHE_REGISTRY }}
+      RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+      RELEASE_BOOTSTRAP_VERSION: ${{ vars.RELEASE_BOOTSTRAP_VERSION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: control/package.json
+          no-cache: true # Release builds never restore a cached Bun binary.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-plan
+          path: ${{ runner.temp }}/plan
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: native-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/native
+      - run: bun install --frozen-lockfile
+        working-directory: control
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Assemble and publish the stable images and GitHub Release
+        working-directory: control
+        env:
+          NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
+        # Images and a GitHub Release, not a package registry upload.
+        run: bun run release publish "$RUNNER_TEMP/plan/release-plan.json" ../source # zizmor: ignore[use-trusted-publishing]
+
+  marketing:
+    name: lictory.com
+    needs: [plan, publish]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.marketing == 'true' &&
+      (needs.plan.outputs.platform != 'true' || needs.publish.result == 'success')
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy-marketing.yml
+    with:
+      release_tag: ${{ needs.plan.outputs.stable_tag }}
+
+  docs:
+    name: docs.lictory.com
+    needs: [plan, publish]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.docs == 'true' &&
+      (needs.plan.outputs.platform != 'true' || needs.publish.result == 'success')
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy-docs.yml

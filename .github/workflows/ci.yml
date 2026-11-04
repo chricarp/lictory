@@ -1,10 +1,16 @@
 name: CI
 
-# Deliberately minimal to save Actions minutes: one job, no services, no tests.
-# It only catches what would break the build (types) or the database (schema
-# changes without a committed migration). Lint, format, knip, audit, domain and
-# browser tests run locally; see AGENTS.md and docs/operations/development.md.
-# Release callers verify the exact candidate source, with its embedded version.
+# Pull requests get fast, layered feedback:
+#
+#   Static checks   types, lint, formatting, unused code, migrations (always)
+#   Domain tests    bun test against PostgreSQL         (unless prose only)
+#   Browser smoke   the @smoke critical journeys        (when apps change)
+#
+# .github/scripts/ci-changes.sh decides from the changed paths and fails open.
+# The required `Verify` check passes only when every job passed or was
+# skipped by that decision. Nightly calls this workflow with `suite: full`
+# (every browser workflow) before it publishes a candidate; Release to
+# Production re-verifies the exact candidate with its embedded version.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -16,38 +22,174 @@ on:
       release_version:
         type: string
         default: ""
+      suite:
+        description: "Browser workflows to run: smoke or full"
+        type: string
+        default: smoke
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "Browser workflows to run"
+        type: choice
+        options: [smoke, full]
+        default: smoke
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ inputs.ref == '' }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
-  verify:
-    name: Verify
+  changes:
+    name: Changes
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      unit: ${{ steps.detect.outputs.unit }}
+      e2e: ${{ steps.detect.outputs.e2e }}
+      audit: ${{ steps.detect.outputs.audit }}
+      docs: ${{ steps.detect.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-      - name: Embed the selected release version
-        if: inputs.release_version != ''
+          sparse-checkout: .github/scripts
+      - id: detect
+        name: Select suites from the changed paths
         env:
-          RELEASE_VERSION: ${{ inputs.release_version }}
-        run: bun scripts/inject-release-version.ts "$RELEASE_VERSION"
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          CHANGED: ${{ github.event.pull_request.changed_files }}
+        run: |
+          # Releases, nightlies and manual runs verify everything. Pull
+          # requests GitHub cannot list completely (3000+ files) do too.
+          if [ "$EVENT" != pull_request ] || [ "${CHANGED:-0}" -ge 3000 ] ||
+            ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename' > "$RUNNER_TEMP/changed"; then
+            printf 'unit=true\ne2e=true\naudit=true\ndocs=true\n' | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bash .github/scripts/ci-changes.sh < "$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT"
+
+  static:
+    name: Static checks
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.release_version }}
+      # Only when dependencies change: a new advisory for an untouched
+      # dependency must not block unrelated pull requests. Nightly audits always.
+      - name: Dependency audit
+        if: needs.changes.outputs.audit == 'true'
+        run: bun audit --audit-level=high
+      - name: Types, lint, formatting, unused code and PR assets
+        run: bun run check
       - name: Schema changes have committed migrations
         run: bun run db:check
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: needs.changes.outputs.docs == 'true'
+        with:
+          node-version: "24.22.1"
+      - name: Documentation site builds
+        if: needs.changes.outputs.docs == 'true'
+        run: bun run --cwd apps/docs build
+
+  domain:
+    name: Domain tests
+    needs: changes
+    if: needs.changes.outputs.unit == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/services
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.release_version }}
+      - name: Committed migrations apply to an empty database
+        run: bun run db:migrate
+      - name: Domain tests
+        run: bun test src
+
+  browser:
+    name: Browser workflows (${{ inputs.suite || 'smoke' }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.suite == 'full' && 60 || 25 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/services
+        with:
+          mailpit: "true"
+      # Node runs the application builds and provides Zero's native ABI.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22.1"
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.release_version }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: playwright-${{ runner.os }}-
+      - run: bunx playwright install --with-deps --only-shell chromium
+      - name: Browser workflows
+        env:
+          SUITE: ${{ inputs.suite || 'smoke' }}
+        run: |
+          if [ "$SUITE" = full ]; then
+            bun run test:e2e
+          else
+            bun run test:e2e --grep @smoke
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: browser-failures-${{ github.run_attempt }}
+          path: /tmp/lictory-playwright-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  verify:
+    name: Verify
+    needs: [changes, static, domain, browser]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Every selected job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

@@ -1,6 +1,8 @@
 // Browser workflows against production builds and an isolated, migrated
 // database. Starts the API, worker, zero-cache, the edge proxy (platform
-// origin) and the marketing server, runs Playwright, then stops everything
+// origin), the marketing server and the documentation (its static export
+// behind the production Cloudflare Worker, in wrangler's local runtime), runs
+// Playwright, then stops everything
 // and drops the database and its replication slots, also on failure.
 // Usage: bun run test:e2e [playwright args]   (E2E_SKIP_BUILD=1 reuses builds)
 import { spawn, type ChildProcess } from "node:child_process";
@@ -19,12 +21,16 @@ const offset = Number(process.env.E2E_PORT_OFFSET ?? 0);
 const ports = {
   edge: 3001 + offset,
   api: 3002 + offset,
+  workerHealth: 3003 + offset,
   marketing: 3101 + offset,
+  docs: 3201 + offset,
+  docsInspector: 9301 + offset,
   zero: 4858 + offset * 10,
   zeroChangeStreamer: 4859 + offset * 10,
 };
 const platformUrl = `http://localhost:${ports.edge}`;
 const siteUrl = `http://localhost:${ports.marketing}`;
+const docsUrl = `http://localhost:${ports.docs}`;
 
 const name = `lictory_e2e_${crypto.randomUUID().replaceAll("-", "")}`;
 const databaseUrl = new URL(adminUrl);
@@ -33,6 +39,18 @@ const url = databaseUrl.toString();
 const replicaDir = mkdtempSync(join(tmpdir(), "lictory-e2e-zero-"));
 const children: { name: string; child: ChildProcess }[] = [];
 const workerAvailable = existsSync("apps/worker/build.mjs");
+
+// The API discovers the provider when it starts, so Dex must already run.
+function oidcEnv(issuer: string | undefined) {
+  return {
+    OIDC_ISSUER: issuer ?? "",
+    OIDC_CLIENT_ID: issuer ? "lictory-local" : "",
+    OIDC_CLIENT_SECRET: issuer ? "lictory-local-dex-secret" : "",
+    OIDC_SCOPES: "",
+    OIDC_DISPLAY_NAME: issuer ? "Acme SSO" : "",
+    OIDC_AUTO_CREATE_USERS: "",
+  };
+}
 
 // Application settings shared by the API and the worker. Integrations stay
 // disabled; placeholder OAuth clients let tests reach provider redirects.
@@ -51,8 +69,22 @@ const appEnv = {
   OAUTH_PROXY_TRUSTED_ORIGINS: "",
   RESEND_API_KEY: "",
   OPENAI_API_KEY: "",
+  // No file storage: the suite checks that attachments explain they are
+  // unavailable, even when a developer's .env points S3_* at MinIO.
+  S3_ENDPOINT: "",
+  S3_REGION: "",
+  S3_BUCKET: "",
+  S3_ACCESS_KEY_ID: "",
+  S3_SECRET_ACCESS_KEY: "",
+  S3_FORCE_PATH_STYLE: "",
+  R2_ACCOUNT_ID: "",
+  R2_ACCESS_KEY_ID: "",
+  R2_SECRET_ACCESS_KEY: "",
+  R2_BUCKET_NAME: "",
+  R2_S3_ENDPOINT: "",
+  // Analytics stay off: no browser or server event leaves the test machine.
+  POSTHOG_PROJECT_TOKEN: "",
   NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "",
-  VITE_POSTHOG_PROJECT_TOKEN: "",
   SMTP_HOST: process.env.SMTP_HOST ?? "localhost",
   SMTP_PORT: process.env.SMTP_PORT ?? "1025",
   // Production requires an explicit sender.
@@ -62,15 +94,49 @@ const appEnv = {
   MICROSOFT_CLIENT_ID: "e2e-microsoft-client-id",
   MICROSOFT_CLIENT_SECRET: "e2e-microsoft-client-secret",
   MICROSOFT_TENANT_ID: "common",
+  // Company SSO only against the local Dex (tests/platform/sso.spec.ts), and
+  // only when it is requested; never a developer's own identity provider.
+  ...oidcEnv(process.env.E2E_OIDC_ISSUER?.trim()),
+  PASSWORD_LOGIN_ENABLED: "",
   // Production startup validation requires at least 32 bytes. The shared
   // prefix is what the client bundle scan looks for.
   ZERO_QUERY_API_KEY: "e2e-zero-api-key-for-query-local-only",
   ZERO_MUTATE_API_KEY: "e2e-zero-api-key-for-mutate-local-only",
 };
 
-function run(command: string, args: string[], env = appEnv) {
+// The build or Playwright process in the foreground, stopped on interruption.
+let foreground: ChildProcess | undefined;
+let interrupted: NodeJS.Signals | undefined;
+// Services that exited while they were needed: every later result is invalid.
+const crashed: string[] = [];
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.on(signal, () => {
+    if (interrupted) return;
+    interrupted = signal;
+    console.error(`${signal}: stopping the services and dropping ${name}.`);
+    stopForeground();
+  });
+
+// Foreground processes get their own process group (like services), so
+// stopping one also stops what its package-manager wrapper spawned.
+function stopForeground() {
+  try {
+    if (foreground?.pid) process.kill(-foreground.pid, "SIGTERM");
+  } catch {
+    // Already gone.
+  }
+}
+
+function run(command: string, args: string[], env: NodeJS.ProcessEnv = appEnv) {
+  if (interrupted)
+    return Promise.reject(new Error(`Interrupted (${interrupted}).`));
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "inherit", env });
+    const child = spawn(command, args, {
+      stdio: "inherit",
+      env,
+      detached: true,
+    });
+    foreground = child;
     child.on("exit", (code) =>
       code === 0
         ? resolve()
@@ -106,7 +172,11 @@ function start(
   );
   child.stderr?.on("data", (c: Buffer) => console.error(prefix(c)));
   child.on("exit", (code, signal) => {
-    if (!stopping) console.error(`[${label}] exited (${code ?? signal})`);
+    if (stopping) return;
+    console.error(`[${label}] exited (${code ?? signal})`);
+    // Fail fast instead of letting every remaining test time out against it.
+    crashed.push(label);
+    stopForeground();
   });
   children.push({ name: label, child });
   return child;
@@ -115,6 +185,11 @@ function start(
 async function waitFor(label: string, check: string, timeoutMs = 180_000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (interrupted) throw new Error(`Interrupted (${interrupted}).`);
+    if (crashed.length)
+      throw new Error(
+        `${crashed.join(", ")} exited before ${label} was ready.`,
+      );
     try {
       const response = await fetch(check);
       if (response.ok) return;
@@ -187,8 +262,6 @@ try {
       ...appEnv,
       API_ORIGIN: `http://localhost:${ports.api}`,
       NODE_ENV: "production" as const,
-      VITE_SITE_URL: siteUrl,
-      NEXT_PUBLIC_PLATFORM_URL: platformUrl,
       NEXT_TELEMETRY_DISABLED: "1",
     };
     await run(
@@ -203,11 +276,19 @@ try {
         ["run", "--filter", "@lictory/worker", "build"],
         buildEnv,
       );
-    await run(
-      "bun",
-      ["run", "--filter", "@lictory/marketing", "build"],
-      buildEnv,
-    );
+    // The website is built with a placeholder PostHog project so its consent
+    // banner can be tested; its relay path does not exist on the test server,
+    // so nothing loads or leaves the machine. The platform, API and worker
+    // run without analytics (tests/platform/analytics-off.spec.ts).
+    await run("bun", ["run", "--filter", "@lictory/marketing", "build"], {
+      ...buildEnv,
+      NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
+      NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
+    });
+    await run("bun", ["run", "--filter", "@lictory/docs", "build"], {
+      ...buildEnv,
+      SITE_URL: docsUrl,
+    });
   }
 
   start("api", "node", ["apps/api/dist/index.js"], {
@@ -216,7 +297,10 @@ try {
     PLATFORM_DIST_DIR: "apps/platform/dist",
   });
   if (workerAvailable)
-    start("worker", "node", ["apps/worker/dist/index.js"], appEnv);
+    start("worker", "node", ["apps/worker/dist/index.js"], {
+      ...appEnv,
+      WORKER_HEALTH_PORT: String(ports.workerHealth),
+    });
   start("zero", "node_modules/.bin/zero-cache", [], {
     ...process.env,
     ZERO_UPSTREAM_DB: url,
@@ -234,6 +318,7 @@ try {
     ZERO_AUTH_REVALIDATE_INTERVAL_SECONDS: "10",
     ZERO_ADMIN_PASSWORD: "e2e-zero-admin",
     ZERO_LOG_LEVEL: "warn",
+    ZERO_ENABLE_TELEMETRY: "false",
   });
   start("edge", "bun", ["scripts/edge-proxy.ts"], {
     ...process.env,
@@ -259,28 +344,59 @@ try {
     },
   );
 
+  start(
+    "docs",
+    "node_modules/.bin/wrangler",
+    [
+      "dev",
+      "--config",
+      "apps/docs/wrangler.jsonc",
+      "--ip",
+      "127.0.0.1",
+      "--port",
+      String(ports.docs),
+      "--inspector-port",
+      String(ports.docsInspector),
+      "--show-interactive-dev-session=false",
+      "--log-level",
+      "warn",
+    ],
+    { ...process.env, WRANGLER_SEND_METRICS: "false" },
+  );
+
   await waitFor("api", `http://localhost:${ports.api}/readyz`);
   await waitFor("zero-cache", `http://localhost:${ports.zero}/keepalive`);
   await waitFor("edge", `${platformUrl}/sign-in`);
   await waitFor("marketing", `${siteUrl}/`);
+  await waitFor("docs", `${docsUrl}/`);
 
   const child = spawn(
     "bunx",
     ["playwright", "test", ...process.argv.slice(2)],
     {
       stdio: "inherit",
+      detached: true,
       env: {
         ...process.env,
         DATABASE_URL: url,
         E2E_PLATFORM_URL: platformUrl,
         E2E_MARKETING_URL: siteUrl,
+        E2E_DOCS_URL: docsUrl,
       },
     },
   );
+  foreground = child;
   process.exitCode = await new Promise<number>((resolve) =>
     child.on("exit", (code) => resolve(code ?? 1)),
   );
+  if (crashed.length) {
+    console.error(
+      `${crashed.join(", ")} exited during the run; the results are invalid.`,
+    );
+    process.exitCode = 1;
+  }
 } finally {
+  if (interrupted) process.exitCode = 130;
   await stopAll();
   // zero-cache holds a logical replication slot in the test database; it must
   // go before the database can be dropped.

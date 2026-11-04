@@ -102,6 +102,11 @@ import {
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError } from "@lictory/core/domain/errors";
+import {
+  assertTwoFactorSatisfied,
+  isTwoFactorHeld,
+  twoFactorRequiredError,
+} from "@lictory/core/domain/two-factor-policy";
 import { logoUrl, type LogoKind } from "@lictory/core/branding/logo";
 import {
   advanceProjectSchedule,
@@ -136,16 +141,30 @@ function serializeSuggestion(row: SuggestionRow): Entity {
     mergedRevisionId: acceptedRevisionId,
   });
 }
+// Membership counts only while the organization's two-factor requirement is
+// met (see two-factor-policy.ts); one query answers both.
 export async function authorize(
   tx: Database | Tx,
   userId: string,
   organizationId: string,
 ) {
-  return requireValue(
+  const row = requireValue(
     (
       await tx
-        .select()
+        .select({
+          member: s.member,
+          requireTwoFactor: s.organizationSecurityPolicy.requireTwoFactor,
+          twoFactorEnabled: s.user.twoFactorEnabled,
+        })
         .from(s.member)
+        .innerJoin(s.user, eq(s.user.id, s.member.userId))
+        .leftJoin(
+          s.organizationSecurityPolicy,
+          eq(
+            s.organizationSecurityPolicy.organizationId,
+            s.member.organizationId,
+          ),
+        )
         .where(
           and(
             eq(s.member.organizationId, organizationId),
@@ -156,6 +175,9 @@ export async function authorize(
     "You are not a member of this organization.",
     "forbidden",
   );
+  if (isTwoFactorHeld(row.requireTwoFactor, row.twoFactorEnabled))
+    throw twoFactorRequiredError();
+  return row.member;
 }
 export async function lock(tx: Tx, organizationId: string) {
   await tx.execute(
@@ -230,6 +252,7 @@ export async function directory(
     "You are not a member of this organization.",
     "forbidden",
   );
+  await assertTwoFactorSatisfied(db, userId, organizationId);
   return {
     organizations,
     ...(await organizationDirectory(db, organizationId)),

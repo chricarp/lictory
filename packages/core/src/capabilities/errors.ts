@@ -29,6 +29,7 @@ export function toCapabilityError(error: unknown): CapabilityError {
       ...(error.currentRevisionId
         ? { currentRevisionId: error.currentRevisionId }
         : {}),
+      ...(error.kind ? { kind: error.kind } : {}),
     });
   if (error instanceof DeliveryError)
     return new CapabilityError("external", error.message, {
@@ -44,7 +45,7 @@ export function toCapabilityError(error: unknown): CapabilityError {
   if (error instanceof StorageConfigurationError)
     return new CapabilityError(
       "unavailable",
-      "File storage is not configured. Ask an administrator to add storage credentials.",
+      "Attachments are unavailable: this server has no file storage configured. Ask an administrator to configure S3-compatible storage.",
       { status: 503 },
     );
   if (error instanceof z.ZodError) {

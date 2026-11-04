@@ -11,20 +11,20 @@
 # JavaScript is built once on the build machine's platform; only the runtime
 # stages run on the target platform (linux/amd64 and linux/arm64), where native
 # packages (sharp, @firecrawl/anydoc) are installed for that architecture.
+#
+# Base images are written out in each FROM line as image:tag@sha256:digest (the
+# multi-architecture index) so builds are reproducible and Dependabot can
+# refresh them; it does not update images given through ARG.
 
-ARG NODE_IMAGE=node:24.22-trixie-slim
-ARG BUN_IMAGE=oven/bun:1.4.2-slim
-ARG CADDY_IMAGE=caddy:2.11-alpine
-ARG POSTGRES_IMAGE=postgres:17-alpine
 # The proxy keeps the previous release's hashed assets so open tabs can still
 # lazy-load their chunks during and after a deploy. Release automation passes
 # the currently deployed proxy image; the default carries no assets.
 ARG PREVIOUS_PROXY_IMAGE=no-previous-assets
 
-FROM --platform=$BUILDPLATFORM ${BUN_IMAGE} AS bun
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS bun
 
 # ---------------------------------------------------------------- build stages
-FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS source
+FROM --platform=$BUILDPLATFORM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS source
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 ENV NEXT_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 CI=1
 WORKDIR /src
@@ -41,16 +41,13 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 COPY . .
 
+# The SPA carries no installation settings: the API writes the public site
+# URL and analytics settings into each document at runtime
+# (packages/core/src/lib/public-config.ts), so one image serves any domain.
 FROM source AS platform-build
 ARG APP_VERSION
-ARG VITE_SITE_URL
-ARG VITE_POSTHOG_PROJECT_TOKEN=""
-ARG VITE_POSTHOG_HOST=""
-RUN test -n "$APP_VERSION" && test -n "$VITE_SITE_URL"
-ENV VITE_APP_VERSION=$APP_VERSION \
-    VITE_SITE_URL=$VITE_SITE_URL \
-    VITE_POSTHOG_PROJECT_TOKEN=$VITE_POSTHOG_PROJECT_TOKEN \
-    VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+RUN test -n "$APP_VERSION"
+ENV VITE_APP_VERSION=$APP_VERSION
 RUN bun scripts/inject-release-version.ts "$APP_VERSION" \
  && bun run --filter @lictory/platform build \
  && test -f apps/platform/dist/index.html
@@ -78,20 +75,21 @@ RUN bun build scripts/migrate.ts --target=node --format=esm \
         --outfile="/out/backfills/$(basename "$script" .ts).mjs"; \
     done
 
+# The public website (lictory.com) is static and prerendered, so its origin
+# and legal notice are build arguments. Self-hosted installations do not need
+# this image.
 FROM source AS marketing-build
 ARG APP_VERSION
 ARG SITE_URL
-ARG NEXT_PUBLIC_PLATFORM_URL
 ARG NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=""
 ARG NEXT_PUBLIC_POSTHOG_HOST=""
 ARG LICTORY_LEGAL_NAME=""
 ARG LICTORY_LEGAL_ADDRESS=""
 ARG LICTORY_LEGAL_EMAIL=""
 ARG LICTORY_LEGAL_REGISTRATION=""
-RUN test -n "$SITE_URL" && test -n "$NEXT_PUBLIC_PLATFORM_URL"
+RUN test -n "$SITE_URL"
 ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
     SITE_URL=$SITE_URL \
-    NEXT_PUBLIC_PLATFORM_URL=$NEXT_PUBLIC_PLATFORM_URL \
     NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=$NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN \
     NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST \
     LICTORY_LEGAL_NAME=$LICTORY_LEGAL_NAME \
@@ -112,12 +110,12 @@ RUN --mount=type=cache,target=/src/apps/marketing/.next/cache \
  && rm -rf /out/node_modules/sharp /out/node_modules/@img
 
 # ------------------------------------------- target-platform native packages
-FROM ${BUN_IMAGE} AS bun-target
+FROM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS bun-target
 
 # Installs the workspace lockfile's exact versions for the target platform,
 # then keeps only the files the API and worker bundles load (traced like
 # Next.js standalone output) and checks that the native packages load.
-FROM ${NODE_IMAGE} AS server-dependencies
+FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS server-dependencies
 COPY --from=bun-target /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /src
 COPY --from=server-build /manifests/ ./
@@ -129,7 +127,7 @@ COPY deploy/docker/trace-runtime.mjs ./deploy/docker/trace-runtime.mjs
 RUN node deploy/docker/trace-runtime.mjs /deps \
       apps/api/dist/index.js apps/worker/dist/index.js
 
-FROM ${NODE_IMAGE} AS marketing-dependencies
+FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS marketing-dependencies
 WORKDIR /deps
 COPY --from=marketing-build /out/.sharp-version /tmp/sharp-version
 # Next.js traces sharp (image optimization) with the build machine's binary;
@@ -141,14 +139,14 @@ RUN --mount=type=cache,target=/root/.npm \
         "sharp@$(cat /tmp/sharp-version)"; \
     fi
 
-FROM ${CADDY_IMAGE} AS no-previous-assets
+FROM caddy:2.11-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5 AS no-previous-assets
 RUN mkdir -p /srv/platform/current/assets
 
 FROM ${PREVIOUS_PROXY_IMAGE} AS previous-assets
 
 # ------------------------------------------------------------ runtime images
 # API and worker: node apps/api/dist/index.js | node apps/worker/dist/index.js
-FROM ${NODE_IMAGE} AS api
+FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS api
 # Preserve the project and bundled-source notices in distributed images.
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
 COPY LICENSES /usr/share/licenses/lictory/bundled/
@@ -164,7 +162,7 @@ HEALTHCHECK --start-interval=1s --interval=10s --timeout=5s --start-period=30s -
   CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3002)+'/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "--enable-source-maps", "apps/api/dist/index.js"]
 
-FROM ${NODE_IMAGE} AS marketing
+FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS marketing
 # Preserve the project and bundled-source notices in distributed images.
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
 COPY LICENSES /usr/share/licenses/lictory/bundled/
@@ -179,7 +177,7 @@ HEALTHCHECK --start-interval=1s --interval=15s --timeout=5s --start-period=20s -
 CMD ["node", "apps/marketing/server.js"]
 
 # Runs pending migrations once and exits (deploy/compose.production.yaml `migrate`).
-FROM ${NODE_IMAGE} AS migrate
+FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS migrate
 # Preserve the project and bundled-source notices in distributed images.
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
 COPY LICENSES /usr/share/licenses/lictory/bundled/
@@ -192,7 +190,7 @@ USER node
 CMD ["node", "migrate.mjs"]
 
 # Reverse proxy with the SPA's static files (deploy/proxy/Caddyfile).
-FROM ${CADDY_IMAGE} AS proxy
+FROM caddy:2.11-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5 AS proxy
 # Preserve the project and bundled-source notices in distributed images.
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
 COPY LICENSES /usr/share/licenses/lictory/bundled/
@@ -215,7 +213,7 @@ HEALTHCHECK --start-interval=1s --interval=10s --timeout=5s --start-period=10s -
 
 # Backup, restore and monitoring tooling (deploy/backup, deploy/monitor), plus
 # the release's deployment bundle that deploy.sh installs on the server.
-FROM ${POSTGRES_IMAGE} AS ops
+FROM postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b AS ops
 # Preserve the project and bundled-source notices in distributed images.
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
 COPY LICENSES /usr/share/licenses/lictory/bundled/
@@ -229,7 +227,10 @@ COPY deploy/monitor/*.sql /opt/lictory/sql/
 COPY deploy/compose.production.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
 COPY deploy/postgres /opt/lictory/deploy/postgres
 COPY deploy/bin deploy/deploy.sh /opt/lictory/deploy/bin/
-RUN chmod 0555 /opt/lictory/*.sh /opt/lictory/deploy/bin/* /opt/lictory/deploy/postgres/*.sh
+# Host installation (lictory CLI, deploy/get.sh): install.sh, timers, templates.
+COPY deploy/provision /opt/lictory/deploy/provision
+COPY deploy/env /opt/lictory/deploy/env
+RUN chmod 0555 /opt/lictory/*.sh /opt/lictory/deploy/bin/* /opt/lictory/deploy/postgres/*.sh /opt/lictory/deploy/provision/*.sh
 ENV PATH=/opt/lictory:$PATH
 USER postgres
 WORKDIR /tmp

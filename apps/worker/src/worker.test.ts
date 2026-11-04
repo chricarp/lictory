@@ -354,6 +354,7 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       "delivery",
       "delivery-status",
       "email",
+      "export",
       "schedules",
     ]);
     child.kill("SIGTERM");

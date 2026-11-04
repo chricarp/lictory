@@ -5,7 +5,12 @@ import { Search } from "lucide-react";
 import { Logo } from "@lictory/ui/logo";
 import { Button } from "@lictory/ui/button";
 import { StatusPage } from "@lictory/ui/status-page";
-import { platformHref } from "@lictory/marketing/lib/platform";
+import {
+  getStartedLabel,
+  installUrl,
+  repositoryLabel,
+  repositoryUrl,
+} from "@lictory/marketing/lib/get-started";
 
 export const metadata: Metadata = { title: "Page not found" };
 
@@ -18,12 +23,17 @@ export default function NotFound() {
       title="This page does not exist"
       actions={
         <>
-          <Link href="/" className="contents">
-            <Button size="lg">Go home</Button>
+          <Link href={installUrl} className="contents">
+            <Button size="lg">{getStartedLabel}</Button>
           </Link>
-          <Link href={platformHref("/")} className="contents">
+          <Link href={repositoryUrl} className="contents">
             <Button size="lg" variant="secondary">
-              Open workspace
+              {repositoryLabel}
+            </Button>
+          </Link>
+          <Link href="/" className="contents">
+            <Button size="lg" variant="ghost">
+              Go home
             </Button>
           </Link>
         </>

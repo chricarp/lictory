@@ -1,5 +1,5 @@
 import { JsonLd } from "@lictory/marketing/components/json-ld";
-import { platformHref } from "@lictory/marketing/lib/platform";
+import { installUrl } from "@lictory/marketing/lib/get-started";
 import {
   comparisonRows,
   faqs,
@@ -56,7 +56,8 @@ export const landingStructuredData = {
       image: { "@id": ids.image },
     },
     {
-      // A SoftwareApplication that runs in the browser.
+      // A SoftwareApplication that people use in the browser; each team
+      // installs its own server.
       "@type": "WebApplication",
       "@id": ids.application,
       name: siteName,
@@ -73,8 +74,8 @@ export const landingStructuredData = {
         "@type": "Offer",
         price: "0",
         priceCurrency: "USD",
-        description: "Free to start",
-        url: platformHref("/sign-up"),
+        description: "Free and open source (MIT), installed on your own server",
+        url: installUrl,
       },
       featureList: comparisonRows
         .filter((row) => row.lictory === "yes")

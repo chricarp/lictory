@@ -24,7 +24,7 @@ async function invitationMail(request: APIRequestContext, email: string) {
   return (await response.json()) as { Text: string; HTML: string };
 }
 
-test("email and username invitations deliver tailored emails and preserve joining through signup", async ({
+test("email and username invitations deliver tailored emails and preserve joining through signup @smoke", async ({
   page,
   context,
   browser,

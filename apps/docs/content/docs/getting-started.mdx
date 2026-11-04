@@ -1,0 +1,120 @@
+---
+title: Getting started
+description: Set up a team in Lictory and take a first specification from proposal through review and approval to delivery.
+---
+
+Lictory runs on your own server. Start by [installing
+it](/self-hosting/install); the steps below happen at your installation's
+address (for example `https://lictory.example.com`).
+
+<Steps>
+<Step>
+
+### Install Lictory
+
+Follow [Install](/self-hosting/install) to set up a server with the `lictory`
+command, then open its address in your browser. The
+[overview](/self-hosting) lists what the server needs.
+
+</Step>
+<Step>
+
+### Create your account
+
+Sign up with your email address (or Google, Microsoft or your company's
+single sign-on, when the installation offers them), verify the address and
+choose a handle. Your handle is how teammates mention you; you can change it
+later in account settings.
+
+</Step>
+<Step>
+
+### Create an organization and its first project
+
+Choose to create an organization (or to join one you were invited to). Name
+the organization and its first project. The project **key** becomes part of
+every identifier (`PAY-142`) and does not change, so pick it with care; the
+name can change later.
+
+Guided setup then asks only for the decisions that change how the project
+behaves:
+
+- **Where does delivery happen?** _In Lictory_ (boards, backlog and
+  iterations next to the specifications) or _In Jira_ (export ready work;
+  Jira owns status and sprints). See [delivery](/concepts/delivery).
+- **When work starts before it's ready** (in Lictory only): block, warn
+  (the default) or allow. See [readiness policy](/concepts/readiness#readiness-policy).
+- **How does the project plan?** (in Lictory only): continuously, in sprints
+  or in automatic cycles, and which estimate scale to use.
+- **Lictory Intelligence**: whether AI may review specifications, chat and
+  propose fixes. Everything works without it.
+- **Invite people**: optional, you can do it later.
+
+Work item types, the workflow and the Product, Engineering and QA
+disciplines are created for you, and you become a project administrator in
+Product. Every choice can be changed later in settings.
+
+</Step>
+<Step>
+
+### Invite your team
+
+In **Organization settings → Members**, invite people by email or by their
+Lictory username. They join as organization members when they accept. Then,
+in **Project settings → Members** and **Disciplines**, add them to the project
+and to the disciplines they work in: an engineer to Engineering, a tester to
+QA. Disciplines decide who can be asked to review and what each person may do
+with work items ([roles and disciplines](/concepts/organizations#roles-and-disciplines)).
+
+</Step>
+<Step>
+
+### Write a first proposal
+
+Open the project's **Proposals** and choose **New proposal**. Describe the
+problem and the intended behavior; it is fine to start rough. Add the
+sections your reviewers will look for, such as _Acceptance criteria_ and
+_Failure behavior_. Every saved change of the text is a
+[revision](/concepts/specifications#revisions).
+
+</Step>
+<Step>
+
+### Request reviews
+
+From the item's review panel, **Request review** from the disciplines that
+need to agree, for example Engineering and QA. Reviewers comment on the exact
+text they are concerned about, mark a thread **blocking** when it must be
+settled first, and **Approve** or **Request changes**.
+
+Revise the specification until the open questions are settled. Each material
+revision makes earlier approvals stale and asks the same reviewers again, so
+an approval always refers to the text that was actually reviewed.
+
+</Step>
+<Step>
+
+### Reach ready
+
+When every [readiness check](/concepts/readiness) passes (by default: the
+specification is written, no blocking thread is open, and every required
+review approved the current revision), the item becomes **ready**. From then
+on its main text is protected: further changes go through a branch and a
+reviewed pull request, which can also propose the breakdown into Stories and
+Tasks.
+
+</Step>
+<Step>
+
+### Deliver
+
+- **In Lictory**: choose **Accept revision N for delivery** to record what
+  the team agreed to build, plan it into a sprint or cycle and move it across
+  the **Board**. Moving it to Done records the delivered revision.
+- **In Jira**: connect a Jira site in **Organization settings →
+  Integrations**, choose the Jira project and type mapping in **Project
+  settings → Delivery**, then **Hand off** the ready work from the project's
+  **Hand-off** view. See [Jira](/integrations/jira).
+
+</Step>
+</Steps>

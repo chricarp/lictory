@@ -1,0 +1,138 @@
+---
+title: Configuration
+description: Domain and TLS, email, file storage, single sign-on, Lictory Intelligence and analytics. Every optional integration stays off until you configure it.
+---
+
+Settings live in the environment's `.env` file, by default
+`/srv/lictory/production/.env` (mode `0600`, owned by the deploy user). Empty
+values count as unset. Images carry no domain or analytics settings: the
+same image runs on any host name and reads everything here at runtime.
+
+After changing `.env`, re-activate the current release so every service
+picks the change up:
+
+```sh
+/srv/lictory/bin/deploy.sh production activate <current version>
+```
+
+## Domain and TLS
+
+| Setting                | Meaning                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| `APP_HOST`             | The host Lictory is served on, such as `lictory.example.com`                                 |
+| `ACME_EMAIL`           | Contact address for certificate issuance                                                     |
+| `SITE_HOST`            | The host of the public website the application links to (required)                           |
+| `PLATFORM_URL`         | The origin users open, when it is not `https://APP_HOST` (another proxy, port or plain HTTP) |
+| `CADDY_GLOBAL_OPTIONS` | Gateway options, for example an internal ACME CA (`acme_ca https://…`) or `local_certs`      |
+
+By default the gateway obtains and renews certificates from Let's Encrypt.
+`PLATFORM_URL` must be an origin: lowercase, no path, no trailing slash. To
+use an internal CA, existing certificate files or a reverse proxy in front,
+see [reverse proxy and TLS](/self-hosting/reverse-proxy).
+
+## Email
+
+Lictory sends verification, password reset, invitation and notification
+email through **Resend** when `RESEND_API_KEY` is set, otherwise through your
+**SMTP** server.
+
+| Setting                               | Meaning                                                  |
+| ------------------------------------- | -------------------------------------------------------- |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Resend, with the sender address                          |
+| `SMTP_HOST`, `SMTP_PORT`              | Your SMTP server                                         |
+| `SMTP_USER`, `SMTP_PASSWORD`          | Credentials, when the server requires them               |
+| `SMTP_FROM`                           | Sender address, such as `Lictory <no-reply@example.com>` |
+
+## File storage
+
+Attachments are optional. Without a bucket, the editor offers no upload and
+explains that attachments are unavailable. Configure **one** of two sets,
+never both: any S3-compatible service (AWS S3, MinIO, Garage, Ceph, Hetzner…)
+or the Cloudflare R2 preset.
+
+| S3-compatible                 | Cloudflare R2                                     |
+| ----------------------------- | ------------------------------------------------- |
+| `S3_ENDPOINT` (empty for AWS) | `R2_ACCOUNT_ID`                                   |
+| `S3_REGION`                   | `R2_ACCESS_KEY_ID`                                |
+| `S3_BUCKET`                   | `R2_SECRET_ACCESS_KEY`                            |
+| `S3_ACCESS_KEY_ID`            | `R2_BUCKET_NAME`                                  |
+| `S3_SECRET_ACCESS_KEY`        | `R2_S3_ENDPOINT` (optional jurisdiction endpoint) |
+| `S3_FORCE_PATH_STYLE`         |                                                   |
+
+Keep the bucket private and use credentials scoped to it. Browsers upload and
+download directly with signed URLs, so the endpoint must be reachable from
+users' browsers, and the bucket needs a CORS rule allowing `PUT` from your
+`PLATFORM_URL`:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://lictory.example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type", "Content-Length", "If-None-Match"],
+    "MaxAgeSeconds": 300
+  }
+]
+```
+
+A partial or contradictory configuration stops the API at start-up with the
+names of the settings to fix.
+
+## Sign-in and single sign-on
+
+Password sign-in works out of the box. Each additional provider appears on
+the sign-in page once it is configured:
+
+- **Google**: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, redirect URI
+  `https://<your host>/api/auth/callback/google`.
+- **Microsoft**: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` and
+  optionally `MICROSOFT_TENANT_ID` (default `common`), redirect URI
+  `https://<your host>/api/auth/callback/microsoft`.
+- **Company single sign-on** over OpenID Connect (Okta, Microsoft Entra ID,
+  Keycloak, Authentik, Google Workspace, Dex…):
+
+| Setting                  | Meaning                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| `OIDC_ISSUER`            | Issuer URL; Lictory reads its `/.well-known/openid-configuration` (HTTPS)                   |
+| `OIDC_CLIENT_ID`         | Client ID registered at the provider                                                        |
+| `OIDC_CLIENT_SECRET`     | Its secret                                                                                  |
+| `OIDC_SCOPES`            | Extra scopes (default `profile`; `openid` and `email` are always requested)                 |
+| `OIDC_DISPLAY_NAME`      | Button label, for example `Acme SSO` (default `SSO`)                                        |
+| `OIDC_AUTO_CREATE_USERS` | `true` (default) creates an account on first sign-in; `false` admits only existing accounts |
+| `PASSWORD_LOGIN_ENABLED` | `false` makes the installation SSO-only                                                     |
+
+Register the redirect URI `https://<your host>/api/auth/callback/oidc` at
+the provider. Single sign-on decides who can authenticate; it grants nothing
+inside Lictory. Organization membership still comes from invitations, and
+an existing account is linked automatically only when the provider asserts
+`email_verified`. Provider-specific steps are in the
+[single sign-on runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/sso.md).
+
+## Lictory Intelligence
+
+| Setting                       | Meaning                                  |
+| ----------------------------- | ---------------------------------------- |
+| `OPENAI_API_KEY`              | Enables Lictory Intelligence with OpenAI |
+| `LICTORY_AI_MODEL`            | Model for reviews and chat (optional)    |
+| `LICTORY_TRANSCRIPTION_MODEL` | Model for dictation (optional)           |
+
+With a key configured, an organization administrator still decides whether
+Lictory Intelligence may run for their organization (**Organization settings
+→ Lictory Intelligence**). Content people ask it to analyze is sent to
+OpenAI; uploaded documents are converted to text on your server first.
+
+## Analytics
+
+Product analytics are **off** by default: without `POSTHOG_PROJECT_TOKEN`
+and `POSTHOG_HOST`, the application loads no analytics code and shows no
+consent banner. When you set both, browsers reach PostHog only through your
+own `/relay` route, and `ANALYTICS_CONSENT` chooses how analytics follow
+each visitor's choice:
+
+- unset: PostHog loads before a choice in cookieless, anonymous mode and
+  switches to full tracking after consent; server events are sent regardless
+  of the browser choice;
+- `strict`: nothing loads until the visitor grants analytics consent, and
+  server events are sent only for requests from a browser that granted it.
+
+Which mode you need depends on your own privacy policy.

@@ -1,23 +1,21 @@
 # Deployment and operations
 
-Cloudflare serves the static marketing website at `lictory.com`, redirects
-`www.lictory.com` to the apex, and serves the platform SPA at `app.lictory.com`.
-The production server runs five long-lived services: the app gateway, API,
-background worker, zero-cache and PostgreSQL. There is no marketing container.
-See [websites on Cloudflare](cloudflare-marketing.md) for frontend releases.
+How a Lictory server works: the services it runs, its network boundaries,
+settings, database roles, images, upgrades, rollback, monitoring and scaling.
+Lictory is self-hosted: the project hosts no platform, and its releases
+deploy nothing. Each installation pulls published releases with the
+[`lictory` command](self-hosting.md), which drives the server tooling
+described here (`deploy.sh` and friends). The maintainer's websites
+(`lictory.com`, `docs.lictory.com`) are static and separate
+([websites](websites.md)).
 
-Images are built off-server by GitHub Actions and deployed by digest. Backend
-production changes go through the manually approved **Release to Production**
-workflow ([versions and releases](releases.md)). Openship provides service
-controls, live logs, routing, health monitoring and saved operational jobs.
+A server runs five long-lived services: the app gateway, API, background
+worker, zero-cache and PostgreSQL.
 
 ```text
-lictory.com / www ──▶ Cloudflare static marketing / canonical redirect
-app.lictory.com ────▶ Cloudflare SPA
-                       └─ /api, /zero, /relay ──▶ Openship HTTPS edge
-                                                  └─ private Caddy gateway
-                                                       ├─ API / worker
-                                                       └─ Zero ──▶ PostgreSQL
+https://<your app host> ──▶ Caddy gateway (TLS, SPA assets)
+                              ├─ /api ──▶ API / worker
+                              └─ /zero ─▶ zero-cache ──▶ PostgreSQL
 ```
 
 | Service      | Image                   | Purpose                                                                           |
@@ -32,27 +30,62 @@ app.lictory.com ────▶ Cloudflare SPA
 
 The release file retains the legacy marketing key for compatibility with
 installed controllers, using the API digest for new releases. No marketing
-container is built, pulled or started. Cloudflare receives static frontend
-artifacts prepared from the selected source.
+container is built, pulled or started.
 
-Files bytes stay in private Cloudflare R2 (see
-[private file storage](../internals/file-storage.md)); email goes through Resend
-or any SMTP server (see [Email](#email)).
-OAuth and AI are optional.
+File bytes stay in a private S3-compatible bucket (see
+[private file storage](../internals/file-storage.md)); email goes through
+your SMTP server or Resend (see [Email](#email)). File storage, OAuth and AI
+are optional.
+
+## Telemetry and privacy
+
+A self-hosted installation sends no telemetry to the Lictory project or anyone
+else. Outbound connections happen only for what the operator configures:
+
+| Setting                                       | Leaves the server                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                              | Content sent to Lictory Intelligence (analysis, chat, transcription)    |
+| `POSTHOG_PROJECT_TOKEN` + `POSTHOG_HOST`      | Product analytics: browser events via `/relay`, server events, job logs |
+| `RESEND_*` or `SMTP_*`                        | Transactional and notification email                                    |
+| `S3_*` or `R2_*`                              | Uploaded files                                                          |
+| A project's delivery connection               | Published work items and status reads with that Jira site               |
+| `GOOGLE_*`, `MICROSOFT_*`, `OAUTH_PROXY_*`    | Sign-in through those identity providers                                |
+| `ACME_EMAIL`, `BACKUP_*`, alert and ping URLs | Certificate issuance, encrypted backups, alerts and monitoring pings    |
+
+Uploaded documents are converted to text on the server; scanned PDFs are
+rejected rather than sent to a hosted OCR service. zero-cache's anonymous usage
+telemetry is disabled (`ZERO_ENABLE_TELEMETRY=false`), and zero-cache has no
+route to the internet anyway.
+
+**Analytics consent.** Without PostHog settings the app shows no consent banner,
+stores no consent choice and loads no analytics code. With them,
+`ANALYTICS_CONSENT` selects how analytics follow each visitor's choice:
+
+- unset (default, the current behavior): PostHog loads before a choice in
+  cookieless, anonymous mode and switches to full tracking after consent;
+  server events are sent regardless of the browser choice.
+- `strict`: nothing loads until the visitor grants Analytics consent, and
+  server events are sent only for requests from a browser that granted it.
+  Events without a request (background jobs) are not sent.
+
+Which mode a deployment needs depends on its own privacy policy; the default is
+the maintainer's choice and may change.
 
 ## Network boundaries
 
 Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
 worker and ops tooling also join an egress-only network for external
-APIs (R2, Resend or SMTP, OpenAI, Jira, PostHog, OAuth providers). The host firewall
+APIs (object storage, Resend or SMTP, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only.
 
 The proxy:
 
 - sends `/zero/*` to zero-cache unchanged (Zero 1.11 serves the `/zero`
-  prefix itself) and refuses WebSocket upgrades whose `Origin` is not
-  `https://app.lictory.com` (cross-site WebSocket hijacking);
+  prefix itself) and refuses WebSocket upgrades whose `Origin` is not the
+  platform's public origin, `PLATFORM_URL` (default
+  `https://<PUBLIC_APP_HOST or APP_HOST>`;
+  cross-site WebSocket hijacking);
 - answers `/api/zero/*` with 404: zero-cache calls those endpoints on the
   internal network with its API key and forwarded session cookies;
 - streams `/api/*` and `/relay/*` without buffering (server-sent events,
@@ -69,6 +102,10 @@ The proxy:
 `scripts/edge-proxy.ts` is the local stand-in for these routes; keep both in
 step.
 
+Behind an existing reverse proxy or ingress, with an internal CA, or on plain
+HTTP, see [existing reverse proxy, internal CA and plain HTTP](reverse-proxy.md).
+Lictory needs its own host name; subpath hosting is not supported.
+
 ### Client addresses and authentication rate limits
 
 The gateway overwrites `X-Forwarded-For` with one address from Caddy's
@@ -79,7 +116,7 @@ verify its direct peer; do not make auth trust raw `CF-Connecting-IP` or the
 leftmost address of a forwarded chain.
 
 On a standalone gateway, Caddy uses the connection's remote address. Behind
-Openship or another edge, set `CADDY_TRUSTED_PROXIES` to the space-separated
+another edge (a load balancer, a CDN), set `CADDY_TRUSTED_PROXIES` to the space-separated
 actual proxy IPs or CIDRs. Empty trusts no proxies. The gateway enables
 `trusted_proxies_strict` to parse `X-Forwarded-For` from right to left.
 Include every trusted hop in the forwarded chain, including
@@ -93,52 +130,79 @@ visitor's address and that separate clients have independent auth limits.
 
 ## Environments
 
-Production and staging are separate servers with separate databases, R2
-buckets (files and backups), email domains, OAuth clients and secrets. Staging
-uses `staging.lictory.com` and `app.staging.lictory.com` and runs nightly
-images; production runs stable images only. Never copy a value between their
-`.env` files.
+Installations choose their own environments and layout. Keep separate
+environments on separate databases, buckets, email domains, OAuth clients
+and secrets; never copy a value between their `.env` files. An environment
+is any name of lowercase letters, digits and hyphens (`production`, `staging`,
+`qa`, `eu-prod`); `local`, `test` and `preview` are reserved by the migration
+runner. Each name is its own Compose project (`lictory-<environment>`),
+database and `.env`, and an environment exists on a server only once its
+`.env` does, so a mistyped name is refused instead of created. Every
+environment gets the same migration safeguards
+([migrations](migrations.md)).
 
-Each server has `/srv/lictory/<environment>/`:
+| Setting                  | Default        | Where                                                                       |
+| ------------------------ | -------------- | --------------------------------------------------------------------------- |
+| `LICTORY_ROOT`           | `/srv/lictory` | Environment of the scripts; `install.sh` writes it into the systemd units   |
+| `DEPLOY_USER`            | `deploy`       | `install.sh` and `provision.sh`                                             |
+| `LICTORY_ENVIRONMENTS`   | `production`   | `install.sh` and `provision.sh`: the environments hosted on this server     |
+| `LICTORY_IMAGE_REGISTRY` | none (GHCR)    | Each `.env`: releases must be digests in it; `registry-login` uses its host |
 
-| Path                  | Contents                                                                    |
-| --------------------- | --------------------------------------------------------------------------- |
-| `.env`                | Secrets and settings (mode 0600, owner `deploy`); template in `deploy/env/` |
-| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling       |
-| `current`             | Symlink to the active release                                               |
-| `release-history.log` | Every activation                                                            |
-| `deploy.log`          | Deployment log                                                              |
+With another root, the release key's forced command sets it:
+`command="LICTORY_ROOT=/opt/lictory /opt/lictory/bin/lictory-remote",restrict …`
+(`install.sh` prints the exact line).
 
-`/srv/lictory/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
-environment), `lictory-remote` (the CI key's forced command), and the backup,
-monitor and restore-drill wrappers. A newly activated release installs its
-versions of these tools.
+Each server has `<root>/<environment>/` (`/srv/lictory/<environment>/` by default):
+
+| Path                  | Contents                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `.env`                | Secrets and settings (mode 0600, owner: the deploy user); template in `deploy/env/` |
+| `releases/<version>/` | Image digests (`release.env`), the release's compose file and tooling               |
+| `current`             | Symlink to the active release                                                       |
+| `release-history.log` | Every activation                                                                    |
+| `deploy.log`          | Deployment log                                                                      |
+
+`<root>/bin` holds `deploy.sh`, `lictory-compose` (docker compose for an
+environment), `lictory-remote` (the CI key's forced command), the backup,
+monitor and restore-drill wrappers and the `lictory` operator command
+(linked as `/usr/local/bin/lictory`; [self-hosting](self-hosting.md)). A
+newly activated release installs its versions of these tools. The ops image
+of every release carries this bundle, including `provision/` and the `.env`
+templates, under `/opt/lictory/deploy`.
 
 ## Secrets and settings
 
-`deploy/provision/new-environment.sh` creates `.env` with generated database
-passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
+`deploy/provision/new-environment.sh <environment>` creates `.env` from
+`deploy/env/self-hosted.env.example` (or `LICTORY_ENV_TEMPLATE`) with generated database passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY`, `ZERO_API_KEY` and
 `ZERO_ADMIN_PASSWORD`. Fill in the rest by hand. The API, the worker and the
 migration runner validate their settings at startup and stop with every problem
 listed (missing required values, placeholders, secrets shorter than 32 bytes);
 see the [configuration reference](./configuration.md).
 
-| Setting                                                    | Notes                                                                                                  |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically                                                    |
-| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                         |
-| `R2_*`                                                     | Files bucket, bucket-scoped object read/write token                                                    |
-| `RESEND_*` or `SMTP_*`                                     | Required: a mail transport and sender ([Email](#email))                                                |
-| `BACKUP_*`                                                 | Dedicated private backup bucket and its own token; `BACKUP_AGE_RECIPIENTS` is a public key             |
-| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                              |
-| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                               |
-| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` production, `nightly` staging) |
+| Setting                                                    | Notes                                                                                                                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SITE_HOST`, `WWW_HOST`, `APP_HOST`, `ACME_EMAIL`          | Public hosts; certificates are issued automatically. `SITE_HOST` (the marketing site) is optional: without it, website links use `PLATFORM_URL`                                |
+| `DELIVERY_CREDENTIALS_KEY`                                 | Never rotate once Jira connections exist; stored credentials become unreadable                                                                                                 |
+| `R2_*` or `S3_*`                                           | Optional attachment bucket and object read/write credentials; one of the two, see file storage docs                                                                            |
+| `RESEND_*` or `SMTP_*`                                     | A mail transport and sender ([Email](#email)); without one, email is disabled                                                                                                  |
+| `BACKUP_*`                                                 | `BACKUP_TARGET` (`s3`, `local`, `rclone`, `none`) and its storage with its own credentials; `BACKUP_AGE_RECIPIENTS` is a public key ([recovery](recovery.md#where-backups-go)) |
+| `ALERT_WEBHOOK_URL`, `MONITOR_PING_URL`, `BACKUP_PING_URL` | Alert webhook and dead-man's-switch pings                                                                                                                                      |
+| `GOOGLE_*`, `MICROSOFT_*`, `OPENAI_API_KEY`, `POSTHOG_*`   | Optional                                                                                                                                                                       |
+| `LICTORY_IMAGE_REGISTRY`, `LICTORY_RELEASE_CHANNEL`        | Releases must be digests in this registry and of this channel (`stable` by default for `production`, `nightly` otherwise)                                                      |
 
 Each service receives only the variables it needs (see
 `deploy/compose.production.yaml`). Secrets are visible to anyone who can run
 Docker on the server, which is why only the administrator and `deploy` can log
-in. Browser bundles receive public origins and PostHog tokens at build time
-from GitHub variables, not from `.env`.
+in.
+
+Images carry no domain or analytics settings, so the same image runs on any
+hostname. The API writes the platform's public runtime configuration (the
+website origin from `SITE_URL` and the browser analytics settings from
+`POSTHOG_PROJECT_TOKEN`/`POSTHOG_HOST`) into each SPA document it serves; the
+browser reads it there instead of from the bundle. Change `.env` and restart
+the API to change them. When Cloudflare serves the platform SPA (lictory.com),
+its Worker writes the same configuration from its own variables
+([websites on Cloudflare](websites.md)).
 
 ## Email
 
@@ -192,12 +256,14 @@ C library upgrades.
 ## Images
 
 `Dockerfile` has one target per image; `deploy/docker-bake.hcl` builds all of
-the API/worker, proxy, migration and operations images. Actions builds only
-`linux/arm64` on a native runner for Hetzner. Every target uses the selected checkout, so the API's
+the API/worker, proxy, migration and operations images. Actions builds each
+release natively on `linux/amd64` and `linux/arm64` runners and publishes one
+multi-platform image per target, so any x86-64 or ARM server pulls the same
+digests. Every target uses the selected checkout, so the API's
 `index.html` and the proxy's assets come from the same SPA build. Tags are the
 release version and `sha-<commit>-<channel>`; deployments always pin digests.
-The browser and website bundles embed their public origins, so a stable build
-of a commit differs from its nightly build. Registry layer caches default to
+The images embed no public origins; only the marketing website, which is not
+part of the release images, is built for one domain. Registry layer caches default to
 `IMAGE_REGISTRY/lictory-cache`; set `IMAGE_CACHE_REGISTRY` to use another
 namespace. Cache tags are isolated by image, release channel and architecture.
 The marketing Docker target is excluded from releases: both public frontends
@@ -208,10 +274,11 @@ and rollback targets retain their original marketing digest.
 Dependency installation precedes copying application source; release versions
 are stamped only in the browser/website build stages.
 
-Production builds and exact-candidate verification run concurrently. Both
-Cloudflare websites are prepared alongside backend images, then uploaded in
-parallel only after stable publication and healthy backend activation. Website
-artifacts are scoped to the current workflow run and selected version. No
+Production builds and exact-candidate verification run concurrently. The
+platform SPA is prepared alongside backend images, then uploaded only after
+stable publication and healthy backend activation. Its artifact is scoped to
+the current workflow run and selected version. The marketing website and the
+documentation are not released with the product; they deploy from `main`. No
 production deployment skips verification, backup, migration or Zero catch-up.
 See [release performance](development.md#release-performance) for measuring the
 two-minute warm-run target and the cold-run limits.
@@ -229,48 +296,60 @@ are installed for the target platform at the lockfile's versions.
 
 ## Provisioning a server
 
-1. Create an Ubuntu 24.04 server in an EU region with
-   `deploy/provision/cloud-init.yaml` (your SSH key) and enable provider
-   backups or snapshots if wanted.
-2. Point DNS at it (below), then copy `deploy/` and run
-   `sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
-   It installs Docker from Docker's repository, automatic security updates
-   (with a 04:00 UTC reboot when required), the firewall, SSH hardening,
-   fail2ban, swap, journald limits, the `deploy` user, `/srv/lictory` and the
-   backup and monitor timers. Re-running it is safe.
-3. As `deploy`: `new-environment.sh production`, then edit `.env`.
-4. The production workflow authenticates `deploy` to GHCR with its temporary
-   GitHub job token and removes that credential afterward. No long-lived
-   registry token is needed on the server. Direct manual releases outside the
-   workflow still need a registry login before pulling private images.
-5. Add the release automation's public key to `~deploy/.ssh/authorized_keys`:
+Use [`deploy/get.sh` and the `lictory` command](self-hosting.md): they check
+the host, install the tooling below from a published release, ask for the
+settings and pull releases from GitHub Releases. The manual equivalent:
+
+Any Linux host with Docker Engine and the Docker Compose v2 plugin can run
+Lictory; it also needs `bash`, `curl`, `jq`, `openssl` and `flock`
+(util-linux). Choose the size and region your data and users require.
+
+1. Install Docker Engine and Compose v2 the way your distribution or company
+   does, and harden the host to your own standard.
+2. Point DNS at it (below), copy `deploy/` to the server and run, as root,
+   `LICTORY_ENVIRONMENTS="production" bash deploy/provision/install.sh`
+   (with `LICTORY_ROOT` and `DEPLOY_USER` when the defaults do not fit). It
+   creates the deploy user if needed (in the `docker` group, no sudo), the
+   directory layout, the host tools and, where systemd runs, the backup and
+   monitor timers. It changes nothing else. Re-running it is safe.
+3. As the deploy user: `new-environment.sh <environment>` (with the same
+   `LICTORY_ROOT`), then edit `.env`.
+4. When release images are private, log the deploy user in to their registry
+   (`<env> registry-login`, the host of `LICTORY_IMAGE_REGISTRY`).
+5. Optional, for your own release automation over SSH: add its public key to
+   the deploy user's `~/.ssh/authorized_keys` as
    `command="/srv/lictory/bin/lictory-remote",restrict ssh-ed25519 AAAA… release`.
    It can then only prepare, migrate, activate, backfill, roll back and report
-   status.
-6. Record the host key for GitHub (`ssh-keyscan -t ed25519 <server>`, compared
-   with the console output) as `DEPLOY_SSH_KNOWN_HOSTS`.
+   status of the environments configured on that server.
 
-DNS checklist (production): `A`/`AAAA` for `lictory.com`, `www.lictory.com`
-and `app.lictory.com`; a `CAA` record allowing `letsencrypt.org`; keep existing
+**Optional Ubuntu hardening.** On a fresh Ubuntu 24.04 server,
+`deploy/provision/provision.sh` replaces steps 1 and 2: create the server with
+`deploy/provision/cloud-init.yaml` (your SSH key), then run
+`sudo ADMIN_USER=admin LICTORY_ENVIRONMENTS=production bash deploy/provision/provision.sh`.
+It installs Docker from Docker's repository, automatic security updates (with
+a 04:00 UTC reboot when required), the firewall, SSH hardening (only the
+administrator and the deploy user may log in), fail2ban, swap and journald
+limits, then runs `install.sh`. Re-running it is safe.
+
+Releases are applied with `lictory upgrade`, or `deploy.sh <environment>
+release < release.env` with the `release.env` of a published release.
+
+DNS checklist: `A`/`AAAA` for your app host; a `CAA` record allowing
+`letsencrypt.org` when certificates come from Let's Encrypt; keep existing
 MX/SPF/DKIM/DMARC records for email. Lower TTLs to 300 s a day before moving
-traffic. Staging needs the same three names under `staging.lictory.com`.
+traffic.
 
 ## First launch
 
 On an empty database a normal release does everything in order: the first
 start of PostgreSQL creates the roles and databases, the migrate service
 applies every migration (including the `lictory_zero` publication), zero-cache
-performs its initial sync, then the proxy, API and worker start. The
-**Release to Production** workflow then deploys both Cloudflare frontends from
-the same published stable tag after the backend is healthy.
+performs its initial sync, then the proxy, API and worker start.
 
 ```sh
-# from GitHub: Actions → Release to Production → Run workflow (main)
-# or by hand on the server with a release file of digests:
+sudo lictory install        # or, by hand, with a release file of digests:
 /srv/lictory/bin/deploy.sh production release < release.env
 /srv/lictory/bin/deploy.sh production status
-# With Openship, enable its saved backup and health jobs (see below).
-# Standalone hosts can instead use the supplied systemd timers, never both.
 ```
 
 Then verify sign-up and email verification, password reset, organization
@@ -280,7 +359,8 @@ the first backup, and a restore drill ([recovery](recovery.md)).
 
 ## Deploying a release
 
-`deploy.sh` (driven by the release workflow over SSH) runs three steps:
+`deploy.sh` (run by `lictory upgrade`, or by your own automation) runs three
+steps:
 
 1. **prepare**: validates the release file (known keys, digests in the
    configured registry, the environment's channel), stores it, pulls the
@@ -331,8 +411,8 @@ worker running when rolling multiple instances.
 
 Rollback switches application images only; migrations stay applied. After a
 rollback, tabs that loaded the newer release reload when they next need a
-chunk. Publish a fix as a new release; the release workflow refuses to
-activate a version older than the active one.
+chunk. Publish a fix as a new release; `lictory upgrade` only moves forward,
+and `lictory rollback` returns to the previously activated release.
 
 Proxy validation runs again before migrations and activation with the current
 environment, including manual activation, rollback and automatic recovery to
@@ -351,54 +431,32 @@ timeouts even when Caddy considers the configuration valid.
 | Active version and services | `deploy.sh <env> status [--json]`                                                                                         |
 | Zero diagnostics            | `lictory-compose <env> exec zero-cache sh -c 'curl -su "admin:$ZERO_ADMIN_PASSWORD" localhost:4848/statz'` (never public) |
 
-The Openship health job (or `lictory-monitor@<env>.timer` on a standalone host)
-runs every five minutes and alerts on public Cloudflare route failures, disk usage
+The `lictory-monitor@<env>.timer` systemd timer (installed by `install.sh`)
+runs every five minutes and alerts on public route failures (the app's
+`/readyz`, and the marketing site when `SITE_HOST` is set), disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
 overdue notification email, partial, failed or stuck delivery exports,
-automatic cycles overdue by two hours, and a backup older than 30 hours. It
-posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
+automatic cycles overdue by two hours, and a backup older than 30 hours
+(not checked with `BACKUP_TARGET=none`). It checks only what is configured
+and needs nothing but Docker, `bash` and `curl` on the host. It posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
 problems changes, every six hours while it persists, and once on recovery, and
 pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
-a server that stopped reporting. Logs rotate at 5 × 20 MB per container.
+a server that stopped reporting; both are optional. Logs rotate at 5 × 20 MB
+per container.
 
-## Openship production operations
+Existing monitoring can replace or complement it: point an uptime checker
+(Uptime Kuma, Pingdom, a load balancer health check) at
+`https://<app host>/readyz`, scrape container health with cAdvisor or the
+Docker engine metrics endpoint, and use `postgres_exporter` with Prometheus for
+replication slot lag and WAL size (the queries are in
+`deploy/monitor/checks.sql`). Without the timers, run
+`lictory-monitor <env>` from your scheduler or not at all.
 
-Open **Lictory production → Services** to inspect the five backend services.
-Each service exposes its runtime logs, health, restart count and resource
-usage. The project stays always on; push-to-deploy stays disabled. Only the
-`proxy` service is public, on `app.lictory.com`. Keep the API, worker,
-PostgreSQL and Zero ports private. The edge preserves WebSocket upgrades and
-unbuffered streams with five-minute proxy timeouts.
+## Background scheduling
 
-Use service **Restart** for process recovery. Release, migration and image
-rollback belong to the guarded controller, not a native stack redeploy: the
-controller preserves migration ordering, backup gates and Zero catch-up.
-Use GitHub's manual production release for a new version. The saved rollback
-job switches only application images and requires a previously activated
-version; it never reverses database migrations.
-
-The Openship Jobs view provides:
-
-- **Release status**: active version, digests and service health.
-- **Scheduler status**: worker liveness, LISTEN connection and per-job last
-  success/failure, next run, run count and consecutive failures.
-- **Manual backup** and **Rollback**: explicit operator actions.
-- **Nightly encrypted backup**: `30 2 * * *` UTC, using the private backup R2 bucket.
-- **Health check**: every five minutes, including disk, containers, public routes,
-  replication, queued work and backup freshness.
-
-Enable the Openship schedules or the equivalent systemd timers, never both.
-The engine's continuous health watcher detects crashed/unhealthy services.
-Failure notifications go to the configured email channel; do not enable
-routine success notifications. Docker logs rotate at 5 × 20 MB per container.
-Neither in-server checks nor in-server alerts can report during a total VPS
-outage without an independently configured external monitor.
-
-### Platform scheduling replaces Vercel Cron
-
-The always-running `worker` owns platform scheduling; no public cron endpoint,
-Vercel schedule or duplicate Openship recurring job is needed.
+The always-running `worker` owns platform scheduling; no public cron endpoint
+or external recurring job is needed.
 
 | Activity                  | Trigger / fallback interval                    |
 | ------------------------- | ---------------------------------------------- |
@@ -416,33 +474,69 @@ boot; stopping the worker deliberately pauses these activities until it is
 started again. See [background work](../internals/synchronization.md#background-work).
 
 The internal worker `GET /healthz` reports every loop's counters and timing.
-It remains bound to container loopback; read it through the saved **Scheduler
-status** job or an authorized service terminal, never a public route.
+It remains bound to container loopback; read it from the server
+(`lictory-compose <env> exec worker`), never through a public route.
 
-## Microsoft Entra sign-in
+## Scaling
 
-Set `MICROSOFT_CLIENT_ID` (`674718cd-ca91-451c-84eb-02aa492d2b10`) and
-`MICROSOFT_CLIENT_SECRET` in production's `.env`. In the Entra application
-registration, add the **Web** redirect URI
-`https://app.lictory.com/api/auth/callback/microsoft` (and
-`http://localhost:3000/api/auth/callback/microsoft` for development); remove
-the old `https://lictory.com/...` URI after the switch. `MICROSOFT_TENANT_ID`
-defaults to `common`. Add the `email` optional claim to ID tokens. Microsoft
-email claims do not prove ownership: new accounts verify through Lictory.
-The publisher-domain file
-`https://lictory.com/.well-known/microsoft-identity-association.json` must stay
-reachable on the website. Google's authorized redirect URI is likewise
-`https://app.lictory.com/api/auth/callback/google`.
+Production runs one copy of each service. Whether a service can run as
+several replicas depends on whether its state lives in PostgreSQL:
+
+- **`api`: yes.** Sessions, authentication rate limits and domain state are in
+  PostgreSQL. Each replica LISTENs for presence and inbox signals, so an
+  `/api/events` stream on one replica receives events caused by writes on
+  another. Streams end after four minutes and reconnect to any replica.
+- **`worker`: yes.** Jobs claim work through the database: notification email
+  with `FOR UPDATE SKIP LOCKED` plus a lease, chat runs with `SKIP LOCKED`,
+  delivery exports with a fenced lease that the runner renews, AI runs with a
+  lease taken under the organization lock, and automatic cycles under the
+  organization lock. Each replica LISTENs on `lictory_work` and also polls.
+  The delivery status refresh takes no claim: two replicas may read the same
+  external items in one interval, which costs provider calls but changes no
+  outcome.
+- **`migrate`: one at a time.** A one-shot job. An advisory lock makes a second
+  run wait and then fail without applying anything.
+- **`zero-cache`: no.** One process holds the SQLite replica on its volume and
+  the replication slot. Running more needs Zero's multi-node setup (a
+  replication manager plus view syncers sharing a replica backup), which this
+  deployment does not configure.
+- **`postgres`: no.** The single primary is the source of truth. There are no
+  read replicas.
+- **`proxy`: no.** It is the only published entry point (ports 80 and 443) and
+  keeps certificates and retained assets on its volumes.
+
+Better Auth keeps its rate-limit counters in the `rate_limit` table, so the
+limits hold across API replicas and restarts. The table is not in the
+`lictory_zero` publication. Better Auth deletes rows older than the longest
+window (one minute) when a counter's window resets, so the table only holds
+recent clients and needs no scheduled cleanup. Rate limiting stays on in
+production only, with Better Auth's default rules: 100 requests per 10 s on
+any auth path, 3 per 10 s for sign-in, sign-up and changing the password or
+email, and 3 per minute for password-reset and verification email. Each
+counter is keyed by the client address in `X-Forwarded-For`. With several
+replicas, the gateway's single-address normalization still applies:
+[client addresses](#client-addresses-and-authentication-rate-limits). Without
+it, every visitor shares one counter.
+
+Each API replica opens up to 10 database connections plus one LISTEN
+connection. Each worker replica opens `WORKER_DB_POOL_MAX` (4) plus one.
+Before you add replicas, check the total against PostgreSQL's
+`max_connections`. The gateway's and zero-cache's upstreams are the `api`
+service name. Make sure each replica is reachable under that name and passes
+its own `/readyz`. `deploy.sh` replaces one container per service, so scaled
+replicas also need a rollout procedure, which this deployment does not have
+yet.
 
 ## Verification and CI
 
-GitHub Actions CI runs only `bun run typecheck` and `bun run db:check`; the
-full verification sequence runs locally ([development](development.md)).
-Release workflows build images on hosted runners and need no database
-credentials: databases are reachable only on their server.
+Pull request CI runs the [test tiers](development.md#test-tiers) a change
+needs; the full verification sequence runs locally
+([development](development.md)).
+Release workflows build and publish images on hosted runners; they hold no
+database, server or deployment credential, since releases deploy nothing.
 
 ## Costs
 
-The baseline is one server, a backup bucket, the files bucket, email and
-optional AI. Review provider usage monthly: server size, R2 storage and
+The baseline is one server, a backup target, email, and optionally a files
+bucket and AI. Review provider usage monthly: server size, storage and
 operations, email volume and AI tokens. Keep paid upgrades manual.

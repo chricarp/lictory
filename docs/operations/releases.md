@@ -1,22 +1,27 @@
 # Versions and releases
 
-Lictory releases through two channels: **Nightly** and **Stable**. Maintainers
-merge reviewed PRs normally. GitHub Actions calculates versions, writes release
-notes, creates tags, and deploys nightlies. The release decision is selecting
-**Release to Production → Run workflow** on `main` when a nightly is ready.
+Lictory releases through two channels: **Nightly** and **Stable**. A release
+publishes; it deploys nothing. The project hosts no platform: every
+installation upgrades itself from GitHub Releases with
+[`lictory upgrade`](self-hosting.md). Maintainers merge reviewed PRs normally;
+GitHub Actions calculates versions, writes release notes, creates tags and
+publishes nightlies. The release decision is a release manager pressing
+**Actions → Release → Run workflow** on `main`.
 
 ```text
-Conventional PR title → merge → nightly images (→ staging) → test nightly
+Conventional PR title → merge → daily nightly: full verification, images, prerelease
                                                    ↓
-                                      Release to Production
-                                                   ↓
-                      stable images → migrate on server → activate → publish
+                                 Release (one button, release managers)
+                     ├─ platform changed?    → stable images + GitHub Release (release.env)
+                     ├─ lictory.com changed? → deploy the marketing website
+                     └─ docs changed?        → deploy docs.lictory.com
 ```
 
 This follows the source-selection principle in
 [T3 Code's release workflow](https://github.com/pingdotgg/t3code/blob/main/.github/workflows/release.yml)
 and [release guide](https://github.com/pingdotgg/t3code/blob/main/docs/operations/release.md):
-production builds the commit a verified nightly shipped, not a moving `main`.
+a stable release builds the commit a verified nightly shipped, not a moving
+`main`.
 Lictory calculates its version from merged PR metadata rather than T3 Code's
 package-based nightly patch calculation.
 
@@ -70,6 +75,12 @@ Unmerged PRs and PRs whose merge commits are outside the release range cannot
 account for new commits. Commits without an eligible PR still require explicit
 direct-push recovery.
 
+Only platform changes count. A PR that changes nothing but the websites
+(`apps/marketing`, `apps/docs`), maintainer documentation (`docs/`), CI
+(`.github/`) or top-level Markdown neither bumps the platform version nor
+appears in its release notes, whatever its title; a PR that also touches the
+platform counts. The rule lives in `packages/core/src/release/paths.ts`.
+
 Use human-readable titles. Optionally add a `## Release notes` section to a PR
 body with a concise description of user behavior and upgrade actions. Notes are
 grouped into Breaking changes, Added, Fixed, Performance and Maintenance, with PR
@@ -79,15 +90,21 @@ the stable baseline. Stable notes always include the complete stable range.
 
 ## Automatic Nightly
 
-**Nightly** runs for every push to `main` and protected `release/<major>.<minor>`
-maintenance branches. It also runs automatically after stable publication so
-the remaining `main` work gets a candidate based on the new stable baseline.
+**Nightly** runs on a schedule, as in T3 Code: every day at 03:23 UTC it
+builds `main` if the platform changed since the newest nightly, and publishes
+nothing otherwise (website- or documentation-only days included). **Actions → Nightly → Run workflow** on `main` produces one
+immediately, under the same rule. Protected `release/<major>.<minor>`
+maintenance branches still release on every push, so a hotfix candidate is
+ready without waiting. A run also follows every stable publication, so the
+remaining `main` work gets a candidate based on the new stable baseline.
 Ordinary PRs do not create release tags or GitHub Releases.
 
-CI runs directly for pull requests and manual dispatches. To save Actions
-minutes, pushes to `main` and maintenance branches are not re-verified: the
-merged PR already passed CI, and Release to Production verifies the exact
-candidate again before activation.
+Pull requests get the [layered CI](development.md#test-tiers). Before a
+nightly is published, the same CI workflow runs on its exact source with its
+embedded version and **every** browser workflow (`suite: full`), in parallel
+with the image builds. A candidate that fails any tier is never published, so
+every nightly a tester installs, and every stable release promoted from one,
+passed the complete suite.
 
 1. Pin the triggering SHA and calculate a candidate from the stable baseline.
 2. Form `X.Y.Z-nightly.YYYYMMDD.<run_number>` using the workflow's original UTC
@@ -95,101 +112,115 @@ candidate again before activation.
    attempt number.
    The `nightly-intent` journal preserves the original candidate across whole-run
    retries, even if another stable release appears while it is being repaired.
-3. Build the four backend images natively for `linux/arm64` with the staging
-   origins and push them to the registry (`IMAGE_REGISTRY`), tagged with the
-   version; the deployment journal records their digests. Nightlies never run
-   production migrations or touch the production server, and the job holds no
-   deployment credential.
-4. Reserve the immutable tag/manifest, publish a GitHub prerelease (never latest),
-   and record success. The complete workflow must succeed before production
-   selection treats the release as eligible.
-5. When `STAGING_DEPLOY_ENABLED` is `true`, a separate job (GitHub environment
-   `staging`) prepares, migrates and activates the nightly on the staging
-   server. Staging runs nightlies only.
+3. Build the four backend images natively on `linux/amd64` and `linux/arm64`
+   runners, join them into multi-platform images in the registry
+   (`IMAGE_REGISTRY`), tagged with the version; the deployment journal records
+   their digests. No release job holds a deployment credential.
+4. Reserve the immutable tag/manifest and attach `release.env` (the exact
+   image digests self-hosted installations pull), publish a GitHub prerelease
+   (never latest), and record success. The complete workflow must succeed before
+   a stable release treats the nightly as eligible.
+
+Installations on the nightly channel (`LICTORY_CHANNEL=nightly`) pick it up
+with `lictory upgrade`; that is how a nightly is tested before it is promoted.
 
 Each candidate's image digests appear in the Actions summary and the
 deployment journal. Publication retries reuse the journaled images instead of
-rebuilding. Nightly runs are serialized with retained queues. Failed builds or
-publication cannot change production. A maintenance-only nightly remains useful
+rebuilding. Nightly runs are serialized with retained queues. A failed build or
+publication changes nothing any installation can pull. A maintenance-only nightly remains useful
 for testing but cannot become stable without a semantic version increment.
 
 `package.json` in Git remains the development baseline. Build checkouts receive
 the calculated version without commits to `main`; images embed it, and the
-platform's account menu and the website show `X.Y.Z-nightly.*` on nightlies and
-the clean `X.Y.Z` in production. Release manifests and image labels record
+platform's account menu shows `X.Y.Z-nightly.*` on nightlies and the clean
+`X.Y.Z` on stable releases; the marketing website shows the latest stable. Release manifests and image labels record
 that same version and SHA.
 
-## Release to Production
+## Who can release
 
-In GitHub **Actions → Release to Production → Run workflow**, select `main`.
-Leave `nightly_tag` empty to select the newest eligible, successfully verified
-nightly, or enter an exact tag such as `v1.5.0-nightly.20261008.142`.
+Nightlies are automatic. **Release** changes what every installation upgrades
+to and what the public websites say, so only release managers can run it, or
+redeploy a website on its own:
 
-Selection requires a published prerelease created by the release bot, a matching
-immutable tag and manifest, a successful Nightly workflow for its exact SHA,
-and a successful image build journaled for the configured registry.
-The candidate's PR metadata and proposed version are recalculated against the
-current stable baseline. A stale, downgraded, duplicate, or changed candidate is
-rejected; it is never silently assigned a different version. If `main` has moved
-ahead, the chosen older nightly remains the source.
+1. **`RELEASE_MANAGERS`** (repository variable, Settings → Secrets and
+   variables → Actions → Variables): comma-separated GitHub logins. When it is
+   unset, only the repository owner can release (an organization-owned
+   repository must set it). The first job of Release, and the first step of
+   each website deployment, checks the person who started (or re-ran) the run;
+   anyone else's run fails with a clear message before anything is built or
+   deployed. Only repository administrators can change the variable.
+2. **Required reviewers** (Settings → Environments): on the **release**
+   environment they approve publishing a stable release; on **websites**,
+   deploying a website. Add yourself or a team; for a team, also add its
+   members to `RELEASE_MANAGERS`. Leave "Prevent self-review" off if a single
+   maintainer both starts and approves.
+3. Both environments' deployment branches are limited to `main`, and `main` is
+   protected, so a branch with an edited workflow cannot publish or reach the
+   Cloudflare token.
 
-The manual run records its chosen candidate in the GitHub `production-intent`
-deployment journal. Rerunning all jobs keeps that intent, even after newer
-nightlies appear. The temporary plan artifact is an execution copy, not the only
-record of the decision.
+The first stable release after this pipeline changed must promote a nightly
+built after the change: Release verifies the candidate with the CI of its own
+source.
 
-The selected SHA passes the minimal CI workflow (types and migration checks)
-again with the stable version. Only the deploy job accesses the protected
-`Production` environment, its required approvals and the deployment SSH key.
-Its release controller comes from the dispatch's protected `main` commit; the
-application and migration code are checked out in a separate directory at the
-nightly's exact SHA.
+## Release
 
-The deployment builds **new images with production origins** from that commit,
-then, on the production server through the restricted SSH command: validates
-that production only moves forward (no older version, no version reuse for
-different code, no unpublished activation pending), prepares the release by
-digest, takes a pre-deploy backup and applies migrations, waits for zero-cache
-to replicate them, and activates the images
-([deployment](deployment.md#deploying-a-release)). The server's reported active
-version and image digests decide what is live. Only after migrations pass is
-the stable tag reserved; only after activation does its GitHub Release become
-published and latest. The original nightly remains unchanged.
+In GitHub **Actions → Release → Run workflow**, select `main`. One press
+decides three things independently and shows them in the run summary:
 
-The same workflow then deploys both Cloudflare websites from that published
-stable tag. One **Run workflow** starts the complete production release; approve
-the protected Production jobs if prompted. A backend failure skips the websites.
-If the website job fails, the healthy backend stays deployed: use **Re-run failed
-jobs** to retry the websites with the same tag without repeating the backend
-release. Do not rerun all jobs to recover a frontend failure.
+| Part               | Ships when                                                           | What happens                                                                                           |
+| ------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Platform           | release-worthy platform PRs merged since the latest stable release   | The newest eligible nightly (or `nightly_tag`) is rebuilt as stable and published with its release.env |
+| `lictory.com`      | its sources changed since its last deployment, or the platform ships | [Marketing deployment](websites.md) from `main`, showing the latest stable version                     |
+| `docs.lictory.com` | its sources changed since its last deployment                        | [Documentation deployment](websites.md) from `main`                                                    |
+
+Each website records the commit it deployed (the `marketing-site` and
+`docs-site` deployment journals); the next Release compares `main` against
+it. `redeploy_websites` deploys both regardless. A website deploys only after
+the platform release succeeded or was not needed, so the docs never describe
+a version that failed to publish. With nothing to ship, the run says so and
+succeeds.
+
+Platform selection requires a published prerelease created by the release bot,
+a matching immutable tag and manifest, a successful Nightly workflow for its
+exact SHA, and a successful image build journaled for the configured
+registry. The candidate's PR metadata and proposed version are recalculated
+against the current stable baseline. A stale, downgraded, duplicate, or
+changed candidate is rejected; it is never silently assigned a different
+version. If `main` has moved ahead, the chosen older nightly remains the
+source. When the platform changed but no verified nightly carries the change
+yet, the run fails and says so: wait for the nightly or run it.
+
+The run records its chosen candidate in the `production-intent` deployment
+journal. Rerunning all jobs keeps that intent, even after newer nightlies
+appear. The selected SHA passes CI again (static checks, domain tests and the
+smoke workflows) with the stable version; its nightly already passed every
+browser workflow. The release controller comes from the dispatch's protected
+`main` commit; the application code is checked out separately at the
+nightly's exact SHA. Stable images are **rebuilt** from that commit with the
+stable version, then the tag is reserved, release.env attached, and the
+GitHub Release published as latest. The original nightly remains unchanged.
 
 Nightly and Stable share a verified source commit, not byte-identical images:
-their versions and public origins differ.
+their versions differ. Neither embeds a domain or analytics setting; each
+server supplies them at runtime from its `.env` ([deployment](deployment.md)).
 
 ## Hotfixes
 
-Open a protected `release/<major>.<minor>` branch from the **current stable tag**,
-and merge fix/performance PRs into it. Its automatic nightly excludes features
-on `main`; feature PRs are excluded from maintenance candidates on the current
-stable train. Compatible fixes become patches; an explicitly breaking urgent fix
-retains its proper major bump (minor during `0.x`). Test it on staging, then select that exact nightly tag in
-**Release to Production**. No manual version, notes, or tag commands are needed.
+Open a protected `release/<major>.<minor>` branch from the **current stable
+tag**, and merge fix/performance PRs into it. Its nightly runs on every push
+and excludes features; feature PRs are excluded from maintenance candidates
+on the current stable train. Compatible fixes become patches; an explicitly
+breaking urgent fix retains its proper major bump (minor during `0.x`). Test
+that nightly on a server of your own, then enter its exact tag as
+`nightly_tag` in **Release**. No manual version, notes, or tag commands are
+needed.
 
-Merge the released maintenance branch back into `main` **with a merge commit**,
-preserving the stable tag's ancestry. Do not squash or cherry-pick this history
-integration. The next release excludes the already published fix and includes
-the remaining main PRs exactly once. Main nightlies block until the latest
-stable commit is an ancestor. Hotfix migrations must obey expand/contract; an
-old branch with unknown applied migrations plus new pending migrations is
-refused by the existing migration safety rules.
-
-For the production topology with static websites on Cloudflare and the backend
-managed through Openship, **Release to Production** deploys the backend first
-and automatically calls the website workflow with that same published tag. The
-standalone website workflow remains available for compatible frontend rollback
-or recovery. See
-[websites on Cloudflare](cloudflare-marketing.md) for gateway configuration and
-the frontend verification and rollback procedure.
+Merge the released maintenance branch back into `main` **with a merge
+commit**, preserving the stable tag's ancestry. Do not squash or cherry-pick
+this history integration. The next release excludes the already published fix
+and includes the remaining main PRs exactly once. Main nightlies block until
+the latest stable commit is an ancestor. Hotfix migrations must obey
+expand/contract ([migrations](migrations.md)).
 
 ## Direct pushes and recovery
 
@@ -210,98 +241,44 @@ range, fails validation. Do not use version-bump commits or move published tags.
 - Retry failed jobs in Actions. Published and draft manifests bind tags to one
   source and metadata snapshot. Matching retries are idempotent; collisions
   fail closed. Do not delete or move a reserved tag to reuse its version.
-- A failed migration never activates a build or consumes a stable tag. Fix the
-  problem and retry the same candidate. If code needs to change, dispatch a new
-  verified candidate deliberately rather than letting a retry float to it.
-- If activation succeeds but status recording or GitHub publication fails,
-  retry the release. The server's active release and the deployment journal
-  repair publication without rebuilding, remigrating or reactivating. An
-  activated, unpublished version blocks a different production release until
-  repaired.
-- A failed activation restores the previous release's images automatically.
-- Production database recovery uses **Database migrations** on `main` with a
-  release version already prepared on the server. It shares the production
-  release lock and never activates an application.
-- Old production versions cannot be reactivated through this workflow. Release
-  a reviewed revert as a new fix/breaking PR and promote its verified nightly.
-  An emergency `deploy.sh production rollback` on the server is an
-  administrator procedure outside the normal path. It switches images only,
-  to a previously published stable release; the next Release to Production
-  accepts that state and moves forward again.
-- Database migrations are never automatically rolled back. Previous application
-  code runs against the new schema between migration and activation, so every
-  migration must remain backward compatible. See [migrations](migrations.md).
+- A failed verification or build publishes nothing and consumes no version. If
+  code needs to change, merge the fix and release a new verified nightly
+  rather than letting a retry float to it.
+- If publication fails after the images were built, retry the failed job: the
+  journaled build is published without rebuilding.
+- A failed website deployment leaves the platform release published; use
+  **Re-run failed jobs**. To roll a website back, see [websites](websites.md).
+- A published stable release is never withdrawn by automation. Ship a reviewed
+  revert as a new fix and release its nightly. Each installation can return
+  to its previous release with `lictory rollback` (images only; migrations
+  stay applied, so every migration must remain backward compatible, see
+  [migrations](migrations.md)).
 
-Previously published nightlies remain immutable after a stable promotion. Their
-old baseline can make them ineligible; a new automatic nightly recalculates from
-the new stable release. Publication retries preserve an already published
-version's identity instead of creating a second version.
+Previously published nightlies remain immutable after a stable promotion.
+Their old baseline can make them ineligible; a new nightly recalculates from
+the new stable release.
 
-## One-time GitHub and server configuration
+## One-time GitHub configuration
 
 Repository variables:
 
-| Variable                                        | Value                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------------- |
-| `RELEASE_BOOTSTRAP_SHA`                         | Exact currently deployed legacy source commit; keep this fallback configured    |
-| `RELEASE_BOOTSTRAP_VERSION`                     | Its clean version, default `0.1.0`; ignored once a stable release exists        |
-| `IMAGE_REGISTRY`                                | Registry namespace for images, for example `ghcr.io/<owner>`                    |
-| `IMAGE_CACHE_REGISTRY`                          | Optional BuildKit cache repository, for example `ghcr.io/<owner>/lictory-cache` |
-| `STAGING_SITE_URL`, `STAGING_PLATFORM_URL`      | Origins compiled into nightly images                                            |
-| `STAGING_POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Optional browser analytics settings for nightlies                               |
-| `LICTORY_LEGAL_*`                               | Legal notice details compiled into the website                                  |
-| `STAGING_DEPLOY_ENABLED`                        | `true` to run every nightly on the staging server                               |
+| Variable                    | Value                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `RELEASE_MANAGERS`          | Comma-separated GitHub logins allowed to release (owner if unset)               |
+| `RELEASE_BOOTSTRAP_SHA`     | Exact source commit of the last release before automation; keep it configured   |
+| `RELEASE_BOOTSTRAP_VERSION` | Its clean version, default `0.1.0`; ignored once a stable release exists        |
+| `IMAGE_REGISTRY`            | Registry namespace for images, for example `ghcr.io/<owner>`                    |
+| `IMAGE_CACHE_REGISTRY`      | Optional BuildKit cache repository, for example `ghcr.io/<owner>/lictory-cache` |
 
-GitHub environment **Production** (required reviewers; branches `main` and
-`release/*` only):
+Environments, both with deployment branch `main` only:
 
-| Setting                                           | Value                                                           |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| Secret `DEPLOY_SSH_KEY`                           | Private key whose public half is restricted to `lictory-remote` |
-| Variable `DEPLOY_SSH_TARGET`                      | `deploy@<production server>`                                    |
-| Variable `DEPLOY_SSH_KNOWN_HOSTS`                 | The server's verified `ssh-ed25519` host key line               |
-| Variables `SITE_URL`, `PLATFORM_URL`              | `https://lictory.com`, `https://app.lictory.com`                |
-| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Production browser analytics (optional)                         |
+- **release**: holds nothing; add required reviewers to approve each stable
+  publication. Packages and the GitHub Release are written with the
+  workflow's `GITHUB_TOKEN` (`packages: write`, `contents: write`).
+- **websites**: the Cloudflare token and the websites' public build variables
+  ([websites](websites.md#github-configuration)).
 
-GitHub environment **staging** holds the same SSH settings for the staging
-server. Packages are pushed with the workflow's `GITHUB_TOKEN`
-(`packages: write`); the servers pull with a read-only token. No database or
-application secret is stored in GitHub: they live in each server's `.env`
-([deployment](deployment.md)).
-
-Allow only `main` and protected `release/*` in **Production**, with no tag
-allowance or pull-request branch access. Stable activation is also restricted
-in code to a manual dispatch from `main`. `production-intent` and
-`nightly-intent` are journals, not credential environments.
-
-Protect main and maintenance branches against direct/force pushes and deletion.
-Require **Conventional PR title** and **Verify**, with the team's normal review
-policy. Prefer squash merges and set the squash commit subject to **PR title**;
-enable merge commits for released maintenance history. Protect `v*` tags against
-creation by unauthorized users and against updates/deletion, allowing release
-automation to create tags. Ensure repository rules permit the workflow's tag
-creation without granting it a main-branch write bypass. Protect changes to
-release workflows and `deploy/` with maintainer review/CODEOWNERS.
-
-Create the `release:direct-push` and `release:stable-api` labels. Add the required
-title check to branch protections once its workflow has been installed on main;
-the first installation PR uses the existing Verify/review requirements.
-Pre-automation tags lack the new workflow files: legacy maintenance branches need
-a reviewed import of release infrastructure and the version display before their
-pushes can create nightlies. Import those changes without merging unrelated main
-features. Future stable tags already contain that infrastructure.
-
-Normal operation has no package bump, changelog edit, local deployment, or tag
-push. Legacy stable releases remain valid baselines; their historical changelog
-is retained in `CHANGELOG.md`. Release metadata and journals are not disposable
-CI artifacts and must be retained for selection/recovery. Keep the registry's
-images at least as long as the releases you may roll back to.
-
-GitHub's `queue: max` preserves up to 100 pending runs; avoid exceeding that
-platform limit and inspect canceled runs if it is reached. Actionlint 1.7.12
-does not yet recognize this documented GitHub property: validate with its exact
-`unexpected key "queue" for "concurrency" section` diagnostic suppressed, plus
-the repository's YAML queue/permission/source guardrail tests. All other
-actionlint diagnostics remain enabled. Real deployment credentials and DNS are
-one-time operator configuration, not automatically provisioned by repository
-tests.
+Make the image packages public (GitHub → Packages → each `lictory-*` package →
+Package settings → Change visibility) so installations can pull without a
+registry login. No database, server or application secret is stored in
+GitHub.

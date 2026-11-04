@@ -2,6 +2,10 @@ import { PostHog } from "posthog-node";
 import type { AnalyticsProperties } from "@lictory/core/lib/analytics/events";
 import { publicationProperties } from "@lictory/core/lib/analytics/publication";
 import { analyticsEventId } from "@lictory/core/lib/analytics/identity";
+import {
+  analyticsConsentMode,
+  serverEventAllowed,
+} from "@lictory/core/lib/analytics/consent";
 
 // Server events use POSTHOG_PROJECT_TOKEN/POSTHOG_HOST (falling back to the
 // public names shared with the browser build).
@@ -36,6 +40,14 @@ export function trackServer(
   deduplicationKey?: string,
 ) {
   if (!configuration()) return;
+  // ANALYTICS_CONSENT=strict: only for people who granted Analytics consent.
+  if (
+    !serverEventAllowed(
+      analyticsConsentMode(process.env.ANALYTICS_CONSENT),
+      requestHeaders,
+    )
+  )
+    return;
   // Headers correlate sessions only. Authenticated identity always comes from Better Auth.
   const sessionId = requestHeaders?.get("X-POSTHOG-SESSION-ID");
   const validSessionId =

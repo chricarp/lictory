@@ -1,7 +1,7 @@
 // Local stand-in for the production reverse proxy (deploy/Caddyfile), used by
 // browser tests and `bun run start:local`: one origin that serves the built SPA
 // assets, the API (including its document handler), the analytics relay and
-// Zero's WebSocket endpoint, exactly as app.lictory.com routes them.
+// Zero's WebSocket endpoint, exactly as the production proxy routes them.
 //
 // Usage: bun scripts/edge-proxy.ts
 // Env: EDGE_PORT (3001), PLATFORM_DIST_DIR (apps/platform/dist),

@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 import { z } from "zod";
-import { rememberSignedIn } from "@lictory/platform/lib/site";
 
 // The signed-in person, read once at boot from GET /api/session and again
 // after anything changes the account (sign-in, handle, profile, sign-out).
@@ -15,19 +14,44 @@ const userSchema = z.object({
   handle: z.string().nullable().optional(),
   appearance: z.string().nullable().optional(),
   theme: z.string().nullable().optional(),
+  twoFactorEnabled: z.boolean().optional(),
 });
+const heldSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+});
+const noProviders = { google: false, microsoft: false, oidc: false };
+// How people sign in on this installation (password, company SSO name).
+const defaultSignIn = { password: true, ssoName: null };
 const sessionSchema = z.object({
   user: userSchema.nullable(),
+  // Organizations that require two-factor authentication this person has
+  // not turned on yet. The server refuses their data either way.
+  twoFactorRequiredBy: z.array(heldSchema).default([]),
   providers: z
-    .object({ google: z.boolean(), microsoft: z.boolean() })
-    .default({ google: false, microsoft: false }),
+    .object({
+      google: z.boolean(),
+      microsoft: z.boolean(),
+      oidc: z.boolean().default(false),
+    })
+    .default(noProviders),
+  signIn: z
+    .object({ password: z.boolean(), ssoName: z.string().nullable() })
+    .default(defaultSignIn),
+  // Whether the server has object storage for attachments.
+  attachments: z.boolean().default(true),
 });
 
 export type SessionUser = z.infer<typeof userSchema>;
 export type AuthProviders = z.infer<typeof sessionSchema>["providers"];
+export type SignInOptions = z.infer<typeof sessionSchema>["signIn"];
 export type Session = {
   user: SessionUser | null;
   providers: AuthProviders;
+  twoFactorRequiredBy: z.infer<typeof heldSchema>[];
+  signIn: SignInOptions;
+  attachments: boolean;
 };
 
 type State =
@@ -41,7 +65,6 @@ const listeners = new Set<() => void>();
 
 function set(next: State) {
   state = next;
-  if (next.status === "ready") rememberSignedIn(next.session.user !== null);
   for (const listener of listeners) listener();
 }
 
@@ -90,10 +113,10 @@ export function clearSession() {
     status: "ready",
     session: {
       user: null,
-      providers: state.session?.providers ?? {
-        google: false,
-        microsoft: false,
-      },
+      providers: state.session?.providers ?? noProviders,
+      signIn: state.session?.signIn ?? defaultSignIn,
+      twoFactorRequiredBy: [],
+      attachments: state.session?.attachments ?? true,
     },
   });
 }
@@ -119,7 +142,19 @@ export function useSessionUser(): SessionUser {
 }
 
 export function useAuthProviders(): AuthProviders {
-  return (
-    useSessionState().session?.providers ?? { google: false, microsoft: false }
-  );
+  return useSessionState().session?.providers ?? noProviders;
+}
+
+export function useSignInOptions(): SignInOptions {
+  return useSessionState().session?.signIn ?? defaultSignIn;
+}
+
+// Organizations holding the signed-in person until they turn on two-factor.
+export function useTwoFactorRequiredBy() {
+  return useSessionState().session?.twoFactorRequiredBy ?? [];
+}
+
+// False when the server has no file storage: uploads are not offered.
+export function useAttachmentsAvailable(): boolean {
+  return useSessionState().session?.attachments ?? true;
 }
