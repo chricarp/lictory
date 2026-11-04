@@ -357,7 +357,9 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             <motion.div
               layoutId="intelligence-composer"
               transition={{ type: "spring", duration: 0.5, bounce: 0.1 }}
-              onInputCapture={onInput}
+              // Bubble phase: a state update in the capture phase re-renders
+              // the controlled composer before it stores the first keystroke.
+              onInput={onInput}
             >
               <Composer
                 ref={composer}
