@@ -605,30 +605,27 @@ export const declarations: readonly Declaration[] = [
     name: "POSTHOG_PROJECT_TOKEN",
     group: "Product analytics",
     services: server,
-    default: "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN",
     description:
-      "PostHog project token for server events and the `/relay` analytics proxy (a public token). See docs/internals/analytics.md.",
+      "PostHog project token for server events, server log export, the platform's browser analytics and the `/relay` analytics proxy (a public token). Server code reads only this name, never the build-time copies. See docs/internals/analytics.md.",
   },
   {
     name: "POSTHOG_HOST",
     group: "Product analytics",
     services: server,
-    default: "NEXT_PUBLIC_POSTHOG_HOST",
-    description: "PostHog ingestion host for server events and the relay.",
+    description:
+      "PostHog ingestion host for server events, server log export and the relay.",
   },
   {
     name: "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN",
     group: "Product analytics",
-    services: [...server, "website"],
-    description:
-      "PostHog project token embedded in the website build; also a fallback for the server's token and the worker's log export.",
+    services: ["website"],
+    description: "PostHog project token embedded in the website build.",
   },
   {
     name: "NEXT_PUBLIC_POSTHOG_HOST",
     group: "Product analytics",
-    services: [...server, "website"],
-    description:
-      "PostHog host embedded in the website build; also a fallback for the server's host.",
+    services: ["website"],
+    description: "PostHog host embedded in the website build.",
   },
   {
     name: "ANALYTICS_CONSENT",
@@ -644,20 +641,6 @@ export const declarations: readonly Declaration[] = [
     services: ["website"],
     default: "cookieless until consent",
     description: "`ANALYTICS_CONSENT` for the website build.",
-  },
-  {
-    name: "VITE_POSTHOG_PROJECT_TOKEN",
-    group: "Product analytics",
-    services: ["platform", "api"],
-    description:
-      "PostHog project token embedded in the platform build; also a fallback for the API's relay.",
-  },
-  {
-    name: "VITE_POSTHOG_HOST",
-    group: "Product analytics",
-    services: ["platform", "api"],
-    description:
-      "PostHog host embedded in the platform build; also a fallback for the API's relay.",
   },
 
   // ------------------------------------------------------- website and build

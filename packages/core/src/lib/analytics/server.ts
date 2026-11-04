@@ -6,16 +6,10 @@ import {
   analyticsConsentMode,
   serverEventAllowed,
 } from "@lictory/core/lib/analytics/consent";
+import { posthogServerConfig } from "@lictory/core/lib/analytics/config";
 
-// Server events use POSTHOG_PROJECT_TOKEN/POSTHOG_HOST (falling back to the
-// public names shared with the browser build).
-function configuration() {
-  const token =
-    process.env.POSTHOG_PROJECT_TOKEN ??
-    process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-  const host = process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST;
-  return token && host ? { token, host } : undefined;
-}
+// Server events use POSTHOG_PROJECT_TOKEN/POSTHOG_HOST only.
+const configuration = () => posthogServerConfig();
 
 let client: PostHog | undefined;
 function getClient() {
