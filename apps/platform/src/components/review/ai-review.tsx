@@ -349,23 +349,8 @@ export function AiReviewView({
                 {relativeTime(run.completedAt ?? run.createdAt)}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2.5">
-              <div className="text-right">
-                <p className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-                  Assessment
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  how ready the text reads · /100
-                </p>
-              </div>
-              <ScoreRing score={run.score ?? 0} size={44} />
-            </div>
           </div>
-          {run.summary && (
-            <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed">
-              {run.summary}
-            </p>
-          )}
+          {run.summary && <Summary text={run.summary} />}
           {/* Provenance: which revision was read, whether it is still
               current, how much context, which model. */}
           <ul className="mt-3.5 flex flex-wrap items-center gap-1.5 border-t pt-3 text-[11.5px]">
@@ -391,13 +376,24 @@ export function AiReviewView({
               />
               {run.staleAt ? "Outdated" : "Current"}
             </li>
-            <li className="inline-flex h-6 items-center rounded-full bg-muted px-2.5 ring-1 ring-foreground/8 ring-inset">
+            <li
+              title={run.model ? `Model: ${run.model}` : undefined}
+              className="inline-flex h-6 items-center rounded-full bg-muted px-2.5 ring-1 ring-foreground/8 ring-inset"
+            >
               {Object.keys(run.contextRevisions).length} item
               {Object.keys(run.contextRevisions).length === 1 ? "" : "s"} read
             </li>
-            {run.model && (
-              <li className="inline-flex h-6 items-center rounded-full bg-muted px-2.5 font-mono text-[11px] ring-1 ring-foreground/8 ring-inset">
-                {run.model}
+            {run.score != null && (
+              // The model's reading of the text, not a readiness verdict:
+              // neutral, and named for what it is.
+              <li
+                title="How complete and unambiguous the model finds the text. Readiness checks and people decide readiness."
+                className="inline-flex h-6 items-center gap-1 rounded-full bg-muted px-2.5 ring-1 ring-foreground/8 ring-inset"
+              >
+                AI text assessment{" "}
+                <span className="font-mono text-[11px] tabular-nums">
+                  {run.score}/100
+                </span>
               </li>
             )}
           </ul>
@@ -710,6 +706,33 @@ export function FindingCard({
         </div>
       </div>
     </article>
+  );
+}
+
+// The run's synopsis, clamped with an explicit way to read all of it.
+function Summary({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 260;
+  return (
+    <div className="mt-3">
+      <p
+        className={cn(
+          "text-[14px] leading-relaxed",
+          long && !open && "line-clamp-3",
+        )}
+      >
+        {text}
+      </p>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-1 text-[13px] font-medium text-muted-foreground underline decoration-border underline-offset-[3px] hover:text-foreground"
+        >
+          {open ? "Show less" : "Read full summary"}
+        </button>
+      )}
+    </div>
   );
 }
 

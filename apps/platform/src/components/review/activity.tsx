@@ -668,9 +668,11 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "ai_review_completed":
       body = (
         <>
-          completed a Lictory Intelligence review: <b>{num(d.score)}/100</b>{" "}
-          with {num(d.findings)}{" "}
-          {num(d.findings) === 1 ? "finding" : "findings"}
+          proposed{" "}
+          <b>
+            {num(d.findings)} {num(d.findings) === 1 ? "concern" : "concerns"}
+          </b>{" "}
+          in an AI assessment
           {str(d.requestedById) && (
             <> (requested by {memberName(str(d.requestedById))})</>
           )}
@@ -680,8 +682,8 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "ai_corrective_pr_created":
       body = (
         <>
-          opened a Lictory Intelligence pull request resolving {num(d.findings)}{" "}
-          review {num(d.findings) === 1 ? "finding" : "findings"}
+          opened a pull request proposing fixes for {num(d.findings)}{" "}
+          {num(d.findings) === 1 ? "concern" : "concerns"}
         </>
       );
       break;

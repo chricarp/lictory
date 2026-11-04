@@ -1124,7 +1124,14 @@ function ReviewCard({
                   <span className="truncate">
                     {shown.staleAt
                       ? (shown.staleReason ?? "content changed")
-                      : `${memberName(shown.requestedById)} · ${relativeTime(shown.completedAt ?? shown.createdAt)}`}
+                      : [
+                          item.review?.revisionOf(shown) != null
+                            ? `Read revision ${item.review.revisionOf(shown)}`
+                            : null,
+                          relativeTime(shown.completedAt ?? shown.createdAt),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                   </span>
                 </p>
                 {counts(shown.findings).length > 0 && (

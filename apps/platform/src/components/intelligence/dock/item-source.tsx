@@ -20,8 +20,15 @@ export function DockItemSource({
   viewing: string | null;
   onOpen: (runId: string) => void;
 }) {
-  const { item, project, reviewable, readOnly, capabilities, mutateConfirmed } =
-    useItem();
+  const {
+    item,
+    project,
+    reviewable,
+    readOnly,
+    capabilities,
+    mutateConfirmed,
+    revisions,
+  } = useItem();
   const runs = useAiRuns("item_review");
   const aiBlocker = useAiBlocker();
   const allowed =
@@ -42,6 +49,11 @@ export function DockItemSource({
       }).then(() => undefined),
     [mutateConfirmed, item.id],
   );
+  const revisionOf = useCallback(
+    (run: { contextRevisions: Record<string, string> }) =>
+      revisions.find((r) => r.id === run.contextRevisions[item.id])?.number,
+    [revisions, item.id],
+  );
   const key = identifier(project, item.number);
   const title = item.title;
   const value = useMemo<DockItem>(
@@ -50,10 +62,21 @@ export function DockItemSource({
       key,
       title,
       review: reviewable
-        ? { runs, blocked, request, open: onOpen, viewing }
+        ? { runs, blocked, request, open: onOpen, viewing, revisionOf }
         : null,
     }),
-    [item.id, key, title, reviewable, runs, blocked, request, onOpen, viewing],
+    [
+      item.id,
+      key,
+      title,
+      reviewable,
+      runs,
+      blocked,
+      request,
+      onOpen,
+      viewing,
+      revisionOf,
+    ],
   );
   usePublishDockItem(value);
   return null;

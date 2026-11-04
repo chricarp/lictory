@@ -24,6 +24,8 @@ export type DockReview = {
   open: (runId: string) => void;
   // The review the person is reading in the item, if any.
   viewing: string | null;
+  // The revision number a run read for this item, for its provenance.
+  revisionOf: (run: Run) => number | undefined;
 };
 
 export type DockItem = {
