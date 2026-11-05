@@ -315,10 +315,17 @@ export function RequestReview({
     } catch (err) {
       const reason =
         err instanceof Error ? err.message : "The server refused the request.";
+      const failed = missing[requested.length]?.name;
+      const skipped = missing.slice(requested.length + 1).map((r) => r.name);
       setError(
-        requested.length
-          ? `Requested ${requested.join(" and ")}; the rest failed: ${reason}`
-          : reason,
+        [
+          requested.length && `Requested ${requested.join(" and ")}.`,
+          `${failed ?? "The request"} was not requested: ${reason}`,
+          skipped.length &&
+            `${skipped.join(" and ")} ${skipped.length > 1 ? "were" : "was"} not attempted; request again to continue.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
     } finally {
       setRequestingAll(false);
