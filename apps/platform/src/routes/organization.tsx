@@ -41,6 +41,7 @@ import {
   type Organization,
 } from "@lictory/platform/components/workspace/provider";
 import { Shell } from "@lictory/platform/components/workspace/shell";
+import { useLastProjectKey } from "@lictory/platform/lib/last-project";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
 import {
   ConnectionNotice,
@@ -239,15 +240,39 @@ function OrganizationWorkspace({
   );
 }
 
-// Organization root: Litto is the home page. A brand-new
-// organization without projects first creates its first project.
+// Organization root: Litto is the home page. When Litto cannot answer (no AI
+// provider on this server, or Lictory Intelligence turned off), home is the
+// project the person last worked in instead of a page that only says so. A
+// brand-new organization without projects first creates its first project.
 export function OrganizationIndex() {
-  const { organization, projects, view, isAdmin } = useWorkspace();
+  const { organization, projects, view, isAdmin, directory, userId } =
+    useWorkspace();
   const router = useRouter();
+  const lastKey = useLastProjectKey(organization.id);
+  // The directory carries the Lictory Intelligence settings; until it has
+  // arrived its defaults would read as "off".
+  const loaded = directory.members.some((m) => m.id === userId);
   const ready = projects.length > 0;
+  const littoHome = directory.ai.available && directory.ai.enabled;
+  const home =
+    !ready || !loaded
+      ? undefined
+      : littoHome
+        ? paths.intelligence(organization.slug)
+        : paths.project(
+            organization.slug,
+            (projects.find((p) => p.key === lastKey) ?? projects[0]!).key,
+          );
   useEffect(() => {
-    if (ready) router.replace(paths.intelligence(organization.slug));
-  }, [ready, organization.slug, router]);
+    if (!home) return;
+    router.replace(home);
+    // A redirect issued while the navigation that opened this page is still
+    // settling can be superseded, which left people who had just joined on a
+    // blank organization page. Retry while this page is still shown; it
+    // unmounts as soon as the redirect lands.
+    const retry = setInterval(() => router.replace(home), 1500);
+    return () => clearInterval(retry);
+  }, [home, router]);
   if (ready || view.status === "hydrating") return null;
   if (isSyncBlocked(view.status))
     return <SyncIssue status={view.status} error={view.error} />;
