@@ -85,24 +85,28 @@ optional S3-compatible bucket. Single sign-on supports OpenID Connect. See
 ### Operate from the terminal
 
 ```sh
-lictory status                      # version, services and access policy
-lictory doctor                      # diagnose the host and installation
-lictory logs worker -f --tail 100    # follow a service's logs
-sudo lictory backup                  # back up before making changes
-sudo lictory upgrade                 # newest release of your configured channel
-sudo lictory admin setup             # create the first administrator if deferred
+lictory status                        # address, release, services, backups, access
+lictory doctor                        # every check, with the fix for each problem
+sudo lictory config set SMTP_PORT=587  # change a setting; undone if services reject it
+lictory logs worker -f --tail 100     # follow a service's logs
+sudo lictory backup list              # stored backups and the keys restore takes
+lictory upgrade --check               # exit 10 when a newer release exists
+sudo lictory upgrade                  # newest release of your configured channel
+sudo lictory support-bundle           # redacted archive for a bug report
 ```
 
-Every command supports `--env <name>` for multiple environments. `--yes` runs
-without questions; flags or `LICTORY_<FLAG>` environment variables supply install
-settings. Pipes receive plain output, `NO_COLOR=1` disables styling, and
-`lictory status --json` provides machine-readable status. `lictory help` and
-`lictory admin help` list the commands.
+Every command supports `--env <name>` for multiple environments and `--help`
+for its options; in bash, Tab completes them. `--yes` runs without questions;
+flags or `LICTORY_<FLAG>` environment variables supply install settings. Pipes
+receive plain output, `NO_COLOR=1` disables styling, and `status`, `doctor`,
+`config show`, `backup list`, `upgrade --check` and `version` take `--json`.
 
 The [terminal guide](https://docs.lictory.com/self-hosting/terminal) covers
 unattended installation, reconfiguration, account recovery, rollback and restore
-drills. The [operator runbook](docs/operations/self-hosting.md) includes every
-install option.
+drills. The [command reference](https://docs.lictory.com/self-hosting/commands)
+lists every option, variable and exit code, and
+[troubleshooting](https://docs.lictory.com/self-hosting/troubleshooting) the
+common problems.
 
 ## Work with your coding agent
 

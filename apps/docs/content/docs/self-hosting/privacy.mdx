@@ -18,6 +18,14 @@ configure:
 | `GOOGLE_*`, `MICROSOFT_*`, `OIDC_*`           | Sign-in through those identity providers                                 |
 | `ACME_EMAIL`, `BACKUP_*`, alert and ping URLs | Certificate issuance, encrypted backups, alerts and monitoring pings     |
 
+The `lictory` command on the server also reaches out, without sending
+anything about your installation: `install`, `upgrade`, `upgrade --check` and
+`doctor` ask GitHub's API for the newest release of your channel (anonymous
+requests; `GITHUB_TOKEN` raises the rate limit), and releases pull their
+images from your registry (`ghcr.io` by default). Without that access,
+installing and upgrading cannot find releases, while everything else keeps
+working and `doctor` only warns that it could not check for a newer release.
+
 Uploaded documents are converted to text on your server; scanned PDFs are
 rejected rather than sent to a hosted OCR service. Lictory Intelligence runs
 only when the server has an AI key **and** an organization administrator has

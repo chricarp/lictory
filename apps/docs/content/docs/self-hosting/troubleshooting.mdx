@@ -1,0 +1,156 @@
+---
+title: Troubleshooting
+description: What the most common installation and operating problems look like, why they happen and the command that fixes each one.
+---
+
+<CliNotice />
+
+Start with `lictory doctor`. It checks the host, the settings, DNS,
+certificates, every service, replication, backups, access and the timers,
+and each failure line names its fix. `lictory status` shows the same state
+at a glance.
+
+<Cli command={["doctor", "status"]} />
+
+## Installation
+
+### "Docker Engine is missing" or "too old"
+
+Lictory needs Docker Engine 25 or newer with the Compose v2 plugin (2.24 or
+newer). Install it from [Docker's packages](https://docs.docker.com/engine/install/)
+rather than your distribution's (often older) ones, then run the bootstrap
+again.
+
+### "Port 80 is in use by another program"
+
+Another web server already listens on the host. Stop it, or keep it and put
+Lictory behind it: `sudo lictory install --tls proxy` makes the gateway
+listen on a local port for your proxy instead
+([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+
+### "The registry refused to pull"
+
+The release images are private (for example in a fork). Log in with a token
+that can read packages, then run the command again:
+
+<Cli command="registry-login" />
+
+Before the bootstrap, `docker login ghcr.io` as root does the same.
+
+### "… is a nightly release; environment production follows stable releases"
+
+Each environment follows one release channel. Install a version of that
+channel, or switch the channel with `sudo lictory install --channel nightly`
+(or `stable`). See [release channels](/self-hosting/upgrades#release-channels).
+
+### "Another deployment of production is running"
+
+Each environment allows one deployment at a time. Wait for the other one
+(an upgrade, or a pre-deploy backup) to finish; `lictory logs` and
+`/srv/lictory/<env>/deploy.log` show its progress.
+
+## Address and certificates
+
+### "/readyz is not reachable, but the gateway answers locally"
+
+Lictory runs, but browsers cannot reach it: check that DNS points at this
+server, that the firewall allows ports 80 and 443, and, behind a proxy, the
+proxy's configuration.
+
+### No certificate yet
+
+Let's Encrypt issues a certificate only once DNS points at the server and
+port 80 is reachable from the internet. `lictory logs proxy` shows why it
+failed: DNS, a rate limit, or a `CAA` record that does not allow
+`letsencrypt.org`.
+
+### Pages load, but nothing updates live
+
+The realtime connection is a WebSocket under `/zero/`. A proxy in front of
+Lictory must pass WebSocket upgrades with the browser's `Origin` unchanged
+([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+
+### Everyone shares one sign-in rate limit
+
+Behind a proxy, the gateway sees every request coming from the proxy's
+address. Tell it which addresses are your proxies; `lictory doctor` prints
+the address a proxy on the same host connects from:
+
+```sh
+sudo lictory install --trusted-proxies 172.18.0.1
+```
+
+## Accounts and email
+
+### Invitation or password reset email never arrives
+
+Either no email service is configured (`doctor` warns "No outbound email"),
+or the SMTP settings are wrong. Configure it, then look for the delivery
+error in the worker's log:
+
+```sh
+sudo lictory install --email smtp
+lictory logs worker --tail 100
+```
+
+Without email, create accounts with a password from the server:
+`sudo lictory admin create-user <email> --name <name>`.
+
+### A person cannot create an account
+
+New accounts follow the access policy: by default people join when an
+administrator invites them, and allowed email domains may apply. Invite the
+person from the admin console, or create the account with
+`lictory admin create-user`. `lictory status` shows the policy.
+
+### Nobody can manage accounts
+
+<Cli command={["admin-setup", "admin-grant"]} />
+
+`admin setup` creates the first administrator when there is none;
+`admin grant` makes an existing account one. Both work from the server when
+nobody can sign in.
+
+## Settings
+
+### A setting has no effect
+
+Settings apply when the services restart. `lictory config set` restarts
+them; after editing `.env` by hand, run `sudo lictory config apply`. A key
+the release does not read is ignored, so `config set` refuses unknown keys:
+check its spelling with `lictory config show`.
+
+### "Not every service runs the release's images"
+
+A service was recreated by hand or with another image. Re-activate the
+release: `sudo lictory config apply`.
+
+## Database and replication
+
+### Replication slot or WAL warnings
+
+zero-cache keeps a replication slot on PostgreSQL. If zero-cache stops for
+long, PostgreSQL keeps WAL for it and the disk fills. `lictory doctor` and
+the monitor report the slot's lag and the WAL size; the
+[recovery runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/recovery.md#replication-slot-and-wal-growth)
+explains how to recover.
+
+### Backups fail
+
+`lictory status` shows the backup timer's last result, and
+`lictory backup list` reads the target. A failing listing usually means wrong
+credentials or bucket settings; change them with `sudo lictory install`
+(the Backups step) and take a backup with `sudo lictory backup`.
+
+## Still stuck
+
+Collect a support bundle and open an
+[issue](https://github.com/chricarp/lictory/issues/new/choose) with the
+relevant lines:
+
+<Cli command="support-bundle" />
+
+Secrets from `.env`, email addresses and tokens are removed, but logs can
+still contain your organization's content: read the archive before sharing
+anything from it. Report security problems privately, as described in the
+[security policy](https://github.com/chricarp/lictory/security/policy).

@@ -44,10 +44,11 @@ secrets are written to the environment's `.env` file (by default
 generated for you.
 
 <Callout type="warn" title="Keep a copy of .env">
-  Store the `.env` file in your password manager. Two values matter in a
-  recovery: `BETTER_AUTH_SECRET` keeps sessions valid, and
-  `DELIVERY_CREDENTIALS_KEY` keeps stored Jira credentials readable. Never
-  rotate `DELIVERY_CREDENTIALS_KEY` once Jira is connected.
+  Store the `.env` file in your password manager (`sudo lictory config show
+  --reveal` prints it). Two values matter in a recovery: `BETTER_AUTH_SECRET`
+  keeps sessions valid, and `DELIVERY_CREDENTIALS_KEY` keeps stored Jira
+  credentials readable. Never rotate `DELIVERY_CREDENTIALS_KEY` once Jira is
+  connected; `lictory config` refuses to change it without `--force`.
 </Callout>
 
 On an empty database the first release does everything in order: PostgreSQL
@@ -90,3 +91,6 @@ Then, in a browser:
   appears in the other (the realtime connection);
 - upload and download an attachment, if file storage is configured;
 - run a first [backup](/self-hosting/backups) and a restore drill.
+
+If a check fails, `lictory doctor` names the fix;
+[troubleshooting](/self-hosting/troubleshooting) covers the common problems.
