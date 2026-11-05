@@ -68,3 +68,33 @@ void test("a drill of a backup file mounts the dump and its manifest into the co
     /restore \/restore-source\/lictory-production-20261104T023000Z-manual\.dump$/,
   );
 });
+
+void test("the drill passes backup credentials on exactly as written", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "lictory-drill-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const root = join(base, "root");
+  const home = join(root, "production");
+  mkdirSync(join(home, "current"), { recursive: true });
+  writeFileSync(
+    join(home, ".env"),
+    "LICTORY_DB_NAME=lictory\nBACKUP_TARGET=s3\nBACKUP_BUCKET=b\nexport BACKUP_S3_SECRET_ACCESS_KEY='literal$TOKEN#1'\n",
+  );
+  writeFileSync(join(home, "current/release.env"), "LICTORY_VERSION=1.2.3\n");
+  const fake = join(base, "bin");
+  mkdirSync(fake);
+  const copy = join(base, "drill.env");
+  // Keeps the generated env file (the drill deletes its work directory).
+  writeFileSync(
+    join(fake, "docker"),
+    `#!/bin/sh\nfor a in "$@"; do [ "$prev" = --env-file ] && cp "$a" "${copy}"; prev="$a"; done\nexit 3\n`,
+    { mode: 0o755 },
+  );
+  spawnSync("bash", [script, "production", "none", "latest"], {
+    encoding: "utf8",
+    env: { PATH: `${fake}:${process.env.PATH}`, LICTORY_ROOT: root },
+  });
+  assert.match(
+    readFileSync(copy, "utf8"),
+    /^BACKUP_S3_SECRET_ACCESS_KEY='literal\$TOKEN#1'$/m,
+  );
+});

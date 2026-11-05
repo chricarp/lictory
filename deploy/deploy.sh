@@ -61,15 +61,50 @@ die() {
   log "ERROR: $*"
   exit 1
 }
-env_value() { # env_value <file> <key>
-  local line
-  line=$(grep -E "^$2=" "$1" | tail -n 1 || true)
-  line="${line#*=}"
-  line="${line%\"}"
-  line="${line#\"}"
-  line="${line%\'}"
-  line="${line#\'}"
-  printf '%s' "$line"
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
+  printf '%s' "$out"
 }
 setting() { env_value "$home/.env" "$1"; }
 compose() { # compose <release-dir> <args...>

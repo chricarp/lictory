@@ -23,7 +23,63 @@ if [ "$identity" != none ]; then
   identity="$(cd "$(dirname "$identity")" && pwd)/$(basename "$identity")"
 fi
 
-value() { grep -E "^$2=" "$1" | tail -n 1 | cut -d= -f2- | sed -e "s/^['\"]//" -e "s/['\"]\$//"; }
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
+  printf '%s' "$out"
+}
+value() { env_value "$1" "$2"; }
+# env_line <key> <value>: a line Compose reads back as exactly <value>
+# (single quotes: no interpolation of $, no escapes).
+env_line() {
+  case "$2" in
+    *"'"* | *'\')
+      echo "$1 contains a single quote or ends with a backslash, which the drill cannot pass on; run it with a simpler value." >&2
+      return 1
+      ;;
+  esac
+  printf "%s='%s'\n" "$1" "$2"
+}
 secret() { openssl rand -hex 24; }
 work=$(mktemp -d)
 chmod 700 "$work"
@@ -53,7 +109,7 @@ fi
   echo "AGE_IDENTITY_FILE=$work/age-identity"
   echo "DRILL_BACKUP_SOURCE=$backup_source"
   for key in BACKUP_TARGET BACKUP_RCLONE_REMOTE BACKUP_BUCKET BACKUP_S3_PROVIDER BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
-    echo "$key=$(value "$home/.env" "$key")"
+    env_line "$key" "$(value "$home/.env" "$key")" || exit 1
   done
   for key in OPS_IMAGE MIGRATE_IMAGE API_IMAGE; do echo "$key=$(value "$release/release.env" "$key")"; done
 } >"$drill_env"

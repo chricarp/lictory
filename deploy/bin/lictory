@@ -560,6 +560,7 @@ invalid_reason() {
   case "$value" in
     *$'\n'* | *$'\r'*) echo "must be a single line" && return ;;
     *"'"*) echo "must not contain a single quote (edit .env by hand for such values)" && return ;;
+    *'\') echo "must not end with a backslash (edit .env by hand for such values)" && return ;;
   esac
   case "$name" in
     env) valid_environment "$value" || echo "use lowercase letters, digits and hyphens (local, test and preview are reserved)" ;;
@@ -609,15 +610,50 @@ valid_root || die "LICTORY_ROOT must be an absolute path without spaces or '..'.
 root="${root%/}"
 bin="$root/bin"
 
-env_value() { # env_value <file> <key> (the last assignment, one pair of quotes removed)
-  local line
-  line=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 || true)
-  line="${line#*=}"
-  line="${line%\"}"
-  line="${line#\"}"
-  line="${line%\'}"
-  line="${line#\'}"
-  printf '%s' "$line"
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
+  printf '%s' "$out"
 }
 setting() { env_value "$home/.env" "$1"; }
 
@@ -711,7 +747,8 @@ channel_of_environment() {
 # with `$` or `#` are single-quoted for Compose.
 set_env() { # set_env <file> <key> <value>
   local file="$1" key="$2" value="$3" tmp
-  if ! grep -qE "^$key=" "$file"; then
+  # Every form env_value reads (export, spaces around =) is the same key.
+  if ! grep -qE "^[[:space:]]*(export[[:space:]]+)?$key[[:space:]]*=" "$file"; then
     [ -n "$value" ] || return 0
     printf '%s=%s\n' "$key" "$(env_quote "$value")" >>"$file"
     return 0
@@ -719,7 +756,7 @@ set_env() { # set_env <file> <key> <value>
   tmp=$(mktemp "$(dirname "$file")/.env.XXXXXX")
   LICTORY_KEY="$key" LICTORY_VALUE="$(env_quote "$value")" awk '
     BEGIN { key = ENVIRON["LICTORY_KEY"]; value = ENVIRON["LICTORY_VALUE"] }
-    index($0, key "=") == 1 { print key "=" value; next }
+    $0 ~ ("^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=") { print key "=" value; next }
     { print }
   ' "$file" >"$tmp"
   chmod 0600 "$tmp"
@@ -728,7 +765,7 @@ set_env() { # set_env <file> <key> <value>
 }
 env_quote() {
   case "$1" in
-    *'$'* | *'#'* | ' '* | *' ' | '"'*) printf "'%s'" "$1" ;;
+    *'$'* | *'#'* | [[:space:]]* | *[[:space:]] | '"'*) printf "'%s'" "$1" ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -1194,8 +1231,10 @@ ask() {
     [ -z "$default" ] || set_opt "$name" "$default"
     return 0
   fi
+  local shown="$default"
+  [ "$name" != backup-rclone-remote ] || shown=$(remote_masked "$default")
   while :; do
-    prompt_line "$question" "$default" "$secret"
+    prompt_line "$question" "$shown" "$secret"
     answer="${answer:-$default}"
     if [ -z "$answer" ]; then
       return 0
@@ -1494,6 +1533,8 @@ collect_services() {
       require_opt s3-access-key-id "The access key ID"
       ask s3-secret-access-key "Secret access key" "$(current S3_SECRET_ACCESS_KEY)" secret
       require_opt s3-secret-access-key "The secret access key"
+      # Kept unless answered: MinIO, Garage and Ceph often need path-style URLs.
+      ask s3-force-path-style "Path-style requests (true for MinIO, Garage, Ceph; empty: the endpoint's default)" "$(current S3_FORCE_PATH_STYLE)"
       for key in S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_FORCE_PATH_STYLE; do
         plan "$key" "$(opt "$(printf '%s' "$key" | tr '[:upper:]_' '[:lower:]-')")"
       done
@@ -1652,6 +1693,30 @@ generate_age_key() { # generate_age_key <ops image> <identity file>
 # masked <value>: secrets shown as dots in the review.
 masked() { [ -z "$1" ] && printf 'none' || printf '%s' "$g_mask"; }
 
+# An rclone connection string (BACKUP_RCLONE_REMOTE) can carry credentials
+# (:sftp,host=nas,user=backup,pass=…:path). remote_masked shows it with their
+# values masked; remote_secrets prints each value, for redaction.
+remote_credentials='pass|password|key_pem|private_key|secret_access_key|account_key|key|client_secret|token|sas_url|service_account_credentials|bearer_token|session_token'
+# A value is quoted from its first character, a doubled quote inside being a
+# literal one (as rclone and backup-target.sh read it), or runs to , or :.
+# (POSIX regular expressions take the longest match, so a quoted value is
+# matched whole.)
+remote_value="(\"([^\"]|\"\")*\"|'([^']|'')*'|[^,:]*)"
+remote_masked() {
+  printf '%s' "$1" | sed -E "s/((^|[,:])($remote_credentials)=)$remote_value/\1$g_mask/g"
+}
+remote_secrets() {
+  local value
+  printf '%s' "$1" | grep -oE "(^|[,:])($remote_credentials)=$remote_value" | cut -d= -f2- |
+    while IFS= read -r value; do
+      case "$value" in
+        \"*) value="${value#\"}" && value="${value%\"}" && value="${value//\"\"/\"}" ;;
+        \'*) value="${value#\'}" && value="${value%\'}" && value="${value//\'\'/\'}" ;;
+      esac
+      printf '%s\n' "$value"
+    done || true
+}
+
 # The review before anything changes: the answers in words, and for an
 # existing environment the .env keys that change.
 review() {
@@ -1686,7 +1751,7 @@ review() {
   case "$backup" in
     local) lines+=("$(row "Backups" "$( [ -n "$(opt backup-path)" ] && opt backup-path || printf 'a volume on this server')")") ;;
     s3) lines+=("$(row "Backups" "bucket $(opt backup-bucket), secret $(masked "$(opt backup-s3-secret-access-key)")")") ;;
-    rclone) lines+=("$(row "Backups" "rclone $(opt backup-rclone-remote)")") ;;
+    rclone) lines+=("$(row "Backups" "rclone $(remote_masked "$(opt backup-rclone-remote)")")") ;;
     none) lines+=("$(row "Backups" "none")") ;;
   esac
   if [ "$backup" != none ]; then
@@ -2560,6 +2625,8 @@ config_secret() { # config_secret <key> <value>
 config_shown() { # config_shown <key> <value>: the value as output shows it
   if [ -z "$2" ]; then
     printf '%s' "${c_dim}(empty)${c_reset}"
+  elif [ "$(opt reveal)" != true ] && [ "$1" = BACKUP_RCLONE_REMOTE ]; then
+    remote_masked "$2"
   elif [ "$(opt reveal)" != true ] && config_secret "$1" "$2"; then
     printf '%s' "$g_mask"
   else
@@ -2581,7 +2648,9 @@ config_known_keys() {
     config_keys "$home/.env"
   } | sort -u
 }
-config_keys() { sed -nE 's/^([A-Z][A-Z0-9_]*)=.*/\1/p' "$1" | awk '!seen[$0]++'; }
+# config_keys <file>: every key assigned in it, in every form env_value reads
+# (export, spaces around =), so listing, diffs and redaction see them all.
+config_keys() { sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Z][A-Z0-9_]*)[[:space:]]*=.*/\2/p' "$1" | awk '!seen[$0]++'; }
 
 # config_diff <old file> <new file>: prints "KEY|old|new" for each change
 # and fails when nothing changed.
@@ -2753,7 +2822,11 @@ cmd_config() {
       if [ "$(opt json)" = true ]; then
         config_keys "$home/.env" | while IFS= read -r key; do
           value=$(env_value "$home/.env" "$key")
-          [ "$(opt reveal)" = true ] || ! config_secret "$key" "$value" || [ -z "$value" ] || value="$g_mask"
+          if [ "$(opt reveal)" != true ] && [ "$key" = BACKUP_RCLONE_REMOTE ]; then
+            value=$(remote_masked "$value")
+          elif [ "$(opt reveal)" != true ] && [ -n "$value" ] && config_secret "$key" "$value"; then
+            value="$g_mask"
+          fi
           printf '%s\t%s\n' "$key" "$value"
         done | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1:] | join("\t"))}] | from_entries'
         return 0
@@ -2910,6 +2983,7 @@ cmd_support_bundle() {
     config_keys "$home/.env" | while IFS= read -r key; do
       value=$(env_value "$home/.env" "$key")
       if [ -n "$value" ] && config_secret "$key" "$value"; then printf '%s\n' "$value"; fi
+      [ "$key" != BACKUP_RCLONE_REMOTE ] || remote_secrets "$value"
     done >"$secrets"
   )
   local dir="$work/$name" errors="$work/$name/errors.txt"

@@ -1624,3 +1624,242 @@ esac
     assert.match(restored.stdout, /Restored\. Check the data/);
   },
 );
+
+void test(
+  "settings are read like Compose reads them and kept across installs",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const first = f.lictory(
+      [
+        ...acmeInstall,
+        "--storage",
+        "s3",
+        "--s3-endpoint",
+        "https://minio.example.test",
+        "--s3-bucket",
+        "attachments",
+        "--s3-access-key-id",
+        "lictory",
+        "--s3-force-path-style",
+        "true",
+      ],
+      { LICTORY_S3_SECRET_ACCESS_KEY: "minio-secret" },
+    );
+    assert.equal(first.status, 0, first.stderr + first.stdout);
+    assert.match(
+      readFileSync(join(home, ".env"), "utf8"),
+      /^S3_FORCE_PATH_STYLE=true$/m,
+    );
+    // A re-run that does not mention path-style requests keeps them.
+    const again = f.lictory([
+      "install",
+      "--yes",
+      "--ignore-requirements",
+      "--signup-mode",
+      "closed",
+    ]);
+    assert.equal(again.status, 0, again.stderr + again.stdout);
+    assert.match(
+      readFileSync(join(home, ".env"), "utf8"),
+      /^S3_FORCE_PATH_STYLE=true$/m,
+    );
+
+    // Inline comments, as the reverse-proxy examples used to show them.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "LEGAL_TERMS_URL=https://example.test/terms   # our terms\nLEGAL_PRIVACY_URL='https://example.test/#privacy' # quoted\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/terms\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_PRIVACY_URL"]).stdout,
+      "https://example.test/#privacy\n",
+    );
+    // Compose's other forms: export, spaces around =, escapes in quotes.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        'export LEGAL_TERMS_URL=https://example.test/new\n  SMTP_FROM = "Lictory \\"Ops\\" <ops@example.test>"\n',
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/new\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_FROM"]).stdout,
+      'Lictory "Ops" <ops@example.test>\n',
+    );
+    // Every form is listed (and so masked and redacted).
+    const listed = f.lictory(["config", "show", "--json"]).stdout;
+    assert.equal(
+      (JSON.parse(listed) as Record<string, string>).LEGAL_TERMS_URL,
+      "https://example.test/new",
+    );
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "export RESEND_API_KEY=EXPORTED-SECRET-77\n",
+    );
+    assert.match(
+      f.lictory(["config", "show"]).stdout,
+      /^RESEND_API_KEY=\*\*\*\*$/m,
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *" logs "*) echo "worker | resend refused EXPORTED-SECRET-77" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const bundle = join(f.base, "export-bundle.tar.gz");
+    assert.equal(f.lictory(["support-bundle", "--output", bundle]).status, 0);
+    const unpacked = join(f.base, "export-bundle");
+    mkdirSync(unpacked);
+    spawnSync("tar", ["-xzf", bundle, "-C", unpacked]);
+    const archived = spawnSync(
+      "sh",
+      ["-c", `cat "${unpacked}"/*/*.* "${unpacked}"/*/logs/*`],
+      { encoding: "utf8" },
+    ).stdout;
+    assert.ok(!archived.includes("EXPORTED-SECRET-77"));
+
+    // Changing a key written as "export KEY=" changes the value Compose reads.
+    assert.equal(
+      f.lictory([
+        "config",
+        "set",
+        "--no-apply",
+        "LEGAL_TERMS_URL=https://example.test/v2",
+      ]).status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/v2\n",
+    );
+    // Leading or trailing whitespace (a tab) survives a round trip.
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PASSWORD=secret\t"])
+        .status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout,
+      "secret\t\n",
+    );
+
+    // A value that only ends with a quote is the literal text (Compose reads
+    // it so); clearing the quote is a real change.
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", 'SMTP_PASSWORD=a"']).status,
+      0,
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, 'a"\n');
+    const cleared = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "SMTP_PASSWORD=a",
+    ]);
+    assert.match(
+      cleared.stdout,
+      /SMTP_PASSWORD: \*\*\*\* -> \*\*\*\* \(new value\)/,
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, "a\n");
+  },
+);
+
+void test("every host script decodes .env with the same function", () => {
+  const copy = (file: string) => {
+    const text = readFileSync(join(deploy, file), "utf8");
+    const start = text.indexOf(
+      "# env_value <file> <key>: the last assignment of <key>, decoded as Docker",
+    );
+    assert.ok(start >= 0, file);
+    return text.slice(start, text.indexOf("\n}\n", start) + 2);
+  };
+  const reference = copy("bin/lictory");
+  for (const file of [
+    "deploy.sh",
+    "bin/lictory-backup",
+    "bin/lictory-monitor",
+    "bin/lictory-restore-drill",
+  ])
+    assert.equal(copy(file), reference, file);
+});
+
+void test(
+  "credentials inside an rclone connection string never reach the output",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const remote =
+      ":sftp,host=nas.example.test,user=backup,pass=SFTP-SECRET-9f2:lictory";
+    const installed = f.lictory(
+      [
+        ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+        "--backup",
+        "rclone",
+        "--backup-age-recipient",
+        recipient,
+      ],
+      { LICTORY_BACKUP_RCLONE_REMOTE: remote },
+    );
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    assert.match(
+      installed.stdout,
+      /rclone :sftp,host=nas\.example\.test,user=backup,pass=\*\*\*\*:lictory/,
+    );
+    const shown = f.lictory(["config", "show"]);
+    assert.match(
+      shown.stdout,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas\.example\.test,user=backup,pass=\*\*\*\*:lictory$/m,
+    );
+    const json = f.lictory(["config", "show", "--json"]);
+    assert.equal(
+      (JSON.parse(json.stdout) as Record<string, string>).BACKUP_RCLONE_REMOTE,
+      ":sftp,host=nas.example.test,user=backup,pass=****:lictory",
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *" logs "*) echo "ops | rclone: failed to connect with pass SFTP-SECRET-9f2" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const out = join(f.base, "bundle.tar.gz");
+    assert.equal(f.lictory(["support-bundle", "--output", out]).status, 0);
+    const dir = join(f.base, "extracted-bundle");
+    mkdirSync(dir);
+    spawnSync("tar", ["-xzf", out, "-C", dir]);
+    const all = spawnSync(
+      "sh",
+      ["-c", `cat "${dir}"/*/*.* "${dir}"/*/logs/*`],
+      { encoding: "utf8" },
+    ).stdout;
+    // A quoted password with a doubled quote is masked whole.
+    const envFile = join(f.root, "production/.env");
+    writeFileSync(
+      envFile,
+      readFileSync(envFile, "utf8").replace(
+        /^BACKUP_RCLONE_REMOTE=.*$/m,
+        `BACKUP_RCLONE_REMOTE=':sftp,host=nas,pass="first,part""SECOND-SECRET,tail":backups'`,
+      ),
+    );
+    const quoted = f.lictory(["config", "show"]).stdout;
+    assert.match(
+      quoted,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas,pass=\*\*\*\*:backups$/m,
+    );
+    assert.ok(!quoted.includes("SECOND-SECRET"));
+    for (const output of [
+      installed.stdout,
+      installed.stderr,
+      shown.stdout,
+      json.stdout,
+      all,
+    ])
+      assert.ok(!output.includes("SFTP-SECRET-9f2"));
+  },
+);
