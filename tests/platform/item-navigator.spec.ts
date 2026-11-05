@@ -108,4 +108,15 @@ test("the list beside an item keeps titles readable and previews items on hover"
   await title.click();
   await expect(page).toHaveURL(/\/items\/NAVP-2(\?.*)?$/);
   await expect(preview).toBeHidden();
+
+  // The clicked row link keeps focus, yet after j/k Enter opens the row the
+  // cursor is on rather than re-activating that link.
+  await expect(title).toBeFocused();
+  const other = list
+    .locator("[data-item-row]")
+    .filter({ hasText: "Show the refund status" });
+  await page.keyboard.press("j");
+  await expect(other).toHaveAttribute("data-focused", "true");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/items\/NAVP-1(\?.*)?$/);
 });
