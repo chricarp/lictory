@@ -433,6 +433,15 @@ export function IssueList({
     return () => window.removeEventListener("keydown", onKey);
   }, [order, focus, cursorShown, hrefFor, router]);
   useEffect(() => {
+    // Focus moving anywhere ends the Enter override: Enter then activates
+    // whatever the user focused, even if it is the same control again.
+    const onFocusIn = () => {
+      navigatedFrom.current = null;
+    };
+    window.addEventListener("focusin", onFocusIn);
+    return () => window.removeEventListener("focusin", onFocusIn);
+  }, []);
+  useEffect(() => {
     listRef.current
       ?.querySelector<HTMLElement>("[data-focused]")
       ?.scrollIntoView({ block: "nearest" });
@@ -1033,7 +1042,10 @@ export function IssueList({
                         setFocus(item.id);
                         setCursorShown(true);
                       }}
-                      onBlur={() => setCursorShown(false)}
+                      onBlur={() => {
+                        // j/k may have moved the cursor off this row already.
+                        if (item.id === focus) setCursorShown(false);
+                      }}
                       preview={compact ? previewTarget : undefined}
                     />
                   ))}

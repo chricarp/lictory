@@ -95,6 +95,9 @@ test("the list beside an item keeps titles readable and previews items on hover"
     .hover();
   await expect(preview).toBeHidden();
   await expect(row).not.toHaveAttribute("data-focused");
+  // The keyboard brings the cursor back.
+  await page.keyboard.press("ArrowDown");
+  await expect(list.locator("[data-focused]")).toHaveCount(1);
   await row.getByRole("button", { name: /^Status:/ }).click();
   await expect(page.getByRole("option").first()).toBeVisible();
   await page.keyboard.press("Escape");
@@ -116,6 +119,9 @@ test("the list beside an item keeps titles readable and previews items on hover"
     .locator("[data-item-row]")
     .filter({ hasText: "Show the refund status" });
   await page.keyboard.press("j");
+  await expect(other).toHaveAttribute("data-focused", "true");
+  // The pointer leaving the clicked row keeps the cursor where j put it.
+  await page.getByRole("heading", { name: longTitle, level: 1 }).hover();
   await expect(other).toHaveAttribute("data-focused", "true");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/items\/NAVP-1(\?.*)?$/);
