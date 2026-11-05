@@ -74,6 +74,12 @@ if [ "$cli_path" != none ] && [ -f "$root/bin/lictory" ]; then
   printf '#!/bin/sh\nexec env LICTORY_ROOT="${LICTORY_ROOT:-%s}" %s/bin/lictory "$@"\n' "$root" "$root" >"$cli_path.new"
   chmod 0755 "$cli_path.new"
   mv -f "$cli_path.new" "$cli_path"
+  # Tab completion for commands, options, environments and setting names.
+  if [ -d /etc/bash_completion.d ]; then
+    LICTORY_ROOT="$root" bash "$root/bin/lictory" completion bash >/etc/bash_completion.d/.lictory.new 2>/dev/null &&
+      mv -f /etc/bash_completion.d/.lictory.new /etc/bash_completion.d/lictory ||
+      rm -f /etc/bash_completion.d/.lictory.new
+  fi
 fi
 for environment in $environments; do
   install -d -m 0750 -o "$user" -g "$group" "$root/$environment" "$root/$environment/releases" "$root/$environment/postgres"

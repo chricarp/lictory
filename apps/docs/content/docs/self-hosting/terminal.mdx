@@ -22,6 +22,10 @@ The bootstrap installs the command; `install` starts the guided setup:
 7. Check that the application is ready and start the scheduled jobs.
 8. Create the first instance administrator and their organization.
 
+In bash, **Tab** completes commands, options, environment names, services and
+setting names (the bootstrap installs `/etc/bash_completion.d/lictory`; for
+another shell or user, `lictory completion bash` prints the script).
+
 Use **↑/↓**, **j/k**, or a choice's number to select a menu entry, then
 **Enter**. At text prompts, Enter keeps the displayed default. Passwords are
 hidden; new passwords are confirmed twice. Invalid answers are explained at
@@ -43,10 +47,8 @@ required in CI.
 
 `status` summarizes the address, the active release and when it was
 activated, each service's health, the backup timer's last and next run, and
-the access policy. On a terminal it is one panel; piped, it prints the same
-plain lines as before, and `status --json` returns JSON for scripts. `doctor` checks the host,
-configuration, DNS, certificates, backup setup and replication, and gives
-remediation advice without sending alerts.
+the access policy. On a terminal it is one panel; piped, the same facts are
+plain `key: value` lines, and `status --json` returns them as JSON for scripts.
 
 To follow only the background worker:
 
@@ -142,9 +144,9 @@ curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh
   | sudo LICTORY_CHANNEL=nightly sh
 ```
 
-`LICTORY_VERSION` pins an exact bootstrap release. See the
-[operator runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/self-hosting.md#command-reference)
-for all flags, TLS modes, backup destinations and validation rules.
+`LICTORY_VERSION` pins an exact bootstrap release. The
+[command reference](/self-hosting/commands) lists every option, variable and
+exit code.
 
 ## Multiple environments
 
@@ -157,8 +159,21 @@ lictory doctor --env staging
 lictory logs api --env staging --tail 50
 ```
 
-Each environment has its own configuration and deployment lock. Check the
-environment before a write such as upgrade, restore or account administration.
+Each environment has its own configuration, database, Docker volumes and
+deployment lock. Check the environment before a write such as upgrade,
+restore or account administration.
+
+Environments on one server also share a few things:
+
+- **Ports.** Only one environment can serve ports 80 and 443 with automatic
+  HTTPS. Install the others with `--tls proxy` and a different
+  `--http-port` (for example 8081), behind a reverse proxy that routes each
+  host name to its port ([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+- **Host tooling.** The `lictory` command and the scripts in
+  `/srv/lictory/bin` come from the newest release activated on the server, so
+  upgrading staging first also updates the tools production uses. They stay
+  compatible with older releases; upgrade every environment of a server
+  within the same release line.
 
 ## Recover access
 
@@ -187,6 +202,20 @@ the newer release. Rollback reactivates the previous images; **it does not
 undo database migrations**. Read [upgrades](/self-hosting/upgrades) before
 switching versions, and use a [restore drill](/self-hosting/backups#restore-drill)
 to prove a backup is usable before an incident.
+
+## Stop or remove an environment
+
+<Cli command="uninstall" />
+
+Without `--purge`, the environment stops and its containers and scheduled
+jobs are removed; the database, settings and backups stay, and
+`sudo lictory config apply` starts it again. `--purge` deletes the
+database volumes and the environment's directory, including `.env` and its
+secrets. When backups go off the server, a final backup is taken first, and
+nothing is deleted if it fails. You type the environment name to confirm.
+Docker, other environments, the `lictory` command and the deploy user are
+never touched; with no environment left, the command prints how to remove
+the tooling too.
 
 `lictory help` and `lictory admin help` show usage. The
 [self-hosting overview](/self-hosting#operating-the-server) lists the commands.

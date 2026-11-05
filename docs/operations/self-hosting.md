@@ -204,21 +204,24 @@ other setting with `lictory config set KEY=value` (or `config edit`), or edit
 
 ## Commands
 
-| Command                                                                           | What it does                                                                                                                                                    |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lictory install`                                                                 | Installs or reconfigures an environment (root)                                                                                                                  |
-| `lictory admin <command>`                                                         | Instance administration from the server ([below](#instance-administration))                                                                                     |
-| `lictory status [--json]`                                                         | Active release, image digests and service health (`deploy.sh status`), the address, channel and access policy                                                   |
-| `lictory doctor`                                                                  | Host requirements, `.env`, services, the public route and certificate, DNS, replication slot, WAL, queued work, last backup and timers; exits 1 on any failure  |
-| `lictory upgrade [version] [--check] [--yes]`                                     | The newest release of the environment's channel, or that version                                                                                                |
-| `lictory rollback [--yes]`                                                        | Re-activates the previously activated release's images                                                                                                          |
-| `lictory backup [list [--json]]`                                                  | An encrypted backup now (`lictory-backup <env> manual`), or the stored backups with the keys `restore` takes                                                    |
-| `lictory restore <identity-file\|none> [latest\|<key>\|<file>] [--drill] [--yes]` | Replaces the database with a backup (root); `--drill` restores into a throwaway stack instead                                                                   |
-| `lictory config show\|get\|set\|unset\|edit\|apply`                               | Reads and changes `.env` ([below](#settings)): secrets masked, unknown keys and generated secrets refused, a copy kept, applied with an automatic undo          |
-| `lictory logs [service] [-f\|--follow] [--tail N]`                                | Logs of `postgres`, `zero-cache`, `api`, `worker` or `proxy` (default: all, last 200 lines)                                                                     |
-| `lictory support-bundle [--output F] [--since 24h]`                               | A `0600` archive of versions, status, doctor, masked settings, deploy history and service logs, with `.env` secrets, email addresses and bearer tokens replaced |
-| `lictory registry-login [--username U]`                                           | `docker login` to the environment's registry for the deploy user (and root); token on stdin                                                                     |
-| `lictory help [command]`, `lictory <command> --help`                              | Usage, or one command's options                                                                                                                                 |
+| Command                                                                           | What it does                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lictory install`                                                                 | Installs or reconfigures an environment (root)                                                                                                                                                                          |
+| `lictory admin <command>`                                                         | Instance administration from the server ([below](#instance-administration))                                                                                                                                             |
+| `lictory status [--json]`                                                         | Active release, image digests and service health (`deploy.sh status`), the address, channel and access policy                                                                                                           |
+| `lictory doctor [--json]`                                                         | Host requirements, `.env`, services, the public route and certificate, DNS, replication slot, WAL, queued work, last backup and timers; exits 1 on any failure                                                          |
+| `lictory upgrade [version] [--check] [--yes]`                                     | The newest release of the environment's channel, or that version                                                                                                                                                        |
+| `lictory rollback [--yes]`                                                        | Re-activates the previously activated release's images                                                                                                                                                                  |
+| `lictory backup [list [--json]]`                                                  | An encrypted backup now (`lictory-backup <env> manual`), or the stored backups with the keys `restore` takes                                                                                                            |
+| `lictory restore <identity-file\|none> [latest\|<key>\|<file>] [--drill] [--yes]` | Replaces the database with a backup (root); `--drill` restores into a throwaway stack instead                                                                                                                           |
+| `lictory config show\|get\|set\|unset\|edit\|apply`                               | Reads and changes `.env` ([below](#settings)): secrets masked, unknown keys and generated secrets refused, a copy kept, applied with an automatic undo                                                                  |
+| `lictory logs [service] [-f\|--follow] [--tail N]`                                | Logs of `postgres`, `zero-cache`, `api`, `worker` or `proxy` (default: all, last 200 lines)                                                                                                                             |
+| `lictory support-bundle [--output F] [--since 24h]`                               | A `0600` archive of versions, status, doctor, masked settings, deploy history and service logs, with `.env` secrets, email addresses and bearer tokens replaced                                                         |
+| `lictory uninstall [--purge [--no-backup]] [--yes]`                               | Stops the environment and removes its containers and timers, keeping data and `.env` (`config apply` restarts it); `--purge` deletes its volumes and directory after a final off-server backup and a typed confirmation |
+| `lictory registry-login [--username U]`                                           | `docker login` to the environment's registry for the deploy user (and root); token on stdin                                                                                                                             |
+| `lictory completion bash`                                                         | Bash completion (commands, options, environments, services, setting names); the bootstrap installs it in `/etc/bash_completion.d/lictory`                                                                               |
+| `lictory version [--json]`                                                        | The host tools' release and each environment's release and channel, read from disk                                                                                                                                      |
+| `lictory help [command]`, `lictory <command> --help`                              | Usage, or one command's options                                                                                                                                                                                         |
 
 Every command takes `--env <name>` (`-e`) when the server hosts several
 environments; with one, it is found automatically. `-y`/`--yes` answers every
@@ -259,14 +262,15 @@ Invalid values are refused before anything changes (exit 64).
 it, for settings the installer does not ask for (analytics, legal notices,
 Google or Microsoft sign-in, worker intervals) or to change one quickly.
 
-| Command                                   | What it does                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------------------- |
-| `lictory config show [--reveal] [--json]` | Every set value; secrets masked unless `--reveal`                             |
-| `lictory config get <KEY>`                | One value, unmasked, for scripts; exit 1 when unset                           |
-| `lictory config set <KEY=value>...`       | Changes values (`KEY=` clears one), then applies them                         |
-| `lictory config unset <KEY>...`           | Clears values, then applies                                                   |
-| `lictory config edit`                     | Opens a copy in `$VISUAL`/`$EDITOR`, lists the changes and asks before saving |
-| `lictory config apply`                    | Re-activates the active release with the current `.env`, after a hand edit    |
+| Command                                   | What it does                                                                                                                                   |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lictory config show [--reveal] [--json]` | Every set value; secrets masked unless `--reveal`                                                                                              |
+| `lictory config get <KEY>`                | One value, unmasked, for scripts; exit 1 when unset                                                                                            |
+| `lictory config set <KEY=value>...`       | Changes values (`KEY=` clears one), then applies them                                                                                          |
+| `lictory config unset <KEY>...`           | Clears values, then applies                                                                                                                    |
+| `lictory config edit`                     | Opens a copy in `$VISUAL`/`$EDITOR`, lists the changes and asks before saving                                                                  |
+| `lictory config apply`                    | Re-activates the active release with the current `.env`, after a hand edit                                                                     |
+| `lictory config rotate <KEY>`             | A new random value for a generated secret, applied in PostgreSQL first for a database password; the previous value stays if PostgreSQL refuses |
 
 Every write lists the changed keys, keeps the previous file as
 `.env.backup-<timestamp>` and re-activates the active release (`--no-apply`
@@ -360,7 +364,7 @@ switches images and keeps the schema.
 The channel is a property of the environment (`LICTORY_RELEASE_CHANNEL`):
 
 - `stable`: tested releases (`vX.Y.Z`). The default.
-- `nightly`: a prerelease for every change on `main`
+- `nightly`: a prerelease built daily from `main` when the platform changed
   (`vX.Y.Z-nightly.YYYYMMDD.N`). For staging or evaluation servers.
   Nightlies older than 14 days are removed from GitHub Releases once a newer
   one exists; the newest nightly is always kept, so `upgrade` on this channel
