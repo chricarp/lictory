@@ -12,6 +12,10 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useIterationReport } from "@lictory/platform/components/delivery/backlog";
+import {
+  burndownFrame,
+  burndownUsesPoints,
+} from "@lictory/platform/lib/burndown";
 
 export function IterationReportPage() {
   const project = useProject();
@@ -25,7 +29,10 @@ export function IterationReportPage() {
     iterationId,
     view.cursor,
   );
-  const usePoints = project.estimateScale !== "none";
+  const scaled = project.estimateScale !== "none";
+  const usePoints = report
+    ? burndownUsesPoints(report, project.estimateScale)
+    : scaled;
   if (error)
     return (
       <MissingState
@@ -75,14 +82,22 @@ export function IterationReportPage() {
             <Totals report={report} usePoints={usePoints} />
             <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
               <h2 className="mb-3 text-sm font-semibold">Burndown</h2>
-              <Burndown report={report} usePoints={usePoints} />
+              <Burndown
+                report={report}
+                usePoints={usePoints}
+                iteration={iteration}
+              />
               <p className="mt-2 text-xs text-muted-foreground">
                 Remaining {usePoints ? "points" : "items"} per day, replayed
                 from recorded changes. The dashed line is the ideal pace from
-                the committed scope; the upper line shows scope changes.
+                the committed scope to the last day; the upper line shows scope
+                changes.
+                {scaled &&
+                  !usePoints &&
+                  " Nothing in this iteration is estimated yet, so it burns down in items."}
               </p>
             </section>
-            {report.velocity.length > 0 && usePoints && (
+            {report.velocity.length > 0 && scaled && (
               <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
                 <h2 className="mb-3 text-sm font-semibold">Velocity</h2>
                 <Velocity report={report} />
@@ -104,7 +119,9 @@ function Totals({
 }) {
   const t = report.totals;
   const v = (x: { count: number; points: number }) =>
-    usePoints ? `${x.points} pts · ${x.count}` : `${x.count}`;
+    usePoints
+      ? `${x.points} pts · ${x.count}`
+      : `${x.count} ${x.count === 1 ? "item" : "items"}`;
   const cells = [
     ["Committed at start", v(t.atStart)],
     ["Completed", v(t.completed)],
@@ -133,9 +150,11 @@ function Totals({
 function Burndown({
   report,
   usePoints,
+  iteration,
 }: {
   report: IterationReport;
   usePoints: boolean;
+  iteration?: { startsAt: string; endsAt: string };
 }) {
   const W = 640;
   const H = 220;
@@ -151,9 +170,7 @@ function Burndown({
         The chart appears once the iteration has started.
       </p>
     );
-  const max = Math.max(1, ...series.map((p) => Math.max(p.scope, p.remaining)));
-  const t0 = series[0]!.at.getTime();
-  const t1 = series.at(-1)!.at.getTime();
+  const { start: t0, end: t1, max, ticks } = burndownFrame(series, iteration);
   const x = (d: Date) =>
     pad.l + ((d.getTime() - t0) / Math.max(1, t1 - t0)) * (W - pad.l - pad.r);
   const y = (v: number) => pad.t + (1 - v / max) * (H - pad.t - pad.b);
@@ -165,7 +182,8 @@ function Burndown({
       )
       .join(" ");
   const start = series[0]!;
-  const ticks = [0, Math.round(max / 2), max];
+  // Iterations end at the start of `endsAt`; label the last working day.
+  const lastDay = new Date(t1 - (iteration ? 86_400_000 : 0));
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -196,7 +214,7 @@ function Burndown({
       <line
         x1={x(start.at)}
         y1={y(start.scope)}
-        x2={x(series.at(-1)!.at)}
+        x2={x(new Date(t1))}
         y2={y(0)}
         className="stroke-muted-foreground/50"
         strokeDasharray="4 4"
@@ -214,17 +232,18 @@ function Burndown({
         className="stroke-primary"
         strokeWidth={2}
       />
-      {[series[0]!, series.at(-1)!].map((p, i) => (
+      {[new Date(t0), lastDay].map((at, i) => (
         <text
           key={i}
-          x={x(p.at)}
+          x={i ? W - pad.r : pad.l}
           y={H - 6}
           textAnchor={i ? "end" : "start"}
           className="fill-muted-foreground text-[10px]"
         >
-          {p.at.toLocaleDateString(undefined, {
+          {at.toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
+            ...(iteration ? { timeZone: "UTC" } : {}),
           })}
         </text>
       ))}
