@@ -42,7 +42,10 @@ main() {
   Debian/Ubuntu:  apt-get install -y bash curl jq openssl util-linux
   RHEL/Fedora:    dnf install -y bash curl jq openssl util-linux"
   command -v docker >/dev/null 2>&1 ||
-    fail "Docker Engine is required: https://docs.docker.com/engine/install/ (then re-run this command)."
+    fail "Docker Engine 25+ with the Compose plugin is required. Install it from Docker's packages
+(https://docs.docker.com/engine/install/), for example with Docker's convenience script:
+  curl -fsSL https://get.docker.com | sudo sh
+then re-run this command."
   docker compose version >/dev/null 2>&1 ||
     fail "The Docker Compose v2 plugin is required (package docker-compose-plugin)."
   docker version >/dev/null 2>&1 || fail "Cannot reach the Docker daemon: start it (systemctl start docker)."
