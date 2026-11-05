@@ -802,15 +802,28 @@ export function BacklogRow({
       )}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
-        {item.refinementState && item.refinementState !== "ready" && (
+        {/* Every row says where its specification stands: a blank cell read
+            as missing data. Plain work has no specification. */}
+        {item.refinementState ? (
           <span
-            title="Specification not ready"
+            title={
+              item.refinementState === "ready"
+                ? "Specification ready"
+                : "Specification not ready"
+            }
             className="inline-flex items-center gap-1"
           >
             <RefinementIcon state={item.refinementState} />
             <span className="hidden sm:inline">
               {refinementMeta[item.refinementState].label}
             </span>
+          </span>
+        ) : (
+          <span
+            title="Plain work, without a specification"
+            className="hidden text-muted-foreground/60 sm:inline"
+          >
+            —
           </span>
         )}
         {item.blockingThreads > 0 && (
