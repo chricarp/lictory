@@ -1398,3 +1398,48 @@ void test(
     assert.ok(existsSync(join(f.root, "bin/lictory")));
   },
 );
+
+void test(
+  "lictory doctor --json reports every check for monitoring",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([...acmeInstall]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const text = f.lictory(["doctor"]);
+    const json = f.lictory(["doctor", "--json"]);
+    // The fake deploy.sh reports no services, so both fail the same way.
+    assert.equal(text.status, 1);
+    assert.equal(json.status, 1);
+    const report = JSON.parse(json.stdout) as {
+      environment: string;
+      healthy: boolean;
+      failures: number;
+      warnings: number;
+      checks: { status: string; section: string; message: string }[];
+    };
+    assert.equal(report.environment, "production");
+    assert.equal(report.healthy, false);
+    assert.equal(
+      report.failures,
+      report.checks.filter((check) => check.status === "fail").length,
+    );
+    assert.match(
+      text.stdout,
+      new RegExp(
+        `${report.failures} failure\\(s\\), ${report.warnings} warning\\(s\\)`,
+      ),
+    );
+    assert.ok(
+      report.checks.some(
+        (check) => check.section === "Host" && check.message === "Linux",
+      ),
+    );
+    assert.ok(
+      report.checks.some(
+        (check) =>
+          check.status === "warn" && /Backups are disabled/.test(check.message),
+      ),
+    );
+  },
+);

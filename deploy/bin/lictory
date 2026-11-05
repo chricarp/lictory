@@ -81,6 +81,10 @@ steps_total=0
 step_index=0
 step() {
   local counter=""
+  if [ -n "$report_file" ]; then
+    report_section="$*"
+    return 0
+  fi
   if [ "$steps_total" -gt 0 ]; then
     step_index=$((step_index + 1))
     counter="Step $step_index of $steps_total"
@@ -260,12 +264,14 @@ USAGE
       ;;
     doctor)
       cat <<'USAGE'
-Usage: lictory doctor [--env <name>]
+Usage: lictory doctor [--json] [--env <name>]
 
 Checks the host (Docker, memory, disk), the configuration, DNS and
 certificates, the services, the database and replication, backups, the access
 policy and the scheduled jobs, and says how to fix each problem. Exits 1 when
-a check fails; warnings do not change the exit status.
+a check fails; warnings do not change the exit status. --json prints
+{environment, healthy, failures, warnings, checks: [{status, section,
+message}]} for monitoring, with the same exit status.
 USAGE
       ;;
     upgrade)
@@ -995,14 +1001,30 @@ wait_until_ready() {
 # ------------------------------------------------------------------ preflight
 failures=0
 warnings=0
+# doctor --json: checks are recorded as "status<TAB>section<TAB>message"
+# lines in $report_file instead of printed.
+report_file=""
+report_section=""
+report() { printf '%s\t%s\t%s\n' "$1" "$report_section" "$2" >>"$report_file"; }
 check_ok() {
+  [ -z "$report_file" ] || { report ok "$*" && return 0; }
   if [ "$fancy" = true ]; then printf '   %s%s%s %s\n' "$c_green" "$g_ok" "$c_reset" "$*"; else printf '  ok    %s\n' "$*"; fi
 }
 check_warn() {
+  if [ -n "$report_file" ]; then
+    report warn "$*"
+    warnings=$((warnings + 1))
+    return 0
+  fi
   if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_yellow" "$g_warn" "$*" "$c_reset"; else printf '  warn  %s\n' "$*"; fi
   warnings=$((warnings + 1))
 }
 check_fail() {
+  if [ -n "$report_file" ]; then
+    report fail "$*"
+    failures=$((failures + 1))
+    return 0
+  fi
   if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_red" "$g_fail" "$*" "$c_reset"; else printf '  FAIL  %s\n' "$*"; fi
   failures=$((failures + 1))
 }
@@ -3167,9 +3189,14 @@ cmd_restore() {
 
 # ----------------------------------------------------------------------- doctor
 cmd_doctor() {
-  parse "" "" "$@"
+  parse "" "json" "$@"
   [ ${#positional[@]} -eq 0 ] || usage_error "doctor takes no arguments."
   select_environment
+  if [ "$(opt json)" = true ]; then
+    report_file=$(mktemp)
+    # shellcheck disable=SC2064 # the file is fixed now
+    trap "rm -f '$report_file'" EXIT
+  fi
   local tls host url status_json state version insecure=() mode gateway
   step "Host"
   preflight
@@ -3316,7 +3343,13 @@ cmd_doctor() {
     done
   fi
 
-  printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  if [ -n "$report_file" ]; then
+    jq -Rn --arg environment "$environment" --argjson failures "$failures" --argjson warnings "$warnings" '
+      [inputs | split("\t") | {status: .[0], section: .[1], message: (.[2:] | join("\t"))}]
+      | {environment: $environment, healthy: ($failures == 0), failures: $failures, warnings: $warnings, checks: .}' <"$report_file"
+  else
+    printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  fi
   [ "$failures" -eq 0 ]
 }
 
