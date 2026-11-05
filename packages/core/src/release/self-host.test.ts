@@ -1954,3 +1954,26 @@ void test(
     assert.equal(status.access.administrators, 1);
   },
 );
+
+void test(
+  "lictory version lists the tools and every environment's release",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const before = f.lictory(["version", "--json"]);
+    assert.deepEqual(JSON.parse(before.stdout), {
+      tools: "1.2.3",
+      environments: [],
+    });
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const text = f.lictory(["--version"]);
+    assert.match(text.stdout, /^lictory tools 1\.2\.3/m);
+    assert.match(text.stdout, /^production +1\.2\.3 \(stable\)$/m);
+    assert.deepEqual(JSON.parse(f.lictory(["version", "--json"]).stdout), {
+      tools: "1.2.3",
+      environments: [
+        { name: "production", version: "1.2.3", channel: "stable" },
+      ],
+    });
+  },
+);
