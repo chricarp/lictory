@@ -193,10 +193,15 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
       .flatMap((a) =>
         a.userId ? [a.userId] : disciplineMembers(a.disciplineId),
       );
+  // Children materialized from a reviewed breakdown record whoever merged it
+  // as their creator; that person follows the parent specification and does
+  // not own each child. Their owners are the assignee and explicit watchers.
   const owners = () =>
-    [item.createdById, item.assigneeId, ...watchers].filter(
-      (u): u is string => !!u,
-    );
+    [
+      item.sourceRevisionId ? null : item.createdById,
+      item.assigneeId,
+      ...watchers,
+    ].filter((u): u is string => !!u);
   const involved = () => [
     ...owners(),
     ...reviews
