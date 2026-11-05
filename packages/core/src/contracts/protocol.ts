@@ -781,8 +781,24 @@ export const iterationSchema = z.object({
   completedAt: z.string().nullable(),
 });
 export type Iteration = z.infer<typeof iterationSchema>;
-export function iterationLabel(i: Pick<Iteration, "name" | "number">) {
-  return i.name?.trim().length ? i.name.trim() : `Iteration ${i.number}`;
+// What a project calls its time-boxes: sprints are planned by hand, cycles
+// run on a schedule. "Iteration" remains the neutral word when the cadence is
+// unknown (or off).
+export function iterationNoun(mode?: IterationMode) {
+  return mode === "manual"
+    ? "Sprint"
+    : mode === "automatic"
+      ? "Cycle"
+      : "Iteration";
+}
+// An unnamed iteration is numbered with its project's word for it.
+export function iterationLabel(
+  i: Pick<Iteration, "name" | "number">,
+  mode?: IterationMode,
+) {
+  return i.name?.trim().length
+    ? i.name.trim()
+    : `${iterationNoun(mode)} ${i.number}`;
 }
 // Estimate values offered per scale. T-shirt sizes are stored as points.
 export const estimateOptions: Record<

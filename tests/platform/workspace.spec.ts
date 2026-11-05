@@ -1542,7 +1542,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByRole("link", { name: "Backlog & sprints" }).click();
   await page.getByRole("button", { name: "New sprint" }).click();
   const sprint = page.locator("section[aria-label='Iteration']").first();
-  await expect(sprint.getByText("Iteration 1")).toBeVisible();
+  await expect(sprint.getByText("Sprint 1")).toBeVisible();
   for (const title of ["Add payment method column", "Save a card for later"]) {
     await page.locator("[data-row]", { hasText: title }).dragTo(sprint);
     await expect(sprint.getByText(title)).toBeVisible();
@@ -1713,7 +1713,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByRole("option", { name: "Backlog" }).click();
   const backlog = page.locator("section[aria-label='Backlog']");
   await expect(backlog.getByText("Save a card for later")).toBeVisible();
-  await page.getByRole("link", { name: /Iteration 1/ }).click();
+  await page.getByRole("link", { name: /Sprint 1/ }).click();
   await expect(page.getByRole("heading", { name: "Burndown" })).toBeVisible();
   await expect(page.getByText("Carried over")).toBeVisible();
 });

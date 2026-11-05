@@ -204,7 +204,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
             hideSearch
             options={iterations.map((it) => ({
               value: it.id,
-              label: iterationLabel(it),
+              label: iterationLabel(it, project?.iterationMode),
               hint: it.state === "active" ? "Active" : shortRange(it),
             }))}
             onSelect={(iterationId) => {
@@ -435,7 +435,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                       className="flex items-center gap-2 border-b px-4 py-2 text-[13px] last:border-b-0"
                     >
                       <span className="font-medium">
-                        {iterationLabel(iteration)}
+                        {iterationLabel(iteration, project?.iterationMode)}
                       </span>
                       {iteration.state === "active" && (
                         <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
