@@ -81,7 +81,7 @@ export const commands = {
       "Restore the database from a backup (the newest by default), keeping a copy of the current data; --drill restores into a scratch database instead.",
   },
   logs: {
-    usage: "lictory logs [service] [-f] [--tail N]",
+    usage: "lictory logs [service] [-f] [--tail N] [--since 2h]",
     summary:
       "Show the logs of every service, or of one (proxy, api, worker, zero-cache, postgres).",
   },

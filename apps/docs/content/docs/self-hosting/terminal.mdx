@@ -54,6 +54,7 @@ To follow only the background worker:
 
 ```sh
 lictory logs worker -f --tail 100
+lictory logs api --since 2h --timestamps   # everything since an incident began
 ```
 
 Services include `proxy`, `api`, `worker`, `zero-cache` and `postgres`.
