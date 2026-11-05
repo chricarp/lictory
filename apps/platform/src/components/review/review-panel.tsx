@@ -16,6 +16,7 @@ import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { PullRequestsWaiting } from "@lictory/platform/components/review/pull-requests-waiting";
 
 // Reviews live on the item. Each row is one responsibility on the current
 // revision; decisions are only offered to assigned reviewers and always name
@@ -57,6 +58,7 @@ export function ReviewPanel() {
     );
   return (
     <section>
+      <PullRequestsWaiting />
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Review</SectionLabel>
         {active.length > 0 && (
@@ -263,7 +265,7 @@ export function RequestReview({
   trigger: Parameters<typeof Popover>[0]["trigger"];
 }) {
   const { directory, memberName, userId } = useWorkspace();
-  const { mutate, base, reviews, current, item } = useItem();
+  const { mutate, mutateConfirmed, base, reviews, current, item } = useItem();
   // Only the project's disciplines marked as reviewers can be asked.
   const reviewerRoles = directory.disciplines.filter(
     (r) =>
@@ -286,6 +288,58 @@ export function RequestReview({
       .filter((r) => r.revisionId === current?.id && r.status !== "cancelled")
       .map((r) => r.responsibility),
   );
+  // Most specifications need every other reviewing discipline: offer that
+  // as one action instead of one round trip per discipline.
+  const missing = reviewerRoles.filter(
+    (r) => !used.has(r.name) && !r.userIds.includes(userId),
+  );
+  const [requestingAll, setRequestingAll] = useState(false);
+  const requestAll = async (close: () => void) => {
+    if (requestingAll) return;
+    setRequestingAll(true);
+    setError(undefined);
+    // Each request waits for the server, so a refusal is reported here and
+    // the ones already accepted are named.
+    const requested: string[] = [];
+    try {
+      for (const r of missing) {
+        await mutateConfirmed({
+          type: "requestReview",
+          ...base,
+          reviewId: crypto.randomUUID(),
+          disciplineId: r.id,
+          userId: null,
+          required: true,
+        });
+        requested.push(r.name);
+      }
+      close();
+    } catch (err) {
+      const reason =
+        err instanceof Error ? err.message : "The server refused the request.";
+      const failed = missing[requested.length]?.name;
+      const skipped = missing.slice(requested.length + 1).map((r) => r.name);
+      setError(
+        [
+          requested.length && `Requested ${requested.join(" and ")}.`,
+          `${failed ?? "The request"} was not requested: ${reason}`,
+          skipped.length &&
+            `${skipped.join(" and ")} ${skipped.length > 1 ? "were" : "was"} not attempted; request again to continue.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+    } finally {
+      setRequestingAll(false);
+    }
+  };
+  const missingNames =
+    missing.length > 1
+      ? `${missing
+          .slice(0, -1)
+          .map((r) => r.name)
+          .join(", ")} and ${missing.at(-1)!.name}`
+      : "";
   return (
     <Popover width={320} align="end" trigger={trigger}>
       {(close) => (
@@ -316,6 +370,23 @@ export function RequestReview({
           <p className="font-medium">
             Request review of revision {current?.number}
           </p>
+          {missing.length > 1 && (
+            <div className="space-y-1.5 border-b pb-3">
+              <Button
+                type="button"
+                size="sm"
+                className="w-full"
+                disabled={requestingAll}
+                onClick={() => void requestAll(close)}
+              >
+                Request {missingNames} reviews
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Required, from anyone in each discipline. Or choose one
+                discipline and reviewer below.
+              </p>
+            </div>
+          )}
           {reviewerRoles.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               No discipline of this project can be asked to review yet. A

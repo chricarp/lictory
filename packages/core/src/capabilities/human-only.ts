@@ -171,11 +171,8 @@ export const browserOperations: readonly BrowserOperation[] = [
     title: "Invite people or cancel invitations",
     reason: "membership",
     where: "Organization settings → Members",
-    authClient: [
-      "organization.listInvitations",
-      "organization.cancelInvitation",
-    ],
-    routes: ["POST /api/invitations"],
+    authClient: ["organization.cancelInvitation"],
+    routes: ["POST /api/invitations", "GET /api/invitations"],
   },
   {
     name: "acceptInvitation",
@@ -188,6 +185,7 @@ export const browserOperations: readonly BrowserOperation[] = [
       "organization.acceptInvitation",
       "organization.getFullOrganization",
     ],
+    routes: ["GET /api/invitations/:id/placement"],
   },
   {
     name: "changeApplicationRole",

@@ -35,6 +35,10 @@ import {
   AssigneePicker,
   IssuePriority,
 } from "@lictory/platform/components/items/properties";
+import {
+  EstimatePicker,
+  IterationPicker,
+} from "@lictory/platform/components/items/delivery-properties";
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 
 const PARAM = "item";
@@ -250,8 +254,14 @@ function PeekContent({
     [relations, items, item.id],
   );
   const update = (
-    patch: { statusId: string } | { assigneeId: string | null },
+    patch: Omit<
+      Extract<Parameters<typeof mutate>[0], { type: "updateWorkItem" }>,
+      "type" | "workItemId"
+    >,
   ) => void mutate({ type: "updateWorkItem", workItemId: item.id, ...patch });
+  // Planning (estimate, priority, iteration) happens here too, so a backlog
+  // can be sized and scheduled without opening every item.
+  const editable = canChange && !item.archivedAt;
   const notReady =
     type.hasSpecification &&
     item.refinementState !== "ready" &&
@@ -327,13 +337,23 @@ function PeekContent({
               />
             </Row>
             <Row label="Priority">
-              <Value>
-                <IssuePriority priority={item.priority} />
-              </Value>
+              <IssuePriority
+                priority={item.priority}
+                onChange={
+                  editable ? (priority) => update({ priority }) : undefined
+                }
+              />
             </Row>
             {native && project.estimateScale !== "none" && (
               <Row label="Estimate">
-                <Value muted={!estimate}>{estimate ?? "None"}</Value>
+                {editable ? (
+                  <EstimatePicker
+                    item={item}
+                    onChange={(value) => update({ estimate: value })}
+                  />
+                ) : (
+                  <Value muted={!estimate}>{estimate ?? "None"}</Value>
+                )}
               </Row>
             )}
             {native && project.iterationMode !== "off" && (
@@ -342,18 +362,27 @@ function PeekContent({
                   project.iterationMode === "automatic" ? "Cycle" : "Sprint"
                 }
               >
-                <Value muted={!iteration}>
-                  {iteration ? iterationLabel(iteration) : "Backlog"}
-                  {iteration?.state === "active" && (
-                    <span className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
-                      <span
-                        aria-hidden
-                        className="size-1.5 rounded-full bg-success"
-                      />
-                      Active
-                    </span>
-                  )}
-                </Value>
+                {editable && iteration?.state !== "completed" ? (
+                  <IterationPicker
+                    item={item}
+                    onChange={(iterationId) => update({ iterationId })}
+                  />
+                ) : (
+                  <Value muted={!iteration}>
+                    {iteration
+                      ? iterationLabel(iteration, project?.iterationMode)
+                      : "Backlog"}
+                  </Value>
+                )}
+                {iteration?.state === "active" && (
+                  <span className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+                    <span
+                      aria-hidden
+                      className="size-1.5 rounded-full bg-success"
+                    />
+                    Active
+                  </span>
+                )}
               </Row>
             )}
             {team && (

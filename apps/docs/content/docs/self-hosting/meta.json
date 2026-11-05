@@ -4,6 +4,7 @@
     "index",
     "install",
     "configuration",
+    "database",
     "terminal",
     "reverse-proxy",
     "backups",

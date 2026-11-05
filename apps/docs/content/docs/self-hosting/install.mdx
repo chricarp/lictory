@@ -23,10 +23,11 @@ Install the `lictory` command, then run the installer as root:
 
 <Cli command={["bootstrap", "install"]} />
 
-`lictory install` guides you through eight steps: it checks the server
+`lictory install` guides you through nine steps: it checks the server
 (Docker and Compose versions, memory, disk), asks for the address and checks
-DNS and ports, asks for email, attachment storage, single sign-on and
-backups, then for the [access policy](/self-hosting/configuration#access-policy):
+DNS and ports, asks where PostgreSQL runs (on the server, or an
+[external database](/self-hosting/database)), asks for email, attachment
+storage, single sign-on and backups, then for the [access policy](/self-hosting/configuration#access-policy):
 who may create accounts and organizations. It shows a review of every
 answer, with secrets masked, before it changes anything. On a terminal the
 choices are menus (arrow keys and Enter) and long steps show progress while

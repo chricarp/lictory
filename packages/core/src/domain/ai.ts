@@ -17,6 +17,7 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { applyBranchCommand, ensureMain } from "@lictory/core/domain/branches";
 import { DomainError } from "@lictory/core/domain/errors";
+import { refreshDirectories } from "@lictory/core/domain/projections";
 import type { Database, Tx } from "@lictory/core/domain/service";
 
 // Commands that ask Lictory Intelligence for something. They only record
@@ -44,6 +45,29 @@ export async function aiPolicy(
     .where(eq(s.organizationAiPolicy.organizationId, organizationId));
   return { enabled: row?.enabled ?? false, available: aiConfigured() };
 }
+// Directories record whether this server has an AI provider when they are
+// written, so connecting (or removing) a provider and restarting would leave
+// every organization showing the old state until its next configuration
+// change. At startup, refresh the directories that disagree with this
+// server's configuration. Idempotent; replicas may run it concurrently.
+export async function refreshAiAvailability(db: Database) {
+  const configured = aiConfigured();
+  const stale = await db
+    .select({ organizationId: s.syncEntity.organizationId })
+    .from(s.syncEntity)
+    .where(
+      and(
+        eq(s.syncEntity.type, "directory"),
+        sql`coalesce((${s.syncEntity.data}->'ai'->>'available')::boolean, false) <> ${configured}`,
+      ),
+    );
+  await refreshDirectories(
+    db,
+    stale.map((r) => r.organizationId),
+  );
+  return stale.length;
+}
+
 export async function setAiPolicy(
   tx: Tx,
   organizationId: string,

@@ -161,9 +161,18 @@ test("guides and comparisons are linked, indexable and described", async ({
   // and the landing page's server-rendered <head> metadata, which React never
   // adopted, is left behind: the comparison would show two canonical links.
   // Crawlers load each page fresh and never see this.
-  await page.waitForLoadState("networkidle");
+  // Network silence only suggests hydration; React attaching its fiber to
+  // the link is the boundary this test depends on.
   const footer = page.getByRole("navigation", { name: "Footer", exact: true });
-  await footer.getByRole("link", { name: "Lictory vs Jira" }).click();
+  const link = footer.getByRole("link", { name: "Lictory vs Jira" });
+  await expect
+    .poll(() =>
+      link.evaluate((a) =>
+        Object.keys(a).some((key) => key.startsWith("__reactFiber$")),
+      ),
+    )
+    .toBe(true);
+  await link.click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Lictory vs Jira" }),
   ).toBeVisible();

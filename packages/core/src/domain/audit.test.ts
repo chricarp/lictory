@@ -16,6 +16,7 @@ import { recordAuditEvent } from "@lictory/core/domain/audit";
 import type { AuditEntry } from "@lictory/core/contracts/audit";
 import { auditLogCsv, readAuditLog } from "@lictory/core/domain/audit-log";
 import { seedOrganization } from "@lictory/core/domain/organization";
+import { directory } from "@lictory/core/domain/service";
 import {
   plannedAuthAudit,
   rememberPreviousRole,
@@ -227,6 +228,17 @@ void test("configuration changes and security events read as one log, newest fir
     userId: member,
     role: "member",
   });
+  const roster = await directory(db, owner, organizationId);
+  const qa = roster.disciplines.find(
+    (d) => d.projectId === projectId && d.name === "QA",
+  )!;
+  await invoke(web(owner), "setDisciplineMember", {
+    organizationId,
+    projectId,
+    disciplineId: qa.id,
+    userId: member,
+    member: true,
+  });
   // Several events in one transaction share a timestamp; the cursor still
   // returns each exactly once.
   await db.transaction(async (tx) => {
@@ -248,8 +260,14 @@ void test("configuration changes and security events read as one log, newest fir
   assert.equal(all.filter((e) => e.action === "invitation.created").length, 5);
   const configuration = all.filter((e) => e.category === "configuration");
   const membership = configuration.find((e) => e.action === "setProjectMember");
-  assert.equal(membership?.summary, "Set project member");
+  // Configuration reads in words, with names instead of identifiers.
+  assert.equal(membership?.summary, "Set Quinn's role in Payments to member");
   assert.equal(membership?.actor?.name, "Paula Pager");
+  assert.equal("names" in (membership?.detail ?? {}), false);
+  assert.equal(
+    configuration.find((e) => e.action === "setDisciplineMember")?.summary,
+    "Added Quinn to QA in Payments",
+  );
   const times = all.map((e) => e.at);
   assert.deepEqual(times, [...times].sort().reverse());
 

@@ -81,7 +81,8 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, sy
 const args = process.argv.slice(2);
 const stdin = ${JSON.stringify(name)} === "deploy.sh" && ["release", "prepare"].includes(args[1]) ? readFileSync(0, "utf8") : "";
 appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ name: ${JSON.stringify(name)}, args, stdin,
-  environments: process.env.LICTORY_ENVIRONMENTS, root: process.env.LICTORY_ROOT }) + "\\n");
+  environments: process.env.LICTORY_ENVIRONMENTS, root: process.env.LICTORY_ROOT,
+  databaseAdminUrl: process.env.DATABASE_ADMIN_URL }) + "\\n");
 ${body}
 `,
       { mode: 0o755 },
@@ -182,6 +183,7 @@ else if (args[0] === "cp") cpSync(${JSON.stringify(bundle)}, args.at(-1), { recu
           args: string[];
           stdin: string;
           environments?: string;
+          databaseAdminUrl?: string;
         },
     );
   };
@@ -332,7 +334,11 @@ void test("get.sh installs the tooling of the newest stable release after verify
   assert.ok(
     existsSync(join(f.root, "share/bundle/env/self-hosted.env.example")),
   );
-  assert.match(result.stdout, /sudo lictory install/);
+  assert.match(result.stdout, /sudo lictory install /);
+  // Another environment name reaches the printed next command.
+  const staging = f.getSh({ LICTORY_ENV: "staging" });
+  assert.equal(staging.status, 0, staging.stderr);
+  assert.match(staging.stdout, /sudo lictory install --env staging /);
 });
 
 void test("get.sh refuses a release.env that does not match GitHub's digest", (t) => {
@@ -484,6 +490,9 @@ void test(
       first.stdout,
       /Lictory is up: https:\/\/lictory\.example\.test/,
     );
+    // Eight counted steps, then an uncounted "Next steps" (not "[9/8]").
+    assert.match(first.stdout, /== \[8\/8\] First administrator/);
+    assert.match(first.stdout, /^== Next steps$/m);
 
     const secret = /^BETTER_AUTH_SECRET=.*$/m.exec(created)![0];
     const second = f.lictory([
@@ -966,3 +975,178 @@ void test(
     );
   },
 );
+
+void test(
+  "install with an external database records its connection, takes no backups and uses the administrator URL once",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    stubAdministration(f);
+    const env = join(f.root, "production/.env");
+    const adminUrl =
+      "postgresql://admin:synthetic-admin-secret@db.example.test:5432/postgres?sslmode=require";
+    const external = [
+      ...acmeInstall,
+      "--database",
+      "external",
+      "--database-host",
+      "db.example.test",
+      "--database-sslmode",
+      "require",
+    ];
+    const installed = f.lictory(external, {
+      LICTORY_DATABASE_ADMIN_URL: adminUrl,
+    });
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const written = readFileSync(env, "utf8");
+    assert.match(written, /^LICTORY_DATABASE=external$/m);
+    assert.match(written, /^DATABASE_HOST=db\.example\.test$/m);
+    assert.match(written, /^DATABASE_PORT=5432$/m);
+    assert.match(written, /^DATABASE_SSLMODE=require$/m);
+    assert.match(written, /^BACKUP_TARGET=none$/m);
+    assert.ok(!written.includes("synthetic-admin-secret"));
+    assert.match(installed.stdout, /external: db\.example\.test:5432/);
+    assert.match(installed.stdout, /your database provider's/);
+    const deployed = installed.calls.find(
+      (call) => call.name === "deploy.sh" && call.args[1] === "release",
+    );
+    assert.equal(deployed?.databaseAdminUrl, adminUrl);
+    assert.ok(
+      !installed.calls.some((call) =>
+        call.args.join(" ").includes("synthetic-admin-secret"),
+      ),
+    );
+
+    const backup = f.lictory(["backup"]);
+    assert.notEqual(backup.status, 0);
+    assert.match(backup.stderr, /external database: Lictory takes no backups/);
+    const restore = f.lictory(["restore", "none", "latest", "--yes"]);
+    assert.notEqual(restore.status, 0);
+    assert.match(restore.stderr, /point-in-time recovery/);
+    const logs = f.lictory(["logs", "postgres"]);
+    assert.equal(logs.status, 64);
+
+    // Moving data between databases is a migration, not a setting.
+    const moved = f.lictory([...acmeInstall, "--database", "bundled"]);
+    assert.notEqual(moved.status, 0);
+    assert.match(moved.stderr, /migration of the data/);
+    assert.match(readFileSync(env, "utf8"), /^LICTORY_DATABASE=external$/m);
+  },
+);
+
+void test("the external database override removes the bundled postgres and encrypts every connection", (t) => {
+  if (spawnSync("docker", ["compose", "version"]).status !== 0) {
+    t.skip("Docker Compose is not available");
+    return;
+  }
+  const base = mkdtempSync(join(tmpdir(), "lictory-compose-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const created = spawnSync(
+    "bash",
+    [join(deploy, "provision/new-environment.sh"), "production"],
+    {
+      env: {
+        ...hostEnvironment(),
+        LICTORY_ROOT: base,
+        LICTORY_ENV_TEMPLATE: join(deploy, "env/self-hosted.env.example"),
+      },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(created.status, 0, created.stderr);
+  const env = join(base, "production/.env");
+  writeFileSync(join(base, "release.env"), releaseFile("1.2.3"));
+  writeFileSync(
+    env,
+    readFileSync(env, "utf8") +
+      "APP_HOST=lictory.example.test\nACME_EMAIL=ops@example.test\n",
+  );
+  const render = (extra: string, profiles: string[] = []) => {
+    writeFileSync(join(base, "extra.env"), extra);
+    return spawnSync(
+      "docker",
+      [
+        "compose",
+        "--project-name",
+        "lictory-render-test",
+        ...profiles.flatMap((profile) => ["--profile", profile]),
+        "--file",
+        join(deploy, "compose.production.yaml"),
+        "--file",
+        join(deploy, "compose.external-database.yaml"),
+        "--env-file",
+        env,
+        "--env-file",
+        join(base, "release.env"),
+        "--env-file",
+        join(base, "extra.env"),
+        "config",
+        "--format",
+        "json",
+      ],
+      { encoding: "utf8", env: dockerEnvironment() },
+    );
+  };
+  // Without a host the override refuses to render.
+  const missing = render("LICTORY_DATABASE=external\n");
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /DATABASE_HOST/);
+
+  const result = render(
+    "LICTORY_DATABASE=external\nDATABASE_HOST=db.example.test\nDATABASE_CA_FILE=/srv/lictory/production/database-ca.pem\n",
+    ["tools", "ops"],
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout) as {
+    services: Record<
+      string,
+      {
+        environment: Record<string, string>;
+        networks: Record<string, unknown>;
+        depends_on?: Record<string, unknown>;
+        volumes?: { source: string; target: string }[];
+      }
+    >;
+  };
+  assert.ok(!("postgres" in config.services));
+  for (const name of ["migrate", "zero-cache", "api", "worker", "database"]) {
+    const service = config.services[name]!;
+    assert.ok("egress" in service.networks, name);
+    assert.ok(!("postgres" in (service.depends_on ?? {})), name);
+    assert.equal(
+      service.environment.NODE_EXTRA_CA_CERTS,
+      "/run/lictory/database-ca.pem",
+      name,
+    );
+    assert.ok(
+      service.volumes?.some(
+        (volume) =>
+          volume.source === "/srv/lictory/production/database-ca.pem" &&
+          volume.target === "/run/lictory/database-ca.pem",
+      ),
+      name,
+    );
+  }
+  const urls = [
+    config.services.migrate!.environment.DATABASE_MIGRATION_URL!,
+    config.services["zero-cache"]!.environment.ZERO_UPSTREAM_DB!,
+    config.services["zero-cache"]!.environment.ZERO_CVR_DB!,
+    config.services.api!.environment.DATABASE_URL!,
+    config.services.worker!.environment.DATABASE_URL!,
+  ];
+  for (const url of urls) {
+    const parsed = new URL(url);
+    assert.equal(parsed.hostname, "db.example.test");
+    assert.equal(parsed.searchParams.get("sslmode"), "verify-full");
+  }
+  assert.equal(
+    config.services.migrate!.environment.DATABASE_MIGRATION_TRANSPORT,
+    "tls",
+  );
+  assert.equal(
+    config.services.migrate!.environment.DATABASE_MIGRATION_EXPECTED_HOST,
+    "db.example.test",
+  );
+  assert.equal(config.services.ops!.environment.PGHOST, "db.example.test");
+  assert.equal(config.services.ops!.environment.LICTORY_DATABASE, "external");
+});

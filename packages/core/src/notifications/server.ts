@@ -2,11 +2,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { signalWork } from "@lictory/core/jobs/signal";
 import type { Tx } from "@lictory/core/domain/service";
-import type {
-  Command,
-  Directory,
-  Entity,
-  EntityOf,
+import {
+  iterationLabel,
+  type Command,
+  type Directory,
+  type Entity,
+  type EntityOf,
 } from "@lictory/core/contracts/protocol";
 import {
   isNotificationKind,
@@ -193,10 +194,15 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
       .flatMap((a) =>
         a.userId ? [a.userId] : disciplineMembers(a.disciplineId),
       );
+  // Children materialized from a reviewed breakdown record whoever merged it
+  // as their creator; that person follows the parent specification and does
+  // not own each child. Their owners are the assignee and explicit watchers.
   const owners = () =>
-    [item.createdById, item.assigneeId, ...watchers].filter(
-      (u): u is string => !!u,
-    );
+    [
+      item.sourceRevisionId ? null : item.createdById,
+      item.assigneeId,
+      ...watchers,
+    ].filter((u): u is string => !!u);
   const involved = () => [
     ...owners(),
     ...reviews
@@ -641,7 +647,11 @@ export async function notifyIteration(
     );
   if (!it) return;
   const [project] = await tx
-    .select({ name: s.project.name, key: s.project.key })
+    .select({
+      name: s.project.name,
+      key: s.project.key,
+      iterationMode: s.project.iterationMode,
+    })
     .from(s.project)
     .where(
       and(
@@ -669,7 +679,7 @@ export async function notifyIteration(
       projectId: it.projectId,
       detail: {
         iterationId: it.id,
-        iterationName: it.name ?? `Iteration ${it.number}`,
+        iterationName: iterationLabel(it, project?.iterationMode),
         projectName: project?.name ?? null,
         projectKey: project?.key ?? null,
         ...(input.kind === "iteration_completed" && summary

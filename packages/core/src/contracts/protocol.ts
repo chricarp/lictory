@@ -290,6 +290,10 @@ export const entitySchema = z.discriminatedUnion("type", [
     authorId: id,
     mergedCommitId: id.nullable(),
     createdAt: z.string(),
+    // People whose review this open pull request still waits for: undecided,
+    // or approved for a merge result that has since changed. Derived on the
+    // server, which can compare result hashes.
+    pendingReviewerIds: z.array(id).default([]),
   }),
   z.object({
     ...base,
@@ -781,8 +785,24 @@ export const iterationSchema = z.object({
   completedAt: z.string().nullable(),
 });
 export type Iteration = z.infer<typeof iterationSchema>;
-export function iterationLabel(i: Pick<Iteration, "name" | "number">) {
-  return i.name?.trim().length ? i.name.trim() : `Iteration ${i.number}`;
+// What a project calls its time-boxes: sprints are planned by hand, cycles
+// run on a schedule. "Iteration" remains the neutral word when the cadence is
+// unknown (or off).
+export function iterationNoun(mode?: IterationMode) {
+  return mode === "manual"
+    ? "Sprint"
+    : mode === "automatic"
+      ? "Cycle"
+      : "Iteration";
+}
+// An unnamed iteration is numbered with its project's word for it.
+export function iterationLabel(
+  i: Pick<Iteration, "name" | "number">,
+  mode?: IterationMode,
+) {
+  return i.name?.trim().length
+    ? i.name.trim()
+    : `${iterationNoun(mode)} ${i.number}`;
 }
 // Estimate values offered per scale. T-shirt sizes are stored as points.
 export const estimateOptions: Record<

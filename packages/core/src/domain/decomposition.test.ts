@@ -338,6 +338,45 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
   assert.equal(parent.type, "workItem");
   assert.equal(parent.revisionNumber, 2);
   assert.equal(children[0]!.sourceRevisionId, parent.revisionId);
+  // Merging made the merger the child's creator, not its owner: a status
+  // change by someone else reaches explicit watchers, not the merger.
+  await db.insert(s.workItemWatcher).values({
+    organizationId: f.organizationId,
+    workItemId: children[0]!.id,
+    userId: f.reviewerId,
+    watching: true,
+  });
+  const [started] = await db
+    .select()
+    .from(s.workflowStatus)
+    .where(
+      and(
+        eq(s.workflowStatus.organizationId, f.organizationId),
+        eq(s.workflowStatus.projectId, f.projectId),
+        eq(s.workflowStatus.category, "started"),
+      ),
+    );
+  await f.command(
+    {
+      type: "updateWorkItem",
+      workItemId: children[0]!.id,
+      statusId: started!.id,
+    },
+    f.productId,
+  );
+  const statusNotices = await db
+    .select()
+    .from(s.notification)
+    .where(
+      and(
+        eq(s.notification.organizationId, f.organizationId),
+        eq(s.notification.kind, "status_changed"),
+      ),
+    );
+  assert.deepEqual(
+    statusNotices.map((n) => n.userId),
+    [f.reviewerId],
+  );
   const [revision] = await db
     .select()
     .from(s.specificationRevision)

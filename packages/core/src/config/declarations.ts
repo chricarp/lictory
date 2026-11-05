@@ -12,7 +12,8 @@ export type Service =
   | "platform"
   | "website"
   | "edge-proxy"
-  | "rebuild-projections";
+  | "rebuild-projections"
+  | "database";
 
 /** Services that validate their configuration when they start. */
 export type ValidatedService = Extract<Service, "api" | "worker" | "migrate">;
@@ -29,6 +30,8 @@ export const services: Record<Service, string> = {
     "Local single-origin proxy for development and browser tests (`scripts/edge-proxy.ts`)",
   "rebuild-projections":
     "Operator script that rebuilds read projections (`scripts/rebuild-projections.ts`)",
+  database:
+    "Database compatibility checks and role setup (`bun run db:compatibility`, `database.mjs` in the migrate image, the `database` Compose service)",
 };
 
 /** How a set value is checked at startup. Unchecked when omitted. */
@@ -190,7 +193,7 @@ export const declarations: readonly Declaration[] = [
   {
     name: "DATABASE_URL",
     group: "Database",
-    services: [...server, "migrate", "rebuild-projections"],
+    services: [...server, "migrate", "rebuild-projections", "database"],
     required: "always",
     requiredBy: server,
     secret: "issued",
@@ -205,6 +208,38 @@ export const declarations: readonly Declaration[] = [
     secret: "issued",
     description:
       "Direct connection (never a transaction pooler) for LISTEN/NOTIFY when DATABASE_URL is pooled.",
+  },
+  {
+    name: "ZERO_UPSTREAM_DB",
+    group: "Database",
+    services: ["database"],
+    secret: "issued",
+    description:
+      "zero-cache's direct (never pooled) replication connection; the compatibility checks use it to verify replication privileges, a free slot and event triggers. zero-cache itself reads it as documented by Zero.",
+  },
+  {
+    name: "ZERO_CVR_DB",
+    group: "Database",
+    services: ["database"],
+    secret: "issued",
+    description:
+      "zero-cache's own database for client view records and its change log (`<database>_zero`).",
+  },
+  {
+    name: "DATABASE_MONITORING_URL",
+    group: "Database",
+    services: ["database"],
+    secret: "issued",
+    description:
+      "Connection of the read-only backup and monitoring role (`lictory_ops`); role setup and grants include it when set.",
+  },
+  {
+    name: "DATABASE_ADMIN_URL",
+    group: "Database",
+    services: ["database"],
+    secret: "issued",
+    description:
+      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See docs/operations/external-database.md.",
   },
   {
     name: "DATABASE_MIGRATION_TARGET",
@@ -230,7 +265,7 @@ export const declarations: readonly Declaration[] = [
   {
     name: "DATABASE_MIGRATION_URL",
     group: "Database migrations",
-    services: ["migrate"],
+    services: ["migrate", "database"],
     secret: "issued",
     description:
       "Owner-role connection for migrations; required for every remote target.",

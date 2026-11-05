@@ -900,11 +900,16 @@ function SessionsSection({
 }: Pick<AccountSettingsProps, "sessionCount">) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const others = sessionCount - 1;
+  // Once the others are signed out only this browser remains; the count
+  // came with the page and is not refetched.
+  const [revoked, setRevoked] = useState(false);
+  const active = revoked ? 1 : sessionCount;
+  const others = active - 1;
 
   async function revoke() {
     setPending(true);
     const result = await authClient.revokeOtherSessions();
+    if (!result.error) setRevoked(true);
     setMessage(
       result.error
         ? (result.error.message ?? "Could not revoke sessions.")
@@ -921,7 +926,7 @@ function SessionsSection({
       description="Browsers and devices currently signed in to this account, including this one."
       action={
         <span className="text-xs text-muted-foreground tabular-nums">
-          {sessionCount} active {sessionCount === 1 ? "session" : "sessions"}
+          {active} active {active === 1 ? "session" : "sessions"}
         </span>
       }
     >

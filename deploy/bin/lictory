@@ -12,6 +12,7 @@
 #   lictory admin <command>         first administrator, accounts and instance administrators
 #   lictory status [--json]         active release, service health and access policy
 #   lictory doctor                  host and runtime checks, with what to fix
+#   lictory database check|setup    database requirements; roles on an external database
 #   lictory upgrade [version]       newest release of the environment's channel, or that version
 #   lictory rollback                re-activate the previous release's images
 #   lictory backup                  encrypted backup now
@@ -30,7 +31,11 @@ github_api="${LICTORY_GITHUB_API:-https://api.github.com}"
 default_registry="${LICTORY_DEFAULT_REGISTRY:-${LICTORY_IMAGE_REGISTRY:-ghcr.io/chricarp}}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 cli_path="${LICTORY_CLI_PATH:-/usr/local/bin/lictory}"
-services="postgres zero-cache api worker proxy"
+# The services of an environment; an external database has no container here.
+all_services="postgres zero-cache api worker proxy"
+services_of_environment() {
+  if [ "$(setting LICTORY_DATABASE)" = external ]; then echo "zero-cache api worker proxy"; else echo "$all_services"; fi
+}
 # Placeholder for ACME_EMAIL, which Compose requires even when the gateway
 # requests no certificates (proxy, local CA and plain HTTP modes).
 unused_email=unused@example.invalid
@@ -161,6 +166,9 @@ Usage: lictory <command> [options]
   admin <command>    Instance administration (lictory admin help)
   status [--json]    Active release, service health and access policy
   doctor             Check the host and the running environment
+  database check     Check the database against Lictory's requirements (--json)
+  database setup     Create Lictory's roles on an external database
+                     (administrator URL from LICTORY_DATABASE_ADMIN_URL or a prompt)
   upgrade [version]  Upgrade to the newest release of the channel, or to <version>
   rollback           Re-activate the previous release (database schema stays)
   backup             Take an encrypted backup now
@@ -219,6 +227,7 @@ is_given() { case "$given" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 word_in() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 install_values="host tls acme-email acme-ca http-port bind public-url trusted-proxies
+  database database-host database-port database-sslmode database-ca-file database-admin-url
   email smtp-host smtp-port smtp-user smtp-password smtp-from resend-api-key email-from
   storage s3-endpoint s3-region s3-bucket s3-access-key-id s3-secret-access-key s3-force-path-style
   oidc oidc-issuer oidc-client-id oidc-client-secret oidc-display-name
@@ -339,7 +348,13 @@ invalid_reason() {
     tls) word_in "$value" "acme proxy internal http" || echo "one of acme, proxy, internal, http" ;;
     acme-email) [[ "$value" =~ $email_pattern ]] || echo "an email address" ;;
     acme-ca | oidc-issuer) [ -z "$value" ] || [[ "$value" =~ ^https://[^[:space:]]+$ ]] || echo "an https:// URL" ;;
-    http-port | smtp-port) valid_port "$value" || echo "a port number" ;;
+    http-port | smtp-port | database-port) valid_port "$value" || echo "a port number" ;;
+    database) word_in "$value" "bundled external" || echo "bundled or external" ;;
+    database-host) [[ "$value" =~ $host_pattern ]] || [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] ||
+      echo "a lowercase host name or IPv4 address (the direct endpoint; no scheme, port or path)" ;;
+    database-sslmode) word_in "$value" "verify-full require" || echo "verify-full (recommended) or require" ;;
+    database-ca-file) [ -z "$value" ] || [[ "$value" =~ ^/[A-Za-z0-9._/-]+$ ]] || echo "an absolute path without spaces" ;;
+    database-admin-url) [[ "$value" =~ ^postgres(ql)?://[^[:space:]]+$ ]] || echo "a postgresql:// URL" ;;
     bind) word_in "$value" "127.0.0.1 0.0.0.0" || echo "127.0.0.1 (this host only) or 0.0.0.0 (all interfaces)" ;;
     public-url) [[ "$value" =~ $origin_pattern ]] || echo "an origin such as https://lictory.example.com (lowercase, no path or trailing slash)" ;;
     trusted-proxies)
@@ -461,7 +476,7 @@ as_deploy() {
   if command -v runuser >/dev/null; then
     runuser -u "$user" -- env LICTORY_ROOT="$root" "$@"
   elif command -v sudo >/dev/null; then
-    sudo -H --preserve-env=RESTORE_PGPASSWORD -u "$user" env LICTORY_ROOT="$root" "$@"
+    sudo -H --preserve-env=RESTORE_PGPASSWORD,DATABASE_ADMIN_URL -u "$user" env LICTORY_ROOT="$root" "$@"
   else
     die "Neither runuser nor sudo is available to run commands as $user."
   fi
@@ -1234,6 +1249,52 @@ collect_connection() {
   return 0
 }
 
+# Where PostgreSQL runs: the bundled container, or a server or managed service
+# that meets Lictory's requirements (docs/operations/external-database.md).
+collect_database() {
+  local database current_database ca compose_version
+  current_database=$(current LICTORY_DATABASE)
+  current_database="${current_database:-bundled}"
+  choose database "Where does PostgreSQL run?" "$current_database" \
+    "bundled|A PostgreSQL container on this server, backed up by Lictory (recommended)" \
+    "external|Your own PostgreSQL server or a managed service (RDS, Cloud SQL, Azure, Neon, Supabase…)"
+  database=$(opt database)
+  # Moving data between databases is a dump and restore, never a setting.
+  if [ -n "$(current_version)" ] && [ "$database" != "$current_database" ]; then
+    die "$environment already stores its data in the $current_database database. Moving it to the $database one is a migration of the data: see docs/operations/external-database.md#moving-an-installation." 64
+  fi
+  plan LICTORY_DATABASE "$([ "$database" = external ] && echo external)"
+  [ "$database" = external ] || return 0
+  compose_version=$(docker compose version --short 2>/dev/null || true)
+  [ -z "$compose_version" ] || version_ge "$compose_version" 2.24.4 ||
+    die "An external database needs Docker Compose 2.24.4 or newer (found ${compose_version#v})." 64
+  note "Lictory checks the database's requirements before it migrates: docs/operations/external-database.md"
+  ask database-host "Database host: the direct endpoint, never a pooler" "$(current DATABASE_HOST)"
+  require_opt database-host "The database host"
+  ask database-port "Database port" "$(current DATABASE_PORT | grep . || echo 5432)"
+  choose database-sslmode "How is the database's certificate checked?" "$(current DATABASE_SSLMODE | grep . || echo verify-full)" \
+    "verify-full|Encrypted, certificate and host name verified (recommended)" \
+    "require|Encrypted, certificate not verified"
+  ca=$(current DATABASE_CA_FILE)
+  [ "$ca" != "$home/database-ca.pem" ] || ca=""
+  ask database-ca-file "CA bundle (PEM) for the database's certificate (empty: the system CAs)" "$ca"
+  ca=$(opt database-ca-file)
+  if [ -n "$ca" ] && [ "$ca" != "$home/database-ca.pem" ]; then
+    [ -r "$ca" ] || die "Cannot read the CA bundle $ca." 64
+    grep -q 'BEGIN CERTIFICATE' "$ca" || die "$ca is not a PEM certificate bundle." 64
+  fi
+  plan DATABASE_HOST "$(opt database-host)"
+  plan DATABASE_PORT "$(opt database-port)"
+  plan DATABASE_SSLMODE "$(opt database-sslmode)"
+  plan DATABASE_CA_FILE "$([ -n "$ca" ] && echo "$home/database-ca.pem")"
+  if [ "$interactive" = true ] && ! is_given database-admin-url; then
+    note "Lictory needs four roles and two databases on that server (lictory_owner, lictory_app, zero, lictory_ops)."
+    ask database-admin-url "Administrator connection URL to create them now (empty: they exist, or later with lictory database setup)" "" secret
+  fi
+  # Lictory takes no backups of a database it does not run.
+  plan BACKUP_TARGET none
+}
+
 collect_services() {
   local host port url email storage backup recipient
   host=$(opt host)
@@ -1321,6 +1382,10 @@ collect_services() {
     plan OIDC_CLIENT_SECRET ""
   fi
 
+  if [ "$(opt database)" = external ]; then
+    note "Backups: the database is external; its provider's backups and point-in-time recovery protect it."
+    return 0
+  fi
   backup=$(current BACKUP_TARGET)
   choose backup "Where do backups go?" "${backup:-local}" \
     "local|A directory on this server or a mounted disk (NAS, second disk)" \
@@ -1459,6 +1524,11 @@ review() {
     proxy) lines+=("$(row "Address" "${planned_url} (behind your proxy, gateway on $(opt bind):$(opt http-port))")") ;;
     http) lines+=("$(row "Address" "${planned_url} (plain HTTP, evaluation only)")") ;;
   esac
+  if [ "$(opt database)" = external ]; then
+    lines+=("$(row "Database" "external: $(opt database-host):$(opt database-port), sslmode $(opt database-sslmode)$([ -z "$(opt database-ca-file)" ] || printf ', CA %s' "$(opt database-ca-file)")$(is_given database-admin-url && [ -n "$(opt database-admin-url)" ] && printf ', roles created with the administrator URL')")")
+  else
+    lines+=("$(row "Database" "bundled PostgreSQL container on this server")")
+  fi
   email=$(opt email)
   case "$email" in
     smtp) lines+=("$(row "Email" "SMTP $(opt smtp-host):$(opt smtp-port)$([ -n "$(opt smtp-user)" ] && printf ' as %s, password %s' "$(opt smtp-user)" "$(masked "$(opt smtp-password)")") from $(opt smtp-from)")") ;;
@@ -1479,13 +1549,15 @@ review() {
     lines+=("$(row "Single sign-on" "off")")
   fi
   backup=$(opt backup)
+  [ "$(opt database)" != external ] || backup=external
   case "$backup" in
+    external) lines+=("$(row "Backups" "your database provider's (Lictory takes none)")") ;;
     local) lines+=("$(row "Backups" "$( [ -n "$(opt backup-path)" ] && opt backup-path || printf 'a volume on this server')")") ;;
     s3) lines+=("$(row "Backups" "bucket $(opt backup-bucket), secret $(masked "$(opt backup-s3-secret-access-key)")")") ;;
     rclone) lines+=("$(row "Backups" "rclone $(opt backup-rclone-remote)")") ;;
     none) lines+=("$(row "Backups" "none")") ;;
   esac
-  if [ "$backup" != none ]; then
+  if [ "$backup" != none ] && [ "$backup" != external ]; then
     case "$(opt backup-age-recipient)" in
       generate) lines+=("$(row "Backup encryption" "a new age key pair")") ;;
       none) lines+=("$(row "Backup encryption" "none (backups are not encrypted)")") ;;
@@ -1526,7 +1598,7 @@ cmd_install() {
   user=$(deploy_user)
   [ -f "$home/.env" ] && existed=true
   active=$(current_version)
-  steps_total=8
+  steps_total=9
   banner "self-hosted installer"
 
   step "Checking this server"
@@ -1543,6 +1615,9 @@ cmd_install() {
     check_ports "$(opt http-port)"
   fi
   [ "$failures" -eq 0 ] || die "Fix the failed checks above, then run lictory install again."
+
+  step "Database"
+  collect_database
 
   step "Email, attachments, sign-in and backups"
   collect_services
@@ -1595,20 +1670,20 @@ cmd_install() {
     if [ -z "$(opt version)" ] && [ -f "$root/share/bundle/release.env" ] &&
       [ "$(env_value "$root/share/bundle/release.env" LICTORY_CHANNEL)" = "$channel" ]; then
       release_file="$root/share/bundle/release.env"
-      say "Lictory $(env_value "$release_file" LICTORY_VERSION) ($channel), verified by get.sh."
+      check_ok "Lictory $(env_value "$release_file" LICTORY_VERSION) ($channel), verified by get.sh"
     else
       resolve_release "$channel" "$(opt version)"
       release_file=$(mktemp)
       fetch_release "$release_file"
-      say "Lictory $release_version ($channel): $release_notes"
+      check_ok "Lictory $release_version ($channel): $release_notes"
     fi
     run_task "Pulling the release images" pull_release_images "$release_file" ||
       die "The release images could not be pulled; see the messages above."
   elif [ -n "$(opt version)" ] && [ "$(opt version)" != "$active" ]; then
-    say "$environment already runs $active; use: lictory upgrade $(opt version)"
+    note "$environment already runs $active; to change the release use: lictory upgrade $(opt version)"
   fi
 
-  if [ "$(opt backup)" != none ] && [ "$(opt backup-age-recipient)" = generate ]; then
+  if [ "$(opt database)" != external ] && [ "$(opt backup)" != none ] && [ "$(opt backup-age-recipient)" = generate ]; then
     identity=$(opt backup-identity-file)
     identity="${identity:-/root/lictory-$environment-backup-identity.txt}"
     local ops_image key
@@ -1624,6 +1699,19 @@ cmd_install() {
     install -d -m 0700 -o 70 -g 70 "$path" 2>/dev/null || warn "Make $path a directory owned by uid 70 with mode 0700."
   fi
 
+  # The database's CA bundle lives with the environment, readable by the
+  # containers (a certificate is public).
+  local ca
+  ca=$(opt database-ca-file)
+  if [ "$(opt database)" = external ] && [ -n "$ca" ] && [ "$ca" != "$home/database-ca.pem" ]; then
+    install -m 0644 "$ca" "$home/database-ca.pem"
+    is_root && chown "$user" "$home/database-ca.pem" 2>/dev/null || true
+  fi
+  # The administrator URL is used once, by deploy.sh, and never stored.
+  if [ "$(opt database)" = external ] && [ -n "$(opt database-admin-url)" ]; then
+    export DATABASE_ADMIN_URL
+    DATABASE_ADMIN_URL=$(opt database-admin-url)
+  fi
   # The review computed the changes of an existing environment; a new one
   # (or a key generated since) is compared with its .env now.
   [ "$existed" = true ] && [ -z "$identity" ] || changed=$(pending_changes | awk '!seen[$0]++')
@@ -1634,12 +1722,12 @@ cmd_install() {
 
   if [ -n "$release_file" ]; then
     run_task "Deploying Lictory $(env_value "$release_file" LICTORY_VERSION)" deploy_sh release <"$release_file" ||
-      die "The release did not activate; see the messages above and run: lictory doctor"
+      die "The release did not activate; see the messages above and run: lictory doctor$([ "$(opt database)" != external ] || printf '\nFor the database: sudo lictory database check (requirements) or sudo lictory database setup (roles), then run lictory install again.')"
   elif [ -n "$changed" ]; then
     run_task "Applying the new settings to $active" deploy_sh activate "$active" ||
       die "Re-activation failed; the previous settings are in $home/.env.backup-*. Run: lictory doctor"
   else
-    say "Nothing changed; $environment runs $active. New releases: lictory upgrade"
+    check_ok "Nothing changed; $environment runs $active. New releases: lictory upgrade"
   fi
   refresh_share
   start_timers
@@ -1647,7 +1735,7 @@ cmd_install() {
   step "Checking $(platform_url)"
   # Behind a proxy that may not be configured yet, do not wait long.
   if run_task "Waiting for $(platform_url)/readyz" wait_until_ready "$([ "$(current_tls)" = proxy ] && echo 20 || echo 180)"; then
-    say "Lictory is up: $(platform_url)"
+    check_ok "Lictory is up: $(platform_url)"
   else
     warn "$(platform_url)/readyz is not reachable from this server yet. The services are running; check DNS, firewall and certificates with: lictory doctor"
   fi
@@ -1797,7 +1885,11 @@ summary() {
   mode=$(setting LICTORY_SIGNUP_MODE)
   mode="${mode:-invite}"
   if [ "$fancy" = true ]; then
-    lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is ready${c_reset}")
+    if [ "$admin_pending" = true ]; then
+      lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is running${c_reset} ${c_dim}· create the first administrator next${c_reset}")
+    else
+      lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is ready${c_reset}")
+    fi
     lines+=("")
     lines+=("$(row "Open" "$url")")
     [ -z "$admin_email_created" ] || lines+=("$(row "Administrator" "$admin_email_created")")
@@ -1807,22 +1899,26 @@ summary() {
     [ -z "$(current_version)" ] || lines+=("$(row "Release" "$(current_version) ($(channel_of_environment))")")
     box "${lines[@]}"
   fi
-  step "Next steps"
+  # The installer's eight steps are done: this heading has no counter.
   steps_total=0
+  step "Next steps"
+  local ind=""
+  [ "$fancy" != true ] || ind="   "
   if [ -n "$admin_email_created" ]; then
-    say "1. Sign in at $url as $admin_email_created."
+    say "${ind}1. Sign in at $url as $admin_email_created."
   elif [ "$admin_pending" = true ]; then
-    say "1. Create the first administrator and organization: sudo lictory admin setup"
+    say "${ind}1. Create the first administrator and organization: sudo lictory admin setup"
   else
-    say "1. Sign in at $url with an instance administrator account (lictory admin list)."
+    say "${ind}1. Sign in at $url with an instance administrator account (lictory admin list)."
   fi
-  say "2. Open the admin console at $url/admin to invite people, create accounts and organizations,"
-  say "   and choose who administers Lictory."
-  say "   Accounts: $(signup_words "$mode"); $(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")."
-  say "   Change it with: sudo lictory install --signup-mode invite|closed|open --organization-creation administrators|everyone"
+  say "${ind}2. Open the admin console at $url/admin to invite people, create accounts and"
+  say "${ind}   organizations, and choose who administers Lictory."
+  say "${ind}   Accounts: $(signup_words "$mode"); $(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")."
+  say "${ind}   Change it with: sudo lictory install --signup-mode invite|closed|open"
   if [ "$(current_email)" = none ]; then
     notes+=("No outbound email: invitations, verification and password reset email are not delivered.")
-    notes+=("   Configure SMTP or Resend (sudo lictory install --email smtp), or create accounts with passwords: sudo lictory admin create-user")
+    notes+=("   Configure SMTP or Resend (sudo lictory install --email smtp), or create accounts with")
+    notes+=("   passwords: sudo lictory admin create-user")
   fi
   if [ -n "$identity" ]; then
     notes+=("Backup identity (private key): $identity")
@@ -1830,18 +1926,19 @@ summary() {
     notes+=("   Restores and restore drills need it.")
   fi
   [ "$(setting BACKUP_TARGET)" = local ] && [ -z "$(setting BACKUP_LOCAL_PATH)" ] &&
-    notes+=("Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone for disaster recovery.")
+    notes+=("Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone" "   for disaster recovery.")
   if [ "$(current_tls)" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
     notes+=("Set the address your reverse proxy connects from (lictory doctor suggests it):")
     notes+=("   sudo lictory install --trusted-proxies <ip>   (docs/operations/reverse-proxy.md)")
   fi
   [ "$(current_tls)" = http ] &&
-    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only (docs/operations/reverse-proxy.md).")
+    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only" "   (docs/operations/reverse-proxy.md).")
   notes+=("Check the installation at any time: lictory doctor")
   notes+=("Upgrades: lictory upgrade (channel: $(channel_of_environment))")
+  say ""
   local line
   for line in "${notes[@]}"; do
-    case "$line" in "   "*) say "$line" ;; *) say "$g_bullet  $line" ;; esac
+    case "$line" in "   "*) say "${ind}${line# }" ;; *) say "${ind}$g_bullet $line" ;; esac
   done
 }
 
@@ -1882,7 +1979,7 @@ cmd_admin() {
       step "First administrator"
       first_administrator setup
       [ -z "$admin_email_created" ] || {
-        say "Sign in at $(platform_url) as $admin_email_created, then open $(platform_url)/admin."
+        note "Next: sign in at $(platform_url) as $admin_email_created, then open $(platform_url)/admin."
       }
       ;;
     status)
@@ -2030,9 +2127,16 @@ cmd_bootstrap() {
   printf 'LICTORY_REPOSITORY=%s\nLICTORY_IMAGE_REGISTRY=%s\n' "$repository" "$default_registry" >"$root/share/source.env"
   chown -R "$user" "$root/share" 2>/dev/null || true
   step "Ready"
-  say "Install and start Lictory:  sudo lictory install"
-  say "Without questions:          sudo lictory install --yes --host lictory.example.com --acme-email ops@example.com"
-  say "Guide: https://github.com/$repository/blob/main/docs/operations/self-hosting.md"
+  # LICTORY_ENV names the environment to prepare; install must be told too,
+  # since it defaults to production until an environment exists.
+  local flag=""
+  [ "$environment" = production ] || flag=" --env $environment"
+  say "The lictory command is installed. Next, install and start Lictory:"
+  say ""
+  say "  sudo lictory install$flag            guided: checks, address, email, backups, first administrator"
+  say "  sudo lictory install$flag --help     every option, for an unattended install with --yes"
+  say ""
+  say "Guide: https://docs.lictory.com/self-hosting/install"
 }
 
 # ---------------------------------------------------------- everyday commands
@@ -2105,6 +2209,8 @@ cmd_backup() {
   parse "" "" "$@"
   [ ${#positional[@]} -eq 0 ] || usage_error "backup takes no arguments."
   select_environment
+  [ "$(setting LICTORY_DATABASE)" != external ] ||
+    die "$environment uses an external database: Lictory takes no backups of it. Use your provider's backups and point-in-time recovery (docs/operations/external-database.md#backups)."
   [ "$(setting BACKUP_TARGET)" != none ] || die "Backups are disabled (BACKUP_TARGET=none). Choose a target: sudo lictory install --backup local"
   as_deploy "$bin/lictory-backup" "$environment" manual
 }
@@ -2113,8 +2219,10 @@ cmd_logs() {
   parse "tail" "follow" "$@"
   [ ${#positional[@]} -le 1 ] || usage_error "logs takes at most one service."
   local service="${positional[0]:-}" args
-  [ -z "$service" ] || word_in "$service" "$services" || usage_error "Unknown service $service (one of: $services)."
+  [ -z "$service" ] || word_in "$service" "$all_services" || usage_error "Unknown service $service (one of: $all_services)."
   select_environment
+  [ -z "$service" ] || word_in "$service" "$(services_of_environment)" ||
+    die "$environment has no $service service: its database is external (LICTORY_DATABASE=external)." 64
   args=(logs --tail "$(opt tail)")
   [ -n "$(opt tail)" ] || args=(logs --tail 200)
   [ "$(opt follow)" != true ] || args+=(--follow)
@@ -2175,6 +2283,8 @@ cmd_restore() {
     [ "$copy" = "$identity" ] || rm -f "$copy"
     return "$status"
   fi
+  [ "$(setting LICTORY_DATABASE)" != external ] ||
+    die "$environment uses an external database: restore it with your provider's point-in-time recovery or snapshots, then run lictory install (docs/operations/external-database.md#backups)."
   require_root
   local project="lictory-$environment" stamp keep work db image mounts=() target="$source"
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -2227,6 +2337,87 @@ cmd_restore() {
   say "Restored. Check the data, then remove the previous database: docker volume rm $keep"
 }
 
+# --------------------------------------------------------------------- database
+# The release's database.mjs (the `database` Compose service) with the
+# connections the services use: requirements, role setup and grants.
+has_database_tool() { compose --profile tools config --services 2>/dev/null | grep -qx database; }
+
+# database_checks: the requirements as doctor checks (pass, warn, fail).
+database_checks() {
+  local json line status detail fix
+  if ! has_database_tool; then
+    check_warn "This release cannot check the database's requirements; upgrade to check them (lictory upgrade)."
+    return 0
+  fi
+  json=$(compose run --rm --no-deps -T database check --json 2>/dev/null | tail -n 1) || true
+  if ! printf '%s' "$json" | jq -e .checks >/dev/null 2>&1; then
+    check_fail "The database requirements could not be checked: sudo lictory database check"
+    return 0
+  fi
+  while IFS=$'\t' read -r status line detail fix; do
+    case "$status" in
+      pass) check_ok "$line" ;;
+      warn) check_warn "$line: $detail${fix:+ Fix: $fix}" ;;
+      fail) check_fail "$line: $detail${fix:+ Fix: $fix}" ;;
+    esac
+  done < <(printf '%s' "$json" | jq -r '.checks[] | select(.status != "skip") | [.status, .requirement, .detail, (.fix // "")] | @tsv')
+}
+
+cmd_database() {
+  local sub="${1:-}"
+  [ $# -eq 0 ] || shift
+  case "$sub" in
+    check)
+      parse "" "json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "database check takes no arguments."
+      select_environment
+      [ -n "$(current_version)" ] || [ -n "$(newest_prepared)" ] || die "$environment has no release yet: sudo lictory install"
+      release_compose run --rm --no-deps -T database check $([ "$(opt json)" != true ] || echo --json)
+      ;;
+    setup)
+      parse "database-admin-url" "" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "database setup takes no arguments (the administrator URL comes from LICTORY_DATABASE_ADMIN_URL or a prompt)."
+      select_environment
+      [ "$(setting LICTORY_DATABASE)" = external ] ||
+        die "$environment uses the bundled database, whose roles deploy.sh maintains. database setup is for an external database (LICTORY_DATABASE=external)."
+      [ -n "$(current_version)" ] || [ -n "$(newest_prepared)" ] || die "$environment has no release yet: sudo lictory install"
+      if [ -z "$(opt database-admin-url)" ]; then
+        [ -t 0 ] || die "Set LICTORY_DATABASE_ADMIN_URL to an administrator connection (a role that may create roles and databases)." 64
+        interactive=true
+        say "An administrator connection creates Lictory's roles and databases on $(setting DATABASE_HOST); it is used once and not stored."
+        ask database-admin-url "Administrator connection URL (postgresql://user:password@host:port/database?sslmode=verify-full)" "" secret
+        [ -n "$(opt database-admin-url)" ] || die "No administrator connection given."
+      fi
+      DATABASE_ADMIN_URL=$(opt database-admin-url) release_compose run --rm --no-deps -T -e DATABASE_ADMIN_URL database setup ||
+        die "The role setup did not finish; see the messages above (docs/operations/external-database.md#roles)."
+      say "Checking the requirements:"
+      release_compose run --rm --no-deps -T database check
+      ;;
+    "" | help | -h | --help)
+      say "Usage: lictory database check [--json] | setup"
+      ;;
+    *) usage_error "Unknown database command: $sub (check or setup)." ;;
+  esac
+}
+# The release prepared most recently, for commands that run before the first
+# activation (a failed first install).
+newest_prepared() {
+  local dir
+  # shellcheck disable=SC2012 # release directories are version numbers
+  for dir in $(ls -1td "$home"/releases/*/ 2>/dev/null); do
+    [ -f "$dir/release.env" ] && [ -f "$dir/compose.production.yaml" ] || continue
+    printf '%s' "${dir%/}"
+    return 0
+  done
+}
+release_compose() {
+  if [ -n "$(current_version)" ]; then
+    compose "$@"
+  else
+    as_deploy env LICTORY_RELEASE_DIR="$(newest_prepared)" "$bin/lictory-compose" "$environment" "$@"
+  fi
+}
+
 # ----------------------------------------------------------------------- doctor
 cmd_doctor() {
   parse "" "" "$@"
@@ -2250,7 +2441,9 @@ cmd_doctor() {
     none) check_warn "No outbound email: verification, invitations and password reset are not delivered (sudo lictory install --email smtp)." ;;
     *) check_ok "outbound email via $(current_email)" ;;
   esac
-  case "$(setting BACKUP_TARGET)" in
+  if [ "$(setting LICTORY_DATABASE)" = external ]; then
+    check_ok "external database $(setting DATABASE_HOST):$(setting DATABASE_PORT | grep . || echo 5432) (sslmode $(setting DATABASE_SSLMODE | grep . || echo verify-full)); backups are the provider's"
+  else case "$(setting BACKUP_TARGET)" in
     none) check_warn "Backups are disabled (BACKUP_TARGET=none)." ;;
     local) [ -n "$(setting BACKUP_LOCAL_PATH)" ] && check_ok "backups to $(setting BACKUP_LOCAL_PATH)" ||
       check_warn "Backups stay on this server's disk; add a NAS path, s3 or rclone target for disaster recovery." ;;
@@ -2261,6 +2454,7 @@ cmd_doctor() {
     age1*) ;;
     *) [ "$(setting BACKUP_TARGET)" = none ] || check_fail "BACKUP_AGE_RECIPIENTS is not an age public key: backups fail (sudo lictory install --backup-age-recipient generate)." ;;
   esac
+  fi
   if [ "$tls" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
     gateway=$(docker network inspect "lictory-${environment}_edge" --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null || true)
     check_warn "CADDY_TRUSTED_PROXIES is empty: every user shares one sign-in rate limit.${gateway:+ A proxy on this host connects from $gateway: sudo lictory install --trusted-proxies $gateway}"
@@ -2277,7 +2471,7 @@ cmd_doctor() {
       check_fail "deploy.sh status failed: $bin/deploy.sh $environment status"
     else
       check_ok "release $version ($(printf '%s' "$status_json" | jq -r .channel))"
-      for service in $services; do
+      for service in $(services_of_environment); do
         state=$(printf '%s' "$status_json" | jq -r --arg s "$service" '.services[$s] // "missing"')
         case "$state" in
           running | running/healthy) check_ok "$service $state" ;;
@@ -2314,8 +2508,10 @@ cmd_doctor() {
 
   if [ -n "$version" ]; then
     step "Database, replication and background work"
+    database_checks
     local report
     if report=$(compose run --rm --no-deps -T ops sh -c '
+      [ -n "${PGSSLROOTCERT:-}" ] || [ "${PGSSLMODE:-}" != verify-full ] || export PGSSLROOTCERT=system
       psql -X -A -t -F " | " -v ON_ERROR_STOP=1 -v slot_lag_bytes="${MONITOR_SLOT_LAG_ALERT_BYTES:-2147483648}" \
         -v wal_bytes="${MONITOR_WAL_ALERT_BYTES:-6442450944}" -f /opt/lictory/sql/checks.sql
       echo "backup | $(jq -r .completed_at /backups/last-success.json 2>/dev/null || echo none)"' 2>&1); then
@@ -2323,7 +2519,7 @@ cmd_doctor() {
       while IFS= read -r line; do
         [ -n "$line" ] || continue
         case "$line" in
-          "backup | none") [ "$(setting BACKUP_TARGET)" = none ] || check_warn "No successful backup yet: lictory backup" ;;
+          "backup | none") [ "$(setting BACKUP_TARGET)" = none ] || [ "$(setting LICTORY_DATABASE)" = external ] || check_warn "No successful backup yet: lictory backup" ;;
           "backup | "*) check_ok "last backup ${line#backup | }" ;;
           *) check_fail "$line"; problems=$((problems + 1)) ;;
         esac
@@ -2379,6 +2575,7 @@ case "$command" in
   bootstrap) cmd_bootstrap "$@" ;;
   status) cmd_status "$@" ;;
   doctor) cmd_doctor "$@" ;;
+  database) cmd_database "$@" ;;
   upgrade) cmd_upgrade "$@" ;;
   rollback) cmd_rollback "$@" ;;
   backup) cmd_backup "$@" ;;

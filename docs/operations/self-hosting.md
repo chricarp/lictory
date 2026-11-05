@@ -35,6 +35,14 @@ from a terminal agent, use [MCP](https://docs.lictory.com/integrations/agents).
 `install` and `doctor` check all of these. `--ignore-requirements` turns the
 memory and disk minimums into warnings for evaluation machines.
 
+**PostgreSQL** runs in a container on the server by default. Any other
+PostgreSQL that meets Lictory's requirements works too: your own server or a
+managed service (RDS, Aurora, Cloud SQL, AlloyDB, Azure, Neon, Supabase,
+Crunchy Bridge…). The requirements, the role setup without a superuser and
+each provider's settings are in
+[external and managed PostgreSQL](external-database.md); `lictory database
+check` tests a server against them.
+
 Install Docker the way your company does, or from
 [Docker's instructions](https://docs.docker.com/engine/install/). On a fresh
 Ubuntu 24.04 server, `deploy/provision/provision.sh` can harden the host first
@@ -109,7 +117,7 @@ stdin or at the prompt).
 
 ## Install
 
-`sudo lictory install` is a guided installation in eight steps. On a
+`sudo lictory install` is a guided installation in nine steps. On a
 terminal it shows menus (arrow keys or `j`/`k`, Enter), checks each answer
 as you type it and runs long steps behind a progress line, keeping their
 output in `/srv/lictory/<env>/logs/install-<timestamp>.log` (the tail is shown
@@ -120,7 +128,11 @@ when a step fails). Elsewhere (`--yes`, pipes, CI) it prints plain text;
 2. **Address and certificates**: how browsers reach the server (TLS mode,
    below), the host name and, for automatic HTTPS, an email for certificate
    notices. DNS and the ports are checked right away.
-3. **Email, attachments, sign-in and backups**:
+3. **Database**: the bundled PostgreSQL container (default) or an
+   [external database](external-database.md): its direct endpoint, TLS mode
+   and CA, and optionally an administrator connection that creates
+   Lictory's roles once (not stored).
+4. **Email, attachments, sign-in and backups**:
    - Outbound email: SMTP or Resend. Without it invitations, verification
      and password reset email are not delivered; administrators can still
      create accounts with passwords.
@@ -129,17 +141,19 @@ when a step fails). Elsewhere (`--yes`, pipes, CI) it prints plain text;
    - Single sign-on (optional): an OpenID Connect provider
      ([single sign-on](sso.md)). Register
      `https://<host>/api/auth/callback/oidc` at the provider.
-   - Backups: where they go and the age key that encrypts them (below).
-4. **Access policy**: who may create accounts and organizations
+   - Backups: where they go and the age key that encrypts them (below). Not
+     asked for an external database: its provider backs it up.
+5. **Access policy**: who may create accounts and organizations
    ([below](#access-policy)).
-5. **Review**: every answer in one summary, secrets masked; for an existing
+6. **Review**: every answer in one summary, secrets masked; for an existing
    environment the `.env` keys that change. Nothing changes before you
    confirm.
-6. **Installing**: the host tooling, `/srv/lictory/<env>/.env` with generated
+7. **Installing**: the host tooling, `/srv/lictory/<env>/.env` with generated
    secrets, the release images and the release `get.sh` verified (or
-   `--version`).
-7. **Checking** that `https://<host>/readyz` answers; the timers start.
-8. **First administrator**: the account that manages Lictory and the
+   `--version`). With an external database, its requirements are checked
+   before the first migration.
+8. **Checking** that `https://<host>/readyz` answers; the timers start.
+9. **First administrator**: the account that manages Lictory and the
    organization it owns ([below](#the-first-administrator)).
 
 It ends with a summary: the address, the administrator, the admin console
@@ -237,11 +251,13 @@ else in `.env` by hand; `sudo lictory install --yes` (or
 | `lictory admin <command>`                                                         | Instance administration from the server ([below](#instance-administration))                                                                                    |
 | `lictory status [--json]`                                                         | Active release, image digests and service health (`deploy.sh status`), the address, channel and access policy                                                  |
 | `lictory doctor`                                                                  | Host requirements, `.env`, services, the public route and certificate, DNS, replication slot, WAL, queued work, last backup and timers; exits 1 on any failure |
+| `lictory database check [--json]`                                                 | The database against [Lictory's requirements](external-database.md#requirements), with the fix for each gap; exits 1 on any failure                            |
+| `lictory database setup`                                                          | Creates Lictory's roles and databases on an external database; the administrator URL from `LICTORY_DATABASE_ADMIN_URL` or a hidden prompt, never stored        |
 | `lictory upgrade [version] [--yes]`                                               | The newest release of the environment's channel, or that version                                                                                               |
 | `lictory rollback [--yes]`                                                        | Re-activates the previously activated release's images                                                                                                         |
 | `lictory backup`                                                                  | An encrypted backup now (`lictory-backup <env> manual`)                                                                                                        |
 | `lictory restore <identity-file\|none> [latest\|<key>\|<file>] [--drill] [--yes]` | Replaces the database with a backup (root); `--drill` restores into a throwaway stack instead                                                                  |
-| `lictory logs [service] [-f\|--follow] [--tail N]`                                | Logs of `postgres`, `zero-cache`, `api`, `worker` or `proxy` (default: all, last 200 lines)                                                                    |
+| `lictory logs [service] [-f\|--follow] [--tail N]`                                | Logs of `postgres` (bundled database only), `zero-cache`, `api`, `worker` or `proxy` (default: all, last 200 lines)                                            |
 | `lictory registry-login [--username U]`                                           | `docker login` to the environment's registry for the deploy user (and root); token on stdin                                                                    |
 | `lictory help`                                                                    | Usage                                                                                                                                                          |
 
@@ -261,6 +277,9 @@ Install options (each also `LICTORY_<NAME>`, for example
 | `--http-port`, `--bind`                                                                                                                               | `proxy`/`http`: port (8080) and `127.0.0.1` (default) or `0.0.0.0`                                                                       |
 | `--public-url`                                                                                                                                        | `proxy`: the address your proxy serves (default `https://<host>`)                                                                        |
 | `--trusted-proxies`                                                                                                                                   | `proxy`: space-separated IPs/CIDRs your proxy connects from                                                                              |
+| `--database`                                                                                                                                          | `bundled` (default) or `external` ([external and managed PostgreSQL](external-database.md)); fixed once a release is active              |
+| `--database-host`, `--database-port`, `--database-sslmode`, `--database-ca-file`                                                                      | `external`: the direct endpoint, port (5432), `verify-full` (default) or `require`, a CA bundle (PEM) when the CA is not public          |
+| `--database-admin-url`                                                                                                                                | `external`: an administrator connection that creates the roles once; pass it as `LICTORY_DATABASE_ADMIN_URL`, it is never stored         |
 | `--email`                                                                                                                                             | `smtp`, `resend`, `none` (default)                                                                                                       |
 | `--smtp-host`, `--smtp-port`, `--smtp-user`, `--smtp-password`, `--smtp-from`                                                                         | SMTP server (port 587 default, STARTTLS; 465 TLS; 25)                                                                                    |
 | `--resend-api-key`, `--email-from`                                                                                                                    | Resend                                                                                                                                   |
@@ -313,6 +332,10 @@ only the public key in `.env` and writes the private identity to
 `/root/lictory-<env>-backup-identity.txt`. Move that file to your password
 manager or an offline copy and delete it from the server: restores need it,
 and a server compromise must not expose old backups.
+
+With an [external database](external-database.md#backups), Lictory takes no
+backups: the provider's backups and point-in-time recovery protect it, and
+`backup` and `restore` refuse.
 
 `local` without a path keeps backups in a Docker volume on the same disk,
 which protects against mistakes but not against losing the server; prefer a
@@ -386,6 +409,7 @@ Start with `lictory doctor`; every failure line names the fix.
 | Sign-up email never arrives                               | `--email none` or wrong SMTP settings: `sudo lictory install --email smtp …`, then `lictory logs worker`                            |
 | "Another deployment of <env> is running"                  | Wait for it; `deploy.sh` holds a lock per environment                                                                               |
 | "This environment accepts stable releases"                | The version belongs to the other channel: `sudo lictory install --channel …`                                                        |
+| "The database does not meet Lictory's requirements"       | An external database: `sudo lictory database check` names each gap and its fix; missing roles: `sudo lictory database setup`        |
 | Replication slot or WAL warnings                          | [Replication slot and WAL growth](recovery.md#replication-slot-and-wal-growth)                                                      |
 | Everyone shares one sign-in rate limit behind a proxy     | Set `--trusted-proxies`; `doctor` prints the address a proxy on the same host connects from                                         |
 

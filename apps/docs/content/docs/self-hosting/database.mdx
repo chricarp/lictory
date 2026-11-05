@@ -1,0 +1,83 @@
+---
+title: Database
+description: The bundled PostgreSQL, or your own server or a managed service (RDS, Aurora, Cloud SQL, AlloyDB, Azure, Neon, Supabase, Crunchy Bridge) that meets Lictory's requirements, which Lictory checks itself.
+---
+
+<CliNotice />
+
+By default Lictory runs PostgreSQL in a container on the server and backs it
+up. It also runs on **any PostgreSQL that meets its requirements**: your own
+server or a managed service. There is no list of supported providers:
+Lictory checks the server itself and names each missing requirement with its
+fix.
+
+<Cli command="database-check" />
+
+The same check runs before every migration of an external database; when it
+fails, nothing is migrated.
+
+## Requirements
+
+- **PostgreSQL 15 or newer.** Lictory is tested with 17.
+- **Logical replication**: `wal_level = logical`, set with the provider's
+  setting (RDS and Aurora `rds.logical_replication = 1`, Cloud SQL
+  `cloudsql.logical_decoding = on`, AlloyDB `alloydb.logical_decoding = on`,
+  Azure `wal_level = logical`, Neon in the project settings).
+- **A role that may replicate**: `REPLICATION`, or the provider's equivalent
+  such as `rds_replication`. No superuser.
+- **A free replication slot and WAL sender**, plus a spare of each for a
+  replica reset.
+- **A direct connection** for migrations and the sync engine: never
+  PgBouncer, Supavisor or RDS Proxy. The check recognises pooler addresses
+  and poolers that answer in PostgreSQL's place.
+- **TLS** for a database outside the server: `verify-full` (recommended,
+  with the provider's CA bundle when it is not publicly trusted) or
+  `require`.
+- **UTF8**, and ideally **code-point (C) collation**, which new databases get
+  automatically.
+
+## Degraded modes
+
+Lictory works without these, and the check says so:
+
+- **Event triggers.** Most managed services do not let ordinary roles create
+  them. A migration that changes one of the few replicated tables then makes
+  the sync engine copy its data again, and every client resyncs; other
+  migrations replicate normally.
+- **Another collation.** Lists sorted by the server can order mixed-case or
+  accented names differently from synced lists.
+- **`require` instead of `verify-full`.** Encrypted, but the database's
+  identity is not verified.
+
+## Set up an external database
+
+Create Lictory's four roles and two databases once, with an administrator
+connection (a role that may create roles and databases, such as the RDS
+master user). The connection is used once and never stored:
+
+<Cli command="database-setup" />
+
+Then install with the database's direct endpoint:
+
+```sh
+sudo LICTORY_DATABASE_ADMIN_URL='postgresql://admin:…@db.example.com:5432/postgres?sslmode=verify-full' \
+  lictory install --database external --database-host db.example.com
+```
+
+Interactively, the installer asks in its **Database** step, including the
+optional administrator connection. Upgrades work as usual. An installation
+keeps the database it started with; moving the data is a dump and restore.
+
+## Backups
+
+Lictory takes no backups of an external database: use the provider's
+automated backups and point-in-time recovery. After restoring with the
+provider's tools, run `sudo lictory install`; the sync engine rebuilds its
+copy.
+
+## Providers
+
+No managed provider has been verified yet. The settings each one needs, and
+a script that verifies a provider end to end in a disposable database, are in
+the
+[external and managed PostgreSQL runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/external-database.md#providers).
