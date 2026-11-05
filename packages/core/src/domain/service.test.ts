@@ -3053,13 +3053,22 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
       f.reviewerId,
     );
   await assert.rejects(decide(), /draft/);
+  // Who each open pull request still waits for, per pull request.
+  const pending = async () =>
+    (await f.entities()).find(
+      (e): e is Extract<Entity, { type: "pullRequest" }> =>
+        e.type === "pullRequest" && e.id === pullRequestId,
+    )!.pendingReviewerIds;
+  assert.deepEqual(await pending(), []);
   await f.command({
     type: "setPullRequestDraft",
     workItemId: f.proposalId,
     pullRequestId,
     draft: false,
   });
+  assert.deepEqual(await pending(), [f.reviewerId]);
   await decide();
+  assert.deepEqual(await pending(), []);
   // A concurrent main title change changes the full resulting snapshot.
   await f.command({
     type: "updateSpecification",
@@ -3069,6 +3078,8 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     content: original.content,
   });
   b = await get();
+  // The approval no longer matches the merge result: the review waits again.
+  assert.deepEqual(await pending(), [f.reviewerId]);
   await assert.rejects(
     f.command({
       type: "mergePullRequest",

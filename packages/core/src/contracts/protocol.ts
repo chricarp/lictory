@@ -290,6 +290,10 @@ export const entitySchema = z.discriminatedUnion("type", [
     authorId: id,
     mergedCommitId: id.nullable(),
     createdAt: z.string(),
+    // People whose review this open pull request still waits for: undecided,
+    // or approved for a merge result that has since changed. Derived on the
+    // server, which can compare result hashes.
+    pendingReviewerIds: z.array(id).default([]),
   }),
   z.object({
     ...base,
