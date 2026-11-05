@@ -81,6 +81,10 @@ steps_total=0
 step_index=0
 step() {
   local counter=""
+  if [ -n "$report_file" ]; then
+    report_section="$*"
+    return 0
+  fi
   if [ "$steps_total" -gt 0 ]; then
     step_index=$((step_index + 1))
     counter="Step $step_index of $steps_total"
@@ -260,12 +264,14 @@ USAGE
       ;;
     doctor)
       cat <<'USAGE'
-Usage: lictory doctor [--env <name>]
+Usage: lictory doctor [--json] [--env <name>]
 
 Checks the host (Docker, memory, disk), the configuration, DNS and
 certificates, the services, the database and replication, backups, the access
 policy and the scheduled jobs, and says how to fix each problem. Exits 1 when
-a check fails; warnings do not change the exit status.
+a check fails; warnings do not change the exit status. --json prints
+{environment, healthy, failures, warnings, checks: [{status, section,
+message}]} for monitoring, with the same exit status.
 USAGE
       ;;
     upgrade)
@@ -554,6 +560,7 @@ invalid_reason() {
   case "$value" in
     *$'\n'* | *$'\r'*) echo "must be a single line" && return ;;
     *"'"*) echo "must not contain a single quote (edit .env by hand for such values)" && return ;;
+    *'\') echo "must not end with a backslash (edit .env by hand for such values)" && return ;;
   esac
   case "$name" in
     env) valid_environment "$value" || echo "use lowercase letters, digits and hyphens (local, test and preview are reserved)" ;;
@@ -603,15 +610,50 @@ valid_root || die "LICTORY_ROOT must be an absolute path without spaces or '..'.
 root="${root%/}"
 bin="$root/bin"
 
-env_value() { # env_value <file> <key> (the last assignment, one pair of quotes removed)
-  local line
-  line=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 || true)
-  line="${line#*=}"
-  line="${line%\"}"
-  line="${line#\"}"
-  line="${line%\'}"
-  line="${line#\'}"
-  printf '%s' "$line"
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
+  printf '%s' "$out"
 }
 setting() { env_value "$home/.env" "$1"; }
 
@@ -705,7 +747,8 @@ channel_of_environment() {
 # with `$` or `#` are single-quoted for Compose.
 set_env() { # set_env <file> <key> <value>
   local file="$1" key="$2" value="$3" tmp
-  if ! grep -qE "^$key=" "$file"; then
+  # Every form env_value reads (export, spaces around =) is the same key.
+  if ! grep -qE "^[[:space:]]*(export[[:space:]]+)?$key[[:space:]]*=" "$file"; then
     [ -n "$value" ] || return 0
     printf '%s=%s\n' "$key" "$(env_quote "$value")" >>"$file"
     return 0
@@ -713,7 +756,7 @@ set_env() { # set_env <file> <key> <value>
   tmp=$(mktemp "$(dirname "$file")/.env.XXXXXX")
   LICTORY_KEY="$key" LICTORY_VALUE="$(env_quote "$value")" awk '
     BEGIN { key = ENVIRON["LICTORY_KEY"]; value = ENVIRON["LICTORY_VALUE"] }
-    index($0, key "=") == 1 { print key "=" value; next }
+    $0 ~ ("^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=") { print key "=" value; next }
     { print }
   ' "$file" >"$tmp"
   chmod 0600 "$tmp"
@@ -722,7 +765,7 @@ set_env() { # set_env <file> <key> <value>
 }
 env_quote() {
   case "$1" in
-    *'$'* | *'#'* | ' '* | *' ' | '"'*) printf "'%s'" "$1" ;;
+    *'$'* | *'#'* | [[:space:]]* | *[[:space:]] | '"'*) printf "'%s'" "$1" ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -995,14 +1038,30 @@ wait_until_ready() {
 # ------------------------------------------------------------------ preflight
 failures=0
 warnings=0
+# doctor --json: checks are recorded as "status<TAB>section<TAB>message"
+# lines in $report_file instead of printed.
+report_file=""
+report_section=""
+report() { printf '%s\t%s\t%s\n' "$1" "$report_section" "$2" >>"$report_file"; }
 check_ok() {
+  [ -z "$report_file" ] || { report ok "$*" && return 0; }
   if [ "$fancy" = true ]; then printf '   %s%s%s %s\n' "$c_green" "$g_ok" "$c_reset" "$*"; else printf '  ok    %s\n' "$*"; fi
 }
 check_warn() {
+  if [ -n "$report_file" ]; then
+    report warn "$*"
+    warnings=$((warnings + 1))
+    return 0
+  fi
   if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_yellow" "$g_warn" "$*" "$c_reset"; else printf '  warn  %s\n' "$*"; fi
   warnings=$((warnings + 1))
 }
 check_fail() {
+  if [ -n "$report_file" ]; then
+    report fail "$*"
+    failures=$((failures + 1))
+    return 0
+  fi
   if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_red" "$g_fail" "$*" "$c_reset"; else printf '  FAIL  %s\n' "$*"; fi
   failures=$((failures + 1))
 }
@@ -1172,8 +1231,10 @@ ask() {
     [ -z "$default" ] || set_opt "$name" "$default"
     return 0
   fi
+  local shown="$default"
+  [ "$name" != backup-rclone-remote ] || shown=$(remote_masked "$default")
   while :; do
-    prompt_line "$question" "$default" "$secret"
+    prompt_line "$question" "$shown" "$secret"
     answer="${answer:-$default}"
     if [ -z "$answer" ]; then
       return 0
@@ -1472,6 +1533,8 @@ collect_services() {
       require_opt s3-access-key-id "The access key ID"
       ask s3-secret-access-key "Secret access key" "$(current S3_SECRET_ACCESS_KEY)" secret
       require_opt s3-secret-access-key "The secret access key"
+      # Kept unless answered: MinIO, Garage and Ceph often need path-style URLs.
+      ask s3-force-path-style "Path-style requests (true for MinIO, Garage, Ceph; empty: the endpoint's default)" "$(current S3_FORCE_PATH_STYLE)"
       for key in S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_FORCE_PATH_STYLE; do
         plan "$key" "$(opt "$(printf '%s' "$key" | tr '[:upper:]_' '[:lower:]-')")"
       done
@@ -1630,6 +1693,30 @@ generate_age_key() { # generate_age_key <ops image> <identity file>
 # masked <value>: secrets shown as dots in the review.
 masked() { [ -z "$1" ] && printf 'none' || printf '%s' "$g_mask"; }
 
+# An rclone connection string (BACKUP_RCLONE_REMOTE) can carry credentials
+# (:sftp,host=nas,user=backup,pass=…:path). remote_masked shows it with their
+# values masked; remote_secrets prints each value, for redaction.
+remote_credentials='pass|password|key_pem|private_key|secret_access_key|account_key|key|client_secret|token|sas_url|service_account_credentials|bearer_token|session_token'
+# A value is quoted from its first character, a doubled quote inside being a
+# literal one (as rclone and backup-target.sh read it), or runs to , or :.
+# (POSIX regular expressions take the longest match, so a quoted value is
+# matched whole.)
+remote_value="(\"([^\"]|\"\")*\"|'([^']|'')*'|[^,:]*)"
+remote_masked() {
+  printf '%s' "$1" | sed -E "s/((^|[,:])($remote_credentials)=)$remote_value/\1$g_mask/g"
+}
+remote_secrets() {
+  local value
+  printf '%s' "$1" | grep -oE "(^|[,:])($remote_credentials)=$remote_value" | cut -d= -f2- |
+    while IFS= read -r value; do
+      case "$value" in
+        \"*) value="${value#\"}" && value="${value%\"}" && value="${value//\"\"/\"}" ;;
+        \'*) value="${value#\'}" && value="${value%\'}" && value="${value//\'\'/\'}" ;;
+      esac
+      printf '%s\n' "$value"
+    done || true
+}
+
 # The review before anything changes: the answers in words, and for an
 # existing environment the .env keys that change.
 review() {
@@ -1664,7 +1751,7 @@ review() {
   case "$backup" in
     local) lines+=("$(row "Backups" "$( [ -n "$(opt backup-path)" ] && opt backup-path || printf 'a volume on this server')")") ;;
     s3) lines+=("$(row "Backups" "bucket $(opt backup-bucket), secret $(masked "$(opt backup-s3-secret-access-key)")")") ;;
-    rclone) lines+=("$(row "Backups" "rclone $(opt backup-rclone-remote)")") ;;
+    rclone) lines+=("$(row "Backups" "rclone $(remote_masked "$(opt backup-rclone-remote)")")") ;;
     none) lines+=("$(row "Backups" "none")") ;;
   esac
   if [ "$backup" != none ]; then
@@ -2538,6 +2625,8 @@ config_secret() { # config_secret <key> <value>
 config_shown() { # config_shown <key> <value>: the value as output shows it
   if [ -z "$2" ]; then
     printf '%s' "${c_dim}(empty)${c_reset}"
+  elif [ "$(opt reveal)" != true ] && [ "$1" = BACKUP_RCLONE_REMOTE ]; then
+    remote_masked "$2"
   elif [ "$(opt reveal)" != true ] && config_secret "$1" "$2"; then
     printf '%s' "$g_mask"
   else
@@ -2559,7 +2648,9 @@ config_known_keys() {
     config_keys "$home/.env"
   } | sort -u
 }
-config_keys() { sed -nE 's/^([A-Z][A-Z0-9_]*)=.*/\1/p' "$1" | awk '!seen[$0]++'; }
+# config_keys <file>: every key assigned in it, in every form env_value reads
+# (export, spaces around =), so listing, diffs and redaction see them all.
+config_keys() { sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Z][A-Z0-9_]*)[[:space:]]*=.*/\2/p' "$1" | awk '!seen[$0]++'; }
 
 # config_diff <old file> <new file>: prints "KEY|old|new" for each change
 # and fails when nothing changed.
@@ -2731,7 +2822,11 @@ cmd_config() {
       if [ "$(opt json)" = true ]; then
         config_keys "$home/.env" | while IFS= read -r key; do
           value=$(env_value "$home/.env" "$key")
-          [ "$(opt reveal)" = true ] || ! config_secret "$key" "$value" || [ -z "$value" ] || value="$g_mask"
+          if [ "$(opt reveal)" != true ] && [ "$key" = BACKUP_RCLONE_REMOTE ]; then
+            value=$(remote_masked "$value")
+          elif [ "$(opt reveal)" != true ] && [ -n "$value" ] && config_secret "$key" "$value"; then
+            value="$g_mask"
+          fi
           printf '%s\t%s\n' "$key" "$value"
         done | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1:] | join("\t"))}] | from_entries'
         return 0
@@ -2888,6 +2983,7 @@ cmd_support_bundle() {
     config_keys "$home/.env" | while IFS= read -r key; do
       value=$(env_value "$home/.env" "$key")
       if [ -n "$value" ] && config_secret "$key" "$value"; then printf '%s\n' "$value"; fi
+      [ "$key" != BACKUP_RCLONE_REMOTE ] || remote_secrets "$value"
     done >"$secrets"
   )
   local dir="$work/$name" errors="$work/$name/errors.txt"
@@ -3055,6 +3151,7 @@ cmd_uninstall() {
 # use (kind, time, size, encryption), refusing a key that does not exist and
 # an encrypted backup without an identity. If the target cannot be listed,
 # says so and lets restore.sh decide.
+restore_key=""
 restore_preview() {
   local identity="$1" source="$2" entry lines=() size when
   if [ -f "$source" ]; then
@@ -3074,7 +3171,8 @@ restore_preview() {
       entry=$(printf '%s' "$backups_json" | jq -c --arg key "$source" '.[] | select(.key == $key)' | head -n 1)
       [ -n "$entry" ] || die "There is no backup $source in $(setting BACKUP_TARGET). See the stored ones: lictory backup list"
     fi
-    lines+=("$(row "Backup" "$(printf '%s' "$entry" | jq -r .key)")")
+    restore_key=$(printf '%s' "$entry" | jq -r .key)
+    lines+=("$(row "Backup" "$restore_key")")
     lines+=("$(row "Taken" "$(printf '%s' "$entry" | jq -r '.modified | sub("T"; " ") | .[0:16]') UTC ($(printf '%s' "$entry" | jq -r .kind))")")
     lines+=("$(row "Size" "$(bytes_human "$(printf '%s' "$entry" | jq -r .bytes)")")")
     entry=$(printf '%s' "$entry" | jq -r .encrypted)
@@ -3097,6 +3195,9 @@ cmd_restore() {
   active=$(current_version)
   [ -n "$active" ] || die "$environment has no active release; install it first (sudo lictory install), then restore."
   restore_preview "$identity" "$source"
+  # "latest" is resolved once, here: the check, the cutover and a drill all
+  # use the backup that was shown, even if another one finishes meanwhile.
+  [ -z "$restore_key" ] || source="$restore_key"
   if [ "$(opt drill)" = true ]; then
     local copy="$identity"
     if [ "$identity" != none ] && is_root; then
@@ -3110,7 +3211,7 @@ cmd_restore() {
     return "$status"
   fi
   require_root
-  local project="lictory-$environment" stamp keep work db image mounts=() target="$source"
+  local project="lictory-$environment" stamp keep db image
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   keep="${project}_postgres_data-before-restore-$stamp"
   db=$(setting LICTORY_DB_NAME)
@@ -3127,49 +3228,145 @@ cmd_restore() {
     IFS= read -r answer </dev/tty || true
     [ "$answer" = "$environment" ] || die "Restore cancelled."
   fi
-  work=$(as_deploy mktemp -d)
-  trap 'rm -rf "$work"' EXIT
-  # Readable by the ops container's postgres user; the directory stays private.
-  if [ "$identity" = none ]; then : >"$work/age-identity"; else cp "$identity" "$work/age-identity"; fi
-  chmod 0644 "$work/age-identity"
-  mounts=(-v "$work/age-identity:/run/age-identity:ro")
-  if [ -f "$source" ]; then
-    cp "$source" "$work/"
-    case "$source" in *.dump.age) cp "${source%.dump.age}.manifest.json.age" "$work/" ;; *.dump) cp "${source%.dump}.manifest.json" "$work/" ;; esac ||
-      die "The backup's manifest must sit next to $source."
-    chmod 0644 "$work"/*
-    mounts+=(-v "$work:/restore-source:ro")
-    target="/restore-source/$(basename "$source")"
+  # One operation at a time: upgrades, rollbacks and settings changes wait
+  # for this lock (deploy.sh); migrate and activate below run inside it.
+  exec 9>"$home/.deploy.lock"
+  if command -v flock >/dev/null && ! flock -n 9; then
+    die "Another deployment of $environment is running; try again when it has finished." 75
   fi
+  restore_work=$(as_deploy mktemp -d)
+  trap restore_cleanup EXIT
+  restore_stage "$identity" "$source"
   image=$(compose config --format json | jq -er '.services.postgres.image') || die "Could not resolve the PostgreSQL image."
+
+  # Everything that can go wrong with the backup itself (storage, identity,
+  # checksum, dump format) is found out before anything stops.
+  if compose run --rm --no-deps -T ops sh -c 'grep -q RESTORE_CHECK_ONLY "$(command -v restore.sh)"' >/dev/null 2>&1; then
+    run_task "Checking the backup (download, decrypt, checksum)" \
+      compose run --rm --no-deps -T "${restore_mounts[@]}" -e AGE_IDENTITY_FILE=/run/age-identity \
+      -e RESTORE_CHECK_ONLY=1 ops sh -c 'restore.sh "$1"' check "$restore_target" ||
+      die "The backup cannot be restored (see above); nothing was changed."
+  else
+    warn "This release's ops image cannot check a backup before restoring it; it is checked during the restore."
+  fi
+
+  # Scheduled backups and the monitor would fail or alert while the
+  # database is down; they start again at the end, also after a failure.
+  stop_timers
+  restore_timers=true
+  # From here on, restore_cleanup brings the environment back on any exit:
+  # "stopped" restarts it on its untouched database, "replaced" puts the
+  # kept copy back first.
+  restore_image="$image" restore_active="$active" restore_keep="$keep"
+  restore_phase=stopped
   step "Stopping $environment"
   compose stop proxy api worker zero-cache postgres
   step "Keeping the current database in $keep"
-  docker volume create "$keep" >/dev/null
+  docker volume create "$keep" >/dev/null || die "Could not create the volume $keep; nothing was changed."
   docker run --rm --network none --entrypoint cp -v "${project}_postgres_data:/from:ro" -v "$keep:/to" "$image" -a /from/. /to/ ||
-    die "Could not copy the current database; nothing was changed. Start it again: lictory install"
-  trap 'rm -rf "$work"; printf "\nRestore failed. The previous database is in the Docker volume %s.\n" "$keep" >&2' EXIT
+    die "Could not copy the current database (is the disk full?); nothing was changed."
   compose rm -fs postgres zero-cache >/dev/null
-  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume."
+  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume; nothing was changed."
+  restore_phase=replaced
   # zero-cache resyncs from the restored database.
   docker volume rm "${project}_zero_replica" >/dev/null 2>&1 || true
   step "Restoring"
   compose up -d --wait --wait-timeout 180 postgres
-  RESTORE_PGPASSWORD=$(setting POSTGRES_SUPERUSER_PASSWORD) compose run --rm --no-deps -T "${mounts[@]}" \
+  RESTORE_PGPASSWORD=$(setting POSTGRES_SUPERUSER_PASSWORD) compose run --rm --no-deps -T "${restore_mounts[@]}" \
     -e AGE_IDENTITY_FILE=/run/age-identity -e RESTORE_PGHOST=postgres -e RESTORE_PGUSER=postgres \
-    -e RESTORE_PGPASSWORD -e RESTORE_DATABASE="$db" ops sh -c 'restore.sh "$1" && verify.sh' restore "$target"
+    -e RESTORE_PGPASSWORD -e RESTORE_DATABASE="$db" ops sh -c 'restore.sh "$1" && verify.sh' restore "$restore_target"
   step "Starting $active on the restored database"
-  deploy_sh migrate "$active"
-  deploy_sh activate "$active"
-  trap 'rm -rf "$work"' EXIT
-  say "Restored. Check the data, then remove the previous database: docker volume rm $keep"
+  deploy_locked migrate "$active"
+  deploy_locked activate "$active"
+  restore_phase=""
+  check_ok "Restored. Check the data, then remove the previous database: docker volume rm $keep"
+}
+
+# restore_stage <identity> <source>: a private copy of the identity and, for
+# a backup file, of the dump and manifest, each bind-mounted on its own (the
+# staging directory stays 0700; the container never traverses it).
+restore_work="" restore_target="" restore_mounts=()
+restore_keep="" restore_image="" restore_active="" restore_timers=false restore_phase=""
+restore_stage() {
+  local identity="$1" source="$2" manifest
+  if [ "$identity" = none ]; then : >"$restore_work/age-identity"; else cat "$identity" >"$restore_work/age-identity"; fi
+  chmod 0644 "$restore_work/age-identity"
+  restore_mounts=(-v "$restore_work/age-identity:/run/age-identity:ro")
+  restore_target="$source"
+  [ -f "$source" ] || return 0
+  case "$source" in
+    *.dump.age) manifest="${source%.dump.age}.manifest.json.age" ;;
+    *.dump) manifest="${source%.dump}.manifest.json" ;;
+    *) die "$source is not a backup file (*.dump or *.dump.age)." 64 ;;
+  esac
+  [ -f "$manifest" ] || die "The backup's manifest must sit next to it: $manifest"
+  cat "$source" >"$restore_work/$(basename "$source")"
+  cat "$manifest" >"$restore_work/$(basename "$manifest")"
+  chmod 0644 "$restore_work/$(basename "$source")" "$restore_work/$(basename "$manifest")"
+  restore_mounts+=(-v "$restore_work/$(basename "$source"):/restore-source/$(basename "$source"):ro"
+    -v "$restore_work/$(basename "$manifest"):/restore-source/$(basename "$manifest"):ro")
+  restore_target="/restore-source/$(basename "$source")"
+}
+deploy_locked() { as_deploy env LICTORY_DEPLOY_LOCK_HELD=1 "$bin/deploy.sh" "$environment" "$@"; }
+
+# On exit: after a failure once the old database volume is gone, put the
+# kept copy back and start the release again; always remove the staging copy
+# of the identity and restart the timers.
+restore_cleanup() {
+  local status=$? data="lictory-${environment}_postgres_data"
+  case "$restore_phase" in
+    stopped)
+      # The database was never touched: start it, then the release.
+      if compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
+        deploy_locked activate "$restore_active" >/dev/null 2>&1; then
+        warn "The restore stopped before changing the database; $environment runs $restore_active again."
+      else
+        warn "The restore stopped before changing the database, but $environment did not start again."
+        note "Start it: sudo lictory config apply   (then: lictory doctor)"
+      fi
+      docker volume rm "$restore_keep" >/dev/null 2>&1 || true
+      ;;
+    replaced)
+      printf '\n' >&2
+      warn "The restore failed. Putting the previous database back from $restore_keep."
+      # Copy only into a freshly created volume: copying over what the
+      # failed restore left would mix two clusters.
+      compose rm -fs postgres zero-cache >/dev/null 2>&1 || true
+      docker volume rm "$data" >/dev/null 2>&1 || true
+      docker volume rm "lictory-${environment}_zero_replica" >/dev/null 2>&1 || true
+      if ! docker volume inspect "$data" >/dev/null 2>&1 &&
+        compose create postgres >/dev/null 2>&1 &&
+        docker run --rm --network none --entrypoint cp -v "$restore_keep:/from:ro" \
+          -v "$data:/to" "$restore_image" -a /from/. /to/ &&
+        compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
+        deploy_locked activate "$restore_active" >/dev/null 2>&1; then
+        warn "$environment runs $restore_active on its previous database again. The failed restore changed nothing."
+      else
+        warn "Putting it back failed too. The previous database is intact in the Docker volume $restore_keep."
+        note "Put it back by hand:"
+        note "  sudo lictory uninstall --yes"
+        note "  docker volume rm $data   (it must be gone before the next step)"
+        note "  docker volume create $data"
+        note "  docker run --rm --entrypoint cp -v $restore_keep:/from:ro -v $data:/to $restore_image -a /from/. /to/"
+        note "  sudo lictory config apply"
+      fi
+      ;;
+  esac
+  [ -z "$restore_work" ] || rm -rf "$restore_work"
+  [ "$restore_timers" != true ] || start_timers
+  return "$status"
 }
 
 # ----------------------------------------------------------------------- doctor
 cmd_doctor() {
-  parse "" "" "$@"
+  parse "" "json" "$@"
   [ ${#positional[@]} -eq 0 ] || usage_error "doctor takes no arguments."
   select_environment
+  if [ "$(opt json)" = true ]; then
+    report_file=$(mktemp)
+    # shellcheck disable=SC2064 # the file is fixed now
+    trap "rm -f '$report_file'" EXIT
+  fi
   local tls host url status_json state version insecure=() mode gateway
   step "Host"
   preflight
@@ -3316,7 +3513,13 @@ cmd_doctor() {
     done
   fi
 
-  printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  if [ -n "$report_file" ]; then
+    jq -Rn --arg environment "$environment" --argjson failures "$failures" --argjson warnings "$warnings" '
+      [inputs | split("\t") | {status: .[0], section: .[1], message: (.[2:] | join("\t"))}]
+      | {environment: $environment, healthy: ($failures == 0), failures: $failures, warnings: $warnings, checks: .}' <"$report_file"
+  else
+    printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  fi
   [ "$failures" -eq 0 ]
 }
 

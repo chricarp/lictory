@@ -41,7 +41,7 @@ export const commands = {
       "Active version, release channel, the health of each service and the access policy.",
   },
   doctor: {
-    usage: "lictory doctor",
+    usage: "lictory doctor [--json]",
     summary:
       "Check the host, the configuration, DNS, certificates, backups and replication, and explain what to fix. Sends no alerts.",
   },
