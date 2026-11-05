@@ -12,8 +12,9 @@ person, or a current member of the assigned discipline, can decide the
 review: **Approve** or **Request changes**. Holding a discipline never
 approves anything by itself.
 
-Requesting a review moves a draft or refining specification to _in review_. Requests and decisions show up in the reviewer's inbox and
-notifications.
+Requesting a review moves a draft or refining specification to _in review_. A request notifies the reviewers it
+is assigned to; a decision notifies the item's owners and whoever requested
+the review.
 
 ## Discussions
 
@@ -22,8 +23,10 @@ specification, a revision, or a pull request commit. The quote is read
 against the revision the thread was started on, and Lictory tells you when
 that text no longer appears, so nobody has to ask what a comment referred to.
 
-Threads are **blocking** or **non-blocking**. An open blocking thread keeps
-a specification from becoming ready and a pull request from merging.
+Threads are **blocking** or **non-blocking**. An open blocking thread on a
+specification keeps it from becoming ready (when the project's checks include
+it, as they do by default); an open blocking thread on a pull request keeps
+that pull request from merging.
 Resolving and reopening never delete messages; the activity keeps every
 step. When a thread reaches an important conclusion, record it as a
 [decision](/concepts/specifications#decisions).
@@ -43,7 +46,8 @@ their discipline. It is never a permanent flag on the item:
 - On a pull request, approvals record a fingerprint of the complete result
   of the merge. Any change to the source or target that alters that result
   makes them stale; changes that leave it identical keep them. Contributors
-  cannot approve their own changes.
+  cannot approve their own changes, unless they are the organization's only
+  member.
 
 A pull request merges only when every required review approves its current
 result, nobody currently requests changes, no blocking thread is open and no

@@ -27,7 +27,9 @@ readiness, so splitting unsettled behavior into Tasks cannot bypass the gate.
   narrowed to a team. Each team also has a backlog of its unplanned work.
 - **Iterations** are sprints (created, started and completed by hand) or
   cycles (scheduled automatically from a length and start weekday). One
-  iteration per project is active at a time. Unfinished work rolls over.
+  iteration per project is active at a time. A cycle moves its unfinished
+  work to the next cycle; completing a sprint asks where unfinished work goes:
+  another planned iteration or the backlog.
 - **Estimates and reports**: integer estimates (T-shirt sizes map to points),
   burndown, scope change and velocity from recorded events. A completed
   iteration's report is frozen.

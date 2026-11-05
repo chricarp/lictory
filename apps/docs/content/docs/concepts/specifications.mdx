@@ -57,7 +57,9 @@ approve, and the children are created only when the pull request merges, each
 recording the parent revision it came from.
 
 Lictory Intelligence and agents connected through MCP use the same branches
-and pull requests as people. They never write main, approve or merge.
+and pull requests as people. Lictory Intelligence only proposes. An MCP agent
+acts with its person's permissions: it can edit an unprotected draft directly,
+and approves or merges only when that person explicitly asks it to.
 
 <Callout title="Suggestions">
   Earlier versions proposed changes as inline suggestions. Existing suggestions
@@ -83,4 +85,7 @@ and MCP agents use, where every result names its evidence and exact revision.
 ![An approved specification showing revision 4, Engineering review and readiness evidence](/screenshots/specification-review.webp)
 
 The text is the primary surface. Reviews and readiness checks remain visible
-beside it; accepting scope for delivery is an explicit step after readiness.
+beside it. In a native project, the revision to deliver is accepted
+explicitly, or automatically when work on the item starts or completes; the
+project's readiness policy decides whether that can happen before it is
+ready.

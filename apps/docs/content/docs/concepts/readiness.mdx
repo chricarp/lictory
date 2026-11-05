@@ -56,5 +56,9 @@ ready moves into a _started_ status:
 | `warn` (default) | The move succeeds; activity records the failing checks |
 | `block`          | The move is refused, naming the failing checks         |
 
+The policy applies when work starts on the current revision while it is not
+ready. An item whose earlier revision was already accepted for delivery can
+keep moving while a later change to it is still being refined.
+
 In an external project, only ready specifications can be handed off to Jira,
 whatever the policy.
