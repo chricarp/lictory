@@ -1889,7 +1889,7 @@ void test(
       ) as { checks: { status: string; message: string }[] };
       return report.checks.find(
         (check) =>
-          /backup/.test(check.message) && /last|old/.test(check.message),
+          check.message.includes("backup") && /last|old/.test(check.message),
       )!;
     };
     const recent = new Date(Date.now() - 2 * 3600_000)
