@@ -560,6 +560,7 @@ invalid_reason() {
   case "$value" in
     *$'\n'* | *$'\r'*) echo "must be a single line" && return ;;
     *"'"*) echo "must not contain a single quote (edit .env by hand for such values)" && return ;;
+    *'\') echo "must not end with a backslash (edit .env by hand for such values)" && return ;;
   esac
   case "$name" in
     env) valid_environment "$value" || echo "use lowercase letters, digits and hyphens (local, test and preview are reserved)" ;;
@@ -609,18 +610,50 @@ valid_root || die "LICTORY_ROOT must be an absolute path without spaces or '..'.
 root="${root%/}"
 bin="$root/bin"
 
-env_value() { # env_value <file> <key>: the last assignment, read like Compose
-  local line
-  line=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 || true)
-  line="${line#*=}"
-  case "$line" in
-    # Quoted: the text between the quotes (a comment may follow).
-    \"*) line="${line#\"}" && line="${line%%\"*}" ;;
-    \'*) line="${line#\'}" && line="${line%%\'*}" ;;
-    # Unquoted: " # comment" ends the value; a # inside a word does not.
-    *) line=$(printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
   esac
-  printf '%s' "$line"
+  printf '%s' "$out"
 }
 setting() { env_value "$home/.env" "$1"; }
 
@@ -714,7 +747,8 @@ channel_of_environment() {
 # with `$` or `#` are single-quoted for Compose.
 set_env() { # set_env <file> <key> <value>
   local file="$1" key="$2" value="$3" tmp
-  if ! grep -qE "^$key=" "$file"; then
+  # Every form env_value reads (export, spaces around =) is the same key.
+  if ! grep -qE "^[[:space:]]*(export[[:space:]]+)?$key[[:space:]]*=" "$file"; then
     [ -n "$value" ] || return 0
     printf '%s=%s\n' "$key" "$(env_quote "$value")" >>"$file"
     return 0
@@ -722,7 +756,7 @@ set_env() { # set_env <file> <key> <value>
   tmp=$(mktemp "$(dirname "$file")/.env.XXXXXX")
   LICTORY_KEY="$key" LICTORY_VALUE="$(env_quote "$value")" awk '
     BEGIN { key = ENVIRON["LICTORY_KEY"]; value = ENVIRON["LICTORY_VALUE"] }
-    index($0, key "=") == 1 { print key "=" value; next }
+    $0 ~ ("^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=") { print key "=" value; next }
     { print }
   ' "$file" >"$tmp"
   chmod 0600 "$tmp"
@@ -731,7 +765,7 @@ set_env() { # set_env <file> <key> <value>
 }
 env_quote() {
   case "$1" in
-    *'$'* | *'#'* | ' '* | *' ' | '"'*) printf "'%s'" "$1" ;;
+    *'$'* | *'#'* | [[:space:]]* | *[[:space:]] | '"'*) printf "'%s'" "$1" ;;
     *) printf '%s' "$1" ;;
   esac
 }

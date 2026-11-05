@@ -1680,6 +1680,45 @@ void test(
       f.lictory(["config", "get", "LEGAL_PRIVACY_URL"]).stdout,
       "https://example.test/#privacy\n",
     );
+    // Compose's other forms: export, spaces around =, escapes in quotes.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        'export LEGAL_TERMS_URL=https://example.test/new\n  SMTP_FROM = "Lictory \\"Ops\\" <ops@example.test>"\n',
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/new\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_FROM"]).stdout,
+      'Lictory "Ops" <ops@example.test>\n',
+    );
+    // Changing a key written as "export KEY=" changes the value Compose reads.
+    assert.equal(
+      f.lictory([
+        "config",
+        "set",
+        "--no-apply",
+        "LEGAL_TERMS_URL=https://example.test/v2",
+      ]).status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/v2\n",
+    );
+    // Leading or trailing whitespace (a tab) survives a round trip.
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PASSWORD=secret\t"])
+        .status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout,
+      "secret\t\n",
+    );
+
     // A value that only ends with a quote is the literal text (Compose reads
     // it so); clearing the quote is a real change.
     assert.equal(
@@ -1700,3 +1739,22 @@ void test(
     assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, "a\n");
   },
 );
+
+void test("every host script decodes .env with the same function", () => {
+  const copy = (file: string) => {
+    const text = readFileSync(join(deploy, file), "utf8");
+    const start = text.indexOf(
+      "# env_value <file> <key>: the last assignment of <key>, decoded as Docker",
+    );
+    assert.ok(start >= 0, file);
+    return text.slice(start, text.indexOf("\n}\n", start) + 2);
+  };
+  const reference = copy("bin/lictory");
+  for (const file of [
+    "deploy.sh",
+    "bin/lictory-backup",
+    "bin/lictory-monitor",
+    "bin/lictory-restore-drill",
+  ])
+    assert.equal(copy(file), reference, file);
+});
