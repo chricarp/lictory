@@ -1680,5 +1680,23 @@ void test(
       f.lictory(["config", "get", "LEGAL_PRIVACY_URL"]).stdout,
       "https://example.test/#privacy\n",
     );
+    // A value that only ends with a quote is the literal text (Compose reads
+    // it so); clearing the quote is a real change.
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", 'SMTP_PASSWORD=a"']).status,
+      0,
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, 'a"\n');
+    const cleared = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "SMTP_PASSWORD=a",
+    ]);
+    assert.match(
+      cleared.stdout,
+      /SMTP_PASSWORD: \*\*\*\* -> \*\*\*\* \(new value\)/,
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, "a\n");
   },
 );
