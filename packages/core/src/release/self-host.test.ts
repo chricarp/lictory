@@ -2035,7 +2035,8 @@ void test(
 echo "$*" >> "${log}"
 case "$*" in
   *psql*) cat >> "${sql}" ;;
-  *10-lictory-roles.sh*) [ -z "$FAKE_ROLES_FAIL" ] || exit 1 ;;
+  # FAKE_ROLES_FAIL=<file>: the role script fails once (the file marks it).
+  *10-lictory-roles.sh*) [ -z "$FAKE_ROLES_FAIL" ] || [ -e "$FAKE_ROLES_FAIL" ] || { : > "$FAKE_ROLES_FAIL"; exit 1; } ;;
 esac
 `,
       { mode: 0o755 },
@@ -2063,11 +2064,25 @@ esac
     assert.equal(rotated.status, 0, rotated.stderr + rotated.stdout);
     assert.match(value("LICTORY_APP_PASSWORD"), /^[0-9a-f]{64}$/);
     assert.notEqual(value("LICTORY_APP_PASSWORD"), before);
-    assert.deepEqual(calls(), [
+    const sequence = calls();
+    assert.equal(
+      sequence[0],
       "production up -d --wait --wait-timeout 180 postgres",
+    );
+    assert.equal(
+      sequence[1],
       "production exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh",
+    );
+    // A real login with the new password, which reaches psql only through
+    // the environment.
+    assert.match(
+      sequence[2]!,
+      /^production exec -T -e RESTORE_PGPASSWORD postgres sh -c .* login lictory_app$/,
+    );
+    assert.equal(
+      sequence[3],
       "production up -d --wait --wait-timeout 180 postgres",
-    ]);
+    );
     assert.deepEqual(
       rotated.calls
         .filter((call) => call.name === "deploy.sh")
@@ -2102,13 +2117,37 @@ esac
     const kept = value("ZERO_DB_PASSWORD");
     const failed = f.lictory(
       ["config", "rotate", "ZERO_DB_PASSWORD", "--yes"],
-      { FAKE_ROLES_FAIL: "1" },
+      { FAKE_ROLES_FAIL: join(f.base, "roles-failed") },
     );
     assert.equal(failed.status, 1);
-    assert.match(failed.stderr, /keeps the previous value/);
+    assert.match(failed.stderr, /uses the previous ZERO_DB_PASSWORD again/);
+    // The previous value is applied in PostgreSQL again (the role script
+    // may have changed it before failing).
+    assert.equal(
+      calls().filter((line) => line.includes("10-lictory-roles.sh")).length,
+      2,
+    );
     assert.equal(value("ZERO_DB_PASSWORD"), kept);
     assert.ok(!failed.calls.some((call) => call.name === "deploy.sh"));
     calls();
+
+    // Another deployment holds the lock: nothing changes.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const locked = value("LICTORY_OPS_PASSWORD");
+    const busy = f.lictory([
+      "config",
+      "rotate",
+      "LICTORY_OPS_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(busy.status, 75);
+    assert.equal(value("LICTORY_OPS_PASSWORD"), locked);
+    assert.deepEqual(calls(), []);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
 
     // Refusals: the delivery key, and the auth secret without its own key.
     assert.equal(
