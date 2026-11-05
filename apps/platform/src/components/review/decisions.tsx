@@ -105,16 +105,22 @@ export function Decisions() {
   // discussion becomes the source, unlike details the person wrote.
   const prefilledRef = useRef("");
   const [resolveSource, setResolveSource] = useState(false);
+  // Swaps in another discussion's conclusion unless the person wrote their
+  // own details. The previous prefill is captured now: the updater runs later.
+  const prefill = (conclusion: string) => {
+    const previous = prefilledRef.current;
+    setBody((current) =>
+      !current.trim() || current === previous ? conclusion : current,
+    );
+    prefilledRef.current = conclusion;
+  };
+  const prefillRef = useRef(prefill);
+  prefillRef.current = prefill;
   useEffect(() => {
     if (!scope || !canRecord) return;
     return scope.register((threadId, conclusion, options) => {
       setSourceThreadId(threadId);
-      setBody((current) =>
-        !current.trim() || current === prefilledRef.current
-          ? conclusion
-          : current,
-      );
-      prefilledRef.current = conclusion;
+      prefillRef.current(conclusion);
       setResolveSource(Boolean(options?.resolve));
       setComposing(true);
       // The form renders on the next frame; then bring it into view.
@@ -144,14 +150,24 @@ export function Decisions() {
       ? `${text.slice(0, 79)}…`
       : text || "Resolved discussion";
   };
-  const run = async (command: Parameters<typeof mutateConfirmed>[0]) => {
+  // `context` says what already succeeded when a later step fails.
+  const run = async (
+    command: Parameters<typeof mutateConfirmed>[0],
+    context?: string,
+  ) => {
     setPending(true);
     setError(undefined);
     try {
       await mutateConfirmed(command);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The decision was not saved.");
+      const reason =
+        e instanceof Error ? e.message : "The decision was not saved.";
+      setError(
+        context
+          ? `${context}: ${reason} Save again to record it; the discussion stays resolved.`
+          : reason,
+      );
       return false;
     } finally {
       setPending(false);
@@ -246,9 +262,9 @@ export function Decisions() {
                 (e): e is EntityOf<"thread"> =>
                   e.type === "thread" && e.id === sourceThreadId,
               );
+              const resolving = resolveSource && source?.status === "open";
               if (
-                resolveSource &&
-                source?.status === "open" &&
+                resolving &&
                 !(await run({
                   type: "setThreadState",
                   workItemId: item.id,
@@ -258,15 +274,21 @@ export function Decisions() {
                 }))
               )
                 return;
+              if (resolving) setResolveSource(false);
               if (
-                await run({
-                  type: "recordDecision",
-                  ...base,
-                  decisionId: crypto.randomUUID(),
-                  title: title.trim(),
-                  body: body.trim(),
-                  ...(sourceThreadId ? { sourceThreadId } : {}),
-                })
+                await run(
+                  {
+                    type: "recordDecision",
+                    ...base,
+                    decisionId: crypto.randomUUID(),
+                    title: title.trim(),
+                    body: body.trim(),
+                    ...(sourceThreadId ? { sourceThreadId } : {}),
+                  },
+                  resolving
+                    ? "The discussion was resolved, but the decision was not recorded"
+                    : undefined,
+                )
               ) {
                 setTitle("");
                 setBody("");
@@ -304,7 +326,15 @@ export function Decisions() {
               <select
                 aria-label="Decision source discussion"
                 value={sourceThreadId}
-                onChange={(e) => setSourceThreadId(e.target.value)}
+                onChange={(e) => {
+                  const threadId = e.target.value;
+                  setSourceThreadId(threadId);
+                  setResolveSource(false);
+                  prefill(
+                    messages.filter((m) => m.threadId === threadId).at(-1)
+                      ?.body ?? "",
+                  );
+                }}
                 className="h-9 w-full rounded-md border bg-background px-2 text-sm"
               >
                 <option value="">Current revision {current?.number}</option>
