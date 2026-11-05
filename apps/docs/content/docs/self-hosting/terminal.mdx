@@ -173,7 +173,8 @@ Environments on one server also share a few things:
   `/srv/lictory/bin` come from the newest release activated on the server, so
   upgrading staging first also updates the tools production uses. They stay
   compatible with older releases; upgrade every environment of a server
-  within the same release line.
+  within the same release line: `lictory doctor` warns when an
+  environment's release and the host tools are on different release lines.
 
 ## Recover access
 

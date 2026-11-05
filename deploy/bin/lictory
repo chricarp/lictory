@@ -910,6 +910,9 @@ packages, then retry:  sudo lictory registry-login --username <github-user>" ;;
   done
 }
 
+# release_line <version>: major.minor (1.5.0-nightly.20261104.12 -> 1.5).
+release_line() { local v="${1%%-*}"; printf '%s' "${v%.*}"; }
+
 # semver_cmp <a> <b>: prints -1, 0 or 1 (prerelease identifiers per SemVer).
 semver_cmp() {
   local a="$1" b="$2" a_pre="" b_pre="" i x y
@@ -3725,6 +3728,20 @@ cmd_doctor() {
         fi
       else
         check_warn "Could not ask GitHub for newer $channel releases (offline or rate limited): lictory upgrade --check"
+      fi
+      # The host tools (lictory, deploy.sh, the timers' scripts) come from the
+      # newest release activated on this server, whichever environment it
+      # was; they are meant for the same release line.
+      local tools
+      tools=$(env_value "$root/share/bundle/release.env" LICTORY_VERSION)
+      if [ -n "$tools" ] && [ "$tools" != "$version" ]; then
+        if [ "$(semver_cmp "$tools" "$version")" = -1 ]; then
+          check_warn "The host tools ($tools) are older than $environment's release ($version): sudo lictory install --env $environment refreshes them."
+        elif [ "$(release_line "$tools")" != "$(release_line "$version")" ]; then
+          check_warn "The host tools come from $tools, another release line than $environment's $version (another environment was upgraded): upgrade $environment too (sudo lictory upgrade --env $environment)."
+        else
+          check_ok "host tools $tools (same release line)"
+        fi
       fi
       for service in $services; do
         state=$(printf '%s' "$status_json" | jq -r --arg s "$service" '.services[$s] // "missing"')
