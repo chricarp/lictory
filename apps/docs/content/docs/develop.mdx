@@ -1,0 +1,55 @@
+---
+title: Develop Lictory
+description: Run Lictory from a checkout to change it, the tests that prove a change, and how contributions are reviewed.
+---
+
+Lictory is open source under the MIT license. To change it, run it from a
+checkout; to run it for a team, [self-host a release](/self-hosting) instead.
+
+## Run it locally
+
+You need [Bun](https://bun.sh) at the version in `package.json`, Node.js 24,
+Docker, Git, `jq` and `openssl`, on macOS or Linux (on Windows, inside WSL2).
+Give Docker at least 8 GB of memory.
+
+```sh
+git clone https://github.com/chricarp/lictory.git && cd lictory
+cp .env.example .env
+bun install
+docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
+bun run dev            # the app, API, worker and website
+```
+
+| What               | Where                                                |
+| ------------------ | ---------------------------------------------------- |
+| The application    | http://localhost:3000                                |
+| The website        | http://localhost:3100                                |
+| Emails (Mailpit)   | http://localhost:8025                                |
+| This documentation | `bun run --cwd apps/docs dev`, http://localhost:3200 |
+
+The development `.env` lets anyone sign up, so you can create an account at
+once. Every optional integration (single sign-on, email providers, OpenAI,
+Jira) stays off until you set its variables.
+
+Prefer a ready environment? The repository's dev container works with VS Code
+Dev Containers, GitHub Codespaces and the `devcontainer` CLI, with the same
+commands.
+
+## Prove a change
+
+`bun run check` runs lint, types, formatting and unused-code checks;
+`bun run test:domain` the domain tests; `bun run test:e2e` the browser
+workflows. Pick the lowest tier that proves the behavior. The
+[development runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/development.md)
+has the full verification sequence, the services the browser suite needs,
+and troubleshooting.
+
+## Contribute
+
+Read the [contribution guide](https://github.com/chricarp/lictory/blob/main/CONTRIBUTING.md)
+first: small, obvious fixes can go straight to a pull request, while larger
+fixes and features start with an issue the maintainers have agreed to. Each
+pull request solves one problem and says how it was verified. The product
+principles in
+[`AGENTS.md`](https://github.com/chricarp/lictory/blob/main/AGENTS.md) apply to
+every change, by people and coding agents alike.
