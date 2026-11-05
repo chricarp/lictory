@@ -392,6 +392,9 @@ Usage: lictory config <command> [options]
   edit                       Edit the settings in $EDITOR, review, then apply
   apply                      Restart the services with the current settings
                              (after editing .env by hand)
+  rotate <KEY>               Replace a generated secret (a database password,
+                             BETTER_AUTH_SECRET, ZERO_API_KEY…) with a new
+                             random one, in PostgreSQL too where it applies
 
   --no-apply   set, unset, edit: write the settings only
   --force      Also change generated secrets, or keys Lictory does not know
@@ -2359,7 +2362,9 @@ _lictory() {
       fi ;;
     config)
       if [ "\$COMP_CWORD" -eq 2 ]; then
-        COMPREPLY=(\$(compgen -W "show get set unset edit apply help" -- "\$cur"))
+        COMPREPLY=(\$(compgen -W "show get set unset edit apply rotate help" -- "\$cur"))
+      elif [ "\$sub" = rotate ]; then
+        COMPREPLY=(\$(compgen -W "$rotatable_keys" -- "\$cur"))
       elif [ "\${cur#-}" = "\$cur" ] && { [ "\$sub" = get ] || [ "\$sub" = set ] || [ "\$sub" = unset ]; }; then
         # Setting names from the template the tools came with.
         COMPREPLY=(\$(compgen -W "\$(sed -nE 's/^#? ?([A-Z][A-Z0-9_]*)=.*/\\1/p' "\${LICTORY_ROOT:-$root}/share/bundle/env/self-hosted.env.example" 2>/dev/null)" -- "\$cur"))
@@ -2823,7 +2828,7 @@ config_check() {
       problems+=("$key is not a setting this release reads. Check the spelling; lictory config show lists the current settings.")
     fi
     if [ -n "$old" ] && reason=$(config_guarded "$key") && [ -n "$reason" ]; then
-      problems+=("$key was generated for this installation: changing it means $reason.")
+      problems+=("$key was generated for this installation: changing it means $reason.$(! word_in "$key" "$rotatable_keys" || printf ' Rotate it safely instead: sudo lictory config rotate %s' "$key")")
     fi
   done <<<"$diff"
   [ ${#problems[@]} -gt 0 ] || return 0
@@ -2954,6 +2959,76 @@ config_key() { # config_key <key>: exits on a malformed key name
   [[ "$1" =~ ^[A-Z][A-Z0-9_]*$ ]] || usage_error "$1 is not a setting name (uppercase letters, digits and underscores, such as SMTP_HOST)."
 }
 
+# config_rotate <key>: replaces a generated secret with a new random one and
+# makes every party use it. Database role passwords change in PostgreSQL
+# too: the postgres container is recreated with the new value, then the role
+# script (10-lictory-roles.sh, idempotent) or ALTER ROLE for the superuser
+# applies it, before the services restart with it. Anything that fails before
+# the database changed puts the previous value back.
+rotatable_keys="POSTGRES_SUPERUSER_PASSWORD LICTORY_OWNER_PASSWORD LICTORY_APP_PASSWORD ZERO_DB_PASSWORD LICTORY_OPS_PASSWORD ZERO_API_KEY ZERO_ADMIN_PASSWORD BETTER_AUTH_SECRET"
+config_rotate() {
+  local key="$1" active value consequence db=false
+  case "$key" in
+    DELIVERY_CREDENTIALS_KEY)
+      die "DELIVERY_CREDENTIALS_KEY cannot be rotated yet: the stored Jira tokens would have to be re-encrypted by the application. If it leaked, reconnect each Jira site after setting a new key with: sudo lictory config set --force DELIVERY_CREDENTIALS_KEY=<new>" 65
+      ;;
+  esac
+  word_in "$key" "$rotatable_keys" ||
+    usage_error "$key is not a generated secret lictory can rotate (one of: $rotatable_keys)."
+  active=$(current_version)
+  [ -n "$active" ] || die "$environment has no active release; there is nothing to rotate yet."
+  case "$key" in
+    POSTGRES_SUPERUSER_PASSWORD | LICTORY_OWNER_PASSWORD | LICTORY_APP_PASSWORD | ZERO_DB_PASSWORD | LICTORY_OPS_PASSWORD)
+      db=true
+      consequence="PostgreSQL restarts and the services reconnect with the new password: expect a minute of errors"
+      ;;
+    BETTER_AUTH_SECRET)
+      # Without its own key, stored Jira tokens are encrypted with one derived
+      # from this secret (docs/operations/configuration.md).
+      [ -n "$(setting DELIVERY_CREDENTIALS_KEY)" ] ||
+        die "Set DELIVERY_CREDENTIALS_KEY first, to the current BETTER_AUTH_SECRET (it derives the same key), or stored Jira tokens become unreadable: sudo lictory config set DELIVERY_CREDENTIALS_KEY=\"\$(sudo lictory config get BETTER_AUTH_SECRET)\"" 65
+      consequence="everyone is signed out and signs in again"
+      ;;
+    *) consequence="the services restart with the new value" ;;
+  esac
+  say "Rotate $key of $environment: a new random value, after which $consequence."
+  confirm "Rotate $key now?" || die "Nothing changed."
+  value=$(openssl rand -hex 32)
+  config_temp
+  set_env "$config_tmp" "$key" "$value"
+  config_write "$config_tmp"
+  config_tmp=""
+  check_ok "Saved the new $key. The previous settings are in $config_backup."
+  if [ "$db" = true ]; then
+    if ! run_task "Applying the new password in PostgreSQL" rotate_in_database "$key" "$value"; then
+      warn "PostgreSQL did not take the new password. Putting the previous one back."
+      cp -p "$config_backup" "$home/.env"
+      compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 || true
+      die "$key was not rotated; $environment keeps the previous value. See the messages above, or: lictory doctor"
+    fi
+  fi
+  value=""
+  # The database already uses the new value: never undo to the old one.
+  config_backup=""
+  config_apply
+  check_ok "$key is rotated."
+  [ "$key" != BETTER_AUTH_SECRET ] || note "Everyone has been signed out."
+}
+
+# rotate_in_database <key> <value>: the postgres container with the new
+# environment, then the password in the database itself (local socket).
+rotate_in_database() {
+  compose up -d --wait --wait-timeout 180 postgres || return 1
+  if [ "$1" = POSTGRES_SUPERUSER_PASSWORD ]; then
+    # Generated values are hex: safe inside a SQL literal. Sent on stdin, not
+    # as an argument.
+    printf "ALTER ROLE postgres PASSWORD '%s';\n" "$2" |
+      compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 --username postgres --dbname postgres
+  else
+    compose exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh </dev/null
+  fi
+}
+
 cmd_config() {
   local sub="${1:-help}" key value diff arg reason
   [ $# -eq 0 ] || shift
@@ -3059,6 +3134,16 @@ cmd_config() {
       config_review "$diff"
       confirm "Save$([ "$(opt no-apply)" = true ] || printf ' and apply') these changes?" || die "Nothing changed."
       config_commit "$config_tmp"
+      ;;
+    rotate)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 1 ] || usage_error "Usage: lictory config rotate <KEY>"
+      config_key "${positional[0]}"
+      require_root
+      select_environment
+      config_writable
+      [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+      config_rotate "${positional[0]}"
       ;;
     apply)
       parse "" "" "$@"
