@@ -96,6 +96,48 @@ void test("website-only pull requests never bump or describe the platform releas
   }
 });
 
+void test("release.env reaches a just-reserved draft that the tag lookup and listing cannot see yet", async () => {
+  const fixture = new GitHubFixture();
+  fixture.staleListing = true;
+  const manifest = nightly();
+  const reserved = await fixture.github.reserve(manifest);
+  // The tag endpoint never returns drafts and the listing has not caught up.
+  assert.equal(await fixture.github.release(manifest.tag), undefined);
+  const file = releaseFile(manifest, images("a"));
+  await fixture.github.attach(manifest, "release.env", file, reserved);
+  const draft = fixture.releases.find((value) => value.id === reserved.id)!;
+  assert.equal(draft.draft, true);
+  assert.deepEqual(draft.assets.map((asset) => asset.name).sort(), [
+    "release-manifest.json",
+    "release.env",
+  ]);
+  // A later run that only has the manifest finds the same draft by tag once
+  // it is listed: the same bytes are a no-op, different bytes are refused.
+  fixture.refreshListing();
+  const uploads = fixture.writes.filter((write) =>
+    write.includes("/assets"),
+  ).length;
+  await fixture.github.attach(manifest, "release.env", file);
+  assert.equal(
+    fixture.writes.filter((write) => write.includes("/assets")).length,
+    uploads,
+  );
+  await assert.rejects(
+    fixture.github.attach(
+      manifest,
+      "release.env",
+      releaseFile(manifest, images("b")),
+      reserved,
+    ),
+    /already has a different release.env/,
+  );
+  // The reserved release must belong to the manifest's tag.
+  await assert.rejects(
+    fixture.github.attach(nightly(shaA, 90), "release.env", file, reserved),
+    /belongs to/,
+  );
+});
+
 void test("every release carries its release.env once, and retries cannot change it", async () => {
   const fixture = new GitHubFixture();
   const manifest = stable();

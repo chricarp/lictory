@@ -75,6 +75,16 @@ export class GitHubFixture {
   responses = new Map<string, unknown>();
   writes: string[] = [];
   latestTag: string | undefined;
+  /**
+   * When set, drafts created through the API stay missing from the
+   * `/releases` listing until `refreshListing()`, as GitHub's listing can lag
+   * a release it has just created.
+   */
+  staleListing = false;
+  private unlisted = new Set<number>();
+  refreshListing() {
+    this.unlisted.clear();
+  }
   private nextId = 1;
   readonly github = new GitHub(
     "example/lictory",
@@ -231,7 +241,10 @@ export class GitHubFixture {
             value.tag_name === decodeURIComponent(path.slice(15)),
         ),
       );
-    if (path === "/releases" && method === "GET") return respond(this.releases);
+    if (path === "/releases" && method === "GET")
+      return respond(
+        this.releases.filter((value) => !this.unlisted.has(value.id)),
+      );
     if (path === "/releases" && method === "POST") {
       const release = {
         id: this.nextId++,
@@ -244,6 +257,7 @@ export class GitHubFixture {
         assets: [],
       };
       this.releases.push(release);
+      if (this.staleListing) this.unlisted.add(release.id);
       return respond(release);
     }
     if (/^\/releases\/\d+$/.test(path) && method === "GET")

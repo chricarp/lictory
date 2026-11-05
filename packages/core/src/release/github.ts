@@ -281,9 +281,21 @@ export class GitHub {
    * Attaches a text asset (release.env) to a reserved draft once. A retry must
    * carry the same bytes; a release published before the asset existed is
    * left unchanged, since published releases are immutable.
+   *
+   * Pass the release `reserve` returned: a just-created draft is invisible to
+   * `/releases/tags/{tag}` and may still be missing from the `/releases`
+   * listing, so it is read back by id. Without it (a later run that only has
+   * the manifest) the reservation is looked up by tag.
    */
-  async attach(manifest: Manifest, name: string, body: string): Promise<void> {
-    const release = await this.release(manifest.tag);
+  async attach(
+    manifest: Manifest,
+    name: string,
+    body: string,
+    reserved?: Release,
+  ): Promise<void> {
+    const release = reserved
+      ? await this.reserved(manifest, reserved.id)
+      : await this.release(manifest.tag);
     if (!release) throw new Error(`${manifest.tag} is not reserved.`);
     const existing = release.assets.filter((asset) => asset.name === name);
     if (existing.length > 1)
@@ -315,6 +327,20 @@ export class GitHub {
       throw new Error(
         `Uploading ${name} to ${manifest.tag} failed (${response.status}); retry the failed job.`,
       );
+  }
+
+  private async reserved(manifest: Manifest, id: number): Promise<Release> {
+    const value = await this.request(`/releases/${id}`);
+    if (value === undefined)
+      throw new Error(
+        `Reserved release ${manifest.tag} is unavailable; retry the failed job.`,
+      );
+    const release = releaseSchema.parse(value);
+    if (release.tag_name !== manifest.tag)
+      throw new Error(
+        `Release ${id} belongs to ${release.tag_name}, not ${manifest.tag}.`,
+      );
+    return release;
   }
 
   private async text(url: string): Promise<string> {
