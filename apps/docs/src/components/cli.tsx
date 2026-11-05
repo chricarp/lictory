@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Callout } from "fumadocs-ui/components/callout";
 import { CodeBlock, Pre } from "fumadocs-ui/components/codeblock";
 
@@ -27,7 +28,7 @@ export function CliNotice() {
       command, which installs and operates a server. Every command takes{" "}
       <code>--env</code> for a second environment on the same server; run{" "}
       <code>lictory &lt;command&gt; --help</code> for its options, or see the{" "}
-      <a href="/self-hosting/commands">command reference</a>.
+      <Link href="/self-hosting/commands">command reference</Link>.
     </Callout>
   );
 }
