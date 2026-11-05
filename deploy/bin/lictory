@@ -21,6 +21,7 @@
 #   lictory registry-login [--username U]   token on stdin, for private images
 #   lictory support-bundle          redacted versions, status, settings and logs
 #   lictory uninstall [--purge]     stop an environment (keep data), or delete it
+#   lictory version [--json]        the tools' release and each environment's
 #
 # Every command takes --env <name> when the server hosts several environments.
 # Output is styled only on a terminal (NO_COLOR=1 turns colours off); logs and
@@ -183,6 +184,7 @@ Releases and data
   support-bundle     A redacted archive of versions, status, settings and logs
   uninstall          Stop an environment, keeping its data (--purge: delete it)
 
+  version [--json]   The tools' release and each environment's release
   help [command]     This text, or one command's options
 
 Options for every command: --env <name> (when several environments exist),
@@ -2315,6 +2317,36 @@ cmd_bootstrap() {
   say "Guide: https://github.com/$repository/blob/main/docs/operations/self-hosting.md"
 }
 
+# --------------------------------------------------------------------- version
+# The host tooling (the bundle of the release that last installed or
+# upgraded it) and each environment's active release, read from disk: no
+# container or network needed.
+cmd_version() {
+  parse "" "json" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "version takes no arguments."
+  local tools name version channel rows=""
+  tools=$(env_value "$root/share/bundle/release.env" LICTORY_VERSION)
+  for name in $(configured_environments 2>/dev/null); do
+    version=""
+    channel=$(env_value "$root/$name/.env" LICTORY_RELEASE_CHANNEL)
+    [ ! -f "$root/$name/current/release.env" ] || version=$(env_value "$root/$name/current/release.env" LICTORY_VERSION)
+    rows="$rows$name	$version	${channel:-stable}"$'\n'
+  done
+  if [ "$(opt json)" = true ]; then
+    printf '%s' "$rows" | jq -Rn --arg tools "$tools" '
+      {tools: (if $tools == "" then null else $tools end),
+       environments: [inputs | select(length > 0) | split("\t")
+         | {name: .[0], version: (if .[1] == "" then null else .[1] end), channel: .[2]}]}'
+    return 0
+  fi
+  say "lictory tools ${tools:-unknown} ($root)"
+  [ -n "$rows" ] || { note "No environment is configured yet: sudo lictory install"; return 0; }
+  while IFS=$'\t' read -r name version channel; do
+    [ -n "$name" ] || continue
+    printf '%s%-16s %s (%s)\n' "$([ "$fancy" = true ] && printf '  ')" "$name" "${version:-not installed}" "$channel"
+  done <<<"$rows"
+}
+
 # ---------------------------------------------------------- everyday commands
 cmd_status() {
   parse "" "json" "$@"
@@ -3616,6 +3648,7 @@ case "$command" in
   config) cmd_config "$@" ;;
   support-bundle) cmd_support_bundle "$@" ;;
   uninstall) cmd_uninstall "$@" ;;
+  version | --version | -V) cmd_version "$@" ;;
   help | -h | --help)
     if [ $# -gt 0 ]; then command_usage "$1"; else usage; fi
     ;;

@@ -35,6 +35,11 @@ export const commands = {
     summary:
       "Set a new password for an account and sign it out everywhere; deactivate and reactivate block or restore sign-in.",
   },
+  version: {
+    usage: "lictory version [--json]",
+    summary:
+      "The release of the host tools and of every environment on the server, with its channel.",
+  },
   status: {
     usage: "lictory status [--json]",
     summary:
