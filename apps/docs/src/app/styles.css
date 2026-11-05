@@ -212,3 +212,16 @@ body {
   font-size: 0.9375rem;
   line-height: 1.6;
 }
+
+/* GitHub Dark's comment color (#6a737d) reads at 3.5:1 on the dark code
+   background; WCAG AA needs 4.5:1 for 13px text. #8b949e reaches 5.5:1. */
+/* (The span's inline style sets the variable, so the color itself is set.) */
+.dark .shiki code span[style*="--shiki-dark:#6A737D"] {
+  color: #8b949e;
+}
+
+/* GitHub Light's orange (#e36209) reads at 3.5:1 on white; #b35900 keeps
+   the hue at 6.6:1. */
+html:not(.dark) .shiki code span[style*="--shiki-light:#E36209"] {
+  color: #b35900;
+}
