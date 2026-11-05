@@ -1,0 +1,145 @@
+---
+title: Command reference
+description: Every lictory command and option, the variables it reads and its exit codes, for operators and for automation.
+---
+
+The `lictory` command runs on the server, as root (`sudo`) or as the deploy
+user. `lictory help` lists the commands, and `lictory <command> --help` shows
+one command's options. In bash, **Tab** completes commands, options,
+environment names, services and setting names.
+
+## Options of every command
+
+| Option               | Meaning                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| `--env <name>`, `-e` | The environment, when the server hosts several (one is found by itself)   |
+| `--yes`, `-y`        | No questions: confirmations are answered yes, prompts take their defaults |
+| `--help`, `-h`       | The command's usage and options                                           |
+
+## Set up
+
+### Install
+
+`sudo lictory install [options]` installs Lictory, or changes an installed environment's settings. On a
+terminal it asks for everything ([install](/self-hosting/install)); with
+`--yes` it takes the options below and keeps the current value of the rest.
+Every option can also be given as a `LICTORY_<OPTION>` variable (hyphens as
+underscores, for example `LICTORY_SMTP_PASSWORD`), which keeps secrets out of
+the process list and shell history. Invalid values are refused before
+anything changes.
+
+**Address and certificates**
+
+- `--tls acme|proxy|internal|http`: automatic HTTPS (default), behind your
+  proxy, your internal CA, or plain HTTP for an evaluation
+- `--host <name>`: the host name users open (required)
+- `--acme-email <email>`: for certificate notices (`acme`, and `internal`
+  with `--acme-ca`)
+- `--acme-ca <url>`: your CA's ACME directory (`internal`; empty: the
+  gateway's own CA)
+- `--http-port <port>`, `--bind 127.0.0.1|0.0.0.0`: where the gateway
+  listens behind a proxy or for plain HTTP (8080, this host only)
+- `--public-url <origin>`: the address your proxy serves (`proxy`)
+- `--trusted-proxies <ips>`: the addresses your proxy connects from
+
+**Email:** `--email smtp|resend|none`; `--smtp-host`, `--smtp-port` (587),
+`--smtp-user`, `--smtp-password`, `--smtp-from`; `--resend-api-key`,
+`--email-from`.
+
+**Attachments:** `--storage s3|none`; `--s3-endpoint` (empty: AWS S3),
+`--s3-region`, `--s3-bucket`, `--s3-access-key-id`,
+`--s3-secret-access-key`, `--s3-force-path-style true|false`.
+
+**Single sign-on:** `--oidc yes|no`; `--oidc-issuer`, `--oidc-client-id`,
+`--oidc-client-secret`, `--oidc-display-name` (`SSO`).
+
+**Backups:** `--backup local|s3|rclone|none`; `--backup-path` (local: a NAS
+mount or second disk; empty: a Docker volume on this server);
+`--backup-bucket`, `--backup-s3-provider`, `--backup-s3-endpoint`,
+`--backup-s3-region`, `--backup-s3-access-key-id`,
+`--backup-s3-secret-access-key`; `--backup-rclone-remote`;
+`--backup-age-recipient <age1…|generate|none>` and `--backup-identity-file`
+(where a generated private key is written).
+
+**Access policy:** `--signup-mode invite|closed|open`,
+`--allowed-email-domains <a.com,b.com>`,
+`--organization-creation administrators|everyone`.
+
+**First administrator:** `--organization`, `--organization-handle`,
+`--admin-name`, `--admin-email`; the password only in
+`LICTORY_ADMIN_PASSWORD`.
+
+**Release:** `--channel stable|nightly`, `--version <x.y.z>`,
+`--deploy-user <user>`, `--ignore-requirements` (memory and disk minimums as
+warnings).
+
+### Instance administration
+
+`sudo lictory admin <command>` runs inside the api container, so it works when nobody can sign in.
+
+| Command                                                                         | What it does                                                                          |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `setup`                                                                         | The first instance administrator and their organization (exit 3 once one exists)      |
+| `status [--json]`                                                               | Access policy and the number of administrators, accounts and organizations            |
+| `list`                                                                          | Instance administrators                                                               |
+| `grant <email>`, `revoke <email>`                                               | Appoints or removes an instance administrator; the last one cannot be removed         |
+| `create-user <email> --name <name> [--admin] [--organization <h> [--role <r>]]` | An account with a verified email; password from the prompt or `LICTORY_USER_PASSWORD` |
+| `set-password <email>`                                                          | A new password; signs the account out everywhere                                      |
+| `deactivate <email>`, `reactivate <email>`                                      | Blocks sign-in and ends every session, or allows it again                             |
+
+## Operate
+
+| Command                                     | What it does                                                                                                         |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `status [--json]`                           | Address, release, services, backup timer and access policy                                                           |
+| `doctor [--json]`                           | Every check of the host, settings, routes, certificates, database, backups, access and timers, with fixes            |
+| `config show [--reveal] [--json]`           | The settings, secrets masked                                                                                         |
+| `config get <KEY>`                          | One value, for scripts (exit 1 when unset)                                                                           |
+| `config set <KEY=value>…`, `unset <KEY>…`   | Changes settings and applies them; undone if the services reject them ([configuration](/self-hosting/configuration)) |
+| `config edit`                               | The settings in `$EDITOR`, with a review before saving                                                               |
+| `config apply`                              | Restarts the services with the current settings, after a hand edit                                                   |
+| `logs [service] [-f] [--tail N]`            | Logs of `proxy`, `api`, `worker`, `zero-cache` or `postgres`                                                         |
+| `support-bundle [--output F] [--since 24h]` | A redacted archive for a bug report ([troubleshooting](/self-hosting/troubleshooting))                               |
+| `version [--json]`                          | The tools' release and every environment's release                                                                   |
+| `completion bash`                           | The bash completion script                                                                                           |
+
+`config set`, `unset` and `edit` take `--no-apply` (write only) and `--force`
+(also unknown keys and generated secrets).
+
+## Releases and data
+
+| Command                                                           | What it does                                                                                                   |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `upgrade [version] [--check [--json]]`                            | The channel's newest release, or that version; `--check` only reports one ([upgrades](/self-hosting/upgrades)) |
+| `rollback`                                                        | The previous release's images; migrations stay                                                                 |
+| `backup [list [--json]]`                                          | A backup now, or the stored backups with their keys ([backups](/self-hosting/backups))                         |
+| `restore <identity-file\|none> [latest\|<key>\|<file>] [--drill]` | Replaces the database with a backup after checking it; `--drill` tests it in a throwaway stack                 |
+| `uninstall [--purge [--no-backup]]`                               | Stops the environment and keeps its data; `--purge` deletes it after a final backup                            |
+| `registry-login [--username U]`                                   | Stores a registry token (from standard input) for private images                                               |
+
+## Variables
+
+| Variable                 | Read by                             | Meaning                                                 |
+| ------------------------ | ----------------------------------- | ------------------------------------------------------- |
+| `LICTORY_<OPTION>`       | `install`                           | Any install option, for example `LICTORY_SMTP_PASSWORD` |
+| `LICTORY_ADMIN_PASSWORD` | `install`, `admin setup`            | The first administrator's password, without a prompt    |
+| `LICTORY_USER_PASSWORD`  | `admin create-user`, `set-password` | A password, without a prompt                            |
+| `LICTORY_ROOT`           | every command                       | The tooling root (default `/srv/lictory`)               |
+| `GITHUB_TOKEN`           | `install`, `upgrade`                | Raises GitHub's rate limit when releases are looked up  |
+| `NO_COLOR`               | every command                       | Plain output on a terminal                              |
+| `VISUAL`, `EDITOR`       | `config edit`                       | The editor                                              |
+
+Piped or redirected output is always plain text.
+
+## Exit codes
+
+| Code  | Meaning                                                                        |
+| ----- | ------------------------------------------------------------------------------ |
+| `0`   | Done (for `status`, the inspection worked; read `healthy` in its JSON)         |
+| `1`   | Failed, or `doctor` found a failing check; the message says why and what to do |
+| `3`   | `admin setup`: an instance administrator already exists                        |
+| `10`  | `upgrade --check`: a newer release is available                                |
+| `64`  | Invalid command, option or value; nothing was changed                          |
+| `65`  | `config`: an unknown key or a generated secret, refused without `--force`      |
+| `75`  | `restore`: another deployment of the environment is running                    |
+| `130` | Interrupted (Ctrl-C)                                                           |

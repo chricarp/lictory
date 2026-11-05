@@ -5,6 +5,7 @@
     "install",
     "configuration",
     "terminal",
+    "commands",
     "reverse-proxy",
     "backups",
     "upgrades",
