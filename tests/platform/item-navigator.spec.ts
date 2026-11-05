@@ -87,11 +87,17 @@ test("the list beside an item keeps titles readable and previews items on hover"
     contentType: "image/png",
   });
 
-  // Leaving the row ends the preview; the row's status is still a control.
+  // Leaving the row ends the preview and its highlight; the row's status is
+  // still a control.
+  await expect(row).toHaveAttribute("data-focused", "true");
   await page
     .getByRole("heading", { name: "Show the refund status", level: 1 })
     .hover();
   await expect(preview).toBeHidden();
+  await expect(row).not.toHaveAttribute("data-focused");
+  // The keyboard brings the cursor back.
+  await page.keyboard.press("ArrowDown");
+  await expect(list.locator("[data-focused]")).toHaveCount(1);
   await row.getByRole("button", { name: /^Status:/ }).click();
   await expect(page.getByRole("option").first()).toBeVisible();
   await page.keyboard.press("Escape");
@@ -105,4 +111,18 @@ test("the list beside an item keeps titles readable and previews items on hover"
   await title.click();
   await expect(page).toHaveURL(/\/items\/NAVP-2(\?.*)?$/);
   await expect(preview).toBeHidden();
+
+  // The clicked row link keeps focus, yet after j/k Enter opens the row the
+  // cursor is on rather than re-activating that link.
+  await expect(title).toBeFocused();
+  const other = list
+    .locator("[data-item-row]")
+    .filter({ hasText: "Show the refund status" });
+  await page.keyboard.press("j");
+  await expect(other).toHaveAttribute("data-focused", "true");
+  // The pointer leaving the clicked row keeps the cursor where j put it.
+  await page.getByRole("heading", { name: longTitle, level: 1 }).hover();
+  await expect(other).toHaveAttribute("data-focused", "true");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/items\/NAVP-1(\?.*)?$/);
 });

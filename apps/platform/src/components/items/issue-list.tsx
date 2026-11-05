@@ -222,6 +222,11 @@ export function IssueList({
     return () => clearTimeout(timer);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [focus, setFocus] = useState<string | undefined>(selectedId);
+  // Hovering a row moves the keyboard cursor so j/k continue from it, but the
+  // highlight follows the pointer: it clears once the pointer leaves the row.
+  const [cursorShown, setCursorShown] = useState(true);
+  // The element that had focus when j/k last moved the cursor.
+  const navigatedFrom = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const { previewed, target: previewTarget } = useItemPreview();
   const previewedItem = previewed
@@ -388,9 +393,12 @@ export function IssueList({
         return;
       if (document.querySelector('[role="dialog"]')) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      // Enter activates the focused control (search toggle, menus, links).
+      // Enter activates the focused control (search toggle, menus, links),
+      // unless j/k moved the cursor while that control kept focus: a row link
+      // focused by the click that opened its item must not swallow Enter.
       if (
         event.key === "Enter" &&
+        target !== navigatedFrom.current &&
         target?.closest(
           "button, a, select, summary, [role='button'], [role='menuitem'], [role='option'], [role='tab']",
         )
@@ -401,11 +409,19 @@ export function IssueList({
         event.preventDefault();
         const next = order[Math.min(order.length - 1, index + 1)];
         if (next) setFocus(next.id);
+        setCursorShown(true);
+        navigatedFrom.current = target;
       } else if (event.key === "k" || event.key === "ArrowUp") {
         event.preventDefault();
         const prev = order[Math.max(0, index - 1)];
         if (prev) setFocus(prev.id);
-      } else if ((event.key === "Enter" || event.key === "o") && focus) {
+        setCursorShown(true);
+        navigatedFrom.current = target;
+      } else if (
+        (event.key === "Enter" || event.key === "o") &&
+        focus &&
+        cursorShown
+      ) {
         const item = order.find((i) => i.id === focus);
         if (item) {
           event.preventDefault();
@@ -415,7 +431,16 @@ export function IssueList({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [order, focus, hrefFor, router]);
+  }, [order, focus, cursorShown, hrefFor, router]);
+  useEffect(() => {
+    // Focus moving anywhere ends the Enter override: Enter then activates
+    // whatever the user focused, even if it is the same control again.
+    const onFocusIn = () => {
+      navigatedFrom.current = null;
+    };
+    window.addEventListener("focusin", onFocusIn);
+    return () => window.removeEventListener("focusin", onFocusIn);
+  }, []);
   useEffect(() => {
     listRef.current
       ?.querySelector<HTMLElement>("[data-focused]")
@@ -1005,7 +1030,7 @@ export function IssueList({
                       }
                       href={hrefFor(item)}
                       selected={item.id === selectedId}
-                      focused={item.id === focus}
+                      focused={cursorShown && item.id === focus}
                       compact={compact}
                       memberName={memberName}
                       onUpdate={
@@ -1013,7 +1038,14 @@ export function IssueList({
                           ? (patch) => update(item, patch)
                           : undefined
                       }
-                      onFocus={() => setFocus(item.id)}
+                      onFocus={() => {
+                        setFocus(item.id);
+                        setCursorShown(true);
+                      }}
+                      onBlur={() => {
+                        // j/k may have moved the cursor off this row already.
+                        if (item.id === focus) setCursorShown(false);
+                      }}
                       preview={compact ? previewTarget : undefined}
                     />
                   ))}
