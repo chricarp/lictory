@@ -3068,7 +3068,7 @@ cmd_doctor() {
         esac
       done
       [ "$(printf '%s' "$status_json" | jq -r .healthy)" = true ] ||
-        check_warn "Not every service runs the release's images: lictory install re-activates $version."
+        check_warn "Not every service runs the release's images: sudo lictory config apply re-activates $version."
     fi
   fi
 
