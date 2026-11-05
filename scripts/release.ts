@@ -216,12 +216,13 @@ async function publish(
     status: (id, state, build) =>
       github.deploymentStatus(id, state, build.url, runId),
     reserve: async (build) => {
-      await github.reserve(manifest);
+      const reserved = await github.reserve(manifest);
       // What self-hosted installations pull: the exact digests of this release.
       await github.attach(
         manifest,
         "release.env",
         releaseFile(manifest, build.images),
+        reserved,
       );
     },
     publish: async () => {
