@@ -117,15 +117,39 @@ Delete the temporary copy of the identity file when done.
 
 ## PostgreSQL loss or corruption
 
-1. Stop writers: `lictory-compose production stop api worker zero-cache`.
-2. Keep the damaged volume if possible (`docker volume` rename or a disk
-   snapshot) for analysis.
-3. Create an empty cluster: remove or rename the `postgres_data` volume, then
-   `lictory-compose production up -d postgres` (roles and databases are
-   created on first start).
-4. Restore into the empty application database with the ops image:
+Use `lictory restore`; it does every step below, checks the backup before
+it stops anything, keeps the current database in a Docker volume, and puts
+it back if the restore fails:
+
+```sh
+sudo lictory backup list                                # pick a backup
+sudo lictory restore /path/to/age-identity.txt latest   # or a key from the list
+```
+
+By hand, when the CLI cannot run (replace `production` with the environment;
+`/srv/lictory/bin/lictory-compose` is the Compose wrapper):
+
+1. Stop everything, PostgreSQL included, and remove its container so the
+   volume is free: `lictory-compose production stop proxy api worker
+zero-cache postgres`, then `lictory-compose production rm -f postgres
+zero-cache`.
+2. Keep the damaged data for analysis. Docker cannot rename a volume: copy
+   it into a new one (or take a disk snapshot):
 
    ```sh
+   docker volume create lictory-production_postgres_data-damaged
+   docker run --rm --entrypoint cp -v lictory-production_postgres_data:/from:ro \
+     -v lictory-production_postgres_data-damaged:/to postgres:17-alpine -a /from/. /to/
+   ```
+
+3. Create an empty cluster: `docker volume rm lictory-production_postgres_data
+lictory-production_zero_replica`, then `lictory-compose production up -d
+--wait postgres` (roles and databases are created on first start).
+4. Restore into the empty application database with the ops image. The
+   superuser password is in `.env`; export it into this shell first:
+
+   ```sh
+   export POSTGRES_SUPERUSER_PASSWORD="$(sudo lictory config get POSTGRES_SUPERUSER_PASSWORD)"
    lictory-compose production run --rm --no-deps -T \
      -v /path/to/age-identity.txt:/run/age-identity:ro \
      -e AGE_IDENTITY_FILE=/run/age-identity -e RESTORE_PGHOST=postgres \
@@ -136,12 +160,11 @@ Delete the temporary copy of the identity file when done.
    `restore.sh` refuses a database that already has tables. Zero's event
    triggers and internal publications are skipped; zero-cache recreates them.
 
-5. Delete the Zero replica (`zero_replica` volume) and start everything:
-   `sudo lictory config apply` (it re-activates the active release; or
-   `deploy.sh production activate <current version>`). zero-cache resyncs and
-   clients reconnect and resync from the restored state. Changes clients
-   queued against the lost history go through the server's normal validation
-   and may be rejected.
+5. Start everything: `sudo lictory config apply` (it starts PostgreSQL, then
+   re-activates the active release). zero-cache resyncs, and clients
+   reconnect and resync from the restored state. Changes clients queued
+   against the lost history go through the server's normal validation and
+   may be rejected.
 6. Writes after the backup are lost. Tell affected organizations what window
    was lost. Jira items exported in that window still exist in Jira; check
    their links before the next export.
