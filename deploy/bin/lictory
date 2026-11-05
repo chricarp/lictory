@@ -2389,27 +2389,33 @@ bytes_human() {
     printf (i == 1 ? "%d %s" : "%.1f %s"), b, u[i] }'
 }
 
-# The stored backups, read by the release's ops image from BACKUP_TARGET.
-backup_list() {
-  local json err status=0 count
-  [ -n "$(current_version)" ] || die "$environment has no active release yet: sudo lictory install"
+# fetch_backups: the stored backups as JSON in $backups_json, read by the
+# release's ops image from BACKUP_TARGET; on failure, why in $backups_problem.
+backups_json=""
+backups_problem=""
+fetch_backups() {
+  local err status=0
   err=$(mktemp)
-  json=$(compose run --rm --no-deps -T ops sh -c \
+  backups_json=$(compose run --rm --no-deps -T ops sh -c \
     'command -v list-backups.sh >/dev/null || exit 4; exec list-backups.sh' 2>"$err") || status=$?
   case "$status" in
-    0) ;;
-    4)
-      rm -f "$err"
-      die "The active release's ops image cannot list backups yet; upgrade first (lictory upgrade)."
-      ;;
+    0) backups_problem="" ;;
+    4) backups_problem="the active release's ops image cannot list backups yet; upgrade first (lictory upgrade)" ;;
     *)
-      local reason
-      reason=$(grep -v '^ *Container \|^ *Network \|Creating\|Created\|Starting\|Started' "$err" | tail -n 3)
-      rm -f "$err"
-      die "Could not list the backups of $environment (${reason:-exit $status}). Check the target with: lictory doctor"
+      backups_problem=$(grep -v '^ *Container \|^ *Network \|Creating\|Created\|Starting\|Started' "$err" | tail -n 3)
+      backups_problem="could not list the backups of $environment (${backups_problem:-exit $status}); check the target with lictory doctor"
       ;;
   esac
   rm -f "$err"
+  [ -z "$backups_problem" ]
+}
+
+# The stored backups, newest first.
+backup_list() {
+  local json count
+  [ -n "$(current_version)" ] || die "$environment has no active release yet: sudo lictory install"
+  fetch_backups || die "$(printf '%s' "${backups_problem:0:1}" | tr '[:lower:]' '[:upper:]')${backups_problem:1}."
+  json="$backups_json"
   if [ "$(opt json)" = true ]; then
     printf '%s\n' "$json"
     return 0
@@ -2924,6 +2930,41 @@ README
 }
 
 # ---------------------------------------------------------------------- restore
+# restore_preview <identity> <source>: which backup a restore or drill would
+# use (kind, time, size, encryption), refusing a key that does not exist and
+# an encrypted backup without an identity. If the target cannot be listed,
+# says so and lets restore.sh decide.
+restore_preview() {
+  local identity="$1" source="$2" entry lines=() size when
+  if [ -f "$source" ]; then
+    size=$(wc -c <"$source")
+    when=$(date -u -r "$source" '+%Y-%m-%d %H:%M' 2>/dev/null || stat -f '%Sm' "$source")
+    lines+=("$(row "Backup file" "$source")" "$(row "Modified" "$when UTC")" "$(row "Size" "$(bytes_human "$size")")")
+    case "$source" in *.age) entry=true ;; *) entry=false ;; esac
+  else
+    if ! fetch_backups; then
+      warn "Cannot show which backup '$source' is: $backups_problem."
+      return 0
+    fi
+    if [ "$source" = latest ]; then
+      entry=$(printf '%s' "$backups_json" | jq -c '.[0] // empty')
+      [ -n "$entry" ] || die "There is no backup of $environment in $(setting BACKUP_TARGET) yet."
+    else
+      entry=$(printf '%s' "$backups_json" | jq -c --arg key "$source" '.[] | select(.key == $key)' | head -n 1)
+      [ -n "$entry" ] || die "There is no backup $source in $(setting BACKUP_TARGET). See the stored ones: lictory backup list"
+    fi
+    lines+=("$(row "Backup" "$(printf '%s' "$entry" | jq -r .key)")")
+    lines+=("$(row "Taken" "$(printf '%s' "$entry" | jq -r '.modified | sub("T"; " ") | .[0:16]') UTC ($(printf '%s' "$entry" | jq -r .kind))")")
+    lines+=("$(row "Size" "$(bytes_human "$(printf '%s' "$entry" | jq -r .bytes)")")")
+    entry=$(printf '%s' "$entry" | jq -r .encrypted)
+  fi
+  lines+=("$(row "Encrypted" "$([ "$entry" = true ] && echo "yes (age)" || echo no)")")
+  [ "$entry" != true ] || [ "$identity" != none ] ||
+    die "That backup is encrypted: pass the age identity file it was encrypted for instead of none."
+  local row_width=12
+  box "${lines[@]}"
+}
+
 cmd_restore() {
   parse "" "drill" "$@"
   [ ${#positional[@]} -ge 1 ] && [ ${#positional[@]} -le 2 ] ||
@@ -2934,6 +2975,7 @@ cmd_restore() {
   local active
   active=$(current_version)
   [ -n "$active" ] || die "$environment has no active release; install it first (sudo lictory install), then restore."
+  restore_preview "$identity" "$source"
   if [ "$(opt drill)" = true ]; then
     local copy="$identity"
     if [ "$identity" != none ] && is_root; then
@@ -2951,12 +2993,16 @@ cmd_restore() {
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   keep="${project}_postgres_data-before-restore-$stamp"
   db=$(setting LICTORY_DB_NAME)
-  say "This replaces the database of $environment with backup '$source'."
-  say "Writes since that backup are lost. The current data is kept in the Docker volume $keep."
+  warn "This replaces the database of $environment ($active) with this backup. Writes since it was taken are lost."
+  note "The current database is kept in the Docker volume $keep."
   if [ "$(opt yes)" != true ]; then
     [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
     local answer
-    printf 'Type the environment name (%s) to continue: ' "$environment" >/dev/tty
+    if [ "$fancy" = true ]; then
+      printf '\n %s?%s %sType the environment name (%s) to restore%s %s%s%s ' "$c_red" "$c_reset" "$c_bold" "$environment" "$c_reset" "$c_accent" "$g_prompt" "$c_reset" >/dev/tty
+    else
+      printf 'Type the environment name (%s) to continue: ' "$environment" >/dev/tty
+    fi
     IFS= read -r answer </dev/tty || true
     [ "$answer" = "$environment" ] || die "Restore cancelled."
   fi

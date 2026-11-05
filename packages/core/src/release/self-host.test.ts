@@ -1227,3 +1227,75 @@ case "$*" in *" logs "*) echo "api | session for grace@example.test signed with 
   );
   assert.equal(f.lictory(["support-bundle", "--since", "2d"]).status, 64);
 });
+
+void test(
+  "lictory restore names the backup it will use and refuses one that cannot work",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\nprintf '%s' "$FAKE_BACKUPS"\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-restore-drill"),
+      `#!/bin/sh\necho "drill $*"\n`,
+      { mode: 0o755 },
+    );
+    const key =
+      "production/daily/lictory-production-20261104T023000Z-scheduled.dump.age";
+    const backups = JSON.stringify([
+      {
+        key,
+        kind: "daily",
+        name: key.split("/").at(-1),
+        bytes: 2_100_000,
+        modified: "2026-11-04T02:30:41Z",
+        encrypted: true,
+      },
+    ]);
+    const identity = join(f.base, "identity.txt");
+    writeFileSync(identity, "AGE-SECRET-KEY-1TEST\n", { mode: 0o600 });
+
+    const drill = f.lictory(["restore", identity, "latest", "--drill"], {
+      FAKE_BACKUPS: backups,
+    });
+    assert.equal(drill.status, 0, drill.stderr + drill.stdout);
+    assert.match(
+      drill.stdout,
+      new RegExp(`Backup +${key.replace(/\./g, "\\.")}`),
+    );
+    assert.match(drill.stdout, /Taken +2026-11-04 02:30 UTC \(daily\)/);
+    assert.match(drill.stdout, /Size +2\.1 MB/);
+    assert.match(drill.stdout, /drill production .* latest/);
+
+    for (const [args, message] of [
+      [["restore", "none", "latest", "--yes"], /That backup is encrypted/],
+      [
+        [
+          "restore",
+          identity,
+          "production/daily/lictory-production-20260101T000000Z-scheduled.dump.age",
+          "--drill",
+        ],
+        /There is no backup production\/daily\/.*lictory backup list/,
+      ],
+    ] as const) {
+      const refused = f.lictory([...args], { FAKE_BACKUPS: backups });
+      assert.equal(refused.status, 1, args.join(" "));
+      assert.match(refused.stderr, message);
+      assert.ok(!refused.stdout.includes("drill production"));
+    }
+    const empty = f.lictory(["restore", identity, "latest", "--drill"], {
+      FAKE_BACKUPS: "[]",
+    });
+    assert.match(empty.stderr, /There is no backup of production in local yet/);
+  },
+);

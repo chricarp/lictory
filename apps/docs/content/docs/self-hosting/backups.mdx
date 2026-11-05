@@ -61,7 +61,11 @@ sudo lictory restore /path/to/age-identity.txt latest --drill
 
 <Cli command="restore" />
 
-Restoring replaces the database with a backup: writes made after that backup
+Before anything changes, the command shows which backup it will use (its
+key, when it was taken, its size and whether it is encrypted) and asks you
+to type the environment name. It refuses a key that is not in the target
+(see `lictory backup list`) and an encrypted backup without its identity
+file. Restoring replaces the database with a backup: writes made after that backup
 are lost, and zero-cache rebuilds its replica so clients resync. Jira items
 exported in the lost window still exist in Jira; check their links before
 the next export. The step-by-step recovery procedures for database loss,
