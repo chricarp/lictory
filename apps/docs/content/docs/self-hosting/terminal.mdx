@@ -157,8 +157,21 @@ lictory doctor --env staging
 lictory logs api --env staging --tail 50
 ```
 
-Each environment has its own configuration and deployment lock. Check the
-environment before a write such as upgrade, restore or account administration.
+Each environment has its own configuration, database, Docker volumes and
+deployment lock. Check the environment before a write such as upgrade,
+restore or account administration.
+
+Environments on one server also share a few things:
+
+- **Ports.** Only one environment can serve ports 80 and 443 with automatic
+  HTTPS. Install the others with `--tls proxy` and a different
+  `--http-port` (for example 8081), behind a reverse proxy that routes each
+  host name to its port ([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+- **Host tooling.** The `lictory` command and the scripts in
+  `/srv/lictory/bin` come from the newest release activated on the server, so
+  upgrading staging first also updates the tools production uses. They stay
+  compatible with older releases; upgrade every environment of a server
+  within the same release line.
 
 ## Recover access
 

@@ -1915,3 +1915,28 @@ void test(
     assert.doesNotMatch(failed.stderr, /keeps its previous images/);
   },
 );
+
+void test(
+  "lictory status --json adds the address, channel and access policy",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([...acmeInstall]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const withoutApi = f.lictory(["status", "--json"]);
+    assert.equal(withoutApi.status, 0, withoutApi.stderr);
+    assert.deepEqual(JSON.parse(withoutApi.stdout), {
+      url: "https://lictory.example.test",
+      releaseChannel: "stable",
+      access: null,
+    });
+    stubAdministration(f);
+    const status = JSON.parse(
+      f.lictory(["status", "--json"], { FAKE_ADMINS: "1" }).stdout,
+    ) as {
+      access: { signUpMode: string; administrators: number };
+    };
+    assert.equal(status.access.signUpMode, "invite");
+    assert.equal(status.access.administrators, 1);
+  },
+);

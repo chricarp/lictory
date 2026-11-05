@@ -258,8 +258,9 @@ Usage: lictory status [--json] [--env <name>]
 
 The address, the active release and when it was activated, the state of
 every service, the backup timer's last and next run, and the access policy.
-Piped, it prints plain lines. --json prints the release and services for
-scripts (exit status 0 even when a service is unhealthy; check "healthy").
+Piped, it prints plain lines. --json prints the release, services, address,
+channel and access policy for scripts (access is null when the api does not
+answer; exit status 0 even when a service is unhealthy: check "healthy").
 USAGE
       ;;
     doctor)
@@ -2319,7 +2320,12 @@ cmd_status() {
   [ ${#positional[@]} -eq 0 ] || usage_error "status takes no arguments."
   select_environment
   if [ "$(opt json)" = true ]; then
-    deploy_sh status --json
+    # deploy.sh's release and services, plus the address, the channel and
+    # (when the api answers) the access policy, as the text view shows them.
+    local access=null
+    ! admin_status_json || access=$(printf '%s' "$admin_out" | jq -c '{signUpMode, allowedEmailDomains, organizationCreation, passwordLogin, sso, administrators, users, organizations}')
+    deploy_sh status --json | jq -c --arg url "$(platform_url)" --arg channel "$(channel_of_environment)" \
+      --argjson access "$access" '. + {url: $url, releaseChannel: $channel, access: $access}'
   elif [ "$fancy" = true ]; then
     status_panel
   else

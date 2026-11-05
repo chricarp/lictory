@@ -361,7 +361,7 @@ switches images and keeps the schema.
 The channel is a property of the environment (`LICTORY_RELEASE_CHANNEL`):
 
 - `stable`: tested releases (`vX.Y.Z`). The default.
-- `nightly`: a prerelease for every change on `main`
+- `nightly`: a prerelease built daily from `main` when the platform changed
   (`vX.Y.Z-nightly.YYYYMMDD.N`). For staging or evaluation servers.
   Nightlies older than 14 days are removed from GitHub Releases once a newer
   one exists; the newest nightly is always kept, so `upgrade` on this channel
