@@ -1,7 +1,7 @@
 import { LoadingState } from "@lictory/ui/spinner";
 import { useEffect } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
-import { useRouter } from "@lictory/platform/lib/navigation";
+import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { FileSearch } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { MissingState } from "@lictory/ui/status-page";
@@ -23,6 +23,8 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
   const project = useProject();
   const { setCurrentItem } = useShell();
   const router = useRouter();
+  // The canonical address keeps the queue, branch or pull request it names.
+  const searchParams = useSearchParams();
   const parsed = parseIdentifier(raw);
   const item = items.find((i) =>
     parsed
@@ -59,9 +61,17 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
           organization.slug,
           otherProject.key,
           identifier(otherProject, otherItem.number),
+          searchParams,
         ),
       );
-  }, [otherProject, otherItem, router, organization.slug, delivery]);
+  }, [
+    otherProject,
+    otherItem,
+    router,
+    organization.slug,
+    delivery,
+    searchParams,
+  ]);
   useEffect(() => {
     if (item && !parsed && !pendingCreate)
       router.replace(
@@ -69,6 +79,7 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
           organization.slug,
           project.key,
           identifier(project, item.number),
+          searchParams,
         ),
       );
   }, [
@@ -79,6 +90,7 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
     organization.slug,
     project,
     delivery,
+    searchParams,
   ]);
   if (!item) {
     if (view.status === "hydrating")

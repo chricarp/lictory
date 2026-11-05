@@ -107,6 +107,11 @@ test("custom types move from proposal through refinement to native delivery, wit
   await expect(
     page.getByRole("heading", { name: new RegExp(`^${proposalTitle}`) }),
   ).toBeVisible();
+  // The new proposal opens beside the queue it joined, not every item.
+  await expect(page).toHaveURL(/\/items\/NAV-\d+\?from=proposals$/);
+  await expect(
+    sidebar.getByRole("link", { name: "Proposals", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   const workflow = page.getByRole("region", {
     name: "Item workflow",
     exact: true,
