@@ -98,6 +98,52 @@ function useBranchData() {
     prReviews: byType(ctx.entities, "prReview"),
   };
 }
+// "Propose breakdown" means: edit the delivery breakdown on a branch. Rather
+// than leaving the person on the branch list to name one, it reopens their
+// breakdown branch or starts one from main, and the branch editor scrolls to
+// the breakdown. The request is consumed once by the editor it names.
+let breakdownFocus: string | null = null;
+
+export function useProposeBreakdown(
+  onNavigate: (screen: BranchScreen) => void,
+) {
+  const { branches, userId, base, mutateConfirmed } = useBranchData();
+  return async () => {
+    const mine = branches.find(
+      (b) => b.authorId === userId && /^breakdown(-\d+)?$/.test(b.name),
+    );
+    if (mine) {
+      breakdownFocus = mine.id;
+      onNavigate({ kind: "branch", id: mine.id });
+      return;
+    }
+    let name = "breakdown";
+    for (let n = 2; branches.some((b) => b.name === name); n++)
+      name = `breakdown-${n}`;
+    const id = crypto.randomUUID();
+    try {
+      await mutateConfirmed({
+        type: "createBranch",
+        ...base,
+        branchId: id,
+        name,
+      });
+      breakdownFocus = id;
+      onNavigate({ kind: "branch", id });
+    } catch (error) {
+      // Say why, then offer the branch list to start one by hand.
+      toast.add({
+        title: "Could not start a breakdown branch",
+        type: "error",
+        description:
+          error instanceof Error ? error.message : "The server refused it.",
+        timeout: 8000,
+      });
+      onNavigate({ kind: "branches" });
+    }
+  };
+}
+
 // "Suggest a change" on selected specification text: start a branch from
 // main and open its editor with that text selected, ready to rewrite. The
 // request is consumed once by the editor it names.
@@ -713,6 +759,18 @@ function BranchEditorBody({
   const { directory } = useWorkspace();
   const { branches, prs } = useBranchData();
   const { run, error, pending } = useAction();
+  const breakdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (breakdownFocus !== branch.id || !canEdit) return;
+    breakdownFocus = null;
+    requestAnimationFrame(() => {
+      const section = breakdownRef.current;
+      section?.scrollIntoView({ block: "center" });
+      section
+        ?.querySelector<HTMLInputElement>("input:not([type=hidden])")
+        ?.focus({ preventScroll: true });
+    });
+  }, [branch.id, canEdit]);
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (suggestionFocus?.branchId !== branch.id || !canEdit) return;
@@ -1098,11 +1156,15 @@ function BranchEditorBody({
                       previewClassName="min-h-[400px] px-4 pt-4"
                     />
                   </div>
-                  <BreakdownProposal
-                    proposals={draft.proposedChildren ?? []}
-                    accepted={mainHead?.proposedChildren}
-                    onChange={(proposedChildren) => edit({ proposedChildren })}
-                  />
+                  <div ref={breakdownRef} className="scroll-mt-24">
+                    <BreakdownProposal
+                      proposals={draft.proposedChildren ?? []}
+                      accepted={mainHead?.proposedChildren}
+                      onChange={(proposedChildren) =>
+                        edit({ proposedChildren })
+                      }
+                    />
+                  </div>
                 </>
               ) : (
                 <>

@@ -78,6 +78,7 @@ import { Discussions } from "@lictory/platform/components/review/threads";
 import {
   BranchEntry,
   BranchWorkspace,
+  useProposeBreakdown,
   useSuggestChange,
   type BranchScreen,
 } from "@lictory/platform/components/review/branch-workspace";
@@ -891,9 +892,7 @@ export function ItemDetail({
                     aria-label="Breakdown"
                     className="mt-10 scroll-mt-4"
                   >
-                    <EpicStories
-                      onPropose={() => setMode({ kind: "branches" })}
-                    />
+                    <Breakdown onNavigate={setMode} />
                   </section>
                   <section className="mt-10">
                     <Relations item={item} canChange={canChange} />
@@ -989,6 +988,17 @@ const railPane: PaneSpec = {
   neighbour: () => document.querySelector("[data-pane-document]"),
   keep: 440,
 };
+
+// Children of the item; proposing a breakdown opens the breakdown editor on a
+// branch (inside the item context the proposal needs).
+function Breakdown({
+  onNavigate,
+}: {
+  onNavigate: (screen: BranchScreen) => void;
+}) {
+  const propose = useProposeBreakdown(onNavigate);
+  return <EpicStories onPropose={() => void propose()} />;
+}
 
 // The specification, with "Suggest a change" on selected text (it needs the
 // item context the branch commands run in).
