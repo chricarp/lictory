@@ -1658,6 +1658,15 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(
     column("In Progress").getByText("Add payment method column"),
   ).toBeVisible();
+  // Planning fields are editable in place: the card shows the new estimate.
+  await taskPreview
+    .getByRole("button", { name: "Estimate: No estimate" })
+    .click();
+  await page.getByRole("option", { name: "5", exact: true }).click();
+  await expect(
+    taskPreview.getByRole("button", { name: "Estimate: 5" }),
+  ).toBeVisible();
+  await expect(taskCard.getByText("5", { exact: true })).toBeVisible();
   // The close icon, an outside click and Escape all dismiss it; a reload
   // keeps it open.
   await taskPreview.getByRole("button", { name: "Close preview" }).click();
