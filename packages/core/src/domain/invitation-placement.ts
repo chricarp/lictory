@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, canManageProject } from "@lictory/core/contracts/protocol";
@@ -246,16 +246,48 @@ export async function applyInvitationPlacement(
       });
     });
   } catch (error) {
-    // The transaction rolled back; record why on its own.
-    await record(db, {
-      status: "skipped",
-      missing: [],
-      reason: error instanceof Error ? error.message : String(error),
-    }).catch((failure: unknown) => {
-      console.warn("invitation placement outcome not recorded", {
-        invitationId,
-        reason: failure instanceof Error ? failure.message : String(failure),
-      });
+    await recordFailedPlacement(
+      db,
+      invitationId,
+      organizationId,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+// After a rolled-back attempt, record why, under the organization lock and
+// only while the placement is still unapplied: a concurrent or repeated
+// attempt that succeeded keeps its outcome.
+export async function recordFailedPlacement(
+  db: Database,
+  invitationId: string,
+  organizationId: string,
+  reason: string,
+) {
+  const outcome: PlacementOutcome = { status: "skipped", missing: [], reason };
+  console.warn("invitation placement not fully applied", {
+    invitationId,
+    organizationId,
+    ...outcome,
+  });
+  try {
+    await db.transaction(async (tx) => {
+      await lock(tx, organizationId);
+      await tx
+        .update(s.invitationPlacement)
+        .set({ appliedAt: new Date(), outcome })
+        .where(
+          and(
+            eq(s.invitationPlacement.invitationId, invitationId),
+            eq(s.invitationPlacement.organizationId, organizationId),
+            isNull(s.invitationPlacement.appliedAt),
+          ),
+        );
+    });
+  } catch (failure) {
+    console.warn("invitation placement outcome not recorded", {
+      invitationId,
+      reason: failure instanceof Error ? failure.message : String(failure),
     });
   }
 }

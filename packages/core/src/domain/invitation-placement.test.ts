@@ -12,6 +12,7 @@ import {
   applyInvitationPlacement,
   invitationIntent,
   placementOutcomeFor,
+  recordFailedPlacement,
   storeInvitationPlacement,
   validateInvitationPlacement,
 } from "@lictory/core/domain/invitation-placement";
@@ -169,6 +170,12 @@ void test("invitation placement applies on acceptance through audited, projected
   assert.equal(
     await placementOutcomeFor(db, invitationId, "someone@example.test"),
     null,
+  );
+  // A failed attempt finishing after a successful one never overwrites it.
+  await recordFailedPlacement(db, invitationId, organizationId, "late failure");
+  assert.equal(
+    (await placementOutcomeFor(db, invitationId, email))?.status,
+    "partial",
   );
   let accepted = await directory(db, userId, organizationId);
   assert.ok(
