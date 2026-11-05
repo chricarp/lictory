@@ -147,6 +147,10 @@ its domain writes, after taking the organization advisory lock
   status sync, branding, profile photos, handles, `seedOrganization` and the
   Better Auth hooks write projections the same way.
 
+The live draft writer of [Lictory Spaces](spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule)
+is the one writer outside this list: it persists only draft updates, which no
+projection reads, under the organization lock in shared mode.
+
 A failed projection write rolls back the domain change (covered by tests that
 force `sync_entity` failures). Host side effects (analytics) run only after
 commit. Never write domain rows that a projection depends on without writing

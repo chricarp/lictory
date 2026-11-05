@@ -91,6 +91,12 @@ rewrites history.
 Every check happens on the server inside the organization transaction, from
 current memberships. The browser only hides controls.
 
+**Spaces** are the one place where project and team membership grant access:
+members of a project or team can edit the spaces that belong to it, unless a
+space is restricted to named people (see [Lictory Spaces](spaces.md#access)).
+This access covers knowledge pages only; it never grants work item
+capabilities.
+
 ## Delivery modes
 
 Delivery mode is a project setting, so one system owns delivery for all of a

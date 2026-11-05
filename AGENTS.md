@@ -533,11 +533,38 @@ to systems such as Jira.
 
 A group of people working on one vertical of a project (Board or Auth inside
 Jira). A team belongs to one project and owns no configuration: boards and
-backlogs can be narrowed to it. Team membership grants nothing.
+backlogs can be narrowed to it. Team membership grants no work item
+capabilities; it only gives access to the team's spaces.
 
 Work items belong to exactly one project (identity: `PAY-142`) and optionally
 one of its teams. Moving an item between teams never changes its identifier,
 status or iteration.
+
+---
+
+## Space
+
+A home for knowledge in Lictory Spaces: nested pages that people write
+together. A space belongs to the organization and optionally to one project or
+team, whose members can edit it by default; a space can instead be restricted to
+named people. See [Lictory Spaces](docs/internals/spaces.md).
+
+---
+
+## Page
+
+A document in a space, with its own commit history like a specification: main is
+the published line, branches propose changes, pull requests review them. Pages
+are not work items and have no delivery state or readiness.
+
+---
+
+## Live draft
+
+The shared, real-time working tree of a page's branch (or of main in spaces
+that publish directly), edited by several people at once. A live draft is never
+history: committing seals an exact stored cut of it into an immutable commit,
+and only commits are reviewed, approved or published.
 
 ---
 
@@ -581,6 +608,9 @@ The act of creating or updating delivery work in an external system.
 Publishing is not approval.
 
 Approval happens before publishing.
+
+Publishing a page in Lictory Spaces is a different act: it makes a commit the
+page's published version inside Lictory.
 
 ---
 
@@ -1503,7 +1533,9 @@ owns authorization, business rules, transactions and external side effects.
   transaction, and maintains the `sync_entity` read projections in the same
   transaction. Never write domain rows a projection depends on without writing
   the projection; never call independently committing services from a Zero
-  mutator.
+  mutator. The one exception is the live draft writer of Lictory Spaces (draft
+  updates only, shared organization lock, no projection); see
+  [Lictory Spaces](docs/internals/spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule).
 - Browsers receive only the tables in the `lictory_zero` publication
   (projections and membership columns). Never add credentials, sessions,
   tokens, private configuration or raw domain tables to it. Synced queries are
