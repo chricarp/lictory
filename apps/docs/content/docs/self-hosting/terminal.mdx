@@ -188,5 +188,19 @@ undo database migrations**. Read [upgrades](/self-hosting/upgrades) before
 switching versions, and use a [restore drill](/self-hosting/backups#restore-drill)
 to prove a backup is usable before an incident.
 
+## Stop or remove an environment
+
+<Cli command="uninstall" />
+
+Without `--purge`, the environment stops and its containers and scheduled
+jobs are removed; the database, settings and backups stay, and
+`sudo lictory config apply` starts it again. `--purge` deletes the
+database volumes and the environment's directory, including `.env` and its
+secrets. When backups go off the server, a final backup is taken first, and
+nothing is deleted if it fails. You type the environment name to confirm.
+Docker, other environments, the `lictory` command and the deploy user are
+never touched; with no environment left, the command prints how to remove
+the tooling too.
+
 `lictory help` and `lictory admin help` show usage. The
 [self-hosting overview](/self-hosting#operating-the-server) lists the commands.

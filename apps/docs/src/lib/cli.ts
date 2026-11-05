@@ -41,7 +41,7 @@ export const commands = {
       "Active version, release channel, the health of each service and the access policy.",
   },
   doctor: {
-    usage: "lictory doctor",
+    usage: "lictory doctor [--json]",
     summary:
       "Check the host, the configuration, DNS, certificates, backups and replication, and explain what to fix. Sends no alerts.",
   },
@@ -84,6 +84,11 @@ export const commands = {
     usage: "sudo lictory support-bundle [--since 24h]",
     summary:
       "Write one archive for a bug report: versions, status, doctor, settings and recent logs, with secrets, email addresses and tokens removed.",
+  },
+  uninstall: {
+    usage: "sudo lictory uninstall [--purge]",
+    summary:
+      "Stop an environment and remove its containers and timers, keeping its data and settings; --purge deletes it for good after a final off-server backup and a typed confirmation.",
   },
   "registry-login": {
     usage: "sudo lictory registry-login --username <user>",
