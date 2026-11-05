@@ -380,6 +380,14 @@ valid_root() { [[ "$root" =~ ^/[A-Za-z0-9._/-]+$ ]] && [[ "$root" != *..* ]]; }
 valid_root || die "LICTORY_ROOT must be an absolute path without spaces or '..'." 64
 root="${root%/}"
 bin="$root/bin"
+# Where releases come from, as the bootstrap recorded it (a fork): unless
+# this run is told otherwise.
+if [ -r "$root/share/source.env" ]; then
+  [ -n "${LICTORY_REPOSITORY:-}" ] ||
+    repository=$(sed -n 's/^LICTORY_REPOSITORY=//p' "$root/share/source.env" | tail -n 1 | grep . || echo "$repository")
+  [ -n "${LICTORY_DEFAULT_REGISTRY:-}${LICTORY_IMAGE_REGISTRY:-}" ] ||
+    default_registry=$(sed -n 's/^LICTORY_IMAGE_REGISTRY=//p' "$root/share/source.env" | tail -n 1 | grep . || echo "$default_registry")
+fi
 
 env_value() { # env_value <file> <key> (the last assignment, one pair of quotes removed)
   local line
@@ -507,6 +515,7 @@ env_quote() {
 
 # ------------------------------------------------------------------- releases
 api_get() { # api_get <path> <output file>; prints the HTTP status
+  { set +x; } 2>/dev/null # never trace a token
   local headers status
   headers=$(mktemp)
   chmod 0600 "$headers"
@@ -590,13 +599,22 @@ resolve_release() {
   [[ "$release_asset_url" =~ ^https:// ]] || die "Release $release_version has an unexpected asset URL."
 }
 
+# curl_keeps_credentials: curl 7.58.0 or newer, which no longer forwards a
+# custom Authorization header to another host on a redirect (CVE-2018-1000007).
+curl_keeps_credentials() {
+  version_ge "$(curl --version 2>/dev/null | head -n 1 | cut -d' ' -f2)" 7.58
+}
+
 sha256_of() { openssl dgst -sha256 -r "$1" | cut -d' ' -f1 | tr -d '*'; }
 
 # fetch_release <output file>: downloads the resolved release.env, verifies
 # it against GitHub's asset digest and checks it names the resolved release.
 fetch_release() {
   local file="$1" actual
+  { set +x; } 2>/dev/null # never trace a token
   if [ -n "${GITHUB_TOKEN:-}" ] && [[ "$release_asset_api" =~ ^https:// ]]; then
+    curl_keeps_credentials ||
+      die "curl $(curl --version | head -n 1 | cut -d' ' -f2) may send GITHUB_TOKEN to the storage host GitHub redirects to (fixed in 7.58.0). Upgrade curl, then retry."
     # Through the API with the token (private repositories). curl does not
     # forward the Authorization header to the storage host it redirects to.
     local headers
@@ -2008,6 +2026,8 @@ cmd_bootstrap() {
   cp "$release_file" "$root/share/.bundle.new/release.env"
   rm -rf "$root/share/bundle"
   mv "$root/share/.bundle.new" "$root/share/bundle"
+  # The repository and registry get.sh used, for install and upgrades.
+  printf 'LICTORY_REPOSITORY=%s\nLICTORY_IMAGE_REGISTRY=%s\n' "$repository" "$default_registry" >"$root/share/source.env"
   chown -R "$user" "$root/share" 2>/dev/null || true
   step "Ready"
   say "Install and start Lictory:  sudo lictory install"

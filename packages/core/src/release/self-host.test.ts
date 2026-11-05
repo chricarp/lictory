@@ -128,7 +128,8 @@ if (args[1] === "status") console.log("{}");`,
   recorder(
     join(fake, "curl"),
     "curl",
-    `const url = args.find((arg) => /^https?:\\/\\//.test(arg));
+    `if (args[0] === "--version") { console.log(process.env.FAKE_CURL_VERSION ?? "curl 8.5.0 (x86_64-pc-linux-gnu) libcurl/8.5.0"); process.exit(0); }
+const url = args.find((arg) => /^https?:\\/\\//.test(arg));
 // Whether the request carried a token (headers come from a file: -H @file).
 const headerFile = args.find((arg) => arg.startsWith("@"));
 const headers = headerFile && existsSync(headerFile.slice(1)) ? readFileSync(headerFile.slice(1), "utf8") : "";
@@ -204,8 +205,8 @@ else if (args[0] === "cp") cpSync(${JSON.stringify(bundle)}, args.at(-1), { recu
       routes[url] = { body, status };
       writeRoutes();
     },
-    getSh: (extra: Record<string, string> = {}) =>
-      run("sh", [join(deploy, "get.sh")], extra),
+    getSh: (extra: Record<string, string> = {}, shellOptions: string[] = []) =>
+      run("sh", [...shellOptions, join(deploy, "get.sh")], extra),
     lictory: (args: string[], extra: Record<string, string> = {}) =>
       run("bash", [join(root, "bin/lictory"), ...args], extra),
   };
@@ -904,6 +905,21 @@ void test("a private repository installs with GITHUB_TOKEN, and says so without 
   assert.equal(upgraded.status, 0, upgraded.stderr + upgraded.stdout);
   assert.match(auth(), /releases\/assets\/130 auth$/m);
 
+  // Tracing never shows the token, and curl that would forward it on the
+  // storage redirect is refused.
+  const traced = f.getSh({ GITHUB_TOKEN: "ghp_test-token" }, ["-x"]);
+  assert.equal(traced.status, 0, traced.stderr);
+  assert.ok(!traced.stderr.includes("ghp_test-token"));
+  const oldCurl = f.getSh({
+    GITHUB_TOKEN: "ghp_test-token",
+    FAKE_CURL_VERSION: "curl 7.57.0 (x86_64-pc-linux-gnu)",
+  });
+  assert.equal(oldCurl.status, 1);
+  assert.match(
+    oldCurl.stderr,
+    /curl 7\.57\.0 may send GITHUB_TOKEN .* 7\.58\.0/,
+  );
+
   // A repository GitHub hides (private, no token) names the likely cause.
   f.route(`${api}/releases/latest`, "{}", 404);
   assert.match(
@@ -917,15 +933,26 @@ void test(
   slow,
   (t) => {
     const f = bootstrapped(t);
-    const fork = {
-      LICTORY_REPOSITORY: "acme/lictory-fork",
-      LICTORY_IMAGE_REGISTRY: "ghcr.io/acme",
-    };
-    assert.equal(f.lictory([...acmeInstall], fork).status, 0);
+    // get.sh hands the bootstrap the repository and registry it used.
+    const recorded = f.lictory(
+      [
+        "bootstrap",
+        "--bundle",
+        f.bundle,
+        "--release-file",
+        join(f.root, "share/bundle/release.env"),
+      ],
+      {
+        LICTORY_REPOSITORY: "acme/lictory-fork",
+        LICTORY_IMAGE_REGISTRY: "ghcr.io/acme",
+      },
+    );
+    assert.equal(recorded.status, 0, recorded.stderr);
+    // install and later runs are not told again.
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
     const env = readFileSync(join(f.root, "production/.env"), "utf8");
     assert.match(env, /^LICTORY_REPOSITORY=acme\/lictory-fork$/m);
     assert.match(env, /^LICTORY_IMAGE_REGISTRY=ghcr\.io\/acme$/m);
-    // Later runs look releases up in the fork without being told again.
     const check = f.lictory(["upgrade", "--yes"]);
     assert.ok(
       check.calls.some(

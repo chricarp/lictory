@@ -85,13 +85,21 @@ shell, so `sudo` does not drop it and it stays out of the process list:
 ```sh
 sudo -i
 export GITHUB_TOKEN=github_pat_…
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+# The header goes through a private file (printf is a shell builtin), so the
+# token never appears in the process list.
+umask 077 && printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" >/root/.lictory-github-header
+curl -fsSL -H @/root/.lictory-github-header \
   https://raw.githubusercontent.com/<owner>/lictory/main/deploy/get.sh |
   LICTORY_REPOSITORY=<owner>/lictory LICTORY_IMAGE_REGISTRY=ghcr.io/<owner> sh
+rm /root/.lictory-github-header
 lictory install
 ```
 
-`lictory upgrade` needs the same `GITHUB_TOKEN` in its environment.
+The bootstrap records the repository and registry for `lictory install` and
+upgrades; `lictory upgrade` needs `GITHUB_TOKEN` in its environment again.
+GitHub redirects downloads to its storage, so curl 7.58.0 or newer is required
+with a token (older versions forward the token on redirects; the tools refuse
+to run with them).
 
 **Private images.** While the images on `ghcr.io` are not public, pulls fail
 with an explanation. Log in with a GitHub token that can read packages: as root

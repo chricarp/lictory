@@ -65,7 +65,17 @@ main() {
   else
     path="/releases?per_page=50"
   fi
-  # Headers in a private file: the token never appears in the process list.
+  # Never trace a token; headers in a private file keep it out of the
+  # process list.
+  { set +x; } 2>/dev/null
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    # curl before 7.58.0 forwards a custom Authorization header to the host a
+    # redirect points to (CVE-2018-1000007): GitHub redirects assets to storage.
+    curl_version=$(curl --version | head -n 1 | cut -d' ' -f2)
+    # Sorted means 7.58.0 <= the installed version.
+    printf '7.58.0\n%s\n' "${curl_version%%-*}" | sort -V -C ||
+      fail "curl $curl_version may send GITHUB_TOKEN to the storage host GitHub redirects to (fixed in 7.58.0). Upgrade curl, then run this again."
+  fi
   printf 'Accept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' >"$work/headers"
   [ -z "${GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" >>"$work/headers"
   status=$(curl -sSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 30 --retry 3 \
@@ -148,7 +158,9 @@ read packages, then re-run:  docker login ${registry%%/*}" ;;
   [ -f "$work/bundle/bin/lictory" ] && [ -f "$work/bundle/provision/install.sh" ] ||
     fail "Release $release predates the lictory command; choose a newer one (LICTORY_VERSION)."
   # The child never reads this script's stdin (the piped script itself).
-  bash "$work/bundle/bin/lictory" bootstrap --bundle "$work/bundle" --release-file "$work/release.env" </dev/null
+  # The repository and registry used here are recorded for install and upgrades.
+  LICTORY_REPOSITORY="$repository" LICTORY_IMAGE_REGISTRY="$registry" \
+    bash "$work/bundle/bin/lictory" bootstrap --bundle "$work/bundle" --release-file "$work/release.env" </dev/null
 }
 
 say() { printf '%s\n' "$*"; }
