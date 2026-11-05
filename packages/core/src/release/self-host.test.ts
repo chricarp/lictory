@@ -1694,6 +1694,38 @@ void test(
       f.lictory(["config", "get", "SMTP_FROM"]).stdout,
       'Lictory "Ops" <ops@example.test>\n',
     );
+    // Every form is listed (and so masked and redacted).
+    const listed = f.lictory(["config", "show", "--json"]).stdout;
+    assert.equal(
+      (JSON.parse(listed) as Record<string, string>).LEGAL_TERMS_URL,
+      "https://example.test/new",
+    );
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "export RESEND_API_KEY=EXPORTED-SECRET-77\n",
+    );
+    assert.match(
+      f.lictory(["config", "show"]).stdout,
+      /^RESEND_API_KEY=\*\*\*\*$/m,
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *" logs "*) echo "worker | resend refused EXPORTED-SECRET-77" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const bundle = join(f.base, "export-bundle.tar.gz");
+    assert.equal(f.lictory(["support-bundle", "--output", bundle]).status, 0);
+    const unpacked = join(f.base, "export-bundle");
+    mkdirSync(unpacked);
+    spawnSync("tar", ["-xzf", bundle, "-C", unpacked]);
+    const archived = spawnSync(
+      "sh",
+      ["-c", `cat "${unpacked}"/*/*.* "${unpacked}"/*/logs/*`],
+      { encoding: "utf8" },
+    ).stdout;
+    assert.ok(!archived.includes("EXPORTED-SECRET-77"));
+
     // Changing a key written as "export KEY=" changes the value Compose reads.
     assert.equal(
       f.lictory([

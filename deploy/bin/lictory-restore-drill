@@ -69,6 +69,17 @@ env_value() {
   printf '%s' "$out"
 }
 value() { env_value "$1" "$2"; }
+# env_line <key> <value>: a line Compose reads back as exactly <value>
+# (single quotes: no interpolation of $, no escapes).
+env_line() {
+  case "$2" in
+    *"'"* | *'\')
+      echo "$1 contains a single quote or ends with a backslash, which the drill cannot pass on; run it with a simpler value." >&2
+      return 1
+      ;;
+  esac
+  printf "%s='%s'\n" "$1" "$2"
+}
 secret() { openssl rand -hex 24; }
 work=$(mktemp -d)
 chmod 700 "$work"
@@ -98,7 +109,7 @@ fi
   echo "AGE_IDENTITY_FILE=$work/age-identity"
   echo "DRILL_BACKUP_SOURCE=$backup_source"
   for key in BACKUP_TARGET BACKUP_RCLONE_REMOTE BACKUP_BUCKET BACKUP_S3_PROVIDER BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
-    echo "$key=$(value "$home/.env" "$key")"
+    env_line "$key" "$(value "$home/.env" "$key")" || exit 1
   done
   for key in OPS_IMAGE MIGRATE_IMAGE API_IMAGE; do echo "$key=$(value "$release/release.env" "$key")"; done
 } >"$drill_env"

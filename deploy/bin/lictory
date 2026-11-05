@@ -2620,7 +2620,9 @@ config_known_keys() {
     config_keys "$home/.env"
   } | sort -u
 }
-config_keys() { sed -nE 's/^([A-Z][A-Z0-9_]*)=.*/\1/p' "$1" | awk '!seen[$0]++'; }
+# config_keys <file>: every key assigned in it, in every form env_value reads
+# (export, spaces around =), so listing, diffs and redaction see them all.
+config_keys() { sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Z][A-Z0-9_]*)[[:space:]]*=.*/\2/p' "$1" | awk '!seen[$0]++'; }
 
 # config_diff <old file> <new file>: prints "KEY|old|new" for each change
 # and fails when nothing changed.
