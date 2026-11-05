@@ -11,14 +11,18 @@
 #   lictory install                 guided (or --yes with flags/LICTORY_* variables)
 #   lictory admin <command>         first administrator, accounts and instance administrators
 #   lictory status [--json]         active release, service health and access policy
+#   lictory config <command>        show, change and apply settings (.env)
 #   lictory doctor                  host and runtime checks, with what to fix
 #   lictory database check|setup    database requirements; roles on an external database
 #   lictory upgrade [version]       newest release of the environment's channel, or that version
 #   lictory rollback                re-activate the previous release's images
-#   lictory backup                  encrypted backup now
+#   lictory backup [list]           encrypted backup now, or the stored backups
 #   lictory restore <identity|none> [latest|<key>|<file>] [--drill]
 #   lictory logs [service] [-f] [--tail N]
 #   lictory registry-login [--username U]   token on stdin, for private images
+#   lictory support-bundle          redacted versions, status, settings and logs
+#   lictory uninstall [--purge]     stop an environment (keep data), or delete it
+#   lictory version [--json]        the tools' release and each environment's
 #
 # Every command takes --env <name> when the server hosts several environments.
 # Output is styled only on a terminal (NO_COLOR=1 turns colours off); logs and
@@ -56,11 +60,11 @@ else
 fi
 if [ "$fancy" = true ] && [ "$utf8" = true ]; then
   g_ok="✓" g_warn="!" g_fail="✗" g_step="◆" g_prompt="›" g_pointer="❯" g_on="●" g_off="○"
-  g_bullet="•" g_mask="••••" g_h="─" g_v="│" g_tl="╭" g_tr="╮" g_bl="╰" g_br="╯" g_ellipsis="…"
+  g_bullet="•" g_mask="••••" g_arrow="→" g_h="─" g_v="│" g_tl="╭" g_tr="╮" g_bl="╰" g_br="╯" g_ellipsis="…"
   spinner_frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 else
   g_ok="ok" g_warn="!" g_fail="x" g_step="==" g_prompt=">" g_pointer=">" g_on="(*)" g_off="( )"
-  g_bullet="-" g_mask="****" g_h="-" g_v="|" g_tl="+" g_tr="+" g_bl="+" g_br="+" g_ellipsis="..."
+  g_bullet="-" g_mask="****" g_arrow="->" g_h="-" g_v="|" g_tl="+" g_tr="+" g_bl="+" g_br="+" g_ellipsis="..."
   spinner_frames=('|' '/' '-' '\')
 fi
 
@@ -83,6 +87,10 @@ steps_total=0
 step_index=0
 step() {
   local counter=""
+  if [ -n "$report_file" ]; then
+    report_section="$*"
+    return 0
+  fi
   if [ "$steps_total" -gt 0 ]; then
     step_index=$((step_index + 1))
     counter="Step $step_index of $steps_total"
@@ -155,30 +163,289 @@ box() {
   printf ' %s%s%s%s%s\n' "$c_dim" "$g_bl" "$(repeat "$g_h" "$inner")" "$g_br" "$c_reset"
 }
 # row <label> <value>: one aligned line for a box or plain output.
-row() { printf '%s%-24s%s %s' "$c_dim" "$1" "$c_reset" "$2"; }
+row() { printf '%s%-*s%s %s' "$c_dim" "${row_width:-24}" "$1" "$c_reset" "$2"; }
 
 usage() {
   cat <<'USAGE'
 Usage: lictory <command> [options]
 
+Set up
   install            Install or reconfigure an environment (guided, or --yes)
   admin <command>    Instance administration (lictory admin help)
+
+Operate
   status [--json]    Active release, service health and access policy
   doctor             Check the host and the running environment
   database check     Check the database against Lictory's requirements (--json)
   database setup     Create Lictory's roles on an external database
                      (administrator URL from LICTORY_DATABASE_ADMIN_URL or a prompt)
+  config <command>   Show, change and apply settings (lictory config help)
+  logs [service]     Service logs (-f to follow, --tail N)
+
+Releases and data
   upgrade [version]  Upgrade to the newest release of the channel, or to <version>
   rollback           Re-activate the previous release (database schema stays)
-  backup             Take an encrypted backup now
+  backup [list]      Take an encrypted backup now, or list the stored ones
   restore <identity-file|none> [latest|<key>|<file>]
                      Replace the database with a backup (--drill: test only)
-  logs [service]     Service logs (-f to follow, --tail N)
   registry-login     Log in to the image registry (token on stdin)
-  help               This text
+  support-bundle     A redacted archive of versions, status, settings and logs
+  uninstall          Stop an environment, keeping its data (--purge: delete it)
+
+  version [--json]   The tools' release and each environment's release
+  help [command]     This text, or one command's options
 
 Options for every command: --env <name> (when several environments exist),
---yes (no questions). Install options: docs/operations/self-hosting.md.
+--yes (no questions), --help. Guide: https://docs.lictory.com/self-hosting
+USAGE
+}
+
+# command_usage <command>: one command's usage and options (--help).
+command_usage() {
+  case "$1" in
+    install)
+      cat <<'USAGE'
+Usage: lictory install [options]
+
+Installs Lictory, or changes the settings of an installed environment. On a
+terminal it asks for every answer; with --yes it takes the options below and
+keeps current values for the rest. Every option can also be set as a
+LICTORY_<OPTION> variable (hyphens as underscores), which keeps secrets out
+of the process list and shell history.
+
+Address and certificates
+  --tls acme|proxy|internal|http   How browsers reach Lictory securely
+  --host <name>                    Host name users open
+  --acme-email <email>             Email for certificate expiry notices
+  --acme-ca <url>                  ACME directory of your internal CA
+  --http-port <port>               Gateway port behind a proxy or for plain HTTP
+  --bind 127.0.0.1|0.0.0.0         Interfaces the gateway listens on (proxy, http)
+  --public-url <origin>            Address your reverse proxy serves (proxy)
+  --trusted-proxies <ips>          Addresses your proxy connects from
+
+Database
+  --database bundled|external      A PostgreSQL container here (default), or your
+                                   own server or managed service
+  --database-host <name>           external: the direct endpoint, never a pooler
+  --database-port <port>           external: 5432 by default
+  --database-sslmode verify-full|require
+  --database-ca-file <path>        external: CA bundle (PEM) for its certificate
+  --database-admin-url <url>       external: an administrator connection that
+                                   creates Lictory's roles once (not stored)
+
+Email
+  --email smtp|resend|none
+  --smtp-host, --smtp-port, --smtp-user, --smtp-password, --smtp-from
+  --resend-api-key, --email-from
+
+Attachments
+  --storage s3|none
+  --s3-endpoint, --s3-region, --s3-bucket, --s3-access-key-id,
+  --s3-secret-access-key, --s3-force-path-style true|false
+
+Single sign-on (OpenID Connect)
+  --oidc yes|no
+  --oidc-issuer, --oidc-client-id, --oidc-client-secret, --oidc-display-name
+
+Backups
+  --backup local|s3|rclone|none
+  --backup-path <dir>              local: a NAS mount or second disk
+  --backup-bucket, --backup-s3-provider, --backup-s3-endpoint,
+  --backup-s3-region, --backup-s3-access-key-id, --backup-s3-secret-access-key
+  --backup-rclone-remote <remote>
+  --backup-age-recipient <age1…|generate|none>   Encryption key
+  --backup-identity-file <path>    Where a generated private key is written
+
+Access policy
+  --signup-mode invite|closed|open
+  --allowed-email-domains <a.com,b.com>
+  --organization-creation administrators|everyone
+
+First administrator (password from LICTORY_ADMIN_PASSWORD)
+  --organization <name>, --organization-handle <handle>,
+  --admin-name <name>, --admin-email <email>
+
+Release
+  --channel stable|nightly, --version <x.y.z>, --deploy-user <user>
+  --ignore-requirements            Warn instead of failing on memory and disk
+
+  --env <name>, --yes, --help
+USAGE
+      ;;
+    status)
+      cat <<'USAGE'
+Usage: lictory status [--json] [--env <name>]
+
+The address, the active release and when it was activated, the state of
+every service, the backup timer's last and next run, and the access policy.
+Piped, it prints the same facts as plain lines. --json prints the release,
+services, address, channel, activation time, backup target and timer, and
+access policy for scripts (access is null when the api does not answer; exit
+status 0 even when a service is unhealthy: check "healthy").
+USAGE
+      ;;
+    doctor)
+      cat <<'USAGE'
+Usage: lictory doctor [--json] [--env <name>]
+
+Checks the host (Docker, memory, disk), the configuration, DNS and
+certificates, the services, the database and replication, backups, the access
+policy and the scheduled jobs, and says how to fix each problem. Exits 1 when
+a check fails; warnings do not change the exit status. --json prints
+{environment, healthy, failures, warnings, checks: [{status, section,
+message}]} for monitoring, with the same exit status.
+USAGE
+      ;;
+    upgrade)
+      cat <<'USAGE'
+Usage: lictory upgrade [version] [--check [--json]] [--yes] [--env <name>]
+
+Moves to the newest release of the environment's channel, or to <version>:
+verifies the release's digest, takes a backup before migrations (of the
+bundled database; an external one relies on its provider's), migrates and
+activates it. If activation fails the previous release keeps serving.
+Upgrades only move forward; see lictory rollback.
+
+  --check   Only say whether a newer release exists; exit 10 when it does,
+            0 when the environment runs the newest one
+USAGE
+      ;;
+    rollback)
+      cat <<'USAGE'
+Usage: lictory rollback [--yes] [--env <name>]
+
+Re-activates the images of the previously activated release. Database
+migrations stay applied (every migration is compatible with the release
+before it).
+USAGE
+      ;;
+    backup)
+      cat <<'USAGE'
+Usage: lictory backup [list [--json]] [--env <name>]
+
+Without a command, takes an encrypted database backup now and sends it to
+the configured target (BACKUP_TARGET). Nightly backups run from a systemd
+timer. An external database (LICTORY_DATABASE=external) is backed up by its
+provider; Lictory takes no backups of it.
+
+  list   The stored backups, newest first: kind (daily, weekly, monthly,
+         manual, pre-deploy), time, size and the key lictory restore takes
+USAGE
+      ;;
+    restore)
+      cat <<'USAGE'
+Usage: lictory restore <identity-file|none> [latest|<key>|<file>] [--drill] [--yes]
+
+Replaces the environment's database with a backup (the newest by default),
+keeping the current data in a Docker volume. <identity-file> is the age
+private key the backup was encrypted for (none for unencrypted backups).
+
+  --drill   Restore into a scratch database and verify it; the live
+            database is not touched
+  --yes     Do not ask to type the environment name
+
+An external database is restored with its provider's point-in-time recovery
+or snapshots, not with this command.
+USAGE
+      ;;
+    logs)
+      cat <<'USAGE'
+Usage: lictory logs [service] [-f|--follow] [--tail N] [--since <when>] [--timestamps] [--env <name>]
+
+Logs of every service, or of one: proxy, api, worker, zero-cache, postgres
+(the bundled database only). The last 200 lines by default.
+
+  --since <when>   Everything since then: a duration (30m, 2h) or a time
+                   (2026-11-05, 2026-11-05T14:00Z); with --tail, at most N lines
+  --timestamps     Prefix every line with its time
+USAGE
+      ;;
+    registry-login)
+      cat <<'USAGE'
+Usage: lictory registry-login [--username <user>] [--env <name>]
+
+Stores a registry token (read from standard input, or asked for on a
+terminal) so the server can pull private release images. For GHCR, use a
+GitHub token with read:packages.
+USAGE
+      ;;
+    support-bundle)
+      cat <<'USAGE'
+Usage: lictory support-bundle [--output <file.tar.gz>] [--since <duration>] [--env <name>]
+
+Writes one archive (mode 0600) for a bug report or a support request: host
+and Docker versions, status, doctor, the settings with secrets masked, the
+containers, the deploy log and release history, the timers, and each
+service's logs since <duration> (default 24h; for example 30m or 72h).
+
+Every secret value of .env, email addresses and bearer tokens are replaced.
+Logs can still contain your organization's content: review the archive
+before sharing it. Default file: ./lictory-support-<env>-<time>.tar.gz
+USAGE
+      ;;
+    uninstall)
+      cat <<'USAGE'
+Usage: sudo lictory uninstall [--purge [--no-backup]] [--yes] [--env <name>]
+
+Stops the environment and removes its containers and scheduled jobs. The
+database, settings (.env), releases and backups stay: start it again with
+lictory config apply.
+
+  --purge       Also delete the database and every other volume of the
+                environment, and its directory with the settings and secrets.
+                A final backup is taken first when backups go off this
+                server; you type the environment name to confirm. An external
+                database is never touched: drop it with your provider.
+  --no-backup   With --purge: skip the final backup
+  --yes         No questions (for --purge, no typed confirmation)
+
+Docker, other environments, the lictory command and the deploy user are
+never touched.
+USAGE
+      ;;
+    database)
+      cat <<'USAGE'
+Usage: lictory database check [--json] [--env <name>]
+       sudo lictory database setup [--env <name>]
+
+  check   Checks the database against Lictory's requirements and names the
+          fix for each failed one. --json for scripts.
+  setup   An external database only: creates or repairs Lictory's four roles
+          and two databases, with the passwords in .env, through an
+          administrator connection from LICTORY_DATABASE_ADMIN_URL or a
+          prompt. The connection is used once and never stored.
+
+Guide: docs/operations/external-database.md
+USAGE
+      ;;
+    config) config_usage ;;
+    admin) admin_usage ;;
+    *) usage ;;
+  esac
+}
+
+config_usage() {
+  cat <<'USAGE'
+Usage: lictory config <command> [options]
+
+  show [--reveal] [--json]   Settings of the environment, secrets masked
+  get <KEY>                  One setting's value (exit 1 when unset)
+  set <KEY=value>...         Change settings, then apply them
+  unset <KEY>...             Clear settings, then apply them
+  edit                       Edit the settings in $EDITOR, review, then apply
+  apply                      Restart the services with the current settings
+                             (after editing .env by hand)
+  rotate <KEY>               Replace a generated secret (a database password,
+                             BETTER_AUTH_SECRET, ZERO_API_KEY…) with a new
+                             random one, in PostgreSQL too where it applies
+
+  --no-apply   set, unset, edit: write the settings only
+  --force      Also change generated secrets, or keys Lictory does not know
+
+Settings live in <root>/<env>/.env (mode 0600). Every change keeps a copy of
+the previous file next to it (.env.backup-<time>.<id>). If applying fails, the
+previous settings are restored and applied again. Settings the installer asks
+for can also change with: lictory install
 USAGE
 }
 
@@ -299,7 +566,11 @@ parse() { # parse <value options> <flag options> <arguments...>
     [ -z "$reason" ] || usage_error "--$name: $reason"
   done
   if [ "$(opt help)" = true ]; then
-    usage
+    case "$command" in
+      "admin "*) admin_usage ;;
+      "config "*) config_usage ;;
+      *) command_usage "$command" ;;
+    esac
     exit 0
   fi
 }
@@ -340,6 +611,7 @@ invalid_reason() {
   case "$value" in
     *$'\n'* | *$'\r'*) echo "must be a single line" && return ;;
     *"'"*) echo "must not contain a single quote (edit .env by hand for such values)" && return ;;
+    *'\') echo "must not end with a backslash (edit .env by hand for such values)" && return ;;
   esac
   case "$name" in
     env) valid_environment "$value" || echo "use lowercase letters, digits and hyphens (local, test and preview are reserved)" ;;
@@ -386,6 +658,7 @@ invalid_reason() {
     organization-handle) handle_problem "$value" ;;
     role) word_in "$value" "member admin owner" || echo "member, admin or owner" ;;
     tail) [[ "$value" =~ ^[0-9]{1,6}$ ]] || echo "a number of lines" ;;
+    since) [[ "$value" =~ ^([0-9]+[smh]|[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:]+(Z|[+-][0-9:]+)?)?)$ ]] || echo "a duration such as 30m or 2h, or a UTC time such as 2026-11-05T14:00Z" ;;
   esac
 }
 
@@ -395,15 +668,50 @@ valid_root || die "LICTORY_ROOT must be an absolute path without spaces or '..'.
 root="${root%/}"
 bin="$root/bin"
 
-env_value() { # env_value <file> <key> (the last assignment, one pair of quotes removed)
-  local line
-  line=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 || true)
-  line="${line#*=}"
-  line="${line%\"}"
-  line="${line#\"}"
-  line="${line%\'}"
-  line="${line#\'}"
-  printf '%s' "$line"
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
+  printf '%s' "$out"
 }
 setting() { env_value "$home/.env" "$1"; }
 
@@ -472,7 +780,23 @@ as_deploy() {
     die "Neither runuser nor sudo is available to run commands as $user."
   fi
 }
-deploy_sh() { as_deploy "$bin/deploy.sh" "$environment" "$@"; }
+# deploy_sh runs deploy.sh; while this command holds the environment's
+# deployment lock itself (deploy_lock), deploy.sh runs inside it.
+deploy_lock_held=false
+deploy_sh() {
+  if [ "$deploy_lock_held" = true ]; then
+    as_deploy env LICTORY_DEPLOY_LOCK_HELD=1 "$bin/deploy.sh" "$environment" "$@"
+  else
+    as_deploy "$bin/deploy.sh" "$environment" "$@"
+  fi
+}
+deploy_lock() { # holds <env>/.deploy.lock until the command exits
+  exec 9>"$home/.deploy.lock"
+  if command -v flock >/dev/null && ! flock -n 9; then
+    die "Another deployment of $environment is running; try again when it has finished." 75
+  fi
+  deploy_lock_held=true
+}
 compose() { as_deploy "$bin/lictory-compose" "$environment" "$@"; }
 
 current_version() {
@@ -497,7 +821,8 @@ channel_of_environment() {
 # with `$` or `#` are single-quoted for Compose.
 set_env() { # set_env <file> <key> <value>
   local file="$1" key="$2" value="$3" tmp
-  if ! grep -qE "^$key=" "$file"; then
+  # Every form env_value reads (export, spaces around =) is the same key.
+  if ! grep -qE "^[[:space:]]*(export[[:space:]]+)?$key[[:space:]]*=" "$file"; then
     [ -n "$value" ] || return 0
     printf '%s=%s\n' "$key" "$(env_quote "$value")" >>"$file"
     return 0
@@ -505,7 +830,7 @@ set_env() { # set_env <file> <key> <value>
   tmp=$(mktemp "$(dirname "$file")/.env.XXXXXX")
   LICTORY_KEY="$key" LICTORY_VALUE="$(env_quote "$value")" awk '
     BEGIN { key = ENVIRON["LICTORY_KEY"]; value = ENVIRON["LICTORY_VALUE"] }
-    index($0, key "=") == 1 { print key "=" value; next }
+    $0 ~ ("^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=") { print key "=" value; next }
     { print }
   ' "$file" >"$tmp"
   chmod 0600 "$tmp"
@@ -514,7 +839,7 @@ set_env() { # set_env <file> <key> <value>
 }
 env_quote() {
   case "$1" in
-    *'$'* | *'#'* | ' '* | *' ' | '"'*) printf "'%s'" "$1" ;;
+    *'$'* | *'#'* | [[:space:]]* | *[[:space:]] | '"'*) printf "'%s'" "$1" ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -636,6 +961,9 @@ packages, then retry:  sudo lictory registry-login --username <github-user>" ;;
   done
 }
 
+# release_line <version>: major.minor (1.5.0-nightly.20261104.12 -> 1.5).
+release_line() { local v="${1%%-*}"; printf '%s' "${v%.*}"; }
+
 # semver_cmp <a> <b>: prints -1, 0 or 1 (prerelease identifiers per SemVer).
 semver_cmp() {
   local a="$1" b="$2" a_pre="" b_pre="" i x y
@@ -730,9 +1058,9 @@ run_task() {
   fi
   if [ -z "$task_log" ]; then
     if [ -d "$home" ] && { [ -d "$home/logs" ] || mkdir -m 0700 "$home/logs" 2>/dev/null; }; then
-      task_log="$home/logs/$command-$(date -u +%Y%m%dT%H%M%SZ).log"
+      task_log="$home/logs/${command// /-}-$(date -u +%Y%m%dT%H%M%SZ).log"
     else
-      task_log=$(mktemp "${TMPDIR:-/tmp}/lictory-$command.XXXXXX")
+      task_log=$(mktemp "${TMPDIR:-/tmp}/lictory-${command// /-}.XXXXXX")
     fi
     (umask 077 && : >>"$task_log")
   fi
@@ -766,8 +1094,9 @@ run_task() {
 start_timers() {
   [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
   is_root || return 0
-  systemctl start "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" ||
-    warn "Could not start the backup and monitor timers (systemctl start lictory-backup@$environment.timer lictory-monitor@$environment.timer)."
+  # enable as well: lictory uninstall disables them, config apply brings them back.
+  systemctl enable --now "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" >/dev/null 2>&1 ||
+    warn "Could not start the backup and monitor timers (systemctl enable --now lictory-backup@$environment.timer lictory-monitor@$environment.timer)."
 }
 
 # wait_until_ready <seconds>: the public /readyz through DNS and certificates.
@@ -786,14 +1115,30 @@ wait_until_ready() {
 # ------------------------------------------------------------------ preflight
 failures=0
 warnings=0
+# doctor --json: checks are recorded as "status<TAB>section<TAB>message"
+# lines in $report_file instead of printed.
+report_file=""
+report_section=""
+report() { printf '%s\t%s\t%s\n' "$1" "$report_section" "$2" >>"$report_file"; }
 check_ok() {
+  [ -z "$report_file" ] || { report ok "$*" && return 0; }
   if [ "$fancy" = true ]; then printf '   %s%s%s %s\n' "$c_green" "$g_ok" "$c_reset" "$*"; else printf '  ok    %s\n' "$*"; fi
 }
 check_warn() {
+  if [ -n "$report_file" ]; then
+    report warn "$*"
+    warnings=$((warnings + 1))
+    return 0
+  fi
   if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_yellow" "$g_warn" "$*" "$c_reset"; else printf '  warn  %s\n' "$*"; fi
   warnings=$((warnings + 1))
 }
 check_fail() {
+  if [ -n "$report_file" ]; then
+    report fail "$*"
+    failures=$((failures + 1))
+    return 0
+  fi
   if [ "$fancy" = true ]; then printf '   %s%s %s%s\n' "$c_red" "$g_fail" "$*" "$c_reset"; else printf '  FAIL  %s\n' "$*"; fi
   failures=$((failures + 1))
 }
@@ -812,6 +1157,15 @@ version_ge() { # version_ge <have> <need>: dotted numeric comparison
   return 0
 }
 port_in_use() { ss -Htln "( sport = :$1 )" 2>/dev/null | grep -q .; }
+# epoch_of <date>: seconds since 1970 for a date GNU date (or BSD date, for
+# the ISO and OpenSSL forms) understands; nothing when it cannot parse it.
+epoch_of() {
+  date -u -d "$1" +%s 2>/dev/null ||
+    date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null ||
+    date -u -j -f '%b %e %T %Y %Z' "$1" +%s 2>/dev/null || true
+}
+days_until() { local t; t=$(epoch_of "$1"); [ -z "$t" ] || echo $(((t - $(date -u +%s)) / 86400)); }
+hours_since() { local t; t=$(epoch_of "$1"); [ -z "$t" ] || echo $((($(date -u +%s) - t) / 3600)); }
 
 # Minimums: Docker Engine 25 (health check start_interval, used by every
 # service) and Compose 2.24. Memory: the services' limits add up to about
@@ -963,8 +1317,10 @@ ask() {
     [ -z "$default" ] || set_opt "$name" "$default"
     return 0
   fi
+  local shown="$default"
+  [ "$name" != backup-rclone-remote ] || shown=$(remote_masked "$default")
   while :; do
-    prompt_line "$question" "$default" "$secret"
+    prompt_line "$question" "$shown" "$secret"
     answer="${answer:-$default}"
     if [ -z "$answer" ]; then
       return 0
@@ -1309,6 +1665,8 @@ collect_services() {
       require_opt s3-access-key-id "The access key ID"
       ask s3-secret-access-key "Secret access key" "$(current S3_SECRET_ACCESS_KEY)" secret
       require_opt s3-secret-access-key "The secret access key"
+      # Kept unless answered: MinIO, Garage and Ceph often need path-style URLs.
+      ask s3-force-path-style "Path-style requests (true for MinIO, Garage, Ceph; empty: the endpoint's default)" "$(current S3_FORCE_PATH_STYLE)"
       for key in S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_FORCE_PATH_STYLE; do
         plan "$key" "$(opt "$(printf '%s' "$key" | tr '[:upper:]_' '[:lower:]-')")"
       done
@@ -1471,6 +1829,30 @@ generate_age_key() { # generate_age_key <ops image> <identity file>
 # masked <value>: secrets shown as dots in the review.
 masked() { [ -z "$1" ] && printf 'none' || printf '%s' "$g_mask"; }
 
+# An rclone connection string (BACKUP_RCLONE_REMOTE) can carry credentials
+# (:sftp,host=nas,user=backup,pass=…:path). remote_masked shows it with their
+# values masked; remote_secrets prints each value, for redaction.
+remote_credentials='pass|password|key_pem|private_key|secret_access_key|account_key|key|client_secret|token|sas_url|service_account_credentials|bearer_token|session_token'
+# A value is quoted from its first character, a doubled quote inside being a
+# literal one (as rclone and backup-target.sh read it), or runs to , or :.
+# (POSIX regular expressions take the longest match, so a quoted value is
+# matched whole.)
+remote_value="(\"([^\"]|\"\")*\"|'([^']|'')*'|[^,:]*)"
+remote_masked() {
+  printf '%s' "$1" | sed -E "s/((^|[,:])($remote_credentials)=)$remote_value/\1$g_mask/g"
+}
+remote_secrets() {
+  local value
+  printf '%s' "$1" | grep -oE "(^|[,:])($remote_credentials)=$remote_value" | cut -d= -f2- |
+    while IFS= read -r value; do
+      case "$value" in
+        \"*) value="${value#\"}" && value="${value%\"}" && value="${value//\"\"/\"}" ;;
+        \'*) value="${value#\'}" && value="${value%\'}" && value="${value//\'\'/\'}" ;;
+      esac
+      printf '%s\n' "$value"
+    done || true
+}
+
 # The review before anything changes: the answers in words, and for an
 # existing environment the .env keys that change.
 review() {
@@ -1512,7 +1894,7 @@ review() {
     external) lines+=("$(row "Backups" "your database provider's (Lictory takes none)")") ;;
     local) lines+=("$(row "Backups" "$( [ -n "$(opt backup-path)" ] && opt backup-path || printf 'a volume on this server')")") ;;
     s3) lines+=("$(row "Backups" "bucket $(opt backup-bucket), secret $(masked "$(opt backup-s3-secret-access-key)")")") ;;
-    rclone) lines+=("$(row "Backups" "rclone $(opt backup-rclone-remote)")") ;;
+    rclone) lines+=("$(row "Backups" "rclone $(remote_masked "$(opt backup-rclone-remote)")")") ;;
     none) lines+=("$(row "Backups" "none")") ;;
   esac
   if [ "$backup" != none ] && [ "$backup" != external ]; then
@@ -1555,6 +1937,10 @@ cmd_install() {
   existed=false
   user=$(deploy_user)
   [ -f "$home/.env" ] && existed=true
+  if [ "$existed" = true ]; then
+    not_symlinked_env
+    settings_lock
+  fi
   active=$(current_version)
   steps_total=9
   banner "self-hosted installer"
@@ -1855,7 +2241,7 @@ summary() {
     [ -z "$(current_version)" ] || lines+=("$(row "Release" "$(current_version) ($(channel_of_environment))")")
     box "${lines[@]}"
   fi
-  # The installer's eight steps are done: this heading has no counter.
+  # The installer's steps are done: this heading has no counter.
   steps_total=0
   step "Next steps"
   local ind=""
@@ -2093,17 +2479,144 @@ cmd_bootstrap() {
   say "Guide: https://docs.lictory.com/self-hosting/install"
 }
 
+# ------------------------------------------------------------------ completion
+# lictory completion bash: a bash completion script (install.sh installs it
+# as /etc/bash_completion.d/lictory). Commands, subcommands, options, the
+# configured environments, service names and setting names.
+cmd_completion() {
+  [ "${1:-}" = bash ] || usage_error "Usage: lictory completion bash"
+  local install_flags
+  install_flags=$(printf -- '--%s ' $install_values ignore-requirements env yes help)
+  cat <<COMPLETION
+# bash completion for lictory (generated by: lictory completion bash)
+_lictory() {
+  local cur prev command sub
+  cur="\${COMP_WORDS[COMP_CWORD]}"
+  prev="\${COMP_WORDS[COMP_CWORD-1]}"
+  command="\${COMP_WORDS[1]}"
+  sub="\${COMP_WORDS[2]}"
+  case "\$prev" in
+    --env | -e)
+      COMPREPLY=(\$(compgen -W "\$(cd "\${LICTORY_ROOT:-$root}" 2>/dev/null && ls -d */.env 2>/dev/null | cut -d/ -f1)" -- "\$cur"))
+      return ;;
+    --tls) COMPREPLY=(\$(compgen -W "acme proxy internal http" -- "\$cur")); return ;;
+    --email) COMPREPLY=(\$(compgen -W "smtp resend none" -- "\$cur")); return ;;
+    --database) COMPREPLY=(\$(compgen -W "bundled external" -- "\$cur")); return ;;
+    --database-sslmode) COMPREPLY=(\$(compgen -W "verify-full require" -- "\$cur")); return ;;
+    --backup) COMPREPLY=(\$(compgen -W "local s3 rclone none" -- "\$cur")); return ;;
+    --signup-mode) COMPREPLY=(\$(compgen -W "invite closed open" -- "\$cur")); return ;;
+    --organization-creation) COMPREPLY=(\$(compgen -W "administrators everyone" -- "\$cur")); return ;;
+    --channel) COMPREPLY=(\$(compgen -W "stable nightly" -- "\$cur")); return ;;
+    --output | --backup-identity-file | --database-ca-file) COMPREPLY=(\$(compgen -f -- "\$cur")); return ;;
+  esac
+  if [ "\$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=(\$(compgen -W "install admin status doctor database config logs upgrade rollback backup restore registry-login support-bundle uninstall version help" -- "\$cur"))
+    return
+  fi
+  case "\$command" in
+    install) COMPREPLY=(\$(compgen -W "$install_flags" -- "\$cur")) ;;
+    admin)
+      if [ "\$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=(\$(compgen -W "setup status list grant revoke create-user set-password deactivate reactivate help" -- "\$cur"))
+      else
+        COMPREPLY=(\$(compgen -W "--env --yes --help --json --name --admin --organization --role --organization-handle --admin-name --admin-email" -- "\$cur"))
+      fi ;;
+    config)
+      if [ "\$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=(\$(compgen -W "show get set unset edit apply rotate help" -- "\$cur"))
+      elif [ "\$sub" = rotate ]; then
+        COMPREPLY=(\$(compgen -W "$rotatable_keys" -- "\$cur"))
+      elif [ "\${cur#-}" = "\$cur" ] && { [ "\$sub" = get ] || [ "\$sub" = set ] || [ "\$sub" = unset ]; }; then
+        # Setting names from the template the tools came with.
+        COMPREPLY=(\$(compgen -W "\$(sed -nE 's/^#? ?([A-Z][A-Z0-9_]*)=.*/\\1/p' "\${LICTORY_ROOT:-$root}/share/bundle/env/self-hosted.env.example" 2>/dev/null)" -- "\$cur"))
+        [ "\$sub" != set ] || compopt -o nospace 2>/dev/null
+      else
+        COMPREPLY=(\$(compgen -W "--env --yes --help --reveal --json --no-apply --force" -- "\$cur"))
+      fi ;;
+    logs) COMPREPLY=(\$(compgen -W "$all_services --follow --tail --since --timestamps --env" -- "\$cur")) ;;
+    backup) COMPREPLY=(\$(compgen -W "list --json --env --help" -- "\$cur")) ;;
+    restore) COMPREPLY=(\$(compgen -f -W "latest none --drill --yes --env" -- "\$cur")) ;;
+    status | version) COMPREPLY=(\$(compgen -W "--json --env --help" -- "\$cur")) ;;
+    doctor) COMPREPLY=(\$(compgen -W "--json --env --help" -- "\$cur")) ;;
+    upgrade) COMPREPLY=(\$(compgen -W "--check --json --yes --env --help" -- "\$cur")) ;;
+    uninstall) COMPREPLY=(\$(compgen -W "--purge --no-backup --yes --env --help" -- "\$cur")) ;;
+    support-bundle) COMPREPLY=(\$(compgen -W "--output --since --env --help" -- "\$cur")) ;;
+    database)
+      if [ "\$COMP_CWORD" -eq 2 ]; then
+        COMPREPLY=(\$(compgen -W "check setup help" -- "\$cur"))
+      else
+        COMPREPLY=(\$(compgen -W "--json --env --help" -- "\$cur"))
+      fi ;;
+    help) COMPREPLY=(\$(compgen -W "install admin status doctor database config logs upgrade rollback backup restore registry-login support-bundle uninstall version" -- "\$cur")) ;;
+    *) COMPREPLY=(\$(compgen -W "--env --yes --help" -- "\$cur")) ;;
+  esac
+}
+complete -F _lictory lictory
+COMPLETION
+}
+
+# --------------------------------------------------------------------- version
+# The host tooling (the bundle of the release that last installed or
+# upgraded it) and each environment's active release, read from disk: no
+# container or network needed.
+cmd_version() {
+  parse "" "json" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "version takes no arguments."
+  local tools name version channel rows=""
+  tools=$(env_value "$root/share/bundle/release.env" LICTORY_VERSION)
+  for name in $(configured_environments 2>/dev/null); do
+    version=""
+    channel=$(env_value "$root/$name/.env" LICTORY_RELEASE_CHANNEL)
+    [ ! -f "$root/$name/current/release.env" ] || version=$(env_value "$root/$name/current/release.env" LICTORY_VERSION)
+    rows="$rows$name	$version	${channel:-stable}"$'\n'
+  done
+  if [ "$(opt json)" = true ]; then
+    printf '%s' "$rows" | jq -Rn --arg tools "$tools" '
+      {tools: (if $tools == "" then null else $tools end),
+       environments: [inputs | select(length > 0) | split("\t")
+         | {name: .[0], version: (if .[1] == "" then null else .[1] end), channel: .[2]}]}'
+    return 0
+  fi
+  say "lictory tools ${tools:-unknown} ($root)"
+  [ -n "$rows" ] || { note "No environment is configured yet: sudo lictory install"; return 0; }
+  while IFS=$'\t' read -r name version channel; do
+    [ -n "$name" ] || continue
+    printf '%s%-16s %s (%s)\n' "$([ "$fancy" = true ] && printf '  ')" "$name" "${version:-not installed}" "$channel"
+  done <<<"$rows"
+}
+
 # ---------------------------------------------------------- everyday commands
 cmd_status() {
   parse "" "json" "$@"
   [ ${#positional[@]} -eq 0 ] || usage_error "status takes no arguments."
   select_environment
   if [ "$(opt json)" = true ]; then
-    deploy_sh status --json
+    # deploy.sh's release and services, plus the address, the channel and
+    # (when the api answers) the access policy, as the text view shows them.
+    local access=null version
+    ! admin_status_json || access=$(printf '%s' "$admin_out" | jq -c '{signUpMode, allowedEmailDomains, organizationCreation, passwordLogin, sso, administrators, users, organizations}')
+    version=$(current_version)
+    timer_facts "lictory-backup@$environment.timer"
+    deploy_sh status --json | jq -c --arg url "$(platform_url)" --arg channel "$(channel_of_environment)" \
+      --argjson access "$access" --arg activated "$( [ -z "$version" ] || activated_at "$version")" \
+      --arg target "$(setting BACKUP_TARGET)" --arg active "$timer_active" --arg last "$timer_last" \
+      --arg result "$timer_result" --arg next "$timer_next" '
+      def blank: if . == "" then null else . end;
+      . + {url: $url, releaseChannel: $channel, activatedAt: ($activated | blank), access: $access,
+           backups: {target: ($target | blank), timer: (if $active == "" then null else
+             {active: ($active == "true"), lastRun: ($last | blank), lastResult: ($result | blank), nextRun: ($next | blank)} end)}}'
+  elif [ "$fancy" = true ]; then
+    status_panel
   else
     deploy_sh status
     say "url: $(platform_url)"
     say "channel: $(channel_of_environment)"
+    local version
+    version=$(current_version)
+    [ -z "$version" ] || say "activated: $(activated_at "$version" | grep . || echo unknown)"
+    [ "$(setting LICTORY_DATABASE)" != external ] ||
+      say "database: external $(setting DATABASE_HOST):$(setting DATABASE_PORT | grep . || echo 5432)"
+    say "backups: $(if [ "$(setting LICTORY_DATABASE)" = external ]; then echo "the database provider's"; else setting BACKUP_TARGET | grep . || echo s3; fi)$(t=$(timer_summary "lictory-backup@$environment.timer"); [ -z "$t" ] || printf ', %s' "$t")"
     # The access policy comes from the running api; status works without it.
     if admin_status_json; then
       print_access
@@ -2113,8 +2626,100 @@ cmd_status() {
   fi
 }
 
+# activated_at <version>: when the environment last activated it (UTC).
+activated_at() {
+  awk -v v="$1" '$2 == "activated" && $3 == v { t = $1 } END { print t }' "$home/release-history.log" 2>/dev/null || true
+}
+
+# timer_facts <unit>: timer_active (true/false, empty without systemd),
+# timer_last, timer_result and timer_next, for --json.
+timer_active="" timer_last="" timer_result="" timer_next=""
+timer_facts() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
+  systemctl is-active --quiet "$1" 2>/dev/null && timer_active=true || timer_active=false
+  timer_last=$(systemctl show "${1%.timer}.service" -p ExecMainExitTimestamp --value 2>/dev/null || true)
+  timer_result=$(systemctl show "${1%.timer}.service" -p Result --value 2>/dev/null || true)
+  timer_next=$(systemctl show "$1" -p NextElapseUSecRealtime --value 2>/dev/null || true)
+  [ "$timer_last" != n/a ] || timer_last=""
+  [ "$timer_next" != n/a ] || timer_next=""
+}
+
+# timer_summary <unit>: the last run of a timer's service and the next one,
+# from systemd (no container needed); nothing without systemd.
+timer_summary() {
+  local unit="$1" last result next
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
+  last=$(systemctl show "${unit%.timer}.service" -p ExecMainExitTimestamp --value 2>/dev/null || true)
+  result=$(systemctl show "${unit%.timer}.service" -p Result --value 2>/dev/null || true)
+  next=$(systemctl show "$unit" -p NextElapseUSecRealtime --value 2>/dev/null || true)
+  if ! systemctl is-active --quiet "$unit" 2>/dev/null; then
+    printf '%s' "${c_yellow}timer not active${c_reset} (lictory doctor)"
+    return 0
+  fi
+  if [ -z "$last" ] || [ "$last" = n/a ]; then
+    printf 'no run yet'
+  elif [ "$result" = success ]; then
+    printf '%s' "${c_green}${g_ok}${c_reset} last run $last"
+  else
+    printf '%s' "${c_red}${g_fail} last run failed${c_reset} ($last): lictory logs, journalctl -u ${unit%.timer}.service"
+  fi
+  [ -z "$next" ] || [ "$next" = n/a ] || printf '%s' "${c_dim} · next $next${c_reset}"
+}
+
+# The terminal view of status: one panel with what an operator checks first.
+status_panel() {
+  local json version services="" service state healthy=true lines=() backup when row_width=14
+  json=$(deploy_sh status --json 2>/dev/null) || json=""
+  version=$(printf '%s' "$json" | jq -r '.version // empty' 2>/dev/null || true)
+  lines+=("${c_accent}${g_step}${c_reset} ${c_bold}Lictory${c_reset} ${c_dim}${environment} on $(hostname 2>/dev/null || echo this server)${c_reset}" "")
+  lines+=("$(row "Address" "$(platform_url)")")
+  if [ -z "$version" ]; then
+    lines+=("$(row "Release" "${c_yellow}none active${c_reset}: sudo lictory install")")
+  else
+    when=$(activated_at "$version")
+    lines+=("$(row "Release" "$version ($(channel_of_environment))${when:+${c_dim} · activated $when${c_reset}}")")
+    for service in $(services_of_environment); do
+      state=$(printf '%s' "$json" | jq -r --arg s "$service" '.services[$s] // "missing"')
+      case "$state" in
+        running | running/healthy) services="$services${c_green}${g_ok}${c_reset} $service  " ;;
+        *)
+          services="$services${c_red}${g_fail} $service ($state)${c_reset}  "
+          healthy=false
+          ;;
+      esac
+    done
+    lines+=("$(row "Services" "${services%  }")")
+    [ "$(printf '%s' "$json" | jq -r .healthy)" = true ] || healthy=false
+  fi
+  [ "$(setting LICTORY_DATABASE)" != external ] ||
+    lines+=("$(row "Database" "external: $(setting DATABASE_HOST):$(setting DATABASE_PORT | grep . || echo 5432)")")
+  case "$(setting LICTORY_DATABASE):$(setting BACKUP_TARGET)" in
+    external:*) backup="the database provider's (Lictory takes none)" ;;
+    *:none) backup="${c_yellow}disabled${c_reset} (BACKUP_TARGET=none)" ;;
+    *)
+      backup="$(setting BACKUP_TARGET)"
+      when=$(timer_summary "lictory-backup@$environment.timer")
+      [ -z "$when" ] || backup="$backup · $when"
+      ;;
+  esac
+  lines+=("$(row "Backups" "$backup")")
+  if [ -n "$version" ] && admin_status_json; then
+    lines+=("$(row "Accounts" "$(signup_words "$(admin_value '.signUpMode')")")")
+    lines+=("$(row "Organizations" "$(organization_words "$(admin_value '.organizationCreation')")")")
+    lines+=("$(row "Sign-in" "$([ "$(admin_value '.passwordLogin')" = false ] && printf 'single sign-on only' || printf 'password')$([ -z "$(admin_value '.sso // empty')" ] || printf ', %s' "$(admin_value '.sso')")")")
+    lines+=("$(row "People" "$(admin_value '.administrators') administrator(s), $(admin_value '.users') account(s), $(admin_value '.organizations') organization(s)")")
+  elif [ -n "$version" ]; then
+    lines+=("$(row "Access" "${c_yellow}unknown${c_reset} (the api service did not answer)")")
+  fi
+  box "${lines[@]}"
+  if [ -n "$version" ] && [ "$healthy" != true ]; then
+    warn "Not everything is healthy. Find out why: lictory doctor"
+  fi
+  return 0
+}
+
 cmd_upgrade() {
-  parse "" "" "$@"
+  parse "" "check json" "$@"
   [ ${#positional[@]} -le 1 ] || usage_error "upgrade takes at most one version."
   local target="${positional[0]:-}" reason active channel file order
   if [ -n "$target" ]; then
@@ -2127,6 +2732,10 @@ cmd_upgrade() {
   channel=$(channel_of_environment)
   resolve_release "$channel" "$target"
   order=$(semver_cmp "$release_version" "$active")
+  if [ "$(opt check)" = true ]; then
+    upgrade_check "$active" "$channel" "$order"
+    return
+  fi
   if [ "$order" = 0 ]; then
     say "$environment already runs $active, the newest $channel release."
     return 0
@@ -2143,11 +2752,41 @@ cmd_upgrade() {
   # previous release serving if anything fails.
   deploy_sh release <"$file" || {
     rm -f "$file"
-    die "The upgrade to $release_version did not activate; $environment keeps its previous images. See the messages above and run: lictory doctor"
+    # deploy.sh restores the previous images when activation fails, but that
+    # can fail too: report what actually runs.
+    local now healthy
+    now=$(deploy_sh status --json 2>/dev/null || true)
+    healthy=$(printf '%s' "$now" | jq -r '.healthy // false' 2>/dev/null || echo false)
+    if [ "$(current_version)" = "$active" ] && [ "$healthy" = true ]; then
+      die "The upgrade to $release_version did not activate; $environment runs $active again and is healthy. See the messages above for the cause."
+    fi
+    die "The upgrade to $release_version did not activate, and $environment is not healthy now (active: $(current_version | grep . || echo none)). Investigate immediately: lictory doctor, lictory logs"
   }
   rm -f "$file"
   refresh_share
   say "$environment runs $release_version."
+}
+
+# upgrade_check <active> <channel> <order>: reports whether the resolved
+# release is newer, changing nothing. Exit 10 when an upgrade is available,
+# so a scheduled job can act on it.
+upgrade_check() {
+  local active="$1" channel="$2" order="$3" available=false
+  [ "$order" != 1 ] || available=true
+  if [ "$(opt json)" = true ]; then
+    jq -n --arg environment "$environment" --arg version "$active" --arg channel "$channel" \
+      --arg latest "$release_version" --arg notes "$release_notes" --argjson available "$available" \
+      '{environment: $environment, version: $version, channel: $channel, latest: $latest, notes: $notes, upgradeAvailable: $available}'
+  elif [ "$available" = true ]; then
+    say "Lictory $release_version is available for $environment (runs $active, $channel channel)."
+    say "Release notes: $release_notes"
+    say "Upgrade: sudo lictory upgrade$([ -z "${positional[0]:-}" ] || printf ' %s' "$release_version")"
+  elif [ -n "${positional[0]:-}" ]; then
+    say "$environment runs $active; $release_version is not newer."
+  else
+    say "$environment runs $active, the newest $channel release."
+  fi
+  [ "$available" = false ] || exit 10
 }
 
 cmd_rollback() {
@@ -2160,17 +2799,84 @@ cmd_rollback() {
 }
 
 cmd_backup() {
-  parse "" "" "$@"
-  [ ${#positional[@]} -eq 0 ] || usage_error "backup takes no arguments."
+  parse "" "json" "$@"
+  [ ${#positional[@]} -le 1 ] || usage_error "Usage: lictory backup [list]"
+  case "${positional[0]:-now}" in
+    now) ;;
+    list) command="backup list" ;;
+    *) usage_error "Unknown backup command: ${positional[0]} (lictory backup --help)" ;;
+  esac
   select_environment
   [ "$(setting LICTORY_DATABASE)" != external ] ||
     die "$environment uses an external database: Lictory takes no backups of it. Use your provider's backups and point-in-time recovery (docs/operations/external-database.md#backups)."
   [ "$(setting BACKUP_TARGET)" != none ] || die "Backups are disabled (BACKUP_TARGET=none). Choose a target: sudo lictory install --backup local"
+  if [ "$command" = "backup list" ]; then
+    backup_list
+    return
+  fi
+  [ "$(opt json)" != true ] || usage_error "--json is for lictory backup list."
   as_deploy "$bin/lictory-backup" "$environment" manual
 }
 
+# bytes_human <bytes>: 1.4 GB, 812 MB, 96 kB.
+bytes_human() {
+  awk -v b="$1" 'BEGIN { split("B kB MB GB TB", u, " "); i = 1; while (b >= 1000 && i < 5) { b /= 1000; i++ }
+    printf (i == 1 ? "%d %s" : "%.1f %s"), b, u[i] }'
+}
+
+# fetch_backups: the stored backups as JSON in $backups_json, read by the
+# release's ops image from BACKUP_TARGET; on failure, why in $backups_problem.
+backups_json=""
+backups_problem=""
+fetch_backups() {
+  local err status=0
+  err=$(mktemp)
+  backups_json=$(compose run --rm --no-deps -T ops sh -c \
+    'command -v list-backups.sh >/dev/null || exit 4; exec list-backups.sh' 2>"$err") || status=$?
+  case "$status" in
+    0) backups_problem="" ;;
+    4) backups_problem="the active release's ops image cannot list backups yet; upgrade first (lictory upgrade)" ;;
+    *)
+      backups_problem=$(grep -v '^ *Container \|^ *Network \|Creating\|Created\|Starting\|Started' "$err" | tail -n 3)
+      backups_problem="could not list the backups of $environment (${backups_problem:-exit $status}); check the target with lictory doctor"
+      ;;
+  esac
+  rm -f "$err"
+  [ -z "$backups_problem" ]
+}
+
+# The stored backups, newest first.
+backup_list() {
+  local json count
+  [ -n "$(current_version)" ] || die "$environment has no active release yet: sudo lictory install"
+  fetch_backups || die "$(printf '%s' "${backups_problem:0:1}" | tr '[:lower:]' '[:upper:]')${backups_problem:1}."
+  json="$backups_json"
+  if [ "$(opt json)" = true ]; then
+    printf '%s\n' "$json"
+    return 0
+  fi
+  count=$(printf '%s' "$json" | jq length)
+  if [ "$count" = 0 ]; then
+    say "No backups of $environment in $(setting BACKUP_TARGET) yet. Take one: sudo lictory backup"
+    return 0
+  fi
+  note "$count backup(s) of $environment in $(setting BACKUP_TARGET), newest first"
+  if [ "$fancy" = true ]; then
+    printf '   %s%-11s %-17s %9s  %s%s\n' "$c_dim" "Kind" "Taken (UTC)" "Size" "Key" "$c_reset"
+  else
+    printf '%-11s %-17s %9s  %s\n' "KIND" "TAKEN (UTC)" "SIZE" "KEY"
+  fi
+  local kind modified bytes key encrypted lock
+  while IFS=$'\t' read -r kind modified bytes key encrypted; do
+    lock=""
+    [ "$encrypted" = true ] || lock=" (not encrypted)"
+    printf '%s%-11s %-17s %9s  %s%s\n' "$([ "$fancy" = true ] && printf '   ')" "$kind" "$modified" "$(bytes_human "$bytes")" "$key" "$lock"
+  done < <(printf '%s' "$json" | jq -r '.[] | [.kind, (.modified | sub("T"; " ") | .[0:16]), .bytes, .key, .encrypted] | @tsv')
+  note "Restore one: sudo lictory restore <identity-file> <key>   (test first with --drill)"
+}
+
 cmd_logs() {
-  parse "tail" "follow" "$@"
+  parse "tail since" "follow timestamps" "$@"
   [ ${#positional[@]} -le 1 ] || usage_error "logs takes at most one service."
   local service="${positional[0]:-}" args
   [ -z "$service" ] || word_in "$service" "$all_services" || usage_error "Unknown service $service (one of: $all_services)."
@@ -2178,7 +2884,12 @@ cmd_logs() {
   [ -z "$service" ] || word_in "$service" "$(services_of_environment)" ||
     die "$environment has no $service service: its database is external (LICTORY_DATABASE=external)." 64
   args=(logs --tail "$(opt tail)")
-  [ -n "$(opt tail)" ] || args=(logs --tail 200)
+  if [ -z "$(opt tail)" ]; then
+    # With --since, everything in that window; otherwise the last 200 lines.
+    if [ -n "$(opt since)" ]; then args=(logs); else args=(logs --tail 200); fi
+  fi
+  [ -z "$(opt since)" ] || args+=(--since "$(opt since)")
+  [ "$(opt timestamps)" != true ] || args+=(--timestamps)
   [ "$(opt follow)" != true ] || args+=(--follow)
   [ -z "$service" ] || args+=("$service")
   compose "${args[@]}"
@@ -2214,7 +2925,756 @@ cmd_registry_login() {
   fi
 }
 
+# ----------------------------------------------------------------------- config
+# lictory config: the environment's settings (.env) without editing the file
+# by hand, and a way to apply a hand edit. Every write keeps a copy of the
+# previous file; a failed apply restores it.
+
+# config_guarded <key>: why changing a set value breaks the installation;
+# nothing when it does not. Other state depends on these values: PostgreSQL
+# keeps the role passwords and the database name, sessions are signed with
+# BETTER_AUTH_SECRET, stored Jira credentials are encrypted with
+# DELIVERY_CREDENTIALS_KEY (or with a key derived from BETTER_AUTH_SECRET
+# while it is unset). Setting an empty one is fine.
+config_guarded() {
+  case "$1" in
+    POSTGRES_SUPERUSER_PASSWORD | LICTORY_OWNER_PASSWORD | LICTORY_APP_PASSWORD | ZERO_DB_PASSWORD | LICTORY_OPS_PASSWORD)
+      echo "PostgreSQL keeps the role's current password, so the services could no longer connect" ;;
+    LICTORY_DB_NAME) echo "the services would look for a database that does not exist" ;;
+    BETTER_AUTH_SECRET) echo "everyone is signed out$([ -n "$(setting DELIVERY_CREDENTIALS_KEY)" ] || printf ', and stored Jira credentials become unreadable while DELIVERY_CREDENTIALS_KEY is unset')" ;;
+    DELIVERY_CREDENTIALS_KEY) echo "stored Jira credentials become unreadable and every Jira connection must be reconnected" ;;
+  esac
+}
+
+# Secrets are masked in output: passwords, secrets, tokens, keys (not key
+# IDs), URLs that carry credentials and webhook or ping URLs (they embed one).
+config_secret() { # config_secret <key> <value>
+  case "$1" in
+    *_KEY_ID) return 1 ;;
+    *PASSWORD* | *SECRET* | *TOKEN* | *_KEY | *_KEYS | *WEBHOOK_URL | *PING_URL) return 0 ;;
+  esac
+  [[ "$2" =~ ^[a-z+]+://[^/@[:space:]]+:[^/@[:space:]]*@ ]]
+}
+config_shown() { # config_shown <key> <value>: the value as output shows it
+  if [ -z "$2" ]; then
+    printf '%s' "${c_dim}(empty)${c_reset}"
+  elif [ "$(opt reveal)" != true ] && [ "$1" = BACKUP_RCLONE_REMOTE ]; then
+    remote_masked "$2"
+  elif [ "$(opt reveal)" != true ] && config_secret "$1" "$2"; then
+    printf '%s' "$g_mask"
+  else
+    printf '%s' "$2"
+  fi
+}
+
+# The keys this release understands: those of the configuration template
+# and of the active release's Compose file (the services read nothing else
+# from .env), plus the ones already in .env.
+config_known_keys() {
+  local bundle compose_file
+  bundle=$(bundle_dir 2>/dev/null) || bundle=""
+  compose_file="$home/current/compose.production.yaml"
+  [ -f "$compose_file" ] || compose_file="$bundle/compose.production.yaml"
+  {
+    [ -z "$bundle" ] || sed -nE 's/^#? ?([A-Z][A-Z0-9_]*)=.*/\1/p' "$bundle/env/self-hosted.env.example" 2>/dev/null
+    [ ! -f "$compose_file" ] || grep -oE '\$\{[A-Z][A-Z0-9_]*' "$compose_file" | cut -c3-
+    config_keys "$home/.env"
+  } | sort -u
+}
+# config_keys <file>: every key assigned in it, in every form env_value reads
+# (export, spaces around =), so listing, diffs and redaction see them all.
+config_keys() { sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Z][A-Z0-9_]*)[[:space:]]*=.*/\2/p' "$1" | awk '!seen[$0]++'; }
+
+# config_diff <old file> <new file>: prints "KEY|old|new" for each change
+# and fails when nothing changed.
+config_diff() {
+  local key old new found=1
+  while IFS= read -r key; do
+    old=$(env_value "$1" "$key")
+    new=$(env_value "$2" "$key")
+    [ "$old" = "$new" ] && continue
+    printf '%s|%s|%s\n' "$key" "$old" "$new"
+    found=0
+  done < <({ config_keys "$1"; config_keys "$2"; } | awk '!seen[$0]++')
+  return "$found"
+}
+
+# config_check <diff>: refuses unknown keys and guarded changes unless --force.
+config_check() {
+  local diff="$1" known key old new reason problems=()
+  known=$(config_known_keys)
+  while IFS='|' read -r key old new; do
+    [ -n "$key" ] || continue
+    if ! printf '%s\n' "$known" | grep -qx "$key"; then
+      problems+=("$key is not a setting this release reads. Check the spelling; lictory config show lists the current settings.")
+    fi
+    if [ -n "$old" ] && reason=$(config_guarded "$key") && [ -n "$reason" ]; then
+      problems+=("$key was generated for this installation: changing it means $reason.$(! word_in "$key" "$rotatable_keys" || printf ' Rotate it safely instead: sudo lictory config rotate %s' "$key")")
+    fi
+    # As in lictory install: moving data between databases is a dump and
+    # restore, never a setting.
+    if [ "$key" = LICTORY_DATABASE ] && [ "${old:-bundled}" != "${new:-bundled}" ] && [ -n "$(current_version)" ]; then
+      problems+=("$environment already stores its data in the ${old:-bundled} database; moving it to the ${new:-bundled} one is a migration of the data: see docs/operations/external-database.md#moving-an-installation.")
+    fi
+  done <<<"$diff"
+  [ ${#problems[@]} -gt 0 ] || return 0
+  if [ "$(opt force)" = true ]; then
+    for key in "${problems[@]}"; do warn "$key"; done
+    return 0
+  fi
+  for key in "${problems[@]}"; do check_fail "$key"; done
+  die "Nothing changed. Pass --force if you are sure." 65
+}
+
+config_print_diff() {
+  local key old new shown_new
+  while IFS='|' read -r key old new; do
+    [ -n "$key" ] || continue
+    shown_new=$(config_shown "$key" "$new")
+    # Two masked values look alike: say that the secret changed.
+    [ -z "$old" ] || [ -z "$new" ] || [ "$shown_new" != "$g_mask" ] || shown_new="$g_mask (new value)"
+    if [ "$fancy" = true ]; then
+      printf '   %s%-28s%s %s %s%s%s %s\n' "$c_bold" "$key" "$c_reset" "$(config_shown "$key" "$old")" "$c_accent" "$g_arrow" "$c_reset" "$shown_new"
+    else
+      printf '  %s: %s -> %s\n' "$key" "$(config_shown "$key" "$old")" "$shown_new"
+    fi
+  done <<<"$1"
+}
+
+# config_write <new file>: replaces .env with <new file>, keeping a copy of
+# the previous one; sets config_backup.
+config_backup="" config_written=""
+config_write() {
+  # A name of its own, even for two changes within one second.
+  config_backup=$(mktemp "$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
+  cp -p "$home/.env" "$config_backup"
+  chmod 0600 "$1"
+  is_root && chown "$(owner_of "$home/.env")" "$1" 2>/dev/null || true
+  mv -f "$1" "$home/.env"
+  config_written=$(sha256_of "$home/.env")
+}
+
+# settings_lock: one writer of the environment's settings at a time
+# (lictory config and lictory install); held until the command exits.
+settings_lock() {
+  local lock="$home/.settings.lock"
+  [ -e "$lock" ] || (umask 022 && : >"$lock") 2>/dev/null || true
+  [ -r "$lock" ] && command -v flock >/dev/null || return 0
+  exec 7<"$lock"
+  flock -n 7 || die "Another change to the settings of $environment is running (lictory install or lictory config); try again when it has finished." 75
+}
+
+# not_symlinked_env: settings are written by replacing .env, which would
+# turn a symbolic link into a separate file with the wrong owner.
+not_symlinked_env() {
+  [ ! -L "$home/.env" ] ||
+    die "$home/.env is a symbolic link; the installer and lictory config only change a regular file. Change its target, then apply it: sudo lictory config apply" 64
+}
+
+# config_apply: re-activates the active release with the current .env; on
+# failure, restores config_backup (when set) and re-activates again.
+# config_activate <version>: the bundled PostgreSQL first (deploy.sh rolls
+# only the services in front of it): started when stopped (after lictory
+# uninstall), recreated when its own settings changed, untouched otherwise.
+config_activate() {
+  # An external database has no container here (naming the service would
+  # start the bundled one despite its profile).
+  if [ "$(setting LICTORY_DATABASE)" != external ]; then
+    compose up -d --wait --wait-timeout 180 postgres || return 1
+  fi
+  deploy_sh activate "$1"
+}
+config_apply() {
+  local active
+  active=$(current_version)
+  if [ -z "$active" ]; then
+    note "$environment has no active release yet: the settings apply when it is installed (sudo lictory install)."
+    return 0
+  fi
+  if run_task "Applying the settings to $environment ($active)" config_activate "$active"; then
+    check_ok "$environment runs $active with the new settings."
+    start_timers
+    return 0
+  fi
+  if [ -n "$config_backup" ]; then
+    # Never undo over a change made since (a hand edit while applying).
+    if [ "$(sha256_of "$home/.env")" != "$config_written" ]; then
+      die "The services did not start with the new settings, and $home/.env changed meanwhile, so it was left as it is. The settings before this change are in $config_backup. Check: lictory doctor"
+    fi
+    warn "The services did not start with the new settings. Restoring the previous ones from $config_backup."
+    cp -p "$config_backup" "$home/.env"
+    if run_task "Re-applying the previous settings" config_activate "$active"; then
+      die "The new settings were not applied; $environment runs with the previous ones. See the messages above, or: lictory logs api"
+    fi
+    die "The previous settings did not start either. Investigate now: lictory doctor, lictory logs"
+  fi
+  die "The services did not start with the current settings. See the messages above, or: lictory doctor"
+}
+
+# config_review <diff>: refuses what config_check refuses, then lists the
+# changes.
+config_review() {
+  config_check "$1"
+  say "Changes to $home/.env:"
+  config_print_diff "$1"
+}
+# config_commit <new file>: writes the reviewed settings and applies them.
+config_commit() {
+  config_write "$1"
+  config_tmp=""
+  check_ok "Saved. The previous settings are in $config_backup."
+  if [ "$(opt no-apply)" = true ]; then
+    local env_flag=""
+    [ "$(configured_environments | grep -c .)" -le 1 ] || env_flag=" --env $environment"
+    note "Not applied yet. Apply with: sudo lictory config apply$env_flag"
+    return 0
+  fi
+  config_apply
+}
+
+config_writable() {
+  not_symlinked_env
+  [ -w "$home/.env" ] || die "Cannot write $home/.env: run with sudo or as the deploy user."
+  settings_lock
+}
+# config_temp: a private scratch copy of .env next to it, in $config_tmp
+# (removed on exit unless it became the new .env).
+config_tmp=""
+config_temp() {
+  config_tmp=$(mktemp "$home/.env.edit.XXXXXX")
+  trap '[ -z "$config_tmp" ] || rm -f "$config_tmp"' EXIT
+  chmod 0600 "$config_tmp"
+  cat "$home/.env" >"$config_tmp"
+}
+config_key() { # config_key <key>: exits on a malformed key name
+  [[ "$1" =~ ^[A-Z][A-Z0-9_]*$ ]] || usage_error "$1 is not a setting name (uppercase letters, digits and underscores, such as SMTP_HOST)."
+}
+
+# config_rotate <key>: replaces a generated secret with a new random one and
+# makes every party use it. A database role password changes in PostgreSQL
+# too: the postgres container is recreated with the new value, the role
+# script (10-lictory-roles.sh, idempotent) or ALTER ROLE for the superuser
+# applies it, and a real login with it is checked before the services
+# restart. Until then, any failure or interruption puts the previous value
+# back everywhere (.env, the container and the database) through the same
+# path; if even that fails, the exact recovery commands are printed. The
+# environment's deployment lock is held throughout.
+rotatable_keys="POSTGRES_SUPERUSER_PASSWORD LICTORY_OWNER_PASSWORD LICTORY_APP_PASSWORD ZERO_DB_PASSWORD LICTORY_OPS_PASSWORD ZERO_API_KEY ZERO_ADMIN_PASSWORD BETTER_AUTH_SECRET"
+rotate_key="" rotate_phase="" rotate_role=""
+config_rotate() {
+  local key="$1" active value consequence
+  case "$key" in
+    DELIVERY_CREDENTIALS_KEY)
+      die "DELIVERY_CREDENTIALS_KEY cannot be rotated yet: the stored Jira tokens would have to be re-encrypted by the application. If it leaked, reconnect each Jira site after setting a new key with: sudo lictory config set --force DELIVERY_CREDENTIALS_KEY=<new>" 65
+      ;;
+  esac
+  word_in "$key" "$rotatable_keys" ||
+    usage_error "$key is not a generated secret lictory can rotate (one of: $rotatable_keys)."
+  active=$(current_version)
+  [ -n "$active" ] || die "$environment has no active release; there is nothing to rotate yet."
+  case "$key" in
+    POSTGRES_SUPERUSER_PASSWORD) rotate_role=postgres ;;
+    LICTORY_OWNER_PASSWORD) rotate_role=lictory_owner ;;
+    LICTORY_APP_PASSWORD) rotate_role=lictory_app ;;
+    ZERO_DB_PASSWORD) rotate_role=zero ;;
+    LICTORY_OPS_PASSWORD) rotate_role=lictory_ops ;;
+  esac
+  if [ -n "$rotate_role" ] && [ "$(setting LICTORY_DATABASE)" = external ]; then
+    # Lictory holds no administrator connection to an external database.
+    [ "$rotate_role" != postgres ] ||
+      die "$environment uses an external database: POSTGRES_SUPERUSER_PASSWORD is not used (the provider manages its administrator)." 65
+    die "$environment uses an external database, where lictory cannot change a role's password by itself. Set a new value without applying it, let database setup change the role through an administrator connection, then apply:
+  sudo lictory config set --force --no-apply $key=\$(openssl rand -hex 32)
+  sudo lictory database setup
+  sudo lictory config apply" 65
+  fi
+  if [ -n "$rotate_role" ]; then
+    consequence="PostgreSQL restarts and the services reconnect with the new password: expect a minute of errors"
+  elif [ "$key" = BETTER_AUTH_SECRET ]; then
+    # Without its own key, stored Jira tokens are encrypted with one derived
+    # from this secret (docs/operations/configuration.md).
+    [ -n "$(setting DELIVERY_CREDENTIALS_KEY)" ] ||
+      die "Set DELIVERY_CREDENTIALS_KEY first, to the current BETTER_AUTH_SECRET (it derives the same key), or stored Jira tokens become unreadable: sudo lictory config set DELIVERY_CREDENTIALS_KEY=\"\$(sudo lictory config get BETTER_AUTH_SECRET)\"" 65
+    consequence="everyone is signed out and signs in again"
+  else
+    consequence="the services restart with the new value"
+  fi
+  say "Rotate $key of $environment: a new random value, after which $consequence."
+  confirm "Rotate $key now?" || die "Nothing changed."
+  # Nothing else may restart PostgreSQL or the services meanwhile.
+  deploy_lock
+  value=$(openssl rand -hex 32)
+  config_temp
+  set_env "$config_tmp" "$key" "$value"
+  rotate_key="$key"
+  trap rotate_cleanup EXIT
+  rotate_phase=written
+  config_write "$config_tmp"
+  config_tmp=""
+  check_ok "Saved the new $key. The previous settings are in $config_backup."
+  if [ -n "$rotate_role" ]; then
+    run_task "Applying the new password in PostgreSQL" rotate_in_database "$value" ||
+      die "PostgreSQL did not take the new password (see above)."
+  fi
+  value=""
+  # The database uses the new value now: from here on, never undo.
+  rotate_phase=applied
+  config_backup=""
+  config_apply
+  rotate_phase=""
+  check_ok "$key is rotated."
+  [ "$key" != BETTER_AUTH_SECRET ] || note "Everyone has been signed out."
+}
+
+# rotate_in_database <password>: the postgres container with the current
+# .env, the role's password set in the database, and a login with it over
+# the container's network address (loopback is trusted, so it would prove
+# nothing).
+rotate_in_database() {
+  compose up -d --wait --wait-timeout 180 postgres || return 1
+  if [ "$rotate_role" = postgres ]; then
+    # Generated values are hex: safe inside a SQL literal. Sent on stdin,
+    # never as an argument.
+    printf "ALTER ROLE postgres PASSWORD '%s';\n" "$1" |
+      compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 --username postgres --dbname postgres || return 1
+  else
+    compose exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh </dev/null || return 1
+  fi
+  # The password reaches psql through the environment, not the command line.
+  RESTORE_PGPASSWORD="$1" compose exec -T -e RESTORE_PGPASSWORD postgres sh -c \
+    'PGPASSWORD="$RESTORE_PGPASSWORD" psql -X -q -h "$(hostname -i | cut -d" " -f1)" -U "$1" -d postgres -tAc "select 1" >/dev/null' \
+    login "$rotate_role" || {
+    echo "The new password of $rotate_role does not log in." >&2
+    return 1
+  }
+}
+
+# On exit: after a failure or an interruption before the database used the
+# new value everywhere, put the previous one back in .env, the container and
+# PostgreSQL itself (the role script may have changed it before failing).
+rotate_cleanup() {
+  local status=$? old
+  [ -z "$config_tmp" ] || rm -f "$config_tmp"
+  [ "$status" -ne 0 ] || return 0
+  case "$rotate_phase" in
+    written)
+      printf '\n' >&2
+      warn "$rotate_key was not rotated. Putting the previous value back."
+      cp -p "$config_backup" "$home/.env"
+      old=$(setting "$rotate_key")
+      if [ -z "$rotate_role" ] || rotate_in_database "$old" >/dev/null 2>&1; then
+        warn "$environment uses the previous $rotate_key again."
+        note "Start the services if they are down: sudo lictory config apply"
+      else
+        warn "Putting the previous password back in PostgreSQL failed too."
+        note "Recover by hand (the previous settings are in $home/.env again):"
+        note "  sudo /srv/lictory/bin/lictory-compose $environment up -d --wait postgres"
+        note "  sudo /srv/lictory/bin/lictory-compose $environment exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh"
+        [ "$rotate_role" != postgres ] ||
+          note "  (the superuser: ALTER ROLE postgres with the POSTGRES_SUPERUSER_PASSWORD from .env, through psql in that container)"
+        note "  sudo lictory config apply"
+      fi
+      ;;
+    applied)
+      warn "$rotate_key is rotated in PostgreSQL and .env, but the services did not all restart."
+      note "Restart them: sudo lictory config apply   (then: lictory doctor)"
+      ;;
+  esac
+  return "$status"
+}
+
+cmd_config() {
+  local sub="${1:-help}" key value diff arg reason
+  [ $# -eq 0 ] || shift
+  command="config $sub"
+  case "$sub" in
+    help | -h | --help)
+      config_usage
+      ;;
+    show)
+      parse "" "reveal json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "config show takes no arguments."
+      select_environment
+      if [ "$(opt json)" = true ]; then
+        config_keys "$home/.env" | while IFS= read -r key; do
+          value=$(env_value "$home/.env" "$key")
+          if [ "$(opt reveal)" != true ] && [ "$key" = BACKUP_RCLONE_REMOTE ]; then
+            value=$(remote_masked "$value")
+          elif [ "$(opt reveal)" != true ] && [ -n "$value" ] && config_secret "$key" "$value"; then
+            value="$g_mask"
+          fi
+          printf '%s\t%s\n' "$key" "$value"
+        done | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1:] | join("\t"))}] | from_entries'
+        return 0
+      fi
+      note "$home/.env$([ "$(opt reveal)" = true ] || printf ' (secrets masked; --reveal shows them)')"
+      config_keys "$home/.env" | while IFS= read -r key; do
+        value=$(env_value "$home/.env" "$key")
+        [ -n "$value" ] || continue
+        if [ "$fancy" = true ]; then
+          printf '   %s%-34s%s %s\n' "$c_dim" "$key" "$c_reset" "$(config_shown "$key" "$value")"
+        else
+          printf '%s=%s\n' "$key" "$(config_shown "$key" "$value")"
+        fi
+      done
+      ;;
+    get)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 1 ] || usage_error "Usage: lictory config get <KEY>"
+      config_key "${positional[0]}"
+      select_environment
+      value=$(env_value "$home/.env" "${positional[0]}")
+      [ -n "$value" ] || exit 1
+      printf '%s\n' "$value"
+      ;;
+    set | unset)
+      parse "" "no-apply force" "$@"
+      [ ${#positional[@]} -ge 1 ] || usage_error "Usage: lictory config $sub $([ "$sub" = set ] && echo '<KEY=value>...' || echo '<KEY>...')"
+      select_environment
+      config_writable
+      [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+      config_temp
+      for arg in "${positional[@]}"; do
+        if [ "$sub" = set ]; then
+          [[ "$arg" == *=* ]] || usage_error "$arg: use KEY=value (KEY= clears a setting)."
+          key="${arg%%=*}"
+          value="${arg#*=}"
+        else
+          key="$arg"
+          value=""
+        fi
+        config_key "$key"
+        reason=$(invalid_reason value "$value") || true
+        [ -z "$reason" ] || usage_error "$key: $reason"
+        set_env "$config_tmp" "$key" "$value"
+      done
+      if ! diff=$(config_diff "$home/.env" "$config_tmp"); then
+        say "No changes: $home/.env already has these values."
+        return 0
+      fi
+      config_review "$diff"
+      config_commit "$config_tmp"
+      ;;
+    edit)
+      parse "" "no-apply force" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "config edit takes no arguments."
+      select_environment
+      config_writable
+      [ -t 0 ] && [ -t 1 ] || die "config edit needs a terminal; use lictory config set KEY=value in scripts." 64
+      interactive=true
+      local editor="${VISUAL:-${EDITOR:-}}"
+      if [ -z "$editor" ]; then
+        for editor in nano vim vi; do command -v "$editor" >/dev/null && break; done
+      fi
+      command -v "${editor%% *}" >/dev/null || die "No editor found: set EDITOR (for example EDITOR=nano)."
+      config_temp
+      while :; do
+        # shellcheck disable=SC2086 # EDITOR may carry arguments (code --wait)
+        $editor "$config_tmp" </dev/tty >/dev/tty || die "The editor exited with an error; nothing changed."
+        local bad
+        bad=$(grep -nvE '^[[:space:]]*(#.*)?$|^[A-Z][A-Z0-9_]*=' "$config_tmp" | head -n 3 || true)
+        if [ -n "$bad" ]; then
+          check_fail "Lines that are neither KEY=value nor a comment:"
+          printf '%s\n' "$bad" | sed 's/^/     /'
+          confirm "Edit again?" && continue
+          die "Nothing changed."
+        fi
+        break
+      done
+      if ! diff=$(config_diff "$home/.env" "$config_tmp"); then
+        say "No changes."
+        return 0
+      fi
+      config_review "$diff"
+      confirm "Save$([ "$(opt no-apply)" = true ] || printf ' and apply') these changes?" || die "Nothing changed."
+      config_commit "$config_tmp"
+      ;;
+    rotate)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 1 ] || usage_error "Usage: lictory config rotate <KEY>"
+      config_key "${positional[0]}"
+      require_root
+      select_environment
+      config_writable
+      [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+      config_rotate "${positional[0]}"
+      ;;
+    apply)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "config apply takes no arguments."
+      select_environment
+      settings_lock
+      [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+      config_apply
+      ;;
+    *) usage_error "Unknown config command: $sub (lictory config help)" ;;
+  esac
+}
+
+# --------------------------------------------------------------- support bundle
+# lictory support-bundle: one archive with what a maintainer needs to
+# understand a problem (versions, status, doctor, masked settings, deploy
+# history, recent service logs), with every secret value of .env, email
+# addresses and bearer tokens replaced. Collection is best effort: a part
+# that cannot be collected is recorded in errors.txt, not fatal.
+
+# redact <secrets file>: stdin to stdout with each listed value (one per
+# line; every nonempty one, however short), email addresses and bearer
+# tokens (any case, any whitespace after the scheme) replaced.
+redact() {
+  awk -v secrets="$1" '
+    BEGIN { while ((getline value < secrets) > 0) if (length(value) > 0) s[++n] = value }
+    {
+      line = $0
+      for (i = 1; i <= n; i++) {
+        out = ""
+        while ((p = index(line, s[i])) > 0) {
+          out = out substr(line, 1, p - 1) "[redacted]"
+          line = substr(line, p + length(s[i]))
+        }
+        line = out line
+      }
+      gsub(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z]+/, "[email]", line)
+      gsub(/[Bb][Ee][Aa][Rr][Ee][Rr][ \t]+[A-Za-z0-9._~+\/=-]+/, "Bearer [redacted]", line)
+      print line
+    }'
+}
+
+cmd_support_bundle() {
+  parse "output since" "" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "support-bundle takes no arguments."
+  local since stamp name work out secrets self key value service
+  since=$(opt since)
+  since="${since:-24h}"
+  [[ "$since" =~ ^[0-9]+[smh]$ ]] || usage_error "--since: a duration such as 30m, 24h or 72h."
+  select_environment
+  self="${BASH_SOURCE[0]}"
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  name="lictory-support-$environment-$stamp"
+  out=$(opt output)
+  if [ -z "$out" ]; then
+    out="$PWD/$name.tar.gz"
+    [ -w "$PWD" ] || out="${TMPDIR:-/tmp}/$name.tar.gz"
+  fi
+  case "$out" in *.tar.gz) ;; *) usage_error "--output: a file name ending in .tar.gz" ;; esac
+  [ ! -e "$out" ] || die "$out already exists."
+  work=$(mktemp -d "${TMPDIR:-/tmp}/lictory-support.XXXXXX")
+  # shellcheck disable=SC2064 # the directory is fixed now
+  trap "rm -rf '$work'" EXIT
+  chmod 0700 "$work"
+  mkdir "$work/$name" "$work/$name/logs"
+  secrets="$work/secrets"
+  (
+    umask 077
+    config_keys "$home/.env" | while IFS= read -r key; do
+      value=$(env_value "$home/.env" "$key")
+      if [ -n "$value" ] && config_secret "$key" "$value"; then printf '%s\n' "$value"; fi
+      [ "$key" != BACKUP_RCLONE_REMOTE ] || remote_secrets "$value"
+    done >"$secrets"
+  )
+  local dir="$work/$name" errors="$work/$name/errors.txt"
+  : >"$errors"
+  collect() { # collect <file> <title> <command...>: output, redacted
+    local file="$1" title="$2" status=0
+    shift 2
+    [ "$fancy" != true ] || printf '   %s%s%s %s\033[K' "$c_accent" "${spinner_frames[0]}" "$c_reset" "$title" >&2
+    "$@" 2>&1 </dev/null | redact "$secrets" >"$dir/$file" || status=$?
+    [ "$fancy" != true ] || printf '\r\033[K' >&2
+    if [ "$status" = 0 ]; then
+      check_ok "$title"
+    else
+      check_warn "$title: incomplete (exit $status, see $file)"
+      printf '%s: exit %s\n' "$file" "$status" >>"$errors"
+    fi
+  }
+  # Exit 1 means doctor found problems: that is its report, not a failure.
+  doctor_report() { env NO_COLOR=1 bash "$self" doctor --env "$environment" || [ $? -eq 1 ]; }
+  file_or_none() { if [ -f "$1" ]; then tail -n 500 "$1"; else echo "(none yet)"; fi; }
+  service_logs() { # service_logs <service>: the newest 5000 lines
+    compose logs --no-color --timestamps --since "$since" "$1" | tail -n 5000
+  }
+  host_facts() {
+    printf 'collected: %s\nenvironment: %s\nrelease: %s (%s)\ncli bundle: %s\n\n' "$(date -u +%FT%TZ)" "$environment" \
+      "$(current_version | grep . || echo none)" "$(channel_of_environment)" "$(env_value "$root/share/bundle/release.env" LICTORY_VERSION)"
+    uname -a
+    [ ! -r /etc/os-release ] || grep -E '^(PRETTY_NAME|VERSION_ID)=' /etc/os-release
+    printf '\n'
+    docker version --format 'docker engine {{.Server.Version}} (client {{.Client.Version}})' 2>&1 || true
+    docker compose version 2>&1 || true
+    printf '\ncpus: %s\n' "$(nproc 2>/dev/null || echo unknown)"
+    free -m 2>/dev/null || true
+    printf '\n'
+    df -h / "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)" "$root" 2>/dev/null || true
+  }
+  steps_total=0
+  step "Collecting a support bundle for $environment"
+  collect host.txt "Host and versions" host_facts
+  collect status.json "Status" deploy_sh status --json
+  collect doctor.txt "Doctor" doctor_report
+  collect settings.txt "Settings (secrets masked)" env NO_COLOR=1 bash "$self" config show --env "$environment"
+  collect services.txt "Containers" compose ps -a
+  collect deploy.log "Deploy log (last 500 lines)" file_or_none "$home/deploy.log"
+  collect release-history.log "Release history" file_or_none "$home/release-history.log"
+  if [ -d /run/systemd/system ] && command -v systemctl >/dev/null; then
+    collect timers.txt "Backup and monitor timers" systemctl list-timers --all --no-pager "lictory-*@$environment.timer"
+  fi
+  for service in $(services_of_environment); do
+    collect "logs/$service.log" "Logs of $service (since $since)" service_logs "$service"
+  done
+  cat >"$dir/README.txt" <<README
+Lictory support bundle for environment $environment, collected $(date -u +%FT%TZ).
+
+Every secret value of .env, email addresses and bearer tokens are replaced
+with [redacted] or [email]. Service logs may still contain names, project
+or specification titles and other content from your organization: read
+them before sharing, and remove what you would not share.
+
+errors.txt lists anything that could not be collected.
+README
+  [ -s "$errors" ] || rm -f "$errors"
+  (umask 077 && tar -czf "$out" -C "$work" "$name") || die "Could not write $out."
+  chmod 0600 "$out"
+  say ""
+  check_ok "Support bundle: $out ($(bytes_human "$(wc -c <"$out")"))"
+  note "Secrets, email addresses and tokens are redacted. Logs may still contain your organization's"
+  note "content: review it before sharing (tar -xzf $out), and never attach it to a public issue unread."
+}
+
+# -------------------------------------------------------------------- uninstall
+# lictory uninstall: stops an environment for good. By default it keeps
+# every byte of data (database, attachments are external anyway, settings,
+# backups), so `lictory config apply` starts it again. --purge also deletes
+# the database volumes and the environment directory, after a final
+# off-server backup, and only once the environment name is typed.
+stop_timers() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null && is_root || return 0
+  systemctl disable --now "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" >/dev/null 2>&1 || true
+}
+
+cmd_uninstall() {
+  parse "" "purge no-backup" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "uninstall takes no arguments."
+  require_root
+  select_environment
+  [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+  local purge active target local_path off_server=true others
+  purge=$(opt purge)
+  active=$(current_version)
+  target=$(setting BACKUP_TARGET)
+  local_path=$(setting BACKUP_LOCAL_PATH)
+  # A local target without a path is a Docker volume of this environment.
+  if [ "$target" = none ] || { [ "$target" = local ] && [ -z "$local_path" ]; }; then
+    off_server=false
+  fi
+  # A backup directory inside the environment's directory (Compose reads a
+  # relative BACKUP_LOCAL_PATH from it) is deleted by --purge as well.
+  local inside=false
+  if [ "$target" = local ] && [ -n "$local_path" ]; then
+    case "$local_path" in /*) ;; *) local_path="$home/$local_path" ;; esac
+    local_path=$(realpath -m "$local_path" 2>/dev/null || printf '%s' "$local_path")
+    case "$local_path/" in "$(realpath -m "$home" 2>/dev/null || printf '%s' "$home")"/*)
+      off_server=false
+      inside=true
+      ;;
+    esac
+  fi
+  others=$(configured_environments | grep -vx "$environment" | tr '\n' ' ' || true)
+
+  if [ "$purge" != true ]; then
+    say "This stops $environment and removes its containers and timers."
+    note "The database, settings ($home/.env), releases and backups stay. Start it again with: sudo lictory config apply"
+    confirm "Stop and remove $environment's containers?" || die "Nothing changed."
+    stop_timers
+    [ -z "$active" ] || run_task "Stopping $environment" compose down --remove-orphans ||
+      die "The containers could not be removed; see the messages above."
+    check_ok "$environment is stopped. Its data and settings are kept in $home and its Docker volumes."
+    return 0
+  fi
+
+  if [ "$(setting LICTORY_DATABASE)" = external ]; then
+    warn "--purge deletes $environment for good: its realtime replica, certificates, settings and secrets ($home)."
+    note "The external database on $(setting DATABASE_HOST) is not touched: drop its databases and roles with your provider once nothing needs them."
+  else
+    warn "--purge deletes $environment for good: its database, realtime replica, certificates$([ "$off_server" = true ] || printf ', backups'), settings and secrets ($home)."
+  fi
+  if [ "$inside" = true ]; then
+    warn "Its backups are in $local_path, inside $home, and are deleted too."
+  elif [ "$off_server" != true ] && [ "$target" != none ]; then
+    warn "Its backups live in a Docker volume on this server and are deleted too."
+  fi
+  if [ "$off_server" = true ] && [ -n "$active" ] && [ "$(opt no-backup)" != true ]; then
+    note "A final backup goes to $target first (--no-backup skips it)."
+  fi
+  note "Not touched: Docker, other environments${others:+ ($others)}, the lictory command and the deploy user."
+  if [ "$(opt yes)" != true ]; then
+    [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
+    local answer
+    printf '\n %s?%s %sType the environment name (%s) to delete it%s %s ' "$c_red" "$c_reset" "$c_bold" "$environment" "$c_reset" "$g_prompt" >/dev/tty
+    IFS= read -r answer </dev/tty || true
+    [ "$answer" = "$environment" ] || die "Nothing changed."
+  fi
+  if [ "$off_server" = true ] && [ -n "$active" ] && [ "$(opt no-backup)" != true ]; then
+    run_task "Final backup to $target" as_deploy "$bin/lictory-backup" "$environment" manual ||
+      die "The final backup failed, so nothing was deleted. Fix it (lictory doctor) or pass --no-backup."
+  fi
+  stop_timers
+  if [ -n "$active" ]; then
+    run_task "Removing containers and volumes" compose down --volumes --remove-orphans ||
+      die "The containers could not be removed; $home was kept. See the messages above."
+  fi
+  # task_log lives in $home/logs: keep this run's log outside it.
+  if [ -n "$task_log" ] && [ "${task_log#"$home"/}" != "$task_log" ]; then
+    local kept="${TMPDIR:-/tmp}/lictory-uninstall-$environment-$(date -u +%Y%m%dT%H%M%SZ).log"
+    cp "$task_log" "$kept" 2>/dev/null && task_log="$kept"
+  fi
+  rm -rf -- "$home"
+  check_ok "$environment is deleted."
+  [ -z "$task_log" ] || note "Log of this run: $task_log"
+  if [ -z "$others" ]; then
+    note "No environment is left. To remove the tooling too:"
+    note "  sudo rm -rf $root $cli_path /etc/systemd/system/lictory-*@.{service,timer} && sudo systemctl daemon-reload"
+    note "  sudo userdel -r $(deploy_user)   and unused images: docker image prune -a"
+  fi
+}
+
 # ---------------------------------------------------------------------- restore
+# restore_preview <identity> <source>: which backup a restore or drill would
+# use (kind, time, size, encryption), refusing a key that does not exist and
+# an encrypted backup without an identity. If the target cannot be listed,
+# says so and lets restore.sh decide.
+restore_key=""
+restore_preview() {
+  local identity="$1" source="$2" entry lines=() size when
+  if [ -f "$source" ]; then
+    size=$(wc -c <"$source")
+    when=$(date -u -r "$source" '+%Y-%m-%d %H:%M' 2>/dev/null || stat -f '%Sm' "$source")
+    lines+=("$(row "Backup file" "$source")" "$(row "Modified" "$when UTC")" "$(row "Size" "$(bytes_human "$size")")")
+    case "$source" in *.age) entry=true ;; *) entry=false ;; esac
+  else
+    if ! fetch_backups; then
+      warn "Cannot show which backup '$source' is: $backups_problem."
+      return 0
+    fi
+    if [ "$source" = latest ]; then
+      entry=$(printf '%s' "$backups_json" | jq -c '.[0] // empty')
+      [ -n "$entry" ] || die "There is no backup of $environment in $(setting BACKUP_TARGET) yet."
+    else
+      entry=$(printf '%s' "$backups_json" | jq -c --arg key "$source" '.[] | select(.key == $key)' | head -n 1)
+      [ -n "$entry" ] || die "There is no backup $source in $(setting BACKUP_TARGET). See the stored ones: lictory backup list"
+    fi
+    restore_key=$(printf '%s' "$entry" | jq -r .key)
+    lines+=("$(row "Backup" "$restore_key")")
+    lines+=("$(row "Taken" "$(printf '%s' "$entry" | jq -r '.modified | sub("T"; " ") | .[0:16]') UTC ($(printf '%s' "$entry" | jq -r .kind))")")
+    lines+=("$(row "Size" "$(bytes_human "$(printf '%s' "$entry" | jq -r .bytes)")")")
+    entry=$(printf '%s' "$entry" | jq -r .encrypted)
+  fi
+  lines+=("$(row "Encrypted" "$([ "$entry" = true ] && echo "yes (age)" || echo no)")")
+  [ "$entry" != true ] || [ "$identity" != none ] ||
+    die "That backup is encrypted: pass the age identity file it was encrypted for instead of none."
+  local row_width=12
+  box "${lines[@]}"
+}
+
 cmd_restore() {
   parse "" "drill" "$@"
   [ ${#positional[@]} -ge 1 ] && [ ${#positional[@]} -le 2 ] ||
@@ -2225,6 +3685,12 @@ cmd_restore() {
   local active
   active=$(current_version)
   [ -n "$active" ] || die "$environment has no active release; install it first (sudo lictory install), then restore."
+  [ "$(opt drill)" = true ] || [ "$(setting LICTORY_DATABASE)" != external ] ||
+    die "$environment uses an external database: restore it with your provider's point-in-time recovery or snapshots, then run lictory install (docs/operations/external-database.md#backups)."
+  restore_preview "$identity" "$source"
+  # "latest" is resolved once, here: the check, the cutover and a drill all
+  # use the backup that was shown, even if another one finishes meanwhile.
+  [ -z "$restore_key" ] || source="$restore_key"
   if [ "$(opt drill)" = true ]; then
     local copy="$identity"
     if [ "$identity" != none ] && is_root; then
@@ -2237,58 +3703,151 @@ cmd_restore() {
     [ "$copy" = "$identity" ] || rm -f "$copy"
     return "$status"
   fi
-  [ "$(setting LICTORY_DATABASE)" != external ] ||
-    die "$environment uses an external database: restore it with your provider's point-in-time recovery or snapshots, then run lictory install (docs/operations/external-database.md#backups)."
   require_root
-  local project="lictory-$environment" stamp keep work db image mounts=() target="$source"
+  local project="lictory-$environment" stamp keep db image
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   keep="${project}_postgres_data-before-restore-$stamp"
   db=$(setting LICTORY_DB_NAME)
-  say "This replaces the database of $environment with backup '$source'."
-  say "Writes since that backup are lost. The current data is kept in the Docker volume $keep."
+  warn "This replaces the database of $environment ($active) with this backup. Writes since it was taken are lost."
+  note "The current database is kept in the Docker volume $keep."
   if [ "$(opt yes)" != true ]; then
     [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
     local answer
-    printf 'Type the environment name (%s) to continue: ' "$environment" >/dev/tty
+    if [ "$fancy" = true ]; then
+      printf '\n %s?%s %sType the environment name (%s) to restore%s %s%s%s ' "$c_red" "$c_reset" "$c_bold" "$environment" "$c_reset" "$c_accent" "$g_prompt" "$c_reset" >/dev/tty
+    else
+      printf 'Type the environment name (%s) to continue: ' "$environment" >/dev/tty
+    fi
     IFS= read -r answer </dev/tty || true
     [ "$answer" = "$environment" ] || die "Restore cancelled."
   fi
-  work=$(as_deploy mktemp -d)
-  trap 'rm -rf "$work"' EXIT
-  # Readable by the ops container's postgres user; the directory stays private.
-  if [ "$identity" = none ]; then : >"$work/age-identity"; else cp "$identity" "$work/age-identity"; fi
-  chmod 0644 "$work/age-identity"
-  mounts=(-v "$work/age-identity:/run/age-identity:ro")
-  if [ -f "$source" ]; then
-    cp "$source" "$work/"
-    case "$source" in *.dump.age) cp "${source%.dump.age}.manifest.json.age" "$work/" ;; *.dump) cp "${source%.dump}.manifest.json" "$work/" ;; esac ||
-      die "The backup's manifest must sit next to $source."
-    chmod 0644 "$work"/*
-    mounts+=(-v "$work:/restore-source:ro")
-    target="/restore-source/$(basename "$source")"
+  # One operation at a time: upgrades, rollbacks and settings changes wait
+  # for this lock (deploy.sh); migrate and activate below run inside it.
+  exec 9>"$home/.deploy.lock"
+  if command -v flock >/dev/null && ! flock -n 9; then
+    die "Another deployment of $environment is running; try again when it has finished." 75
   fi
+  restore_work=$(as_deploy mktemp -d)
+  trap restore_cleanup EXIT
+  restore_stage "$identity" "$source"
   image=$(compose config --format json | jq -er '.services.postgres.image') || die "Could not resolve the PostgreSQL image."
+
+  # Everything that can go wrong with the backup itself (storage, identity,
+  # checksum, dump format) is found out before anything stops.
+  if compose run --rm --no-deps -T ops sh -c 'grep -q RESTORE_CHECK_ONLY "$(command -v restore.sh)"' >/dev/null 2>&1; then
+    run_task "Checking the backup (download, decrypt, checksum)" \
+      compose run --rm --no-deps -T "${restore_mounts[@]}" -e AGE_IDENTITY_FILE=/run/age-identity \
+      -e RESTORE_CHECK_ONLY=1 ops sh -c 'restore.sh "$1"' check "$restore_target" ||
+      die "The backup cannot be restored (see above); nothing was changed."
+  else
+    warn "This release's ops image cannot check a backup before restoring it; it is checked during the restore."
+  fi
+
+  # Scheduled backups and the monitor would fail or alert while the
+  # database is down; they start again at the end, also after a failure.
+  stop_timers
+  restore_timers=true
+  # From here on, restore_cleanup brings the environment back on any exit:
+  # "stopped" restarts it on its untouched database, "replaced" puts the
+  # kept copy back first.
+  restore_image="$image" restore_active="$active" restore_keep="$keep"
+  restore_phase=stopped
   step "Stopping $environment"
   compose stop proxy api worker zero-cache postgres
   step "Keeping the current database in $keep"
-  docker volume create "$keep" >/dev/null
+  docker volume create "$keep" >/dev/null || die "Could not create the volume $keep; nothing was changed."
   docker run --rm --network none --entrypoint cp -v "${project}_postgres_data:/from:ro" -v "$keep:/to" "$image" -a /from/. /to/ ||
-    die "Could not copy the current database; nothing was changed. Start it again: lictory install"
-  trap 'rm -rf "$work"; printf "\nRestore failed. The previous database is in the Docker volume %s.\n" "$keep" >&2' EXIT
+    die "Could not copy the current database (is the disk full?); nothing was changed."
   compose rm -fs postgres zero-cache >/dev/null
-  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume."
+  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume; nothing was changed."
+  restore_phase=replaced
   # zero-cache resyncs from the restored database.
   docker volume rm "${project}_zero_replica" >/dev/null 2>&1 || true
   step "Restoring"
   compose up -d --wait --wait-timeout 180 postgres
-  RESTORE_PGPASSWORD=$(setting POSTGRES_SUPERUSER_PASSWORD) compose run --rm --no-deps -T "${mounts[@]}" \
+  RESTORE_PGPASSWORD=$(setting POSTGRES_SUPERUSER_PASSWORD) compose run --rm --no-deps -T "${restore_mounts[@]}" \
     -e AGE_IDENTITY_FILE=/run/age-identity -e RESTORE_PGHOST=postgres -e RESTORE_PGUSER=postgres \
-    -e RESTORE_PGPASSWORD -e RESTORE_DATABASE="$db" ops sh -c 'restore.sh "$1" && verify.sh' restore "$target"
+    -e RESTORE_PGPASSWORD -e RESTORE_DATABASE="$db" ops sh -c 'restore.sh "$1" && verify.sh' restore "$restore_target"
   step "Starting $active on the restored database"
-  deploy_sh migrate "$active"
-  deploy_sh activate "$active"
-  trap 'rm -rf "$work"' EXIT
-  say "Restored. Check the data, then remove the previous database: docker volume rm $keep"
+  deploy_locked migrate "$active"
+  deploy_locked activate "$active"
+  restore_phase=""
+  check_ok "Restored. Check the data, then remove the previous database: docker volume rm $keep"
+}
+
+# restore_stage <identity> <source>: a private copy of the identity and, for
+# a backup file, of the dump and manifest, each bind-mounted on its own (the
+# staging directory stays 0700; the container never traverses it).
+restore_work="" restore_target="" restore_mounts=()
+restore_keep="" restore_image="" restore_active="" restore_timers=false restore_phase=""
+restore_stage() {
+  local identity="$1" source="$2" manifest
+  if [ "$identity" = none ]; then : >"$restore_work/age-identity"; else cat "$identity" >"$restore_work/age-identity"; fi
+  chmod 0644 "$restore_work/age-identity"
+  restore_mounts=(-v "$restore_work/age-identity:/run/age-identity:ro")
+  restore_target="$source"
+  [ -f "$source" ] || return 0
+  case "$source" in
+    *.dump.age) manifest="${source%.dump.age}.manifest.json.age" ;;
+    *.dump) manifest="${source%.dump}.manifest.json" ;;
+    *) die "$source is not a backup file (*.dump or *.dump.age)." 64 ;;
+  esac
+  [ -f "$manifest" ] || die "The backup's manifest must sit next to it: $manifest"
+  cat "$source" >"$restore_work/$(basename "$source")"
+  cat "$manifest" >"$restore_work/$(basename "$manifest")"
+  chmod 0644 "$restore_work/$(basename "$source")" "$restore_work/$(basename "$manifest")"
+  restore_mounts+=(-v "$restore_work/$(basename "$source"):/restore-source/$(basename "$source"):ro"
+    -v "$restore_work/$(basename "$manifest"):/restore-source/$(basename "$manifest"):ro")
+  restore_target="/restore-source/$(basename "$source")"
+}
+deploy_locked() { as_deploy env LICTORY_DEPLOY_LOCK_HELD=1 "$bin/deploy.sh" "$environment" "$@"; }
+
+# On exit: after a failure once the old database volume is gone, put the
+# kept copy back and start the release again; always remove the staging copy
+# of the identity and restart the timers.
+restore_cleanup() {
+  local status=$? data="lictory-${environment}_postgres_data"
+  case "$restore_phase" in
+    stopped)
+      # The database was never touched: start it, then the release.
+      if compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
+        deploy_locked activate "$restore_active" >/dev/null 2>&1; then
+        warn "The restore stopped before changing the database; $environment runs $restore_active again."
+      else
+        warn "The restore stopped before changing the database, but $environment did not start again."
+        note "Start it: sudo lictory config apply   (then: lictory doctor)"
+      fi
+      docker volume rm "$restore_keep" >/dev/null 2>&1 || true
+      ;;
+    replaced)
+      printf '\n' >&2
+      warn "The restore failed. Putting the previous database back from $restore_keep."
+      # Copy only into a freshly created volume: copying over what the
+      # failed restore left would mix two clusters.
+      compose rm -fs postgres zero-cache >/dev/null 2>&1 || true
+      docker volume rm "$data" >/dev/null 2>&1 || true
+      docker volume rm "lictory-${environment}_zero_replica" >/dev/null 2>&1 || true
+      if ! docker volume inspect "$data" >/dev/null 2>&1 &&
+        compose create postgres >/dev/null 2>&1 &&
+        docker run --rm --network none --entrypoint cp -v "$restore_keep:/from:ro" \
+          -v "$data:/to" "$restore_image" -a /from/. /to/ &&
+        compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
+        deploy_locked activate "$restore_active" >/dev/null 2>&1; then
+        warn "$environment runs $restore_active on its previous database again. The failed restore changed nothing."
+      else
+        warn "Putting it back failed too. The previous database is intact in the Docker volume $restore_keep."
+        note "Put it back by hand:"
+        note "  sudo lictory uninstall --yes"
+        note "  docker volume rm $data   (it must be gone before the next step)"
+        note "  docker volume create $data"
+        note "  docker run --rm --entrypoint cp -v $restore_keep:/from:ro -v $data:/to $restore_image -a /from/. /to/"
+        note "  sudo lictory config apply"
+      fi
+      ;;
+  esac
+  [ -z "$restore_work" ] || rm -rf "$restore_work"
+  [ "$restore_timers" != true ] || start_timers
+  return "$status"
 }
 
 # --------------------------------------------------------------------- database
@@ -2348,7 +3907,7 @@ cmd_database() {
       release_compose run --rm --no-deps -T database check
       ;;
     "" | help | -h | --help)
-      say "Usage: lictory database check [--json] | setup"
+      command_usage database
       ;;
     *) usage_error "Unknown database command: $sub (check or setup)." ;;
   esac
@@ -2374,9 +3933,14 @@ release_compose() {
 
 # ----------------------------------------------------------------------- doctor
 cmd_doctor() {
-  parse "" "" "$@"
+  parse "" "json" "$@"
   [ ${#positional[@]} -eq 0 ] || usage_error "doctor takes no arguments."
   select_environment
+  if [ "$(opt json)" = true ]; then
+    report_file=$(mktemp)
+    # shellcheck disable=SC2064 # the file is fixed now
+    trap "rm -f '$report_file'" EXIT
+  fi
   local tls host url status_json state version insecure=() mode gateway
   step "Host"
   preflight
@@ -2425,6 +3989,32 @@ cmd_doctor() {
       check_fail "deploy.sh status failed: $bin/deploy.sh $environment status"
     else
       check_ok "release $version ($(printf '%s' "$status_json" | jq -r .channel))"
+      local latest channel
+      channel=$(channel_of_environment)
+      # In a subshell: resolve_release exits on any GitHub problem.
+      if latest=$( (resolve_release "$channel" >/dev/null 2>&1 && printf '%s' "$release_version") ); then
+        if [ "$(semver_cmp "$latest" "$version")" = 1 ]; then
+          check_warn "Lictory $latest is available ($channel channel): sudo lictory upgrade"
+        else
+          check_ok "$version is the newest $channel release"
+        fi
+      else
+        check_warn "Could not ask GitHub for newer $channel releases (offline or rate limited): lictory upgrade --check"
+      fi
+      # The host tools (lictory, deploy.sh, the timers' scripts) come from the
+      # newest release activated on this server, whichever environment it
+      # was; they are meant for the same release line.
+      local tools
+      tools=$(env_value "$root/share/bundle/release.env" LICTORY_VERSION)
+      if [ -n "$tools" ] && [ "$tools" != "$version" ]; then
+        if [ "$(semver_cmp "$tools" "$version")" = -1 ]; then
+          check_warn "The host tools ($tools) are older than $environment's release ($version): sudo lictory install --env $environment refreshes them."
+        elif [ "$(release_line "$tools")" != "$(release_line "$version")" ]; then
+          check_warn "The host tools come from $tools, another release line than $environment's $version (another environment was upgraded): upgrade $environment too (sudo lictory upgrade --env $environment)."
+        else
+          check_ok "host tools $tools (same release line)"
+        fi
+      fi
       for service in $(services_of_environment); do
         state=$(printf '%s' "$status_json" | jq -r --arg s "$service" '.services[$s] // "missing"')
         case "$state" in
@@ -2433,7 +4023,7 @@ cmd_doctor() {
         esac
       done
       [ "$(printf '%s' "$status_json" | jq -r .healthy)" = true ] ||
-        check_warn "Not every service runs the release's images: lictory install re-activates $version."
+        check_warn "Not every service runs the release's images: sudo lictory config apply re-activates $version."
     fi
   fi
 
@@ -2454,10 +4044,24 @@ cmd_doctor() {
     fi
   fi
   if [ "$tls" = acme ] || [ "$tls" = internal ]; then
-    local expiry
-    expiry=$(printf '' | openssl s_client -connect 127.0.0.1:"$(setting HTTPS_PORT | grep . || echo 443)" -servername "$host" 2>/dev/null |
+    local expiry probe=() days
+    # Bounded: a gateway that accepts but never answers must not hang doctor.
+    ! command -v timeout >/dev/null || probe=(timeout 15)
+    expiry=$(printf '' | ${probe[@]+"${probe[@]}"} openssl s_client -connect 127.0.0.1:"$(setting HTTPS_PORT | grep . || echo 443)" -servername "$host" 2>/dev/null |
       openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
-    if [ -n "$expiry" ]; then check_ok "certificate valid until $expiry"; else check_warn "No certificate served for $host yet: lictory logs proxy"; fi
+    days=""
+    [ -z "$expiry" ] || days=$(days_until "$expiry")
+    if [ -z "$expiry" ]; then
+      check_warn "No certificate served for $host yet: lictory logs proxy"
+    elif [ -z "$days" ]; then
+      check_ok "certificate valid until $expiry"
+    elif [ "$days" -lt 0 ]; then
+      check_fail "The certificate for $host expired on $expiry: lictory logs proxy shows why it was not renewed."
+    elif [ "$days" -lt 14 ]; then
+      check_warn "The certificate for $host expires in $days day(s) ($expiry) and has not been renewed: lictory logs proxy"
+    else
+      check_ok "certificate valid until $expiry ($days days)"
+    fi
   fi
 
   if [ -n "$version" ]; then
@@ -2474,7 +4078,21 @@ cmd_doctor() {
         [ -n "$line" ] || continue
         case "$line" in
           "backup | none") [ "$(setting BACKUP_TARGET)" = none ] || [ "$(setting LICTORY_DATABASE)" = external ] || check_warn "No successful backup yet: lictory backup" ;;
-          "backup | "*) check_ok "last backup ${line#backup | }" ;;
+          "backup | "*)
+            # An external database is its provider's to back up.
+            [ "$(setting LICTORY_DATABASE)" != external ] || continue
+            # The monitor's freshness rule (MONITOR_BACKUP_MAX_AGE_HOURS).
+            local taken hours limit
+            taken="${line#backup | }"
+            limit=$(setting MONITOR_BACKUP_MAX_AGE_HOURS)
+            limit="${limit:-30}"
+            hours=$(hours_since "$taken")
+            if [ -n "$hours" ] && [ "$hours" -gt "$limit" ]; then
+              check_warn "The last successful backup is $hours hours old ($taken; more than $limit): lictory status shows the backup timer, journalctl -u lictory-backup@$environment.service why it failed"
+            else
+              check_ok "last backup $taken${hours:+ ($hours h ago)}"
+            fi
+            ;;
           *) check_fail "$line"; problems=$((problems + 1)) ;;
         esac
       done <<<"$report"
@@ -2516,7 +4134,13 @@ cmd_doctor() {
     done
   fi
 
-  printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  if [ -n "$report_file" ]; then
+    jq -Rn --arg environment "$environment" --argjson failures "$failures" --argjson warnings "$warnings" '
+      [inputs | split("\t") | {status: .[0], section: .[1], message: (.[2:] | join("\t"))}]
+      | {environment: $environment, healthy: ($failures == 0), failures: $failures, warnings: $warnings, checks: .}' <"$report_file"
+  else
+    printf '\n%s failure(s), %s warning(s).\n' "$failures" "$warnings"
+  fi
   [ "$failures" -eq 0 ]
 }
 
@@ -2536,6 +4160,13 @@ case "$command" in
   restore) cmd_restore "$@" ;;
   logs) cmd_logs "$@" ;;
   registry-login) cmd_registry_login "$@" ;;
-  help | -h | --help) usage ;;
+  config) cmd_config "$@" ;;
+  support-bundle) cmd_support_bundle "$@" ;;
+  uninstall) cmd_uninstall "$@" ;;
+  version | --version | -V) cmd_version "$@" ;;
+  completion) cmd_completion "$@" ;;
+  help | -h | --help)
+    if [ $# -gt 0 ]; then command_usage "$1"; else usage; fi
+    ;;
   *) usage_error "Unknown command: $command" ;;
 esac

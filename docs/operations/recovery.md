@@ -70,8 +70,9 @@ fails the backup instead of silently skipping encryption. Restore drills take
 
 **Protecting history.** Make the backup storage refuse deletes and overwrites
 by the server's credential where it can, so a stolen credential cannot erase
-history: on Cloudflare R2 a bucket lock on the `daily/`, `weekly/` and
-`monthly/` prefixes, on AWS S3 or MinIO object lock (governance mode)
+history: on Cloudflare R2 a bucket lock on the `<environment>/daily/`,
+`<environment>/weekly/` and `<environment>/monthly/` prefixes (for example
+`production/daily/`), on AWS S3 or MinIO object lock (governance mode)
 retention, on a NAS snapshots or an append-only share. Add a lifecycle rule or
 snapshot expiry deleting objects older than 200 days as a safety net. Keep any
 retention lock shorter than the script's retention or pruning fails visibly.
@@ -117,18 +118,41 @@ Delete the temporary copy of the identity file when done.
 ## PostgreSQL loss or corruption
 
 With an [external database](external-database.md#backups), recover it with the
-provider's point-in-time recovery or snapshots, then run `lictory install`;
-the steps below are for the bundled database.
+provider's point-in-time recovery or snapshots, then run `lictory install`.
 
-1. Stop writers: `lictory-compose production stop api worker zero-cache`.
-2. Keep the damaged volume if possible (`docker volume` rename or a disk
-   snapshot) for analysis.
-3. Create an empty cluster: remove or rename the `postgres_data` volume, then
-   `lictory-compose production up -d postgres` (roles and databases are
-   created on first start).
-4. Restore into the empty application database with the ops image:
+For the bundled database, use `lictory restore`; it does every step below, checks the backup before
+it stops anything, keeps the current database in a Docker volume, and puts
+it back if the restore fails:
+
+```sh
+sudo lictory backup list                                # pick a backup
+sudo lictory restore /path/to/age-identity.txt latest   # or a key from the list
+```
+
+By hand, when the CLI cannot run (replace `production` with the environment;
+`/srv/lictory/bin/lictory-compose` is the Compose wrapper):
+
+1. Stop everything, PostgreSQL included, and remove its container so the
+   volume is free: `lictory-compose production stop proxy api worker
+zero-cache postgres`, then `lictory-compose production rm -f postgres
+zero-cache`.
+2. Keep the damaged data for analysis. Docker cannot rename a volume: copy
+   it into a new one (or take a disk snapshot):
 
    ```sh
+   docker volume create lictory-production_postgres_data-damaged
+   docker run --rm --entrypoint cp -v lictory-production_postgres_data:/from:ro \
+     -v lictory-production_postgres_data-damaged:/to postgres:17-alpine -a /from/. /to/
+   ```
+
+3. Create an empty cluster: `docker volume rm lictory-production_postgres_data
+lictory-production_zero_replica`, then `lictory-compose production up -d
+--wait postgres` (roles and databases are created on first start).
+4. Restore into the empty application database with the ops image. The
+   superuser password is in `.env`; export it into this shell first:
+
+   ```sh
+   export POSTGRES_SUPERUSER_PASSWORD="$(sudo lictory config get POSTGRES_SUPERUSER_PASSWORD)"
    lictory-compose production run --rm --no-deps -T \
      -v /path/to/age-identity.txt:/run/age-identity:ro \
      -e AGE_IDENTITY_FILE=/run/age-identity -e RESTORE_PGHOST=postgres \
@@ -139,11 +163,11 @@ the steps below are for the bundled database.
    `restore.sh` refuses a database that already has tables. Zero's event
    triggers and internal publications are skipped; zero-cache recreates them.
 
-5. Delete the Zero replica (`zero_replica` volume) and start everything:
-   `deploy.sh production activate <current version>`. zero-cache resyncs and
-   clients reconnect and resync from the restored state. Changes clients
-   queued against the lost history go through the server's normal validation
-   and may be rejected.
+5. Start everything: `sudo lictory config apply` (it starts PostgreSQL, then
+   re-activates the active release). zero-cache resyncs, and clients
+   reconnect and resync from the restored state. Changes clients queued
+   against the lost history go through the server's normal validation and
+   may be rejected.
 6. Writes after the backup are lost. Tell affected organizations what window
    was lost. Jira items exported in that window still exist in Jira; check
    their links before the next export.

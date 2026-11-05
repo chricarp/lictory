@@ -6,10 +6,12 @@
     "configuration",
     "database",
     "terminal",
+    "commands",
     "reverse-proxy",
     "backups",
     "upgrades",
     "monitoring",
+    "troubleshooting",
     "privacy"
   ]
 }
