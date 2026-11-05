@@ -33,11 +33,14 @@ runs:
     - name: Wait for PostgreSQL and export test settings
       shell: bash
       run: |
+        # Over TCP: the image first runs a temporary server on the socket only
+        # to initialise the database, then restarts it, which would cut off
+        # anything that connected in between.
         for _ in $(seq 1 60); do
-          docker exec postgres pg_isready -U lictory -d lictory >/dev/null 2>&1 && break
+          docker exec postgres pg_isready -h 127.0.0.1 -U lictory -d lictory >/dev/null 2>&1 && break
           sleep 1
         done
-        docker exec postgres pg_isready -U lictory -d lictory
+        docker exec postgres pg_isready -h 127.0.0.1 -U lictory -d lictory
         # The migration check gets a database of its own; schema and browser
         # suites create theirs from the admin database.
         docker exec postgres createdb -U lictory lictory_verify
