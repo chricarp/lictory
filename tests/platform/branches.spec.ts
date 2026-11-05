@@ -696,10 +696,20 @@ test("a breakdown-only pull request creates children only after review and merge
     .context()
     .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, authorEmail);
-  const branchUrl = await createBranch(page, "engineering/delivery-breakdown");
+  // "Propose breakdown" starts a breakdown branch and opens its editor at the
+  // breakdown, ready for the first child.
+  await page.goto(itemUrl);
   await page
-    .getByRole("textbox", { name: "Proposed child title", exact: true })
-    .fill("Persist stable retry identifiers");
+    .getByRole("button", { name: "Propose breakdown", exact: true })
+    .click();
+  await expect(page).toHaveURL(/[?&]branch=/);
+  const childTitle = page.getByRole("textbox", {
+    name: "Proposed child title",
+    exact: true,
+  });
+  await expect(childTitle).toBeFocused();
+  const branchUrl = page.url();
+  await childTitle.fill("Persist stable retry identifiers");
   await page
     .getByRole("textbox", { name: "Proposed child description", exact: true })
     .fill("Keep the original transaction ID across timeout retries.");
