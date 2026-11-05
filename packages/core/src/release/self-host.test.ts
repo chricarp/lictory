@@ -2017,3 +2017,169 @@ void test("lictory completion bash completes commands, subcommands, environments
     complete("lictory", "install", "--smtp-p").includes("--smtp-password"),
   );
 });
+
+void test(
+  "lictory config rotate replaces a generated secret everywhere it is used",
+  { timeout: 90_000 },
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const log = join(f.base, "compose.log");
+    const sql = join(f.base, "psql.stdin");
+    // PostgreSQL behind lictory-compose: FAKE_ROLES_FAIL makes the role
+    // script fail; psql's stdin is kept.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh
+echo "$*" >> "${log}"
+case "$*" in
+  *psql*) cat >> "${sql}" ;;
+  # FAKE_ROLES_FAIL=<file>: the role script fails once (the file marks it).
+  *10-lictory-roles.sh*) [ -z "$FAKE_ROLES_FAIL" ] || [ -e "$FAKE_ROLES_FAIL" ] || { : > "$FAKE_ROLES_FAIL"; exit 1; } ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    const value = (key: string) =>
+      new RegExp(`^${key}=(.*)$`, "m").exec(
+        readFileSync(join(home, ".env"), "utf8"),
+      )![1]!;
+    const calls = () => {
+      const lines = existsSync(log)
+        ? readFileSync(log, "utf8").trim().split("\n")
+        : [];
+      rmSync(log, { force: true });
+      return lines;
+    };
+
+    // A role password: PostgreSQL gets it first, then the services.
+    const before = value("LICTORY_APP_PASSWORD");
+    const rotated = f.lictory([
+      "config",
+      "rotate",
+      "LICTORY_APP_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(rotated.status, 0, rotated.stderr + rotated.stdout);
+    assert.match(value("LICTORY_APP_PASSWORD"), /^[0-9a-f]{64}$/);
+    assert.notEqual(value("LICTORY_APP_PASSWORD"), before);
+    const sequence = calls();
+    assert.equal(
+      sequence[0],
+      "production up -d --wait --wait-timeout 180 postgres",
+    );
+    assert.equal(
+      sequence[1],
+      "production exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh",
+    );
+    // A real login with the new password, which reaches psql only through
+    // the environment.
+    assert.match(
+      sequence[2]!,
+      /^production exec -T -e RESTORE_PGPASSWORD postgres sh -c .* login lictory_app$/,
+    );
+    assert.equal(
+      sequence[3],
+      "production up -d --wait --wait-timeout 180 postgres",
+    );
+    assert.deepEqual(
+      rotated.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+    assert.ok(
+      !(rotated.stdout + rotated.stderr).includes(
+        value("LICTORY_APP_PASSWORD"),
+      ),
+    );
+
+    // The superuser: ALTER ROLE on stdin, never as an argument.
+    const superuser = f.lictory([
+      "config",
+      "rotate",
+      "POSTGRES_SUPERUSER_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(superuser.status, 0, superuser.stderr + superuser.stdout);
+    assert.equal(
+      readFileSync(sql, "utf8"),
+      `ALTER ROLE postgres PASSWORD '${value("POSTGRES_SUPERUSER_PASSWORD")}';\n`,
+    );
+    assert.ok(
+      !calls().some((line) =>
+        line.includes(value("POSTGRES_SUPERUSER_PASSWORD")),
+      ),
+    );
+
+    // PostgreSQL refuses: the previous value stays and nothing restarts.
+    const kept = value("ZERO_DB_PASSWORD");
+    const failed = f.lictory(
+      ["config", "rotate", "ZERO_DB_PASSWORD", "--yes"],
+      { FAKE_ROLES_FAIL: join(f.base, "roles-failed") },
+    );
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /uses the previous ZERO_DB_PASSWORD again/);
+    // The previous value is applied in PostgreSQL again (the role script
+    // may have changed it before failing).
+    assert.equal(
+      calls().filter((line) => line.includes("10-lictory-roles.sh")).length,
+      2,
+    );
+    assert.equal(value("ZERO_DB_PASSWORD"), kept);
+    assert.ok(!failed.calls.some((call) => call.name === "deploy.sh"));
+    calls();
+
+    // Another deployment holds the lock: nothing changes.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const locked = value("LICTORY_OPS_PASSWORD");
+    const busy = f.lictory([
+      "config",
+      "rotate",
+      "LICTORY_OPS_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(busy.status, 75);
+    assert.equal(value("LICTORY_OPS_PASSWORD"), locked);
+    assert.deepEqual(calls(), []);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // Refusals: the delivery key, and the auth secret without its own key.
+    assert.equal(
+      f.lictory(["config", "rotate", "DELIVERY_CREDENTIALS_KEY", "--yes"])
+        .status,
+      65,
+    );
+    const cleared = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "--force",
+      "DELIVERY_CREDENTIALS_KEY=",
+    ]);
+    assert.equal(cleared.status, 0, cleared.stderr + cleared.stdout);
+    assert.equal(
+      f.lictory([
+        "config",
+        "set",
+        "--no-apply",
+        "--force",
+        "DELIVERY_CREDENTIALS_KEY=",
+      ]).status,
+      0,
+    );
+    const auth = f.lictory(["config", "rotate", "BETTER_AUTH_SECRET", "--yes"]);
+    assert.equal(auth.status, 65);
+    assert.match(auth.stderr, /Set DELIVERY_CREDENTIALS_KEY first/);
+    // config set points at rotate for generated secrets.
+    assert.match(
+      f.lictory(["config", "set", "LICTORY_OPS_PASSWORD=x"]).stdout,
+      /sudo lictory config rotate LICTORY_OPS_PASSWORD/,
+    );
+  },
+);

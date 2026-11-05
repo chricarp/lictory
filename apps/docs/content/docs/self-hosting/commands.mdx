@@ -89,19 +89,20 @@ warnings).
 
 ## Operate
 
-| Command                                     | What it does                                                                                                         |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `status [--json]`                           | Address, release, services, backup timer and access policy                                                           |
-| `doctor [--json]`                           | Every check of the host, settings, routes, certificates, database, backups, access and timers, with fixes            |
-| `config show [--reveal] [--json]`           | The settings, secrets masked                                                                                         |
-| `config get <KEY>`                          | One value, for scripts (exit 1 when unset)                                                                           |
-| `config set <KEY=value>…`, `unset <KEY>…`   | Changes settings and applies them; undone if the services reject them ([configuration](/self-hosting/configuration)) |
-| `config edit`                               | The settings in `$EDITOR`, with a review before saving                                                               |
-| `config apply`                              | Restarts the services with the current settings, after a hand edit                                                   |
-| `logs [service] [-f] [--tail N]`            | Logs of `proxy`, `api`, `worker`, `zero-cache` or `postgres`                                                         |
-| `support-bundle [--output F] [--since 24h]` | A redacted archive for a bug report ([troubleshooting](/self-hosting/troubleshooting))                               |
-| `version [--json]`                          | The tools' release and every environment's release                                                                   |
-| `completion bash`                           | The bash completion script                                                                                           |
+| Command                                     | What it does                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `status [--json]`                           | Address, release, services, backup timer and access policy                                                                            |
+| `doctor [--json]`                           | Every check of the host, settings, routes, certificates, database, backups, access and timers, with fixes                             |
+| `config show [--reveal] [--json]`           | The settings, secrets masked                                                                                                          |
+| `config get <KEY>`                          | One value, for scripts (exit 1 when unset)                                                                                            |
+| `config set <KEY=value>…`, `unset <KEY>…`   | Changes settings and applies them; undone if the services reject them ([configuration](/self-hosting/configuration))                  |
+| `config edit`                               | The settings in `$EDITOR`, with a review before saving                                                                                |
+| `config apply`                              | Restarts the services with the current settings, after a hand edit                                                                    |
+| `config rotate <KEY>`                       | Replaces a generated secret with a new random one, in PostgreSQL too ([rotate a secret](/self-hosting/configuration#rotate-a-secret)) |
+| `logs [service] [-f] [--tail N]`            | Logs of `proxy`, `api`, `worker`, `zero-cache` or `postgres`                                                                          |
+| `support-bundle [--output F] [--since 24h]` | A redacted archive for a bug report ([troubleshooting](/self-hosting/troubleshooting))                                                |
+| `version [--json]`                          | The tools' release and every environment's release                                                                                    |
+| `completion bash`                           | The bash completion script                                                                                                            |
 
 `config set`, `unset` and `edit` take `--no-apply` (write only) and `--force`
 (also unknown keys and generated secrets).

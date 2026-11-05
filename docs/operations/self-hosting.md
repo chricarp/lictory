@@ -262,14 +262,15 @@ Invalid values are refused before anything changes (exit 64).
 it, for settings the installer does not ask for (analytics, legal notices,
 Google or Microsoft sign-in, worker intervals) or to change one quickly.
 
-| Command                                   | What it does                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------------------- |
-| `lictory config show [--reveal] [--json]` | Every set value; secrets masked unless `--reveal`                             |
-| `lictory config get <KEY>`                | One value, unmasked, for scripts; exit 1 when unset                           |
-| `lictory config set <KEY=value>...`       | Changes values (`KEY=` clears one), then applies them                         |
-| `lictory config unset <KEY>...`           | Clears values, then applies                                                   |
-| `lictory config edit`                     | Opens a copy in `$VISUAL`/`$EDITOR`, lists the changes and asks before saving |
-| `lictory config apply`                    | Re-activates the active release with the current `.env`, after a hand edit    |
+| Command                                   | What it does                                                                                                                                   |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lictory config show [--reveal] [--json]` | Every set value; secrets masked unless `--reveal`                                                                                              |
+| `lictory config get <KEY>`                | One value, unmasked, for scripts; exit 1 when unset                                                                                            |
+| `lictory config set <KEY=value>...`       | Changes values (`KEY=` clears one), then applies them                                                                                          |
+| `lictory config unset <KEY>...`           | Clears values, then applies                                                                                                                    |
+| `lictory config edit`                     | Opens a copy in `$VISUAL`/`$EDITOR`, lists the changes and asks before saving                                                                  |
+| `lictory config apply`                    | Re-activates the active release with the current `.env`, after a hand edit                                                                     |
+| `lictory config rotate <KEY>`             | A new random value for a generated secret, applied in PostgreSQL first for a database password; the previous value stays if PostgreSQL refuses |
 
 Every write lists the changed keys, keeps the previous file as
 `.env.backup-<timestamp>` and re-activates the active release (`--no-apply`
