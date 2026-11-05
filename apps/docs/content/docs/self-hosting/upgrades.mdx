@@ -9,10 +9,10 @@ description: Stable and nightly releases, what an upgrade does, and how to roll 
 
 Lictory publishes two channels as [GitHub Releases](https://github.com/chricarp/lictory/releases):
 
-| Channel     | Version                        | For                                                           |
-| ----------- | ------------------------------ | ------------------------------------------------------------- |
-| **Stable**  | `X.Y.Z`                        | Production. Promotes the exact commit of a tested nightly     |
-| **Nightly** | `X.Y.Z-nightly.YYYYMMDD.<run>` | Staging and testing. Built from every change merged to `main` |
+| Channel     | Version                        | For                                                          |
+| ----------- | ------------------------------ | ------------------------------------------------------------ |
+| **Stable**  | `X.Y.Z`                        | Production. Promotes the exact commit of a tested nightly    |
+| **Nightly** | `X.Y.Z-nightly.YYYYMMDD.<run>` | Staging and testing. Built daily from `main` when it changed |
 
 Versions follow semantic versioning: features raise the minor version,
 fixes the patch version, and breaking changes the major version (the minor
@@ -25,6 +25,22 @@ newest nightly is always available, however old. Stable releases are never
 removed. To stay on a specific nightly for longer, keep it installed: a
 removed nightly can no longer be installed by version, but an installation
 that runs it is unaffected.
+
+## Before you upgrade production
+
+1. **See what is available:** `lictory upgrade --check` names the newest
+   release of your channel without changing anything.
+2. **Read its release notes.** Breaking changes come first, each with the
+   action it needs (a setting to add, a proxy rule to change).
+3. **Upgrade staging first**, if you have it, and use it for a day. On a
+   server that hosts both, remember that the host tools follow the newest
+   release you activate ([multiple environments](/self-hosting/terminal#multiple-environments)).
+4. **Know your way back.** Upgrades take a backup themselves when the
+   release has migrations, but a recent [restore drill](/self-hosting/backups#restore-drill)
+   is what proves you can use it. `lictory backup list` shows what you have.
+5. **Pick a quiet moment.** Migrations run while the previous release keeps
+   serving (each one is written to work with it), API restarts drop no
+   requests, and the proxy restarts for about two seconds (below).
 
 ## Upgrade
 
@@ -51,7 +67,9 @@ fails:
 3. **Activate**: replace zero-cache, the proxy, the API and the worker one by
    one, each waiting for its health check, then verify the application and
    the realtime connection. If anything fails, the previous release's images
-   are restored automatically.
+   are restored automatically, and the command says whether the environment
+   runs the previous release again and is healthy, or needs attention now
+   (`lictory doctor`).
 
 The proxy holds requests for up to 30 seconds while the API is replaced, so
 API restarts drop no requests. Replacing the proxy itself refuses connections

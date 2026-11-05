@@ -23,6 +23,22 @@ ignored silently) and generated secrets such as database passwords and
 `DELIVERY_CREDENTIALS_KEY`, whose change breaks the installation. If you edit
 `.env` by hand, apply it with `sudo lictory config apply`.
 
+## Rotate a secret
+
+If a generated secret leaks (a copy of `.env` in the wrong place, a
+departing administrator), replace it with a new random one:
+
+```sh
+sudo lictory config rotate LICTORY_APP_PASSWORD
+```
+
+For a database password, PostgreSQL restarts with the new value and applies
+it to its role before the services restart with it, so expect about a
+minute of errors; if PostgreSQL does not take it, the previous value stays.
+`BETTER_AUTH_SECRET` signs everyone out (and needs `DELIVERY_CREDENTIALS_KEY`
+set first). `DELIVERY_CREDENTIALS_KEY` cannot be rotated yet: stored Jira
+tokens would need re-encrypting.
+
 ## Domain and TLS
 
 | Setting                | Meaning                                                                                      |
@@ -140,6 +156,13 @@ the sign-in page once it is configured:
 | `OIDC_AUTO_CREATE_USERS` | `true` (default) creates an account on first sign-in; `false` admits only existing accounts |
 | `PASSWORD_LOGIN_ENABLED` | `false` makes the installation SSO-only                                                     |
 
+Set Google or Microsoft sign-in with `lictory config` (company single sign-on
+is also an installer step, `--oidc yes`):
+
+```sh
+sudo lictory config set GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…
+```
+
 Register the redirect URI `https://<your host>/api/auth/callback/oidc` at
 the provider. Single sign-on decides who can authenticate; it grants nothing
 inside Lictory. Organization membership still comes from invitations, and
@@ -154,6 +177,10 @@ an existing account is linked automatically only when the provider asserts
 | `OPENAI_API_KEY`              | Enables Lictory Intelligence with OpenAI |
 | `LICTORY_AI_MODEL`            | Model for reviews and chat (optional)    |
 | `LICTORY_TRANSCRIPTION_MODEL` | Model for dictation (optional)           |
+
+```sh
+sudo lictory config set OPENAI_API_KEY=sk-…
+```
 
 With a key configured, an organization administrator still decides whether
 Lictory Intelligence may run for their organization (**Organization settings

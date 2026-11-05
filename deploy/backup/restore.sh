@@ -9,6 +9,9 @@
 #                       only); not needed for unencrypted (.dump) backups
 #   RESTORE_PGHOST, RESTORE_PGPORT (5432), RESTORE_PGUSER (superuser),
 #   RESTORE_PGPASSWORD, RESTORE_DATABASE (created when missing)
+#   RESTORE_CHECK_ONLY=1 fetches, decrypts and verifies the backup against its
+#   manifest and pg_restore's table of contents, then stops: no database is
+#   needed or touched (lictory restore runs it before stopping anything).
 # Remote keys and latest are read from BACKUP_TARGET (backup-target.sh).
 #
 # The target cluster must already have the Lictory roles
@@ -17,9 +20,12 @@
 set -Eeuo pipefail
 
 source="${1:?Usage: restore.sh <latest|key|file>}"
-: "${RESTORE_PGHOST:?}" "${RESTORE_PGUSER:?}" "${RESTORE_PGPASSWORD:?}" "${RESTORE_DATABASE:?}"
-export PGHOST="$RESTORE_PGHOST" PGPORT="${RESTORE_PGPORT:-5432}" PGUSER="$RESTORE_PGUSER" \
-  PGPASSWORD="$RESTORE_PGPASSWORD" PGAPPNAME=lictory-restore
+check_only="${RESTORE_CHECK_ONLY:-}"
+if [ -z "$check_only" ]; then
+  : "${RESTORE_PGHOST:?}" "${RESTORE_PGUSER:?}" "${RESTORE_PGPASSWORD:?}" "${RESTORE_DATABASE:?}"
+  export PGHOST="$RESTORE_PGHOST" PGPORT="${RESTORE_PGPORT:-5432}" PGUSER="$RESTORE_PGUSER" \
+    PGPASSWORD="$RESTORE_PGPASSWORD" PGAPPNAME=lictory-restore
+fi
 unset PGDATABASE
 started=$(date -u +%s)
 work=$(mktemp -d /tmp/restore.XXXXXX)
@@ -81,6 +87,11 @@ esac
   echo "Decrypted dump does not match its manifest" >&2
   exit 1
 }
+if [ -n "$check_only" ]; then
+  pg_restore --list "$work/backup.dump" >/dev/null || { echo "pg_restore cannot read the dump" >&2; exit 1; }
+  jq -c '{checked:.name, application_version, dump_bytes}' "$work/manifest.json"
+  exit 0
+fi
 
 exists=$(psql -X -A -t -d postgres -v db="$RESTORE_DATABASE" <<'SQL'
 SELECT count(*) FROM pg_database WHERE datname = :'db';
