@@ -917,6 +917,14 @@ void test(
     assert.equal(installed.status, 0, installed.stderr + installed.stdout);
     const env = () => readFileSync(join(home, ".env"), "utf8");
     const before = env();
+    // Applying starts or recreates PostgreSQL first (deploy.sh rolls only
+    // the services in front of it).
+    const composeLog = join(f.base, "compose.log");
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\necho "$*" >> "${composeLog}"\n`,
+      { mode: 0o755 },
+    );
 
     // show masks secrets unless asked; get prints one value for scripts.
     const shown = f.lictory(["config", "show"]);
@@ -962,6 +970,10 @@ void test(
         .filter((call) => call.name === "deploy.sh")
         .map((call) => call.args),
       [["production", "activate", "1.2.3"]],
+    );
+    assert.equal(
+      readFileSync(composeLog, "utf8"),
+      "production up -d --wait --wait-timeout 180 postgres\n",
     );
     const backups = readdirSync(home).filter((name) =>
       name.startsWith(".env.backup-"),
@@ -1334,6 +1346,12 @@ void test(
     ]);
     assert.ok(existsSync(join(home, ".env")));
     assert.match(stopped.stdout, /sudo lictory config apply/);
+    // The documented restart brings PostgreSQL back before the release.
+    const restarted = f.lictory(["config", "apply"]);
+    assert.equal(restarted.status, 0, restarted.stderr + restarted.stdout);
+    assert.deepEqual(host(), [
+      "lictory-compose production up -d --wait --wait-timeout 180 postgres",
+    ]);
 
     // Off-server backups: a failed final backup deletes nothing.
     writeFileSync(

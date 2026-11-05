@@ -2644,6 +2644,12 @@ not_symlinked_env() {
 
 # config_apply: re-activates the active release with the current .env; on
 # failure, restores config_backup (when set) and re-activates again.
+# config_activate <version>: PostgreSQL first (deploy.sh rolls only the
+# services in front of it): started when stopped (after lictory uninstall),
+# recreated when its own settings changed, untouched otherwise.
+config_activate() {
+  compose up -d --wait --wait-timeout 180 postgres && deploy_sh activate "$1"
+}
 config_apply() {
   local active
   active=$(current_version)
@@ -2651,7 +2657,7 @@ config_apply() {
     note "$environment has no active release yet: the settings apply when it is installed (sudo lictory install)."
     return 0
   fi
-  if run_task "Applying the settings to $environment ($active)" deploy_sh activate "$active"; then
+  if run_task "Applying the settings to $environment ($active)" config_activate "$active"; then
     check_ok "$environment runs $active with the new settings."
     start_timers
     return 0
@@ -2663,7 +2669,7 @@ config_apply() {
     fi
     warn "The services did not start with the new settings. Restoring the previous ones from $config_backup."
     cp -p "$config_backup" "$home/.env"
-    if run_task "Re-applying the previous settings" deploy_sh activate "$active"; then
+    if run_task "Re-applying the previous settings" config_activate "$active"; then
       die "The new settings were not applied; $environment runs with the previous ones. See the messages above, or: lictory logs api"
     fi
     die "The previous settings did not start either. Investigate now: lictory doctor, lictory logs"
