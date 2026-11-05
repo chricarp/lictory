@@ -1,0 +1,59 @@
+name: Prune nightlies
+
+# Deletes nightly GitHub Releases older than 14 days, but only when a newer
+# nightly exists: the newest nightly is never deleted, however old, so the
+# nightly channel (lictory upgrade, get.sh) always has one. Nightlies a stable
+# release run promotes are kept as well. Git tags, images and stable releases
+# are never touched. "Run workflow" previews by default (dry run); uncheck it
+# to delete. See docs/operations/releases.md ("Nightly retention").
+on:
+  schedule:
+    # 05:47 UTC, after the 03:23 nightly and off the busy minutes.
+    - cron: "47 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting anything"
+        type: boolean
+        default: true
+
+permissions: {}
+
+# Shares the nightly publication queue: a prune never runs while a nightly is
+# being planned or published, and two prunes never overlap.
+concurrency:
+  group: lictory-nightly-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  prune:
+    # Forks have their own releases, if any; never prune them from here.
+    if: github.repository == 'chricarp/lictory'
+    name: Delete expired nightly releases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # Delete releases (tags stay).
+      deployments: read # Stable release intents: the nightlies they promote.
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Deleting by hand is a release manager's decision; the schedule and
+      # dry runs need no one.
+      - if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        uses: ./.github/actions/release-manager
+        with:
+          managers: ${{ vars.RELEASE_MANAGERS || github.repository_owner }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+          no-cache: true # Release tooling never restores a cached Bun binary.
+      - run: bun install --frozen-lockfile
+      - name: Prune nightly releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/prune-nightlies.ts

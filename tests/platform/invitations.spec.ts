@@ -151,8 +151,13 @@ test("email and username invitations deliver tailored emails and preserve joinin
     try {
       const teammate = await joining.newPage();
       await teammate.goto(signupUrl);
+      // The link keeps the invitation's context: the page says why the
+      // account is being created and starts with the invited address.
+      await expect(
+        teammate.getByText("Create your account to accept your invitation."),
+      ).toBeVisible();
+      await expect(teammate.getByLabel("Work email")).toHaveValue(newEmail);
       await teammate.getByLabel("Full name").fill("New Teammate");
-      await teammate.getByLabel("Work email").fill(newEmail);
       await teammate.getByLabel("Password", { exact: true }).fill(password);
       await teammate
         .getByRole("button", { name: "Create account", exact: true })
@@ -181,7 +186,9 @@ test("email and username invitations deliver tailored emails and preserve joinin
         })
         .toBe(true);
       await teammate.goto(verification!);
-      await teammate.getByRole("button", { name: "Open workspace" }).click();
+      await teammate
+        .getByRole("button", { name: "Continue to your invitation" })
+        .click();
       await expect(
         teammate.getByRole("heading", { name: "Choose your handle" }),
       ).toBeVisible();

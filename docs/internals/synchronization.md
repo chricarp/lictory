@@ -91,7 +91,8 @@ hold one active discipline of the item's project that grants **both**
 review their own suggestion.
 
 Every project is seeded with Product (all capabilities), Engineering (requests,
-reviews and changes properties) and QA (request + review) by `createProject`,
+reviews and changes properties) and QA (requests, reviews and changes
+properties, so it can file bugs) by `createProject`,
 and its creator becomes a project administrator in Product
 (`packages/core/src/domain/projects.ts`). Disciplines archive rather than delete: an
 archived discipline grants nothing and cannot be requested, keeps its name on
@@ -422,7 +423,7 @@ deletes messages; durable activity records retain these actions.
 
 ## Verification and deferred work
 
-Domain tests (`bun test --isolate src`) run real PostgreSQL transactions in disposable
+Domain tests (`bun run test:domain`) run real PostgreSQL transactions in disposable
 databases, including Zero's own `handleMutateRequest` with the server
 mutators, forced projection failures and the projection rebuild invariant.
 `bun run test:e2e` builds every application, migrates a disposable database

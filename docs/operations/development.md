@@ -132,6 +132,7 @@ Production images and the single-server stack are described in
 | `bun run check`       | Types, lint, formatting, unused code, PR assets and the configuration reference |
 | `bun run format`      | Apply Prettier                                                                  |
 | `bun test src/<area>` | Focused domain tests while you work                                             |
+| `bun run test:domain` | Every domain test, files in parallel                                            |
 | `bun run test:sync`   | Synchronization invariants against PostgreSQL                                   |
 | `bun run test:e2e`    | Production build plus browser workflows                                         |
 | `bun run test:smoke`  | Production build plus the `@smoke` workflows only                               |
@@ -155,11 +156,17 @@ than grow it.
 ## Tests
 
 Domain tests are colocated as `*/src/**/*.test.ts` in every workspace and run with
-`bun test --isolate src`: each file gets its own module registry and globals, so
-a file that points `DATABASE_URL` at its own database never receives a client
-another file already created. Tests
-that need PostgreSQL create their own database from `SCHEMA_TEST_DATABASE_URL`
-(the admin `postgres` database), so they never touch your development data.
+`bun run test:domain` (`bun test --parallel`): files run side by side in worker
+processes, and each file gets its own module registry and globals, so a file
+that points `DATABASE_URL` at its own database never receives a client another
+file already created. Tests that need PostgreSQL create their own database from
+`SCHEMA_TEST_DATABASE_URL` (the admin `postgres` database), so they never touch
+your development data, and never share one with another file. The tests inside
+a file run in order and may build on each other.
+`scripts/test-timings/domain.json` records how long each file takes, so the
+slowest start first; refresh it with
+`bun test --parallel --timings=scripts/test-timings/domain.json --update-timings src`
+when files are added or grow. A stale entry only makes the run less even.
 
 Browser tests in `tests/platform`, `tests/marketing` and `tests/docs` run
 against production builds: `scripts/test-e2e.ts` migrates an isolated database,
@@ -172,6 +179,23 @@ several checkouts run side by side; use multiples of 10 (10, 20...), because the
 services take consecutive ports (an offset of 1 would put the edge proxy on the
 API's port). `E2E_SKIP_BUILD=1` reuses builds when only tests changed. Failure
 screenshots land in `/tmp/lictory-playwright-results`.
+
+Browser test files run in parallel Playwright workers (half of your cores, two
+in CI; `E2E_WORKERS` overrides). On a machine busy with other work, such as
+another checkout's test suite, use fewer (`E2E_WORKERS=2`): the assertions wait
+15 seconds, and an overloaded machine misses that bound. The tests inside a file keep their order, so
+no person, handle or organization may be shared between files: a file creates
+its own (`tests/helpers/workspace-people.ts` gives each workspace file its
+people). The applications build concurrently, and the documentation site is
+built and started only when the selected tests include `tests/docs`.
+
+CI runs the full suite as four shards (`E2E_SHARD=2/4`). Playwright's own
+`--shard` balances by test count; `scripts/e2e-selection.ts` balances by the
+durations in `scripts/test-timings/browser.json` instead, placing the longest
+files first. The longest file sets the floor for a shard, so split a file that
+grows past about two minutes along the people it uses. After adding or growing
+files, refresh the durations with `E2E_UPDATE_TIMINGS=1 bun run test:e2e`; a
+file without an entry is estimated from its number of tests.
 
 ### Tests that pass on every contributor's machine
 
@@ -207,15 +231,23 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command                  | Runs on pull requests               | Nightly                |
-| ----------------- | ----------------------------------------------------------------- | ------------------------ | ----------------------------------- | ---------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`          | Always                              | Yes                    |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun test --isolate src` | Unless the change is prose          | Yes                    |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`     | When applications or tests change   | Yes                    |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`       | Manual (`CI` → Run workflow → full) | Yes, before publishing |
+| Tier              | Proves                                                            | Command               | Runs on pull requests               | Nightly                |
+| ----------------- | ----------------------------------------------------------------- | --------------------- | ----------------------------------- | ---------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                              | Yes                    |
+| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Unless the change is prose          | Yes                    |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | When applications or tests change   | Yes                    |
+| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full) | Yes, before publishing |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
-for paths it does not recognise. A change to the documentation site (or what
+for paths it does not recognise. Each tier is split across parallel jobs so that
+the slowest job sets the duration: lint as three jobs over disjoint paths
+(`packages/core`, `apps/platform`, everything else) beside one for types,
+formatting, unused code and migrations (`bun run typecheck` and
+`bun run check:rest`, which together with lint make up `bun run check`; add a
+new static check to `check:rest` so CI runs it too), domain test files in three
+processes, and the full browser suite in four shards. The lint jobs first
+generate the route types Next.js derives for the website and documentation
+(`next typegen`), which `bun run typecheck` produces locally before lint. A change to the documentation site (or what
 it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
@@ -269,7 +301,7 @@ bun audit --audit-level=high
 bun run check
 bun run db:check
 bun run db:migrate
-bun test --isolate src
+bun run test:domain
 bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 
@@ -307,7 +339,13 @@ so its duration is verification and the image builds; the websites deploy
 afterwards in their own jobs ([websites](websites.md)).
 
 Bun installs directly from the lockfile: restoring and saving its broad download
-cache cost more than an uncached install in measured Actions runs. BuildKit registry caches default
+cache cost more than an uncached install in measured Actions runs. The Next.js
+build caches of the website and the documentation (`.next/cache`) are restored
+between browser runs, as Next.js recommends for CI; a miss only costs the
+compile time. Verification is the longer half of a release, so it is split:
+the full browser suite's four shards each take about as long as the longest
+test file, and the smoke tier, the domain tests and the static checks fit in a
+few minutes each. BuildKit registry caches default
 to `IMAGE_REGISTRY/lictory-cache`, with separate tags per target, channel and
 architecture; `IMAGE_CACHE_REGISTRY` overrides the namespace. The workflow token
 needs package write access there. A cold cache, slow runner allocation, required

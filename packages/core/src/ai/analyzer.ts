@@ -1,5 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, Output, type LanguageModel } from "ai";
+import {
+  APICallError,
+  RetryError,
+  generateText,
+  Output,
+  type LanguageModel,
+} from "ai";
 import { z } from "zod";
 import {
   aiFindingCategories,
@@ -173,13 +179,22 @@ export async function generateStructured<T>(
     });
     return output;
   } catch (error) {
-    throw new AnalyzerError(describe(error, again));
+    throw new AnalyzerError(describeProviderError(error, again));
   }
 }
 
+// Whether a failure came from the AI provider call itself (as opposed to
+// Lictory's own tools or storage).
+export function isProviderError(error: unknown) {
+  return APICallError.isInstance(error) || RetryError.isInstance(error);
+}
+
 // Actionable, secret-free messages; raw provider bodies never reach users.
-function describe(error: unknown, again: string) {
-  const e = error as {
+// `again` names the person's next step ("Retry", "Run the review again").
+export function describeProviderError(error: unknown, again: string) {
+  // After its retries, the SDK reports the last attempt's failure.
+  const last = RetryError.isInstance(error) ? error.lastError : error;
+  const e = last as {
     name?: string;
     statusCode?: number;
     message?: string;
@@ -194,5 +209,8 @@ function describe(error: unknown, again: string) {
     return `The model did not return a valid result. ${again}.`;
   if (e?.name?.includes("Timeout") || e?.name === "AbortError")
     return `The AI provider did not answer in time. ${again}.`;
+  // No response at all: the server could not connect to the provider.
+  if (APICallError.isInstance(last) && last.statusCode === undefined)
+    return `This server could not reach the AI provider. ${again} later, or ask an administrator to check the server's network access to the provider.`;
   return `The AI provider could not complete the request. ${again} shortly.`;
 }

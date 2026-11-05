@@ -67,6 +67,55 @@ export class GitHub {
     body?: unknown,
     accept = "application/vnd.github+json",
   ): Promise<unknown> {
+    const response = await this.send(path, method, body, accept);
+    if (response === undefined || response.status === 204) return undefined;
+    return response.json() as Promise<unknown>;
+  }
+
+  /**
+   * Every item of a listing, following GitHub's `Link: rel="next"` pages
+   * rather than guessing the end from a short page. Fails instead of returning
+   * a partial list: a missing page, a malformed item or an item seen twice
+   * (the listing moved while it was read) throws.
+   */
+  async completeList<T extends { id: number }>(
+    path: string,
+    schema: z.ZodType<T>,
+    maxPages = 100,
+  ): Promise<T[]> {
+    const all: T[] = [];
+    const seen = new Set<number>();
+    let next: string | undefined =
+      `${path}${path.includes("?") ? "&" : "?"}per_page=100`;
+    for (let page = 1; next; page++) {
+      if (page > maxPages)
+        throw new Error(
+          `${path} has more than ${maxPages} pages; refusing an unbounded listing.`,
+        );
+      const response = await this.send(next);
+      if (response === undefined)
+        throw new Error(`GitHub GET ${path} page ${page} was not found.`);
+      for (const item of z.array(schema).parse(await response.json())) {
+        if (seen.has(item.id))
+          throw new Error(
+            `${path} changed while it was listed (item ${item.id} appeared twice).`,
+          );
+        seen.add(item.id);
+        all.push(item);
+      }
+      next = /<([^>]+)>;\s*rel="next"/.exec(
+        response.headers.get("link") ?? "",
+      )?.[1];
+    }
+    return all;
+  }
+
+  private async send(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    accept = "application/vnd.github+json",
+  ): Promise<Response | undefined> {
     const url = path.startsWith("https://")
       ? path
       : `https://api.github.com/repos/${this.repository}${path}`;
@@ -101,8 +150,7 @@ export class GitHub {
         throw new Error(
           `GitHub ${method} ${new URL(url).pathname} failed (${response.status}).`,
         );
-      if (response.status === 204) return undefined;
-      return response.json() as Promise<unknown>;
+      return response;
     }
   }
 

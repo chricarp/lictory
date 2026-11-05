@@ -144,6 +144,53 @@ export function useProposeBreakdown(
   };
 }
 
+// "Suggest a change" on selected specification text: start a branch from
+// main and open its editor with that text selected, ready to rewrite. The
+// request is consumed once by the editor it names.
+let suggestionFocus: { branchId: string; quote: string } | null = null;
+
+export function useSuggestChange(onNavigate: (screen: BranchScreen) => void) {
+  const { branches, base, mutateConfirmed } = useBranchData();
+  return async (quote: string) => {
+    let name = "suggestion";
+    for (let n = 2; branches.some((b) => b.name === name); n++)
+      name = `suggestion-${n}`;
+    const id = crypto.randomUUID();
+    try {
+      await mutateConfirmed({
+        type: "createBranch",
+        ...base,
+        branchId: id,
+        name,
+      });
+      suggestionFocus = { branchId: id, quote };
+      onNavigate({ kind: "branch", id });
+    } catch (error) {
+      toast.add({
+        title: "Could not start a suggestion",
+        type: "error",
+        description:
+          error instanceof Error ? error.message : "The server refused it.",
+        timeout: 8000,
+      });
+    }
+  };
+}
+
+// Where the quoted (rendered) text sits in the Markdown source, ignoring
+// whitespace differences; undefined when it cannot be found.
+function locateQuote(source: string, quote: string) {
+  const words = quote
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!words.length) return;
+  const match = new RegExp(words.join("\\s+")).exec(source);
+  return match
+    ? { start: match.index, end: match.index + match[0].length }
+    : undefined;
+}
+
 function useAction() {
   const { mutateConfirmed: mutate } = useItem();
   const [error, setError] = useState("");
@@ -429,8 +476,10 @@ function BranchOverview({
               <Plus className="size-4" /> Start a change
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              A branch is a private copy of the specification. Nobody is asked
-              to review anything until you open a pull request.
+              A branch is a separate draft of the specification: you and the
+              collaborators you invite edit it while main stays unchanged.
+              Everyone who can open this item can see its branches; nobody is
+              asked to review anything until you open a pull request.
             </p>
           </div>
           <div className="flex flex-wrap items-start gap-2">
@@ -720,6 +769,20 @@ function BranchEditorBody({
       section
         ?.querySelector<HTMLInputElement>("input:not([type=hidden])")
         ?.focus({ preventScroll: true });
+    });
+  }, [branch.id, canEdit]);
+  const editorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (suggestionFocus?.branchId !== branch.id || !canEdit) return;
+    const { quote } = suggestionFocus;
+    suggestionFocus = null;
+    requestAnimationFrame(() => {
+      const area = editorRef.current?.querySelector("textarea");
+      if (!area) return;
+      const at = locateQuote(area.value, quote);
+      area.focus({ preventScroll: true });
+      if (at) area.setSelectionRange(at.start, at.end);
+      area.scrollIntoView({ block: "center" });
     });
   }, [branch.id, canEdit]);
   const key = `lictory:branch-draft:${userId}:${organizationId}:${itemId}:${branch.id}`;
@@ -1083,14 +1146,16 @@ function BranchEditorBody({
                       maxLength={240}
                     />
                   </label>
-                  <MarkdownEditor
-                    aria-label="Branch specification"
-                    fileContext={{ organizationId, workItemId: itemId }}
-                    value={draft.content}
-                    onValueChange={(content) => edit({ content })}
-                    className="min-h-100 px-4 pt-4 font-mono"
-                    previewClassName="min-h-[400px] px-4 pt-4"
-                  />
+                  <div ref={editorRef} className="contents">
+                    <MarkdownEditor
+                      aria-label="Branch specification"
+                      fileContext={{ organizationId, workItemId: itemId }}
+                      value={draft.content}
+                      onValueChange={(content) => edit({ content })}
+                      className="min-h-100 px-4 pt-4 font-mono"
+                      previewClassName="min-h-[400px] px-4 pt-4"
+                    />
+                  </div>
                   <div ref={breakdownRef} className="scroll-mt-24">
                     <BreakdownProposal
                       proposals={draft.proposedChildren ?? []}
@@ -1489,9 +1554,13 @@ function CreatePR({
               />
             </label>
             <label className="block space-y-1 text-xs font-medium">
-              Description
+              Description{" "}
+              <span className="font-normal text-muted-foreground">
+                (required)
+              </span>
               <textarea
                 aria-label="Pull request description"
+                required
                 className={`${field} py-2`}
                 rows={5}
                 value={description}
@@ -2098,9 +2167,14 @@ function PullRequestView({
       ? capabilities.editSpecifications
       : target.collaboratorIds.includes(userId));
   const sourceHistory = ours ? aheadOf(commits, ours.id, theirs?.id) : [];
+  // A merged pull request shows the commits it brought in: those reachable
+  // from the merge's source parent but not from its target parent (the
+  // source branch itself is gone after the merge). Not main's whole history.
   const shownHistory =
     p.status === "merged" && merged
-      ? ancestry(commits, merged.id)
+      ? merged.parentIds[1]
+        ? aheadOf(commits, merged.parentIds[1], merged.parentIds[0])
+        : ancestry(commits, merged.id)
       : sourceHistory;
   const contributed = sourceHistory.some((c) => c.authorId === userId);
   const roleOptions = disciplines.filter(
@@ -2690,6 +2764,17 @@ function PullRequestView({
                               </Button>
                             ))}
                           </div>
+                        )}
+                      {assigned &&
+                        !readOnly &&
+                        p.status === "open" &&
+                        heads &&
+                        contributed &&
+                        !r.decision && (
+                          <p className="pl-6 text-xs text-muted-foreground">
+                            You contributed to this change, so another{" "}
+                            {role?.name ?? "reviewing"} member approves it.
+                          </p>
                         )}
                     </li>
                   );

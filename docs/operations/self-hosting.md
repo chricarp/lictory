@@ -332,6 +332,10 @@ The channel is a property of the environment (`LICTORY_RELEASE_CHANNEL`):
 - `stable`: tested releases (`vX.Y.Z`). The default.
 - `nightly`: a prerelease for every change on `main`
   (`vX.Y.Z-nightly.YYYYMMDD.N`). For staging or evaluation servers.
+  Nightlies older than 14 days are removed from GitHub Releases once a newer
+  one exists; the newest nightly is always kept, so `upgrade` on this channel
+  always finds one. A removed nightly can no longer be installed by version
+  ([retention](releases.md#nightly-retention)).
 
 Switch with `sudo lictory install --channel nightly` (or `stable`); the next
 `upgrade` follows it. Moving from nightly to stable waits for a stable release

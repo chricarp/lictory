@@ -93,6 +93,7 @@ export function IssueList({
   header,
   summary,
   groupBy = "status",
+  reviewFilter,
   itemHint,
   createLabel,
   createIntent,
@@ -113,6 +114,9 @@ export function IssueList({
   header?: ReactNode;
   summary?: ReactNode;
   groupBy?: "status" | "refinement" | "lifecycle" | "review";
+  // Review grouping: which open reviews count. A personal queue groups by the
+  // reviews asked of the viewer, not every review the item is waiting on.
+  reviewFilter?: (review: WorkItem["reviews"][number]) => boolean;
   itemHint?: (item: WorkItem) => string;
   createLabel?: string;
   createIntent?: "proposal" | "work";
@@ -296,7 +300,10 @@ export function IssueList({
       const proposed: WorkItem[] = [];
       for (const item of visible) {
         const open = item.reviews.filter(
-          (r) => r.status !== "cancelled" && r.status !== "completed",
+          (r) =>
+            r.status !== "cancelled" &&
+            r.status !== "completed" &&
+            (reviewFilter?.(r) ?? true),
         );
         if (!open.length) proposed.push(item);
         for (const r of open)
@@ -353,7 +360,16 @@ export function IssueList({
           ]
         : []),
     ];
-  }, [group, groupBy, visible, delivery, project, links, categoryFor]);
+  }, [
+    group,
+    groupBy,
+    reviewFilter,
+    visible,
+    delivery,
+    project,
+    links,
+    categoryFor,
+  ]);
   const order = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const [lastSelected, setLastSelected] = useState(selectedId);
   if (lastSelected !== selectedId) {

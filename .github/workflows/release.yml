@@ -254,6 +254,9 @@ jobs:
       contents: read
       deployments: write
     uses: ./.github/workflows/deploy-marketing.yml
+    # The deploy job's websites environment token resolves empty on
+    # workflow_call unless the caller passes secrets; Release still names none.
+    secrets: inherit # zizmor: ignore[secrets-inherit]
     with:
       release_tag: ${{ needs.plan.outputs.stable_tag }}
 
@@ -268,3 +271,6 @@ jobs:
       contents: read
       deployments: write
     uses: ./.github/workflows/deploy-docs.yml
+    # The deploy job's websites environment token resolves empty on
+    # workflow_call unless the caller passes secrets; Release still names none.
+    secrets: inherit # zizmor: ignore[secrets-inherit]

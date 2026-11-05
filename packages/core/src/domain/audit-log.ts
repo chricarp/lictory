@@ -157,9 +157,19 @@ async function auditLogPage(
     branches.push(sql`(select 'configuration' as source, c.id, ${iso("c")},
         c.created_at, c.actor_id, u.name as actor_name,
         u.email as actor_email, c.action, null::text as target_type,
-        null::text as target_id, null::text as target_label, c.detail
+        null::text as target_id, null::text as target_label,
+        c.detail || jsonb_build_object('names', jsonb_build_object(
+          'user', su.name, 'discipline', d.name, 'project', p.name)) as detail
       from configuration_audit c
       left join "user" u on u.id = c.actor_id
+      -- Names of what the command touched, so the log reads "Added Ben to
+      -- Engineering in Payments" instead of identifiers. Projects and
+      -- disciplines only resolve within this organization.
+      left join "user" su on su.id = c.detail->'command'->>'userId'
+      left join discipline d on d.organization_id = c.organization_id
+        and d.id = c.detail->'command'->>'disciplineId'
+      left join project p on p.organization_id = c.organization_id
+        and p.id = c.detail->'command'->>'projectId'
       where ${sql.join(where, sql` and `)}
       order by c.created_at desc, c.id desc
       limit ${take})`);
@@ -213,6 +223,33 @@ const quoted = (value: string | null | undefined) =>
 function humanize(command: string) {
   const words = command.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// Configuration commands in words, for the ones people look for most in the
+// log; everything else keeps the command's name, with its project.
+function describeConfiguration(
+  action: string,
+  detail: Record<string, unknown>,
+  names: Record<string, string | null>,
+) {
+  const command = (detail.command ?? {}) as Record<string, unknown>;
+  const person = names.user ?? "someone";
+  const project = names.project;
+  switch (action) {
+    case "setDisciplineMember":
+      if (names.discipline && project)
+        return command.member === true
+          ? `Added ${person} to ${names.discipline} in ${project}`
+          : `Removed ${person} from ${names.discipline} in ${project}`;
+      break;
+    case "setProjectMember":
+      if (project)
+        return command.role === null
+          ? `Removed ${person} from ${project}`
+          : `Set ${person}'s role in ${project} to ${command.role === "admin" ? "admin" : "member"}`;
+      break;
+  }
+  return project ? `${humanize(action)} in ${project}` : humanize(action);
 }
 
 function describeEvent(row: Row, detail: Record<string, unknown>) {
@@ -276,15 +313,19 @@ function toEntry(row: Row): AuditEntry {
     ? { type: row.target_type, id: row.target_id, label: row.target_label }
     : null;
   const base = { id: row.id, source: row.source, at: row.at, actor, target };
-  if (row.source === "configuration")
+  if (row.source === "configuration") {
+    const { names, ...recorded } = detail as Record<string, unknown> & {
+      names?: Record<string, string | null>;
+    };
     return {
       ...base,
       category: "configuration",
       action: row.action,
       label: "Changed configuration",
-      summary: humanize(row.action),
-      detail,
+      summary: describeConfiguration(row.action, recorded, names ?? {}),
+      detail: recorded,
     };
+  }
   if (row.source === "agent") {
     const agent =
       detail.surface === "mcp"
