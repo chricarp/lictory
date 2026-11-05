@@ -73,6 +73,9 @@ adding domain writes or synchronized entities.
 - [Existing reverse proxy, internal CA and plain HTTP](./operations/reverse-proxy.md):
   nginx and Traefik in front of the gateway, WebSockets, streaming, client
   addresses, certificates and the limits of plain HTTP
+- [External and managed PostgreSQL](./operations/external-database.md): what
+  makes a PostgreSQL compatible (checked by `lictory database check`), role
+  setup without a superuser, degraded modes, backups and provider settings
 - [Backups and recovery](./operations/recovery.md): backups, restore drills,
   database, Zero replica and worker recovery
 - [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and

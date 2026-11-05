@@ -11,6 +11,10 @@
 # Networks: only the proxy publishes ports. PostgreSQL and zero-cache sit on an
 # internal network without internet access; services that call external APIs
 # also join `egress`. See docs/operations/deployment.md.
+#
+# With LICTORY_DATABASE=external in .env, lictory-compose adds
+# compose.external-database.yaml: no postgres service, every connection to
+# DATABASE_HOST over TLS (docs/operations/external-database.md).
 
 x-logging: &logging
   driver: json-file
@@ -201,6 +205,30 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # One-shot: checks that the database meets Lictory's requirements, creates
+  # roles on an external database and applies grants (database.mjs in the
+  # migrate image, docs/operations/external-database.md). Never started by `up`:
+  #   lictory-compose <env> run --rm --no-deps database check
+  database:
+    image: ${MIGRATE_IMAGE:?}
+    <<: *hardening
+    profiles: [tools]
+    restart: "no"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    networks: [internal]
+    mem_limit: 256m
+    entrypoint: ["node", "database.mjs"]
+    command: ["check"]
+    environment:
+      NODE_ENV: production
+      DATABASE_MIGRATION_URL: postgresql://lictory_owner:${LICTORY_OWNER_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}?sslmode=disable
+      ZERO_UPSTREAM_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
+      ZERO_CVR_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}_zero
+      DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
+      DATABASE_MONITORING_URL: postgresql://lictory_ops:${LICTORY_OPS_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
 
   zero-cache:
     image: ${ZERO_IMAGE:-rocicorp/zero:1.11.3@sha256:d1ad384ea14eee10e0a3180a281ef8b943924993c06d8e47a36017b9bdcc7c55}

@@ -45,6 +45,16 @@ export const commands = {
     summary:
       "Check the host, the configuration, DNS, certificates, backups and replication, and explain what to fix. Sends no alerts.",
   },
+  "database-check": {
+    usage: "sudo lictory database check [--json]",
+    summary:
+      "Check the database against every requirement Lictory has (version, logical replication, roles, slots, TLS, direct connection, collation, event triggers) and name the fix for each gap. deploy.sh runs the same check before migrating an external database.",
+  },
+  "database-setup": {
+    usage: "sudo lictory database setup",
+    summary:
+      "Create Lictory's roles and databases on an external PostgreSQL with an administrator connection that is used once and never stored. No superuser needed.",
+  },
   upgrade: {
     usage: "sudo lictory upgrade [version]",
     summary:
@@ -58,7 +68,7 @@ export const commands = {
   backup: {
     usage: "sudo lictory backup",
     summary:
-      "Take a database backup now, encrypted when a backup key is configured.",
+      "Take a database backup now, encrypted when a backup key is configured. An external database is backed up by its provider instead.",
   },
   restore: {
     usage: "sudo lictory restore <identity-file|none> [latest|<key>|<file>]",
@@ -68,7 +78,7 @@ export const commands = {
   logs: {
     usage: "lictory logs [service] [-f] [--tail N]",
     summary:
-      "Show the logs of every service, or of one (proxy, api, worker, zero-cache, postgres).",
+      "Show the logs of every service, or of one (proxy, api, worker, zero-cache, and postgres unless the database is external).",
   },
   "registry-login": {
     usage: "sudo lictory registry-login --username <user>",

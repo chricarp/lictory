@@ -77,7 +77,10 @@ Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
 an internal Docker network with no route to or from the internet. The API,
 worker and ops tooling also join an egress-only network for external
 APIs (object storage, Resend or SMTP, OpenAI, Jira, PostHog, OAuth providers). The host firewall
-allows SSH (rate limited), HTTP and HTTPS only.
+allows SSH (rate limited), HTTP and HTTPS only. With an
+[external database](external-database.md#configuration) there is no
+PostgreSQL container: migrations and zero-cache join the egress network too
+and reach the database over TLS.
 
 The proxy:
 
@@ -233,8 +236,11 @@ settings fall back to Mailpit (`localhost:1025`).
 
 ## Database roles
 
-`deploy/postgres/10-lictory-roles.sh` creates the roles on the first start and
-re-applies them before every migration:
+With the bundled database, `deploy/postgres/10-lictory-roles.sh` creates the
+roles on the first start and re-applies them before every migration. An
+[external or managed database](external-database.md#roles) has the same roles
+without a superuser: `lictory database setup` creates them once, and the
+owning roles apply the grants before every migration.
 
 | Role            | Used by                     | Privileges                                                                                 |
 | --------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
@@ -246,8 +252,9 @@ re-applies them before every migration:
 
 zero-cache needs a superuser because PostgreSQL only lets superusers create
 event triggers, which Zero uses to replicate schema changes precisely. Without
-them a migration halts replication and `ZERO_AUTO_RESET` rebuilds every replica
-and client from scratch. The superuser credential exists only in the
+them a migration that changes a replicated table halts replication and
+`ZERO_AUTO_RESET` rebuilds every replica and client from scratch; other
+migrations replicate normally ([degraded modes](external-database.md#degraded-modes)). The superuser credential exists only in the
 zero-cache container on the internal network; the runtime API role cannot run
 DDL. Zero's event triggers run as the role issuing DDL, so the role script
 grants `lictory_owner` usage of `zero_0` and update on

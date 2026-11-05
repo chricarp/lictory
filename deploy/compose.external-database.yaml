@@ -1,0 +1,90 @@
+# An external PostgreSQL instead of the bundled one: your own server or a
+# managed service. lictory-compose adds this file to compose.production.yaml
+# when the environment's .env sets LICTORY_DATABASE=external, so the postgres
+# service never starts and every connection goes to DATABASE_HOST over TLS.
+# Requirements, role setup and providers: docs/operations/external-database.md.
+#
+#   DATABASE_HOST     the database's direct endpoint (never a pooler)
+#   DATABASE_PORT     5432 by default
+#   DATABASE_SSLMODE  verify-full (default) or require
+#   DATABASE_CA_FILE  optional CA bundle (PEM) on this host, for providers
+#                     whose certificates are not publicly trusted
+#
+# The roles and passwords are the bundled ones (LICTORY_OWNER_PASSWORD,
+# LICTORY_APP_PASSWORD, ZERO_DB_PASSWORD, LICTORY_OPS_PASSWORD): create them
+# once with `lictory database setup`. They are written into connection URLs,
+# so they must be URL-safe (the generated hex values are).
+#
+# Services that reach the database join `egress`, since it is no longer on the
+# internal network. Changing `depends_on` needs Compose 2.24.4 (!override).
+
+x-database-ca: &database-ca ${DATABASE_CA_FILE:-/dev/null}:/run/lictory/database-ca.pem:ro
+
+services:
+  postgres:
+    # Never started: no Compose command enables this profile.
+    profiles: [bundled-database]
+
+  migrate:
+    networks: [internal, egress]
+    depends_on: !reset {}
+    environment:
+      DATABASE_MIGRATION_TRANSPORT: tls
+      DATABASE_MIGRATION_URL: postgresql://lictory_owner:${LICTORY_OWNER_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      DATABASE_MIGRATION_EXPECTED_HOST: ${DATABASE_HOST:?}
+      NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]
+
+  database:
+    networks: [internal, egress]
+    environment:
+      DATABASE_MIGRATION_URL: postgresql://lictory_owner:${LICTORY_OWNER_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      ZERO_UPSTREAM_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      ZERO_CVR_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}_zero?sslmode=${DATABASE_SSLMODE:-verify-full}
+      DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      DATABASE_MONITORING_URL: postgresql://lictory_ops:${LICTORY_OPS_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]
+
+  zero-cache:
+    networks: [internal, egress]
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      # Logical replication needs the direct endpoint (no pooler).
+      ZERO_UPSTREAM_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      ZERO_CVR_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}_zero?sslmode=${DATABASE_SSLMODE:-verify-full}
+      ZERO_CHANGE_DB: postgresql://zero:${ZERO_DB_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}_zero?sslmode=${DATABASE_SSLMODE:-verify-full}
+      NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]
+
+  api:
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]
+
+  worker:
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]
+
+  # Monitoring only: Lictory takes no backups of an external database (the
+  # provider's backups and point-in-time recovery cover it).
+  ops:
+    environment:
+      LICTORY_DATABASE: external
+      PGHOST: ${DATABASE_HOST:?}
+      PGPORT: ${DATABASE_PORT:-5432}
+      PGSSLMODE: ${DATABASE_SSLMODE:-verify-full}
+      # Empty: the scripts fall back to the system CAs for verify-full.
+      PGSSLROOTCERT: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]

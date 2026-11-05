@@ -17,6 +17,11 @@ passwords, backups, sizing) are described in those files and in
 [deployment](./deployment.md); zero-cache's own `ZERO_*` settings follow
 [Rocicorp Zero's documentation](https://zero.rocicorp.dev/docs).
 
+An external or managed PostgreSQL is configured in the server's `.env` with
+`LICTORY_DATABASE=external`, `DATABASE_HOST`, `DATABASE_PORT`,
+`DATABASE_SSLMODE` and `DATABASE_CA_FILE`; Compose builds every connection
+below from them ([external and managed PostgreSQL](./external-database.md)).
+
 ## Production rules
 
 With `NODE_ENV=production` (set by the production images):
@@ -51,15 +56,16 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Services
 
-| Service             | What it is                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------- |
-| api                 | HTTP API (`apps/api`)                                                                       |
-| worker              | Background worker (`apps/worker`)                                                           |
-| migrate             | Migration runner (`bun run db:migrate`, the `migrate` image)                                |
-| platform            | Platform SPA build and Vite dev server (`apps/platform`); values are embedded at build time |
-| website             | Marketing website (`apps/marketing`); most values are embedded at build time                |
-| edge-proxy          | Local single-origin proxy for development and browser tests (`scripts/edge-proxy.ts`)       |
-| rebuild-projections | Operator script that rebuilds read projections (`scripts/rebuild-projections.ts`)           |
+| Service             | What it is                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| api                 | HTTP API (`apps/api`)                                                                                                                          |
+| worker              | Background worker (`apps/worker`)                                                                                                              |
+| migrate             | Migration runner (`bun run db:migrate`, the `migrate` image)                                                                                   |
+| platform            | Platform SPA build and Vite dev server (`apps/platform`); values are embedded at build time                                                    |
+| website             | Marketing website (`apps/marketing`); most values are embedded at build time                                                                   |
+| edge-proxy          | Local single-origin proxy for development and browser tests (`scripts/edge-proxy.ts`)                                                          |
+| rebuild-projections | Operator script that rebuilds read projections (`scripts/rebuild-projections.ts`)                                                              |
+| database            | Database compatibility checks and role setup (`bun run db:compatibility`, `database.mjs` in the migrate image, the `database` Compose service) |
 
 ## Runtime
 
@@ -87,24 +93,28 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Database
 
-| Variable                | Required          | Default        | Read by                                   | Secret | Description                                                                                              |
-| ----------------------- | ----------------- | -------------- | ----------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | Yes (api, worker) |                | api, worker, migrate, rebuild-projections | Yes    | PostgreSQL connection of the application role. The migration runner uses it only for the `local` target. |
-| `DATABASE_URL_UNPOOLED` | No                | `DATABASE_URL` | api, worker, migrate, rebuild-projections | Yes    | Direct connection (never a transaction pooler) for LISTEN/NOTIFY when `DATABASE_URL` is pooled.          |
+| Variable                  | Required          | Default        | Read by                                             | Secret | Description                                                                                                                                                                                                                                                                                             |
+| ------------------------- | ----------------- | -------------- | --------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`            | Yes (api, worker) |                | api, worker, migrate, rebuild-projections, database | Yes    | PostgreSQL connection of the application role. The migration runner uses it only for the `local` target.                                                                                                                                                                                                |
+| `DATABASE_URL_UNPOOLED`   | No                | `DATABASE_URL` | api, worker, migrate, rebuild-projections           | Yes    | Direct connection (never a transaction pooler) for LISTEN/NOTIFY when `DATABASE_URL` is pooled.                                                                                                                                                                                                         |
+| `ZERO_UPSTREAM_DB`        | No                |                | database                                            | Yes    | zero-cache's direct (never pooled) replication connection; the compatibility checks use it to verify replication privileges, a free slot and event triggers. zero-cache itself reads it as documented by Zero.                                                                                          |
+| `ZERO_CVR_DB`             | No                |                | database                                            | Yes    | zero-cache's own database for client view records and its change log (`<database>_zero`).                                                                                                                                                                                                               |
+| `DATABASE_MONITORING_URL` | No                |                | database                                            | Yes    | Connection of the read-only backup and monitoring role (`lictory_ops`); role setup and grants include it when set.                                                                                                                                                                                      |
+| `DATABASE_ADMIN_URL`      | No                |                | database                                            | Yes    | An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See docs/operations/external-database.md. |
 
 ## Database migrations
 
-| Variable                               | Required | Default | Read by | Secret | Description                                                                                                                 |
-| -------------------------------------- | -------- | ------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_MIGRATION_TARGET`            | No       | `local` | migrate | No     | Which environment the migration runner may change. See docs/operations/migrations.md.                                       |
-| `DATABASE_MIGRATION_TRANSPORT`         | No       | `tls`   | migrate | No     | How a remote target is reached: TLS, or the single-server Compose network.                                                  |
-| `DATABASE_MIGRATION_URL`               | No       |         | migrate | Yes    | Owner-role connection for migrations; required for every remote target.                                                     |
-| `DATABASE_MIGRATION_EXPECTED_HOST`     | No       |         | migrate | No     | Host `DATABASE_MIGRATION_URL` must match for remote targets, so a swapped secret cannot migrate the wrong database.         |
-| `DATABASE_MIGRATION_EXPECTED_DATABASE` | No       |         | migrate | No     | Database name `DATABASE_MIGRATION_URL` must match; required for the `compose-internal` transport.                           |
-| `LICTORY_ENVIRONMENT`                  | No       |         | migrate | No     | Name of the environment the stack runs (`production`, `staging`); confirms the target for the `compose-internal` transport. |
-| `MIGRATION_LOCK_WAIT_SECONDS`          | No       | `300`   | migrate | No     | How long to wait for another migration run's lock before giving up.                                                         |
-| `MIGRATION_LOCK_TIMEOUT`               | No       | `10s`   | migrate | No     | PostgreSQL `lock_timeout` while migrating.                                                                                  |
-| `MIGRATION_STATEMENT_TIMEOUT`          | No       | `10min` | migrate | No     | PostgreSQL `statement_timeout` while migrating.                                                                             |
+| Variable                               | Required | Default | Read by           | Secret | Description                                                                                                                 |
+| -------------------------------------- | -------- | ------- | ----------------- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_MIGRATION_TARGET`            | No       | `local` | migrate           | No     | Which environment the migration runner may change. See docs/operations/migrations.md.                                       |
+| `DATABASE_MIGRATION_TRANSPORT`         | No       | `tls`   | migrate           | No     | How a remote target is reached: TLS, or the single-server Compose network.                                                  |
+| `DATABASE_MIGRATION_URL`               | No       |         | migrate, database | Yes    | Owner-role connection for migrations; required for every remote target.                                                     |
+| `DATABASE_MIGRATION_EXPECTED_HOST`     | No       |         | migrate           | No     | Host `DATABASE_MIGRATION_URL` must match for remote targets, so a swapped secret cannot migrate the wrong database.         |
+| `DATABASE_MIGRATION_EXPECTED_DATABASE` | No       |         | migrate           | No     | Database name `DATABASE_MIGRATION_URL` must match; required for the `compose-internal` transport.                           |
+| `LICTORY_ENVIRONMENT`                  | No       |         | migrate           | No     | Name of the environment the stack runs (`production`, `staging`); confirms the target for the `compose-internal` transport. |
+| `MIGRATION_LOCK_WAIT_SECONDS`          | No       | `300`   | migrate           | No     | How long to wait for another migration run's lock before giving up.                                                         |
+| `MIGRATION_LOCK_TIMEOUT`               | No       | `10s`   | migrate           | No     | PostgreSQL `lock_timeout` while migrating.                                                                                  |
+| `MIGRATION_STATEMENT_TIMEOUT`          | No       | `10min` | migrate           | No     | PostgreSQL `statement_timeout` while migrating.                                                                             |
 
 ## Authentication
 

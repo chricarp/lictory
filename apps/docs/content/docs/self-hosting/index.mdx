@@ -14,18 +14,19 @@ https://lictory.example.com ──▶ proxy (Caddy: TLS, routing, security heade
                                  └─ zero-cache ──▶ postgres
 ```
 
-| Service      | Purpose                                                                      |
-| ------------ | ---------------------------------------------------------------------------- |
-| `proxy`      | The only public entry point: the app, the API, streaming and the sync socket |
-| `api`        | API, authentication, file access and the application's pages                 |
-| `worker`     | Background jobs: AI runs, notification email, Jira exports and status sync   |
-| `zero-cache` | Realtime sync engine with a replica that can always be rebuilt               |
-| `postgres`   | The source of truth: the only data that must be backed up                    |
-| `migrate`    | One-shot: applies database migrations before a release is activated          |
-| `ops`        | One-shot: backups, restores and monitoring checks                            |
+| Service      | Purpose                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxy`      | The only public entry point: the app, the API, streaming and the sync socket                                                                  |
+| `api`        | API, authentication, file access and the application's pages                                                                                  |
+| `worker`     | Background jobs: AI runs, notification email, Jira exports and status sync                                                                    |
+| `zero-cache` | Realtime sync engine with a replica that can always be rebuilt                                                                                |
+| `postgres`   | The source of truth: the only data that must be backed up. Optional: any compatible [external database](/self-hosting/database) works instead |
+| `migrate`    | One-shot: applies database migrations before a release is activated                                                                           |
+| `ops`        | One-shot: backups, restores and monitoring checks                                                                                             |
 
 PostgreSQL and zero-cache are on an internal network with no route to or from
-the internet. Only the proxy publishes ports (80 and 443).
+the internet; with an external database, zero-cache and migrations reach it
+over TLS instead. Only the proxy publishes ports (80 and 443).
 
 ## Requirements
 
@@ -41,6 +42,9 @@ the internet. Only the proxy publishes ports (80 and 443).
   configuration.
 - An email service (SMTP or Resend) so people can verify addresses and
   receive invitations.
+
+PostgreSQL runs on the server unless you choose your own server or a managed
+service that meets [Lictory's requirements](/self-hosting/database).
 
 Optional: an S3-compatible bucket for attachments, an OpenAI API key for
 Lictory Intelligence, your company identity provider for single sign-on,

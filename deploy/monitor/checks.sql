@@ -3,6 +3,15 @@
 -- An empty result means healthy. Thresholds are deliberately coarse; the
 -- monitor runs every five minutes. Variables: :slot_lag_bytes, :wal_bytes.
 
+-- The WAL directory's size, where this role may list it (pg_monitor; an
+-- external database's provider may not grant it and watches its own disk).
+SELECT has_function_privilege('pg_ls_waldir()', 'EXECUTE') AS can_list_wal \gset
+\if :can_list_wal
+SELECT 'wal_size', format('pg_wal holds %s', pg_size_pretty(sum(size)))
+FROM pg_ls_waldir()
+HAVING sum(size) > :wal_bytes;
+\endif
+
 -- Zero's logical replication slot: lag, lost or abandoned slots retain WAL.
 SELECT 'replication_slot',
        format('%s: %s behind, wal_status=%s, active=%s', slot_name,
@@ -23,10 +32,6 @@ SELECT 'replication_slot', format('%s is orphaned (another slot is active); drop
 FROM pg_replication_slots s
 WHERE s.slot_type = 'logical' AND NOT s.active
   AND EXISTS (SELECT 1 FROM pg_replication_slots a WHERE a.slot_type = 'logical' AND a.active)
-UNION ALL
-SELECT 'wal_size', format('pg_wal holds %s', pg_size_pretty(sum(size)))
-FROM pg_ls_waldir()
-HAVING sum(size) > :wal_bytes
 UNION ALL
 -- AI reviews: failures in the last day, runs stuck in running or queued.
 SELECT 'ai_run', format('%s failed in the last 24 h', count(*))

@@ -21,7 +21,10 @@ while IFS= read -r line; do
   [ -n "$line" ] && add host "$line"
 done <<<"${HOST_REPORT:-}"
 
-# Database checks (connection failures are a problem too).
+# Database checks (connection failures are a problem too). An external
+# database with sslmode=verify-full and no DATABASE_CA_FILE verifies against
+# the system CAs.
+[ -n "${PGSSLROOTCERT:-}" ] || [ "${PGSSLMODE:-}" != verify-full ] || export PGSSLROOTCERT=system
 if output=$(psql -X -A -t -F ' | ' -v ON_ERROR_STOP=1 \
   -v slot_lag_bytes="${MONITOR_SLOT_LAG_ALERT_BYTES:-2147483648}" \
   -v wal_bytes="${MONITOR_WAL_ALERT_BYTES:-6442450944}" \
@@ -43,7 +46,9 @@ probe zero-cache http://zero-cache:4848/keepalive
 # Backup freshness (written by backup.sh on this volume), unless backups are
 # deliberately disabled. Webhooks and pings are optional (skipped when unset).
 max_age=$(( ${MONITOR_BACKUP_MAX_AGE_HOURS:-30} * 3600 ))
-if [ "${BACKUP_TARGET:-s3}" = none ]; then
+if [ "${LICTORY_DATABASE:-bundled}" = external ]; then
+  echo "Note: the database is external; its provider's backups are not checked here."
+elif [ "${BACKUP_TARGET:-s3}" = none ]; then
   echo "Note: backups are disabled (BACKUP_TARGET=none); backup freshness is not checked."
 elif [ -f /backups/last-success.json ]; then
   completed=$(jq -r .completed_at /backups/last-success.json)

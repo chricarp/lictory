@@ -1,5 +1,6 @@
 // Pure safety rules for the migration runner (scripts/migrate.ts). Kept free of
 // I/O so the guarantees are unit-tested. See docs/operations/migrations.md.
+import { poolerHostReason } from "@lictory/core/db/connection-rules";
 
 /**
  * Well-known targets. `local` and `test` migrate local databases only;
@@ -189,9 +190,10 @@ export function resolveMigrationConnection(
       `The ${target} target cannot point at a local database host.`,
     );
   }
-  if (host.includes("-pooler")) {
+  const pooler = poolerHostReason(host);
+  if (pooler) {
     throw new MigrationConfigurationError(
-      "Migrations require a direct (unpooled) connection; transaction poolers break advisory locks and session settings.",
+      `Migrations require a direct (unpooled) connection; transaction poolers break advisory locks and session settings (${pooler}).`,
     );
   }
   if (sslmode !== "require" && sslmode !== "verify-full") {
