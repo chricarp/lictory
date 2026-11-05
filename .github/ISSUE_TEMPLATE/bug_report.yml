@@ -98,14 +98,18 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Hosted or self-hosted, commit if known, browser and OS.
-      placeholder: main @ abc1234, Chrome 141, macOS 26
+      description: Self-hosted release (`lictory status` shows it) or local development commit, browser and OS.
+      placeholder: self-hosted 1.4.2 (stable), Chrome 141, macOS 26
 
   - type: textarea
     id: logs
     attributes:
       label: Logs or errors
-      description: The most relevant output only, redacted.
+      description: >-
+        The most relevant output only, redacted. On a self-hosted server,
+        `sudo lictory support-bundle` collects versions, status, doctor and
+        logs with secrets and email addresses removed: copy the relevant
+        lines from it. Never attach the whole archive to a public issue.
       render: shell
 
   - type: upload

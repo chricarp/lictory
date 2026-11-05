@@ -16,13 +16,17 @@ body:
     id: version
     attributes:
       label: Release or commit and environment
-      description: Include OS, browser, and local or self-hosted setup.
+      description: Include OS, browser, and local or self-hosted setup (`lictory status` shows the release).
     validations:
       required: true
   - type: textarea
     id: attempts
     attributes:
       label: What have you tried?
-      description: Include relevant redacted errors and the expected result.
+      description: >-
+        Include relevant redacted errors and the expected result. On a
+        self-hosted server, `lictory doctor` and `sudo lictory support-bundle`
+        (secrets and email addresses removed) help; paste only the relevant
+        lines.
     validations:
       required: true

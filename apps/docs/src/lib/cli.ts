@@ -35,13 +35,18 @@ export const commands = {
     summary:
       "Set a new password for an account and sign it out everywhere; deactivate and reactivate block or restore sign-in.",
   },
+  version: {
+    usage: "lictory version [--json]",
+    summary:
+      "The release of the host tools and of every environment on the server, with its channel.",
+  },
   status: {
     usage: "lictory status [--json]",
     summary:
       "Active version, release channel, the health of each service and the access policy.",
   },
   doctor: {
-    usage: "lictory doctor",
+    usage: "lictory doctor [--json]",
     summary:
       "Check the host, the configuration, DNS, certificates, backups and replication, and explain what to fix. Sends no alerts.",
   },
@@ -53,7 +58,7 @@ export const commands = {
   upgrade: {
     usage: "sudo lictory upgrade [version]",
     summary:
-      "Move forward to the newest release of the configured channel, or to an exact newer version: verified digests, backup, migrations, then activation.",
+      "Move forward to the newest release of the configured channel, or to an exact newer version: verified digests, backup, migrations, then activation. --check only reports whether a newer release exists (exit 10).",
   },
   rollback: {
     usage: "sudo lictory rollback",
@@ -65,6 +70,11 @@ export const commands = {
     summary:
       "Take a database backup now, encrypted when a backup key is configured.",
   },
+  "backup-list": {
+    usage: "sudo lictory backup list [--json]",
+    summary:
+      "The stored backups in the configured target, newest first: daily, weekly, monthly, manual and pre-deploy, with the key to restore each.",
+  },
   restore: {
     usage: "sudo lictory restore <identity-file|none> [latest|<key>|<file>]",
     summary:
@@ -74,6 +84,16 @@ export const commands = {
     usage: "lictory logs [service] [-f] [--tail N]",
     summary:
       "Show the logs of every service, or of one (proxy, api, worker, zero-cache, postgres).",
+  },
+  "support-bundle": {
+    usage: "sudo lictory support-bundle [--since 24h]",
+    summary:
+      "Write one archive for a bug report: versions, status, doctor, settings and recent logs, with secrets, email addresses and tokens removed.",
+  },
+  uninstall: {
+    usage: "sudo lictory uninstall [--purge]",
+    summary:
+      "Stop an environment and remove its containers and timers, keeping its data and settings; --purge deletes it for good after a final off-server backup and a typed confirmation.",
   },
   "registry-login": {
     usage: "sudo lictory registry-login --username <user>",

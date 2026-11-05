@@ -20,6 +20,22 @@ In a project whose delivery happens **in Jira**, Lictory owns refinement
 3. People who hand off work need a discipline with the **Hand off**
    capability in the project.
 
+Stored tokens are encrypted with the server's `DELIVERY_CREDENTIALS_KEY`, which
+the installer generates. An installation created before it existed has none:
+
+- **Jira was never connected:** connecting is refused until the key is set.
+  Set a new one once; never change it afterwards.
+
+  ```sh
+  sudo lictory config set DELIVERY_CREDENTIALS_KEY=$(openssl rand -hex 32)
+  ```
+
+- **Jira is already connected:** its tokens use a key derived from
+  `BETTER_AUTH_SECRET` and keep working. To make the two independent, set
+  the key to the current `BETTER_AUTH_SECRET` value, which derives the same
+  key ([configuration runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/configuration.md#delivery-credentials-key)).
+  A random key would make the stored tokens unreadable.
+
 Only Jira Cloud sites are accepted (`<site>.atlassian.net`, or a legacy
 `<site>.jira.com`, over HTTPS). Lictory never follows redirects from Jira.
 Self-managed Jira Data Center is not supported yet.

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Callout } from "fumadocs-ui/components/callout";
 import { CodeBlock, Pre } from "fumadocs-ui/components/codeblock";
 
@@ -26,11 +27,8 @@ export function CliNotice() {
       Commands marked <em>lictory CLI</em> belong to the <code>lictory</code>{" "}
       command, which installs and operates a server. Every command takes{" "}
       <code>--env</code> for a second environment on the same server; run{" "}
-      <code>lictory help</code> for the flags, or read the{" "}
-      <a href="https://github.com/chricarp/lictory/blob/main/docs/operations/self-hosting.md">
-        self-hosting runbook
-      </a>
-      .
+      <code>lictory &lt;command&gt; --help</code> for its options, or see the{" "}
+      <Link href="/self-hosting/commands">command reference</Link>.
     </Callout>
   );
 }

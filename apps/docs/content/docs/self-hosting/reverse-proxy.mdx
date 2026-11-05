@@ -15,20 +15,36 @@ application's assets, sets the security headers and checks the WebSocket
 | Existing reverse proxy or ingress | Your proxy               | `PROXY_SCHEME=http`, `PLATFORM_URL`, bindings, trusted proxies |
 | Plain HTTP (evaluation only)      | Nobody                   | `PROXY_SCHEME=http`, `PLATFORM_URL=http://…`                   |
 
+The installer sets each of these up (`--tls acme|internal|proxy|http`); the
+settings below are what it writes, for reference or a hand-made `.env`.
+
 ## Behind an existing reverse proxy
+
+```sh
+sudo lictory install --tls proxy --host lictory.example.com \
+  --http-port 8080 --bind 127.0.0.1 --public-url https://lictory.example.com
+```
+
+`lictory doctor` then prints the address your proxy connects from; set it with
+`sudo lictory install --trusted-proxies <address>`.
 
 Run the gateway as plain HTTP on a private address and let your proxy
 terminate TLS:
 
 ```sh
-APP_HOST=lictory.example.com            # the Host header your proxy forwards
+# The Host header your proxy forwards.
+APP_HOST=lictory.example.com
 PLATFORM_URL=https://lictory.example.com
 PROXY_SCHEME=http
 HTTP_PORT=8080
-HTTP_BINDING=127.0.0.1:8080:80           # or a private address your proxy reaches
-HTTPS_BINDING=127.0.0.1:8443:443         # unused, but kept off the public 443
-CADDY_TRUSTED_PROXIES=172.18.0.1         # the address your proxy connects from
-ACME_EMAIL=ops@example.com               # required, unused over HTTP
+# Or a private address your proxy reaches.
+HTTP_BINDING=127.0.0.1:8080:80
+# Unused, but kept off the public 443.
+HTTPS_BINDING=127.0.0.1:8443:443
+# The address your proxy connects from.
+CADDY_TRUSTED_PROXIES=172.18.0.1
+# Required, unused over HTTP.
+ACME_EMAIL=ops@example.com
 ```
 
 Your proxy must:
@@ -85,16 +101,36 @@ The gateway can obtain certificates from an internal ACME CA (step-ca, Vault,
 AD CS with ACME):
 
 ```sh
+sudo lictory install --tls internal --host lictory.internal.example \
+  --acme-ca https://ca.internal.example/acme/acme/directory --acme-email ops@example.com
+```
+
+which writes:
+
+```sh
 CADDY_GLOBAL_OPTIONS=acme_ca https://ca.internal.example/acme/acme/directory
 ```
 
-With `CADDY_GLOBAL_OPTIONS=local_certs` the gateway becomes its own CA;
-distribute its root certificate to your users' trust stores. To use existing
+Without `--acme-ca` (`CADDY_GLOBAL_OPTIONS=local_certs`) the gateway becomes
+its own CA. Distribute its root certificate to your users' trust stores:
+
+```sh
+sudo /srv/lictory/bin/lictory-compose production exec -T proxy \
+  cat /data/caddy/pki/authorities/local/root.crt > lictory-root.crt
+```
+
+To use existing
 certificate files, terminate TLS in a reverse proxy as above.
 
 ## Plain HTTP
 
 For a quick evaluation on `localhost` only:
+
+```sh
+sudo lictory install --tls http --host localhost --http-port 8080
+```
+
+which writes:
 
 ```sh
 APP_HOST=localhost
