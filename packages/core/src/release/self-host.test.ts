@@ -483,6 +483,9 @@ void test(
       first.stdout,
       /Lictory is up: https:\/\/lictory\.example\.test/,
     );
+    // Eight counted steps, then an uncounted "Next steps" (not "[9/8]").
+    assert.match(first.stdout, /== \[8\/8\] First administrator/);
+    assert.match(first.stdout, /^== Next steps$/m);
 
     const secret = /^BETTER_AUTH_SECRET=.*$/m.exec(created)![0];
     const second = f.lictory([
