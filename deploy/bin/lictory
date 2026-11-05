@@ -2072,9 +2072,16 @@ cmd_bootstrap() {
   mv "$root/share/.bundle.new" "$root/share/bundle"
   chown -R "$user" "$root/share" 2>/dev/null || true
   step "Ready"
-  say "Install and start Lictory:  sudo lictory install"
-  say "Without questions:          sudo lictory install --yes --host lictory.example.com --acme-email ops@example.com"
-  say "Guide: https://github.com/$repository/blob/main/docs/operations/self-hosting.md"
+  # LICTORY_ENV names the environment to prepare; install must be told too,
+  # since it defaults to production until an environment exists.
+  local flag=""
+  [ "$environment" = production ] || flag=" --env $environment"
+  say "The lictory command is installed. Next, install and start Lictory:"
+  say ""
+  say "  sudo lictory install$flag            guided: checks, address, email, backups, first administrator"
+  say "  sudo lictory install$flag --help     every option, for an unattended install with --yes"
+  say ""
+  say "Guide: https://docs.lictory.com/self-hosting/install"
 }
 
 # ---------------------------------------------------------- everyday commands

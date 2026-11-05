@@ -327,7 +327,11 @@ void test("get.sh installs the tooling of the newest stable release after verify
   assert.ok(
     existsSync(join(f.root, "share/bundle/env/self-hosted.env.example")),
   );
-  assert.match(result.stdout, /sudo lictory install/);
+  assert.match(result.stdout, /sudo lictory install /);
+  // Another environment name reaches the printed next command.
+  const staging = f.getSh({ LICTORY_ENV: "staging" });
+  assert.equal(staging.status, 0, staging.stderr);
+  assert.match(staging.stdout, /sudo lictory install --env staging /);
 });
 
 void test("get.sh refuses a release.env that does not match GitHub's digest", (t) => {
