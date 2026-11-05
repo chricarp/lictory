@@ -1426,9 +1426,13 @@ function CreatePR({
               />
             </label>
             <label className="block space-y-1 text-xs font-medium">
-              Description
+              Description{" "}
+              <span className="font-normal text-muted-foreground">
+                (required)
+              </span>
               <textarea
                 aria-label="Pull request description"
+                required
                 className={`${field} py-2`}
                 rows={5}
                 value={description}
