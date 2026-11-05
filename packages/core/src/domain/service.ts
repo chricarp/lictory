@@ -1546,6 +1546,21 @@ async function snapshotItems(
       resultHashes.set(pr.id, pullRequestResultHash(pr, prBranches, prCommits));
     return resultHashes.get(pr.id);
   };
+  const pendingReviewersOf = (pr: (typeof pullRequests)[number]) => [
+    ...new Set(
+      (reviewsByPullRequest.get(pr.id) ?? [])
+        .filter(
+          (r) => r.decision !== "approved" || r.resultHash !== resultHash(pr),
+        )
+        .flatMap((r) =>
+          r.userId
+            ? [r.userId]
+            : (membersByDiscipline.get(r.disciplineId) ?? []).map(
+                (m) => m.userId,
+              ),
+        ),
+    ),
+  ];
   const entities: Entity[] = [
     ...projects.map((p) => serialize("project", p)),
     ...labels.map((l) => serialize("label", l)),
@@ -1559,21 +1574,7 @@ async function snapshotItems(
         suggestionReviewerIds: [
           ...new Set([
             ...summary.suggestionReviewerIds,
-            ...active
-              .flatMap((pr) =>
-                (reviewsByPullRequest.get(pr.id) ?? []).filter(
-                  (r) =>
-                    r.decision !== "approved" ||
-                    r.resultHash !== resultHash(pr),
-                ),
-              )
-              .flatMap((r) =>
-                r.userId
-                  ? [r.userId]
-                  : (membersByDiscipline.get(r.disciplineId) ?? []).map(
-                      (m) => m.userId,
-                    ),
-              ),
+            ...active.flatMap(pendingReviewersOf),
           ]),
         ],
       };
@@ -1664,7 +1665,13 @@ async function snapshotItems(
     ["revision", revisions],
     ["specBranch", branchRows],
     ["specCommit", commitRows],
-    ["pullRequest", itemPullRequests],
+    [
+      "pullRequest",
+      itemPullRequests.map((pr) => ({
+        ...pr,
+        pendingReviewerIds: pr.status === "open" ? pendingReviewersOf(pr) : [],
+      })),
+    ],
     ["prReview", prReviews.filter((r) => activePrIds.has(r.pullRequestId))],
     ["review", reviews],
     ["thread", threads],

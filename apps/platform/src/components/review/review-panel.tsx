@@ -16,6 +16,7 @@ import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { PullRequestsWaiting } from "@lictory/platform/components/review/pull-requests-waiting";
 
 // Reviews live on the item. Each row is one responsibility on the current
 // revision; decisions are only offered to assigned reviewers and always name
@@ -57,6 +58,7 @@ export function ReviewPanel() {
     );
   return (
     <section>
+      <PullRequestsWaiting />
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Review</SectionLabel>
         {active.length > 0 && (
