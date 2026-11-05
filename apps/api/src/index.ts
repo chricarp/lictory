@@ -2,7 +2,8 @@
 import "@lictory/api/configuration";
 
 import { serve } from "@hono/node-server";
-import { closeDatabase } from "@lictory/core/db";
+import { closeDatabase, db } from "@lictory/core/db";
+import { refreshAiAvailability } from "@lictory/core/domain/ai";
 import { realtime } from "@lictory/core/domain/realtime";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
 import { env, envInteger } from "@lictory/core/lib/env";
@@ -76,6 +77,22 @@ const server = serve(
         port: info.port,
         hostname,
         mail,
+      }),
+    ),
+);
+
+// Organizations still showing the AI provider state from before this start.
+void refreshAiAvailability(db).then(
+  (refreshed) =>
+    refreshed &&
+    console.info(
+      JSON.stringify({ event: "api.ai_availability_refreshed", refreshed }),
+    ),
+  (error: unknown) =>
+    console.warn(
+      JSON.stringify({
+        event: "api.ai_availability_refresh_failed",
+        reason: error instanceof Error ? error.message : String(error),
       }),
     ),
 );
