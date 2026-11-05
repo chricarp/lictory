@@ -43,10 +43,8 @@ required in CI.
 
 `status` summarizes the address, the active release and when it was
 activated, each service's health, the backup timer's last and next run, and
-the access policy. On a terminal it is one panel; piped, it prints the same
-plain lines as before, and `status --json` returns JSON for scripts. `doctor` checks the host,
-configuration, DNS, certificates, backup setup and replication, and gives
-remediation advice without sending alerts.
+the access policy. On a terminal it is one panel; piped, the same facts are
+plain `key: value` lines, and `status --json` returns them as JSON for scripts.
 
 To follow only the background worker:
 
@@ -157,8 +155,21 @@ lictory doctor --env staging
 lictory logs api --env staging --tail 50
 ```
 
-Each environment has its own configuration and deployment lock. Check the
-environment before a write such as upgrade, restore or account administration.
+Each environment has its own configuration, database, Docker volumes and
+deployment lock. Check the environment before a write such as upgrade,
+restore or account administration.
+
+Environments on one server also share a few things:
+
+- **Ports.** Only one environment can serve ports 80 and 443 with automatic
+  HTTPS. Install the others with `--tls proxy` and a different
+  `--http-port` (for example 8081), behind a reverse proxy that routes each
+  host name to its port ([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+- **Host tooling.** The `lictory` command and the scripts in
+  `/srv/lictory/bin` come from the newest release activated on the server, so
+  upgrading staging first also updates the tools production uses. They stay
+  compatible with older releases; upgrade every environment of a server
+  within the same release line.
 
 ## Recover access
 

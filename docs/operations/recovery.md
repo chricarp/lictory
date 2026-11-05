@@ -70,8 +70,9 @@ fails the backup instead of silently skipping encryption. Restore drills take
 
 **Protecting history.** Make the backup storage refuse deletes and overwrites
 by the server's credential where it can, so a stolen credential cannot erase
-history: on Cloudflare R2 a bucket lock on the `daily/`, `weekly/` and
-`monthly/` prefixes, on AWS S3 or MinIO object lock (governance mode)
+history: on Cloudflare R2 a bucket lock on the `<environment>/daily/`,
+`<environment>/weekly/` and `<environment>/monthly/` prefixes (for example
+`production/daily/`), on AWS S3 or MinIO object lock (governance mode)
 retention, on a NAS snapshots or an append-only share. Add a lifecycle rule or
 snapshot expiry deleting objects older than 200 days as a safety net. Keep any
 retention lock shorter than the script's retention or pruning fails visibly.
