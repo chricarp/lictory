@@ -3175,17 +3175,20 @@ cmd_restore() {
   # database is down; they start again at the end, also after a failure.
   stop_timers
   restore_timers=true
+  # From here on, restore_cleanup brings the environment back on any exit:
+  # "stopped" restarts it on its untouched database, "replaced" puts the
+  # kept copy back first.
+  restore_image="$image" restore_active="$active" restore_keep="$keep"
+  restore_phase=stopped
   step "Stopping $environment"
   compose stop proxy api worker zero-cache postgres
   step "Keeping the current database in $keep"
-  docker volume create "$keep" >/dev/null
-  docker run --rm --network none --entrypoint cp -v "${project}_postgres_data:/from:ro" -v "$keep:/to" "$image" -a /from/. /to/ || {
-    deploy_locked activate "$active" || true
-    die "Could not copy the current database; nothing was changed and $environment was started again."
-  }
-  restore_keep="$keep" restore_image="$image" restore_active="$active"
+  docker volume create "$keep" >/dev/null || die "Could not create the volume $keep; nothing was changed."
+  docker run --rm --network none --entrypoint cp -v "${project}_postgres_data:/from:ro" -v "$keep:/to" "$image" -a /from/. /to/ ||
+    die "Could not copy the current database (is the disk full?); nothing was changed."
   compose rm -fs postgres zero-cache >/dev/null
-  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume."
+  docker volume rm "${project}_postgres_data" >/dev/null || die "Could not remove the old database volume; nothing was changed."
+  restore_phase=replaced
   # zero-cache resyncs from the restored database.
   docker volume rm "${project}_zero_replica" >/dev/null 2>&1 || true
   step "Restoring"
@@ -3196,7 +3199,7 @@ cmd_restore() {
   step "Starting $active on the restored database"
   deploy_locked migrate "$active"
   deploy_locked activate "$active"
-  restore_keep=""
+  restore_phase=""
   check_ok "Restored. Check the data, then remove the previous database: docker volume rm $keep"
 }
 
@@ -3204,7 +3207,7 @@ cmd_restore() {
 # a backup file, of the dump and manifest, each bind-mounted on its own (the
 # staging directory stays 0700; the container never traverses it).
 restore_work="" restore_target="" restore_mounts=()
-restore_keep="" restore_image="" restore_active="" restore_timers=false
+restore_keep="" restore_image="" restore_active="" restore_timers=false restore_phase=""
 restore_stage() {
   local identity="$1" source="$2" manifest
   if [ "$identity" = none ]; then : >"$restore_work/age-identity"; else cat "$identity" >"$restore_work/age-identity"; fi
@@ -3231,28 +3234,45 @@ deploy_locked() { as_deploy env LICTORY_DEPLOY_LOCK_HELD=1 "$bin/deploy.sh" "$en
 # kept copy back and start the release again; always remove the staging copy
 # of the identity and restart the timers.
 restore_cleanup() {
-  local status=$?
-  if [ -n "$restore_keep" ]; then
-    printf '\n' >&2
-    warn "The restore failed. Putting the previous database back from $restore_keep."
-    if compose rm -fs postgres zero-cache >/dev/null 2>&1 &&
-      { docker volume rm "lictory-${environment}_postgres_data" >/dev/null 2>&1 || true; } &&
-      { docker volume rm "lictory-${environment}_zero_replica" >/dev/null 2>&1 || true; } &&
-      compose create postgres >/dev/null 2>&1 &&
-      docker run --rm --network none --entrypoint cp -v "$restore_keep:/from:ro" \
-        -v "lictory-${environment}_postgres_data:/to" "$restore_image" -a /from/. /to/ &&
-      compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
-      deploy_locked activate "$restore_active" >/dev/null 2>&1; then
-      warn "$environment runs $restore_active on its previous database again. The failed restore changed nothing."
-    else
-      warn "Putting it back failed too. The previous database is intact in the Docker volume $restore_keep."
-      note "Put it back by hand:"
-      note "  sudo lictory uninstall --yes"
-      note "  docker volume rm lictory-${environment}_postgres_data"
-      note "  docker run --rm --entrypoint cp -v $restore_keep:/from:ro -v lictory-${environment}_postgres_data:/to $restore_image -a /from/. /to/"
-      note "  sudo lictory config apply"
-    fi
-  fi
+  local status=$? data="lictory-${environment}_postgres_data"
+  case "$restore_phase" in
+    stopped)
+      # The database was never touched: start it, then the release.
+      if compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
+        deploy_locked activate "$restore_active" >/dev/null 2>&1; then
+        warn "The restore stopped before changing the database; $environment runs $restore_active again."
+      else
+        warn "The restore stopped before changing the database, but $environment did not start again."
+        note "Start it: sudo lictory config apply   (then: lictory doctor)"
+      fi
+      docker volume rm "$restore_keep" >/dev/null 2>&1 || true
+      ;;
+    replaced)
+      printf '\n' >&2
+      warn "The restore failed. Putting the previous database back from $restore_keep."
+      # Copy only into a freshly created volume: copying over what the
+      # failed restore left would mix two clusters.
+      compose rm -fs postgres zero-cache >/dev/null 2>&1 || true
+      docker volume rm "$data" >/dev/null 2>&1 || true
+      docker volume rm "lictory-${environment}_zero_replica" >/dev/null 2>&1 || true
+      if ! docker volume inspect "$data" >/dev/null 2>&1 &&
+        compose create postgres >/dev/null 2>&1 &&
+        docker run --rm --network none --entrypoint cp -v "$restore_keep:/from:ro" \
+          -v "$data:/to" "$restore_image" -a /from/. /to/ &&
+        compose up -d --wait --wait-timeout 180 postgres >/dev/null 2>&1 &&
+        deploy_locked activate "$restore_active" >/dev/null 2>&1; then
+        warn "$environment runs $restore_active on its previous database again. The failed restore changed nothing."
+      else
+        warn "Putting it back failed too. The previous database is intact in the Docker volume $restore_keep."
+        note "Put it back by hand:"
+        note "  sudo lictory uninstall --yes"
+        note "  docker volume rm $data   (it must be gone before the next step)"
+        note "  docker volume create $data"
+        note "  docker run --rm --entrypoint cp -v $restore_keep:/from:ro -v $data:/to $restore_image -a /from/. /to/"
+        note "  sudo lictory config apply"
+      fi
+      ;;
+  esac
   [ -z "$restore_work" ] || rm -rf "$restore_work"
   [ "$restore_timers" != true ] || start_timers
   return "$status"

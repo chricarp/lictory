@@ -156,6 +156,16 @@ else if (args[0] === "compose" && args[1] === "version") console.log("2.30.0");
 else if (args[0] === "info") console.log(${JSON.stringify(base)});
 else if (args[0] === "pull" && process.env.FAKE_PULL_ERROR) { console.error(process.env.FAKE_PULL_ERROR); process.exit(1); }
 else if (args[0] === "create") console.log("bundle-container");
+// Volumes: removed ones are gone. FAKE_VOLUME_STAYS_AFTER=<file>: the first
+// removal of the database volume works, every later one fails (the file
+// marks it). FAKE_COPY_FAILS fails copying a database volume.
+else if (args[0] === "volume" && args[1] === "inspect") process.exit(process.env.FAKE_VOLUME_STAYS_AFTER && existsSync(process.env.FAKE_VOLUME_STAYS_AFTER + ".again") ? 0 : 1);
+else if (args[0] === "volume" && args[1] === "rm" && process.env.FAKE_VOLUME_STAYS_AFTER && args.some((a) => a.endsWith("_postgres_data"))) {
+  const marker = process.env.FAKE_VOLUME_STAYS_AFTER;
+  if (existsSync(marker)) { writeFileSync(marker + ".again", ""); process.exit(1); }
+  writeFileSync(marker, "");
+}
+else if (args[0] === "run" && args.includes("cp") && process.env.FAKE_COPY_FAILS) process.exit(1);
 else if (args[0] === "cp") cpSync(${JSON.stringify(bundle)}, args.at(-1), { recursive: true });`,
   );
   const script = (name: string, body: string) =>
@@ -1553,6 +1563,45 @@ esac
       copies[1]!.args.join(" "),
       /postgres_data-before-restore-.*:\/from:ro/,
     );
+
+    // Copying the current database fails (a full disk): nothing changed, and
+    // PostgreSQL is started before the release.
+    const copyFailed = restore({ FAKE_COPY_FAILS: "1" });
+    assert.equal(copyFailed.status, 1);
+    assert.match(
+      copyFailed.stderr,
+      /is the disk full\?\); nothing was changed/,
+    );
+    assert.match(
+      copyFailed.stderr,
+      /stopped before changing the database; production runs 1\.2\.3 again/,
+    );
+    const afterCopy = readFileSync(log, "utf8");
+    assert.match(
+      afterCopy,
+      /compose production up -d --wait --wait-timeout 180 postgres/,
+    );
+    steps();
+    assert.deepEqual(activations(copyFailed.calls), ["activate 1.2.3"]);
+
+    // After the cutover, the failed restore's volume cannot be removed: the
+    // kept copy is never copied over it, and the manual steps are printed.
+    const stuck = restore({
+      FAKE_RESTORE_FAILS: "1",
+      FAKE_VOLUME_STAYS_AFTER: join(f.base, "volume-removed"),
+    });
+    assert.equal(stuck.status, 1);
+    assert.match(
+      stuck.stderr,
+      /Putting it back failed too\. The previous database is intact/,
+    );
+    assert.match(stuck.stdout, /it must be gone before the next step/);
+    const stuckCopies = stuck.calls.filter(
+      (call) => call.name === "docker" && call.args.includes("cp"),
+    );
+    assert.equal(stuckCopies.length, 1); // only the copy kept before the cutover
+    assert.deepEqual(activations(stuck.calls), []);
+    steps();
 
     // A successful restore migrates and activates inside the held lock.
     const restored = restore();

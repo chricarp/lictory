@@ -39,8 +39,10 @@ mkdir -p /backups/latest
 umask 077
 # One backup at a time per environment (scheduled, manual and pre-deploy
 # runs share this volume): a second one waits, then gives up after an hour.
+# (BusyBox flock has no -w: timeout bounds the wait; the lock belongs to fd 8,
+# so it stays held after flock itself exits.)
 exec 8>/backups/.backup.lock
-flock -w 3600 8 || { echo "Another backup of ${LICTORY_ENVIRONMENT} has been running for an hour; not starting a second one." >&2; exit 75; }
+timeout 3600 flock 8 || { echo "Another backup of ${LICTORY_ENVIRONMENT} has been running for an hour; not starting a second one." >&2; exit 75; }
 work=$(mktemp -d "/backups/work-${stamp}.XXXXXX")
 
 ping() { # ping <suffix> <message>
