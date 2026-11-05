@@ -29,9 +29,10 @@ lives on the server; keep the private identity offline. Backups run nightly
 at 02:30 UTC, and before every release that has migrations. Retention: 7
 daily, 4 weekly, 6 monthly and the last 10 pre-deploy and manual backups.
 
-Take one now:
+Take one now, or see the stored backups (newest first, with their kind,
+time, size and the key `lictory restore` takes):
 
-<Cli command="backup" />
+<Cli command={["backup", "backup-list"]} />
 
 | `BACKUP_TARGET` | Where backups go                                                             |
 | --------------- | ---------------------------------------------------------------------------- |
@@ -62,6 +63,17 @@ sudo lictory restore /path/to/age-identity.txt latest --drill
 ## Restore
 
 <Cli command="restore" />
+
+Before anything changes, the command shows which backup it will use (its
+key, when it was taken, its size and whether it is encrypted) and asks you
+to type the environment name. It refuses a key that is not in the target
+(see `lictory backup list`) and an encrypted backup without its identity
+file. It then downloads, decrypts and checks the backup against its
+manifest while Lictory keeps running: a wrong identity or unreachable
+storage stops it there. During the restore it holds the environment's
+deployment lock and pauses the scheduled backups and the monitor. If a later
+step fails, the previous database is put back and the release started on
+it again.
 
 Restoring replaces the database with a backup: writes made after that backup
 are lost, and zero-cache rebuilds its replica so clients resync. Jira items

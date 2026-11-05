@@ -32,14 +32,20 @@ terminate TLS with your certificates:
 
 ```sh
 # <root>/<environment>/.env
-APP_HOST=lictory.example.com            # the Host header your proxy forwards
+# The Host header your proxy forwards.
+APP_HOST=lictory.example.com
 PLATFORM_URL=https://lictory.example.com
 PROXY_SCHEME=http
-HTTP_PORT=8080                           # deploy.sh verifies through this port
-HTTP_BINDING=127.0.0.1:8080:80           # or a private address your proxy reaches
-HTTPS_BINDING=127.0.0.1:8443:443         # unused, but kept off the public 443
-CADDY_TRUSTED_PROXIES=172.18.0.1         # the peer address the gateway sees (below)
-ACME_EMAIL=ops@example.com               # required by Compose, unused over HTTP
+# Deploy.sh verifies through this port.
+HTTP_PORT=8080
+# Or a private address your proxy reaches.
+HTTP_BINDING=127.0.0.1:8080:80
+# Unused, but kept off the public 443.
+HTTPS_BINDING=127.0.0.1:8443:443
+# The peer address the gateway sees (below)
+CADDY_TRUSTED_PROXIES=172.18.0.1
+# Required by Compose, unused over HTTP.
+ACME_EMAIL=ops@example.com
 ```
 
 Requirements for the proxy in front:
@@ -228,7 +234,7 @@ Caveats:
 
 ## After any change
 
-Release or re-activate the environment (`deploy.sh <env> activate <version>`),
+Release or re-activate the environment (`sudo lictory config apply`),
 then check: sign-in, live updates between two browsers (Zero WebSocket), a
 streamed AI answer or the notifications stream (`/api/events`), an attachment
 upload, and the client address in the gateway log.

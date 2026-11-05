@@ -8,8 +8,10 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  lstatSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -112,6 +114,7 @@ cpSync(${JSON.stringify(join(base, "deploy.sh"))}, root + "/bin/deploy.sh");`,
     join(base, "deploy-stub"),
     "deploy.sh",
     `const home = process.env.LICTORY_ROOT + "/" + args[0];
+if (args[1] === "release" && process.env.FAKE_RELEASE_FAILS) process.exit(1);
 if (args[1] === "release") {
   const version = /^LICTORY_VERSION=(.*)$/m.exec(stdin)[1];
   mkdirSync(home + "/releases/" + version, { recursive: true });
@@ -120,7 +123,15 @@ if (args[1] === "release") {
   symlinkSync("releases/" + version, home + "/current");
   console.log(version);
 }
-if (args[1] === "status") console.log("{}");`,
+if (args[1] === "status") console.log("{}");
+// FAKE_ACTIVATE_EDITS: someone edits .env by hand while activation runs.
+if (args[1] === "activate" && process.env.FAKE_ACTIVATE_EDITS) appendFileSync(home + "/.env", process.env.FAKE_ACTIVATE_EDITS);
+// FAKE_ACTIVATE_FAILS_WITH: activation fails while .env contains this text.
+const failsWith = process.env.FAKE_ACTIVATE_FAILS_WITH;
+if (args[1] === "activate" && failsWith && readFileSync(home + "/.env", "utf8").includes(failsWith)) {
+  console.log("api did not become healthy");
+  process.exit(1);
+}`,
   );
   const routes: Record<string, Route> = {};
   const writeRoutes = () =>
@@ -152,6 +163,16 @@ else if (args[0] === "compose" && args[1] === "version") console.log("2.30.0");
 else if (args[0] === "info") console.log(${JSON.stringify(base)});
 else if (args[0] === "pull" && process.env.FAKE_PULL_ERROR) { console.error(process.env.FAKE_PULL_ERROR); process.exit(1); }
 else if (args[0] === "create") console.log("bundle-container");
+// Volumes: removed ones are gone. FAKE_VOLUME_STAYS_AFTER=<file>: the first
+// removal of the database volume works, every later one fails (the file
+// marks it). FAKE_COPY_FAILS fails copying a database volume.
+else if (args[0] === "volume" && args[1] === "inspect") process.exit(process.env.FAKE_VOLUME_STAYS_AFTER && existsSync(process.env.FAKE_VOLUME_STAYS_AFTER + ".again") ? 0 : 1);
+else if (args[0] === "volume" && args[1] === "rm" && process.env.FAKE_VOLUME_STAYS_AFTER && args.some((a) => a.endsWith("_postgres_data"))) {
+  const marker = process.env.FAKE_VOLUME_STAYS_AFTER;
+  if (existsSync(marker)) { writeFileSync(marker + ".again", ""); process.exit(1); }
+  writeFileSync(marker, "");
+}
+else if (args[0] === "run" && args.includes("cp") && process.env.FAKE_COPY_FAILS) process.exit(1);
 else if (args[0] === "cp") cpSync(${JSON.stringify(bundle)}, args.at(-1), { recursive: true });`,
   );
   const script = (name: string, body: string) =>
@@ -490,8 +511,8 @@ void test(
       first.stdout,
       /Lictory is up: https:\/\/lictory\.example\.test/,
     );
-    // Eight counted steps, then an uncounted "Next steps" (not "[9/8]").
-    assert.match(first.stdout, /== \[8\/8\] First administrator/);
+    // Nine counted steps, then an uncounted "Next steps" (not "[10/9]").
+    assert.match(first.stdout, /== \[9\/9\] First administrator/);
     assert.match(first.stdout, /^== Next steps$/m);
 
     const secret = /^BETTER_AUTH_SECRET=.*$/m.exec(created)![0];
@@ -551,10 +572,30 @@ void test(
     ]);
     assert.equal(install.status, 0, install.stderr + install.stdout);
 
+    const current = f.lictory(["upgrade", "--check"]);
+    assert.equal(current.status, 0, current.stderr + current.stdout);
+    assert.match(current.stdout, /runs 1\.2\.3, the newest stable release/);
+
     f.route(
       `${api}/releases/latest`,
       JSON.stringify(githubRelease(f, "1.3.0")),
     );
+    // --check reports a newer release (exit 10) and changes nothing.
+    const check = f.lictory(["upgrade", "--check"]);
+    assert.equal(check.status, 10, check.stderr + check.stdout);
+    assert.match(check.stdout, /Lictory 1\.3\.0 is available for production/);
+    assert.ok(!check.calls.some((call) => call.name === "deploy.sh"));
+    const checkJson = f.lictory(["upgrade", "--check", "--json"]);
+    assert.equal(checkJson.status, 10);
+    assert.deepEqual(JSON.parse(checkJson.stdout), {
+      environment: "production",
+      version: "1.2.3",
+      channel: "stable",
+      latest: "1.3.0",
+      notes: "https://github.com/chricarp/lictory/releases/tag/v1.3.0",
+      upgradeAvailable: true,
+    });
+
     const upgrade = f.lictory(["upgrade", "--yes"]);
     assert.equal(upgrade.status, 0, upgrade.stderr + upgrade.stdout);
     assert.match(upgrade.stdout, /1\.2\.3 -> 1\.3\.0 \(stable\)/);
@@ -868,6 +909,1375 @@ void test("lictory admin passes commands to the api container", (t) => {
   const status = f.lictory(["admin", "status"], { FAKE_ADMINS: "2" });
   assert.equal(status.status, 0, status.stderr + status.stdout);
   assert.match(status.stdout, /administrators: 2/);
+});
+
+void test("every command explains itself with --help", (t) => {
+  const f = bootstrapped(t);
+  for (const [args, text] of [
+    [
+      ["install", "--help"],
+      /--database-host[\s\S]*--smtp-host[\s\S]*--backup-age-recipient/,
+    ],
+    [["help", "upgrade"], /Usage: lictory upgrade \[version\]/],
+    [["database", "check", "--help"], /Usage: lictory database check/],
+    [["help", "database"], /database setup/],
+    [["restore", "-h"], /--drill/],
+    [["config", "--help"], /set <KEY=value>/],
+    [["config", "set", "--help"], /unset <KEY>/],
+    [["admin", "grant", "--help"], /Usage: lictory admin <command>/],
+    [["help"], /config <command>/],
+  ] as const) {
+    const result = f.lictory([...args]);
+    assert.equal(result.status, 0, args.join(" ") + result.stderr);
+    assert.match(result.stdout, text, args.join(" "));
+    assert.deepEqual(result.calls, [], args.join(" "));
+  }
+});
+
+void test(
+  "lictory config changes settings, refuses typos and generated secrets, and undoes a change the services reject",
+  // About 25 CLI runs, each a full shell start on the stubbed host.
+  { timeout: 90_000 },
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const installed = f.lictory([...acmeInstall], {
+      LICTORY_SMTP_PASSWORD: "first-password",
+      LICTORY_EMAIL: "smtp",
+      LICTORY_SMTP_HOST: "smtp.example.test",
+    });
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const env = () => readFileSync(join(home, ".env"), "utf8");
+    const before = env();
+    // Applying starts or recreates PostgreSQL first (deploy.sh rolls only
+    // the services in front of it).
+    const composeLog = join(f.base, "compose.log");
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\necho "$*" >> "${composeLog}"\n`,
+      { mode: 0o755 },
+    );
+
+    // show masks secrets unless asked; get prints one value for scripts.
+    const shown = f.lictory(["config", "show"]);
+    assert.equal(shown.status, 0, shown.stderr);
+    assert.match(shown.stdout, /^APP_HOST=lictory\.example\.test$/m);
+    assert.match(shown.stdout, /^SMTP_PASSWORD=\*\*\*\*$/m);
+    assert.doesNotMatch(shown.stdout, /first-password/);
+    const json = f.lictory(["config", "show", "--json", "--reveal"]);
+    assert.equal(
+      (JSON.parse(json.stdout) as Record<string, string>).SMTP_PASSWORD,
+      "first-password",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_HOST"]).stdout,
+      "smtp.example.test\n",
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_USER"]).status, 1);
+
+    // A change is written, keeps a copy of the previous file and is applied.
+    const set = f.lictory([
+      "config",
+      "set",
+      "SMTP_HOST=mail.example.test",
+      "SMTP_PASSWORD=pa$$ #2",
+    ]);
+    assert.equal(set.status, 0, set.stderr + set.stdout);
+    assert.match(
+      set.stdout,
+      /SMTP_HOST: smtp\.example\.test -> mail\.example\.test/,
+    );
+    assert.match(
+      set.stdout,
+      /SMTP_PASSWORD: \*\*\*\* -> \*\*\*\* \(new value\)/,
+    );
+    assert.doesNotMatch(set.stdout + set.stderr, /pa\$\$ #2|first-password/);
+    assert.match(env(), /^SMTP_PASSWORD='pa\$\$ #2'$/m);
+    assert.equal(
+      env().replace(/^SMTP_(HOST|PASSWORD)=.*$/gm, ""),
+      before.replace(/^SMTP_(HOST|PASSWORD)=.*$/gm, ""),
+    );
+    assert.deepEqual(
+      set.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+    assert.equal(
+      readFileSync(composeLog, "utf8"),
+      "production up -d --wait --wait-timeout 180 postgres\n",
+    );
+    const backups = readdirSync(home).filter((name) =>
+      name.startsWith(".env.backup-"),
+    );
+    assert.equal(backups.length, 1);
+    assert.equal(readFileSync(join(home, backups[0]!), "utf8"), before);
+    assert.equal(statSync(join(home, ".env")).mode & 0o777, 0o600);
+    assert.ok(!readdirSync(home).some((name) => name.startsWith(".env.edit.")));
+
+    // Typos and generated secrets are refused before anything is written.
+    const current = env();
+    for (const [args, message] of [
+      [
+        ["config", "set", "SMPT_HOST=mail.example.test"],
+        /SMPT_HOST is not a setting this release reads/,
+      ],
+      [
+        ["config", "set", "BETTER_AUTH_SECRET=short"],
+        /changing it means everyone is signed out/,
+      ],
+      [
+        ["config", "set", "LICTORY_APP_PASSWORD=x"],
+        /PostgreSQL keeps the role's current password/,
+      ],
+    ] as const) {
+      const refused = f.lictory([...args]);
+      assert.equal(refused.status, 65, args.join(" "));
+      assert.match(refused.stderr + refused.stdout, message);
+      assert.equal(env(), current);
+      assert.ok(!refused.calls.some((call) => call.name === "deploy.sh"));
+    }
+    assert.equal(f.lictory(["config", "set", "smtp_host=x"]).status, 64);
+    const forced = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "--force",
+      "LICTORY_SCRATCH=1",
+    ]);
+    assert.equal(forced.status, 0, forced.stderr);
+    assert.match(env(), /^LICTORY_SCRATCH=1$/m);
+    assert.ok(!forced.calls.some((call) => call.name === "deploy.sh"));
+    assert.match(forced.stdout, /lictory config apply/);
+
+    // Settings the services reject are undone and the previous ones applied.
+    const good = env();
+    const rejected = f.lictory(["config", "set", "SMTP_PORT=2525"], {
+      FAKE_ACTIVATE_FAILS_WITH: "SMTP_PORT=2525",
+    });
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /runs with the previous ones/);
+    assert.equal(env(), good);
+    assert.deepEqual(
+      rejected.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [
+        ["production", "activate", "1.2.3"],
+        ["production", "activate", "1.2.3"],
+      ],
+    );
+
+    // A hand edit made while the failed change was applied is not undone.
+    const edited = f.lictory(["config", "set", "SMTP_PORT=2526"], {
+      FAKE_ACTIVATE_FAILS_WITH: "SMTP_PORT=2526",
+      FAKE_ACTIVATE_EDITS: "LEGAL_TERMS_URL=https://example.test/terms\n",
+    });
+    assert.equal(edited.status, 1);
+    assert.match(edited.stderr, /changed meanwhile, so it was left as it is/);
+    assert.match(env(), /^LEGAL_TERMS_URL=https:\/\/example\.test\/terms$/m);
+    assert.match(env(), /^SMTP_PORT=2526$/m);
+    writeFileSync(join(home, ".env"), good);
+
+    // Another settings change holds the lock: nothing is written.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const busy = f.lictory(["config", "set", "SMTP_PORT=2600"]);
+    assert.equal(busy.status, 75);
+    assert.match(
+      busy.stderr,
+      /Another change to the settings of production is running/,
+    );
+    assert.equal(env(), good);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // Two changes within a second keep two backups.
+    const count = () =>
+      readdirSync(home).filter((name) => name.startsWith(".env.backup-"))
+        .length;
+    const before2 = count();
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PORT=2601"]).status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PORT=2602"]).status,
+      0,
+    );
+    assert.equal(count(), before2 + 2);
+
+    // unset clears a setting; apply re-activates after a hand edit.
+    assert.equal(
+      f.lictory(["config", "unset", "--no-apply", "LICTORY_SCRATCH"]).status,
+      0,
+    );
+    assert.match(env(), /^LICTORY_SCRATCH=$/m);
+    const applied = f.lictory(["config", "apply"]);
+    assert.equal(applied.status, 0, applied.stderr);
+    assert.deepEqual(
+      applied.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+  },
+);
+
+void test(
+  "settings behind a symbolic link are refused instead of being replaced",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const home = join(f.root, "production");
+    const target = join(f.base, "managed.env");
+    writeFileSync(target, readFileSync(join(home, ".env")), { mode: 0o600 });
+    rmSync(join(home, ".env"));
+    symlinkSync(target, join(home, ".env"));
+    for (const args of [
+      ["config", "set", "SMTP_PORT=2525"],
+      ["install", "--yes", "--ignore-requirements", "--signup-mode", "closed"],
+    ]) {
+      const refused = f.lictory(args);
+      assert.equal(refused.status, 64, args.join(" "));
+      assert.match(refused.stderr, /is a symbolic link/);
+      assert.ok(lstatSync(join(home, ".env")).isSymbolicLink());
+    }
+    assert.equal(
+      f.lictory(["config", "get", "APP_HOST"]).stdout,
+      "lictory.example.test\n",
+    );
+  },
+);
+
+void test(
+  "lictory backup list shows the stored backups with the keys restore takes",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    // The ops container answers list-backups.sh with FAKE_BACKUPS.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\nprintf '%s' "$FAKE_BACKUPS"\n`,
+      { mode: 0o755 },
+    );
+    const backups = [
+      {
+        key: "production/manual/lictory-production-20261105T120000Z-manual.dump.age",
+        kind: "manual",
+        name: "lictory-production-20261105T120000Z-manual.dump.age",
+        bytes: 1_520_000,
+        modified: "2026-11-05T12:00:12Z",
+        encrypted: true,
+      },
+    ];
+    const listed = f.lictory(["backup", "list"], {
+      FAKE_BACKUPS: JSON.stringify(backups),
+    });
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.match(
+      listed.stdout,
+      /manual +2026-11-05 12:00 +1\.5 MB +production\/manual\/lictory-production-20261105T120000Z-manual\.dump\.age/,
+    );
+    assert.match(listed.stdout, /sudo lictory restore <identity-file> <key>/);
+    const json = f.lictory(["backup", "list", "--json"], {
+      FAKE_BACKUPS: JSON.stringify(backups),
+    });
+    assert.deepEqual(JSON.parse(json.stdout), backups);
+    const none = f.lictory(["backup", "list"], { FAKE_BACKUPS: "[]" });
+    assert.match(none.stdout, /No backups of production in local yet/);
+    assert.equal(f.lictory(["backup", "lst"]).status, 64);
+  },
+);
+
+void test("lictory support-bundle collects a redacted archive", slow, (t) => {
+  const f = bootstrapped(t);
+  const installed = f.lictory([...acmeInstall], {
+    LICTORY_EMAIL: "smtp",
+    LICTORY_SMTP_HOST: "smtp.example.test",
+    LICTORY_SMTP_PASSWORD: "smtp-secret-1234",
+  });
+  assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+  const env = readFileSync(join(f.root, "production/.env"), "utf8");
+  const authSecret = /^BETTER_AUTH_SECRET=(.*)$/m.exec(env)![1]!;
+  // A short secret is redacted too.
+  writeFileSync(
+    join(f.root, "production/.env"),
+    env + "RESEND_API_KEY=tiny!\n",
+  );
+  // Service logs that leak a secret, an address and a token.
+  writeFileSync(
+    join(f.root, "bin/lictory-compose"),
+    `#!/bin/sh
+case "$*" in *" logs "*) echo "api | session for grace@example.test signed with ${authSecret}"
+  echo "api | smtp login smtp-secret-1234 refused; Authorization: Bearer abc.def-ghi"
+  echo "worker | resend key tiny! rejected; Authorization: BEARER   XYZ-987" ;; esac
+`,
+    { mode: 0o755 },
+  );
+  const out = join(f.base, "bundle.tar.gz");
+  const result = f.lictory([
+    "support-bundle",
+    "--output",
+    out,
+    "--since",
+    "2h",
+  ]);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.equal(statSync(out).mode & 0o777, 0o600);
+  const extracted = join(f.base, "extracted");
+  mkdirSync(extracted);
+  assert.equal(spawnSync("tar", ["-xzf", out, "-C", extracted]).status, 0);
+  const [folder] = readdirSync(extracted);
+  const dir = join(extracted, folder!);
+  for (const file of [
+    "README.txt",
+    "host.txt",
+    "status.json",
+    "doctor.txt",
+    "settings.txt",
+    "logs/api.log",
+  ])
+    assert.ok(existsSync(join(dir, file)), file);
+  const api = readFileSync(join(dir, "logs/api.log"), "utf8");
+  assert.match(api, /session for \[email\] signed with \[redacted\]/);
+  assert.match(
+    api,
+    /smtp login \[redacted\] refused; Authorization: Bearer \[redacted\]/,
+  );
+  const everything = spawnSync(
+    "sh",
+    ["-c", `cat "${dir}"/*.* "${dir}"/logs/*`],
+    {
+      encoding: "utf8",
+    },
+  ).stdout;
+  assert.ok(!everything.includes(authSecret));
+  assert.ok(!everything.includes("smtp-secret-1234"));
+  assert.ok(!everything.includes("tiny!"));
+  assert.ok(!everything.includes("XYZ-987"));
+  assert.match(
+    readFileSync(join(dir, "settings.txt"), "utf8"),
+    /^SMTP_PASSWORD=\*\*\*\*$/m,
+  );
+  assert.equal(f.lictory(["support-bundle", "--since", "2d"]).status, 64);
+});
+
+void test(
+  "lictory restore names the backup it will use and refuses one that cannot work",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\nprintf '%s' "$FAKE_BACKUPS"\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-restore-drill"),
+      `#!/bin/sh\necho "drill $*"\n`,
+      { mode: 0o755 },
+    );
+    const key =
+      "production/daily/lictory-production-20261104T023000Z-scheduled.dump.age";
+    const backups = JSON.stringify([
+      {
+        key,
+        kind: "daily",
+        name: key.split("/").at(-1),
+        bytes: 2_100_000,
+        modified: "2026-11-04T02:30:41Z",
+        encrypted: true,
+      },
+    ]);
+    const identity = join(f.base, "identity.txt");
+    writeFileSync(identity, "AGE-SECRET-KEY-1TEST\n", { mode: 0o600 });
+
+    const drill = f.lictory(["restore", identity, "latest", "--drill"], {
+      FAKE_BACKUPS: backups,
+    });
+    assert.equal(drill.status, 0, drill.stderr + drill.stdout);
+    assert.match(
+      drill.stdout,
+      new RegExp(`Backup +${key.replace(/\./g, "\\.")}`),
+    );
+    assert.match(drill.stdout, /Taken +2026-11-04 02:30 UTC \(daily\)/);
+    assert.match(drill.stdout, /Size +2\.1 MB/);
+    // "latest" is resolved once: the drill gets the key that was shown.
+    assert.ok(
+      drill.stdout.includes(`drill production`) &&
+        drill.stdout.includes(` ${key}`),
+    );
+    assert.doesNotMatch(drill.stdout, /drill production .* latest$/m);
+
+    for (const [args, message] of [
+      [["restore", "none", "latest", "--yes"], /That backup is encrypted/],
+      [
+        [
+          "restore",
+          identity,
+          "production/daily/lictory-production-20260101T000000Z-scheduled.dump.age",
+          "--drill",
+        ],
+        /There is no backup production\/daily\/.*lictory backup list/,
+      ],
+    ] as const) {
+      const refused = f.lictory([...args], { FAKE_BACKUPS: backups });
+      assert.equal(refused.status, 1, args.join(" "));
+      assert.match(refused.stderr, message);
+      assert.ok(!refused.stdout.includes("drill production"));
+    }
+    const empty = f.lictory(["restore", identity, "latest", "--drill"], {
+      FAKE_BACKUPS: "[]",
+    });
+    assert.match(empty.stderr, /There is no backup of production in local yet/);
+  },
+);
+
+void test(
+  "lictory uninstall keeps data by default; --purge backs up off the server, then deletes",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const installed = f.lictory([...acmeInstall]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const log = join(f.base, "host.log");
+    for (const tool of ["lictory-compose", "lictory-backup"])
+      writeFileSync(
+        join(f.root, "bin", tool),
+        `#!/bin/sh\necho "${tool} $*" >> "${log}"\n[ -z "$FAKE_BACKUP_FAILS" ] || [ "${tool}" != lictory-backup ] || exit 1\n`,
+        { mode: 0o755 },
+      );
+    const host = () => {
+      const lines = existsSync(log)
+        ? readFileSync(log, "utf8").trim().split("\n")
+        : [];
+      rmSync(log, { force: true });
+      return lines;
+    };
+
+    // Without --yes on no terminal, nothing happens.
+    assert.equal(f.lictory(["uninstall"]).status, 1);
+    assert.deepEqual(host(), []);
+
+    const stopped = f.lictory(["uninstall", "--yes"]);
+    assert.equal(stopped.status, 0, stopped.stderr + stopped.stdout);
+    assert.deepEqual(host(), [
+      "lictory-compose production down --remove-orphans",
+    ]);
+    assert.ok(existsSync(join(home, ".env")));
+    assert.match(stopped.stdout, /sudo lictory config apply/);
+    // The documented restart brings PostgreSQL back before the release.
+    const restarted = f.lictory(["config", "apply"]);
+    assert.equal(restarted.status, 0, restarted.stderr + restarted.stdout);
+    assert.deepEqual(host(), [
+      "lictory-compose production up -d --wait --wait-timeout 180 postgres",
+    ]);
+
+    // Backups inside the environment's directory are not "off the server":
+    // no final backup that the purge would delete, and a warning instead.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8").replace(
+        /^BACKUP_TARGET=.*$/m,
+        "BACKUP_TARGET=local",
+      ) + "BACKUP_LOCAL_PATH=backups\n",
+    );
+    const insideTarget = f.lictory(["uninstall", "--purge"]);
+    assert.equal(insideTarget.status, 1); // no terminal, no --yes: nothing happens
+    assert.match(
+      insideTarget.stderr,
+      /backups are in .*\/production\/backups, inside .*production, and are deleted too/,
+    );
+    assert.doesNotMatch(insideTarget.stdout, /A final backup goes to/);
+    assert.deepEqual(host(), []);
+
+    // Off-server backups: a failed final backup deletes nothing.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8").replace(
+        /^BACKUP_TARGET=.*$/m,
+        "BACKUP_TARGET=s3",
+      ),
+    );
+    const failed = f.lictory(["uninstall", "--purge", "--yes"], {
+      FAKE_BACKUP_FAILS: "1",
+    });
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /final backup failed, so nothing was deleted/);
+    assert.deepEqual(host(), ["lictory-backup production manual"]);
+    assert.ok(existsSync(join(home, ".env")));
+
+    const purged = f.lictory(["uninstall", "--purge", "--yes"]);
+    assert.equal(purged.status, 0, purged.stderr + purged.stdout);
+    assert.deepEqual(host(), [
+      "lictory-backup production manual",
+      "lictory-compose production down --volumes --remove-orphans",
+    ]);
+    assert.ok(!existsSync(home));
+    assert.match(purged.stdout, /No environment is left/);
+    assert.ok(existsSync(join(f.root, "bin/lictory")));
+  },
+);
+
+void test(
+  "lictory doctor --json reports every check for monitoring",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([...acmeInstall]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const text = f.lictory(["doctor"]);
+    const json = f.lictory(["doctor", "--json"]);
+    // The fake deploy.sh reports no services, so both fail the same way.
+    assert.equal(text.status, 1);
+    assert.equal(json.status, 1);
+    const report = JSON.parse(json.stdout) as {
+      environment: string;
+      healthy: boolean;
+      failures: number;
+      warnings: number;
+      checks: { status: string; section: string; message: string }[];
+    };
+    assert.equal(report.environment, "production");
+    assert.equal(report.healthy, false);
+    assert.equal(
+      report.failures,
+      report.checks.filter((check) => check.status === "fail").length,
+    );
+    assert.match(
+      text.stdout,
+      new RegExp(
+        `${report.failures} failure\\(s\\), ${report.warnings} warning\\(s\\)`,
+      ),
+    );
+    assert.ok(
+      report.checks.some(
+        (check) => check.section === "Host" && check.message === "Linux",
+      ),
+    );
+    assert.ok(
+      report.checks.some(
+        (check) =>
+          check.status === "warn" &&
+          check.message.includes("Backups are disabled"),
+      ),
+    );
+  },
+);
+
+void test(
+  "a live restore checks the backup before stopping anything, holds the lock and undoes a failed cutover",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const log = join(f.base, "compose.log");
+    // The ops container: lists backups, checks one (RESTORE_CHECK_ONLY) and
+    // restores it; FAKE_CHECK_FAILS / FAKE_RESTORE_FAILS make a step fail.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh
+echo "compose $*" >> "${log}"
+case "$*" in
+  *list-backups.sh*) printf '%s' "$FAKE_BACKUPS" ;;
+  *"config --format json"*) echo '{"services":{"postgres":{"image":"postgres:17"}}}' ;;
+  *"grep -q RESTORE_CHECK_ONLY"*) exit 0 ;;
+  *RESTORE_CHECK_ONLY=1*) [ -z "$FAKE_CHECK_FAILS" ] || { echo "age: no identity matched any of the recipients" >&2; exit 1; } ;;
+  *verify.sh*) [ -z "$FAKE_RESTORE_FAILS" ] || exit 1 ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    const steps = () => {
+      const lines = existsSync(log)
+        ? readFileSync(log, "utf8").trim().split("\n")
+        : [];
+      rmSync(log, { force: true });
+      return lines
+        .map((line) =>
+          line.includes("RESTORE_CHECK_ONLY=1")
+            ? "check"
+            : line.includes("verify.sh")
+              ? "restore"
+              : line.includes(" stop proxy")
+                ? "stop"
+                : line.includes(" create postgres")
+                  ? "recreate"
+                  : null,
+        )
+        .filter(Boolean);
+    };
+    const key =
+      "production/daily/lictory-production-20261104T023000Z-scheduled.dump.age";
+    const backups = JSON.stringify([
+      {
+        key,
+        kind: "daily",
+        name: key.split("/").at(-1),
+        bytes: 2_100_000,
+        modified: "2026-11-04T02:30:41Z",
+        encrypted: true,
+      },
+    ]);
+    const identity = join(f.base, "identity.txt");
+    writeFileSync(identity, "AGE-SECRET-KEY-1TEST\n", { mode: 0o600 });
+    const restore = (extra: Record<string, string> = {}) =>
+      f.lictory(["restore", identity, "latest", "--yes"], {
+        FAKE_BACKUPS: backups,
+        ...extra,
+      });
+    const activations = (calls: { name: string; args: string[] }[]) =>
+      calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args.slice(1).join(" "));
+
+    // A backup that cannot be decrypted is found before the services stop.
+    const unreadable = restore({ FAKE_CHECK_FAILS: "1" });
+    assert.equal(unreadable.status, 1);
+    assert.match(
+      unreadable.stderr,
+      /cannot be restored \(see above\); nothing was changed/,
+    );
+    assert.deepEqual(steps(), ["check"]);
+    assert.deepEqual(activations(unreadable.calls), []);
+
+    // Another deployment holds the lock: nothing starts.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const busy = restore();
+    assert.equal(busy.status, 75);
+    assert.match(busy.stderr, /Another deployment of production is running/);
+    assert.deepEqual(steps(), []);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // The restore itself fails after the old volume is gone: the kept copy
+    // goes back and the release starts on it again.
+    const failed = restore({ FAKE_RESTORE_FAILS: "1" });
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /runs 1\.2\.3 on its previous database again/);
+    assert.deepEqual(steps(), ["check", "stop", "restore", "recreate"]);
+    assert.deepEqual(activations(failed.calls), ["activate 1.2.3"]);
+    const copies = failed.calls.filter(
+      (call) => call.name === "docker" && call.args.includes("cp"),
+    );
+    assert.equal(copies.length, 2); // keep the database, then put it back
+    assert.match(
+      copies[1]!.args.join(" "),
+      /postgres_data-before-restore-.*:\/from:ro/,
+    );
+
+    // Copying the current database fails (a full disk): nothing changed, and
+    // PostgreSQL is started before the release.
+    const copyFailed = restore({ FAKE_COPY_FAILS: "1" });
+    assert.equal(copyFailed.status, 1);
+    assert.match(
+      copyFailed.stderr,
+      /is the disk full\?\); nothing was changed/,
+    );
+    assert.match(
+      copyFailed.stderr,
+      /stopped before changing the database; production runs 1\.2\.3 again/,
+    );
+    const afterCopy = readFileSync(log, "utf8");
+    assert.match(
+      afterCopy,
+      /compose production up -d --wait --wait-timeout 180 postgres/,
+    );
+    steps();
+    assert.deepEqual(activations(copyFailed.calls), ["activate 1.2.3"]);
+
+    // After the cutover, the failed restore's volume cannot be removed: the
+    // kept copy is never copied over it, and the manual steps are printed.
+    const stuck = restore({
+      FAKE_RESTORE_FAILS: "1",
+      FAKE_VOLUME_STAYS_AFTER: join(f.base, "volume-removed"),
+    });
+    assert.equal(stuck.status, 1);
+    assert.match(
+      stuck.stderr,
+      /Putting it back failed too\. The previous database is intact/,
+    );
+    assert.match(stuck.stdout, /it must be gone before the next step/);
+    const stuckCopies = stuck.calls.filter(
+      (call) => call.name === "docker" && call.args.includes("cp"),
+    );
+    assert.equal(stuckCopies.length, 1); // only the copy kept before the cutover
+    assert.deepEqual(activations(stuck.calls), []);
+    steps();
+
+    // A successful restore migrates and activates inside the held lock.
+    const restored = restore();
+    assert.equal(restored.status, 0, restored.stderr + restored.stdout);
+    // The check and the restore use the backup the preview showed.
+    const pinned = readFileSync(log, "utf8");
+    assert.ok(
+      pinned.includes(`check ${key}`) && pinned.includes(`restore ${key}`),
+    );
+    assert.deepEqual(steps(), ["check", "stop", "restore"]);
+    assert.deepEqual(activations(restored.calls), [
+      "migrate 1.2.3",
+      "activate 1.2.3",
+    ]);
+    assert.match(restored.stdout, /Restored\. Check the data/);
+  },
+);
+
+void test(
+  "settings are read like Compose reads them and kept across installs",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const first = f.lictory(
+      [
+        ...acmeInstall,
+        "--storage",
+        "s3",
+        "--s3-endpoint",
+        "https://minio.example.test",
+        "--s3-bucket",
+        "attachments",
+        "--s3-access-key-id",
+        "lictory",
+        "--s3-force-path-style",
+        "true",
+      ],
+      { LICTORY_S3_SECRET_ACCESS_KEY: "minio-secret" },
+    );
+    assert.equal(first.status, 0, first.stderr + first.stdout);
+    assert.match(
+      readFileSync(join(home, ".env"), "utf8"),
+      /^S3_FORCE_PATH_STYLE=true$/m,
+    );
+    // A re-run that does not mention path-style requests keeps them.
+    const again = f.lictory([
+      "install",
+      "--yes",
+      "--ignore-requirements",
+      "--signup-mode",
+      "closed",
+    ]);
+    assert.equal(again.status, 0, again.stderr + again.stdout);
+    assert.match(
+      readFileSync(join(home, ".env"), "utf8"),
+      /^S3_FORCE_PATH_STYLE=true$/m,
+    );
+
+    // Inline comments, as the reverse-proxy examples used to show them.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "LEGAL_TERMS_URL=https://example.test/terms   # our terms\nLEGAL_PRIVACY_URL='https://example.test/#privacy' # quoted\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/terms\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_PRIVACY_URL"]).stdout,
+      "https://example.test/#privacy\n",
+    );
+    // Compose's other forms: export, spaces around =, escapes in quotes.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        'export LEGAL_TERMS_URL=https://example.test/new\n  SMTP_FROM = "Lictory \\"Ops\\" <ops@example.test>"\n',
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/new\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_FROM"]).stdout,
+      'Lictory "Ops" <ops@example.test>\n',
+    );
+    // Every form is listed (and so masked and redacted).
+    const listed = f.lictory(["config", "show", "--json"]).stdout;
+    assert.equal(
+      (JSON.parse(listed) as Record<string, string>).LEGAL_TERMS_URL,
+      "https://example.test/new",
+    );
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "export RESEND_API_KEY=EXPORTED-SECRET-77\n",
+    );
+    assert.match(
+      f.lictory(["config", "show"]).stdout,
+      /^RESEND_API_KEY=\*\*\*\*$/m,
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *" logs "*) echo "worker | resend refused EXPORTED-SECRET-77" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const bundle = join(f.base, "export-bundle.tar.gz");
+    assert.equal(f.lictory(["support-bundle", "--output", bundle]).status, 0);
+    const unpacked = join(f.base, "export-bundle");
+    mkdirSync(unpacked);
+    spawnSync("tar", ["-xzf", bundle, "-C", unpacked]);
+    const archived = spawnSync(
+      "sh",
+      ["-c", `cat "${unpacked}"/*/*.* "${unpacked}"/*/logs/*`],
+      { encoding: "utf8" },
+    ).stdout;
+    assert.ok(!archived.includes("EXPORTED-SECRET-77"));
+
+    // Changing a key written as "export KEY=" changes the value Compose reads.
+    assert.equal(
+      f.lictory([
+        "config",
+        "set",
+        "--no-apply",
+        "LEGAL_TERMS_URL=https://example.test/v2",
+      ]).status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/v2\n",
+    );
+    // Leading or trailing whitespace (a tab) survives a round trip.
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PASSWORD=secret\t"])
+        .status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout,
+      "secret\t\n",
+    );
+
+    // A value that only ends with a quote is the literal text (Compose reads
+    // it so); clearing the quote is a real change.
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", 'SMTP_PASSWORD=a"']).status,
+      0,
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, 'a"\n');
+    const cleared = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "SMTP_PASSWORD=a",
+    ]);
+    assert.match(
+      cleared.stdout,
+      /SMTP_PASSWORD: \*\*\*\* -> \*\*\*\* \(new value\)/,
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout, "a\n");
+  },
+);
+
+void test("every host script decodes .env with the same function", () => {
+  const copy = (file: string) => {
+    const text = readFileSync(join(deploy, file), "utf8");
+    const start = text.indexOf(
+      "# env_value <file> <key>: the last assignment of <key>, decoded as Docker",
+    );
+    assert.ok(start >= 0, file);
+    return text.slice(start, text.indexOf("\n}\n", start) + 2);
+  };
+  const reference = copy("bin/lictory");
+  for (const file of [
+    "deploy.sh",
+    "bin/lictory-backup",
+    "bin/lictory-monitor",
+    "bin/lictory-restore-drill",
+  ])
+    assert.equal(copy(file), reference, file);
+});
+
+void test(
+  "credentials inside an rclone connection string never reach the output",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const remote =
+      ":sftp,host=nas.example.test,user=backup,pass=SFTP-SECRET-9f2:lictory";
+    const installed = f.lictory(
+      [
+        ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+        "--backup",
+        "rclone",
+        "--backup-age-recipient",
+        recipient,
+      ],
+      { LICTORY_BACKUP_RCLONE_REMOTE: remote },
+    );
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    assert.match(
+      installed.stdout,
+      /rclone :sftp,host=nas\.example\.test,user=backup,pass=\*\*\*\*:lictory/,
+    );
+    const shown = f.lictory(["config", "show"]);
+    assert.match(
+      shown.stdout,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas\.example\.test,user=backup,pass=\*\*\*\*:lictory$/m,
+    );
+    const json = f.lictory(["config", "show", "--json"]);
+    assert.equal(
+      (JSON.parse(json.stdout) as Record<string, string>).BACKUP_RCLONE_REMOTE,
+      ":sftp,host=nas.example.test,user=backup,pass=****:lictory",
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *" logs "*) echo "ops | rclone: failed to connect with pass SFTP-SECRET-9f2" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const out = join(f.base, "bundle.tar.gz");
+    assert.equal(f.lictory(["support-bundle", "--output", out]).status, 0);
+    const dir = join(f.base, "extracted-bundle");
+    mkdirSync(dir);
+    spawnSync("tar", ["-xzf", out, "-C", dir]);
+    const all = spawnSync(
+      "sh",
+      ["-c", `cat "${dir}"/*/*.* "${dir}"/*/logs/*`],
+      { encoding: "utf8" },
+    ).stdout;
+    // A quoted password with a doubled quote is masked whole.
+    const envFile = join(f.root, "production/.env");
+    writeFileSync(
+      envFile,
+      readFileSync(envFile, "utf8").replace(
+        /^BACKUP_RCLONE_REMOTE=.*$/m,
+        `BACKUP_RCLONE_REMOTE=':sftp,host=nas,pass="first,part""SECOND-SECRET,tail":backups'`,
+      ),
+    );
+    const quoted = f.lictory(["config", "show"]).stdout;
+    assert.match(
+      quoted,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas,pass=\*\*\*\*:backups$/m,
+    );
+    assert.ok(!quoted.includes("SECOND-SECRET"));
+    for (const output of [
+      installed.stdout,
+      installed.stderr,
+      shown.stdout,
+      json.stdout,
+      all,
+    ])
+      assert.ok(!output.includes("SFTP-SECRET-9f2"));
+  },
+);
+
+void test(
+  "doctor judges backup age and upgrade reports what actually runs after a failure",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    // The ops container's database checks pass; FAKE_LAST_BACKUP is the
+    // completion time recorded by the last successful backup.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *checks.sql*) echo "backup | $FAKE_LAST_BACKUP" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const backupCheck = (when: string) => {
+      const report = JSON.parse(
+        f.lictory(["doctor", "--json"], { FAKE_LAST_BACKUP: when }).stdout,
+      ) as { checks: { status: string; message: string }[] };
+      return report.checks.find(
+        (check) =>
+          check.message.includes("backup") && /last|old/.test(check.message),
+      )!;
+    };
+    const recent = new Date(Date.now() - 2 * 3600_000)
+      .toISOString()
+      .replace(/\.\d+Z$/, "Z");
+    assert.equal(backupCheck(recent).status, "ok");
+    const stale = backupCheck("2026-01-01T02:30:00Z");
+    assert.equal(stale.status, "warn");
+    assert.match(stale.message, /hours old .* more than 30/);
+
+    // A failed upgrade whose recovery also failed does not claim the
+    // previous release is serving.
+    f.route(
+      `${api}/releases/latest`,
+      JSON.stringify(githubRelease(f, "1.3.0")),
+    );
+    const failed = f.lictory(["upgrade", "--yes"], { FAKE_RELEASE_FAILS: "1" });
+    assert.equal(failed.status, 1);
+    assert.match(
+      failed.stderr,
+      /did not activate, and production is not healthy now .*Investigate immediately/,
+    );
+    assert.doesNotMatch(failed.stderr, /keeps its previous images/);
+  },
+);
+
+void test(
+  "lictory status --json adds the address, channel and access policy",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([...acmeInstall]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const withoutApi = f.lictory(["status", "--json"]);
+    assert.equal(withoutApi.status, 0, withoutApi.stderr);
+    const plainStatus = JSON.parse(withoutApi.stdout) as {
+      url: string;
+      releaseChannel: string;
+      access: null;
+      activatedAt: string | null;
+      backups: { target: string; timer: { active: boolean } | null };
+    };
+    assert.equal(plainStatus.url, "https://lictory.example.test");
+    assert.equal(plainStatus.releaseChannel, "stable");
+    assert.equal(plainStatus.access, null);
+    assert.equal(plainStatus.backups.target, "none");
+    // The timer is reported where systemd runs (the stubbed systemctl says active).
+    assert.ok(
+      plainStatus.backups.timer === null || plainStatus.backups.timer.active,
+    );
+    // Piped, the same facts as the terminal panel.
+    const piped = f.lictory(["status"]);
+    assert.match(piped.stdout, /^url: https:\/\/lictory\.example\.test$/m);
+    assert.match(piped.stdout, /^backups: none/m);
+    stubAdministration(f);
+    const status = JSON.parse(
+      f.lictory(["status", "--json"], { FAKE_ADMINS: "1" }).stdout,
+    ) as {
+      access: { signUpMode: string; administrators: number };
+    };
+    assert.equal(status.access.signUpMode, "invite");
+    assert.equal(status.access.administrators, 1);
+  },
+);
+
+void test(
+  "lictory version lists the tools and every environment's release",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const before = f.lictory(["version", "--json"]);
+    assert.deepEqual(JSON.parse(before.stdout), {
+      tools: "1.2.3",
+      environments: [],
+    });
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const text = f.lictory(["--version"]);
+    assert.match(text.stdout, /^lictory tools 1\.2\.3/m);
+    assert.match(text.stdout, /^production +1\.2\.3 \(stable\)$/m);
+    assert.deepEqual(JSON.parse(f.lictory(["version", "--json"]).stdout), {
+      tools: "1.2.3",
+      environments: [
+        { name: "production", version: "1.2.3", channel: "stable" },
+      ],
+    });
+  },
+);
+
+void test("lictory completion bash completes commands, subcommands, environments and settings", (t) => {
+  const f = bootstrapped(t);
+  mkdirSync(join(f.root, "staging"));
+  writeFileSync(
+    join(f.root, "staging/.env"),
+    "APP_HOST=staging.example.test\n",
+  );
+  const script = f.lictory(["completion", "bash"]);
+  assert.equal(script.status, 0, script.stderr);
+  const file = join(f.base, "completion.bash");
+  writeFileSync(file, script.stdout);
+  const complete = (...words: string[]) =>
+    spawnSync(
+      "bash",
+      [
+        "-c",
+        `source "$1"; shift; COMP_WORDS=("$@"); COMP_CWORD=$(($# - 1)); _lictory; printf '%s\\n' "\${COMPREPLY[@]}"`,
+        "complete",
+        file,
+        ...words,
+      ],
+      {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, LICTORY_ROOT: f.root },
+      },
+    )
+      .stdout.trim()
+      .split("\n");
+  assert.deepEqual(complete("lictory", "con"), ["config"]);
+  assert.deepEqual(complete("lictory", "config", "s"), ["show", "set"]);
+  assert.ok(
+    complete("lictory", "config", "set", "SMTP_H").includes("SMTP_HOST"),
+  );
+  assert.deepEqual(complete("lictory", "status", "--env", "st"), ["staging"]);
+  assert.deepEqual(complete("lictory", "logs", "zer"), ["zero-cache"]);
+  assert.ok(
+    complete("lictory", "install", "--smtp-p").includes("--smtp-password"),
+  );
+});
+
+void test(
+  "lictory config rotate replaces a generated secret everywhere it is used",
+  { timeout: 90_000 },
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const log = join(f.base, "compose.log");
+    const sql = join(f.base, "psql.stdin");
+    // PostgreSQL behind lictory-compose: FAKE_ROLES_FAIL makes the role
+    // script fail; psql's stdin is kept.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh
+echo "$*" >> "${log}"
+case "$*" in
+  *psql*) cat >> "${sql}" ;;
+  # FAKE_ROLES_FAIL=<file>: the role script fails once (the file marks it).
+  *10-lictory-roles.sh*) [ -z "$FAKE_ROLES_FAIL" ] || [ -e "$FAKE_ROLES_FAIL" ] || { : > "$FAKE_ROLES_FAIL"; exit 1; } ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    const value = (key: string) =>
+      new RegExp(`^${key}=(.*)$`, "m").exec(
+        readFileSync(join(home, ".env"), "utf8"),
+      )![1]!;
+    const calls = () => {
+      const lines = existsSync(log)
+        ? readFileSync(log, "utf8").trim().split("\n")
+        : [];
+      rmSync(log, { force: true });
+      return lines;
+    };
+
+    // A role password: PostgreSQL gets it first, then the services.
+    const before = value("LICTORY_APP_PASSWORD");
+    const rotated = f.lictory([
+      "config",
+      "rotate",
+      "LICTORY_APP_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(rotated.status, 0, rotated.stderr + rotated.stdout);
+    assert.match(value("LICTORY_APP_PASSWORD"), /^[0-9a-f]{64}$/);
+    assert.notEqual(value("LICTORY_APP_PASSWORD"), before);
+    const sequence = calls();
+    assert.equal(
+      sequence[0],
+      "production up -d --wait --wait-timeout 180 postgres",
+    );
+    assert.equal(
+      sequence[1],
+      "production exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh",
+    );
+    // A real login with the new password, which reaches psql only through
+    // the environment.
+    assert.match(
+      sequence[2]!,
+      /^production exec -T -e RESTORE_PGPASSWORD postgres sh -c .* login lictory_app$/,
+    );
+    assert.equal(
+      sequence[3],
+      "production up -d --wait --wait-timeout 180 postgres",
+    );
+    assert.deepEqual(
+      rotated.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+    assert.ok(
+      !(rotated.stdout + rotated.stderr).includes(
+        value("LICTORY_APP_PASSWORD"),
+      ),
+    );
+
+    // The superuser: ALTER ROLE on stdin, never as an argument.
+    const superuser = f.lictory([
+      "config",
+      "rotate",
+      "POSTGRES_SUPERUSER_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(superuser.status, 0, superuser.stderr + superuser.stdout);
+    assert.equal(
+      readFileSync(sql, "utf8"),
+      `ALTER ROLE postgres PASSWORD '${value("POSTGRES_SUPERUSER_PASSWORD")}';\n`,
+    );
+    assert.ok(
+      !calls().some((line) =>
+        line.includes(value("POSTGRES_SUPERUSER_PASSWORD")),
+      ),
+    );
+
+    // PostgreSQL refuses: the previous value stays and nothing restarts.
+    const kept = value("ZERO_DB_PASSWORD");
+    const failed = f.lictory(
+      ["config", "rotate", "ZERO_DB_PASSWORD", "--yes"],
+      { FAKE_ROLES_FAIL: join(f.base, "roles-failed") },
+    );
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /uses the previous ZERO_DB_PASSWORD again/);
+    // The previous value is applied in PostgreSQL again (the role script
+    // may have changed it before failing).
+    assert.equal(
+      calls().filter((line) => line.includes("10-lictory-roles.sh")).length,
+      2,
+    );
+    assert.equal(value("ZERO_DB_PASSWORD"), kept);
+    assert.ok(!failed.calls.some((call) => call.name === "deploy.sh"));
+    calls();
+
+    // Another deployment holds the lock: nothing changes.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const locked = value("LICTORY_OPS_PASSWORD");
+    const busy = f.lictory([
+      "config",
+      "rotate",
+      "LICTORY_OPS_PASSWORD",
+      "--yes",
+    ]);
+    assert.equal(busy.status, 75);
+    assert.equal(value("LICTORY_OPS_PASSWORD"), locked);
+    assert.deepEqual(calls(), []);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // Refusals: the delivery key, and the auth secret without its own key.
+    assert.equal(
+      f.lictory(["config", "rotate", "DELIVERY_CREDENTIALS_KEY", "--yes"])
+        .status,
+      65,
+    );
+    const cleared = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "--force",
+      "DELIVERY_CREDENTIALS_KEY=",
+    ]);
+    assert.equal(cleared.status, 0, cleared.stderr + cleared.stdout);
+    assert.equal(
+      f.lictory([
+        "config",
+        "set",
+        "--no-apply",
+        "--force",
+        "DELIVERY_CREDENTIALS_KEY=",
+      ]).status,
+      0,
+    );
+    const auth = f.lictory(["config", "rotate", "BETTER_AUTH_SECRET", "--yes"]);
+    assert.equal(auth.status, 65);
+    assert.match(auth.stderr, /Set DELIVERY_CREDENTIALS_KEY first/);
+    // config set points at rotate for generated secrets.
+    assert.match(
+      f.lictory(["config", "set", "LICTORY_OPS_PASSWORD=x"]).stdout,
+      /sudo lictory config rotate LICTORY_OPS_PASSWORD/,
+    );
+  },
+);
+
+void test(
+  "doctor says when the host tools and the environment's release drift apart",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const tools = join(f.root, "share/bundle/release.env");
+    const check = () =>
+      (
+        JSON.parse(f.lictory(["doctor", "--json"]).stdout) as {
+          checks: { status: string; message: string }[];
+        }
+      ).checks.find((c) => c.message.includes("host tools"));
+    // Same release: nothing to say.
+    assert.equal(check(), undefined);
+    // Tools from a newer release line (another environment was upgraded).
+    writeFileSync(
+      tools,
+      readFileSync(tools, "utf8").replace(
+        /^LICTORY_VERSION=.*$/m,
+        "LICTORY_VERSION=1.3.0",
+      ),
+    );
+    assert.match(
+      check()!.message,
+      /another release line than production's 1\.2\.3/,
+    );
+    // Same line: fine.
+    writeFileSync(
+      tools,
+      readFileSync(tools, "utf8").replace(
+        /^LICTORY_VERSION=.*$/m,
+        "LICTORY_VERSION=1.2.9",
+      ),
+    );
+    assert.equal(check()!.status, "ok");
+    // Older tools than the release.
+    writeFileSync(
+      tools,
+      readFileSync(tools, "utf8").replace(
+        /^LICTORY_VERSION=.*$/m,
+        "LICTORY_VERSION=1.2.0",
+      ),
+    );
+    assert.match(check()!.message, /older than production's release/);
+  },
+);
+
+void test("lictory logs reads an incident window with --since", slow, (t) => {
+  const f = bootstrapped(t);
+  assert.equal(f.lictory([...acmeInstall]).status, 0);
+  const log = join(f.base, "compose.log");
+  writeFileSync(
+    join(f.root, "bin/lictory-compose"),
+    `#!/bin/sh\necho "$*" >> "${log}"\n`,
+    { mode: 0o755 },
+  );
+  const last = () => readFileSync(log, "utf8").trim().split("\n").at(-1);
+  assert.equal(f.lictory(["logs", "api"]).status, 0);
+  assert.equal(last(), "production logs --tail 200 api");
+  assert.equal(
+    f.lictory(["logs", "worker", "--since", "2h", "--timestamps"]).status,
+    0,
+  );
+  assert.equal(last(), "production logs --since 2h --timestamps worker");
+  assert.equal(
+    f.lictory(["logs", "--since", "2026-11-05T14:00Z", "--tail", "50"]).status,
+    0,
+  );
+  assert.equal(last(), "production logs --tail 50 --since 2026-11-05T14:00Z");
+  const bad = f.lictory(["logs", "--since", "yesterday"]);
+  assert.equal(bad.status, 64);
+  assert.match(bad.stderr, /--since: a duration such as 30m/);
 });
 
 void test("a private repository installs with GITHUB_TOKEN, and says so without one", (t) => {
