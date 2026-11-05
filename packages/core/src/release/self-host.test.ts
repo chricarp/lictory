@@ -1790,3 +1790,76 @@ void test("every host script decodes .env with the same function", () => {
   ])
     assert.equal(copy(file), reference, file);
 });
+
+void test(
+  "credentials inside an rclone connection string never reach the output",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const remote =
+      ":sftp,host=nas.example.test,user=backup,pass=SFTP-SECRET-9f2:lictory";
+    const installed = f.lictory(
+      [
+        ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+        "--backup",
+        "rclone",
+        "--backup-age-recipient",
+        recipient,
+      ],
+      { LICTORY_BACKUP_RCLONE_REMOTE: remote },
+    );
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    assert.match(
+      installed.stdout,
+      /rclone :sftp,host=nas\.example\.test,user=backup,pass=\*\*\*\*:lictory/,
+    );
+    const shown = f.lictory(["config", "show"]);
+    assert.match(
+      shown.stdout,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas\.example\.test,user=backup,pass=\*\*\*\*:lictory$/m,
+    );
+    const json = f.lictory(["config", "show", "--json"]);
+    assert.equal(
+      (JSON.parse(json.stdout) as Record<string, string>).BACKUP_RCLONE_REMOTE,
+      ":sftp,host=nas.example.test,user=backup,pass=****:lictory",
+    );
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *" logs "*) echo "ops | rclone: failed to connect with pass SFTP-SECRET-9f2" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const out = join(f.base, "bundle.tar.gz");
+    assert.equal(f.lictory(["support-bundle", "--output", out]).status, 0);
+    const dir = join(f.base, "extracted-bundle");
+    mkdirSync(dir);
+    spawnSync("tar", ["-xzf", out, "-C", dir]);
+    const all = spawnSync(
+      "sh",
+      ["-c", `cat "${dir}"/*/*.* "${dir}"/*/logs/*`],
+      { encoding: "utf8" },
+    ).stdout;
+    // A quoted password with a doubled quote is masked whole.
+    const envFile = join(f.root, "production/.env");
+    writeFileSync(
+      envFile,
+      readFileSync(envFile, "utf8").replace(
+        /^BACKUP_RCLONE_REMOTE=.*$/m,
+        `BACKUP_RCLONE_REMOTE=':sftp,host=nas,pass="first,part""SECOND-SECRET,tail":backups'`,
+      ),
+    );
+    const quoted = f.lictory(["config", "show"]).stdout;
+    assert.match(
+      quoted,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas,pass=\*\*\*\*:backups$/m,
+    );
+    assert.ok(!quoted.includes("SECOND-SECRET"));
+    for (const output of [
+      installed.stdout,
+      installed.stderr,
+      shown.stdout,
+      json.stdout,
+      all,
+    ])
+      assert.ok(!output.includes("SFTP-SECRET-9f2"));
+  },
+);

@@ -1231,8 +1231,10 @@ ask() {
     [ -z "$default" ] || set_opt "$name" "$default"
     return 0
   fi
+  local shown="$default"
+  [ "$name" != backup-rclone-remote ] || shown=$(remote_masked "$default")
   while :; do
-    prompt_line "$question" "$default" "$secret"
+    prompt_line "$question" "$shown" "$secret"
     answer="${answer:-$default}"
     if [ -z "$answer" ]; then
       return 0
@@ -1691,6 +1693,30 @@ generate_age_key() { # generate_age_key <ops image> <identity file>
 # masked <value>: secrets shown as dots in the review.
 masked() { [ -z "$1" ] && printf 'none' || printf '%s' "$g_mask"; }
 
+# An rclone connection string (BACKUP_RCLONE_REMOTE) can carry credentials
+# (:sftp,host=nas,user=backup,pass=…:path). remote_masked shows it with their
+# values masked; remote_secrets prints each value, for redaction.
+remote_credentials='pass|password|key_pem|private_key|secret_access_key|account_key|key|client_secret|token|sas_url|service_account_credentials|bearer_token|session_token'
+# A value is quoted from its first character, a doubled quote inside being a
+# literal one (as rclone and backup-target.sh read it), or runs to , or :.
+# (POSIX regular expressions take the longest match, so a quoted value is
+# matched whole.)
+remote_value="(\"([^\"]|\"\")*\"|'([^']|'')*'|[^,:]*)"
+remote_masked() {
+  printf '%s' "$1" | sed -E "s/((^|[,:])($remote_credentials)=)$remote_value/\1$g_mask/g"
+}
+remote_secrets() {
+  local value
+  printf '%s' "$1" | grep -oE "(^|[,:])($remote_credentials)=$remote_value" | cut -d= -f2- |
+    while IFS= read -r value; do
+      case "$value" in
+        \"*) value="${value#\"}" && value="${value%\"}" && value="${value//\"\"/\"}" ;;
+        \'*) value="${value#\'}" && value="${value%\'}" && value="${value//\'\'/\'}" ;;
+      esac
+      printf '%s\n' "$value"
+    done || true
+}
+
 # The review before anything changes: the answers in words, and for an
 # existing environment the .env keys that change.
 review() {
@@ -1725,7 +1751,7 @@ review() {
   case "$backup" in
     local) lines+=("$(row "Backups" "$( [ -n "$(opt backup-path)" ] && opt backup-path || printf 'a volume on this server')")") ;;
     s3) lines+=("$(row "Backups" "bucket $(opt backup-bucket), secret $(masked "$(opt backup-s3-secret-access-key)")")") ;;
-    rclone) lines+=("$(row "Backups" "rclone $(opt backup-rclone-remote)")") ;;
+    rclone) lines+=("$(row "Backups" "rclone $(remote_masked "$(opt backup-rclone-remote)")")") ;;
     none) lines+=("$(row "Backups" "none")") ;;
   esac
   if [ "$backup" != none ]; then
@@ -2599,6 +2625,8 @@ config_secret() { # config_secret <key> <value>
 config_shown() { # config_shown <key> <value>: the value as output shows it
   if [ -z "$2" ]; then
     printf '%s' "${c_dim}(empty)${c_reset}"
+  elif [ "$(opt reveal)" != true ] && [ "$1" = BACKUP_RCLONE_REMOTE ]; then
+    remote_masked "$2"
   elif [ "$(opt reveal)" != true ] && config_secret "$1" "$2"; then
     printf '%s' "$g_mask"
   else
@@ -2794,7 +2822,11 @@ cmd_config() {
       if [ "$(opt json)" = true ]; then
         config_keys "$home/.env" | while IFS= read -r key; do
           value=$(env_value "$home/.env" "$key")
-          [ "$(opt reveal)" = true ] || ! config_secret "$key" "$value" || [ -z "$value" ] || value="$g_mask"
+          if [ "$(opt reveal)" != true ] && [ "$key" = BACKUP_RCLONE_REMOTE ]; then
+            value=$(remote_masked "$value")
+          elif [ "$(opt reveal)" != true ] && [ -n "$value" ] && config_secret "$key" "$value"; then
+            value="$g_mask"
+          fi
           printf '%s\t%s\n' "$key" "$value"
         done | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1:] | join("\t"))}] | from_entries'
         return 0
@@ -2951,6 +2983,7 @@ cmd_support_bundle() {
     config_keys "$home/.env" | while IFS= read -r key; do
       value=$(env_value "$home/.env" "$key")
       if [ -n "$value" ] && config_secret "$key" "$value"; then printf '%s\n' "$value"; fi
+      [ "$key" != BACKUP_RCLONE_REMOTE ] || remote_secrets "$value"
     done >"$secrets"
   )
   local dir="$work/$name" errors="$work/$name/errors.txt"
