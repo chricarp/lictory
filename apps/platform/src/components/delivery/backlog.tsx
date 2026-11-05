@@ -391,6 +391,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 rows,
                 <IterationHeader
                   iteration={it}
+                  iterationMode={project.iterationMode}
                   rows={rows}
                   points={points(rows)}
                   // Velocity is the whole project's; it is no capacity for
@@ -426,14 +427,17 @@ function ProjectBacklog({ project }: { project: Project }) {
                       iterationId: it.id,
                       carryOverTo,
                     });
-                    toast(`${iterationLabel(it)} completed`, {
-                      label: "View report",
-                      href: paths.iteration(
-                        organization.slug,
-                        project.key,
-                        it.id,
-                      ),
-                    });
+                    toast(
+                      `${iterationLabel(it, project?.iterationMode)} completed`,
+                      {
+                        label: "View report",
+                        href: paths.iteration(
+                          organization.slug,
+                          project.key,
+                          it.id,
+                        ),
+                      },
+                    );
                   }}
                   onRename={(name, goal) =>
                     void mutate({
@@ -454,7 +458,7 @@ function ProjectBacklog({ project }: { project: Project }) {
               <div className="flex items-center gap-2 px-4 py-3">
                 <h2 className="text-sm font-semibold">Backlog</h2>
                 <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase tabular-nums">
-                  {backlog.length} items
+                  {backlog.length} {backlog.length === 1 ? "item" : "items"}
                   {project.estimateScale !== "none" &&
                     ` · ${points(backlog)} pts`}
                 </span>
@@ -481,7 +485,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
                         >
                           <BarChart3 className="size-3.5 text-muted-foreground" />
-                          {iterationLabel(i)}
+                          {iterationLabel(i, project?.iterationMode)}
                           <span className="text-xs text-muted-foreground">
                             {shortRange(i)}
                           </span>
@@ -527,6 +531,7 @@ function IterationHeader({
   onStart,
   onComplete,
   onRename,
+  iterationMode,
 }: {
   iteration: Iteration;
   rows: WorkItem[];
@@ -541,6 +546,7 @@ function IterationHeader({
   onStart: () => void;
   onComplete: (carryOverTo: string | null) => void;
   onRename: (name: string | null, goal: string | null) => void;
+  iterationMode: Project["iterationMode"];
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(iteration.name ?? "");
@@ -550,7 +556,9 @@ function IterationHeader({
     <div className="px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <Repeat className="size-3.5 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">{iterationLabel(iteration)}</h2>
+        <h2 className="text-sm font-semibold">
+          {iterationLabel(iteration, iterationMode)}
+        </h2>
         {iteration.state === "active" && (
           <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
             <span aria-hidden className="size-1.5 rounded-full bg-success" />
@@ -574,7 +582,7 @@ function IterationHeader({
               : undefined
           }
         >
-          {rows.length} items
+          {rows.length} {rows.length === 1 ? "item" : "items"}
           {showPoints &&
             ` · ${points}${capacity !== undefined ? ` / ~${capacity}` : ""} pts`}
         </span>
@@ -639,7 +647,7 @@ function IterationHeader({
                         ? [
                             {
                               value: nextPlanned.id,
-                              label: iterationLabel(nextPlanned),
+                              label: iterationLabel(nextPlanned, iterationMode),
                               hint: shortRange(nextPlanned),
                             },
                           ]
@@ -673,7 +681,10 @@ function IterationHeader({
         >
           <Input
             className="h-8 w-48 text-sm"
-            placeholder={`Iteration ${iteration.number}`}
+            placeholder={iterationLabel(
+              { name: null, number: iteration.number },
+              iterationMode,
+            )}
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Sprint name"
@@ -783,7 +794,7 @@ export function BacklogRow({
       )}
     >
       <TypeIcon type={typeOf(delivery, item)} />
-      <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
+      <span className="shrink-0 font-mono text-xs text-muted-foreground sm:w-16">
         {label}
       </span>
       <Link
@@ -802,15 +813,28 @@ export function BacklogRow({
       )}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
-        {item.refinementState && item.refinementState !== "ready" && (
+        {/* Every row says where its specification stands: a blank cell read
+            as missing data. Plain work has no specification. */}
+        {item.refinementState ? (
           <span
-            title="Specification not ready"
+            title={
+              item.refinementState === "ready"
+                ? "Specification ready"
+                : "Specification not ready"
+            }
             className="inline-flex items-center gap-1"
           >
             <RefinementIcon state={item.refinementState} />
             <span className="hidden sm:inline">
               {refinementMeta[item.refinementState].label}
             </span>
+          </span>
+        ) : (
+          <span
+            title="Plain work, without a specification"
+            className="hidden text-muted-foreground/60 sm:inline"
+          >
+            —
           </span>
         )}
         {item.blockingThreads > 0 && (
@@ -835,7 +859,13 @@ export function BacklogRow({
           {status?.name}
         </span>
       </span>
-      <span className="inline-flex w-7 shrink-0 justify-center">
+      {/* Empty slots only keep columns aligned where there is room. */}
+      <span
+        className={cn(
+          "w-7 shrink-0 justify-center",
+          estimate ? "inline-flex" : "hidden sm:inline-flex",
+        )}
+      >
         {estimate && (
           <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
             {estimate}
@@ -849,7 +879,7 @@ export function BacklogRow({
           size="xs"
         />
       ) : (
-        <span className="size-4" />
+        <span className="hidden size-4 sm:block" />
       )}
       {actions && (
         <span className="relative z-10 flex items-center gap-1">{actions}</span>

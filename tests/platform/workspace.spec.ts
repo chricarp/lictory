@@ -468,8 +468,9 @@ test("work item panels collapse independently and persist across routes and relo
   ]) {
     await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
   }
+  // A new proposal opens beside the Proposals queue it joined.
   await expect(
-    rail.getByRole("link", { name: "All items", exact: true }),
+    rail.getByRole("link", { name: "Proposals", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page
     .getByRole("button", { name: "Switch project: Panel project" })
@@ -939,11 +940,16 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByText("Duplicate callbacks do not create duplicate cancellations"),
   ).toBeVisible();
 
-  // Invite the engineer so they can review.
+  // Invite the engineer straight into the project's Engineering discipline,
+  // so they can be asked to review as soon as they accept. The only project
+  // is preselected.
   await page.getByRole("link", { name: "Organization settings" }).click();
   await page.getByRole("link", { name: "Members", exact: true }).click();
   await page.getByLabel("Teammate email or username").fill("@riley_chen");
+  await expect(page.getByLabel("Invitation project")).toHaveValue(/.+/);
+  await page.getByRole("checkbox", { name: "Engineering" }).check();
   await page.getByRole("button", { name: "Send invitation" }).click();
+  await expect(page.getByText(/Joins Payments · Engineering/)).toBeVisible();
   const invitation = await page
     .getByLabel("Invitation link", { exact: true })
     .inputValue();
@@ -957,17 +963,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewer.getByRole("button", { name: "Accept invitation" }).click();
   await expect(reviewer).toHaveURL(/\/northstar/);
 
-  // The administrator adds the engineer to the project in the Engineering
-  // discipline. Until then the new member cannot even be asked to review.
+  // Accepting placed the engineer in the project's Engineering discipline.
   const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   await page.goto(paths.projectSettings(orgSlug, "PAY", "members"));
-  await page.getByRole("button", { name: "Add people" }).click();
-  await page.getByRole("option", { name: /Riley Chen/ }).click();
-  const rileyDisciplines = page
-    .getByLabel("Disciplines of Riley Chen")
-    .getByRole("button", { name: "Engineering", exact: true });
-  await rileyDisciplines.click();
-  await expect(rileyDisciplines).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page
+      .getByLabel("Disciplines of Riley Chen")
+      .getByRole("button", { name: "Engineering", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   // 6. Request Engineering review from the story page.
   const storyUrl = `/${orgSlug}/pay/items/PAY-2`;
@@ -1297,8 +1300,37 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeVisible();
   await reviewer.getByRole("button", { name: "Close comparison" }).click();
 
-  // 15-16. Resolve the blocking discussion, approve again → readiness passes → Ready.
-  await page.getByRole("button", { name: "Resolve" }).click();
+  // 15-16. Resolve the blocking discussion, keeping its conclusion as a
+  // decision, approve again → readiness passes → Ready.
+  await page.getByRole("button", { name: "Resolve as decision" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Decision title" }),
+  ).toBeFocused();
+  // Nothing changes until the decision is saved: cancelling keeps the
+  // discussion open.
+  await page
+    .locator("form", {
+      has: page.getByRole("textbox", { name: "Decision title" }),
+    })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(
+    page.getByText("No open discussions.", { exact: false }),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "Resolve as decision" }).click();
+  // The agreed conclusion is recorded and the discussion resolved together,
+  // without changing the revision. The second participant sees it through
+  // synchronization; history survives archive, restore and reload, and search
+  // finds its original evidence.
+  await page
+    .getByRole("textbox", { name: "Decision title" })
+    .fill("Cancellation amounts are bounded");
+  await page
+    .getByRole("textbox", { name: "Decision details" })
+    .fill("A partial cancellation cannot exceed the settled total.");
+  await page
+    .getByRole("button", { name: "Resolve and save decision", exact: true })
+    .click();
   await expect(
     page.getByText("No open discussions.", { exact: false }),
   ).toBeVisible();
@@ -1313,24 +1345,10 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     ),
   ).toBeVisible();
 
-  // Record the agreed conclusion without changing readiness or revision.
-  // The second participant sees it through synchronization; history survives
-  // archive, restore and reload, and search finds its original evidence.
-  await page
-    .getByRole("button", { name: "Record decision", exact: true })
-    .click();
-  await page
-    .getByRole("textbox", { name: "Decision title" })
-    .fill("Cancellation amounts are bounded");
-  await page
-    .getByRole("textbox", { name: "Decision details" })
-    .fill("A partial cancellation cannot exceed the settled total.");
-  await page
-    .getByRole("button", { name: "Save decision", exact: true })
-    .click();
   await expect(
     reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
   ).toBeVisible();
+  await expect(page.getByText(/from a resolved discussion/)).toBeVisible();
   await page
     .getByRole("button", {
       name: "Archive decision: Cancellation amounts are bounded",
@@ -1542,7 +1560,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByRole("link", { name: "Backlog & sprints" }).click();
   await page.getByRole("button", { name: "New sprint" }).click();
   const sprint = page.locator("section[aria-label='Iteration']").first();
-  await expect(sprint.getByText("Iteration 1")).toBeVisible();
+  await expect(sprint.getByText("Sprint 1")).toBeVisible();
   for (const title of ["Add payment method column", "Save a card for later"]) {
     await page.locator("[data-row]", { hasText: title }).dragTo(sprint);
     await expect(sprint.getByText(title)).toBeVisible();
@@ -1722,7 +1740,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByRole("option", { name: "Backlog" }).click();
   const backlog = page.locator("section[aria-label='Backlog']");
   await expect(backlog.getByText("Save a card for later")).toBeVisible();
-  await page.getByRole("link", { name: /Iteration 1/ }).click();
+  await page.getByRole("link", { name: /Sprint 1/ }).click();
   await expect(page.getByRole("heading", { name: "Burndown" })).toBeVisible();
   await expect(page.getByText("Carried over")).toBeVisible();
 });

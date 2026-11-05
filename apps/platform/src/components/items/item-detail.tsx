@@ -78,6 +78,7 @@ import { Discussions } from "@lictory/platform/components/review/threads";
 import {
   BranchEntry,
   BranchWorkspace,
+  useSuggestChange,
   type BranchScreen,
 } from "@lictory/platform/components/review/branch-workspace";
 import { ReviewPanel } from "@lictory/platform/components/review/review-panel";
@@ -85,7 +86,10 @@ import { Readiness } from "@lictory/platform/components/review/readiness";
 import { AiReviewView } from "@lictory/platform/components/review/ai-review";
 import { DockItemSource } from "@lictory/platform/components/intelligence/dock/item-source";
 import { Activity } from "@lictory/platform/components/review/activity";
-import { Decisions } from "@lictory/platform/components/review/decisions";
+import {
+  DecisionComposerScope,
+  Decisions,
+} from "@lictory/platform/components/review/decisions";
 import { DeliveryScope } from "@lictory/platform/components/items/delivery-scope";
 import { ItemWorkflow } from "@lictory/platform/components/items/item-workflow";
 import {
@@ -624,7 +628,10 @@ export function ItemDetail({
                 organizationId={workspace.organization.id}
                 workItemId={item.id}
                 involved={
-                  item.createdById === workspace.userId ||
+                  // Merging a breakdown makes no one the owner of its
+                  // children (notifications/server.ts owners()).
+                  (item.createdById === workspace.userId &&
+                    !item.sourceRevisionId) ||
                   item.assigneeId === workspace.userId ||
                   ctx.messages.some((m) => m.authorId === workspace.userId) ||
                   ctx.suggestions.some((x) => x.authorId === workspace.userId)
@@ -866,10 +873,11 @@ export function ItemDetail({
                     onMain={() => setMode({ kind: "read" })}
                   />
                 ) : (
-                  <Specification
+                  <SuggestingSpecification
                     mode={mode.kind}
                     setMode={(kind) => setMode({ kind })}
                     onQuote={(quote, section) => setDraft({ quote, section })}
+                    onNavigate={setMode}
                   />
                 )}
               </div>
@@ -890,12 +898,14 @@ export function ItemDetail({
                   <section className="mt-10">
                     <Relations item={item} canChange={canChange} />
                   </section>
-                  <section className="mt-10">
-                    <Discussions draft={draft} onDraftChange={setDraft} />
-                  </section>
-                  <section className="mt-10">
-                    <Decisions />
-                  </section>
+                  <DecisionComposerScope>
+                    <section className="mt-10">
+                      <Discussions draft={draft} onDraftChange={setDraft} />
+                    </section>
+                    <section className="mt-10">
+                      <Decisions />
+                    </section>
+                  </DecisionComposerScope>
                 </>
               )}
               {!pendingCreate && (
@@ -979,6 +989,20 @@ const railPane: PaneSpec = {
   neighbour: () => document.querySelector("[data-pane-document]"),
   keep: 440,
 };
+
+// The specification, with "Suggest a change" on selected text (it needs the
+// item context the branch commands run in).
+function SuggestingSpecification({
+  onNavigate,
+  ...props
+}: Omit<Parameters<typeof Specification>[0], "onSuggest"> & {
+  onNavigate: (screen: BranchScreen) => void;
+}) {
+  const suggest = useSuggestChange(onNavigate);
+  return (
+    <Specification {...props} onSuggest={(quote) => void suggest(quote)} />
+  );
+}
 
 function Property({
   label,

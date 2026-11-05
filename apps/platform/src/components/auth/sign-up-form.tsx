@@ -11,7 +11,13 @@ import { authClient } from "@lictory/platform/lib/auth-client";
 import { formValue } from "@lictory/core/lib/utils";
 import { identifyUser, track } from "@lictory/core/lib/analytics/client";
 
-export function SignUpForm({ callbackURL = "/" }: { callbackURL?: string }) {
+export function SignUpForm({
+  callbackURL = "/",
+  defaultEmail,
+}: {
+  callbackURL?: string;
+  defaultEmail?: string;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -67,6 +73,7 @@ export function SignUpForm({ callbackURL = "/" }: { callbackURL?: string }) {
         type="email"
         autoComplete="email"
         placeholder="you@company.com"
+        defaultValue={defaultEmail}
         required
       />
       <NewPasswordFields confirm={false} />

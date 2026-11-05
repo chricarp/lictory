@@ -6,6 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { chatGenerator } from "@lictory/core/intelligence/chat/step";
 import * as s from "@lictory/core/db/schema";
@@ -490,6 +491,29 @@ void test("revoking membership before execution prevents model and tool access",
   });
   assert.equal(called, false);
   assert.equal((await f.snapshot()).run?.status, "failed");
+});
+
+void test("a failed AI provider call says what failed instead of a generic failure", async () => {
+  const f = await fixture();
+  await submitChatRun(db, f.owner, f.chatId, f.input);
+  const model = new MockLanguageModelV4({
+    doStream: async () => {
+      throw new APICallError({
+        message: "Incorrect API key provided",
+        url: "https://provider.example.test/v1/responses",
+        requestBodyValues: {},
+        statusCode: 401,
+        isRetryable: false,
+      });
+    },
+  });
+  await f.work(chatGenerator(() => model));
+  const run = (await f.snapshot()).run;
+  assert.equal(run?.status, "failed");
+  assert.match(run?.error ?? "", /rejected the configured credentials/);
+  assert.match(run?.error ?? "", /completed steps are saved/);
+  // The provider's own wording never reaches people.
+  assert.doesNotMatch(run?.error ?? "", /Incorrect API key/);
 });
 
 void test("the real model adapter persists questions and approvals and continues without duplicate messages", async () => {

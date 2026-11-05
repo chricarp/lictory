@@ -47,7 +47,9 @@ export function VerificationStatus({
         <AuthHeading title="Email verified" />
         <Link href={callbackURL} className="contents">
           <Button size="lg" className="w-full">
-            Open workspace
+            {callbackURL.startsWith("/invitation")
+              ? "Continue to your invitation"
+              : "Open workspace"}
           </Button>
         </Link>
       </>

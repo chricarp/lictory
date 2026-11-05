@@ -369,7 +369,9 @@ function PeekContent({
                   />
                 ) : (
                   <Value muted={!iteration}>
-                    {iteration ? iterationLabel(iteration) : "Backlog"}
+                    {iteration
+                      ? iterationLabel(iteration, project?.iterationMode)
+                      : "Backlog"}
                   </Value>
                 )}
                 {iteration?.state === "active" && (
