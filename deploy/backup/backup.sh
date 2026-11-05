@@ -32,17 +32,25 @@ if [ "$backup_target" = none ]; then
   [ "$label" != manual ] || exit 1
   exit 0
 fi
-started=$(date -u +%s)
-stamp=$(date -u +%Y%m%dT%H%M%SZ)
-name="lictory-${LICTORY_ENVIRONMENT}-${stamp}-${label}"
 mkdir -p /backups/latest
 umask 077
 # One backup at a time per environment (scheduled, manual and pre-deploy
 # runs share this volume): a second one waits, then gives up after an hour.
 # (BusyBox flock has no -w: timeout bounds the wait; the lock belongs to fd 8,
-# so it stays held after flock itself exits.)
+# so it stays held after flock itself exits.) The name is taken once the lock
+# is held, so a backup that waited gets its own name instead of overwriting
+# the previous one's objects.
 exec 8>/backups/.backup.lock
 timeout 3600 flock 8 || { echo "Another backup of ${LICTORY_ENVIRONMENT} has been running for an hour; not starting a second one." >&2; exit 75; }
+started=$(date -u +%s)
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+# A small database backs up within a second: never reuse the previous stamp.
+while [ "$stamp" = "$(cat /backups/.last-stamp 2>/dev/null)" ]; do
+  sleep 1
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+done
+echo "$stamp" >/backups/.last-stamp
+name="lictory-${LICTORY_ENVIRONMENT}-${stamp}-${label}"
 work=$(mktemp -d "/backups/work-${stamp}.XXXXXX")
 
 ping() { # ping <suffix> <message>
