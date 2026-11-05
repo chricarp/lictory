@@ -2183,3 +2183,51 @@ esac
     );
   },
 );
+
+void test(
+  "doctor says when the host tools and the environment's release drift apart",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const tools = join(f.root, "share/bundle/release.env");
+    const check = () =>
+      (
+        JSON.parse(f.lictory(["doctor", "--json"]).stdout) as {
+          checks: { status: string; message: string }[];
+        }
+      ).checks.find((c) => c.message.includes("host tools"));
+    // Same release: nothing to say.
+    assert.equal(check(), undefined);
+    // Tools from a newer release line (another environment was upgraded).
+    writeFileSync(
+      tools,
+      readFileSync(tools, "utf8").replace(
+        /^LICTORY_VERSION=.*$/m,
+        "LICTORY_VERSION=1.3.0",
+      ),
+    );
+    assert.match(
+      check()!.message,
+      /another release line than production's 1\.2\.3/,
+    );
+    // Same line: fine.
+    writeFileSync(
+      tools,
+      readFileSync(tools, "utf8").replace(
+        /^LICTORY_VERSION=.*$/m,
+        "LICTORY_VERSION=1.2.9",
+      ),
+    );
+    assert.equal(check()!.status, "ok");
+    // Older tools than the release.
+    writeFileSync(
+      tools,
+      readFileSync(tools, "utf8").replace(
+        /^LICTORY_VERSION=.*$/m,
+        "LICTORY_VERSION=1.2.0",
+      ),
+    );
+    assert.match(check()!.message, /older than production's release/);
+  },
+);
