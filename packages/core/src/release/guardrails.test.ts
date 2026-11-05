@@ -283,6 +283,57 @@ void test("only release managers can release or deploy a website", () => {
   assert.match(script, /refs\/heads\/main/);
 });
 
+void test("nightly pruning never runs on forks, queues with nightlies and deletes only when asked", () => {
+  const prune = workflow("prune-nightlies");
+  assert.deepEqual(Object.keys(prune.on).sort(), [
+    "schedule",
+    "workflow_dispatch",
+  ]);
+  const dryRun = (
+    prune.on.workflow_dispatch as {
+      inputs: Record<string, { type: string; default: boolean }>;
+    }
+  ).inputs.dry_run!;
+  assert.deepEqual([dryRun.type, dryRun.default], ["boolean", true]);
+  assert.deepEqual(prune.permissions, {});
+  // The same queue as nightly publication, never cancelled.
+  assert.equal(
+    (prune.concurrency as { group?: string }).group,
+    (workflow("nightly").concurrency as { group?: string }).group,
+  );
+  assert.equal(prune.concurrency?.["cancel-in-progress"], false);
+  const job = prune.jobs.prune!;
+  assert.equal(job.if, "github.repository == 'chricarp/lictory'");
+  assert.deepEqual(job.permissions, {
+    contents: "write",
+    deployments: "read",
+  });
+  // Schedules prune; a manual run previews unless a release manager unchecks it.
+  assert.equal(
+    job.env?.DRY_RUN,
+    "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}",
+  );
+  const steps = job.steps!;
+  const gate = steps.findIndex(
+    (step) => step.uses === "./.github/actions/release-manager",
+  );
+  const run = steps.findIndex((step) =>
+    step.run?.includes("scripts/prune-nightlies.ts"),
+  );
+  assert.ok(gate >= 0 && gate < run);
+  assert.equal(
+    (steps[gate] as { if?: string }).if,
+    "github.event_name == 'workflow_dispatch' && !inputs.dry_run",
+  );
+  // Only the pruning step holds the token.
+  assert.deepEqual(
+    steps.flatMap((step, index) =>
+      JSON.stringify(step).includes("github.token") ? [index] : [],
+    ),
+    [run],
+  );
+});
+
 void test("PR title enforcement never checks out or runs untrusted PR code", () => {
   const title = workflow("pr-title");
   assert.ok(Object.hasOwn(title.on, "pull_request_target"));
