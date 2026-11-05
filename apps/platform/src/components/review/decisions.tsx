@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useCallback,
   useRef,
   useState,
   type ReactNode,
@@ -107,20 +108,18 @@ export function Decisions() {
   const [resolveSource, setResolveSource] = useState(false);
   // Swaps in another discussion's conclusion unless the person wrote their
   // own details. The previous prefill is captured now: the updater runs later.
-  const prefill = (conclusion: string) => {
+  const prefill = useCallback((conclusion: string) => {
     const previous = prefilledRef.current;
     setBody((current) =>
       !current.trim() || current === previous ? conclusion : current,
     );
     prefilledRef.current = conclusion;
-  };
-  const prefillRef = useRef(prefill);
-  prefillRef.current = prefill;
+  }, []);
   useEffect(() => {
     if (!scope || !canRecord) return;
     return scope.register((threadId, conclusion, options) => {
       setSourceThreadId(threadId);
-      prefillRef.current(conclusion);
+      prefill(conclusion);
       setResolveSource(Boolean(options?.resolve));
       setComposing(true);
       // The form renders on the next frame; then bring it into view.
@@ -129,7 +128,7 @@ export function Decisions() {
         titleRef.current?.focus({ preventScroll: true });
       });
     });
-  }, [scope, canRecord]);
+  }, [scope, canRecord, prefill]);
   // Resolved specification discussions, and the one a thread just asked to
   // record (its resolution may not have synchronized yet).
   const sources = entities.filter(
