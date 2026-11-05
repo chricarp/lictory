@@ -14,7 +14,13 @@ import { refreshSession } from "@lictory/platform/lib/session";
 import { formValue } from "@lictory/core/lib/utils";
 import { identifyUser, track } from "@lictory/core/lib/analytics/client";
 
-export function SignInForm({ callbackURL }: { callbackURL: string }) {
+export function SignInForm({
+  callbackURL,
+  defaultEmail,
+}: {
+  callbackURL: string;
+  defaultEmail?: string;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -89,6 +95,7 @@ export function SignInForm({ callbackURL }: { callbackURL: string }) {
         label="Email"
         type="email"
         autoComplete="email"
+        defaultValue={defaultEmail}
         placeholder="you@company.com"
         required
       />

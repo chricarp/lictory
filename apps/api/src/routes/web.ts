@@ -1,3 +1,9 @@
+import {
+  invitationIntent,
+  placementOutcomeFor,
+  placementSchema,
+  validateInvitationPlacement,
+} from "@lictory/core/domain/invitation-placement";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { APIError } from "better-auth/api";
 import { Hono, type Context } from "hono";
@@ -340,6 +346,7 @@ export function webRoutes() {
   const invitationSchema = z.object({
     organizationId: z.string().min(1).max(160),
     recipient: z.string().trim().min(1).max(320),
+    placement: placementSchema.optional(),
   });
   app.post("/api/invitations", async (c) => {
     const request = c.req.raw;
@@ -358,7 +365,7 @@ export function webRoutes() {
         400,
       );
     try {
-      const { organizationId, recipient } = parsed.data;
+      const { organizationId, recipient, placement } = parsed.data;
       // Check permissions before resolving a platform-wide username.
       const permission = await auth.api.hasPermission({
         headers: request.headers,
@@ -373,6 +380,22 @@ export function webRoutes() {
           },
           403,
         );
+      if (placement) {
+        try {
+          await validateInvitationPlacement(
+            db,
+            session.user.id,
+            organizationId,
+            placement,
+          );
+        } catch (error) {
+          const failure = toCapabilityError(error);
+          return Response.json(
+            { error: { message: failure.message } },
+            { status: httpStatus(failure) },
+          );
+        }
+      }
       let email = recipient.toLowerCase();
       if (!z.email().safeParse(email).success) {
         const handle = normalizeHandle(recipient);
@@ -425,10 +448,14 @@ export function webRoutes() {
           },
           400,
         );
-      const invitation = await auth.api.createInvitation({
-        headers: request.headers,
-        body: { organizationId, email, role: "member", resend: true },
-      });
+      const invitation = await invitationIntent.run(
+        { organizationId, inviterId: session.user.id, placement },
+        () =>
+          auth.api.createInvitation({
+            headers: request.headers,
+            body: { organizationId, email, role: "member", resend: true },
+          }),
+      );
       return c.json({ id: invitation.id });
     } catch (error) {
       if (error instanceof APIError)
@@ -447,6 +474,64 @@ export function webRoutes() {
         502,
       );
     }
+  });
+
+  // What accepting an invitation granted, for the person who accepted it:
+  // the join succeeds even when promised project access could not be added.
+  app.get("/api/invitations/:id/placement", async (c) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) return c.json({ error: { message: "Sign in again." } }, 401);
+    const outcome = await placementOutcomeFor(
+      db,
+      c.req.param("id"),
+      session.user.email,
+    );
+    return c.json({ outcome });
+  });
+
+  app.get("/api/invitations", async (c) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) return c.json({ error: { message: "Sign in again." } }, 401);
+    const organizationId = c.req.query("organizationId") ?? "";
+    const permission = await auth.api.hasPermission({
+      headers: c.req.raw.headers,
+      body: { organizationId, permissions: { invitation: ["create"] } },
+    });
+    if (!permission.success)
+      return c.json(
+        {
+          error: {
+            message: "Only organization administrators can view invitations.",
+          },
+        },
+        403,
+      );
+    const rows = await db
+      .select({
+        id: s.invitation.id,
+        email: s.invitation.email,
+        expiresAt: s.invitation.expiresAt,
+        placement: {
+          projectId: s.invitationPlacement.projectId,
+          disciplineIds: s.invitationPlacement.disciplineIds,
+        },
+      })
+      .from(s.invitation)
+      .leftJoin(
+        s.invitationPlacement,
+        and(
+          eq(s.invitationPlacement.invitationId, s.invitation.id),
+          eq(s.invitationPlacement.organizationId, organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(s.invitation.organizationId, organizationId),
+          eq(s.invitation.status, "pending"),
+          gt(s.invitation.expiresAt, new Date()),
+        ),
+      );
+    return c.json(rows);
   });
 
   // The audit log as CSV for organization administrators, streamed page by

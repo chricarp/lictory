@@ -18,6 +18,9 @@ rebuilt from PostgreSQL (zero-cache's replica).
 
 ## Backups
 
+With an [external database](/self-hosting/database#backups), Lictory takes no
+backups: the provider's backups and point-in-time recovery protect it.
+
 A backup is a `pg_dump` taken in one consistent snapshot, with a manifest of
 exact row counts and applied migrations. It is checked for readability,
 encrypted with [age](https://age-encryption.org) to the public key(s) in

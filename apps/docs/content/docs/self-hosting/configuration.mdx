@@ -39,6 +39,16 @@ minute of errors; if PostgreSQL does not take it, the previous value stays.
 set first). `DELIVERY_CREDENTIALS_KEY` cannot be rotated yet: stored Jira
 tokens would need re-encrypting.
 
+On an [external database](/self-hosting/database), `rotate` does not change
+role passwords: Lictory holds no administrator connection to it. Set the new
+value without applying it, let `database setup` change the role, then apply:
+
+```sh
+sudo lictory config set --force --no-apply LICTORY_APP_PASSWORD=$(openssl rand -hex 32)
+sudo lictory database setup
+sudo lictory config apply
+```
+
 ## Domain and TLS
 
 | Setting                | Meaning                                                                                      |

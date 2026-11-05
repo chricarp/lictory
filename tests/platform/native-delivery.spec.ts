@@ -51,7 +51,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByRole("link", { name: "Backlog & sprints" }).click();
   await page.getByRole("button", { name: "New sprint" }).click();
   const sprint = page.locator("section[aria-label='Iteration']").first();
-  await expect(sprint.getByText("Iteration 1")).toBeVisible();
+  await expect(sprint.getByText("Sprint 1")).toBeVisible();
   for (const title of ["Add payment method column", "Save a card for later"]) {
     await page.locator("[data-row]", { hasText: title }).dragTo(sprint);
     await expect(sprint.getByText(title)).toBeVisible();
@@ -149,6 +149,15 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(
     column("In Progress").getByText("Add payment method column"),
   ).toBeVisible();
+  // Planning fields are editable in place: the card shows the new estimate.
+  await taskPreview
+    .getByRole("button", { name: "Estimate: No estimate" })
+    .click();
+  await page.getByRole("option", { name: "5", exact: true }).click();
+  await expect(
+    taskPreview.getByRole("button", { name: "Estimate: 5" }),
+  ).toBeVisible();
+  await expect(taskCard.getByText("5", { exact: true })).toBeVisible();
   // The close icon, an outside click and Escape all dismiss it; a reload
   // keeps it open.
   await taskPreview.getByRole("button", { name: "Close preview" }).click();
@@ -222,7 +231,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page.getByRole("option", { name: "Backlog" }).click();
   const backlog = page.locator("section[aria-label='Backlog']");
   await expect(backlog.getByText("Save a card for later")).toBeVisible();
-  await page.getByRole("link", { name: /Iteration 1/ }).click();
+  await page.getByRole("link", { name: /Sprint 1/ }).click();
   await expect(page.getByRole("heading", { name: "Burndown" })).toBeVisible();
   await expect(page.getByText("Carried over")).toBeVisible();
 });

@@ -81,9 +81,10 @@ test("an existing member can create and switch to another organization", async (
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("button", { name: "First Team" }).first().click();
-  // Switching organizations lands on Litto, the home page.
+  // Switching organizations returns to the project last worked in there
+  // (Litto is the home page only when an AI provider can answer).
   await expect(page).toHaveURL(
-    new RegExp(`${firstOrganization}/intelligence$`),
+    new RegExp(`${firstOrganization}/one/refinement$`),
   );
 });
 

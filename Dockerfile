@@ -66,9 +66,12 @@ RUN bun run --filter @lictory/api build \
 
 FROM source AS migrate-build
 # One self-contained file: the locked, transactional runner and its safety
-# rules, plus every reviewed backfill of this commit (scripts/backfills).
+# rules, plus every reviewed backfill of this commit (scripts/backfills), and
+# the database compatibility checks and role setup (database.mjs).
 RUN bun build scripts/migrate.ts --target=node --format=esm \
       --outfile=/out/migrate.mjs \
+ && bun build scripts/database.ts --target=node --format=esm \
+      --outfile=/out/database.mjs \
  && mkdir -p /out/backfills \
  && for script in scripts/backfills/*.ts; do \
       [ -e "$script" ] || continue; \
@@ -185,6 +188,7 @@ COPY LICENSES /usr/share/licenses/lictory/bundled/
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=migrate-build /out/migrate.mjs ./migrate.mjs
+COPY --from=migrate-build /out/database.mjs ./database.mjs
 COPY --from=migrate-build /out/backfills ./backfills
 COPY drizzle ./drizzle
 USER node
@@ -225,7 +229,7 @@ RUN apk add --no-cache age rclone curl bash coreutils jq \
 ENV RCLONE_CONFIG=/opt/rclone.conf
 COPY deploy/backup/*.sh deploy/monitor/*.sh /opt/lictory/
 COPY deploy/monitor/*.sql /opt/lictory/sql/
-COPY deploy/compose.production.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
+COPY deploy/compose.production.yaml deploy/compose.external-database.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
 COPY deploy/postgres /opt/lictory/deploy/postgres
 COPY deploy/bin deploy/deploy.sh /opt/lictory/deploy/bin/
 # Host installation (lictory CLI, deploy/get.sh): install.sh, timers, templates.

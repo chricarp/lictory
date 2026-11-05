@@ -42,6 +42,13 @@ anything changes.
 - `--public-url <origin>`: the address your proxy serves (`proxy`)
 - `--trusted-proxies <ips>`: the addresses your proxy connects from
 
+**Database:** `--database bundled|external` (a PostgreSQL container on
+this server, or [your own server or managed service](/self-hosting/database));
+for `external`: `--database-host` (the direct endpoint, never a pooler),
+`--database-port` (5432), `--database-sslmode verify-full|require`,
+`--database-ca-file` and `--database-admin-url` (an administrator connection
+that creates Lictory's roles once and is never stored).
+
 **Email:** `--email smtp|resend|none`; `--smtp-host`, `--smtp-port` (587),
 `--smtp-user`, `--smtp-password`, `--smtp-from`; `--resend-api-key`,
 `--email-from`.
@@ -93,19 +100,23 @@ warnings).
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `status [--json]`                                            | Address, release, services, backup timer and access policy                                                                            |
 | `doctor [--json]`                                            | Every check of the host, settings, routes, certificates, database, backups, access and timers, with fixes                             |
+| `database check [--json]`                                    | The database against Lictory's requirements, with the fix for each gap ([database](/self-hosting/database))                           |
+| `database setup`                                             | An external database: creates Lictory's roles and databases with an administrator connection (`LICTORY_DATABASE_ADMIN_URL`)           |
 | `config show [--reveal] [--json]`                            | The settings, secrets masked                                                                                                          |
 | `config get <KEY>`                                           | One value, for scripts (exit 1 when unset)                                                                                            |
 | `config set <KEY=value>…`, `unset <KEY>…`                    | Changes settings and applies them; undone if the services reject them ([configuration](/self-hosting/configuration))                  |
 | `config edit`                                                | The settings in `$EDITOR`, with a review before saving                                                                                |
 | `config apply`                                               | Restarts the services with the current settings, after a hand edit                                                                    |
 | `config rotate <KEY>`                                        | Replaces a generated secret with a new random one, in PostgreSQL too ([rotate a secret](/self-hosting/configuration#rotate-a-secret)) |
-| `logs [service] [-f] [--tail N] [--since 2h] [--timestamps]` | Logs of `proxy`, `api`, `worker`, `zero-cache` or `postgres`; `--since` reads an incident window                                      |
+| `logs [service] [-f] [--tail N] [--since 2h] [--timestamps]` | Logs of `proxy`, `api`, `worker`, `zero-cache` or the bundled `postgres`; `--since` reads an incident window                          |
 | `support-bundle [--output F] [--since 24h]`                  | A redacted archive for a bug report ([troubleshooting](/self-hosting/troubleshooting))                                                |
 | `version [--json]`                                           | The tools' release and every environment's release                                                                                    |
 | `completion bash`                                            | The bash completion script                                                                                                            |
 
 `config set`, `unset` and `edit` take `--no-apply` (write only) and `--force`
-(also unknown keys and generated secrets).
+(also unknown keys and generated secrets). On an external database,
+`config rotate` does not change role passwords itself: set the new value with
+`--no-apply`, run `database setup`, then `config apply`.
 
 ## Releases and data
 
@@ -118,17 +129,22 @@ warnings).
 | `uninstall [--purge [--no-backup]]`                               | Stops the environment and keeps its data; `--purge` deletes it after a final backup                            |
 | `registry-login [--username U]`                                   | Stores a registry token (from standard input) for private images                                               |
 
+An external database is backed up and restored by its provider: `backup` and
+`restore` refuse it, and `uninstall --purge` never touches it.
+
 ## Variables
 
-| Variable                 | Read by                             | Meaning                                                 |
-| ------------------------ | ----------------------------------- | ------------------------------------------------------- |
-| `LICTORY_<OPTION>`       | `install`                           | Any install option, for example `LICTORY_SMTP_PASSWORD` |
-| `LICTORY_ADMIN_PASSWORD` | `install`, `admin setup`            | The first administrator's password, without a prompt    |
-| `LICTORY_USER_PASSWORD`  | `admin create-user`, `set-password` | A password, without a prompt                            |
-| `LICTORY_ROOT`           | every command                       | The tooling root (default `/srv/lictory`)               |
-| `GITHUB_TOKEN`           | `install`, `upgrade`                | Raises GitHub's rate limit when releases are looked up  |
-| `NO_COLOR`               | every command                       | Plain output on a terminal                              |
-| `VISUAL`, `EDITOR`       | `config edit`                       | The editor                                              |
+| Variable                     | Read by                             | Meaning                                                 |
+| ---------------------------- | ----------------------------------- | ------------------------------------------------------- |
+| `LICTORY_<OPTION>`           | `install`                           | Any install option, for example `LICTORY_SMTP_PASSWORD` |
+| `LICTORY_ENV`                | every command                       | The environment, like `--env`                           |
+| `LICTORY_DATABASE_ADMIN_URL` | `install`, `database setup`         | An administrator connection to an external database     |
+| `LICTORY_ADMIN_PASSWORD`     | `install`, `admin setup`            | The first administrator's password, without a prompt    |
+| `LICTORY_USER_PASSWORD`      | `admin create-user`, `set-password` | A password, without a prompt                            |
+| `LICTORY_ROOT`               | every command                       | The tooling root (default `/srv/lictory`)               |
+| `GITHUB_TOKEN`               | `install`, `upgrade`                | Raises GitHub's rate limit when releases are looked up  |
+| `NO_COLOR`                   | every command                       | Plain output on a terminal                              |
+| `VISUAL`, `EDITOR`           | `config edit`                       | The editor                                              |
 
 Piped or redirected output is always plain text.
 

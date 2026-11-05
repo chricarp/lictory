@@ -52,6 +52,12 @@ env_value() {
 environment="${1:?Usage: lictory-backup <environment> [scheduled|manual]}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 bin="$(cd "$(dirname "$0")" && pwd)"
+# An external database is backed up by its provider, not by this server.
+if [ "$(env_value "$root/$environment/.env" LICTORY_DATABASE)" = external ]; then
+  echo "$environment uses an external database (LICTORY_DATABASE=external): Lictory takes no backups; the provider's backups and point-in-time recovery protect it."
+  [ "${2:-scheduled}" != manual ] || exit 1
+  exit 0
+fi
 LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" run --rm --no-deps -T ops backup.sh "${2:-scheduled}"
 status=$?
 if [ "$status" -ge 125 ]; then

@@ -24,6 +24,13 @@ case "$label" in scheduled | pre-deploy | manual) ;; *)
 esac
 
 : "${LICTORY_ENVIRONMENT:?}" "${PGDATABASE:?}"
+# An external database (compose.external-database.yaml) is the provider's to
+# back up; a deliberate request must not look like success.
+if [ "${LICTORY_DATABASE:-bundled}" = external ]; then
+  echo "${LICTORY_ENVIRONMENT} uses an external database: Lictory takes no backups. Use the provider's backups and point-in-time recovery (docs/operations/external-database.md#backups)." >&2
+  [ "$label" != manual ] || exit 1
+  exit 0
+fi
 # shellcheck source=deploy/backup/backup-target.sh
 . "$(dirname "$0")/backup-target.sh"
 if [ "$backup_target" = none ]; then

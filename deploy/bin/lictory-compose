@@ -3,7 +3,8 @@
 #   lictory-compose <environment> <compose arguments...>
 #
 # Uses the active release (<home>/current -> releases/<version>): its compose
-# file and image digests (release.env), plus the environment's .env.
+# file (plus compose.external-database.yaml with LICTORY_DATABASE=external) and
+# image digests (release.env), plus the environment's .env.
 # LICTORY_RELEASE_DIR selects another release (deploy.sh while rolling).
 set -euo pipefail
 
@@ -27,10 +28,29 @@ release="${LICTORY_RELEASE_DIR:-$home/current}"
   exit 1
 }
 
+# LICTORY_DATABASE=external: the database runs elsewhere (a managed service
+# or your own server); the release's override removes the bundled postgres.
+files=(--file "$release/compose.production.yaml")
+database=$(grep -E '^LICTORY_DATABASE=' "$home/.env" | tail -n 1 | cut -d= -f2- | tr -d "\"'" || true)
+case "${database:-bundled}" in
+  bundled) ;;
+  external)
+    [ -f "$release/compose.external-database.yaml" ] || {
+      echo "The release at $release does not support an external database (LICTORY_DATABASE=external); install a newer release." >&2
+      exit 1
+    }
+    files+=(--file "$release/compose.external-database.yaml")
+    ;;
+  *)
+    echo "LICTORY_DATABASE must be bundled or external (got $database) in $home/.env." >&2
+    exit 64
+    ;;
+esac
+
 exec docker compose \
   --project-name "lictory-$environment" \
   --project-directory "$home" \
-  --file "$release/compose.production.yaml" \
+  "${files[@]}" \
   --env-file "$home/.env" \
   --env-file "$release/release.env" \
   "$@"

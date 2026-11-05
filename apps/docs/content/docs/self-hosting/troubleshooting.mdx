@@ -127,6 +127,13 @@ release: `sudo lictory config apply`.
 
 ## Database and replication
 
+### "The database does not meet Lictory's requirements"
+
+An [external database](/self-hosting/database) is checked before every
+migration. `sudo lictory database check` names each gap and its fix; missing
+roles or databases are created with `sudo lictory database setup`. Then run
+`sudo lictory install` again.
+
 ### Replication slot or WAL warnings
 
 zero-cache keeps a replication slot on PostgreSQL. If zero-cache stops for

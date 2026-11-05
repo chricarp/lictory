@@ -208,10 +208,13 @@ export const defaultDisciplines: {
   },
   {
     name: "QA",
-    description: "Reviews testability, edge cases and acceptance criteria.",
+    description:
+      "Reviews testability, edge cases and acceptance criteria; files and verifies bugs.",
+    // Changing properties lets QA file bugs and tasks (plain work needs it)
+    // and move verified work along the board.
     capabilities: {
       editSpecifications: false,
-      changeProperties: false,
+      changeProperties: true,
       requestReviews: true,
       review: true,
       publishDelivery: false,

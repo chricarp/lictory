@@ -499,7 +499,19 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
   try {
     const reviewer = await reviewerContext.newPage();
     await signIn(reviewer, reviewerEmail);
-    await reviewer.goto(pr);
+    // The item opens on main; the review rail points the reviewer at the pull
+    // request that waits for them.
+    await reviewer.goto(pr.replace(/\?.*$/, ""));
+    const waiting = reviewer.getByRole("region", {
+      name: "Pull requests waiting for your review",
+    });
+    await expect(
+      waiting.getByText("A pull request waits for your review"),
+    ).toBeVisible();
+    await waiting
+      .getByRole("link", { name: /Review tighter criterion/ })
+      .click();
+    await expect(reviewer).toHaveURL(/[?&]pr=/);
     await reviewer
       .getByRole("button", { name: "Approve", exact: true })
       .click();
@@ -696,10 +708,20 @@ test("a breakdown-only pull request creates children only after review and merge
     .context()
     .setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
   await signIn(page, authorEmail);
-  const branchUrl = await createBranch(page, "engineering/delivery-breakdown");
+  // "Propose breakdown" starts a breakdown branch and opens its editor at the
+  // breakdown, ready for the first child.
+  await page.goto(itemUrl);
   await page
-    .getByRole("textbox", { name: "Proposed child title", exact: true })
-    .fill("Persist stable retry identifiers");
+    .getByRole("button", { name: "Propose breakdown", exact: true })
+    .click();
+  await expect(page).toHaveURL(/[?&]branch=/);
+  const childTitle = page.getByRole("textbox", {
+    name: "Proposed child title",
+    exact: true,
+  });
+  await expect(childTitle).toBeFocused();
+  const branchUrl = page.url();
+  await childTitle.fill("Persist stable retry identifiers");
   await page
     .getByRole("textbox", { name: "Proposed child description", exact: true })
     .fill("Keep the original transaction ID across timeout retries.");
@@ -773,6 +795,9 @@ test("a breakdown-only pull request creates children only after review and merge
         exact: false,
       }),
     ).toBeVisible();
+    // The header counts the commits the pull request brought in, not main's
+    // whole history.
+    await expect(page.getByText("merged 1 commit into")).toBeVisible();
     await expect
       .poll(async () => (await childRows()).length)
       .toBe(before.length + 1);

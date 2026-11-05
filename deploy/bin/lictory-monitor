@@ -76,7 +76,10 @@ for path in / "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /
 "
 done
 
-for service in postgres zero-cache api worker proxy; do
+services="postgres zero-cache api worker proxy"
+# An external database has no container here; monitor.sh checks it over TLS.
+[ "$(setting LICTORY_DATABASE)" != external ] || services="zero-cache api worker proxy"
+for service in $services; do
   id=$(LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" ps -q "$service" 2>/dev/null)
   state=$(docker inspect --format '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' "$id" 2>/dev/null || echo missing)
   case "$state" in running | running/healthy) ;; *) report="${report}container $service is $state

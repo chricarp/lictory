@@ -50,6 +50,16 @@ export const commands = {
     summary:
       "Check the host, the configuration, DNS, certificates, backups and replication, and explain what to fix. Sends no alerts.",
   },
+  "database-check": {
+    usage: "sudo lictory database check [--json]",
+    summary:
+      "Check the database against every requirement Lictory has (version, logical replication, roles, slots, TLS, direct connection, collation, event triggers) and name the fix for each gap. deploy.sh runs the same check before migrating an external database.",
+  },
+  "database-setup": {
+    usage: "sudo lictory database setup",
+    summary:
+      "Create Lictory's roles and databases on an external PostgreSQL with an administrator connection that is used once and never stored. No superuser needed.",
+  },
   config: {
     usage: "sudo lictory config set <KEY=value>",
     summary:
@@ -68,7 +78,7 @@ export const commands = {
   backup: {
     usage: "sudo lictory backup",
     summary:
-      "Take a database backup now, encrypted when a backup key is configured.",
+      "Take a database backup now, encrypted when a backup key is configured. An external database is backed up by its provider instead.",
   },
   "backup-list": {
     usage: "sudo lictory backup list [--json]",
@@ -78,12 +88,12 @@ export const commands = {
   restore: {
     usage: "sudo lictory restore <identity-file|none> [latest|<key>|<file>]",
     summary:
-      "Restore the database from a backup (the newest by default), keeping a copy of the current data; --drill restores into a scratch database instead.",
+      "Restore the database from a backup (the newest by default), keeping a copy of the current data; --drill restores into a scratch database instead. An external database is restored with its provider's point-in-time recovery.",
   },
   logs: {
     usage: "lictory logs [service] [-f] [--tail N] [--since 2h]",
     summary:
-      "Show the logs of every service, or of one (proxy, api, worker, zero-cache, postgres).",
+      "Show the logs of every service, or of one (proxy, api, worker, zero-cache, and postgres unless the database is external).",
   },
   "support-bundle": {
     usage: "sudo lictory support-bundle [--since 24h]",

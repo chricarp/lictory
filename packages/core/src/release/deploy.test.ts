@@ -101,6 +101,11 @@ else if (args[0] === "compose") {
       environment: JSON.parse(readFileSync(root + "/environment.json", "utf8")),
     } } }));
   } else if (args.includes("up")) process.exit(1);
+  else if (args.includes("database") && args.includes("check"))
+    process.exit(Number(process.env.FAKE_DATABASE_CHECK_EXIT ?? 0));
+  else if (args.includes("--status"))
+    console.log(process.env.FAKE_MIGRATE_STATUS ?? "Database schema is up to date.");
+  else if (args.includes("database") && args.includes("lsn")) console.log("0/16B3748");
 } else if (args[0] === "run") {
   if (process.env.FAIL_CADDY) {
     console.log(${JSON.stringify(sentinel)});
@@ -264,4 +269,83 @@ void test("automatic recovery validates the previous release before rolling it",
   assert.ok(relevant[0]!.includes("example.test/lictory-proxy:1.0.0"));
   // The current symlink selects the previously active release.
   assert.ok(relevant[2]!.includes("example.test/lictory-proxy:current"));
+});
+
+// LICTORY_DATABASE=external: the database's requirements are checked first,
+// grants are applied as the owning roles, and nothing touches a postgres
+// container or takes a pre-deploy backup.
+function externalDatabase(f: ReturnType<typeof fixture>) {
+  writeFileSync(
+    join(f.home, ".env"),
+    readFileSync(join(f.home, ".env"), "utf8") +
+      "LICTORY_DATABASE=external\nDATABASE_HOST=db.example.test\n",
+  );
+  for (const version of ["1.0.0", "2.0.0"])
+    writeFileSync(
+      join(f.home, "releases", version, "compose.external-database.yaml"),
+      "services: {}\n",
+    );
+}
+const composeCalls = (calls: string[][]) =>
+  calls.filter((call) => call[0] === "compose" && !call.includes("config"));
+// The Compose arguments after the wrapper's own (project, files, env files).
+const after = (call: string[], marker: string) =>
+  call.slice(call.findIndex((arg) => arg.endsWith(marker)) + 1).join(" ");
+
+void test("an external database that fails its requirements is not migrated", (t) => {
+  const f = fixture(t);
+  externalDatabase(f);
+  const result = f.run("migrate 2.0.0", { FAKE_DATABASE_CHECK_EXIT: "1" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /does not meet Lictory's requirements/);
+  assert.match(result.stderr, /sudo lictory database setup/);
+  const calls = composeCalls(result.calls);
+  assert.deepEqual(
+    calls.map((call) => after(call, "release.env")),
+    ["run --rm --no-deps -T database check"],
+  );
+  for (const call of result.calls.filter((c) => c[0] === "compose"))
+    assert.ok(
+      call.some((arg) => arg.endsWith("compose.external-database.yaml")),
+    );
+});
+
+void test("an external database is migrated with grants and without a postgres container", (t) => {
+  const f = fixture(t);
+  externalDatabase(f);
+  const result = f.run("migrate 2.0.0", {
+    FAKE_MIGRATE_STATUS: "Pending migrations:\n  - 0042_example",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    composeCalls(result.calls).map((call) => after(call, "release.env")),
+    [
+      "run --rm --no-deps -T database check",
+      "run --rm --no-deps -T migrate node migrate.mjs --status",
+      "run --rm --no-deps -T database grants",
+      "run --rm --no-deps -T migrate",
+      "run --rm --no-deps -T database lsn",
+      "ps -q zero-cache",
+    ],
+  );
+  assert.match(result.stderr, /No pre-deploy backup: the database is external/);
+  assert.ok(!result.calls.some((call) => call.includes("postgres")));
+});
+
+void test("an administrator URL creates the roles before the check", (t) => {
+  const f = fixture(t);
+  externalDatabase(f);
+  const result = f.run("migrate 2.0.0", {
+    DATABASE_ADMIN_URL: "postgresql://admin:synthetic@db.example.test/postgres",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const calls = composeCalls(result.calls).map((call) =>
+    after(call, "release.env"),
+  );
+  assert.deepEqual(calls.slice(0, 2), [
+    "run --rm --no-deps -T -e DATABASE_ADMIN_URL database setup",
+    "run --rm --no-deps -T database check",
+  ]);
+  // Passed by name: the URL never appears in a command line.
+  assert.ok(!result.calls.some((call) => call.join(" ").includes("synthetic")));
 });

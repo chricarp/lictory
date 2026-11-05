@@ -183,6 +183,7 @@ const runtimeFiles = [
   "scripts/migrate.ts",
   "scripts/edge-proxy.ts",
   "scripts/rebuild-projections.ts",
+  "scripts/database.ts",
 ];
 // Set by Vite itself, not by the environment.
 const viteBuiltIns = new Set(["DEV", "PROD", "MODE", "SSR", "BASE_URL"]);

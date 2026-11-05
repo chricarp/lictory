@@ -31,10 +31,13 @@ export function Specification({
   mode,
   setMode,
   onQuote,
+  onSuggest,
 }: {
   mode: Mode;
   setMode: (mode: Mode) => void;
   onQuote: (quote: string, section: string) => void;
+  // Starts a branch to change the selected text (reviewable specifications).
+  onSuggest?: (quote: string) => void;
 }) {
   const { current, readOnly, canEdit, memberName, reviewable } = useItem();
   if (!current) return null;
@@ -61,7 +64,11 @@ export function Specification({
         )}
       </div>
       {mode === "read" ? (
-        <Reader onQuote={onQuote} onEdit={() => canEdit && setMode("edit")} />
+        <Reader
+          onQuote={onQuote}
+          onSuggest={reviewable && !readOnly ? onSuggest : undefined}
+          onEdit={() => canEdit && setMode("edit")}
+        />
       ) : (
         <Editor mode={mode} onDone={() => setMode("read")} />
       )}
@@ -86,9 +93,11 @@ function sectionFor(node: Node | null): string {
 
 function Reader({
   onQuote,
+  onSuggest,
   onEdit,
 }: {
   onQuote: (quote: string, section: string) => void;
+  onSuggest?: (quote: string) => void;
   onEdit: () => void;
 }) {
   const { item, current, threads, readOnly, canEdit, reviewable } = useItem();
@@ -267,7 +276,7 @@ function Reader({
               )}
             </button>
           ))}
-          {selection && (canComment || canAsk) && (
+          {selection && (canComment || canAsk || onSuggest) && (
             <div
               role="toolbar"
               aria-label="Selection actions"
@@ -287,6 +296,20 @@ function Reader({
                 >
                   <MessageSquarePlus className="size-3.5" /> Comment on
                   selection
+                </Button>
+              )}
+              {onSuggest && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onSuggest(selection.quote);
+                    setSelection(undefined);
+                    window.getSelection()?.removeAllRanges();
+                  }}
+                >
+                  <PenLine className="size-3.5" /> Suggest a change
                 </Button>
               )}
               {canAsk && (

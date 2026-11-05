@@ -181,6 +181,19 @@ export function myDisciplineIds(directory: Directory, userId: string) {
     .filter((d) => !d.archivedAt && d.userIds.includes(userId))
     .map((d) => d.id);
 }
+// An open review asked of this person: by name, or of one of their
+// disciplines.
+export function isReviewAskedOf(
+  review: WorkItem["reviews"][number],
+  userId: string,
+  disciplineIds: string[],
+) {
+  return (
+    review.status !== "cancelled" &&
+    review.status !== "completed" &&
+    review.assigneeIds.some((id) => id === userId || disciplineIds.includes(id))
+  );
+}
 export function needsMyReview(
   item: WorkItem,
   userId: string,
@@ -189,12 +202,7 @@ export function needsMyReview(
   if (item.archivedAt) return false;
   return (
     item.suggestionReviewerIds.includes(userId) ||
-    item.reviews.some(
-      (r) =>
-        r.status !== "cancelled" &&
-        r.status !== "completed" &&
-        r.assigneeIds.some((id) => id === userId || disciplineIds.includes(id)),
-    )
+    item.reviews.some((r) => isReviewAskedOf(r, userId, disciplineIds))
   );
 }
 export function isBlocked(item: WorkItem) {

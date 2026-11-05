@@ -1062,7 +1062,7 @@ function ChangeSummary({ changes }: { changes: Change[] }) {
           aria-hidden
         />
         <span className="shrink-0 font-medium tabular-nums">
-          Changed {changes.length} items
+          Changed {changes.length} {changes.length === 1 ? "item" : "items"}
         </span>
         <span className="min-w-0 truncate text-muted-foreground tabular-nums">
           · {summarizeChanges(changes)}
