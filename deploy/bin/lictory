@@ -3077,6 +3077,7 @@ cmd_uninstall() {
 # use (kind, time, size, encryption), refusing a key that does not exist and
 # an encrypted backup without an identity. If the target cannot be listed,
 # says so and lets restore.sh decide.
+restore_key=""
 restore_preview() {
   local identity="$1" source="$2" entry lines=() size when
   if [ -f "$source" ]; then
@@ -3096,7 +3097,8 @@ restore_preview() {
       entry=$(printf '%s' "$backups_json" | jq -c --arg key "$source" '.[] | select(.key == $key)' | head -n 1)
       [ -n "$entry" ] || die "There is no backup $source in $(setting BACKUP_TARGET). See the stored ones: lictory backup list"
     fi
-    lines+=("$(row "Backup" "$(printf '%s' "$entry" | jq -r .key)")")
+    restore_key=$(printf '%s' "$entry" | jq -r .key)
+    lines+=("$(row "Backup" "$restore_key")")
     lines+=("$(row "Taken" "$(printf '%s' "$entry" | jq -r '.modified | sub("T"; " ") | .[0:16]') UTC ($(printf '%s' "$entry" | jq -r .kind))")")
     lines+=("$(row "Size" "$(bytes_human "$(printf '%s' "$entry" | jq -r .bytes)")")")
     entry=$(printf '%s' "$entry" | jq -r .encrypted)
@@ -3119,6 +3121,9 @@ cmd_restore() {
   active=$(current_version)
   [ -n "$active" ] || die "$environment has no active release; install it first (sudo lictory install), then restore."
   restore_preview "$identity" "$source"
+  # "latest" is resolved once, here: the check, the cutover and a drill all
+  # use the backup that was shown, even if another one finishes meanwhile.
+  [ -z "$restore_key" ] || source="$restore_key"
   if [ "$(opt drill)" = true ]; then
     local copy="$identity"
     if [ "$identity" != none ] && is_root; then

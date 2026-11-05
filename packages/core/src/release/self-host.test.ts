@@ -1296,7 +1296,12 @@ void test(
     );
     assert.match(drill.stdout, /Taken +2026-11-04 02:30 UTC \(daily\)/);
     assert.match(drill.stdout, /Size +2\.1 MB/);
-    assert.match(drill.stdout, /drill production .* latest/);
+    // "latest" is resolved once: the drill gets the key that was shown.
+    assert.ok(
+      drill.stdout.includes(`drill production`) &&
+        drill.stdout.includes(` ${key}`),
+    );
+    assert.doesNotMatch(drill.stdout, /drill production .* latest$/m);
 
     for (const [args, message] of [
       [["restore", "none", "latest", "--yes"], /That backup is encrypted/],
@@ -1606,6 +1611,11 @@ esac
     // A successful restore migrates and activates inside the held lock.
     const restored = restore();
     assert.equal(restored.status, 0, restored.stderr + restored.stdout);
+    // The check and the restore use the backup the preview showed.
+    const pinned = readFileSync(log, "utf8");
+    assert.ok(
+      pinned.includes(`check ${key}`) && pinned.includes(`restore ${key}`),
+    );
     assert.deepEqual(steps(), ["check", "stop", "restore"]);
     assert.deepEqual(activations(restored.calls), [
       "migrate 1.2.3",
