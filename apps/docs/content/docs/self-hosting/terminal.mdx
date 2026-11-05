@@ -43,10 +43,8 @@ required in CI.
 
 `status` summarizes the address, the active release and when it was
 activated, each service's health, the backup timer's last and next run, and
-the access policy. On a terminal it is one panel; piped, it prints the same
-plain lines as before, and `status --json` returns JSON for scripts. `doctor` checks the host,
-configuration, DNS, certificates, backup setup and replication, and gives
-remediation advice without sending alerts.
+the access policy. On a terminal it is one panel; piped, the same facts are
+plain `key: value` lines, and `status --json` returns them as JSON for scripts.
 
 To follow only the background worker:
 

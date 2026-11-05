@@ -258,9 +258,10 @@ Usage: lictory status [--json] [--env <name>]
 
 The address, the active release and when it was activated, the state of
 every service, the backup timer's last and next run, and the access policy.
-Piped, it prints plain lines. --json prints the release, services, address,
-channel and access policy for scripts (access is null when the api does not
-answer; exit status 0 even when a service is unhealthy: check "healthy").
+Piped, it prints the same facts as plain lines. --json prints the release,
+services, address, channel, activation time, backup target and timer, and
+access policy for scripts (access is null when the api does not answer; exit
+status 0 even when a service is unhealthy: check "healthy").
 USAGE
       ;;
     doctor)
@@ -2322,16 +2323,28 @@ cmd_status() {
   if [ "$(opt json)" = true ]; then
     # deploy.sh's release and services, plus the address, the channel and
     # (when the api answers) the access policy, as the text view shows them.
-    local access=null
+    local access=null version
     ! admin_status_json || access=$(printf '%s' "$admin_out" | jq -c '{signUpMode, allowedEmailDomains, organizationCreation, passwordLogin, sso, administrators, users, organizations}')
+    version=$(current_version)
+    timer_facts "lictory-backup@$environment.timer"
     deploy_sh status --json | jq -c --arg url "$(platform_url)" --arg channel "$(channel_of_environment)" \
-      --argjson access "$access" '. + {url: $url, releaseChannel: $channel, access: $access}'
+      --argjson access "$access" --arg activated "$( [ -z "$version" ] || activated_at "$version")" \
+      --arg target "$(setting BACKUP_TARGET)" --arg active "$timer_active" --arg last "$timer_last" \
+      --arg result "$timer_result" --arg next "$timer_next" '
+      def blank: if . == "" then null else . end;
+      . + {url: $url, releaseChannel: $channel, activatedAt: ($activated | blank), access: $access,
+           backups: {target: ($target | blank), timer: (if $active == "" then null else
+             {active: ($active == "true"), lastRun: ($last | blank), lastResult: ($result | blank), nextRun: ($next | blank)} end)}}'
   elif [ "$fancy" = true ]; then
     status_panel
   else
     deploy_sh status
     say "url: $(platform_url)"
     say "channel: $(channel_of_environment)"
+    local version
+    version=$(current_version)
+    [ -z "$version" ] || say "activated: $(activated_at "$version" | grep . || echo unknown)"
+    say "backups: $(setting BACKUP_TARGET | grep . || echo s3)$(t=$(timer_summary "lictory-backup@$environment.timer"); [ -z "$t" ] || printf ', %s' "$t")"
     # The access policy comes from the running api; status works without it.
     if admin_status_json; then
       print_access
@@ -2344,6 +2357,19 @@ cmd_status() {
 # activated_at <version>: when the environment last activated it (UTC).
 activated_at() {
   awk -v v="$1" '$2 == "activated" && $3 == v { t = $1 } END { print t }' "$home/release-history.log" 2>/dev/null || true
+}
+
+# timer_facts <unit>: timer_active (true/false, empty without systemd),
+# timer_last, timer_result and timer_next, for --json.
+timer_active="" timer_last="" timer_result="" timer_next=""
+timer_facts() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
+  systemctl is-active --quiet "$1" 2>/dev/null && timer_active=true || timer_active=false
+  timer_last=$(systemctl show "${1%.timer}.service" -p ExecMainExitTimestamp --value 2>/dev/null || true)
+  timer_result=$(systemctl show "${1%.timer}.service" -p Result --value 2>/dev/null || true)
+  timer_next=$(systemctl show "$1" -p NextElapseUSecRealtime --value 2>/dev/null || true)
+  [ "$timer_last" != n/a ] || timer_last=""
+  [ "$timer_next" != n/a ] || timer_next=""
 }
 
 # timer_summary <unit>: the last run of a timer's service and the next one,

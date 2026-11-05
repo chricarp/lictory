@@ -1925,11 +1925,25 @@ void test(
     assert.equal(installed.status, 0, installed.stderr + installed.stdout);
     const withoutApi = f.lictory(["status", "--json"]);
     assert.equal(withoutApi.status, 0, withoutApi.stderr);
-    assert.deepEqual(JSON.parse(withoutApi.stdout), {
-      url: "https://lictory.example.test",
-      releaseChannel: "stable",
-      access: null,
-    });
+    const plainStatus = JSON.parse(withoutApi.stdout) as {
+      url: string;
+      releaseChannel: string;
+      access: null;
+      activatedAt: string | null;
+      backups: { target: string; timer: { active: boolean } | null };
+    };
+    assert.equal(plainStatus.url, "https://lictory.example.test");
+    assert.equal(plainStatus.releaseChannel, "stable");
+    assert.equal(plainStatus.access, null);
+    assert.equal(plainStatus.backups.target, "none");
+    // The timer is reported where systemd runs (the stubbed systemctl says active).
+    assert.ok(
+      plainStatus.backups.timer === null || plainStatus.backups.timer.active,
+    );
+    // Piped, the same facts as the terminal panel.
+    const piped = f.lictory(["status"]);
+    assert.match(piped.stdout, /^url: https:\/\/lictory\.example\.test$/m);
+    assert.match(piped.stdout, /^backups: none/m);
     stubAdministration(f);
     const status = JSON.parse(
       f.lictory(["status", "--json"], { FAKE_ADMINS: "1" }).stdout,
