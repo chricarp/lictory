@@ -36,6 +36,52 @@ Streamable HTTP server and custom authorization headers. Lictory uses personal
 tokens for this connection; signing into Lictory in a browser does not authorize
 your terminal client.
 
+### Client examples
+
+Each example reads the token from the `LICTORY_TOKEN` environment variable or
+asks for it, so it never lands in a file you might commit. Replace
+`lictory.example.com` with your installation's host. Client formats change;
+if one of these no longer matches, follow the client's own documentation with
+the settings above.
+
+**Claude Code**
+
+```sh
+claude mcp add --transport http lictory https://lictory.example.com/api/mcp \
+  --header "Authorization: Bearer $LICTORY_TOKEN"
+claude mcp list   # lictory should be listed as connected
+```
+
+**Codex CLI** (`~/.codex/config.toml`)
+
+```toml
+[mcp_servers.lictory]
+url = "https://lictory.example.com/api/mcp"
+bearer_token_env_var = "LICTORY_TOKEN"
+```
+
+**VS Code** (`.vscode/mcp.json`; the token is asked for once and stored by VS Code)
+
+```json
+{
+  "servers": {
+    "lictory": {
+      "type": "http",
+      "url": "https://lictory.example.com/api/mcp",
+      "headers": { "Authorization": "Bearer ${input:lictory-token}" }
+    }
+  },
+  "inputs": [
+    {
+      "id": "lictory-token",
+      "type": "promptString",
+      "description": "Lictory personal token",
+      "password": true
+    }
+  ]
+}
+```
+
 ## A first session
 
 Ask the agent:
