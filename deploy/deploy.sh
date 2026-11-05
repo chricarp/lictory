@@ -61,14 +61,17 @@ die() {
   log "ERROR: $*"
   exit 1
 }
-env_value() { # env_value <file> <key>
+env_value() { # env_value <file> <key>: the last assignment, read like Compose
   local line
-  line=$(grep -E "^$2=" "$1" | tail -n 1 || true)
+  line=$(grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 || true)
   line="${line#*=}"
-  line="${line%\"}"
-  line="${line#\"}"
-  line="${line%\'}"
-  line="${line#\'}"
+  case "$line" in
+    # Quoted: the text between the quotes (a comment may follow).
+    \"*) line="${line#\"}" && line="${line%%\"*}" ;;
+    \'*) line="${line#\'}" && line="${line%%\'*}" ;;
+    # Unquoted: " # comment" ends the value; a # inside a word does not.
+    *) line=$(printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
   printf '%s' "$line"
 }
 setting() { env_value "$home/.env" "$1"; }

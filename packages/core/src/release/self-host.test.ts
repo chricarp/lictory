@@ -1624,3 +1624,61 @@ esac
     assert.match(restored.stdout, /Restored\. Check the data/);
   },
 );
+
+void test(
+  "settings are read like Compose reads them and kept across installs",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const first = f.lictory(
+      [
+        ...acmeInstall,
+        "--storage",
+        "s3",
+        "--s3-endpoint",
+        "https://minio.example.test",
+        "--s3-bucket",
+        "attachments",
+        "--s3-access-key-id",
+        "lictory",
+        "--s3-force-path-style",
+        "true",
+      ],
+      { LICTORY_S3_SECRET_ACCESS_KEY: "minio-secret" },
+    );
+    assert.equal(first.status, 0, first.stderr + first.stdout);
+    assert.match(
+      readFileSync(join(home, ".env"), "utf8"),
+      /^S3_FORCE_PATH_STYLE=true$/m,
+    );
+    // A re-run that does not mention path-style requests keeps them.
+    const again = f.lictory([
+      "install",
+      "--yes",
+      "--ignore-requirements",
+      "--signup-mode",
+      "closed",
+    ]);
+    assert.equal(again.status, 0, again.stderr + again.stdout);
+    assert.match(
+      readFileSync(join(home, ".env"), "utf8"),
+      /^S3_FORCE_PATH_STYLE=true$/m,
+    );
+
+    // Inline comments, as the reverse-proxy examples used to show them.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "LEGAL_TERMS_URL=https://example.test/terms   # our terms\nLEGAL_PRIVACY_URL='https://example.test/#privacy' # quoted\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_TERMS_URL"]).stdout,
+      "https://example.test/terms\n",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "LEGAL_PRIVACY_URL"]).stdout,
+      "https://example.test/#privacy\n",
+    );
+  },
+);

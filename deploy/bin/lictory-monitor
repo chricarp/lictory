@@ -9,7 +9,8 @@ environment="${1:?Usage: lictory-monitor <environment>}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
 bin="$(cd "$(dirname "$0")" && pwd)"
-setting() { grep -E "^$1=" "$home/.env" | tail -n 1 | cut -d= -f2- | sed -e "s/^['\"]//" -e "s/['\"]\$//"; }
+# The last assignment, read like Compose (quoted text, or up to " # comment").
+setting() { grep -E "^$1=" "$home/.env" | tail -n 1 | cut -d= -f2- | sed -E -e "s/^'([^']*)'.*/\1/;t" -e 's/^"([^"]*)".*/\1/;t' -e 's/[[:space:]]+#.*$//;s/[[:space:]]+$//'; }
 # JSON string without python or jq: escapes backslash, quote and control
 # characters (newlines and tabs as \n and \t, others dropped).
 json_string() {
