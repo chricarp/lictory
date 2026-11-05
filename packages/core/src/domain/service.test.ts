@@ -117,18 +117,19 @@ async function fixture() {
       .filter((d) => d.projectId === projectId)
       .map((d) => [d.name, d.id]),
   ) as { Product: string; Engineering: string; QA: string };
-  await command({
-    type: "updateDiscipline",
-    projectId,
-    disciplineId: roles.Engineering,
-    capabilities: {
-      editSpecifications: false,
-      changeProperties: false,
-      requestReviews: true,
-      review: true,
-      publishDelivery: false,
-    },
-  });
+  for (const disciplineId of [roles.Engineering, roles.QA])
+    await command({
+      type: "updateDiscipline",
+      projectId,
+      disciplineId,
+      capabilities: {
+        editSpecifications: false,
+        changeProperties: false,
+        requestReviews: true,
+        review: true,
+        publishDelivery: false,
+      },
+    });
   for (const [disciplineId, member] of [
     [roles.Engineering, userId],
     [roles.QA, userId],
