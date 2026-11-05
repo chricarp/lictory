@@ -3,13 +3,59 @@
 # reports its own failures; this only covers a container that cannot start.
 set -uo pipefail
 
+# env_value <file> <key>: the last assignment of <key>, decoded as Docker
+# Compose reads .env files: an optional "export ", spaces around "=", a
+# double-quoted value with \n \t \r \\ \" \$ escapes, a single-quoted value
+# with \' escapes, or an unquoted value up to " # comment". Keep the copies
+# in deploy/bin/lictory, deploy.sh, lictory-backup, lictory-monitor and
+# lictory-restore-drill identical (packages/core/src/release/self-host.test.ts).
+env_value() {
+  local line value out="" char next quote i=0
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$2[[:space:]]*=" "$1" 2>/dev/null | tail -n 1) || true
+  [ -n "$line" ] || return 0
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  case "$value" in
+    \"* | \'*)
+      quote="${value:0:1}"
+      value="${value:1}"
+      while [ "$i" -lt "${#value}" ]; do
+        char="${value:i:1}"
+        if [ "$char" = '\' ] && [ $((i + 1)) -lt "${#value}" ]; then
+          next="${value:i+1:1}"
+          if [ "$quote" = '"' ]; then
+            case "$next" in
+              n) out="$out"$'\n' ;;
+              t) out="$out"$'\t' ;;
+              r) out="$out"$'\r' ;;
+              '"' | '\' | '$') out="$out$next" ;;
+              *) out="$out\\$next" ;;
+            esac
+          elif [ "$next" = "'" ]; then
+            out="$out'"
+          else
+            out="$out\\$next"
+          fi
+          i=$((i + 2))
+          continue
+        fi
+        [ "$char" != "$quote" ] || break
+        out="$out$char"
+        i=$((i + 1))
+      done
+      ;;
+    *) out=$(printf '%s' "$value" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//') ;;
+  esac
+  printf '%s' "$out"
+}
+
 environment="${1:?Usage: lictory-backup <environment> [scheduled|manual]}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 bin="$(cd "$(dirname "$0")" && pwd)"
 LICTORY_ROOT="$root" "$bin/lictory-compose" "$environment" run --rm --no-deps -T ops backup.sh "${2:-scheduled}"
 status=$?
 if [ "$status" -ge 125 ]; then
-  url=$(grep -E '^ALERT_WEBHOOK_URL=' "$root/$environment/.env" | tail -n 1 | cut -d= -f2-)
+  url=$(env_value "$root/$environment/.env" ALERT_WEBHOOK_URL)
   message="[lictory $environment] backup container could not start (exit $status)"
   echo "$message" >&2
   [ -n "$url" ] && curl -fsS -m 10 -H 'Content-Type: application/json' \

@@ -36,6 +36,13 @@ recovery. It also pings `MONITOR_PING_URL` (or `<url>/fail`), so an external
 dead-man's switch notices a server that stopped reporting. Both are optional.
 In-server checks cannot report a total outage: keep one external check.
 
+To feed `lictory doctor`'s checks into your own monitoring, use its JSON
+form. It exits 1 when a check fails, like the text form:
+
+```sh
+lictory doctor --json | jq '.checks[] | select(.status != "ok")'
+```
+
 The monitor does not install releases. To hear about a new one, schedule
 `lictory upgrade --check`, which exits 10 when the channel has a newer
 release:
