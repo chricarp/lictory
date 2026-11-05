@@ -85,6 +85,11 @@ export const commands = {
     summary:
       "Write one archive for a bug report: versions, status, doctor, settings and recent logs, with secrets, email addresses and tokens removed.",
   },
+  uninstall: {
+    usage: "sudo lictory uninstall [--purge]",
+    summary:
+      "Stop an environment and remove its containers and timers, keeping its data and settings; --purge deletes it for good after a final off-server backup and a typed confirmation.",
+  },
   "registry-login": {
     usage: "sudo lictory registry-login --username <user>",
     summary:

@@ -1299,3 +1299,66 @@ void test(
     assert.match(empty.stderr, /There is no backup of production in local yet/);
   },
 );
+
+void test(
+  "lictory uninstall keeps data by default; --purge backs up off the server, then deletes",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const installed = f.lictory([...acmeInstall]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const log = join(f.base, "host.log");
+    for (const tool of ["lictory-compose", "lictory-backup"])
+      writeFileSync(
+        join(f.root, "bin", tool),
+        `#!/bin/sh\necho "${tool} $*" >> "${log}"\n[ -z "$FAKE_BACKUP_FAILS" ] || [ "${tool}" != lictory-backup ] || exit 1\n`,
+        { mode: 0o755 },
+      );
+    const host = () => {
+      const lines = existsSync(log)
+        ? readFileSync(log, "utf8").trim().split("\n")
+        : [];
+      rmSync(log, { force: true });
+      return lines;
+    };
+
+    // Without --yes on no terminal, nothing happens.
+    assert.equal(f.lictory(["uninstall"]).status, 1);
+    assert.deepEqual(host(), []);
+
+    const stopped = f.lictory(["uninstall", "--yes"]);
+    assert.equal(stopped.status, 0, stopped.stderr + stopped.stdout);
+    assert.deepEqual(host(), [
+      "lictory-compose production down --remove-orphans",
+    ]);
+    assert.ok(existsSync(join(home, ".env")));
+    assert.match(stopped.stdout, /sudo lictory config apply/);
+
+    // Off-server backups: a failed final backup deletes nothing.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8").replace(
+        /^BACKUP_TARGET=.*$/m,
+        "BACKUP_TARGET=s3",
+      ),
+    );
+    const failed = f.lictory(["uninstall", "--purge", "--yes"], {
+      FAKE_BACKUP_FAILS: "1",
+    });
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /final backup failed, so nothing was deleted/);
+    assert.deepEqual(host(), ["lictory-backup production manual"]);
+    assert.ok(existsSync(join(home, ".env")));
+
+    const purged = f.lictory(["uninstall", "--purge", "--yes"]);
+    assert.equal(purged.status, 0, purged.stderr + purged.stdout);
+    assert.deepEqual(host(), [
+      "lictory-backup production manual",
+      "lictory-compose production down --volumes --remove-orphans",
+    ]);
+    assert.ok(!existsSync(home));
+    assert.match(purged.stdout, /No environment is left/);
+    assert.ok(existsSync(join(f.root, "bin/lictory")));
+  },
+);

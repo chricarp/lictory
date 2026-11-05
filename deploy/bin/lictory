@@ -20,6 +20,7 @@
 #   lictory logs [service] [-f] [--tail N]
 #   lictory registry-login [--username U]   token on stdin, for private images
 #   lictory support-bundle          redacted versions, status, settings and logs
+#   lictory uninstall [--purge]     stop an environment (keep data), or delete it
 #
 # Every command takes --env <name> when the server hosts several environments.
 # Output is styled only on a terminal (NO_COLOR=1 turns colours off); logs and
@@ -176,6 +177,7 @@ Releases and data
                      Replace the database with a backup (--drill: test only)
   registry-login     Log in to the image registry (token on stdin)
   support-bundle     A redacted archive of versions, status, settings and logs
+  uninstall          Stop an environment, keeping its data (--purge: delete it)
 
   help [command]     This text, or one command's options
 
@@ -342,6 +344,25 @@ service's logs since <duration> (default 24h; for example 30m or 72h).
 Every secret value of .env, email addresses and bearer tokens are replaced.
 Logs can still contain your organization's content: review the archive
 before sharing it. Default file: ./lictory-support-<env>-<time>.tar.gz
+USAGE
+      ;;
+    uninstall)
+      cat <<'USAGE'
+Usage: sudo lictory uninstall [--purge [--no-backup]] [--yes] [--env <name>]
+
+Stops the environment and removes its containers and scheduled jobs. The
+database, settings (.env), releases and backups stay: start it again with
+lictory config apply.
+
+  --purge       Also delete the database and every other volume of the
+                environment, and its directory with the settings and secrets.
+                A final backup is taken first when backups go off this
+                server; you type the environment name to confirm.
+  --no-backup   With --purge: skip the final backup
+  --yes         No questions (for --purge, no typed confirmation)
+
+Docker, other environments, the lictory command and the deploy user are
+never touched.
 USAGE
       ;;
     config) config_usage ;;
@@ -953,8 +974,9 @@ run_task() {
 start_timers() {
   [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
   is_root || return 0
-  systemctl start "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" ||
-    warn "Could not start the backup and monitor timers (systemctl start lictory-backup@$environment.timer lictory-monitor@$environment.timer)."
+  # enable as well: lictory uninstall disables them, config apply brings them back.
+  systemctl enable --now "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" >/dev/null 2>&1 ||
+    warn "Could not start the backup and monitor timers (systemctl enable --now lictory-backup@$environment.timer lictory-monitor@$environment.timer)."
 }
 
 # wait_until_ready <seconds>: the public /readyz through DNS and certificates.
@@ -2631,6 +2653,7 @@ config_apply() {
   fi
   if run_task "Applying the settings to $environment ($active)" deploy_sh activate "$active"; then
     check_ok "$environment runs $active with the new settings."
+    start_timers
     return 0
   fi
   if [ -n "$config_backup" ]; then
@@ -2929,6 +2952,83 @@ README
   note "content: review it before sharing (tar -xzf $out), and never attach it to a public issue unread."
 }
 
+# -------------------------------------------------------------------- uninstall
+# lictory uninstall: stops an environment for good. By default it keeps
+# every byte of data (database, attachments are external anyway, settings,
+# backups), so `lictory config apply` starts it again. --purge also deletes
+# the database volumes and the environment directory, after a final
+# off-server backup, and only once the environment name is typed.
+stop_timers() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null && is_root || return 0
+  systemctl disable --now "lictory-backup@$environment.timer" "lictory-monitor@$environment.timer" >/dev/null 2>&1 || true
+}
+
+cmd_uninstall() {
+  parse "" "purge no-backup" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "uninstall takes no arguments."
+  require_root
+  select_environment
+  [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+  local purge active target local_path off_server=true others
+  purge=$(opt purge)
+  active=$(current_version)
+  target=$(setting BACKUP_TARGET)
+  local_path=$(setting BACKUP_LOCAL_PATH)
+  # A local target without a path is a Docker volume of this environment.
+  if [ "$target" = none ] || { [ "$target" = local ] && [ -z "$local_path" ]; }; then
+    off_server=false
+  fi
+  others=$(configured_environments | grep -vx "$environment" | tr '\n' ' ' || true)
+
+  if [ "$purge" != true ]; then
+    say "This stops $environment and removes its containers and timers."
+    note "The database, settings ($home/.env), releases and backups stay. Start it again with: sudo lictory config apply"
+    confirm "Stop and remove $environment's containers?" || die "Nothing changed."
+    stop_timers
+    [ -z "$active" ] || run_task "Stopping $environment" compose down --remove-orphans ||
+      die "The containers could not be removed; see the messages above."
+    check_ok "$environment is stopped. Its data and settings are kept in $home and its Docker volumes."
+    return 0
+  fi
+
+  warn "--purge deletes $environment for good: its database, realtime replica, certificates$([ "$off_server" = true ] || printf ', backups'), settings and secrets ($home)."
+  [ "$off_server" = true ] || [ "$target" = none ] ||
+    warn "Its backups live in a Docker volume on this server and are deleted too."
+  if [ "$off_server" = true ] && [ -n "$active" ] && [ "$(opt no-backup)" != true ]; then
+    note "A final backup goes to $target first (--no-backup skips it)."
+  fi
+  note "Not touched: Docker, other environments${others:+ ($others)}, the lictory command and the deploy user."
+  if [ "$(opt yes)" != true ]; then
+    [ -t 0 ] || die "Not confirmed: pass --yes to run without questions."
+    local answer
+    printf '\n %s?%s %sType the environment name (%s) to delete it%s %s ' "$c_red" "$c_reset" "$c_bold" "$environment" "$c_reset" "$g_prompt" >/dev/tty
+    IFS= read -r answer </dev/tty || true
+    [ "$answer" = "$environment" ] || die "Nothing changed."
+  fi
+  if [ "$off_server" = true ] && [ -n "$active" ] && [ "$(opt no-backup)" != true ]; then
+    run_task "Final backup to $target" as_deploy "$bin/lictory-backup" "$environment" manual ||
+      die "The final backup failed, so nothing was deleted. Fix it (lictory doctor) or pass --no-backup."
+  fi
+  stop_timers
+  if [ -n "$active" ]; then
+    run_task "Removing containers and volumes" compose down --volumes --remove-orphans ||
+      die "The containers could not be removed; $home was kept. See the messages above."
+  fi
+  # task_log lives in $home/logs: keep this run's log outside it.
+  if [ -n "$task_log" ] && [ "${task_log#"$home"/}" != "$task_log" ]; then
+    local kept="${TMPDIR:-/tmp}/lictory-uninstall-$environment-$(date -u +%Y%m%dT%H%M%SZ).log"
+    cp "$task_log" "$kept" 2>/dev/null && task_log="$kept"
+  fi
+  rm -rf -- "$home"
+  check_ok "$environment is deleted."
+  [ -z "$task_log" ] || note "Log of this run: $task_log"
+  if [ -z "$others" ]; then
+    note "No environment is left. To remove the tooling too:"
+    note "  sudo rm -rf $root $cli_path /etc/systemd/system/lictory-*@.{service,timer} && sudo systemctl daemon-reload"
+    note "  sudo userdel -r $(deploy_user)   and unused images: docker image prune -a"
+  fi
+}
+
 # ---------------------------------------------------------------------- restore
 # restore_preview <identity> <source>: which backup a restore or drill would
 # use (kind, time, size, encryption), refusing a key that does not exist and
@@ -3216,6 +3316,7 @@ case "$command" in
   registry-login) cmd_registry_login "$@" ;;
   config) cmd_config "$@" ;;
   support-bundle) cmd_support_bundle "$@" ;;
+  uninstall) cmd_uninstall "$@" ;;
   help | -h | --help)
     if [ $# -gt 0 ]; then command_usage "$1"; else usage; fi
     ;;
