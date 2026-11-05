@@ -15,7 +15,18 @@ application's assets, sets the security headers and checks the WebSocket
 | Existing reverse proxy or ingress | Your proxy               | `PROXY_SCHEME=http`, `PLATFORM_URL`, bindings, trusted proxies |
 | Plain HTTP (evaluation only)      | Nobody                   | `PROXY_SCHEME=http`, `PLATFORM_URL=http://…`                   |
 
+The installer sets each of these up (`--tls acme|internal|proxy|http`); the
+settings below are what it writes, for reference or a hand-made `.env`.
+
 ## Behind an existing reverse proxy
+
+```sh
+sudo lictory install --tls proxy --host lictory.example.com \
+  --http-port 8080 --bind 127.0.0.1 --public-url https://lictory.example.com
+```
+
+`lictory doctor` then prints the address your proxy connects from; set it with
+`sudo lictory install --trusted-proxies <address>`.
 
 Run the gateway as plain HTTP on a private address and let your proxy
 terminate TLS:
@@ -90,16 +101,36 @@ The gateway can obtain certificates from an internal ACME CA (step-ca, Vault,
 AD CS with ACME):
 
 ```sh
+sudo lictory install --tls internal --host lictory.internal.example \
+  --acme-ca https://ca.internal.example/acme/acme/directory --acme-email ops@example.com
+```
+
+which writes:
+
+```sh
 CADDY_GLOBAL_OPTIONS=acme_ca https://ca.internal.example/acme/acme/directory
 ```
 
-With `CADDY_GLOBAL_OPTIONS=local_certs` the gateway becomes its own CA;
-distribute its root certificate to your users' trust stores. To use existing
+Without `--acme-ca` (`CADDY_GLOBAL_OPTIONS=local_certs`) the gateway becomes
+its own CA. Distribute its root certificate to your users' trust stores:
+
+```sh
+sudo /srv/lictory/bin/lictory-compose production exec -T proxy \
+  cat /data/caddy/pki/authorities/local/root.crt > lictory-root.crt
+```
+
+To use existing
 certificate files, terminate TLS in a reverse proxy as above.
 
 ## Plain HTTP
 
 For a quick evaluation on `localhost` only:
+
+```sh
+sudo lictory install --tls http --host localhost --http-port 8080
+```
+
+which writes:
 
 ```sh
 APP_HOST=localhost

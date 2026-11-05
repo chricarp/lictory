@@ -140,6 +140,13 @@ the sign-in page once it is configured:
 | `OIDC_AUTO_CREATE_USERS` | `true` (default) creates an account on first sign-in; `false` admits only existing accounts |
 | `PASSWORD_LOGIN_ENABLED` | `false` makes the installation SSO-only                                                     |
 
+Set Google or Microsoft sign-in with `lictory config` (company single sign-on
+is also an installer step, `--oidc yes`):
+
+```sh
+sudo lictory config set GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…
+```
+
 Register the redirect URI `https://<your host>/api/auth/callback/oidc` at
 the provider. Single sign-on decides who can authenticate; it grants nothing
 inside Lictory. Organization membership still comes from invitations, and
@@ -154,6 +161,10 @@ an existing account is linked automatically only when the provider asserts
 | `OPENAI_API_KEY`              | Enables Lictory Intelligence with OpenAI |
 | `LICTORY_AI_MODEL`            | Model for reviews and chat (optional)    |
 | `LICTORY_TRANSCRIPTION_MODEL` | Model for dictation (optional)           |
+
+```sh
+sudo lictory config set OPENAI_API_KEY=sk-…
+```
 
 With a key configured, an organization administrator still decides whether
 Lictory Intelligence may run for their organization (**Organization settings
