@@ -116,6 +116,10 @@ Delete the temporary copy of the identity file when done.
 
 ## PostgreSQL loss or corruption
 
+With an [external database](external-database.md#backups), recover it with the
+provider's point-in-time recovery or snapshots, then run `lictory install`;
+the steps below are for the bundled database.
+
 1. Stop writers: `lictory-compose production stop api worker zero-cache`.
 2. Keep the damaged volume if possible (`docker volume` rename or a disk
    snapshot) for analysis.

@@ -16,6 +16,7 @@
     "db:check": "drizzle-kit check && bun scripts/check-migrations.ts",
     "db:migrate": "bun scripts/migrate.ts",
     "db:migrate:status": "bun scripts/migrate.ts --status",
+    "db:compatibility": "bun scripts/database.ts check",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "typecheck": "bun run --filter '*' typecheck && tsc --noEmit -p .",

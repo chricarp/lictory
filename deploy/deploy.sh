@@ -17,6 +17,14 @@
 # replicated it, then zero-cache, proxy (keeps old + new assets), API and
 # worker, website. Schema is never rolled back; rollbacks switch images only,
 # so every migration must stay compatible with the previous release.
+#
+# LICTORY_DATABASE=external (docs/operations/external-database.md): no
+# postgres container. Before migrating, the database's requirements are
+# checked (database.mjs check) and grants are applied as the owning roles
+# instead of the bundled superuser; no pre-deploy backup is taken (the
+# provider's backups and point-in-time recovery cover the database). With
+# DATABASE_ADMIN_URL in the environment (lictory install), the roles and
+# databases are created first.
 set -euo pipefail
 
 environment="${1:?Usage: deploy.sh <environment> <command> [args]}"
@@ -68,6 +76,7 @@ env_value() { # env_value <file> <key>
   printf '%s' "$line"
 }
 setting() { env_value "$home/.env" "$1"; }
+external_database() { [ "$(setting LICTORY_DATABASE)" = external ]; }
 compose() { # compose <release-dir> <args...>
   local dir="$1"
   shift
@@ -201,13 +210,20 @@ prepare() {
   docker cp -q "$container:/opt/lictory/deploy" "$dir/bundle"
   docker rm "$container" >/dev/null
   cp "$dir/bundle/compose.production.yaml" "$dir/compose.production.yaml"
+  rm -f "$dir/compose.external-database.yaml"
+  [ ! -f "$dir/bundle/compose.external-database.yaml" ] ||
+    cp "$dir/bundle/compose.external-database.yaml" "$dir/compose.external-database.yaml"
   validate_proxy "$dir" || die "Proxy validation failed; nothing was activated."
   mkdir -p "$home/postgres"
   # This code-only bind mount is read by PostgreSQL's unprivileged user.
   chmod 0755 "$home/postgres"
   rm -f "$home/postgres/10-lictory-roles.sh"
   cp "$dir/bundle/postgres/10-lictory-roles.sh" "$home/postgres/10-lictory-roles.sh"
-  compose "$dir" pull -q postgres zero-cache 2>/dev/null || true
+  if external_database; then
+    compose "$dir" pull -q zero-cache 2>/dev/null || true
+  else
+    compose "$dir" pull -q postgres zero-cache 2>/dev/null || true
+  fi
   log "Prepared $version ($channel)."
   printf '%s\n' "$version"
 }
@@ -221,20 +237,62 @@ wait_for_zero() { # wait_for_zero <dir> <lsn>
     return 0
   fi
   log "Waiting for zero-cache to replicate through ${lsn}…"
-  while :; do
-    caught=$(psql_admin "$dir" "SELECT coalesce(bool_or(confirmed_flush_lsn >= '$lsn'::pg_lsn), false) FROM pg_replication_slots WHERE slot_type = 'logical' AND active" || echo f)
-    [ "$caught" = t ] && break
-    [ "$(date +%s)" -lt "$deadline" ] || die "zero-cache has not replicated the schema change after ${ZERO_REPLICATION_TIMEOUT:-600}s. Check: lictory-compose $environment logs zero-cache"
-    sleep 3
-  done
+  if external_database; then
+    # No local superuser: the migration role polls Zero's slots.
+    compose "$dir" run --rm --no-deps -T database wait-replicated "$lsn" "${ZERO_REPLICATION_TIMEOUT:-600}" >&2 ||
+      die "zero-cache has not replicated the schema change after ${ZERO_REPLICATION_TIMEOUT:-600}s. Check: lictory-compose $environment logs zero-cache"
+  else
+    while :; do
+      caught=$(psql_admin "$dir" "SELECT coalesce(bool_or(confirmed_flush_lsn >= '$lsn'::pg_lsn), false) FROM pg_replication_slots WHERE slot_type = 'logical' AND active" || echo f)
+      [ "$caught" = t ] && break
+      [ "$(date +%s)" -lt "$deadline" ] || die "zero-cache has not replicated the schema change after ${ZERO_REPLICATION_TIMEOUT:-600}s. Check: lictory-compose $environment logs zero-cache"
+      sleep 3
+    done
+  fi
   compose "$dir" up -d --no-deps --wait --wait-timeout 900 zero-cache >/dev/null
   log "zero-cache replicated the schema change."
+}
+
+# An external database: requirements first (every failed one is named with its
+# fix), then the migration through the same steps as the bundled one.
+migrate_external() { # migrate_external <dir> <version>
+  local dir="$1" status lsn
+  [ -f "$dir/compose.external-database.yaml" ] ||
+    die "Release $2 does not support an external database (LICTORY_DATABASE=external)."
+  if [ -n "${DATABASE_ADMIN_URL:-}" ]; then
+    log "Creating Lictory's database roles with the administrator connection…"
+    compose "$dir" run --rm --no-deps -T -e DATABASE_ADMIN_URL database setup >&2 ||
+      die "Could not create the database roles; see the messages above."
+  fi
+  log "Checking the external database's requirements…"
+  compose "$dir" run --rm --no-deps -T database check >&2 ||
+    die "The database does not meet Lictory's requirements (listed above); nothing was migrated. Fix them, or create the roles with: sudo lictory database setup"
+  status=$(compose "$dir" run --rm --no-deps -T migrate node migrate.mjs --status) ||
+    die "Migration status failed: $status"
+  printf '%s\n' "$status" >&2
+  compose "$dir" run --rm --no-deps -T database grants >&2 ||
+    die "Could not apply database grants."
+  if ! printf '%s' "$status" | grep -q "Pending migrations"; then
+    log "No pending migrations for $2."
+    return 0
+  fi
+  if [ -n "$(current_version)" ] && [ "$(setting PRE_DEPLOY_BACKUP)" != false ]; then
+    log "No pre-deploy backup: the database is external; its provider's backups and point-in-time recovery cover this migration."
+  fi
+  log "Applying migrations for $2…"
+  compose "$dir" run --rm --no-deps -T migrate >&2 || die "Migration failed; the previous release keeps serving."
+  lsn=$(compose "$dir" run --rm --no-deps -T database lsn) || die "Could not read the database's WAL position."
+  wait_for_zero "$dir" "$lsn"
 }
 
 migrate() {
   local dir status lsn
   dir=$(release_dir "$1")
   validate_proxy "$dir" || die "Proxy validation failed; nothing was migrated."
+  if external_database; then
+    migrate_external "$dir" "$1"
+    return
+  fi
   compose "$dir" up -d --wait --wait-timeout 180 postgres >/dev/null
   status=$(compose "$dir" run --rm --no-deps -T migrate node migrate.mjs --status) ||
     die "Migration status failed: $status"
@@ -271,7 +329,9 @@ roll() { # roll <dir>
       return 1
     # zero-cache creates its shard tables on first start; the API's role
     # needs them for Zero's mutation bookkeeping before serving pushes.
-    if [ "$service" = zero-cache ]; then
+    if [ "$service" = zero-cache ] && external_database; then
+      compose "$dir" run --rm --no-deps -T database grants >&2 || return 1
+    elif [ "$service" = zero-cache ]; then
       compose "$dir" exec -T postgres sh /docker-entrypoint-initdb.d/10-lictory-roles.sh >&2 ||
         return 1
     fi
@@ -378,7 +438,10 @@ status() {
     [ "$json" = --json ] && printf '{"environment":"%s","version":null}\n' "$environment" || echo "No active release."
     return 0
   fi
-  for service in postgres zero-cache api worker proxy; do
+  local services="postgres zero-cache api worker proxy"
+  # An external database has no container on this server.
+  external_database && services="zero-cache api worker proxy"
+  for service in $services; do
     state=$(docker inspect --format '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' \
       "$(compose "$dir" ps -q "$service" 2>/dev/null)" 2>/dev/null || echo missing)
     case "$state" in running | running/healthy) ;; *) ok=false ;; esac
