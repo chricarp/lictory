@@ -26,7 +26,8 @@ set -euo pipefail
 
 repository="${LICTORY_REPOSITORY:-chricarp/lictory}"
 github_api="${LICTORY_GITHUB_API:-https://api.github.com}"
-default_registry="${LICTORY_DEFAULT_REGISTRY:-ghcr.io/chricarp}"
+# A fork's registry (as get.sh takes it) becomes the installation's default.
+default_registry="${LICTORY_DEFAULT_REGISTRY:-${LICTORY_IMAGE_REGISTRY:-ghcr.io/chricarp}}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 cli_path="${LICTORY_CLI_PATH:-/usr/local/bin/lictory}"
 services="postgres zero-cache api worker proxy"
@@ -523,7 +524,10 @@ stable_tag='^v[0-9]+\.[0-9]+\.[0-9]+$'
 # resolve_release <channel> [version]: sets release_tag, release_version,
 # release_notes, release_asset_url and release_digest.
 resolve_release() {
-  local channel="$1" version="${2:-}" json status path
+  local channel="$1" version="${2:-}" json status path configured
+  # A fork's repository, recorded by install, unless given for this run.
+  configured=$(setting LICTORY_REPOSITORY 2>/dev/null || true)
+  [ -n "${LICTORY_REPOSITORY:-}" ] || [ -z "$configured" ] || repository="$configured"
   json=$(mktemp)
   if [ -n "$version" ]; then
     path="/releases/tags/v${version#v}"
@@ -537,8 +541,10 @@ resolve_release() {
     200) ;;
     404)
       rm -f "$json"
-      [ -n "$version" ] && die "Release ${version#v} of $repository does not exist: https://github.com/$repository/releases"
-      die "No $channel release of $repository is published yet. Choose another channel (--channel nightly) or a version."
+      local private=""
+      [ -n "${GITHUB_TOKEN:-}" ] || private=" If $repository is a private repository, set GITHUB_TOKEN to a token that can read it."
+      [ -n "$version" ] && die "Release ${version#v} of $repository does not exist: https://github.com/$repository/releases.$private"
+      die "No $channel release of $repository is published yet. Choose another channel (--channel nightly) or a version.$private"
       ;;
     403 | 429)
       rm -f "$json"
@@ -561,6 +567,9 @@ resolve_release() {
   release_tag=$(jq -r '.tag_name // ""' "$json")
   release_notes=$(jq -r '.html_url // ""' "$json")
   release_asset_url=$(jq -r '[.assets[]? | select(.name == "release.env")][0].browser_download_url // ""' "$json")
+  # The API address of the same asset: with GITHUB_TOKEN, the only one a
+  # private repository serves.
+  release_asset_api=$(jq -r '[.assets[]? | select(.name == "release.env")][0].url // ""' "$json")
   release_digest=$(jq -r '[.assets[]? | select(.name == "release.env")][0].digest // ""' "$json")
   local draft prerelease
   draft=$(jq -r '.draft' "$json")
@@ -587,8 +596,23 @@ sha256_of() { openssl dgst -sha256 -r "$1" | cut -d' ' -f1 | tr -d '*'; }
 # it against GitHub's asset digest and checks it names the resolved release.
 fetch_release() {
   local file="$1" actual
-  curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
-    -o "$file" "$release_asset_url" || die "Could not download release.env of $release_version."
+  if [ -n "${GITHUB_TOKEN:-}" ] && [[ "$release_asset_api" =~ ^https:// ]]; then
+    # Through the API with the token (private repositories). curl does not
+    # forward the Authorization header to the storage host it redirects to.
+    local headers
+    headers=$(mktemp)
+    chmod 0600 "$headers"
+    printf 'Accept: application/octet-stream\nX-GitHub-Api-Version: 2022-11-28\nAuthorization: Bearer %s\n' "$GITHUB_TOKEN" >"$headers"
+    curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+      -H "@$headers" -o "$file" "$release_asset_api" || {
+      rm -f "$headers"
+      die "Could not download release.env of $release_version with GITHUB_TOKEN (does it grant read access to $repository?)."
+    }
+    rm -f "$headers"
+  else
+    curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+      -o "$file" "$release_asset_url" || die "Could not download release.env of $release_version."
+  fi
   if [ -n "$release_digest" ]; then
     actual="sha256:$(sha256_of "$file")"
     [ "$actual" = "$release_digest" ] ||
@@ -1516,6 +1540,8 @@ cmd_install() {
     channel="${channel:-stable}"
   fi
   plan LICTORY_RELEASE_CHANNEL "$channel"
+  # Releases of a fork keep coming from it (lictory upgrade reads this).
+  [ "$repository" = chricarp/lictory ] || plan LICTORY_REPOSITORY "$repository"
   local registry
   registry=$(current LICTORY_IMAGE_REGISTRY)
   case "$registry" in "" | *replace-with-owner*) plan LICTORY_IMAGE_REGISTRY "$default_registry" ;; esac

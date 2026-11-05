@@ -18,6 +18,8 @@
 #   LICTORY_ROOT      tooling and environment root (default /srv/lictory)
 #   DEPLOY_USER       unprivileged user that runs releases (default deploy)
 #   LICTORY_ENV       environment name prepared for `lictory install` (default production)
+#   GITHUB_TOKEN      a token that can read the repository: needed when it is
+#                     private (a fork), and raises GitHub's rate limit
 set -eu
 
 # Everything runs from main, so a truncated download executes nothing.
@@ -63,13 +65,18 @@ main() {
   else
     path="/releases?per_page=50"
   fi
+  # Headers in a private file: the token never appears in the process list.
+  printf 'Accept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' >"$work/headers"
+  [ -z "${GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" >>"$work/headers"
   status=$(curl -sSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 30 --retry 3 \
-    -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
-    -o "$work/release.json" -w '%{http_code}' "$api/repos/$repository$path" || echo 000)
+    -H "@$work/headers" -o "$work/release.json" -w '%{http_code}' "$api/repos/$repository$path" || echo 000)
   case "$status" in
     200) ;;
-    404) [ -n "$version" ] && fail "Release ${version#v} of $repository does not exist."
-      fail "No $channel release of $repository is published yet (try LICTORY_CHANNEL=nightly)." ;;
+    404)
+      private=""
+      [ -n "${GITHUB_TOKEN:-}" ] || private=" If $repository is private, set GITHUB_TOKEN to a token that can read it."
+      [ -n "$version" ] && fail "Release ${version#v} of $repository does not exist.$private"
+      fail "No $channel release of $repository is published yet (try LICTORY_CHANNEL=nightly).$private" ;;
     403 | 429) fail "GitHub refused the request (HTTP $status, usually its rate limit); retry later." ;;
     *) fail "Could not reach GitHub Releases (HTTP $status); check outbound HTTPS from this server." ;;
   esac
@@ -93,11 +100,21 @@ main() {
   release="${tag#v}"
   asset=$(jq -r '[.assets[]? | select(.name == "release.env")][0].browser_download_url // ""' "$work/release.json")
   digest=$(jq -r '[.assets[]? | select(.name == "release.env")][0].digest // ""' "$work/release.json")
+  asset_api=$(jq -r '[.assets[]? | select(.name == "release.env")][0].url // ""' "$work/release.json")
   case "$asset" in https://*) ;; *) fail "Release $release has no release.env asset." ;; esac
 
   say "Lictory $release ($kind)"
-  curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
-    -o "$work/release.env" "$asset" || fail "Could not download release.env of $release."
+  if [ -n "${GITHUB_TOKEN:-}" ] && case "$asset_api" in https://*) true ;; *) false ;; esac; then
+    # Private repositories serve assets through the API, with the token
+    # (curl does not forward it to the storage host it redirects to).
+    printf 'Accept: application/octet-stream\nX-GitHub-Api-Version: 2022-11-28\nAuthorization: Bearer %s\n' "$GITHUB_TOKEN" >"$work/headers"
+    curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+      -H "@$work/headers" -o "$work/release.env" "$asset_api" ||
+      fail "Could not download release.env of $release with GITHUB_TOKEN (does it grant read access to $repository?)."
+  else
+    curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+      -o "$work/release.env" "$asset" || fail "Could not download release.env of $release."
+  fi
   if [ -n "$digest" ]; then
     actual="sha256:$(openssl dgst -sha256 -r "$work/release.env" | cut -d' ' -f1 | tr -d '*')"
     [ "$actual" = "$digest" ] ||

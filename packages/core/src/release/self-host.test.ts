@@ -129,6 +129,10 @@ if (args[1] === "status") console.log("{}");`,
     join(fake, "curl"),
     "curl",
     `const url = args.find((arg) => /^https?:\\/\\//.test(arg));
+// Whether the request carried a token (headers come from a file: -H @file).
+const headerFile = args.find((arg) => arg.startsWith("@"));
+const headers = headerFile && existsSync(headerFile.slice(1)) ? readFileSync(headerFile.slice(1), "utf8") : "";
+appendFileSync(${JSON.stringify(join(base, "curl-auth.log"))}, url + " " + (headers.includes("Authorization: Bearer ") ? "auth" : "anon") + "\\n");
 const routes = JSON.parse(readFileSync(${JSON.stringify(join(base, "routes.json"))}, "utf8"));
 const route = routes[url] ?? (url.endsWith("/readyz") ? { body: "" } : { status: 404, body: "{}" });
 const status = route.status ?? 200;
@@ -216,6 +220,7 @@ function githubRelease(
   const file = releaseFile(version, channel);
   const asset = `https://github.com/chricarp/lictory/releases/download/v${version}/release.env`;
   f.route(asset, file);
+  f.route(`${api}/releases/assets/${version.replace(/\W/g, "")}`, file);
   return {
     tag_name: `v${version}`,
     html_url: `https://github.com/chricarp/lictory/releases/tag/v${version}`,
@@ -226,6 +231,7 @@ function githubRelease(
       {
         name: "release.env",
         browser_download_url: asset,
+        url: `${api}/releases/assets/${version.replace(/\W/g, "")}`,
         digest: options.digest ?? sha256(file),
       },
     ],
@@ -853,3 +859,83 @@ void test("lictory admin passes commands to the api container", (t) => {
   assert.equal(status.status, 0, status.stderr + status.stdout);
   assert.match(status.stdout, /administrators: 2/);
 });
+
+void test("a private repository installs with GITHUB_TOKEN, and says so without one", (t) => {
+  const f = fixture(t);
+  const release = githubRelease(f, "1.2.3");
+  // A private repository: the public asset address answers 404.
+  f.route(release.assets[0]!.browser_download_url, "Not Found", 404);
+  const authLog = join(f.base, "curl-auth.log");
+  const auth = () => readFileSync(authLog, "utf8");
+
+  f.route(`${api}/releases/latest`, JSON.stringify(release));
+  const anonymous = f.getSh();
+  assert.equal(anonymous.status, 1);
+  assert.match(anonymous.stderr, /Could not download release\.env/);
+
+  rmSync(authLog, { force: true });
+  const withToken = f.getSh({ GITHUB_TOKEN: "ghp_test-token" });
+  assert.equal(withToken.status, 0, withToken.stderr);
+  assert.match(
+    auth(),
+    /^https:\/\/api\.github\.com\/repos\/chricarp\/lictory\/releases\/latest auth$/m,
+  );
+  assert.match(
+    auth(),
+    /^https:\/\/api\.github\.com\/repos\/chricarp\/lictory\/releases\/assets\/123 auth$/m,
+  );
+  // The token is never an argument.
+  assert.ok(
+    !withToken.calls.some((call) =>
+      call.args.join(" ").includes("ghp_test-token"),
+    ),
+  );
+
+  // Upgrades of a private repository use the token the same way.
+  cpSync(join(deploy, "bin/lictory"), join(f.root, "bin/lictory"));
+  assert.equal(f.lictory([...acmeInstall]).status, 0);
+  const next = githubRelease(f, "1.3.0");
+  f.route(next.assets[0]!.browser_download_url, "Not Found", 404);
+  f.route(`${api}/releases/latest`, JSON.stringify(next));
+  assert.equal(f.lictory(["upgrade", "--yes"]).status, 1);
+  const upgraded = f.lictory(["upgrade", "--yes"], {
+    GITHUB_TOKEN: "ghp_test-token",
+  });
+  assert.equal(upgraded.status, 0, upgraded.stderr + upgraded.stdout);
+  assert.match(auth(), /releases\/assets\/130 auth$/m);
+
+  // A repository GitHub hides (private, no token) names the likely cause.
+  f.route(`${api}/releases/latest`, "{}", 404);
+  assert.match(
+    f.getSh().stderr,
+    /If chricarp\/lictory is private, set GITHUB_TOKEN/,
+  );
+});
+
+void test(
+  "a fork's repository and registry stick after the bootstrap",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const fork = {
+      LICTORY_REPOSITORY: "acme/lictory-fork",
+      LICTORY_IMAGE_REGISTRY: "ghcr.io/acme",
+    };
+    assert.equal(f.lictory([...acmeInstall], fork).status, 0);
+    const env = readFileSync(join(f.root, "production/.env"), "utf8");
+    assert.match(env, /^LICTORY_REPOSITORY=acme\/lictory-fork$/m);
+    assert.match(env, /^LICTORY_IMAGE_REGISTRY=ghcr\.io\/acme$/m);
+    // Later runs look releases up in the fork without being told again.
+    const check = f.lictory(["upgrade", "--yes"]);
+    assert.ok(
+      check.calls.some(
+        (call) =>
+          call.name === "curl" &&
+          call.args.some((a) =>
+            a.startsWith("https://api.github.com/repos/acme/lictory-fork/"),
+          ),
+      ),
+      check.stderr,
+    );
+  },
+);

@@ -63,16 +63,35 @@ digest-pinned ops image of a published release. Every later activation
 installs that release's own tooling, so the `lictory` command follows your
 upgrades.
 
-| Variable          | Default        | Meaning                                          |
-| ----------------- | -------------- | ------------------------------------------------ |
-| `LICTORY_CHANNEL` | `stable`       | `stable` or `nightly`                            |
-| `LICTORY_VERSION` | newest         | A specific release, for example `1.4.2`          |
-| `LICTORY_ROOT`    | `/srv/lictory` | Tooling and environment root                     |
-| `DEPLOY_USER`     | `deploy`       | Unprivileged user that owns the root and deploys |
-| `LICTORY_ENV`     | `production`   | Environment prepared for `lictory install`       |
+| Variable                 | Default            | Meaning                                                                                           |
+| ------------------------ | ------------------ | ------------------------------------------------------------------------------------------------- |
+| `LICTORY_CHANNEL`        | `stable`           | `stable` or `nightly`                                                                             |
+| `LICTORY_VERSION`        | newest             | A specific release, for example `1.4.2`                                                           |
+| `LICTORY_ROOT`           | `/srv/lictory`     | Tooling and environment root                                                                      |
+| `DEPLOY_USER`            | `deploy`           | Unprivileged user that owns the root and deploys                                                  |
+| `LICTORY_ENV`            | `production`       | Environment prepared for `lictory install`                                                        |
+| `LICTORY_REPOSITORY`     | `chricarp/lictory` | The GitHub repository releases come from (a fork)                                                 |
+| `LICTORY_IMAGE_REGISTRY` | `ghcr.io/chricarp` | The registry its release images are in                                                            |
+| `GITHUB_TOKEN`           | none               | A token that can read the repository: required when it is private, and raises GitHub's rate limit |
 
 Pass variables to the shell that runs the script:
 `curl -fsSL … | sudo LICTORY_CHANNEL=nightly sh`.
+
+**Private repository or fork.** GitHub answers 404 for a private repository
+without a token; `get.sh` and `lictory` then say so. Use a token with read
+access to the repository's contents (a fine-grained token is enough) in a root
+shell, so `sudo` does not drop it and it stays out of the process list:
+
+```sh
+sudo -i
+export GITHUB_TOKEN=github_pat_…
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/<owner>/lictory/main/deploy/get.sh |
+  LICTORY_REPOSITORY=<owner>/lictory LICTORY_IMAGE_REGISTRY=ghcr.io/<owner> sh
+lictory install
+```
+
+`lictory upgrade` needs the same `GITHUB_TOKEN` in its environment.
 
 **Private images.** While the images on `ghcr.io` are not public, pulls fail
 with an explanation. Log in with a GitHub token that can read packages: as root
