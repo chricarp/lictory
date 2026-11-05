@@ -18,6 +18,8 @@
 #   LICTORY_ROOT      tooling and environment root (default /srv/lictory)
 #   DEPLOY_USER       unprivileged user that runs releases (default deploy)
 #   LICTORY_ENV       environment name prepared for `lictory install` (default production)
+#   GITHUB_TOKEN      a token that can read the repository: needed when it is
+#                     private (a fork), and raises GitHub's rate limit
 set -eu
 
 # Everything runs from main, so a truncated download executes nothing.
@@ -66,13 +68,28 @@ then re-run this command."
   else
     path="/releases?per_page=50"
   fi
+  # Never trace a token; headers in a private file keep it out of the
+  # process list.
+  { set +x; } 2>/dev/null
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    # curl before 7.58.0 forwards a custom Authorization header to the host a
+    # redirect points to (CVE-2018-1000007): GitHub redirects assets to storage.
+    curl_version=$(curl --version | head -n 1 | cut -d' ' -f2)
+    # Sorted means 7.58.0 <= the installed version.
+    printf '7.58.0\n%s\n' "${curl_version%%-*}" | sort -V -C ||
+      fail "curl $curl_version may send GITHUB_TOKEN to the storage host GitHub redirects to (fixed in 7.58.0). Upgrade curl, then run this again."
+  fi
+  printf 'Accept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' >"$work/headers"
+  [ -z "${GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" >>"$work/headers"
   status=$(curl -sSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 30 --retry 3 \
-    -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
-    -o "$work/release.json" -w '%{http_code}' "$api/repos/$repository$path" || echo 000)
+    -H "@$work/headers" -o "$work/release.json" -w '%{http_code}' "$api/repos/$repository$path" || echo 000)
   case "$status" in
     200) ;;
-    404) [ -n "$version" ] && fail "Release ${version#v} of $repository does not exist."
-      fail "No $channel release of $repository is published yet (try LICTORY_CHANNEL=nightly)." ;;
+    404)
+      private=""
+      [ -n "${GITHUB_TOKEN:-}" ] || private=" If $repository is private, set GITHUB_TOKEN to a token that can read it."
+      [ -n "$version" ] && fail "Release ${version#v} of $repository does not exist.$private"
+      fail "No $channel release of $repository is published yet (try LICTORY_CHANNEL=nightly).$private" ;;
     403 | 429) fail "GitHub refused the request (HTTP $status, usually its rate limit); retry later." ;;
     *) fail "Could not reach GitHub Releases (HTTP $status); check outbound HTTPS from this server." ;;
   esac
@@ -96,11 +113,21 @@ then re-run this command."
   release="${tag#v}"
   asset=$(jq -r '[.assets[]? | select(.name == "release.env")][0].browser_download_url // ""' "$work/release.json")
   digest=$(jq -r '[.assets[]? | select(.name == "release.env")][0].digest // ""' "$work/release.json")
+  asset_api=$(jq -r '[.assets[]? | select(.name == "release.env")][0].url // ""' "$work/release.json")
   case "$asset" in https://*) ;; *) fail "Release $release has no release.env asset." ;; esac
 
   say "Lictory $release ($kind)"
-  curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
-    -o "$work/release.env" "$asset" || fail "Could not download release.env of $release."
+  if [ -n "${GITHUB_TOKEN:-}" ] && case "$asset_api" in https://*) true ;; *) false ;; esac; then
+    # Private repositories serve assets through the API, with the token
+    # (curl does not forward it to the storage host it redirects to).
+    printf 'Accept: application/octet-stream\nX-GitHub-Api-Version: 2022-11-28\nAuthorization: Bearer %s\n' "$GITHUB_TOKEN" >"$work/headers"
+    curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+      -H "@$work/headers" -o "$work/release.env" "$asset_api" ||
+      fail "Could not download release.env of $release with GITHUB_TOKEN (does it grant read access to $repository?)."
+  else
+    curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 -m 60 --retry 3 \
+      -o "$work/release.env" "$asset" || fail "Could not download release.env of $release."
+  fi
   if [ -n "$digest" ]; then
     actual="sha256:$(openssl dgst -sha256 -r "$work/release.env" | cut -d' ' -f1 | tr -d '*')"
     [ "$actual" = "$digest" ] ||
@@ -134,7 +161,9 @@ read packages, then re-run:  docker login ${registry%%/*}" ;;
   [ -f "$work/bundle/bin/lictory" ] && [ -f "$work/bundle/provision/install.sh" ] ||
     fail "Release $release predates the lictory command; choose a newer one (LICTORY_VERSION)."
   # The child never reads this script's stdin (the piped script itself).
-  bash "$work/bundle/bin/lictory" bootstrap --bundle "$work/bundle" --release-file "$work/release.env" </dev/null
+  # The repository and registry used here are recorded for install and upgrades.
+  LICTORY_REPOSITORY="$repository" LICTORY_IMAGE_REGISTRY="$registry" \
+    bash "$work/bundle/bin/lictory" bootstrap --bundle "$work/bundle" --release-file "$work/release.env" </dev/null
 }
 
 say() { printf '%s\n' "$*"; }

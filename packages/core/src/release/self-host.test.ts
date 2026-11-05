@@ -140,7 +140,12 @@ if (args[1] === "activate" && failsWith && readFileSync(home + "/.env", "utf8").
   recorder(
     join(fake, "curl"),
     "curl",
-    `const url = args.find((arg) => /^https?:\\/\\//.test(arg));
+    `if (args[0] === "--version") { console.log(process.env.FAKE_CURL_VERSION ?? "curl 8.5.0 (x86_64-pc-linux-gnu) libcurl/8.5.0"); process.exit(0); }
+const url = args.find((arg) => /^https?:\\/\\//.test(arg));
+// Whether the request carried a token (headers come from a file: -H @file).
+const headerFile = args.find((arg) => arg.startsWith("@"));
+const headers = headerFile && existsSync(headerFile.slice(1)) ? readFileSync(headerFile.slice(1), "utf8") : "";
+appendFileSync(${JSON.stringify(join(base, "curl-auth.log"))}, url + " " + (headers.includes("Authorization: Bearer ") ? "auth" : "anon") + "\\n");
 const routes = JSON.parse(readFileSync(${JSON.stringify(join(base, "routes.json"))}, "utf8"));
 const route = routes[url] ?? (url.endsWith("/readyz") ? { body: "" } : { status: 404, body: "{}" });
 const status = route.status ?? 200;
@@ -223,8 +228,8 @@ else if (args[0] === "cp") cpSync(${JSON.stringify(bundle)}, args.at(-1), { recu
       routes[url] = { body, status };
       writeRoutes();
     },
-    getSh: (extra: Record<string, string> = {}) =>
-      run("sh", [join(deploy, "get.sh")], extra),
+    getSh: (extra: Record<string, string> = {}, shellOptions: string[] = []) =>
+      run("sh", [...shellOptions, join(deploy, "get.sh")], extra),
     lictory: (args: string[], extra: Record<string, string> = {}) =>
       run("bash", [join(root, "bin/lictory"), ...args], extra),
   };
@@ -239,6 +244,7 @@ function githubRelease(
   const file = releaseFile(version, channel);
   const asset = `https://github.com/chricarp/lictory/releases/download/v${version}/release.env`;
   f.route(asset, file);
+  f.route(`${api}/releases/assets/${version.replace(/\W/g, "")}`, file);
   return {
     tag_name: `v${version}`,
     html_url: `https://github.com/chricarp/lictory/releases/tag/v${version}`,
@@ -249,6 +255,7 @@ function githubRelease(
       {
         name: "release.env",
         browser_download_url: asset,
+        url: `${api}/releases/assets/${version.replace(/\W/g, "")}`,
         digest: options.digest ?? sha256(file),
       },
     ],
@@ -2272,6 +2279,112 @@ void test("lictory logs reads an incident window with --since", slow, (t) => {
   assert.equal(bad.status, 64);
   assert.match(bad.stderr, /--since: a duration such as 30m/);
 });
+
+void test("a private repository installs with GITHUB_TOKEN, and says so without one", (t) => {
+  const f = fixture(t);
+  const release = githubRelease(f, "1.2.3");
+  // A private repository: the public asset address answers 404.
+  f.route(release.assets[0]!.browser_download_url, "Not Found", 404);
+  const authLog = join(f.base, "curl-auth.log");
+  const auth = () => readFileSync(authLog, "utf8");
+
+  f.route(`${api}/releases/latest`, JSON.stringify(release));
+  const anonymous = f.getSh();
+  assert.equal(anonymous.status, 1);
+  assert.match(anonymous.stderr, /Could not download release\.env/);
+
+  rmSync(authLog, { force: true });
+  const withToken = f.getSh({ GITHUB_TOKEN: "ghp_test-token" });
+  assert.equal(withToken.status, 0, withToken.stderr);
+  assert.match(
+    auth(),
+    /^https:\/\/api\.github\.com\/repos\/chricarp\/lictory\/releases\/latest auth$/m,
+  );
+  assert.match(
+    auth(),
+    /^https:\/\/api\.github\.com\/repos\/chricarp\/lictory\/releases\/assets\/123 auth$/m,
+  );
+  // The token is never an argument.
+  assert.ok(
+    !withToken.calls.some((call) =>
+      call.args.join(" ").includes("ghp_test-token"),
+    ),
+  );
+
+  // Upgrades of a private repository use the token the same way.
+  cpSync(join(deploy, "bin/lictory"), join(f.root, "bin/lictory"));
+  assert.equal(f.lictory([...acmeInstall]).status, 0);
+  const next = githubRelease(f, "1.3.0");
+  f.route(next.assets[0]!.browser_download_url, "Not Found", 404);
+  f.route(`${api}/releases/latest`, JSON.stringify(next));
+  assert.equal(f.lictory(["upgrade", "--yes"]).status, 1);
+  const upgraded = f.lictory(["upgrade", "--yes"], {
+    GITHUB_TOKEN: "ghp_test-token",
+  });
+  assert.equal(upgraded.status, 0, upgraded.stderr + upgraded.stdout);
+  assert.match(auth(), /releases\/assets\/130 auth$/m);
+
+  // Tracing never shows the token, and curl that would forward it on the
+  // storage redirect is refused.
+  const traced = f.getSh({ GITHUB_TOKEN: "ghp_test-token" }, ["-x"]);
+  assert.equal(traced.status, 0, traced.stderr);
+  assert.ok(!traced.stderr.includes("ghp_test-token"));
+  const oldCurl = f.getSh({
+    GITHUB_TOKEN: "ghp_test-token",
+    FAKE_CURL_VERSION: "curl 7.57.0 (x86_64-pc-linux-gnu)",
+  });
+  assert.equal(oldCurl.status, 1);
+  assert.match(
+    oldCurl.stderr,
+    /curl 7\.57\.0 may send GITHUB_TOKEN .* 7\.58\.0/,
+  );
+
+  // A repository GitHub hides (private, no token) names the likely cause.
+  f.route(`${api}/releases/latest`, "{}", 404);
+  assert.match(
+    f.getSh().stderr,
+    /If chricarp\/lictory is private, set GITHUB_TOKEN/,
+  );
+});
+
+void test(
+  "a fork's repository and registry stick after the bootstrap",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    // get.sh hands the bootstrap the repository and registry it used.
+    const recorded = f.lictory(
+      [
+        "bootstrap",
+        "--bundle",
+        f.bundle,
+        "--release-file",
+        join(f.root, "share/bundle/release.env"),
+      ],
+      {
+        LICTORY_REPOSITORY: "acme/lictory-fork",
+        LICTORY_IMAGE_REGISTRY: "ghcr.io/acme",
+      },
+    );
+    assert.equal(recorded.status, 0, recorded.stderr);
+    // install and later runs are not told again.
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const env = readFileSync(join(f.root, "production/.env"), "utf8");
+    assert.match(env, /^LICTORY_REPOSITORY=acme\/lictory-fork$/m);
+    assert.match(env, /^LICTORY_IMAGE_REGISTRY=ghcr\.io\/acme$/m);
+    const check = f.lictory(["upgrade", "--yes"]);
+    assert.ok(
+      check.calls.some(
+        (call) =>
+          call.name === "curl" &&
+          call.args.some((a) =>
+            a.startsWith("https://api.github.com/repos/acme/lictory-fork/"),
+          ),
+      ),
+      check.stderr,
+    );
+  },
+);
 
 void test(
   "install with an external database records its connection, takes no backups and uses the administrator URL once",

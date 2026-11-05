@@ -56,6 +56,14 @@ On an empty database the first release does everything in order: PostgreSQL
 creates its roles and databases, the migrations run, zero-cache performs its
 initial sync, then the proxy, API and worker start.
 
+Installing from a **private repository or a fork**? GitHub hides private
+releases without a token: run the bootstrap in a root shell with
+`GITHUB_TOKEN` set to a token that can read the repository (and
+`LICTORY_REPOSITORY` and `LICTORY_IMAGE_REGISTRY` for a fork); `lictory
+upgrade` needs it too. The
+[operator runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/self-hosting.md#bootstrap)
+has the exact commands.
+
 For keyboard controls, unattended examples, reconfiguration and account recovery,
 see the [terminal guide](/self-hosting/terminal).
 
