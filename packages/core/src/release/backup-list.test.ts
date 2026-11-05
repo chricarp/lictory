@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -98,4 +98,26 @@ void test("list-backups.sh: no backups yet, a disabled target, an unreachable on
     refused.stderr,
     /Could not list backup:lictory-backups\/production: AccessDenied/,
   );
+});
+
+void test("a connection string's credentials reach rclone as configuration, not as arguments", (t) => {
+  const record = join(mkdtempSync(join(tmpdir(), "lictory-rclone-")), "call");
+  t.after(() => rmSync(join(record, ".."), { recursive: true, force: true }));
+  const result = run(
+    t,
+    `{ echo "ARGS $*"; env | grep ^RCLONE_CONFIG_LICTORYTARGET_ | sort; } > "${record}"; echo '[]'`,
+    {
+      BACKUP_TARGET: "rclone",
+      BACKUP_RCLONE_REMOTE:
+        ":sftp,host=nas.example.test,user=backup,pass='SFTP-SECRET,9f2':lictory",
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const call = readFileSync(record, "utf8");
+  const args = call.split("\n").find((line) => line.startsWith("ARGS "))!;
+  assert.match(args, / lictorytarget:lictory\/production$/);
+  assert.ok(!args.includes("SFTP-SECRET"));
+  assert.match(call, /^RCLONE_CONFIG_LICTORYTARGET_PASS=SFTP-SECRET,9f2$/m);
+  assert.match(call, /^RCLONE_CONFIG_LICTORYTARGET_TYPE=sftp$/m);
+  assert.match(call, /^RCLONE_CONFIG_LICTORYTARGET_HOST=nas\.example\.test$/m);
 });
