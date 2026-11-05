@@ -1490,13 +1490,13 @@ esac
       rmSync(log, { force: true });
       return lines
         .map((line) =>
-          /RESTORE_CHECK_ONLY=1/.test(line)
+          line.includes("RESTORE_CHECK_ONLY=1")
             ? "check"
-            : /verify\.sh/.test(line)
+            : line.includes("verify.sh")
               ? "restore"
-              : / stop proxy/.test(line)
+              : line.includes(" stop proxy")
                 ? "stop"
-                : / create postgres/.test(line)
+                : line.includes(" create postgres")
                   ? "recreate"
                   : null,
         )
