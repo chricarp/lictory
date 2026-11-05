@@ -35,9 +35,13 @@ fi
 started=$(date -u +%s)
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 name="lictory-${LICTORY_ENVIRONMENT}-${stamp}-${label}"
-work="/backups/work-${stamp}"
-mkdir -p "$work" /backups/latest
+mkdir -p /backups/latest
 umask 077
+# One backup at a time per environment (scheduled, manual and pre-deploy
+# runs share this volume): a second one waits, then gives up after an hour.
+exec 8>/backups/.backup.lock
+flock -w 3600 8 || { echo "Another backup of ${LICTORY_ENVIRONMENT} has been running for an hour; not starting a second one." >&2; exit 75; }
+work=$(mktemp -d "/backups/work-${stamp}.XXXXXX")
 
 ping() { # ping <suffix> <message>
   [ -n "${BACKUP_PING_URL:-}" ] || return 0

@@ -44,12 +44,16 @@ releases="$home/releases"
 bin="$(cd "$(dirname "$0")" && pwd)"
 history="$home/release-history.log"
 mkdir -p "$releases"
-exec 9>"$home/.deploy.lock"
-if command -v flock >/dev/null; then
-  flock -n 9 || {
-    echo "Another deployment of $environment is running." >&2
-    exit 75
-  }
+# lictory restore holds this lock for its whole cutover and runs migrate and
+# activate inside it (LICTORY_DEPLOY_LOCK_HELD=1).
+if [ "${LICTORY_DEPLOY_LOCK_HELD:-}" != 1 ]; then
+  exec 9>"$home/.deploy.lock"
+  if command -v flock >/dev/null; then
+    flock -n 9 || {
+      echo "Another deployment of $environment is running." >&2
+      exit 75
+    }
+  fi
 fi
 
 log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$home/deploy.log" >&2; }

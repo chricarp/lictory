@@ -1444,3 +1444,124 @@ void test(
     );
   },
 );
+
+void test(
+  "a live restore checks the backup before stopping anything, holds the lock and undoes a failed cutover",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const log = join(f.base, "compose.log");
+    // The ops container: lists backups, checks one (RESTORE_CHECK_ONLY) and
+    // restores it; FAKE_CHECK_FAILS / FAKE_RESTORE_FAILS make a step fail.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh
+echo "compose $*" >> "${log}"
+case "$*" in
+  *list-backups.sh*) printf '%s' "$FAKE_BACKUPS" ;;
+  *"config --format json"*) echo '{"services":{"postgres":{"image":"postgres:17"}}}' ;;
+  *"grep -q RESTORE_CHECK_ONLY"*) exit 0 ;;
+  *RESTORE_CHECK_ONLY=1*) [ -z "$FAKE_CHECK_FAILS" ] || { echo "age: no identity matched any of the recipients" >&2; exit 1; } ;;
+  *verify.sh*) [ -z "$FAKE_RESTORE_FAILS" ] || exit 1 ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    const steps = () => {
+      const lines = existsSync(log)
+        ? readFileSync(log, "utf8").trim().split("\n")
+        : [];
+      rmSync(log, { force: true });
+      return lines
+        .map((line) =>
+          /RESTORE_CHECK_ONLY=1/.test(line)
+            ? "check"
+            : /verify\.sh/.test(line)
+              ? "restore"
+              : / stop proxy/.test(line)
+                ? "stop"
+                : / create postgres/.test(line)
+                  ? "recreate"
+                  : null,
+        )
+        .filter(Boolean);
+    };
+    const key =
+      "production/daily/lictory-production-20261104T023000Z-scheduled.dump.age";
+    const backups = JSON.stringify([
+      {
+        key,
+        kind: "daily",
+        name: key.split("/").at(-1),
+        bytes: 2_100_000,
+        modified: "2026-11-04T02:30:41Z",
+        encrypted: true,
+      },
+    ]);
+    const identity = join(f.base, "identity.txt");
+    writeFileSync(identity, "AGE-SECRET-KEY-1TEST\n", { mode: 0o600 });
+    const restore = (extra: Record<string, string> = {}) =>
+      f.lictory(["restore", identity, "latest", "--yes"], {
+        FAKE_BACKUPS: backups,
+        ...extra,
+      });
+    const activations = (calls: { name: string; args: string[] }[]) =>
+      calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args.slice(1).join(" "));
+
+    // A backup that cannot be decrypted is found before the services stop.
+    const unreadable = restore({ FAKE_CHECK_FAILS: "1" });
+    assert.equal(unreadable.status, 1);
+    assert.match(
+      unreadable.stderr,
+      /cannot be restored \(see above\); nothing was changed/,
+    );
+    assert.deepEqual(steps(), ["check"]);
+    assert.deepEqual(activations(unreadable.calls), []);
+
+    // Another deployment holds the lock: nothing starts.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const busy = restore();
+    assert.equal(busy.status, 75);
+    assert.match(busy.stderr, /Another deployment of production is running/);
+    assert.deepEqual(steps(), []);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // The restore itself fails after the old volume is gone: the kept copy
+    // goes back and the release starts on it again.
+    const failed = restore({ FAKE_RESTORE_FAILS: "1" });
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /runs 1\.2\.3 on its previous database again/);
+    assert.deepEqual(steps(), ["check", "stop", "restore", "recreate"]);
+    assert.deepEqual(activations(failed.calls), ["activate 1.2.3"]);
+    const copies = failed.calls.filter(
+      (call) => call.name === "docker" && call.args.includes("cp"),
+    );
+    assert.equal(copies.length, 2); // keep the database, then put it back
+    assert.match(
+      copies[1]!.args.join(" "),
+      /postgres_data-before-restore-.*:\/from:ro/,
+    );
+
+    // A successful restore migrates and activates inside the held lock.
+    const restored = restore();
+    assert.equal(restored.status, 0, restored.stderr + restored.stdout);
+    assert.deepEqual(steps(), ["check", "stop", "restore"]);
+    assert.deepEqual(activations(restored.calls), [
+      "migrate 1.2.3",
+      "activate 1.2.3",
+    ]);
+    assert.match(restored.stdout, /Restored\. Check the data/);
+  },
+);

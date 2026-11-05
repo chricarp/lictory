@@ -3,7 +3,7 @@
 # verifies it (row counts and migration history against the backup manifest,
 # migration runner up to date, API ready). Never touches the live database.
 #
-#   lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>]
+#   lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>|<file>]
 #
 # Run monthly and after changes to backups or migrations. The identity file is
 # the offline private key; delete any temporary copy afterwards. `none` drills
@@ -69,11 +69,30 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# A backup file on this host: the dump and its manifest are copied into the
+# private work directory and bind-mounted one by one (the container cannot
+# read host paths, nor traverse the 0700 directory).
+source_mounts=()
+if [ -f "$source" ]; then
+  case "$source" in
+    *.dump.age) manifest="${source%.dump.age}.manifest.json.age" ;;
+    *.dump) manifest="${source%.dump}.manifest.json" ;;
+    *) echo "$source is not a backup file (*.dump or *.dump.age)" >&2; exit 64 ;;
+  esac
+  [ -f "$manifest" ] || { echo "The backup's manifest must sit next to it: $manifest" >&2; exit 64; }
+  for file in "$source" "$manifest"; do
+    cat "$file" >"$work/$(basename "$file")"
+    chmod 644 "$work/$(basename "$file")"
+    source_mounts+=(-v "$work/$(basename "$file"):/restore-source/$(basename "$file"):ro")
+  done
+  source="/restore-source/$(basename "$source")"
+fi
+
 seconds() { date +%s; }
 t0=$(seconds)
 drill up -d --wait postgres >/dev/null
 t1=$(seconds)
-drill run --rm -T ops sh -c 'restore.sh "$1" && verify.sh' restore "$source"
+drill run --rm -T ${source_mounts[@]+"${source_mounts[@]}"} ops sh -c 'restore.sh "$1" && verify.sh' restore "$source"
 t2=$(seconds)
 status=$(drill run --rm -T migrate)
 echo "$status"
