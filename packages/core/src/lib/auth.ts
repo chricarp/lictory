@@ -485,6 +485,9 @@ export const auth = betterAuth({
           platformUrl(),
         );
         actionUrl.searchParams.set("callbackUrl", destination);
+        // The invitation names the address it was sent to; the form starts
+        // with it (the person can still change it).
+        actionUrl.searchParams.set("email", email);
         const rendered = createInvitationEmail({
           to: email,
           inviterName: inviter.user.name,
