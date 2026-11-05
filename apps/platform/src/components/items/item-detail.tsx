@@ -78,6 +78,7 @@ import { Discussions } from "@lictory/platform/components/review/threads";
 import {
   BranchEntry,
   BranchWorkspace,
+  useSuggestChange,
   type BranchScreen,
 } from "@lictory/platform/components/review/branch-workspace";
 import { ReviewPanel } from "@lictory/platform/components/review/review-panel";
@@ -866,10 +867,11 @@ export function ItemDetail({
                     onMain={() => setMode({ kind: "read" })}
                   />
                 ) : (
-                  <Specification
+                  <SuggestingSpecification
                     mode={mode.kind}
                     setMode={(kind) => setMode({ kind })}
                     onQuote={(quote, section) => setDraft({ quote, section })}
+                    onNavigate={setMode}
                   />
                 )}
               </div>
@@ -979,6 +981,20 @@ const railPane: PaneSpec = {
   neighbour: () => document.querySelector("[data-pane-document]"),
   keep: 440,
 };
+
+// The specification, with "Suggest a change" on selected text (it needs the
+// item context the branch commands run in).
+function SuggestingSpecification({
+  onNavigate,
+  ...props
+}: Omit<Parameters<typeof Specification>[0], "onSuggest"> & {
+  onNavigate: (screen: BranchScreen) => void;
+}) {
+  const suggest = useSuggestChange(onNavigate);
+  return (
+    <Specification {...props} onSuggest={(quote) => void suggest(quote)} />
+  );
+}
 
 function Property({
   label,
