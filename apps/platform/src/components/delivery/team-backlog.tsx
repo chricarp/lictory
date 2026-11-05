@@ -509,7 +509,8 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                               aria-label={`Take ${identifier(project, item.number)} into ${team.name}`}
                               onClick={() => update(item, { teamId: team.id })}
                             >
-                              <ArrowDownToLine className="size-3.5" /> Take
+                              <ArrowDownToLine className="size-3.5" />
+                              <span className="hidden sm:inline">Take</span>
                             </Button>
                           ) : undefined
                         }

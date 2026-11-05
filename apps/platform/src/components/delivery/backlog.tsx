@@ -783,7 +783,7 @@ export function BacklogRow({
       )}
     >
       <TypeIcon type={typeOf(delivery, item)} />
-      <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
+      <span className="shrink-0 font-mono text-xs text-muted-foreground sm:w-16">
         {label}
       </span>
       <Link
@@ -835,7 +835,13 @@ export function BacklogRow({
           {status?.name}
         </span>
       </span>
-      <span className="inline-flex w-7 shrink-0 justify-center">
+      {/* Empty slots only keep columns aligned where there is room. */}
+      <span
+        className={cn(
+          "w-7 shrink-0 justify-center",
+          estimate ? "inline-flex" : "hidden sm:inline-flex",
+        )}
+      >
         {estimate && (
           <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
             {estimate}
@@ -849,7 +855,7 @@ export function BacklogRow({
           size="xs"
         />
       ) : (
-        <span className="size-4" />
+        <span className="hidden size-4 sm:block" />
       )}
       {actions && (
         <span className="relative z-10 flex items-center gap-1">{actions}</span>
