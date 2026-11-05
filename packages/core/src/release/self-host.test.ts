@@ -1438,7 +1438,8 @@ void test(
     assert.ok(
       report.checks.some(
         (check) =>
-          check.status === "warn" && /Backups are disabled/.test(check.message),
+          check.status === "warn" &&
+          check.message.includes("Backups are disabled"),
       ),
     );
   },
