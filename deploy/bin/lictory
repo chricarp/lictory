@@ -1080,6 +1080,15 @@ version_ge() { # version_ge <have> <need>: dotted numeric comparison
   return 0
 }
 port_in_use() { ss -Htln "( sport = :$1 )" 2>/dev/null | grep -q .; }
+# epoch_of <date>: seconds since 1970 for a date GNU date (or BSD date, for
+# the ISO and OpenSSL forms) understands; nothing when it cannot parse it.
+epoch_of() {
+  date -u -d "$1" +%s 2>/dev/null ||
+    date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null ||
+    date -u -j -f '%b %e %T %Y %Z' "$1" +%s 2>/dev/null || true
+}
+days_until() { local t; t=$(epoch_of "$1"); [ -z "$t" ] || echo $(((t - $(date -u +%s)) / 86400)); }
+hours_since() { local t; t=$(epoch_of "$1"); [ -z "$t" ] || echo $((($(date -u +%s) - t) / 3600)); }
 
 # Minimums: Docker Engine 25 (health check start_interval, used by every
 # service) and Compose 2.24. Memory: the services' limits add up to about
@@ -2436,7 +2445,15 @@ cmd_upgrade() {
   # previous release serving if anything fails.
   deploy_sh release <"$file" || {
     rm -f "$file"
-    die "The upgrade to $release_version did not activate; $environment keeps its previous images. See the messages above and run: lictory doctor"
+    # deploy.sh restores the previous images when activation fails, but that
+    # can fail too: report what actually runs.
+    local now healthy
+    now=$(deploy_sh status --json 2>/dev/null || true)
+    healthy=$(printf '%s' "$now" | jq -r '.healthy // false' 2>/dev/null || echo false)
+    if [ "$(current_version)" = "$active" ] && [ "$healthy" = true ]; then
+      die "The upgrade to $release_version did not activate; $environment runs $active again and is healthy. See the messages above for the cause."
+    fi
+    die "The upgrade to $release_version did not activate, and $environment is not healthy now (active: $(current_version | grep . || echo none)). Investigate immediately: lictory doctor, lictory logs"
   }
   rm -f "$file"
   refresh_share
@@ -3453,10 +3470,24 @@ cmd_doctor() {
     fi
   fi
   if [ "$tls" = acme ] || [ "$tls" = internal ]; then
-    local expiry
-    expiry=$(printf '' | openssl s_client -connect 127.0.0.1:"$(setting HTTPS_PORT | grep . || echo 443)" -servername "$host" 2>/dev/null |
+    local expiry probe=() days
+    # Bounded: a gateway that accepts but never answers must not hang doctor.
+    ! command -v timeout >/dev/null || probe=(timeout 15)
+    expiry=$(printf '' | ${probe[@]+"${probe[@]}"} openssl s_client -connect 127.0.0.1:"$(setting HTTPS_PORT | grep . || echo 443)" -servername "$host" 2>/dev/null |
       openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
-    if [ -n "$expiry" ]; then check_ok "certificate valid until $expiry"; else check_warn "No certificate served for $host yet: lictory logs proxy"; fi
+    days=""
+    [ -z "$expiry" ] || days=$(days_until "$expiry")
+    if [ -z "$expiry" ]; then
+      check_warn "No certificate served for $host yet: lictory logs proxy"
+    elif [ -z "$days" ]; then
+      check_ok "certificate valid until $expiry"
+    elif [ "$days" -lt 0 ]; then
+      check_fail "The certificate for $host expired on $expiry: lictory logs proxy shows why it was not renewed."
+    elif [ "$days" -lt 14 ]; then
+      check_warn "The certificate for $host expires in $days day(s) ($expiry) and has not been renewed: lictory logs proxy"
+    else
+      check_ok "certificate valid until $expiry ($days days)"
+    fi
   fi
 
   if [ -n "$version" ]; then
@@ -3471,7 +3502,19 @@ cmd_doctor() {
         [ -n "$line" ] || continue
         case "$line" in
           "backup | none") [ "$(setting BACKUP_TARGET)" = none ] || check_warn "No successful backup yet: lictory backup" ;;
-          "backup | "*) check_ok "last backup ${line#backup | }" ;;
+          "backup | "*)
+            # The monitor's freshness rule (MONITOR_BACKUP_MAX_AGE_HOURS).
+            local taken hours limit
+            taken="${line#backup | }"
+            limit=$(setting MONITOR_BACKUP_MAX_AGE_HOURS)
+            limit="${limit:-30}"
+            hours=$(hours_since "$taken")
+            if [ -n "$hours" ] && [ "$hours" -gt "$limit" ]; then
+              check_warn "The last successful backup is $hours hours old ($taken; more than $limit): lictory status shows the backup timer, journalctl -u lictory-backup@$environment.service why it failed"
+            else
+              check_ok "last backup $taken${hours:+ ($hours h ago)}"
+            fi
+            ;;
           *) check_fail "$line"; problems=$((problems + 1)) ;;
         esac
       done <<<"$report"

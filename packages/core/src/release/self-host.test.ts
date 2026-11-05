@@ -113,6 +113,7 @@ cpSync(${JSON.stringify(join(base, "deploy.sh"))}, root + "/bin/deploy.sh");`,
     join(base, "deploy-stub"),
     "deploy.sh",
     `const home = process.env.LICTORY_ROOT + "/" + args[0];
+if (args[1] === "release" && process.env.FAKE_RELEASE_FAILS) process.exit(1);
 if (args[1] === "release") {
   const version = /^LICTORY_VERSION=(.*)$/m.exec(stdin)[1];
   mkdirSync(home + "/releases/" + version, { recursive: true });
@@ -1861,5 +1862,56 @@ void test(
       all,
     ])
       assert.ok(!output.includes("SFTP-SECRET-9f2"));
+  },
+);
+
+void test(
+  "doctor judges backup age and upgrade reports what actually runs after a failure",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    // The ops container's database checks pass; FAKE_LAST_BACKUP is the
+    // completion time recorded by the last successful backup.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\ncase "$*" in *checks.sql*) echo "backup | $FAKE_LAST_BACKUP" ;; esac\n`,
+      { mode: 0o755 },
+    );
+    const backupCheck = (when: string) => {
+      const report = JSON.parse(
+        f.lictory(["doctor", "--json"], { FAKE_LAST_BACKUP: when }).stdout,
+      ) as { checks: { status: string; message: string }[] };
+      return report.checks.find(
+        (check) =>
+          check.message.includes("backup") && /last|old/.test(check.message),
+      )!;
+    };
+    const recent = new Date(Date.now() - 2 * 3600_000)
+      .toISOString()
+      .replace(/\.\d+Z$/, "Z");
+    assert.equal(backupCheck(recent).status, "ok");
+    const stale = backupCheck("2026-01-01T02:30:00Z");
+    assert.equal(stale.status, "warn");
+    assert.match(stale.message, /hours old .* more than 30/);
+
+    // A failed upgrade whose recovery also failed does not claim the
+    // previous release is serving.
+    f.route(
+      `${api}/releases/latest`,
+      JSON.stringify(githubRelease(f, "1.3.0")),
+    );
+    const failed = f.lictory(["upgrade", "--yes"], { FAKE_RELEASE_FAILS: "1" });
+    assert.equal(failed.status, 1);
+    assert.match(
+      failed.stderr,
+      /did not activate, and production is not healthy now .*Investigate immediately/,
+    );
+    assert.doesNotMatch(failed.stderr, /keeps its previous images/);
   },
 );
