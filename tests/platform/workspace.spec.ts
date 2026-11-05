@@ -468,8 +468,9 @@ test("work item panels collapse independently and persist across routes and relo
   ]) {
     await expect(rail.getByRole("link", { name, exact: true })).toBeVisible();
   }
+  // A new proposal opens beside the Proposals queue it joined.
   await expect(
-    rail.getByRole("link", { name: "All items", exact: true }),
+    rail.getByRole("link", { name: "Proposals", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page
     .getByRole("button", { name: "Switch project: Panel project" })
