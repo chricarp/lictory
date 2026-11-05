@@ -1,3 +1,7 @@
+import {
+  applyInvitationPlacement,
+  storeInvitationPlacement,
+} from "@lictory/core/domain/invitation-placement";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
 import { organization, twoFactor } from "better-auth/plugins";
@@ -474,6 +478,7 @@ export const auth = betterAuth({
         inviter,
         invitation,
       }) => {
+        await storeInvitationPlacement(db, id);
         const [existing] = await db
           .select({ id: schema.user.id })
           .from(schema.user)
@@ -560,6 +565,12 @@ export const auth = betterAuth({
           await refreshOrganizations([organization.id]);
         },
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
+          await applyInvitationPlacement(
+            db,
+            invitation.id,
+            organization.id,
+            user.id,
+          );
           await refreshOrganizations([organization.id]);
           trackServer(
             user.id,

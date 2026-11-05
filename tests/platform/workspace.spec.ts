@@ -939,11 +939,16 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByText("Duplicate callbacks do not create duplicate cancellations"),
   ).toBeVisible();
 
-  // Invite the engineer so they can review.
+  // Invite the engineer straight into the project's Engineering discipline,
+  // so they can be asked to review as soon as they accept. The only project
+  // is preselected.
   await page.getByRole("link", { name: "Organization settings" }).click();
   await page.getByRole("link", { name: "Members", exact: true }).click();
   await page.getByLabel("Teammate email or username").fill("@riley_chen");
+  await expect(page.getByLabel("Invitation project")).toHaveValue(/.+/);
+  await page.getByRole("checkbox", { name: "Engineering" }).check();
   await page.getByRole("button", { name: "Send invitation" }).click();
+  await expect(page.getByText(/Joins Payments · Engineering/)).toBeVisible();
   const invitation = await page
     .getByLabel("Invitation link", { exact: true })
     .inputValue();
@@ -957,17 +962,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewer.getByRole("button", { name: "Accept invitation" }).click();
   await expect(reviewer).toHaveURL(/\/northstar/);
 
-  // The administrator adds the engineer to the project in the Engineering
-  // discipline. Until then the new member cannot even be asked to review.
+  // Accepting placed the engineer in the project's Engineering discipline.
   const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   await page.goto(paths.projectSettings(orgSlug, "PAY", "members"));
-  await page.getByRole("button", { name: "Add people" }).click();
-  await page.getByRole("option", { name: /Riley Chen/ }).click();
-  const rileyDisciplines = page
-    .getByLabel("Disciplines of Riley Chen")
-    .getByRole("button", { name: "Engineering", exact: true });
-  await rileyDisciplines.click();
-  await expect(rileyDisciplines).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page
+      .getByLabel("Disciplines of Riley Chen")
+      .getByRole("button", { name: "Engineering", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   // 6. Request Engineering review from the story page.
   const storyUrl = `/${orgSlug}/pay/items/PAY-2`;
