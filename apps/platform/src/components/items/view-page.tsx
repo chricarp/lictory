@@ -7,6 +7,7 @@ import { cn } from "@lictory/core/lib/utils";
 import {
   type ViewId,
   identifier,
+  isReviewAskedOf,
   matchesView,
   typeOf,
   views,
@@ -157,7 +158,7 @@ export function ViewPage({
         (r) => r.status !== "cancelled" && r.status !== "completed",
       );
       const mine = open.filter((r) =>
-        r.assigneeIds.some((id) => id === userId || disciplineIds.includes(id)),
+        isReviewAskedOf(r, userId, disciplineIds),
       );
       const asked = (view === "needs-my-review" && mine.length ? mine : open)
         .map((r) => r.responsibility)
@@ -178,6 +179,13 @@ export function ViewPage({
       return parts.join(" · ");
     },
     [view, userId, disciplineIds],
+  );
+  // "Needs my review" groups each item under the reviews asked of you; other
+  // disciplines' pending reviews are not your queue.
+  const mineOnly = useCallback(
+    (review: WorkItem["reviews"][number]) =>
+      isReviewAskedOf(review, userId, disciplineIds),
+    [userId, disciplineIds],
   );
   return (
     <IssueList
@@ -248,6 +256,7 @@ export function ViewPage({
           ? "review"
           : "refinement"
       }
+      reviewFilter={view === "needs-my-review" ? mineOnly : undefined}
       createKind={overview && canPropose ? "story" : undefined}
       createIntent="proposal"
       createLabel="New proposal"

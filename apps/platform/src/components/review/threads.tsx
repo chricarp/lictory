@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  BookOpen,
   CircleAlert,
   CircleCheck,
   CornerDownRight,
@@ -16,6 +17,7 @@ import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useRecordDecisionFrom } from "@lictory/platform/components/review/decisions";
 
 function useMentionable() {
   const { directory } = useWorkspace();
@@ -111,6 +113,18 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         )?.replace(/\s+/g, " ") ?? ""
       ).includes(thread.anchor.quote.replace(/\s+/g, " "))
     : true;
+  // Specification discussions (not pull request or suggestion threads) can
+  // become a recorded decision once resolved.
+  const recordDecision = useRecordDecisionFrom();
+  const decisionSource =
+    recordDecision && !thread.pullRequestId && !thread.suggestionId
+      ? recordDecision
+      : undefined;
+  const recorded = entities.some(
+    (e) =>
+      e.type === "decision" && e.sourceThreadId === thread.id && !e.archivedAt,
+  );
+  const conclusion = own.at(-1)?.body ?? "";
   const setState = (patch: { resolved?: boolean; blocking?: boolean }) =>
     void mutate({
       type: "setThreadState",
@@ -144,6 +158,11 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         ) : (
           <Badge tone="good">
             <CircleCheck className="size-3" /> Resolved
+          </Badge>
+        )}
+        {recorded && (
+          <Badge>
+            <BookOpen className="size-3" /> Decision recorded
           </Badge>
         )}
         {thread.anchor?.section && (
@@ -261,6 +280,20 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                   >
                     <CircleCheck className="size-3.5" /> Resolve
                   </Button>
+                  {decisionSource && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Resolve this discussion and keep its conclusion as a decision"
+                      onClick={() =>
+                        decisionSource(thread.id, conclusion, {
+                          resolve: true,
+                        })
+                      }
+                    >
+                      <BookOpen className="size-3.5" /> Resolve as decision
+                    </Button>
+                  )}
                   {reviewable && (
                     <Button
                       size="sm"
@@ -278,6 +311,15 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                   onClick={() => setState({ resolved: false })}
                 >
                   <RotateCcw className="size-3.5" /> Reopen
+                </Button>
+              )}
+              {!isOpen && decisionSource && !recorded && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => decisionSource(thread.id, conclusion)}
+                >
+                  <BookOpen className="size-3.5" /> Record decision
                 </Button>
               )}
             </>

@@ -43,6 +43,9 @@ export function chatGenerator(
     }
     const me = roster.members.find((m) => m.id === owner.userId);
     const message = messages.at(-1)!;
+    // The UI message stream reports a failed model call only as text; keep
+    // the provider's own error so the run can say what went wrong.
+    let failure: unknown;
     const result = streamText({
       model: model(),
       tools,
@@ -64,6 +67,9 @@ export function chatGenerator(
       }),
       abortSignal: signal,
       providerOptions: { openai: { store: false } },
+      onError: ({ error }) => {
+        failure = error;
+      },
     });
     const stream = toUIMessageStream({
       stream: result.stream,
@@ -71,12 +77,16 @@ export function chatGenerator(
       sendReasoning: true,
       generateMessageId: () => message.id,
     });
-    for await (const updated of readUIMessageStream<ChatMessage>({
-      message: structuredClone(message),
-      stream,
-      terminateOnError: true,
-    }))
-      yield updated;
+    try {
+      for await (const updated of readUIMessageStream<ChatMessage>({
+        message: structuredClone(message),
+        stream,
+        terminateOnError: true,
+      }))
+        yield updated;
+    } catch (error) {
+      throw failure ?? error;
+    }
     const reason = await result.finishReason;
     if (["length", "content-filter", "error"].includes(reason))
       throw new CapabilityError(

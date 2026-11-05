@@ -4,6 +4,7 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
+import { toast } from "@lictory/ui/toast";
 import {
   OnboardingFrame,
   OnboardingHeading,
@@ -78,6 +79,7 @@ export function Invitation({ id }: { id?: string }) {
                 invitationId: id,
               });
               if (result.error) throw new Error(result.error.message);
+              await reportPlacement(id);
               router.push(paths.org(details.organizationSlug));
             } catch (e) {
               setError(
@@ -101,4 +103,31 @@ export function Invitation({ id }: { id?: string }) {
       </Link>
     </OnboardingFrame>
   );
+}
+
+// Joining always succeeds; say so when the project access the invitation
+// promised could not be added, instead of letting the person discover it.
+async function reportPlacement(invitationId: string) {
+  const response = await fetch(
+    `/api/invitations/${encodeURIComponent(invitationId)}/placement`,
+  ).catch(() => undefined);
+  if (!response?.ok) return;
+  const { outcome } = (await response.json()) as {
+    outcome: {
+      status: "applied" | "partial" | "skipped";
+      missing: string[];
+      reason?: string;
+    } | null;
+  };
+  if (!outcome || outcome.status === "applied") return;
+  toast.add({
+    type: "warning",
+    timeout: 15000,
+    title:
+      outcome.status === "partial"
+        ? `You joined, but ${outcome.missing.join(" and ")} access could not be added`
+        : "You joined the organization, but not its project",
+    description:
+      `${outcome.reason ?? ""} Ask an organization administrator to add you.`.trim(),
+  });
 }

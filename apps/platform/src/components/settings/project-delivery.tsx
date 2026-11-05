@@ -188,8 +188,8 @@ function DeliveryModeSection({
             ) : (
               <>
                 <p>
-                  Iterations and estimates will be turned off for this project;
-                  {tool.Name} plans them from now on. Boards and backlogs are
+                  Iterations and estimates will be turned off for this project;{" "}
+                  {tool.name} plans them from now on. Boards and backlogs are
                   replaced by the hand-off view. Existing items, specifications
                   and history are kept, and you can switch back later.
                 </p>

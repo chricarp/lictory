@@ -369,7 +369,9 @@ function ProjectBoard({ project }: { project: Project }) {
             trigger={(props) => (
               <Button {...props} variant="ghost" size="sm">
                 <Repeat className="size-3.5" />
-                {iteration ? iterationLabel(iteration) : "All work"}
+                {iteration
+                  ? iterationLabel(iteration, project?.iterationMode)
+                  : "All work"}
                 {iteration?.state === "active" && (
                   <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
                     <span
@@ -388,7 +390,7 @@ function ProjectBoard({ project }: { project: Project }) {
                 { value: "all", label: "All work" },
                 ...iterations.map((i) => ({
                   value: i.id,
-                  label: iterationLabel(i),
+                  label: iterationLabel(i, project?.iterationMode),
                   hint: i.state === "active" ? "Active" : shortRange(i),
                 })),
               ]}

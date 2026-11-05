@@ -204,7 +204,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
             hideSearch
             options={iterations.map((it) => ({
               value: it.id,
-              label: iterationLabel(it),
+              label: iterationLabel(it, project?.iterationMode),
               hint: it.state === "active" ? "Active" : shortRange(it),
             }))}
             onSelect={(iterationId) => {
@@ -340,7 +340,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                 <ListTodo className="size-3.5 text-muted-foreground" />
                 <h2 className="text-sm font-semibold">Backlog</h2>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {backlog.length} items
+                  {backlog.length} {backlog.length === 1 ? "item" : "items"}
                   {showPoints && ` · ${points(backlog)} pts`}
                 </span>
                 <span className="ml-auto text-xs text-muted-foreground">
@@ -435,7 +435,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                       className="flex items-center gap-2 border-b px-4 py-2 text-[13px] last:border-b-0"
                     >
                       <span className="font-medium">
-                        {iterationLabel(iteration)}
+                        {iterationLabel(iteration, project?.iterationMode)}
                       </span>
                       {iteration.state === "active" && (
                         <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
@@ -450,14 +450,17 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                         {shortRange(iteration)}
                       </span>
                       <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                        {rows.length} items
+                        {rows.length} {rows.length === 1 ? "item" : "items"}
                         {showPoints && ` · ${points(rows)} pts`}
                       </span>
                     </li>
                   ))}
                   {handedOffRows.length > 0 && (
                     <li className="px-4 py-2 text-[13px] text-muted-foreground">
-                      {handedOffRows.length} items are in the delivery tool.
+                      {handedOffRows.length === 1
+                        ? "1 item is"
+                        : `${handedOffRows.length} items are`}{" "}
+                      in the delivery tool.
                     </li>
                   )}
                 </ul>
@@ -472,7 +475,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                 <Inbox className="size-3.5 text-muted-foreground" />
                 <h2 className="text-sm font-semibold">No team yet</h2>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {intake.length} items
+                  {intake.length} {intake.length === 1 ? "item" : "items"}
                 </span>
                 <span className="ml-auto text-xs text-muted-foreground">
                   {project.name} work no team has taken
@@ -509,7 +512,8 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                               aria-label={`Take ${identifier(project, item.number)} into ${team.name}`}
                               onClick={() => update(item, { teamId: team.id })}
                             >
-                              <ArrowDownToLine className="size-3.5" /> Take
+                              <ArrowDownToLine className="size-3.5" />
+                              <span className="hidden sm:inline">Take</span>
                             </Button>
                           ) : undefined
                         }

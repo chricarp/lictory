@@ -366,7 +366,7 @@ export function computeInsights(input: {
         cards.push({
           kind: "trend",
           id: "burndown",
-          title: `Burndown · ${iterationLabel(it.iteration)}`,
+          title: `Burndown · ${iterationLabel(it.iteration, projects.get(it.iteration.projectId)?.iterationMode)}`,
           caption: `${done} of ${plural(total, byPoints ? "point" : "item")} done`,
           unit: byPoints ? "points" : "items",
           style: "line",
@@ -397,7 +397,12 @@ export function computeInsights(input: {
           caption: `Last ${plural(report.velocity.length, "completed iteration")}`,
           unit: "points",
           style: "bars",
-          labels: report.velocity.map((v) => iterationLabel(v)),
+          labels: report.velocity.map((v) =>
+            iterationLabel(
+              v,
+              projects.get(it.iteration.projectId)?.iterationMode,
+            ),
+          ),
           series: [
             {
               key: "committed",

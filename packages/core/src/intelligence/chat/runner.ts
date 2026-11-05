@@ -12,6 +12,10 @@ import { serverContext } from "@lictory/core/capabilities/server";
 import { directory, type Database } from "@lictory/core/domain/service";
 import { aiPolicy } from "@lictory/core/domain/ai";
 import {
+  describeProviderError,
+  isProviderError,
+} from "@lictory/core/ai/analyzer";
+import {
   chatGenerator,
   type ChatGenerator,
 } from "@lictory/core/intelligence/chat/step";
@@ -104,9 +108,13 @@ export async function processChatRuns(
           ? "Litto took too long to finish this step. Your completed steps are saved; retry to continue."
           : error instanceof UnsafeToolRecovery
             ? error.message
-            : problem.category !== "server"
-              ? problem.message
-              : "Litto could not finish this turn. Your completed steps are saved; retry to continue.";
+            : isProviderError(error)
+              ? // Say what failed (credentials, model, rate limit, network)
+                // instead of a generic failure.
+                `${describeProviderError(error, "Retry")} Your completed steps are saved.`
+              : problem.category !== "server"
+                ? problem.message
+                : "Litto could not finish this turn. Your completed steps are saved; retry to continue.";
         await checkpointChatRun(db, run, checkpoint, {
           status: "failed",
           error: message,

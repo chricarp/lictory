@@ -141,7 +141,16 @@ export function QuickCreate({
     } finally {
       setPending(false);
     }
-    const href = paths.item(organization.slug, project.key, workItemId);
+    // A new proposal is a draft: it opens beside the Proposals queue it joins,
+    // not beside every item in the project.
+    const href = paths.item(
+      organization.slug,
+      project.key,
+      workItemId,
+      options.intent === "proposal" && type.hasSpecification
+        ? new URLSearchParams({ from: "proposals" })
+        : undefined,
+    );
     if (open) {
       router.push(href);
       onClose();

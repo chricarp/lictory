@@ -156,7 +156,7 @@ export function IterationPicker({
     <>
       <Repeat className="size-3.5 text-muted-foreground" />
       <span className={cn("truncate", !current && "text-muted-foreground")}>
-        {current ? iterationLabel(current) : "Backlog"}
+        {current ? iterationLabel(current, project?.iterationMode) : "Backlog"}
       </span>
     </>
   );
@@ -168,7 +168,7 @@ export function IterationPicker({
       trigger={(props) => (
         <button
           {...props}
-          aria-label={`Iteration: ${current ? iterationLabel(current) : "Backlog"}`}
+          aria-label={`Iteration: ${current ? iterationLabel(current, project?.iterationMode) : "Backlog"}`}
           className={trigger}
         >
           {content}
@@ -181,7 +181,7 @@ export function IterationPicker({
           { value: "none", label: "Backlog" },
           ...options.map((i) => ({
             value: i.id,
-            label: iterationLabel(i),
+            label: iterationLabel(i, project?.iterationMode),
             hint: i.state === "active" ? "Active" : shortRange(i),
           })),
         ]}

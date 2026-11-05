@@ -60,11 +60,13 @@ export function SettingsSection({
         className,
       )}
     >
-      <div className="flex items-start gap-3 px-5 py-4">
+      {/* Wraps the actions below the title when both don't fit, so a narrow
+          screen never squeezes the description to one word per line. */}
+      <div className="flex flex-wrap items-start gap-3 px-5 py-4">
         <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground [&>svg]:size-4">
           {icon}
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-48">
           <h3 id={`${id}-title`} className="text-sm font-semibold">
             {title}
           </h3>
