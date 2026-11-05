@@ -1551,17 +1551,17 @@ cmd_install() {
     if [ -z "$(opt version)" ] && [ -f "$root/share/bundle/release.env" ] &&
       [ "$(env_value "$root/share/bundle/release.env" LICTORY_CHANNEL)" = "$channel" ]; then
       release_file="$root/share/bundle/release.env"
-      say "Lictory $(env_value "$release_file" LICTORY_VERSION) ($channel), verified by get.sh."
+      check_ok "Lictory $(env_value "$release_file" LICTORY_VERSION) ($channel), verified by get.sh"
     else
       resolve_release "$channel" "$(opt version)"
       release_file=$(mktemp)
       fetch_release "$release_file"
-      say "Lictory $release_version ($channel): $release_notes"
+      check_ok "Lictory $release_version ($channel): $release_notes"
     fi
     run_task "Pulling the release images" pull_release_images "$release_file" ||
       die "The release images could not be pulled; see the messages above."
   elif [ -n "$(opt version)" ] && [ "$(opt version)" != "$active" ]; then
-    say "$environment already runs $active; use: lictory upgrade $(opt version)"
+    note "$environment already runs $active; to change the release use: lictory upgrade $(opt version)"
   fi
 
   if [ "$(opt backup)" != none ] && [ "$(opt backup-age-recipient)" = generate ]; then
@@ -1595,7 +1595,7 @@ cmd_install() {
     run_task "Applying the new settings to $active" deploy_sh activate "$active" ||
       die "Re-activation failed; the previous settings are in $home/.env.backup-*. Run: lictory doctor"
   else
-    say "Nothing changed; $environment runs $active. New releases: lictory upgrade"
+    check_ok "Nothing changed; $environment runs $active. New releases: lictory upgrade"
   fi
   refresh_share
   start_timers
@@ -1603,7 +1603,7 @@ cmd_install() {
   step "Checking $(platform_url)"
   # Behind a proxy that may not be configured yet, do not wait long.
   if run_task "Waiting for $(platform_url)/readyz" wait_until_ready "$([ "$(current_tls)" = proxy ] && echo 20 || echo 180)"; then
-    say "Lictory is up: $(platform_url)"
+    check_ok "Lictory is up: $(platform_url)"
   else
     warn "$(platform_url)/readyz is not reachable from this server yet. The services are running; check DNS, firewall and certificates with: lictory doctor"
   fi
@@ -1753,7 +1753,11 @@ summary() {
   mode=$(setting LICTORY_SIGNUP_MODE)
   mode="${mode:-invite}"
   if [ "$fancy" = true ]; then
-    lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is ready${c_reset}")
+    if [ "$admin_pending" = true ]; then
+      lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is running${c_reset} ${c_dim}· create the first administrator next${c_reset}")
+    else
+      lines+=("${c_green}${g_ok}${c_reset} ${c_bold}Lictory is ready${c_reset}")
+    fi
     lines+=("")
     lines+=("$(row "Open" "$url")")
     [ -z "$admin_email_created" ] || lines+=("$(row "Administrator" "$admin_email_created")")
@@ -1763,22 +1767,26 @@ summary() {
     [ -z "$(current_version)" ] || lines+=("$(row "Release" "$(current_version) ($(channel_of_environment))")")
     box "${lines[@]}"
   fi
-  step "Next steps"
+  # The installer's eight steps are done: this heading has no counter.
   steps_total=0
+  step "Next steps"
+  local ind=""
+  [ "$fancy" != true ] || ind="   "
   if [ -n "$admin_email_created" ]; then
-    say "1. Sign in at $url as $admin_email_created."
+    say "${ind}1. Sign in at $url as $admin_email_created."
   elif [ "$admin_pending" = true ]; then
-    say "1. Create the first administrator and organization: sudo lictory admin setup"
+    say "${ind}1. Create the first administrator and organization: sudo lictory admin setup"
   else
-    say "1. Sign in at $url with an instance administrator account (lictory admin list)."
+    say "${ind}1. Sign in at $url with an instance administrator account (lictory admin list)."
   fi
-  say "2. Open the admin console at $url/admin to invite people, create accounts and organizations,"
-  say "   and choose who administers Lictory."
-  say "   Accounts: $(signup_words "$mode"); $(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")."
-  say "   Change it with: sudo lictory install --signup-mode invite|closed|open --organization-creation administrators|everyone"
+  say "${ind}2. Open the admin console at $url/admin to invite people, create accounts and"
+  say "${ind}   organizations, and choose who administers Lictory."
+  say "${ind}   Accounts: $(signup_words "$mode"); $(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")."
+  say "${ind}   Change it with: sudo lictory install --signup-mode invite|closed|open"
   if [ "$(current_email)" = none ]; then
     notes+=("No outbound email: invitations, verification and password reset email are not delivered.")
-    notes+=("   Configure SMTP or Resend (sudo lictory install --email smtp), or create accounts with passwords: sudo lictory admin create-user")
+    notes+=("   Configure SMTP or Resend (sudo lictory install --email smtp), or create accounts with")
+    notes+=("   passwords: sudo lictory admin create-user")
   fi
   if [ -n "$identity" ]; then
     notes+=("Backup identity (private key): $identity")
@@ -1786,18 +1794,19 @@ summary() {
     notes+=("   Restores and restore drills need it.")
   fi
   [ "$(setting BACKUP_TARGET)" = local ] && [ -z "$(setting BACKUP_LOCAL_PATH)" ] &&
-    notes+=("Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone for disaster recovery.")
+    notes+=("Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone" "   for disaster recovery.")
   if [ "$(current_tls)" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
     notes+=("Set the address your reverse proxy connects from (lictory doctor suggests it):")
     notes+=("   sudo lictory install --trusted-proxies <ip>   (docs/operations/reverse-proxy.md)")
   fi
   [ "$(current_tls)" = http ] &&
-    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only (docs/operations/reverse-proxy.md).")
+    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only" "   (docs/operations/reverse-proxy.md).")
   notes+=("Check the installation at any time: lictory doctor")
   notes+=("Upgrades: lictory upgrade (channel: $(channel_of_environment))")
+  say ""
   local line
   for line in "${notes[@]}"; do
-    case "$line" in "   "*) say "$line" ;; *) say "$g_bullet  $line" ;; esac
+    case "$line" in "   "*) say "${ind}${line# }" ;; *) say "${ind}$g_bullet $line" ;; esac
   done
 }
 
