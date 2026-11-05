@@ -122,6 +122,7 @@ type Workflow = {
       needs?: string[];
       if?: string;
       uses?: string;
+      secrets?: "inherit" | Record<string, string>;
       with?: Record<string, string>;
       environment?: string | { name: string; url?: string };
       permissions?: Record<string, string>;
@@ -395,6 +396,9 @@ void test("websites deploy only from Release or a release manager, with the toke
     ["docs", "deploy-docs"],
   ] as const) {
     assert.equal(release.jobs[job]!.uses, `./.github/workflows/${file}.yml`);
+    // Environment-scoped secrets resolve empty in a called workflow unless
+    // the caller passes them; inherit keeps Release from naming any.
+    assert.equal(release.jobs[job]!.secrets, "inherit", job);
     assert.match(
       release.jobs[job]!.if!,
       /needs\.plan\.outputs\.platform != 'true' \|\| needs\.publish\.result == 'success'/,
