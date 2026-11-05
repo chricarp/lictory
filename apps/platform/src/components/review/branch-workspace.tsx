@@ -2101,9 +2101,14 @@ function PullRequestView({
       ? capabilities.editSpecifications
       : target.collaboratorIds.includes(userId));
   const sourceHistory = ours ? aheadOf(commits, ours.id, theirs?.id) : [];
+  // A merged pull request shows the commits it brought in: those reachable
+  // from the merge's source parent but not from its target parent (the
+  // source branch itself is gone after the merge). Not main's whole history.
   const shownHistory =
     p.status === "merged" && merged
-      ? ancestry(commits, merged.id)
+      ? merged.parentIds[1]
+        ? aheadOf(commits, merged.parentIds[1], merged.parentIds[0])
+        : ancestry(commits, merged.id)
       : sourceHistory;
   const contributed = sourceHistory.some((c) => c.authorId === userId);
   const roleOptions = disciplines.filter(

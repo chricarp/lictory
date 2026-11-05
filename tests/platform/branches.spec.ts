@@ -773,6 +773,9 @@ test("a breakdown-only pull request creates children only after review and merge
         exact: false,
       }),
     ).toBeVisible();
+    // The header counts the commits the pull request brought in, not main's
+    // whole history.
+    await expect(page.getByText("merged 1 commit into")).toBeVisible();
     await expect
       .poll(async () => (await childRows()).length)
       .toBe(before.length + 1);
