@@ -123,6 +123,13 @@ jobs:
           release-version: ${{ inputs.release_version }}
       - name: Toolchain
         run: bun scripts/check-toolchain.ts
+      # Type-aware rules need the route types Next.js generates (PageProps,
+      # RouteContext); locally `bun run typecheck` makes them before lint.
+      - name: Generate Next.js route types
+        if: matrix.check.group == 'lint'
+        run: |
+          bun run --cwd apps/marketing next typegen
+          bun run --cwd apps/docs next typegen
       - name: Lint ${{ matrix.check.paths }}
         if: matrix.check.group == 'lint'
         env:

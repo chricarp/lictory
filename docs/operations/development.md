@@ -245,7 +245,9 @@ the slowest job sets the duration: lint as three jobs over disjoint paths
 formatting, unused code and migrations (`bun run typecheck` and
 `bun run check:rest`, which together with lint make up `bun run check`; add a
 new static check to `check:rest` so CI runs it too), domain test files in three
-processes, and the full browser suite in four shards. A change to the documentation site (or what
+processes, and the full browser suite in four shards. The lint jobs first
+generate the route types Next.js derives for the website and documentation
+(`next typegen`), which `bun run typecheck` produces locally before lint. A change to the documentation site (or what
 it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
