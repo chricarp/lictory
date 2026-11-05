@@ -1697,12 +1697,24 @@ masked() { [ -z "$1" ] && printf 'none' || printf '%s' "$g_mask"; }
 # (:sftp,host=nas,user=backup,pass=…:path). remote_masked shows it with their
 # values masked; remote_secrets prints each value, for redaction.
 remote_credentials='pass|password|key_pem|private_key|secret_access_key|account_key|key|client_secret|token|sas_url|service_account_credentials|bearer_token|session_token'
+# A value is quoted from its first character, a doubled quote inside being a
+# literal one (as rclone and backup-target.sh read it), or runs to , or :.
+# (POSIX regular expressions take the longest match, so a quoted value is
+# matched whole.)
+remote_value="(\"([^\"]|\"\")*\"|'([^']|'')*'|[^,:]*)"
 remote_masked() {
-  printf '%s' "$1" | sed -E "s/((^|[,:])($remote_credentials)=)(\"[^\"]*\"|'[^']*'|[^,:]*)/\1$g_mask/g"
+  printf '%s' "$1" | sed -E "s/((^|[,:])($remote_credentials)=)$remote_value/\1$g_mask/g"
 }
 remote_secrets() {
-  printf '%s' "$1" | grep -oE "(^|[,:])($remote_credentials)=(\"[^\"]*\"|'[^']*'|[^,:]*)" |
-    cut -d= -f2- | sed -E "s/^[\"']//; s/[\"']\$//" || true
+  local value
+  printf '%s' "$1" | grep -oE "(^|[,:])($remote_credentials)=$remote_value" | cut -d= -f2- |
+    while IFS= read -r value; do
+      case "$value" in
+        \"*) value="${value#\"}" && value="${value%\"}" && value="${value//\"\"/\"}" ;;
+        \'*) value="${value#\'}" && value="${value%\'}" && value="${value//\'\'/\'}" ;;
+      esac
+      printf '%s\n' "$value"
+    done || true
 }
 
 # The review before anything changes: the answers in words, and for an

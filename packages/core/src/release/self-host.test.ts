@@ -1838,6 +1838,21 @@ void test(
       ["-c", `cat "${dir}"/*/*.* "${dir}"/*/logs/*`],
       { encoding: "utf8" },
     ).stdout;
+    // A quoted password with a doubled quote is masked whole.
+    const envFile = join(f.root, "production/.env");
+    writeFileSync(
+      envFile,
+      readFileSync(envFile, "utf8").replace(
+        /^BACKUP_RCLONE_REMOTE=.*$/m,
+        `BACKUP_RCLONE_REMOTE=':sftp,host=nas,pass="first,part""SECOND-SECRET,tail":backups'`,
+      ),
+    );
+    const quoted = f.lictory(["config", "show"]).stdout;
+    assert.match(
+      quoted,
+      /^BACKUP_RCLONE_REMOTE=:sftp,host=nas,pass=\*\*\*\*:backups$/m,
+    );
+    assert.ok(!quoted.includes("SECOND-SECRET"));
     for (const output of [
       installed.stdout,
       installed.stderr,
