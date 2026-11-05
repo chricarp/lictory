@@ -95,7 +95,7 @@ export function ReviewPanel() {
           Engineering, QA or others to review when the intent is clear enough.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul aria-label="Requested reviews" className="space-y-2">
           {active.map((review) => {
             const granted = approvals.filter(
               (a) => a.reviewId === review.id && a.status === "granted",
@@ -293,16 +293,20 @@ export function RequestReview({
   const missing = reviewerRoles.filter(
     (r) => !used.has(r.name) && !r.userIds.includes(userId),
   );
-  const [requestingAll, setRequestingAll] = useState(false);
+  // The disciplines of a bulk request in flight. Captured when it starts, so
+  // the shortcut stays visible (as progress) after the first review lands
+  // and `missing` shrinks; the popover closes once every one is confirmed.
+  const [requestingAll, setRequestingAll] = useState<string[]>();
   const requestAll = async (close: () => void) => {
     if (requestingAll) return;
-    setRequestingAll(true);
+    const batch = missing;
+    setRequestingAll(batch.map((r) => r.name));
     setError(undefined);
     // Each request waits for the server, so a refusal is reported here and
     // the ones already accepted are named.
     const requested: string[] = [];
     try {
-      for (const r of missing) {
+      for (const r of batch) {
         await mutateConfirmed({
           type: "requestReview",
           ...base,
@@ -317,8 +321,8 @@ export function RequestReview({
     } catch (err) {
       const reason =
         err instanceof Error ? err.message : "The server refused the request.";
-      const failed = missing[requested.length]?.name;
-      const skipped = missing.slice(requested.length + 1).map((r) => r.name);
+      const failed = batch[requested.length]?.name;
+      const skipped = batch.slice(requested.length + 1).map((r) => r.name);
       setError(
         [
           requested.length && `Requested ${requested.join(" and ")}.`,
@@ -330,15 +334,12 @@ export function RequestReview({
           .join(" "),
       );
     } finally {
-      setRequestingAll(false);
+      setRequestingAll(undefined);
     }
   };
-  const missingNames =
-    missing.length > 1
-      ? `${missing
-          .slice(0, -1)
-          .map((r) => r.name)
-          .join(", ")} and ${missing.at(-1)!.name}`
+  const listNames = (names: string[]) =>
+    names.length > 1
+      ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
       : "";
   return (
     <Popover width={320} align="end" trigger={trigger}>
@@ -370,16 +371,18 @@ export function RequestReview({
           <p className="font-medium">
             Request review of revision {current?.number}
           </p>
-          {missing.length > 1 && (
+          {(Boolean(requestingAll) || missing.length > 1) && (
             <div className="space-y-1.5 border-b pb-3">
               <Button
                 type="button"
                 size="sm"
                 className="w-full"
-                disabled={requestingAll}
+                disabled={Boolean(requestingAll)}
                 onClick={() => void requestAll(close)}
               >
-                Request {missingNames} reviews
+                {requestingAll
+                  ? `Requesting ${listNames(requestingAll)} reviews…`
+                  : `Request ${listNames(missing.map((r) => r.name))} reviews`}
               </Button>
               <p className="text-[11px] text-muted-foreground">
                 Required, from anyone in each discipline. Or choose one
@@ -512,7 +515,11 @@ export function RequestReview({
             <Button type="button" size="sm" variant="ghost" onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={!role}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!role || Boolean(requestingAll)}
+            >
               Request review
             </Button>
           </div>
