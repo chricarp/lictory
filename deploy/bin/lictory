@@ -19,6 +19,7 @@
 #   lictory restore <identity|none> [latest|<key>|<file>] [--drill]
 #   lictory logs [service] [-f] [--tail N]
 #   lictory registry-login [--username U]   token on stdin, for private images
+#   lictory support-bundle          redacted versions, status, settings and logs
 #
 # Every command takes --env <name> when the server hosts several environments.
 # Output is styled only on a terminal (NO_COLOR=1 turns colours off); logs and
@@ -174,6 +175,7 @@ Releases and data
   restore <identity-file|none> [latest|<key>|<file>]
                      Replace the database with a backup (--drill: test only)
   registry-login     Log in to the image registry (token on stdin)
+  support-bundle     A redacted archive of versions, status, settings and logs
 
   help [command]     This text, or one command's options
 
@@ -326,6 +328,20 @@ Usage: lictory registry-login [--username <user>] [--env <name>]
 Stores a registry token (read from standard input, or asked for on a
 terminal) so the server can pull private release images. For GHCR, use a
 GitHub token with read:packages.
+USAGE
+      ;;
+    support-bundle)
+      cat <<'USAGE'
+Usage: lictory support-bundle [--output <file.tar.gz>] [--since <duration>] [--env <name>]
+
+Writes one archive (mode 0600) for a bug report or a support request: host
+and Docker versions, status, doctor, the settings with secrets masked, the
+containers, the deploy log and release history, the timers, and each
+service's logs since <duration> (default 24h; for example 30m or 72h).
+
+Every secret value of .env, email addresses and bearer tokens are replaced.
+Logs can still contain your organization's content: review the archive
+before sharing it. Default file: ./lictory-support-<env>-<time>.tar.gz
 USAGE
       ;;
     config) config_usage ;;
@@ -2779,6 +2795,133 @@ cmd_config() {
   esac
 }
 
+# --------------------------------------------------------------- support bundle
+# lictory support-bundle: one archive with what a maintainer needs to
+# understand a problem (versions, status, doctor, masked settings, deploy
+# history, recent service logs), with every secret value of .env, email
+# addresses and bearer tokens replaced. Collection is best effort: a part
+# that cannot be collected is recorded in errors.txt, not fatal.
+
+# redact <secrets file>: stdin to stdout with each listed value (one per
+# line, 6+ characters), email addresses and bearer tokens replaced.
+redact() {
+  awk -v secrets="$1" '
+    BEGIN { while ((getline value < secrets) > 0) if (length(value) >= 6) s[++n] = value }
+    {
+      line = $0
+      for (i = 1; i <= n; i++) {
+        out = ""
+        while ((p = index(line, s[i])) > 0) {
+          out = out substr(line, 1, p - 1) "[redacted]"
+          line = substr(line, p + length(s[i]))
+        }
+        line = out line
+      }
+      gsub(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z]+/, "[email]", line)
+      gsub(/[Bb]earer [A-Za-z0-9._~+\/=-]+/, "Bearer [redacted]", line)
+      print line
+    }'
+}
+
+cmd_support_bundle() {
+  parse "output since" "" "$@"
+  [ ${#positional[@]} -eq 0 ] || usage_error "support-bundle takes no arguments."
+  local since stamp name work out secrets self key value service
+  since=$(opt since)
+  since="${since:-24h}"
+  [[ "$since" =~ ^[0-9]+[smh]$ ]] || usage_error "--since: a duration such as 30m, 24h or 72h."
+  select_environment
+  self="${BASH_SOURCE[0]}"
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  name="lictory-support-$environment-$stamp"
+  out=$(opt output)
+  if [ -z "$out" ]; then
+    out="$PWD/$name.tar.gz"
+    [ -w "$PWD" ] || out="${TMPDIR:-/tmp}/$name.tar.gz"
+  fi
+  case "$out" in *.tar.gz) ;; *) usage_error "--output: a file name ending in .tar.gz" ;; esac
+  [ ! -e "$out" ] || die "$out already exists."
+  work=$(mktemp -d "${TMPDIR:-/tmp}/lictory-support.XXXXXX")
+  # shellcheck disable=SC2064 # the directory is fixed now
+  trap "rm -rf '$work'" EXIT
+  chmod 0700 "$work"
+  mkdir "$work/$name" "$work/$name/logs"
+  secrets="$work/secrets"
+  (
+    umask 077
+    config_keys "$home/.env" | while IFS= read -r key; do
+      value=$(env_value "$home/.env" "$key")
+      if [ -n "$value" ] && config_secret "$key" "$value"; then printf '%s\n' "$value"; fi
+    done >"$secrets"
+  )
+  local dir="$work/$name" errors="$work/$name/errors.txt"
+  : >"$errors"
+  collect() { # collect <file> <title> <command...>: output, redacted
+    local file="$1" title="$2" status=0
+    shift 2
+    [ "$fancy" != true ] || printf '   %s%s%s %s\033[K' "$c_accent" "${spinner_frames[0]}" "$c_reset" "$title" >&2
+    "$@" 2>&1 </dev/null | redact "$secrets" >"$dir/$file" || status=$?
+    [ "$fancy" != true ] || printf '\r\033[K' >&2
+    if [ "$status" = 0 ]; then
+      check_ok "$title"
+    else
+      check_warn "$title: incomplete (exit $status, see $file)"
+      printf '%s: exit %s\n' "$file" "$status" >>"$errors"
+    fi
+  }
+  # Exit 1 means doctor found problems: that is its report, not a failure.
+  doctor_report() { env NO_COLOR=1 bash "$self" doctor --env "$environment" || [ $? -eq 1 ]; }
+  file_or_none() { if [ -f "$1" ]; then tail -n 500 "$1"; else echo "(none yet)"; fi; }
+  service_logs() { # service_logs <service>: the newest 5000 lines
+    compose logs --no-color --timestamps --since "$since" "$1" | tail -n 5000
+  }
+  host_facts() {
+    printf 'collected: %s\nenvironment: %s\nrelease: %s (%s)\ncli bundle: %s\n\n' "$(date -u +%FT%TZ)" "$environment" \
+      "$(current_version | grep . || echo none)" "$(channel_of_environment)" "$(env_value "$root/share/bundle/release.env" LICTORY_VERSION)"
+    uname -a
+    [ ! -r /etc/os-release ] || grep -E '^(PRETTY_NAME|VERSION_ID)=' /etc/os-release
+    printf '\n'
+    docker version --format 'docker engine {{.Server.Version}} (client {{.Client.Version}})' 2>&1 || true
+    docker compose version 2>&1 || true
+    printf '\ncpus: %s\n' "$(nproc 2>/dev/null || echo unknown)"
+    free -m 2>/dev/null || true
+    printf '\n'
+    df -h / "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)" "$root" 2>/dev/null || true
+  }
+  steps_total=0
+  step "Collecting a support bundle for $environment"
+  collect host.txt "Host and versions" host_facts
+  collect status.json "Status" deploy_sh status --json
+  collect doctor.txt "Doctor" doctor_report
+  collect settings.txt "Settings (secrets masked)" env NO_COLOR=1 bash "$self" config show --env "$environment"
+  collect services.txt "Containers" compose ps -a
+  collect deploy.log "Deploy log (last 500 lines)" file_or_none "$home/deploy.log"
+  collect release-history.log "Release history" file_or_none "$home/release-history.log"
+  if [ -d /run/systemd/system ] && command -v systemctl >/dev/null; then
+    collect timers.txt "Backup and monitor timers" systemctl list-timers --all --no-pager "lictory-*@$environment.timer"
+  fi
+  for service in $services; do
+    collect "logs/$service.log" "Logs of $service (since $since)" service_logs "$service"
+  done
+  cat >"$dir/README.txt" <<README
+Lictory support bundle for environment $environment, collected $(date -u +%FT%TZ).
+
+Every secret value of .env, email addresses and bearer tokens are replaced
+with [redacted] or [email]. Service logs may still contain names, project
+or specification titles and other content from your organization: read
+them before sharing, and remove what you would not share.
+
+errors.txt lists anything that could not be collected.
+README
+  [ -s "$errors" ] || rm -f "$errors"
+  (umask 077 && tar -czf "$out" -C "$work" "$name") || die "Could not write $out."
+  chmod 0600 "$out"
+  say ""
+  check_ok "Support bundle: $out ($(bytes_human "$(wc -c <"$out")"))"
+  note "Secrets, email addresses and tokens are redacted. Logs may still contain your organization's"
+  note "content: review it before sharing (tar -xzf $out), and never attach it to a public issue unread."
+}
+
 # ---------------------------------------------------------------------- restore
 cmd_restore() {
   parse "" "drill" "$@"
@@ -3025,6 +3168,7 @@ case "$command" in
   logs) cmd_logs "$@" ;;
   registry-login) cmd_registry_login "$@" ;;
   config) cmd_config "$@" ;;
+  support-bundle) cmd_support_bundle "$@" ;;
   help | -h | --help)
     if [ $# -gt 0 ]; then command_usage "$1"; else usage; fi
     ;;

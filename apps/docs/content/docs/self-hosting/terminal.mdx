@@ -58,6 +58,21 @@ Services include `proxy`, `api`, `worker`, `zero-cache` and `postgres`.
 Tooling history lives in `/srv/lictory/<env>/deploy.log` and
 `release-history.log`; service logs and installer logs are separate.
 
+## Ask for help
+
+Start with `lictory doctor`: it names most problems and the command that fixes
+them. If you still need help, collect a support bundle and open an
+[issue](https://github.com/chricarp/lictory/issues/new/choose):
+
+<Cli command="support-bundle" />
+
+The archive (mode `0600`) holds host and Docker versions, status, doctor, the
+settings with secrets masked, the containers, deploy history, timers and each
+service's logs for the last 24 hours (`--since 72h` for more). Every secret
+value from `.env`, email addresses and bearer tokens are replaced. Logs can
+still contain your organization's content, such as project or specification
+titles: read the archive and paste only the relevant lines into a public issue.
+
 ## Reconfigure an installation
 
 Run `sudo lictory install` again. Enter keeps current values; generated

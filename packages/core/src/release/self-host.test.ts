@@ -1154,3 +1154,68 @@ void test(
     assert.equal(f.lictory(["backup", "lst"]).status, 64);
   },
 );
+
+void test("lictory support-bundle collects a redacted archive", slow, (t) => {
+  const f = bootstrapped(t);
+  const installed = f.lictory([...acmeInstall], {
+    LICTORY_EMAIL: "smtp",
+    LICTORY_SMTP_HOST: "smtp.example.test",
+    LICTORY_SMTP_PASSWORD: "smtp-secret-1234",
+  });
+  assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+  const env = readFileSync(join(f.root, "production/.env"), "utf8");
+  const authSecret = /^BETTER_AUTH_SECRET=(.*)$/m.exec(env)![1]!;
+  // Service logs that leak a secret, an address and a token.
+  writeFileSync(
+    join(f.root, "bin/lictory-compose"),
+    `#!/bin/sh
+case "$*" in *" logs "*) echo "api | session for grace@example.test signed with ${authSecret}"
+  echo "api | smtp login smtp-secret-1234 refused; Authorization: Bearer abc.def-ghi" ;; esac
+`,
+    { mode: 0o755 },
+  );
+  const out = join(f.base, "bundle.tar.gz");
+  const result = f.lictory([
+    "support-bundle",
+    "--output",
+    out,
+    "--since",
+    "2h",
+  ]);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.equal(statSync(out).mode & 0o777, 0o600);
+  const extracted = join(f.base, "extracted");
+  mkdirSync(extracted);
+  assert.equal(spawnSync("tar", ["-xzf", out, "-C", extracted]).status, 0);
+  const [folder] = readdirSync(extracted);
+  const dir = join(extracted, folder!);
+  for (const file of [
+    "README.txt",
+    "host.txt",
+    "status.json",
+    "doctor.txt",
+    "settings.txt",
+    "logs/api.log",
+  ])
+    assert.ok(existsSync(join(dir, file)), file);
+  const api = readFileSync(join(dir, "logs/api.log"), "utf8");
+  assert.match(api, /session for \[email\] signed with \[redacted\]/);
+  assert.match(
+    api,
+    /smtp login \[redacted\] refused; Authorization: Bearer \[redacted\]/,
+  );
+  const everything = spawnSync(
+    "sh",
+    ["-c", `cat "${dir}"/*.* "${dir}"/logs/*`],
+    {
+      encoding: "utf8",
+    },
+  ).stdout;
+  assert.ok(!everything.includes(authSecret));
+  assert.ok(!everything.includes("smtp-secret-1234"));
+  assert.match(
+    readFileSync(join(dir, "settings.txt"), "utf8"),
+    /^SMTP_PASSWORD=\*\*\*\*$/m,
+  );
+  assert.equal(f.lictory(["support-bundle", "--since", "2d"]).status, 64);
+});

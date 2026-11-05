@@ -80,6 +80,11 @@ export const commands = {
     summary:
       "Show the logs of every service, or of one (proxy, api, worker, zero-cache, postgres).",
   },
+  "support-bundle": {
+    usage: "sudo lictory support-bundle [--since 24h]",
+    summary:
+      "Write one archive for a bug report: versions, status, doctor, settings and recent logs, with secrets, email addresses and tokens removed.",
+  },
   "registry-login": {
     usage: "sudo lictory registry-login --username <user>",
     summary:
