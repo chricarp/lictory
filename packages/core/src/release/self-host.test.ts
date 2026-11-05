@@ -2231,3 +2231,30 @@ void test(
     assert.match(check()!.message, /older than production's release/);
   },
 );
+
+void test("lictory logs reads an incident window with --since", slow, (t) => {
+  const f = bootstrapped(t);
+  assert.equal(f.lictory([...acmeInstall]).status, 0);
+  const log = join(f.base, "compose.log");
+  writeFileSync(
+    join(f.root, "bin/lictory-compose"),
+    `#!/bin/sh\necho "$*" >> "${log}"\n`,
+    { mode: 0o755 },
+  );
+  const last = () => readFileSync(log, "utf8").trim().split("\n").at(-1);
+  assert.equal(f.lictory(["logs", "api"]).status, 0);
+  assert.equal(last(), "production logs --tail 200 api");
+  assert.equal(
+    f.lictory(["logs", "worker", "--since", "2h", "--timestamps"]).status,
+    0,
+  );
+  assert.equal(last(), "production logs --since 2h --timestamps worker");
+  assert.equal(
+    f.lictory(["logs", "--since", "2026-11-05T14:00Z", "--tail", "50"]).status,
+    0,
+  );
+  assert.equal(last(), "production logs --tail 50 --since 2026-11-05T14:00Z");
+  const bad = f.lictory(["logs", "--since", "yesterday"]);
+  assert.equal(bad.status, 64);
+  assert.match(bad.stderr, /--since: a duration such as 30m/);
+});
