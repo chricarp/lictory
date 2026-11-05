@@ -6,6 +6,7 @@
 // groups everything that arrives while the previous transaction is in flight
 // (group commit), so a busy room costs one transaction per database round trip
 // instead of one per keystroke.
+import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import * as Y from "yjs";
 import {
@@ -35,6 +36,9 @@ export const DRAFT_LIMITS = {
   updateBytes: 512 * 1024,
   // One group-commit transaction.
   batchBytes: 4 * 1024 * 1024,
+  // Waiting to be stored per draft; beyond it new changes are refused and the
+  // client reconnects, so an outage cannot grow server memory without bound.
+  pendingBytes: 8 * 1024 * 1024,
 };
 
 const unavailable = () =>
@@ -90,11 +94,54 @@ export async function loadDraft(db: Database, ref: DraftRef) {
   );
 }
 
-type Entry = { userId: string; update: Uint8Array };
+// An author is a person in one signed-in session: signing out or revoking
+// the session ends their right to write, even while they stay a member.
+export type DraftAuthor = { userId: string; sessionId: string };
+type Entry = DraftAuthor & { update: Uint8Array };
 
-// Appends updates in one transaction. Each author is checked against current
-// membership, two-factor policy, scheduled deletion and space edit access;
-// updates of authors who lost access are refused, the others are stored.
+const authorKey = (author: DraftAuthor) =>
+  `${author.userId}\u0000${author.sessionId}`;
+
+// Session validity, membership, two-factor policy, scheduled deletion and
+// space edit access, decided inside the caller's transaction.
+export async function canWriteDraft(
+  tx: Tx,
+  author: DraftAuthor,
+  ref: DraftRef,
+  canEdit: DraftAccess,
+) {
+  // Better Auth commits membership changes outside the organization lock;
+  // the row lock serializes this write with a concurrent removal.
+  const member = await tx.execute(
+    sql`select 1 from member
+          where organization_id = ${ref.organizationId} and user_id = ${author.userId}
+          for share`,
+  );
+  if (!member.length || !(await hasSession(tx, author))) return false;
+  const authorized = await authorize(
+    tx,
+    author.userId,
+    ref.organizationId,
+  ).then(
+    () => true,
+    () => false,
+  );
+  return authorized && (await canEdit(tx, author.userId, ref));
+}
+
+export async function hasSession(tx: Database | Tx, author: DraftAuthor) {
+  const rows = await tx.execute(
+    sql`select 1 from session
+          where id = ${author.sessionId} and user_id = ${author.userId}
+            and expires_at > now()`,
+  );
+  return rows.length > 0;
+}
+
+// Appends updates in one transaction. Updates of authors who lost access are
+// refused, the others are stored. An update already stored (a retry after a
+// commit whose acknowledgement was lost) is not stored twice: Yjs updates carry
+// their client id and clock, so equal bytes are the same change.
 export async function appendDraftUpdates(
   db: Database,
   ref: DraftRef,
@@ -109,35 +156,25 @@ export async function appendDraftUpdates(
       sql`select pg_advisory_xact_lock_shared(hashtextextended(${ref.organizationId}, 0))`,
     );
     const denied = new Set<string>();
-    for (const userId of new Set(entries.map((e) => e.userId))) {
-      // Better Auth commits membership changes outside the organization lock;
-      // the row lock serializes this write with a concurrent removal.
-      const member = await tx.execute(
-        sql`select 1 from member
-              where organization_id = ${ref.organizationId} and user_id = ${userId}
-              for share`,
-      );
-      const allowed =
-        member.length > 0 &&
-        (await authorize(tx, userId, ref.organizationId).then(
-          () => true,
-          () => false,
-        )) &&
-        (await canEdit(tx, userId, ref));
-      if (!allowed) denied.add(userId);
-    }
+    const authors = new Map(entries.map((e) => [authorKey(e), e]));
+    for (const [key, author] of authors)
+      if (!(await canWriteDraft(tx, author, ref, canEdit))) denied.add(key);
     const draft = await currentDraft(tx, ref, true);
-    const accepted = entries.filter((e) => !denied.has(e.userId));
+    const accepted = entries.filter((e) => !denied.has(authorKey(e)));
     let sequence = draft.sequence;
     for (const entry of accepted) {
-      sequence += 1;
-      await tx.execute(
-        sql`insert into space_draft_update (organization_id, draft_id, epoch, sequence, author_id, "update")
-              values (${ref.organizationId}, ${ref.draftId}, ${ref.epoch}, ${sequence},
-                      ${entry.userId}, ${Buffer.from(entry.update)})`,
+      const digest = createHash("sha256").update(entry.update).digest();
+      const inserted = await tx.execute(
+        sql`insert into space_draft_update
+              (organization_id, draft_id, epoch, sequence, author_id, digest, "update")
+              values (${ref.organizationId}, ${ref.draftId}, ${ref.epoch}, ${sequence + 1},
+                      ${entry.userId}, ${digest}, ${Buffer.from(entry.update)})
+              on conflict (draft_id, epoch, digest) do nothing
+              returning sequence`,
       );
+      if (inserted.length) sequence += 1;
     }
-    if (accepted.length)
+    if (sequence !== draft.sequence)
       await tx.execute(
         sql`update space_draft set sequence = ${sequence}, updated_at = now()
               where id = ${ref.draftId}`,
@@ -157,6 +194,7 @@ type Pending = Entry & {
 // database does not hold.
 export class DraftWriter {
   private pending: Pending[] = [];
+  private pendingBytes = 0;
   private flushing: Promise<void> | null = null;
 
   constructor(
@@ -165,11 +203,12 @@ export class DraftWriter {
     private readonly canEdit: DraftAccess,
     // A database failure is retried with backoff for this long while the
     // edits stay unsaved (and invisible to peers); after that they are refused
-    // and the client reconnects and offers them again.
-    private readonly retryForMs = 30_000,
+    // and the client reconnects and offers them again. Short on purpose: the
+    // client, not the server, holds unsaved work during an outage.
+    private readonly retryForMs = 5_000,
   ) {}
 
-  submit(userId: string, update: Uint8Array): Promise<number> {
+  submit(author: DraftAuthor, update: Uint8Array): Promise<number> {
     if (update.byteLength > DRAFT_LIMITS.updateBytes)
       return Promise.reject(
         new DomainError(
@@ -177,8 +216,22 @@ export class DraftWriter {
           "This change is too large to save at once.",
         ),
       );
+    // Never store what cannot be read back: a malformed update would make
+    // the draft impossible to load.
+    try {
+      Y.decodeUpdate(update);
+    } catch {
+      return Promise.reject(
+        new DomainError("validation", "This change could not be read."),
+      );
+    }
+    if (this.pendingBytes + update.byteLength > DRAFT_LIMITS.pendingBytes)
+      return Promise.reject(
+        new DomainError("unavailable", "Saving is behind; reconnecting."),
+      );
+    this.pendingBytes += update.byteLength;
     return new Promise((resolve, reject) => {
-      this.pending.push({ userId, update, resolve, reject });
+      this.pending.push({ ...author, update, resolve, reject });
       this.flushing ??= this.flush();
     });
   }
@@ -219,7 +272,7 @@ export class DraftWriter {
         try {
           const { sequence, denied } = await this.append(batch);
           for (const entry of batch)
-            if (denied.has(entry.userId))
+            if (denied.has(authorKey(entry)))
               entry.reject(
                 new DomainError(
                   "forbidden",
@@ -229,6 +282,8 @@ export class DraftWriter {
             else entry.resolve(sequence);
         } catch (error) {
           for (const entry of batch) entry.reject(error);
+        } finally {
+          this.pendingBytes -= bytes;
         }
       }
     } finally {

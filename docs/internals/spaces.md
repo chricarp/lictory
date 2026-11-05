@@ -177,11 +177,16 @@ configuration change of the organization. The exception is narrow:
   domain mutations and they wait for it, while drafts never wait for each
   other. Lock order is always organization lock, then the draft row. A
   transaction never upgrades shared to exclusive.
-- In the same transaction it re-checks the session, two-factor requirement,
+- In the same transaction it re-checks each author's session (signing out or
+  revoking a session ends writing even for a member), two-factor requirement,
   organization membership (locking the membership row, because Better Auth
   commits membership changes outside the organization lock), space edit access
   and branch collaboration, then appends a bounded batch with the actor and a
   sequence number.
+- Every update is decoded before it is stored, so a malformed update can never
+  make a draft unloadable, and each update is stored once per draft epoch
+  (keyed by its digest): retrying after a commit whose acknowledgement was lost
+  does not duplicate it.
 - State that projections show ("this page has unpublished changes", draft
   contributors) changes through `applyMutation` at coarse transitions only.
 - Commits, publishing, merges and every other decision go through
@@ -203,7 +208,12 @@ every document change in that hook, so:
   private; after a bounded time the connection is reset and the client
   reconnects and offers its unsaved changes again (the Yjs sync exchange sends
   whatever the server lacks). Refusals for access reasons close the document
-  with a short reason that never contains document content.
+  with a short reason that never contains document content;
+- Hocuspocus direct connections, which change a document without that hook,
+  are disabled;
+- memory is bounded: per socket, messages over 1 MB and inbound traffic beyond
+  a burst plus a sustained rate disconnect the client; per draft, changes
+  waiting to be stored are capped, and beyond the cap the client reconnects.
 
 Measured on a development machine against local PostgreSQL (the spike tests
 in `packages/core/src/spaces`): a save takes about 12 ms (p95 under 25 ms) in
@@ -211,8 +221,12 @@ a quiet organization and under 80 ms at p95 while four sessions keep the
 organization lock fully busy with 10 ms exclusive mutations.
 
 Revocation stops outgoing updates too: access changes signal the collaboration
-service after commit, and connections are also revalidated periodically, so a
-missed signal is bounded. Writes are always checked against current access.
+service after commit, and every connection is also revalidated every 30
+seconds, so a missed signal leaves a revoked reader connected for at most that
+long. Writes are always checked against current access. Revalidation only ever
+removes rights from an open connection: someone who gains edit access
+reconnects, because Hocuspocus re-reads a connection's read-only flag after the
+storage hook and promoting it mid-message could apply an unstored update.
 
 Compaction of the update log is a worker job with a lease and a fence; it never
 removes or alters commits.

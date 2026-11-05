@@ -16,6 +16,7 @@ import { draftCollaboration } from "@lictory/core/spaces/collaboration";
 import { listenCollaboration } from "@lictory/core/spaces/transport";
 import {
   appendDraftUpdates,
+  DraftWriter,
   loadDraft,
   type DraftAccess,
   type DraftRef,
@@ -54,9 +55,11 @@ before(async () => {
       epoch integer not null,
       sequence integer not null,
       author_id text not null references "user"(id),
+      digest bytea not null,
       "update" bytea not null,
       created_at timestamp not null default now(),
-      primary key (draft_id, sequence)
+      primary key (draft_id, sequence),
+      unique (draft_id, epoch, digest)
     );
   `);
 });
@@ -89,8 +92,30 @@ async function organization() {
       createdAt: new Date(),
     })),
   );
+  for (const userId of [alice, bob]) await signIn(userId);
   return { organizationId, alice, bob };
 }
+
+// One Better Auth session per person; the provider sends its token.
+const sessions = new Map<string, { sessionId: string; token: string }>();
+async function signIn(userId: string) {
+  const session = {
+    sessionId: crypto.randomUUID(),
+    token: crypto.randomUUID(),
+  };
+  await db.insert(s.session).values({
+    id: session.sessionId,
+    token: session.token,
+    userId,
+    expiresAt: new Date(Date.now() + 3_600_000),
+    updatedAt: new Date(),
+  });
+  sessions.set(userId, session);
+}
+const author = (userId: string) => ({
+  userId,
+  sessionId: sessions.get(userId)!.sessionId,
+});
 
 async function draft(organizationId: string): Promise<DraftRef> {
   const draftId = crypto.randomUUID();
@@ -102,13 +127,14 @@ async function draft(organizationId: string): Promise<DraftRef> {
 
 const documentName = (ref: DraftRef) => `${ref.draftId}.${ref.epoch}`;
 
-// Space access is not built yet: everyone may read and edit; writes can be
-// slowed to observe ordering.
+// Space access is not built yet: everyone may read; people in `readOnly`
+// may not edit; writes can be slowed to observe ordering.
 const writes = { delayMs: 0 };
+const readOnly = new Set<string>();
 const canRead: DraftAccess = async () => true;
-const canEdit: DraftAccess = async () => {
+const canEdit: DraftAccess = async (_, userId) => {
   if (writes.delayMs) await new Promise((r) => setTimeout(r, writes.delayMs));
-  return true;
+  return !readOnly.has(userId);
 };
 // A real database failure for draft writes only: a NOT VALID check constraint
 // rejects every new row.
@@ -119,13 +145,20 @@ const failWrites = (fail: boolean) =>
       : sql`alter table space_draft_update drop constraint if exists spike_fail`,
   );
 
-const collaboration = (retryForMs = 10_000) =>
+const collaboration = (retryForMs: number, revalidateEveryMs: number) =>
   draftCollaboration({
     retryForMs,
+    revalidateEveryMs,
     db,
-    // Tests authenticate with the user id as token; production uses the
-    // Better Auth session cookie.
-    authenticate: async ({ token }) => token || null,
+    // The token names a session; production reads the Better Auth session
+    // cookie instead.
+    authenticate: async ({ token }) => {
+      const [session] = await db
+        .select({ id: s.session.id, userId: s.session.userId })
+        .from(s.session)
+        .where(sql`${s.session.token} = ${token}`);
+      return session ? { userId: session.userId, sessionId: session.id } : null;
+    },
     resolve: async (name) => {
       const [draftId, epoch] = name.split(".");
       const rows = await db.execute<{ organization_id: string; epoch: number }>(
@@ -144,8 +177,11 @@ const collaboration = (retryForMs = 10_000) =>
     canEdit,
   });
 
-async function server(port = 0, retryForMs = 10_000) {
-  const extension = collaboration(retryForMs);
+async function server(
+  port = 0,
+  { retryForMs = 10_000, revalidateEveryMs = 30_000 } = {},
+) {
+  const extension = collaboration(retryForMs, revalidateEveryMs);
   const hocuspocus = new Hocuspocus({
     quiet: true,
     extensions: [extension.extension],
@@ -169,7 +205,7 @@ function connect(instance: Instance, ref: DraftRef, userId: string) {
   const provider = new HocuspocusProvider({
     url: `ws://127.0.0.1:${instance.port}`,
     name: documentName(ref),
-    token: userId,
+    token: sessions.get(userId)!.token,
     document,
   });
   const closes: number[] = [];
@@ -250,7 +286,7 @@ void test("a database outage keeps edits unsaved and private until they are stor
 void test("a long outage resets the connection and the edits are saved after reconnecting", async () => {
   const { organizationId, alice, bob } = await organization();
   const ref = await draft(organizationId);
-  const instance = await server(0, 300);
+  const instance = await server(0, { retryForMs: 300 });
   const a = connect(instance, ref, alice);
   const b = connect(instance, ref, bob);
   try {
@@ -278,7 +314,7 @@ void test("a long outage resets the connection and the edits are saved after rec
 void test("a removed member can no longer write or read", async () => {
   const { organizationId, alice, bob } = await organization();
   const ref = await draft(organizationId);
-  const instance = await server();
+  const instance = await server(0, { revalidateEveryMs: 200 });
   const a = connect(instance, ref, alice);
   const b = connect(instance, ref, bob);
   try {
@@ -292,11 +328,11 @@ void test("a removed member can no longer write or read", async () => {
     await until(() => a.closes.length > 0);
     assert.equal(await stored(ref), "Shared. ");
     assert.equal(b.text.toJSON(), "Shared. ");
-    // Bob loses read access the same way; revalidation closes his socket.
+    // Bob only reads; periodic revalidation closes his connection without
+    // any signal.
     await db.execute(
       sql`delete from member where organization_id = ${organizationId} and user_id = ${bob}`,
     );
-    await instance.revalidate();
     await until(() => b.closes.length > 0);
   } finally {
     a.provider.destroy();
@@ -369,7 +405,7 @@ void test("drafts wait for exclusive organization mutations but not for each oth
   const slow = appendDraftUpdates(
     db,
     first,
-    [{ userId: alice, update: update("a") }],
+    [{ ...author(alice), update: update("a") }],
     () =>
       new Promise<boolean>((resolve) => (releaseSlow = () => resolve(true))),
   );
@@ -377,7 +413,7 @@ void test("drafts wait for exclusive organization mutations but not for each oth
   await appendDraftUpdates(
     db,
     second,
-    [{ userId: alice, update: update("b") }],
+    [{ ...author(alice), update: update("b") }],
     async () => true,
   );
   releaseSlow();
@@ -395,7 +431,7 @@ void test("drafts wait for exclusive organization mutations but not for each oth
   const waiting = appendDraftUpdates(
     db,
     second,
-    [{ userId: alice, update: update("c") }],
+    [{ ...author(alice), update: update("c") }],
     async () => true,
   ).then(() => (written = true));
   await new Promise((r) => setTimeout(r, 200));
@@ -416,7 +452,7 @@ void test("measure: save latency while the organization runs domain mutations", 
       await appendDraftUpdates(
         db,
         ref,
-        [{ userId: alice, update: update(String(i)) }],
+        [{ ...author(alice), update: update(String(i)) }],
         async () => true,
       );
       times.push(performance.now() - start);
@@ -472,6 +508,132 @@ void test("cross-site WebSocket connections are refused before authentication", 
   try {
     assert.equal(await open("https://attacker.example"), "refused");
     assert.equal(await open("https://lictory.example"), "open");
+  } finally {
+    await transport.close();
+  }
+});
+
+void test("an ended session can no longer write or read, even for a member", async () => {
+  const { organizationId, alice, bob } = await organization();
+  const ref = await draft(organizationId);
+  const instance = await server(0, { revalidateEveryMs: 200 });
+  const a = connect(instance, ref, alice);
+  const b = connect(instance, ref, bob);
+  try {
+    await until(() => a.provider.synced && b.provider.synced);
+    await db.delete(s.session).where(sql`${s.session.userId} = ${alice}`);
+    a.text.insert(0, "Written after signing out.");
+    await until(() => a.closes.length > 0);
+    assert.equal(await stored(ref), "");
+    assert.equal(b.text.toJSON(), "");
+    await db.delete(s.session).where(sql`${s.session.userId} = ${bob}`);
+    await until(() => b.closes.length > 0);
+  } finally {
+    a.provider.destroy();
+    b.provider.destroy();
+    await instance.destroy();
+  }
+});
+
+void test("losing edit access is immediate; gaining it needs a new connection", async () => {
+  const { organizationId, alice } = await organization();
+  const ref = await draft(organizationId);
+  const instance = await server();
+  readOnly.add(alice);
+  const a = connect(instance, ref, alice);
+  try {
+    await until(() => a.provider.synced);
+    const connection = () =>
+      instance.hocuspocus.documents
+        .get(documentName(ref))!
+        .getConnections()[0]!;
+    assert.equal(connection().readOnly, true);
+    // Promoting mid-message could apply an update the storage hook skipped.
+    readOnly.delete(alice);
+    await instance.revalidate();
+    assert.equal(connection().readOnly, true);
+    a.text.insert(0, "Not stored.");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(await stored(ref), "");
+  } finally {
+    readOnly.delete(alice);
+    a.provider.destroy();
+    await instance.destroy();
+  }
+});
+
+void test("direct connections, which bypass storage, are refused", async () => {
+  const instance = await server();
+  try {
+    await assert.rejects(
+      instance.hocuspocus.openDirectConnection("any"),
+      /bypass draft storage/,
+    );
+  } finally {
+    await instance.destroy();
+  }
+});
+
+void test("malformed and repeated updates are never stored", async () => {
+  const { organizationId, alice } = await organization();
+  const ref = await draft(organizationId);
+  const writer = new DraftWriter(db, ref, async () => true);
+  await assert.rejects(
+    writer.submit(author(alice), new Uint8Array([1, 200, 7, 3, 9])),
+    /could not be read/,
+  );
+  // A retry after a commit whose acknowledgement was lost.
+  const entry = { ...author(alice), update: update("Once.") };
+  await appendDraftUpdates(db, ref, [entry], async () => true);
+  const again = await appendDraftUpdates(db, ref, [entry], async () => true);
+  assert.equal(again.sequence, 1);
+  const rows = await db.execute(
+    sql`select sequence from space_draft_update where draft_id = ${ref.draftId}`,
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(await stored(ref), "Once.");
+});
+
+void test("oversized frames and floods disconnect the client, not the service", async () => {
+  const hocuspocus = new Hocuspocus({ quiet: true });
+  const transport = await listenCollaboration({
+    hocuspocus,
+    port: 0,
+    host: "127.0.0.1",
+  });
+  const closed = (send: (socket: WebSocket) => void) =>
+    new Promise<number>((resolve) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${transport.port}`);
+      socket.on("open", () => send(socket));
+      socket.on("error", () => undefined);
+      socket.on("close", (code) => resolve(code));
+    });
+  try {
+    // Above maxPayload.
+    assert.equal(
+      await closed((socket) => socket.send(new Uint8Array(2 * 1024 * 1024))),
+      1009,
+    );
+    // Under maxPayload each, but beyond the inbound budget together.
+    assert.ok(
+      [1006, 1008].includes(
+        await closed((socket) => {
+          for (let i = 0; i < 5; i++) socket.send(new Uint8Array(900 * 1024));
+        }),
+      ),
+    );
+    // The service still accepts connections.
+    assert.equal(
+      await new Promise<string>((resolve) => {
+        const socket = new WebSocket(`ws://127.0.0.1:${transport.port}`);
+        socket.on("open", () => {
+          socket.close();
+          resolve("open");
+        });
+        socket.on("error", () => resolve("error"));
+      }),
+      "open",
+    );
   } finally {
     await transport.close();
   }

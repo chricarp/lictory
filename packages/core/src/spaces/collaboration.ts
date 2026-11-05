@@ -12,6 +12,7 @@ import type {
   Hocuspocus,
   beforeHandleMessagePayload,
   onAuthenticatePayload,
+  onConfigurePayload,
   onLoadDocumentPayload,
 } from "@hocuspocus/server";
 import { Forbidden, MessageTooBig, ResetConnection } from "@hocuspocus/common";
@@ -21,27 +22,30 @@ import { DomainError } from "@lictory/core/domain/errors";
 import { authorize, type Database } from "@lictory/core/domain/service";
 import {
   DraftWriter,
+  hasSession,
   loadDraft,
   type DraftAccess,
+  type DraftAuthor,
   type DraftRef,
 } from "@lictory/core/spaces/drafts";
 
-export type CollaborationContext = {
-  userId: string;
-  ref: DraftRef;
-};
+export type CollaborationContext = DraftAuthor & { ref: DraftRef };
 
 type Options = {
   db: Database;
-  // The authenticated person, from the request (session cookie in
-  // production). Never from the document name or a client-supplied id.
-  authenticate: (request: onAuthenticatePayload) => Promise<string | null>;
+  // The authenticated person and session, from the request (the Better Auth
+  // session cookie in production). Never from the document name or a
+  // client-supplied id.
+  authenticate: (request: onAuthenticatePayload) => Promise<DraftAuthor | null>;
   // Document names are opaque; the server decides which draft epoch one means.
   resolve: (documentName: string) => Promise<DraftRef | null>;
   canRead: DraftAccess;
   canEdit: DraftAccess;
   // How long a database failure is retried before the connection is reset.
   retryForMs?: number;
+  // Every open connection is rechecked this often, bounding how long a missed
+  // access-change signal can leave a revoked reader connected.
+  revalidateEveryMs?: number;
 };
 
 // Yjs sync protocol, as framed by Hocuspocus: document name, message type,
@@ -97,23 +101,42 @@ function refusal(error: unknown) {
 export function draftCollaboration(options: Options) {
   const writers = new Map<string, DraftWriter>();
 
-  const access = async (userId: string, ref: DraftRef) =>
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  const access = async (author: DraftAuthor, ref: DraftRef) =>
     options.db.transaction(async (tx) => {
-      await authorize(tx, userId, ref.organizationId);
-      if (!(await options.canRead(tx, userId, ref))) return null;
-      return { edit: await options.canEdit(tx, userId, ref) };
+      if (!(await hasSession(tx, author))) return null;
+      await authorize(tx, author.userId, ref.organizationId);
+      if (!(await options.canRead(tx, author.userId, ref))) return null;
+      return { edit: await options.canEdit(tx, author.userId, ref) };
     });
 
   const extension: Extension = {
+    async onConfigure({ instance }: onConfigurePayload) {
+      // Direct connections change the document without passing through
+      // beforeHandleMessage, so they would bypass storage. Nothing in Lictory
+      // needs them; refuse them outright.
+      instance.openDirectConnection = () =>
+        Promise.reject(
+          new Error(
+            "Direct connections bypass draft storage and are disabled.",
+          ),
+        );
+      timer = setInterval(() => {
+        void revalidate(instance);
+      }, options.revalidateEveryMs ?? 30_000);
+      timer.unref?.();
+    },
+
     async onAuthenticate(payload: onAuthenticatePayload) {
-      const userId = await options.authenticate(payload);
+      const author = await options.authenticate(payload);
       const ref = await options.resolve(payload.documentName);
       const allowed =
-        userId && ref ? await access(userId, ref).catch(() => null) : null;
-      if (!userId || !ref || !allowed)
+        author && ref ? await access(author, ref).catch(() => null) : null;
+      if (!author || !ref || !allowed)
         throw forbidden("You do not have access to this page.");
       payload.connectionConfig.readOnly = !allowed.edit;
-      return { userId, ref } satisfies CollaborationContext;
+      return { ...author, ref } satisfies CollaborationContext;
     },
 
     async onLoadDocument({
@@ -148,15 +171,17 @@ export function draftCollaboration(options: Options) {
         return;
       const writer = writers.get(documentName);
       if (!writer) throw forbidden("This draft is no longer available.");
-      const { userId } = connection.context as CollaborationContext;
-      await writer.submit(userId, change.update).catch((error: unknown) => {
-        const event = refusal(error);
-        // Closing only this document would leave the client connected but
-        // unsynced; resetting the socket makes it reconnect and resend.
-        if (event.code === ResetConnection.code)
-          connection.webSocket.close(event.code, event.reason);
-        throw event;
-      });
+      const { userId, sessionId } = connection.context as CollaborationContext;
+      await writer
+        .submit({ userId, sessionId }, change.update)
+        .catch((error: unknown) => {
+          const event = refusal(error);
+          // Closing only this document would leave the client connected but
+          // unsynced; resetting the socket makes it reconnect and resend.
+          if (event.code === ResetConnection.code)
+            connection.webSocket.close(event.code, event.reason);
+          throw event;
+        });
     },
 
     async afterUnloadDocument({ documentName }) {
@@ -165,25 +190,38 @@ export function draftCollaboration(options: Options) {
     },
 
     async onDestroy() {
+      clearInterval(timer);
       await Promise.all([...writers.values()].map((w) => w.idle()));
     },
   };
 
-  // Rechecks every open connection against current access: closes those that
-  // lost read access and makes read-only those that lost edit access. Runs
-  // after access changes (signalled) and periodically, so a missed signal is
-  // bounded by the period.
-  async function revalidate(instance: Hocuspocus) {
-    for (const document of instance.documents.values())
-      for (const connection of document.getConnections()) {
-        const { userId, ref } = connection.context as CollaborationContext;
-        const allowed = await access(userId, ref).catch(() => null);
-        if (!allowed)
-          connection.close(
-            forbidden("You no longer have access to this page."),
-          );
-        else connection.readOnly = !allowed.edit;
-      }
+  // Rechecks open connections (all, or one person's) against current access:
+  // closes those that lost read access or whose session ended, and makes
+  // read-only those that lost edit access. Runs after access changes
+  // (signalled) and periodically.
+  //
+  // It never promotes a read-only connection: Hocuspocus re-reads `readOnly`
+  // after beforeHandleMessage, so promoting mid-message could apply an update
+  // the hook skipped as read-only. A person who gains edit access reconnects.
+  async function revalidate(instance: Hocuspocus, userId?: string) {
+    const checks = [...instance.documents.values()].flatMap((document) =>
+      document
+        .getConnections()
+        .filter(
+          (c) =>
+            !userId || (c.context as CollaborationContext).userId === userId,
+        )
+        .map(async (connection) => {
+          const context = connection.context as CollaborationContext;
+          const allowed = await access(context, context.ref).catch(() => null);
+          if (!allowed)
+            connection.close(
+              forbidden("You no longer have access to this page."),
+            );
+          else if (!allowed.edit) connection.readOnly = true;
+        }),
+    );
+    await Promise.all(checks);
   }
 
   return { extension, revalidate };
