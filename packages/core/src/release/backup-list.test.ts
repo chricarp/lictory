@@ -121,3 +121,38 @@ void test("a connection string's credentials reach rclone as configuration, not 
   assert.match(call, /^RCLONE_CONFIG_LICTORYTARGET_TYPE=sftp$/m);
   assert.match(call, /^RCLONE_CONFIG_LICTORYTARGET_HOST=nas\.example\.test$/m);
 });
+
+void test("connection strings are read as rclone reads them", (t) => {
+  const record = join(mkdtempSync(join(tmpdir(), "lictory-rclone-")), "call");
+  t.after(() => rmSync(join(record, ".."), { recursive: true, force: true }));
+  const call = (remote: string) => {
+    const result = run(
+      t,
+      `{ echo "ARGS $*"; env | grep ^RCLONE_CONFIG_ | grep -v ^RCLONE_CONFIG_BACKUP | sort; } > "${record}"; echo '[]'`,
+      { BACKUP_TARGET: "rclone", BACKUP_RCLONE_REMOTE: remote },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return readFileSync(record, "utf8");
+  };
+  // An option without "=" is true, and the path after it is kept.
+  const flag = call(":local,no_check_updated:/srv/backups");
+  assert.match(flag, / lictorytarget:\/srv\/backups\/production$/m);
+  assert.match(flag, /^RCLONE_CONFIG_LICTORYTARGET_NO_CHECK_UPDATED=true$/m);
+  // A doubled quote inside a quoted value is one literal quote.
+  assert.match(
+    call(':alias,remote="/srv/a""b":'),
+    /^RCLONE_CONFIG_LICTORYTARGET_REMOTE=\/srv\/a"b$/m,
+  );
+  // A quote inside an unquoted value is literal.
+  assert.match(
+    call(':sftp,pass=a"b:p'),
+    /^RCLONE_CONFIG_LICTORYTARGET_PASS=a"b$/m,
+  );
+  // Options on a named remote reach that remote's configuration.
+  const named = call("nas,pass=opaque-secret:backups");
+  assert.match(named, /^ARGS .* nas:backups\/production$/m);
+  assert.ok(!/^ARGS .*opaque-secret/m.exec(named));
+  assert.match(named, /^RCLONE_CONFIG_NAS_PASS=opaque-secret$/m);
+  // A plain named remote is unchanged.
+  assert.match(call("nas:backups"), / nas:backups\/production$/m);
+});
