@@ -884,7 +884,8 @@ void test("every command explains itself with --help", (t) => {
 
 void test(
   "lictory config changes settings, refuses typos and generated secrets, and undoes a change the services reject",
-  slow,
+  // About 25 CLI runs, each a full shell start on the stubbed host.
+  { timeout: 90_000 },
   (t) => {
     const f = bootstrapped(t);
     const home = join(f.root, "production");
