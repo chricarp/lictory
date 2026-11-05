@@ -454,7 +454,7 @@ function ProjectBacklog({ project }: { project: Project }) {
               <div className="flex items-center gap-2 px-4 py-3">
                 <h2 className="text-sm font-semibold">Backlog</h2>
                 <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase tabular-nums">
-                  {backlog.length} items
+                  {backlog.length} {backlog.length === 1 ? "item" : "items"}
                   {project.estimateScale !== "none" &&
                     ` · ${points(backlog)} pts`}
                 </span>
@@ -574,7 +574,7 @@ function IterationHeader({
               : undefined
           }
         >
-          {rows.length} items
+          {rows.length} {rows.length === 1 ? "item" : "items"}
           {showPoints &&
             ` · ${points}${capacity !== undefined ? ` / ~${capacity}` : ""} pts`}
         </span>

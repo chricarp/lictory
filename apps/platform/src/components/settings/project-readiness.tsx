@@ -332,7 +332,8 @@ function TypeRules({
     <div className="pb-2">
       <div className="flex items-center gap-2 px-5 pt-3 pb-1">
         <p className="flex-1 text-sm">
-          A <b>{type.name}</b> is ready when…
+          {/^[aeiou]/i.test(type.name) ? "An" : "A"} <b>{type.name}</b> is ready
+          when…
           {usesDefaults && (
             <span className="ml-2 text-xs text-muted-foreground">
               Lictory’s defaults
