@@ -71,15 +71,26 @@ test("signup verification and password reset deliver usable email links @smoke",
   await expect(
     page.getByText("If an account exists for that address", { exact: false }),
   ).toBeVisible();
-  await page.goto(
-    await emailLink(request, email, "Reset your Lictory password"),
+  const resetLink = await emailLink(
+    request,
+    email,
+    "Reset your Lictory password",
   );
+  await page.goto(resetLink);
   await page.getByLabel("New password", { exact: true }).fill(newPassword);
   await page
     .getByLabel("Confirm new password", { exact: true })
     .fill(newPassword);
   await page.getByRole("button", { name: "Update password" }).click();
   await expect(page.getByText("Your password has been updated.")).toBeVisible();
+  // A used (or expired) link says so up front and offers a new one.
+  await page.goto(resetLink);
+  await expect(
+    page.getByRole("heading", { name: "This reset link no longer works" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Send a new reset link" }),
+  ).toBeVisible();
 
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);

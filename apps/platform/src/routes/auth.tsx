@@ -181,8 +181,29 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
-  const token = useSearchParams().get("token") ?? undefined;
+  const params = useSearchParams();
+  const token = params.get("token") ?? undefined;
   if (!useSignInOptions().password) return <PasswordLoginDisabled />;
+  // An expired or already used link comes back with ?error=INVALID_TOKEN; say
+  // so before anyone types a new password twice.
+  if (!token || params.get("error"))
+    return (
+      <>
+        <PageTitle title="Reset link expired" />
+        <AuthHeading
+          title="This reset link no longer works"
+          description="Reset links expire after an hour and work once. Request a new one and use the latest email."
+        />
+        <Link href="/forgot-password" className="contents">
+          <Button size="lg" className="w-full">
+            Send a new reset link
+          </Button>
+        </Link>
+        <AuthFooter>
+          <AuthLink href="/sign-in">Back to sign in</AuthLink>
+        </AuthFooter>
+      </>
+    );
   return (
     <>
       <PageTitle title="Choose a new password" />
