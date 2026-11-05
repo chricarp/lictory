@@ -1108,3 +1108,49 @@ void test(
     );
   },
 );
+
+void test(
+  "lictory backup list shows the stored backups with the keys restore takes",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory([
+      ...acmeInstall.filter((arg) => arg !== "none" && arg !== "--backup"),
+      "--backup-age-recipient",
+      recipient,
+    ]);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    // The ops container answers list-backups.sh with FAKE_BACKUPS.
+    writeFileSync(
+      join(f.root, "bin/lictory-compose"),
+      `#!/bin/sh\nprintf '%s' "$FAKE_BACKUPS"\n`,
+      { mode: 0o755 },
+    );
+    const backups = [
+      {
+        key: "production/manual/lictory-production-20261105T120000Z-manual.dump.age",
+        kind: "manual",
+        name: "lictory-production-20261105T120000Z-manual.dump.age",
+        bytes: 1_520_000,
+        modified: "2026-11-05T12:00:12Z",
+        encrypted: true,
+      },
+    ];
+    const listed = f.lictory(["backup", "list"], {
+      FAKE_BACKUPS: JSON.stringify(backups),
+    });
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.match(
+      listed.stdout,
+      /manual +2026-11-05 12:00 +1\.5 MB +production\/manual\/lictory-production-20261105T120000Z-manual\.dump\.age/,
+    );
+    assert.match(listed.stdout, /sudo lictory restore <identity-file> <key>/);
+    const json = f.lictory(["backup", "list", "--json"], {
+      FAKE_BACKUPS: JSON.stringify(backups),
+    });
+    assert.deepEqual(JSON.parse(json.stdout), backups);
+    const none = f.lictory(["backup", "list"], { FAKE_BACKUPS: "[]" });
+    assert.match(none.stdout, /No backups of production in local yet/);
+    assert.equal(f.lictory(["backup", "lst"]).status, 64);
+  },
+);

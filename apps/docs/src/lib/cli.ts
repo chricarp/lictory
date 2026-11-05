@@ -65,6 +65,11 @@ export const commands = {
     summary:
       "Take a database backup now, encrypted when a backup key is configured.",
   },
+  "backup-list": {
+    usage: "sudo lictory backup list [--json]",
+    summary:
+      "The stored backups in the configured target, newest first: daily, weekly, monthly, manual and pre-deploy, with the key to restore each.",
+  },
   restore: {
     usage: "sudo lictory restore <identity-file|none> [latest|<key>|<file>]",
     summary:

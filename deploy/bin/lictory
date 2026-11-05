@@ -15,7 +15,7 @@
 #   lictory doctor                  host and runtime checks, with what to fix
 #   lictory upgrade [version]       newest release of the environment's channel, or that version
 #   lictory rollback                re-activate the previous release's images
-#   lictory backup                  encrypted backup now
+#   lictory backup [list]           encrypted backup now, or the stored backups
 #   lictory restore <identity|none> [latest|<key>|<file>] [--drill]
 #   lictory logs [service] [-f] [--tail N]
 #   lictory registry-login [--username U]   token on stdin, for private images
@@ -170,7 +170,7 @@ Operate
 Releases and data
   upgrade [version]  Upgrade to the newest release of the channel, or to <version>
   rollback           Re-activate the previous release (database schema stays)
-  backup             Take an encrypted backup now
+  backup [list]      Take an encrypted backup now, or list the stored ones
   restore <identity-file|none> [latest|<key>|<file>]
                      Replace the database with a backup (--drill: test only)
   registry-login     Log in to the image registry (token on stdin)
@@ -288,10 +288,14 @@ USAGE
       ;;
     backup)
       cat <<'USAGE'
-Usage: lictory backup [--env <name>]
+Usage: lictory backup [list [--json]] [--env <name>]
 
-Takes an encrypted database backup now and sends it to the configured
-target (BACKUP_TARGET). Nightly backups run from a systemd timer.
+Without a command, takes an encrypted database backup now and sends it to
+the configured target (BACKUP_TARGET). Nightly backups run from a systemd
+timer.
+
+  list   The stored backups, newest first: kind (daily, weekly, monthly,
+         manual, pre-deploy), time, size and the key lictory restore takes
 USAGE
       ;;
     restore)
@@ -2346,11 +2350,72 @@ cmd_rollback() {
 }
 
 cmd_backup() {
-  parse "" "" "$@"
-  [ ${#positional[@]} -eq 0 ] || usage_error "backup takes no arguments."
+  parse "" "json" "$@"
+  [ ${#positional[@]} -le 1 ] || usage_error "Usage: lictory backup [list]"
+  case "${positional[0]:-now}" in
+    now) ;;
+    list) command="backup list" ;;
+    *) usage_error "Unknown backup command: ${positional[0]} (lictory backup --help)" ;;
+  esac
   select_environment
   [ "$(setting BACKUP_TARGET)" != none ] || die "Backups are disabled (BACKUP_TARGET=none). Choose a target: sudo lictory install --backup local"
+  if [ "$command" = "backup list" ]; then
+    backup_list
+    return
+  fi
+  [ "$(opt json)" != true ] || usage_error "--json is for lictory backup list."
   as_deploy "$bin/lictory-backup" "$environment" manual
+}
+
+# bytes_human <bytes>: 1.4 GB, 812 MB, 96 kB.
+bytes_human() {
+  awk -v b="$1" 'BEGIN { split("B kB MB GB TB", u, " "); i = 1; while (b >= 1000 && i < 5) { b /= 1000; i++ }
+    printf (i == 1 ? "%d %s" : "%.1f %s"), b, u[i] }'
+}
+
+# The stored backups, read by the release's ops image from BACKUP_TARGET.
+backup_list() {
+  local json err status=0 count
+  [ -n "$(current_version)" ] || die "$environment has no active release yet: sudo lictory install"
+  err=$(mktemp)
+  json=$(compose run --rm --no-deps -T ops sh -c \
+    'command -v list-backups.sh >/dev/null || exit 4; exec list-backups.sh' 2>"$err") || status=$?
+  case "$status" in
+    0) ;;
+    4)
+      rm -f "$err"
+      die "The active release's ops image cannot list backups yet; upgrade first (lictory upgrade)."
+      ;;
+    *)
+      local reason
+      reason=$(grep -v '^ *Container \|^ *Network \|Creating\|Created\|Starting\|Started' "$err" | tail -n 3)
+      rm -f "$err"
+      die "Could not list the backups of $environment (${reason:-exit $status}). Check the target with: lictory doctor"
+      ;;
+  esac
+  rm -f "$err"
+  if [ "$(opt json)" = true ]; then
+    printf '%s\n' "$json"
+    return 0
+  fi
+  count=$(printf '%s' "$json" | jq length)
+  if [ "$count" = 0 ]; then
+    say "No backups of $environment in $(setting BACKUP_TARGET) yet. Take one: sudo lictory backup"
+    return 0
+  fi
+  note "$count backup(s) of $environment in $(setting BACKUP_TARGET), newest first"
+  if [ "$fancy" = true ]; then
+    printf '   %s%-11s %-17s %9s  %s%s\n' "$c_dim" "Kind" "Taken (UTC)" "Size" "Key" "$c_reset"
+  else
+    printf '%-11s %-17s %9s  %s\n' "KIND" "TAKEN (UTC)" "SIZE" "KEY"
+  fi
+  local kind modified bytes key encrypted lock
+  while IFS=$'\t' read -r kind modified bytes key encrypted; do
+    lock=""
+    [ "$encrypted" = true ] || lock=" (not encrypted)"
+    printf '%s%-11s %-17s %9s  %s%s\n' "$([ "$fancy" = true ] && printf '   ')" "$kind" "$modified" "$(bytes_human "$bytes")" "$key" "$lock"
+  done < <(printf '%s' "$json" | jq -r '.[] | [.kind, (.modified | sub("T"; " ") | .[0:16]), .bytes, .key, .encrypted] | @tsv')
+  note "Restore one: sudo lictory restore <identity-file> <key>   (test first with --drill)"
 }
 
 cmd_logs() {

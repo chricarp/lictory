@@ -26,9 +26,10 @@ lives on the server; keep the private identity offline. Backups run nightly
 at 02:30 UTC, and before every release that has migrations. Retention: 7
 daily, 4 weekly, 6 monthly and the last 10 pre-deploy and manual backups.
 
-Take one now:
+Take one now, or see the stored backups (newest first, with their kind,
+time, size and the key `lictory restore` takes):
 
-<Cli command="backup" />
+<Cli command={["backup", "backup-list"]} />
 
 | `BACKUP_TARGET` | Where backups go                                                             |
 | --------------- | ---------------------------------------------------------------------------- |
