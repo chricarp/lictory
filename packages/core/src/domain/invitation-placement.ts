@@ -70,6 +70,8 @@ export async function storeInvitationPlacement(
   if (!intent) return;
   await db.transaction(async (tx) => {
     await lock(tx, intent.organizationId);
+    // Any administrator may resend an invitation (Better Auth keeps the
+    // original inviter); the placement records who chose it.
     const [invitation] = await tx
       .select()
       .from(s.invitation)
@@ -77,7 +79,6 @@ export async function storeInvitationPlacement(
         and(
           eq(s.invitation.id, invitationId),
           eq(s.invitation.organizationId, intent.organizationId),
-          eq(s.invitation.inviterId, intent.inviterId),
           eq(s.invitation.status, "pending"),
         ),
       );
@@ -90,16 +91,22 @@ export async function storeInvitationPlacement(
         intent.organizationId,
         intent.placement,
       );
+      const values = {
+        ...intent.placement,
+        placedById: intent.inviterId,
+        appliedAt: null,
+        outcome: null,
+      };
       await tx
         .insert(s.invitationPlacement)
         .values({
           invitationId,
           organizationId: intent.organizationId,
-          ...intent.placement,
+          ...values,
         })
         .onConflictDoUpdate({
           target: s.invitationPlacement.invitationId,
-          set: { ...intent.placement, appliedAt: null },
+          set: values,
         });
     } else {
       await tx
@@ -114,15 +121,38 @@ export async function storeInvitationPlacement(
   });
 }
 
-// Placement is best effort. Organization membership has already been accepted;
-// no placement failure may undo it. The marker and normal domain mutations
-// commit together, so a repeated hook never overwrites later membership edits.
+export type PlacementOutcome = NonNullable<
+  typeof s.invitationPlacement.$inferSelect.outcome
+>;
+
+// Placement is best effort: organization membership has already been
+// accepted and nothing here may undo it. Whatever happens is recorded as the
+// placement's outcome (applied, partial or skipped, naming what is missing),
+// so the invitee is told instead of discovering it later. The marker and the
+// domain mutations commit together, so a repeated hook never overwrites later
+// membership edits.
 export async function applyInvitationPlacement(
   db: Database,
   invitationId: string,
   organizationId: string,
   userId: string,
 ) {
+  const where = and(
+    eq(s.invitationPlacement.invitationId, invitationId),
+    eq(s.invitationPlacement.organizationId, organizationId),
+  );
+  const record = (tx: Database | Tx, outcome: PlacementOutcome) => {
+    if (outcome.status !== "applied")
+      console.warn("invitation placement not fully applied", {
+        invitationId,
+        organizationId,
+        ...outcome,
+      });
+    return tx
+      .update(s.invitationPlacement)
+      .set({ appliedAt: new Date(), outcome })
+      .where(where);
+  };
   try {
     await db.transaction(async (tx) => {
       await lock(tx, organizationId);
@@ -139,30 +169,35 @@ export async function applyInvitationPlacement(
             ),
           ),
         )
-        .where(
-          and(
-            eq(s.invitationPlacement.invitationId, invitationId),
-            eq(s.invitationPlacement.organizationId, organizationId),
-          ),
-        );
+        .where(where);
       if (
         !row ||
         row.placement.appliedAt ||
         row.invitation.status !== "accepted"
       )
         return;
-      const actorId = row.invitation.inviterId;
-      const membership = await authorize(tx, actorId, organizationId);
-      if (!isAdmin(membership)) return; // Better Auth invitation:create authority.
-      const roster = await directory(tx, actorId, organizationId);
-      const project = roster.projects.find(
+      const actorId = row.placement.placedById ?? row.invitation.inviterId;
+      const membership = await authorize(tx, actorId, organizationId).catch(
+        () => undefined,
+      );
+      const roster = membership
+        ? await directory(tx, actorId, organizationId)
+        : undefined;
+      const project = roster?.projects.find(
         (p) => p.id === row.placement.projectId && !p.archivedAt,
       );
-      if (
-        !project ||
-        !canManageProject(roster, actorId, isAdmin(membership), project.id)
-      )
-        return;
+      const skipped = (reason: string) =>
+        record(tx, { status: "skipped", missing: [], reason });
+      if (!membership || !roster || !isAdmin(membership))
+        return skipped(
+          "The person who chose the project is no longer an administrator.",
+        );
+      if (!project)
+        return skipped("The project is archived or no longer exists.");
+      if (!canManageProject(roster, actorId, isAdmin(membership), project.id))
+        return skipped(
+          "The person who chose the project can no longer manage it.",
+        );
       const actor = { userId: actorId };
       const mutate = (
         command: Parameters<typeof applyMutation>[2]["command"],
@@ -185,16 +220,15 @@ export async function applyInvitationPlacement(
           userId,
           role: "member",
         });
+      const missing: string[] = [];
       for (const disciplineId of new Set(row.placement.disciplineIds)) {
-        if (
-          !roster.disciplines.some(
-            (d) =>
-              d.id === disciplineId &&
-              d.projectId === project.id &&
-              !d.archivedAt,
-          )
-        )
+        const discipline = roster.disciplines.find(
+          (d) => d.id === disciplineId && d.projectId === project.id,
+        );
+        if (!discipline || discipline.archivedAt) {
+          missing.push(discipline?.name ?? "A removed discipline");
           continue;
+        }
         await mutate({
           type: "setDisciplineMember",
           projectId: project.id,
@@ -203,24 +237,52 @@ export async function applyInvitationPlacement(
           member: true,
         });
       }
-      await tx
-        .update(s.invitationPlacement)
-        .set({ appliedAt: new Date() })
-        .where(
-          and(
-            eq(s.invitationPlacement.invitationId, invitationId),
-            eq(s.invitationPlacement.organizationId, organizationId),
-          ),
-        );
+      await record(tx, {
+        status: missing.length ? "partial" : "applied",
+        missing,
+        ...(missing.length
+          ? { reason: "Archived since the invitation was sent." }
+          : {}),
+      });
     });
   } catch (error) {
-    // Acceptance must remain successful even if the inviter lost access, the
-    // organization is held, or a concurrent configuration change prevents
-    // placement. Logged so a missing placement can be explained.
-    console.warn("invitation placement not applied", {
-      invitationId,
-      organizationId,
+    // The transaction rolled back; record why on its own.
+    await record(db, {
+      status: "skipped",
+      missing: [],
       reason: error instanceof Error ? error.message : String(error),
+    }).catch((failure: unknown) => {
+      console.warn("invitation placement outcome not recorded", {
+        invitationId,
+        reason: failure instanceof Error ? failure.message : String(failure),
+      });
     });
   }
+}
+
+// What the accepted invitation granted, for the person who accepted it.
+export async function placementOutcomeFor(
+  db: Database,
+  invitationId: string,
+  email: string,
+) {
+  const [row] = await db
+    .select({
+      projectId: s.invitationPlacement.projectId,
+      organizationId: s.invitationPlacement.organizationId,
+      outcome: s.invitationPlacement.outcome,
+      email: s.invitation.email,
+    })
+    .from(s.invitationPlacement)
+    .innerJoin(
+      s.invitation,
+      and(
+        eq(s.invitation.id, s.invitationPlacement.invitationId),
+        eq(s.invitation.organizationId, s.invitationPlacement.organizationId),
+        eq(s.invitation.status, "accepted"),
+      ),
+    )
+    .where(eq(s.invitationPlacement.invitationId, invitationId));
+  if (row?.email.toLowerCase() !== email.toLowerCase()) return null;
+  return row.outcome;
 }

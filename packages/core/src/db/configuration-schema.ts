@@ -183,7 +183,16 @@ export const invitationPlacement = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     projectId: text("project_id").notNull(),
     disciplineIds: jsonb("discipline_ids").$type<string[]>().notNull(),
+    // Who chose this placement: the inviter, or an administrator who resent
+    // the invitation with a new one. Placement is applied on their authority.
+    placedById: text("placed_by_id"),
     appliedAt: timestamp("applied_at"),
+    // What acceptance actually granted, so a join never hides missing access.
+    outcome: jsonb("outcome").$type<{
+      status: "applied" | "partial" | "skipped";
+      missing: string[];
+      reason?: string;
+    }>(),
   },
   (t) => [index("invitation_placement_org_idx").on(t.organizationId)],
 );

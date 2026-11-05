@@ -11,6 +11,7 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import {
   applyInvitationPlacement,
   invitationIntent,
+  placementOutcomeFor,
   storeInvitationPlacement,
   validateInvitationPlacement,
 } from "@lictory/core/domain/invitation-placement";
@@ -39,8 +40,9 @@ after(async () => {
 void test("invitation placement applies on acceptance through audited, projected commands and rejects foreign projects", async () => {
   const inviterId = crypto.randomUUID();
   const userId = crypto.randomUUID();
+  const otherAdminId = crypto.randomUUID();
   await db.insert(s.user).values(
-    [inviterId, userId].map((id) => ({
+    [inviterId, userId, otherAdminId].map((id) => ({
       id,
       name: id,
       email: `${id}@example.test`,
@@ -60,6 +62,13 @@ void test("invitation placement applies on acceptance through audited, projected
     id: crypto.randomUUID(),
     organizationId,
     userId: inviterId,
+    role: "admin",
+    createdAt: new Date(),
+  });
+  await db.insert(s.member).values({
+    id: crypto.randomUUID(),
+    organizationId,
+    userId: otherAdminId,
     role: "admin",
     createdAt: new Date(),
   });
@@ -149,6 +158,18 @@ void test("invitation placement applies on acceptance through audited, projected
       ),
     );
   await applyInvitationPlacement(db, invitationId, organizationId, userId);
+  // The removed discipline is reported, not silently dropped; only the
+  // person who accepted can read it.
+  const email = `${userId}@example.test`;
+  assert.deepEqual(await placementOutcomeFor(db, invitationId, email), {
+    status: "partial",
+    missing: ["A removed discipline"],
+    reason: "Archived since the invitation was sent.",
+  });
+  assert.equal(
+    await placementOutcomeFor(db, invitationId, "someone@example.test"),
+    null,
+  );
   let accepted = await directory(db, userId, organizationId);
   assert.ok(
     accepted.projectMembers.some(
@@ -224,6 +245,29 @@ void test("invitation placement applies on acceptance through audited, projected
     },
     () => storeInvitationPlacement(db, secondInvitationId),
   );
+  // Another administrator may resend someone else's invitation with a new
+  // placement; it is recorded as theirs.
+  await invitationIntent.run(
+    {
+      organizationId,
+      inviterId: otherAdminId,
+      placement: { projectId, disciplineIds: [] },
+    },
+    () => storeInvitationPlacement(db, secondInvitationId),
+  );
+  const [resent] = await db
+    .select()
+    .from(s.invitationPlacement)
+    .where(eq(s.invitationPlacement.invitationId, secondInvitationId));
+  assert.equal(resent!.placedById, otherAdminId);
+  await invitationIntent.run(
+    {
+      organizationId,
+      inviterId,
+      placement: { projectId, disciplineIds: [engineering.id] },
+    },
+    () => storeInvitationPlacement(db, secondInvitationId),
+  );
   await db
     .update(s.invitation)
     .set({ status: "accepted" })
@@ -242,6 +286,10 @@ void test("invitation placement applies on acceptance through audited, projected
     secondInvitationId,
     organizationId,
     userId,
+  );
+  assert.equal(
+    (await placementOutcomeFor(db, secondInvitationId, email))?.status,
+    "skipped",
   );
   accepted = await directory(db, userId, organizationId);
   assert.ok(accepted.members.some((m) => m.id === userId));

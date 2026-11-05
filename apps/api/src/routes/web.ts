@@ -1,5 +1,6 @@
 import {
   invitationIntent,
+  placementOutcomeFor,
   placementSchema,
   validateInvitationPlacement,
 } from "@lictory/core/domain/invitation-placement";
@@ -473,6 +474,19 @@ export function webRoutes() {
         502,
       );
     }
+  });
+
+  // What accepting an invitation granted, for the person who accepted it:
+  // the join succeeds even when promised project access could not be added.
+  app.get("/api/invitations/:id/placement", async (c) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) return c.json({ error: { message: "Sign in again." } }, 401);
+    const outcome = await placementOutcomeFor(
+      db,
+      c.req.param("id"),
+      session.user.email,
+    );
+    return c.json({ outcome });
   });
 
   app.get("/api/invitations", async (c) => {

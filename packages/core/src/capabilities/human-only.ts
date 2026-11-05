@@ -185,6 +185,7 @@ export const browserOperations: readonly BrowserOperation[] = [
       "organization.acceptInvitation",
       "organization.getFullOrganization",
     ],
+    routes: ["GET /api/invitations/:id/placement"],
   },
   {
     name: "changeApplicationRole",

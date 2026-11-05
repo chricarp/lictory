@@ -3,7 +3,9 @@ CREATE TABLE "invitation_placement" (
 	"organization_id" text NOT NULL,
 	"project_id" text NOT NULL,
 	"discipline_ids" jsonb NOT NULL,
-	"applied_at" timestamp
+	"placed_by_id" text,
+	"applied_at" timestamp,
+	"outcome" jsonb
 );
 --> statement-breakpoint
 ALTER TABLE "invitation_placement" ADD CONSTRAINT "invitation_placement_invitation_id_invitation_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."invitation"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
