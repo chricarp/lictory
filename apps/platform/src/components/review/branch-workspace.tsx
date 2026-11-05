@@ -2628,6 +2628,17 @@ function PullRequestView({
                             ))}
                           </div>
                         )}
+                      {assigned &&
+                        !readOnly &&
+                        p.status === "open" &&
+                        heads &&
+                        contributed &&
+                        !r.decision && (
+                          <p className="pl-6 text-xs text-muted-foreground">
+                            You contributed to this change, so another{" "}
+                            {role?.name ?? "reviewing"} member approves it.
+                          </p>
+                        )}
                     </li>
                   );
                 })}
