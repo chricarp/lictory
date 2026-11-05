@@ -2,7 +2,8 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "@lictory/ui/toast";
 import {
   GitBranch,
   GitCommitHorizontal,
@@ -97,6 +98,53 @@ function useBranchData() {
     prReviews: byType(ctx.entities, "prReview"),
   };
 }
+// "Suggest a change" on selected specification text: start a branch from
+// main and open its editor with that text selected, ready to rewrite. The
+// request is consumed once by the editor it names.
+let suggestionFocus: { branchId: string; quote: string } | null = null;
+
+export function useSuggestChange(onNavigate: (screen: BranchScreen) => void) {
+  const { branches, base, mutateConfirmed } = useBranchData();
+  return async (quote: string) => {
+    let name = "suggestion";
+    for (let n = 2; branches.some((b) => b.name === name); n++)
+      name = `suggestion-${n}`;
+    const id = crypto.randomUUID();
+    try {
+      await mutateConfirmed({
+        type: "createBranch",
+        ...base,
+        branchId: id,
+        name,
+      });
+      suggestionFocus = { branchId: id, quote };
+      onNavigate({ kind: "branch", id });
+    } catch (error) {
+      toast.add({
+        title: "Could not start a suggestion",
+        type: "error",
+        description:
+          error instanceof Error ? error.message : "The server refused it.",
+        timeout: 8000,
+      });
+    }
+  };
+}
+
+// Where the quoted (rendered) text sits in the Markdown source, ignoring
+// whitespace differences; undefined when it cannot be found.
+function locateQuote(source: string, quote: string) {
+  const words = quote
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!words.length) return;
+  const match = new RegExp(words.join("\\s+")).exec(source);
+  return match
+    ? { start: match.index, end: match.index + match[0].length }
+    : undefined;
+}
+
 function useAction() {
   const { mutateConfirmed: mutate } = useItem();
   const [error, setError] = useState("");
@@ -663,6 +711,20 @@ function BranchEditorBody({
   const { directory } = useWorkspace();
   const { branches, prs } = useBranchData();
   const { run, error, pending } = useAction();
+  const editorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (suggestionFocus?.branchId !== branch.id || !canEdit) return;
+    const { quote } = suggestionFocus;
+    suggestionFocus = null;
+    requestAnimationFrame(() => {
+      const area = editorRef.current?.querySelector("textarea");
+      if (!area) return;
+      const at = locateQuote(area.value, quote);
+      area.focus({ preventScroll: true });
+      if (at) area.setSelectionRange(at.start, at.end);
+      area.scrollIntoView({ block: "center" });
+    });
+  }, [branch.id, canEdit]);
   const key = `lictory:branch-draft:${userId}:${organizationId}:${itemId}:${branch.id}`;
   const [draft, setDraft] = useState<Draft>(() => {
     if (typeof window !== "undefined")
@@ -1024,14 +1086,16 @@ function BranchEditorBody({
                       maxLength={240}
                     />
                   </label>
-                  <MarkdownEditor
-                    aria-label="Branch specification"
-                    fileContext={{ organizationId, workItemId: itemId }}
-                    value={draft.content}
-                    onValueChange={(content) => edit({ content })}
-                    className="min-h-100 px-4 pt-4 font-mono"
-                    previewClassName="min-h-[400px] px-4 pt-4"
-                  />
+                  <div ref={editorRef} className="contents">
+                    <MarkdownEditor
+                      aria-label="Branch specification"
+                      fileContext={{ organizationId, workItemId: itemId }}
+                      value={draft.content}
+                      onValueChange={(content) => edit({ content })}
+                      className="min-h-100 px-4 pt-4 font-mono"
+                      previewClassName="min-h-[400px] px-4 pt-4"
+                    />
+                  </div>
                   <BreakdownProposal
                     proposals={draft.proposedChildren ?? []}
                     accepted={mainHead?.proposedChildren}
