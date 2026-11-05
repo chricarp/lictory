@@ -624,7 +624,10 @@ export function ItemDetail({
                 organizationId={workspace.organization.id}
                 workItemId={item.id}
                 involved={
-                  item.createdById === workspace.userId ||
+                  // Merging a breakdown makes no one the owner of its
+                  // children (notifications/server.ts owners()).
+                  (item.createdById === workspace.userId &&
+                    !item.sourceRevisionId) ||
                   item.assigneeId === workspace.userId ||
                   ctx.messages.some((m) => m.authorId === workspace.userId) ||
                   ctx.suggestions.some((x) => x.authorId === workspace.userId)
