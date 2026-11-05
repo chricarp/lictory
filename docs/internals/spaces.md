@@ -187,6 +187,29 @@ configuration change of the organization. The exception is narrow:
 - Commits, publishing, merges and every other decision go through
   `applyMutation` as usual.
 
+### Stored before anyone sees it
+
+Hocuspocus handles each connection's messages in order and waits for its
+`beforeHandleMessage` hook before it applies a message, sends it to the other
+editors and acknowledges it to the sender. The collaboration service stores
+every document change in that hook, so:
+
+- other editors only ever receive edits the database holds, and the author's
+  "Saved" (no unsynced changes left) means stored;
+- each loaded draft has one writer that groups everything arriving while its
+  previous transaction is in flight into the next one (group commit): a busy
+  page costs one transaction per database round trip, not one per keystroke;
+- a database failure is retried with backoff while the edits stay unsaved and
+  private; after a bounded time the connection is reset and the client
+  reconnects and offers its unsaved changes again (the Yjs sync exchange sends
+  whatever the server lacks). Refusals for access reasons close the document
+  with a short reason that never contains document content.
+
+Measured on a development machine against local PostgreSQL (the spike tests
+in `packages/core/src/spaces`): a save takes about 12 ms (p95 under 25 ms) in
+a quiet organization and under 80 ms at p95 while four sessions keep the
+organization lock fully busy with 10 ms exclusive mutations.
+
 Revocation stops outgoing updates too: access changes signal the collaboration
 service after commit, and connections are also revalidated periodically, so a
 missed signal is bounded. Writes are always checked against current access.
