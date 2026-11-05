@@ -156,6 +156,12 @@ test("guides and comparisons are linked, indexable and described", async ({
   request,
 }) => {
   await page.goto("/");
+  // Click only once the landing page has hydrated. A click that arrives
+  // earlier is replayed by React as a client navigation after hydration starts,
+  // and the landing page's server-rendered <head> metadata, which React never
+  // adopted, is left behind: the comparison would show two canonical links.
+  // Crawlers load each page fresh and never see this.
+  await page.waitForLoadState("networkidle");
   const footer = page.getByRole("navigation", { name: "Footer", exact: true });
   await footer.getByRole("link", { name: "Lictory vs Jira" }).click();
   await expect(
