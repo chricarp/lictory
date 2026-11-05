@@ -213,8 +213,14 @@ export async function applyInvitationPlacement(
           ),
         );
     });
-  } catch {
+  } catch (error) {
     // Acceptance must remain successful even if the inviter lost access, the
-    // organization is held, or a concurrent configuration change prevents placement.
+    // organization is held, or a concurrent configuration change prevents
+    // placement. Logged so a missing placement can be explained.
+    console.warn("invitation placement not applied", {
+      invitationId,
+      organizationId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
   }
 }

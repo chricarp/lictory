@@ -171,10 +171,7 @@ export const browserOperations: readonly BrowserOperation[] = [
     title: "Invite people or cancel invitations",
     reason: "membership",
     where: "Organization settings → Members",
-    authClient: [
-      "organization.listInvitations",
-      "organization.cancelInvitation",
-    ],
+    authClient: ["organization.cancelInvitation"],
     routes: ["POST /api/invitations", "GET /api/invitations"],
   },
   {
