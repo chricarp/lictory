@@ -2803,10 +2803,11 @@ cmd_config() {
 # that cannot be collected is recorded in errors.txt, not fatal.
 
 # redact <secrets file>: stdin to stdout with each listed value (one per
-# line, 6+ characters), email addresses and bearer tokens replaced.
+# line; every nonempty one, however short), email addresses and bearer
+# tokens (any case, any whitespace after the scheme) replaced.
 redact() {
   awk -v secrets="$1" '
-    BEGIN { while ((getline value < secrets) > 0) if (length(value) >= 6) s[++n] = value }
+    BEGIN { while ((getline value < secrets) > 0) if (length(value) > 0) s[++n] = value }
     {
       line = $0
       for (i = 1; i <= n; i++) {
@@ -2818,7 +2819,7 @@ redact() {
         line = out line
       }
       gsub(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z]+/, "[email]", line)
-      gsub(/[Bb]earer [A-Za-z0-9._~+\/=-]+/, "Bearer [redacted]", line)
+      gsub(/[Bb][Ee][Aa][Rr][Ee][Rr][ \t]+[A-Za-z0-9._~+\/=-]+/, "Bearer [redacted]", line)
       print line
     }'
 }

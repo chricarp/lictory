@@ -1165,12 +1165,18 @@ void test("lictory support-bundle collects a redacted archive", slow, (t) => {
   assert.equal(installed.status, 0, installed.stderr + installed.stdout);
   const env = readFileSync(join(f.root, "production/.env"), "utf8");
   const authSecret = /^BETTER_AUTH_SECRET=(.*)$/m.exec(env)![1]!;
+  // A short secret is redacted too.
+  writeFileSync(
+    join(f.root, "production/.env"),
+    env + "RESEND_API_KEY=tiny!\n",
+  );
   // Service logs that leak a secret, an address and a token.
   writeFileSync(
     join(f.root, "bin/lictory-compose"),
     `#!/bin/sh
 case "$*" in *" logs "*) echo "api | session for grace@example.test signed with ${authSecret}"
-  echo "api | smtp login smtp-secret-1234 refused; Authorization: Bearer abc.def-ghi" ;; esac
+  echo "api | smtp login smtp-secret-1234 refused; Authorization: Bearer abc.def-ghi"
+  echo "worker | resend key tiny! rejected; Authorization: BEARER   XYZ-987" ;; esac
 `,
     { mode: 0o755 },
   );
@@ -1213,6 +1219,8 @@ case "$*" in *" logs "*) echo "api | session for grace@example.test signed with 
   ).stdout;
   assert.ok(!everything.includes(authSecret));
   assert.ok(!everything.includes("smtp-secret-1234"));
+  assert.ok(!everything.includes("tiny!"));
+  assert.ok(!everything.includes("XYZ-987"));
   assert.match(
     readFileSync(join(dir, "settings.txt"), "utf8"),
     /^SMTP_PASSWORD=\*\*\*\*$/m,
