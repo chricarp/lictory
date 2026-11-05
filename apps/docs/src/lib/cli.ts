@@ -45,6 +45,11 @@ export const commands = {
     summary:
       "Check the host, the configuration, DNS, certificates, backups and replication, and explain what to fix. Sends no alerts.",
   },
+  config: {
+    usage: "sudo lictory config set <KEY=value>",
+    summary:
+      "Show (secrets masked), change or edit the environment's settings and restart the services with them; a change the services reject is undone. config apply applies a hand edit of .env.",
+  },
   upgrade: {
     usage: "sudo lictory upgrade [version]",
     summary:

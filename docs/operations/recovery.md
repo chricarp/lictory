@@ -136,7 +136,8 @@ Delete the temporary copy of the identity file when done.
    triggers and internal publications are skipped; zero-cache recreates them.
 
 5. Delete the Zero replica (`zero_replica` volume) and start everything:
-   `deploy.sh production activate <current version>`. zero-cache resyncs and
+   `sudo lictory config apply` (it re-activates the active release; or
+   `deploy.sh production activate <current version>`). zero-cache resyncs and
    clients reconnect and resync from the restored state. Changes clients
    queued against the lost history go through the server's normal validation
    and may be rejected.

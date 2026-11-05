@@ -228,7 +228,7 @@ Caveats:
 
 ## After any change
 
-Release or re-activate the environment (`deploy.sh <env> activate <version>`),
+Release or re-activate the environment (`sudo lictory config apply`),
 then check: sign-in, live updates between two browsers (Zero WebSocket), a
 streamed AI answer or the notifications stream (`/api/events`), an attachment
 upload, and the client address in the gateway log.

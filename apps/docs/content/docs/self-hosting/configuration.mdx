@@ -8,12 +8,20 @@ Settings live in the environment's `.env` file, by default
 values count as unset. Images carry no domain or analytics settings: the
 same image runs on any host name and reads everything here at runtime.
 
-After changing `.env`, re-activate the current release so every service
-picks the change up:
+Change settings with `lictory config`. It shows what changes (secrets
+masked), keeps a copy of the previous file, and restarts the services with
+the new values. If they do not start, it puts the previous settings back:
 
 ```sh
-/srv/lictory/bin/deploy.sh production activate <current version>
+sudo lictory config show
+sudo lictory config set SMTP_HOST=smtp.example.com SMTP_PORT=587
+sudo lictory config edit
 ```
+
+It refuses a key the release does not read (a typo would otherwise be
+ignored silently) and generated secrets such as database passwords and
+`DELIVERY_CREDENTIALS_KEY`, whose change breaks the installation. If you edit
+`.env` by hand, apply it with `sudo lictory config apply`.
 
 ## Domain and TLS
 

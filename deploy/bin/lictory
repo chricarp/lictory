@@ -11,6 +11,7 @@
 #   lictory install                 guided (or --yes with flags/LICTORY_* variables)
 #   lictory admin <command>         first administrator, accounts and instance administrators
 #   lictory status [--json]         active release, service health and access policy
+#   lictory config <command>        show, change and apply settings (.env)
 #   lictory doctor                  host and runtime checks, with what to fix
 #   lictory upgrade [version]       newest release of the environment's channel, or that version
 #   lictory rollback                re-activate the previous release's images
@@ -51,11 +52,11 @@ else
 fi
 if [ "$fancy" = true ] && [ "$utf8" = true ]; then
   g_ok="✓" g_warn="!" g_fail="✗" g_step="◆" g_prompt="›" g_pointer="❯" g_on="●" g_off="○"
-  g_bullet="•" g_mask="••••" g_h="─" g_v="│" g_tl="╭" g_tr="╮" g_bl="╰" g_br="╯" g_ellipsis="…"
+  g_bullet="•" g_mask="••••" g_arrow="→" g_h="─" g_v="│" g_tl="╭" g_tr="╮" g_bl="╰" g_br="╯" g_ellipsis="…"
   spinner_frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 else
   g_ok="ok" g_warn="!" g_fail="x" g_step="==" g_prompt=">" g_pointer=">" g_on="(*)" g_off="( )"
-  g_bullet="-" g_mask="****" g_h="-" g_v="|" g_tl="+" g_tr="+" g_bl="+" g_br="+" g_ellipsis="..."
+  g_bullet="-" g_mask="****" g_arrow="->" g_h="-" g_v="|" g_tl="+" g_tr="+" g_bl="+" g_br="+" g_ellipsis="..."
   spinner_frames=('|' '/' '-' '\')
 fi
 
@@ -156,21 +157,194 @@ usage() {
   cat <<'USAGE'
 Usage: lictory <command> [options]
 
+Set up
   install            Install or reconfigure an environment (guided, or --yes)
   admin <command>    Instance administration (lictory admin help)
+
+Operate
   status [--json]    Active release, service health and access policy
   doctor             Check the host and the running environment
+  config <command>   Show, change and apply settings (lictory config help)
+  logs [service]     Service logs (-f to follow, --tail N)
+
+Releases and data
   upgrade [version]  Upgrade to the newest release of the channel, or to <version>
   rollback           Re-activate the previous release (database schema stays)
   backup             Take an encrypted backup now
   restore <identity-file|none> [latest|<key>|<file>]
                      Replace the database with a backup (--drill: test only)
-  logs [service]     Service logs (-f to follow, --tail N)
   registry-login     Log in to the image registry (token on stdin)
-  help               This text
+
+  help [command]     This text, or one command's options
 
 Options for every command: --env <name> (when several environments exist),
---yes (no questions). Install options: docs/operations/self-hosting.md.
+--yes (no questions), --help. Guide: https://docs.lictory.com/self-hosting
+USAGE
+}
+
+# command_usage <command>: one command's usage and options (--help).
+command_usage() {
+  case "$1" in
+    install)
+      cat <<'USAGE'
+Usage: lictory install [options]
+
+Installs Lictory, or changes the settings of an installed environment. On a
+terminal it asks for every answer; with --yes it takes the options below and
+keeps current values for the rest. Every option can also be set as a
+LICTORY_<OPTION> variable (hyphens as underscores), which keeps secrets out
+of the process list and shell history.
+
+Address and certificates
+  --tls acme|proxy|internal|http   How browsers reach Lictory securely
+  --host <name>                    Host name users open
+  --acme-email <email>             Email for certificate expiry notices
+  --acme-ca <url>                  ACME directory of your internal CA
+  --http-port <port>               Gateway port behind a proxy or for plain HTTP
+  --bind 127.0.0.1|0.0.0.0         Interfaces the gateway listens on (proxy, http)
+  --public-url <origin>            Address your reverse proxy serves (proxy)
+  --trusted-proxies <ips>          Addresses your proxy connects from
+
+Email
+  --email smtp|resend|none
+  --smtp-host, --smtp-port, --smtp-user, --smtp-password, --smtp-from
+  --resend-api-key, --email-from
+
+Attachments
+  --storage s3|none
+  --s3-endpoint, --s3-region, --s3-bucket, --s3-access-key-id,
+  --s3-secret-access-key, --s3-force-path-style true|false
+
+Single sign-on (OpenID Connect)
+  --oidc yes|no
+  --oidc-issuer, --oidc-client-id, --oidc-client-secret, --oidc-display-name
+
+Backups
+  --backup local|s3|rclone|none
+  --backup-path <dir>              local: a NAS mount or second disk
+  --backup-bucket, --backup-s3-provider, --backup-s3-endpoint,
+  --backup-s3-region, --backup-s3-access-key-id, --backup-s3-secret-access-key
+  --backup-rclone-remote <remote>
+  --backup-age-recipient <age1…|generate|none>   Encryption key
+  --backup-identity-file <path>    Where a generated private key is written
+
+Access policy
+  --signup-mode invite|closed|open
+  --allowed-email-domains <a.com,b.com>
+  --organization-creation administrators|everyone
+
+First administrator (password from LICTORY_ADMIN_PASSWORD)
+  --organization <name>, --organization-handle <handle>,
+  --admin-name <name>, --admin-email <email>
+
+Release
+  --channel stable|nightly, --version <x.y.z>, --deploy-user <user>
+  --ignore-requirements            Warn instead of failing on memory and disk
+
+  --env <name>, --yes, --help
+USAGE
+      ;;
+    status)
+      cat <<'USAGE'
+Usage: lictory status [--json] [--env <name>]
+
+The active release and channel, the state of every service, the address and
+the access policy. --json prints the release and services for scripts (exit
+status 0 even when a service is unhealthy; check "healthy").
+USAGE
+      ;;
+    doctor)
+      cat <<'USAGE'
+Usage: lictory doctor [--env <name>]
+
+Checks the host (Docker, memory, disk), the configuration, DNS and
+certificates, the services, the database and replication, backups, the access
+policy and the scheduled jobs, and says how to fix each problem. Exits 1 when
+a check fails; warnings do not change the exit status.
+USAGE
+      ;;
+    upgrade)
+      cat <<'USAGE'
+Usage: lictory upgrade [version] [--yes] [--env <name>]
+
+Moves to the newest release of the environment's channel, or to <version>:
+verifies the release's digest, takes a backup before migrations, migrates and
+activates it. If activation fails the previous release keeps serving.
+Upgrades only move forward; see lictory rollback.
+USAGE
+      ;;
+    rollback)
+      cat <<'USAGE'
+Usage: lictory rollback [--yes] [--env <name>]
+
+Re-activates the images of the previously activated release. Database
+migrations stay applied (every migration is compatible with the release
+before it).
+USAGE
+      ;;
+    backup)
+      cat <<'USAGE'
+Usage: lictory backup [--env <name>]
+
+Takes an encrypted database backup now and sends it to the configured
+target (BACKUP_TARGET). Nightly backups run from a systemd timer.
+USAGE
+      ;;
+    restore)
+      cat <<'USAGE'
+Usage: lictory restore <identity-file|none> [latest|<key>|<file>] [--drill] [--yes]
+
+Replaces the environment's database with a backup (the newest by default),
+keeping the current data in a Docker volume. <identity-file> is the age
+private key the backup was encrypted for (none for unencrypted backups).
+
+  --drill   Restore into a scratch database and verify it; the live
+            database is not touched
+  --yes     Do not ask to type the environment name
+USAGE
+      ;;
+    logs)
+      cat <<'USAGE'
+Usage: lictory logs [service] [-f|--follow] [--tail N] [--env <name>]
+
+Logs of every service, or of one: proxy, api, worker, zero-cache, postgres.
+The last 200 lines by default.
+USAGE
+      ;;
+    registry-login)
+      cat <<'USAGE'
+Usage: lictory registry-login [--username <user>] [--env <name>]
+
+Stores a registry token (read from standard input, or asked for on a
+terminal) so the server can pull private release images. For GHCR, use a
+GitHub token with read:packages.
+USAGE
+      ;;
+    config) config_usage ;;
+    admin) admin_usage ;;
+    *) usage ;;
+  esac
+}
+
+config_usage() {
+  cat <<'USAGE'
+Usage: lictory config <command> [options]
+
+  show [--reveal] [--json]   Settings of the environment, secrets masked
+  get <KEY>                  One setting's value (exit 1 when unset)
+  set <KEY=value>...         Change settings, then apply them
+  unset <KEY>...             Clear settings, then apply them
+  edit                       Edit the settings in $EDITOR, review, then apply
+  apply                      Restart the services with the current settings
+                             (after editing .env by hand)
+
+  --no-apply   set, unset, edit: write the settings only
+  --force      Also change generated secrets, or keys Lictory does not know
+
+Settings live in <root>/<env>/.env (mode 0600). Every change keeps a copy of
+the previous file next to it (.env.backup-<time>). If applying fails, the
+previous settings are restored and applied again. Settings the installer asks
+for can also change with: lictory install
 USAGE
 }
 
@@ -290,7 +464,11 @@ parse() { # parse <value options> <flag options> <arguments...>
     [ -z "$reason" ] || usage_error "--$name: $reason"
   done
   if [ "$(opt help)" = true ]; then
-    usage
+    case "$command" in
+      "admin "*) admin_usage ;;
+      "config "*) config_usage ;;
+      *) command_usage "$command" ;;
+    esac
     exit 0
   fi
 }
@@ -715,9 +893,9 @@ run_task() {
   fi
   if [ -z "$task_log" ]; then
     if [ -d "$home" ] && { [ -d "$home/logs" ] || mkdir -m 0700 "$home/logs" 2>/dev/null; }; then
-      task_log="$home/logs/$command-$(date -u +%Y%m%dT%H%M%SZ).log"
+      task_log="$home/logs/${command// /-}-$(date -u +%Y%m%dT%H%M%SZ).log"
     else
-      task_log=$(mktemp "${TMPDIR:-/tmp}/lictory-$command.XXXXXX")
+      task_log=$(mktemp "${TMPDIR:-/tmp}/lictory-${command// /-}.XXXXXX")
     fi
     (umask 077 && : >>"$task_log")
   fi
@@ -2106,6 +2284,298 @@ cmd_registry_login() {
   fi
 }
 
+# ----------------------------------------------------------------------- config
+# lictory config: the environment's settings (.env) without editing the file
+# by hand, and a way to apply a hand edit. Every write keeps a copy of the
+# previous file; a failed apply restores it.
+
+# config_guarded <key>: why changing a set value breaks the installation;
+# nothing when it does not. Other state depends on these values: PostgreSQL
+# keeps the role passwords and the database name, sessions are signed with
+# BETTER_AUTH_SECRET, stored Jira credentials are encrypted with
+# DELIVERY_CREDENTIALS_KEY (or with a key derived from BETTER_AUTH_SECRET
+# while it is unset). Setting an empty one is fine.
+config_guarded() {
+  case "$1" in
+    POSTGRES_SUPERUSER_PASSWORD | LICTORY_OWNER_PASSWORD | LICTORY_APP_PASSWORD | ZERO_DB_PASSWORD | LICTORY_OPS_PASSWORD)
+      echo "PostgreSQL keeps the role's current password, so the services could no longer connect" ;;
+    LICTORY_DB_NAME) echo "the services would look for a database that does not exist" ;;
+    BETTER_AUTH_SECRET) echo "everyone is signed out$([ -n "$(setting DELIVERY_CREDENTIALS_KEY)" ] || printf ', and stored Jira credentials become unreadable while DELIVERY_CREDENTIALS_KEY is unset')" ;;
+    DELIVERY_CREDENTIALS_KEY) echo "stored Jira credentials become unreadable and every Jira connection must be reconnected" ;;
+  esac
+}
+
+# Secrets are masked in output: passwords, secrets, tokens, keys (not key
+# IDs), URLs that carry credentials and webhook or ping URLs (they embed one).
+config_secret() { # config_secret <key> <value>
+  case "$1" in
+    *_KEY_ID) return 1 ;;
+    *PASSWORD* | *SECRET* | *TOKEN* | *_KEY | *_KEYS | *WEBHOOK_URL | *PING_URL) return 0 ;;
+  esac
+  [[ "$2" =~ ^[a-z+]+://[^/@[:space:]]+:[^/@[:space:]]*@ ]]
+}
+config_shown() { # config_shown <key> <value>: the value as output shows it
+  if [ -z "$2" ]; then
+    printf '%s' "${c_dim}(empty)${c_reset}"
+  elif [ "$(opt reveal)" != true ] && config_secret "$1" "$2"; then
+    printf '%s' "$g_mask"
+  else
+    printf '%s' "$2"
+  fi
+}
+
+# The keys this release understands: those of the configuration template
+# and of the active release's Compose file (the services read nothing else
+# from .env), plus the ones already in .env.
+config_known_keys() {
+  local bundle compose_file
+  bundle=$(bundle_dir 2>/dev/null) || bundle=""
+  compose_file="$home/current/compose.production.yaml"
+  [ -f "$compose_file" ] || compose_file="$bundle/compose.production.yaml"
+  {
+    [ -z "$bundle" ] || sed -nE 's/^#? ?([A-Z][A-Z0-9_]*)=.*/\1/p' "$bundle/env/self-hosted.env.example" 2>/dev/null
+    [ ! -f "$compose_file" ] || grep -oE '\$\{[A-Z][A-Z0-9_]*' "$compose_file" | cut -c3-
+    config_keys "$home/.env"
+  } | sort -u
+}
+config_keys() { sed -nE 's/^([A-Z][A-Z0-9_]*)=.*/\1/p' "$1" | awk '!seen[$0]++'; }
+
+# config_diff <old file> <new file>: prints "KEY|old|new" for each change
+# and fails when nothing changed.
+config_diff() {
+  local key old new found=1
+  while IFS= read -r key; do
+    old=$(env_value "$1" "$key")
+    new=$(env_value "$2" "$key")
+    [ "$old" = "$new" ] && continue
+    printf '%s|%s|%s\n' "$key" "$old" "$new"
+    found=0
+  done < <({ config_keys "$1"; config_keys "$2"; } | awk '!seen[$0]++')
+  return "$found"
+}
+
+# config_check <diff>: refuses unknown keys and guarded changes unless --force.
+config_check() {
+  local diff="$1" known key old new reason problems=()
+  known=$(config_known_keys)
+  while IFS='|' read -r key old new; do
+    [ -n "$key" ] || continue
+    if ! printf '%s\n' "$known" | grep -qx "$key"; then
+      problems+=("$key is not a setting this release reads. Check the spelling; lictory config show lists the current settings.")
+    fi
+    if [ -n "$old" ] && reason=$(config_guarded "$key") && [ -n "$reason" ]; then
+      problems+=("$key was generated for this installation: changing it means $reason.")
+    fi
+  done <<<"$diff"
+  [ ${#problems[@]} -gt 0 ] || return 0
+  if [ "$(opt force)" = true ]; then
+    for key in "${problems[@]}"; do warn "$key"; done
+    return 0
+  fi
+  for key in "${problems[@]}"; do check_fail "$key"; done
+  die "Nothing changed. Pass --force if you are sure." 65
+}
+
+config_print_diff() {
+  local key old new shown_new
+  while IFS='|' read -r key old new; do
+    [ -n "$key" ] || continue
+    shown_new=$(config_shown "$key" "$new")
+    # Two masked values look alike: say that the secret changed.
+    [ -z "$old" ] || [ -z "$new" ] || [ "$shown_new" != "$g_mask" ] || shown_new="$g_mask (new value)"
+    if [ "$fancy" = true ]; then
+      printf '   %s%-28s%s %s %s%s%s %s\n' "$c_bold" "$key" "$c_reset" "$(config_shown "$key" "$old")" "$c_accent" "$g_arrow" "$c_reset" "$shown_new"
+    else
+      printf '  %s: %s -> %s\n' "$key" "$(config_shown "$key" "$old")" "$shown_new"
+    fi
+  done <<<"$1"
+}
+
+# config_write <new file>: replaces .env with <new file>, keeping a copy of
+# the previous one; sets config_backup.
+config_backup=""
+config_write() {
+  config_backup="$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ)"
+  cp -p "$home/.env" "$config_backup"
+  chmod 0600 "$1"
+  is_root && chown "$(owner_of "$home/.env")" "$1" 2>/dev/null || true
+  mv -f "$1" "$home/.env"
+}
+
+# config_apply: re-activates the active release with the current .env; on
+# failure, restores config_backup (when set) and re-activates again.
+config_apply() {
+  local active
+  active=$(current_version)
+  if [ -z "$active" ]; then
+    note "$environment has no active release yet: the settings apply when it is installed (sudo lictory install)."
+    return 0
+  fi
+  if run_task "Applying the settings to $environment ($active)" deploy_sh activate "$active"; then
+    check_ok "$environment runs $active with the new settings."
+    return 0
+  fi
+  if [ -n "$config_backup" ]; then
+    warn "The services did not start with the new settings. Restoring the previous ones from $config_backup."
+    cp -p "$config_backup" "$home/.env"
+    if run_task "Re-applying the previous settings" deploy_sh activate "$active"; then
+      die "The new settings were not applied; $environment runs with the previous ones. See the messages above, or: lictory logs api"
+    fi
+    die "The previous settings did not start either. Investigate now: lictory doctor, lictory logs"
+  fi
+  die "The services did not start with the current settings. See the messages above, or: lictory doctor"
+}
+
+# config_review <diff>: refuses what config_check refuses, then lists the
+# changes.
+config_review() {
+  config_check "$1"
+  say "Changes to $home/.env:"
+  config_print_diff "$1"
+}
+# config_commit <new file>: writes the reviewed settings and applies them.
+config_commit() {
+  config_write "$1"
+  config_tmp=""
+  check_ok "Saved. The previous settings are in $config_backup."
+  if [ "$(opt no-apply)" = true ]; then
+    local env_flag=""
+    [ "$(configured_environments | grep -c .)" -le 1 ] || env_flag=" --env $environment"
+    note "Not applied yet. Apply with: sudo lictory config apply$env_flag"
+    return 0
+  fi
+  config_apply
+}
+
+config_writable() {
+  [ -w "$home/.env" ] || die "Cannot write $home/.env: run with sudo or as the deploy user."
+}
+# config_temp: a private scratch copy of .env next to it, in $config_tmp
+# (removed on exit unless it became the new .env).
+config_tmp=""
+config_temp() {
+  config_tmp=$(mktemp "$home/.env.edit.XXXXXX")
+  trap '[ -z "$config_tmp" ] || rm -f "$config_tmp"' EXIT
+  chmod 0600 "$config_tmp"
+  cat "$home/.env" >"$config_tmp"
+}
+config_key() { # config_key <key>: exits on a malformed key name
+  [[ "$1" =~ ^[A-Z][A-Z0-9_]*$ ]] || usage_error "$1 is not a setting name (uppercase letters, digits and underscores, such as SMTP_HOST)."
+}
+
+cmd_config() {
+  local sub="${1:-help}" key value diff arg reason
+  [ $# -eq 0 ] || shift
+  command="config $sub"
+  case "$sub" in
+    help | -h | --help)
+      config_usage
+      ;;
+    show)
+      parse "" "reveal json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "config show takes no arguments."
+      select_environment
+      if [ "$(opt json)" = true ]; then
+        config_keys "$home/.env" | while IFS= read -r key; do
+          value=$(env_value "$home/.env" "$key")
+          [ "$(opt reveal)" = true ] || ! config_secret "$key" "$value" || [ -z "$value" ] || value="$g_mask"
+          printf '%s\t%s\n' "$key" "$value"
+        done | jq -Rn '[inputs | split("\t") | {key: .[0], value: (.[1:] | join("\t"))}] | from_entries'
+        return 0
+      fi
+      note "$home/.env$([ "$(opt reveal)" = true ] || printf ' (secrets masked; --reveal shows them)')"
+      config_keys "$home/.env" | while IFS= read -r key; do
+        value=$(env_value "$home/.env" "$key")
+        [ -n "$value" ] || continue
+        if [ "$fancy" = true ]; then
+          printf '   %s%-34s%s %s\n' "$c_dim" "$key" "$c_reset" "$(config_shown "$key" "$value")"
+        else
+          printf '%s=%s\n' "$key" "$(config_shown "$key" "$value")"
+        fi
+      done
+      ;;
+    get)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 1 ] || usage_error "Usage: lictory config get <KEY>"
+      config_key "${positional[0]}"
+      select_environment
+      value=$(env_value "$home/.env" "${positional[0]}")
+      [ -n "$value" ] || exit 1
+      printf '%s\n' "$value"
+      ;;
+    set | unset)
+      parse "" "no-apply force" "$@"
+      [ ${#positional[@]} -ge 1 ] || usage_error "Usage: lictory config $sub $([ "$sub" = set ] && echo '<KEY=value>...' || echo '<KEY>...')"
+      select_environment
+      config_writable
+      [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+      config_temp
+      for arg in "${positional[@]}"; do
+        if [ "$sub" = set ]; then
+          [[ "$arg" == *=* ]] || usage_error "$arg: use KEY=value (KEY= clears a setting)."
+          key="${arg%%=*}"
+          value="${arg#*=}"
+        else
+          key="$arg"
+          value=""
+        fi
+        config_key "$key"
+        reason=$(invalid_reason value "$value") || true
+        [ -z "$reason" ] || usage_error "$key: $reason"
+        set_env "$config_tmp" "$key" "$value"
+      done
+      if ! diff=$(config_diff "$home/.env" "$config_tmp"); then
+        say "No changes: $home/.env already has these values."
+        return 0
+      fi
+      config_review "$diff"
+      config_commit "$config_tmp"
+      ;;
+    edit)
+      parse "" "no-apply force" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "config edit takes no arguments."
+      select_environment
+      config_writable
+      [ -t 0 ] && [ -t 1 ] || die "config edit needs a terminal; use lictory config set KEY=value in scripts." 64
+      interactive=true
+      local editor="${VISUAL:-${EDITOR:-}}"
+      if [ -z "$editor" ]; then
+        for editor in nano vim vi; do command -v "$editor" >/dev/null && break; done
+      fi
+      command -v "${editor%% *}" >/dev/null || die "No editor found: set EDITOR (for example EDITOR=nano)."
+      config_temp
+      while :; do
+        # shellcheck disable=SC2086 # EDITOR may carry arguments (code --wait)
+        $editor "$config_tmp" </dev/tty >/dev/tty || die "The editor exited with an error; nothing changed."
+        local bad
+        bad=$(grep -nvE '^[[:space:]]*(#.*)?$|^[A-Z][A-Z0-9_]*=' "$config_tmp" | head -n 3 || true)
+        if [ -n "$bad" ]; then
+          check_fail "Lines that are neither KEY=value nor a comment:"
+          printf '%s\n' "$bad" | sed 's/^/     /'
+          confirm "Edit again?" && continue
+          die "Nothing changed."
+        fi
+        break
+      done
+      if ! diff=$(config_diff "$home/.env" "$config_tmp"); then
+        say "No changes."
+        return 0
+      fi
+      config_review "$diff"
+      confirm "Save$([ "$(opt no-apply)" = true ] || printf ' and apply') these changes?" || die "Nothing changed."
+      config_commit "$config_tmp"
+      ;;
+    apply)
+      parse "" "" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "config apply takes no arguments."
+      select_environment
+      [ "$fancy" = true ] && [ -t 0 ] && interactive=true
+      config_apply
+      ;;
+    *) usage_error "Unknown config command: $sub (lictory config help)" ;;
+  esac
+}
+
 # ---------------------------------------------------------------------- restore
 cmd_restore() {
   parse "" "drill" "$@"
@@ -2339,6 +2809,9 @@ case "$command" in
   restore) cmd_restore "$@" ;;
   logs) cmd_logs "$@" ;;
   registry-login) cmd_registry_login "$@" ;;
-  help | -h | --help) usage ;;
+  config) cmd_config "$@" ;;
+  help | -h | --help)
+    if [ $# -gt 0 ]; then command_usage "$1"; else usage; fi
+    ;;
   *) usage_error "Unknown command: $command" ;;
 esac

@@ -119,7 +119,13 @@ if (args[1] === "release") {
   symlinkSync("releases/" + version, home + "/current");
   console.log(version);
 }
-if (args[1] === "status") console.log("{}");`,
+if (args[1] === "status") console.log("{}");
+// FAKE_ACTIVATE_FAILS_WITH: activation fails while .env contains this text.
+const failsWith = process.env.FAKE_ACTIVATE_FAILS_WITH;
+if (args[1] === "activate" && failsWith && readFileSync(home + "/.env", "utf8").includes(failsWith)) {
+  console.log("api did not become healthy");
+  process.exit(1);
+}`,
   );
   const routes: Record<string, Route> = {};
   const writeRoutes = () =>
@@ -853,3 +859,159 @@ void test("lictory admin passes commands to the api container", (t) => {
   assert.equal(status.status, 0, status.stderr + status.stdout);
   assert.match(status.stdout, /administrators: 2/);
 });
+
+void test("every command explains itself with --help", (t) => {
+  const f = bootstrapped(t);
+  for (const [args, text] of [
+    [["install", "--help"], /--smtp-host[\s\S]*--backup-age-recipient/],
+    [["help", "upgrade"], /Usage: lictory upgrade \[version\]/],
+    [["restore", "-h"], /--drill/],
+    [["config", "--help"], /set <KEY=value>/],
+    [["config", "set", "--help"], /unset <KEY>/],
+    [["admin", "grant", "--help"], /Usage: lictory admin <command>/],
+    [["help"], /config <command>/],
+  ] as const) {
+    const result = f.lictory([...args]);
+    assert.equal(result.status, 0, args.join(" ") + result.stderr);
+    assert.match(result.stdout, text, args.join(" "));
+    assert.deepEqual(result.calls, [], args.join(" "));
+  }
+});
+
+void test(
+  "lictory config changes settings, refuses typos and generated secrets, and undoes a change the services reject",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const installed = f.lictory([...acmeInstall], {
+      LICTORY_SMTP_PASSWORD: "first-password",
+      LICTORY_EMAIL: "smtp",
+      LICTORY_SMTP_HOST: "smtp.example.test",
+    });
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
+    const env = () => readFileSync(join(home, ".env"), "utf8");
+    const before = env();
+
+    // show masks secrets unless asked; get prints one value for scripts.
+    const shown = f.lictory(["config", "show"]);
+    assert.equal(shown.status, 0, shown.stderr);
+    assert.match(shown.stdout, /^APP_HOST=lictory\.example\.test$/m);
+    assert.match(shown.stdout, /^SMTP_PASSWORD=\*\*\*\*$/m);
+    assert.doesNotMatch(shown.stdout, /first-password/);
+    const json = f.lictory(["config", "show", "--json", "--reveal"]);
+    assert.equal(
+      (JSON.parse(json.stdout) as Record<string, string>).SMTP_PASSWORD,
+      "first-password",
+    );
+    assert.equal(
+      f.lictory(["config", "get", "SMTP_HOST"]).stdout,
+      "smtp.example.test\n",
+    );
+    assert.equal(f.lictory(["config", "get", "SMTP_USER"]).status, 1);
+
+    // A change is written, keeps a copy of the previous file and is applied.
+    const set = f.lictory([
+      "config",
+      "set",
+      "SMTP_HOST=mail.example.test",
+      "SMTP_PASSWORD=pa$$ #2",
+    ]);
+    assert.equal(set.status, 0, set.stderr + set.stdout);
+    assert.match(
+      set.stdout,
+      /SMTP_HOST: smtp\.example\.test -> mail\.example\.test/,
+    );
+    assert.match(
+      set.stdout,
+      /SMTP_PASSWORD: \*\*\*\* -> \*\*\*\* \(new value\)/,
+    );
+    assert.doesNotMatch(set.stdout + set.stderr, /pa\$\$ #2|first-password/);
+    assert.match(env(), /^SMTP_PASSWORD='pa\$\$ #2'$/m);
+    assert.equal(
+      env().replace(/^SMTP_(HOST|PASSWORD)=.*$/gm, ""),
+      before.replace(/^SMTP_(HOST|PASSWORD)=.*$/gm, ""),
+    );
+    assert.deepEqual(
+      set.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+    const backups = readdirSync(home).filter((name) =>
+      name.startsWith(".env.backup-"),
+    );
+    assert.equal(backups.length, 1);
+    assert.equal(readFileSync(join(home, backups[0]!), "utf8"), before);
+    assert.equal(statSync(join(home, ".env")).mode & 0o777, 0o600);
+    assert.ok(!readdirSync(home).some((name) => name.startsWith(".env.edit.")));
+
+    // Typos and generated secrets are refused before anything is written.
+    const current = env();
+    for (const [args, message] of [
+      [
+        ["config", "set", "SMPT_HOST=mail.example.test"],
+        /SMPT_HOST is not a setting this release reads/,
+      ],
+      [
+        ["config", "set", "BETTER_AUTH_SECRET=short"],
+        /changing it means everyone is signed out/,
+      ],
+      [
+        ["config", "set", "LICTORY_APP_PASSWORD=x"],
+        /PostgreSQL keeps the role's current password/,
+      ],
+    ] as const) {
+      const refused = f.lictory([...args]);
+      assert.equal(refused.status, 65, args.join(" "));
+      assert.match(refused.stderr + refused.stdout, message);
+      assert.equal(env(), current);
+      assert.ok(!refused.calls.some((call) => call.name === "deploy.sh"));
+    }
+    assert.equal(f.lictory(["config", "set", "smtp_host=x"]).status, 64);
+    const forced = f.lictory([
+      "config",
+      "set",
+      "--no-apply",
+      "--force",
+      "LICTORY_SCRATCH=1",
+    ]);
+    assert.equal(forced.status, 0, forced.stderr);
+    assert.match(env(), /^LICTORY_SCRATCH=1$/m);
+    assert.ok(!forced.calls.some((call) => call.name === "deploy.sh"));
+    assert.match(forced.stdout, /lictory config apply/);
+
+    // Settings the services reject are undone and the previous ones applied.
+    const good = env();
+    const rejected = f.lictory(["config", "set", "SMTP_PORT=2525"], {
+      FAKE_ACTIVATE_FAILS_WITH: "SMTP_PORT=2525",
+    });
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /runs with the previous ones/);
+    assert.equal(env(), good);
+    assert.deepEqual(
+      rejected.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [
+        ["production", "activate", "1.2.3"],
+        ["production", "activate", "1.2.3"],
+      ],
+    );
+
+    // unset clears a setting; apply re-activates after a hand edit.
+    assert.equal(
+      f.lictory(["config", "unset", "--no-apply", "LICTORY_SCRATCH"]).status,
+      0,
+    );
+    assert.match(env(), /^LICTORY_SCRATCH=$/m);
+    const applied = f.lictory(["config", "apply"]);
+    assert.equal(applied.status, 0, applied.stderr);
+    assert.deepEqual(
+      applied.calls
+        .filter((call) => call.name === "deploy.sh")
+        .map((call) => call.args),
+      [["production", "activate", "1.2.3"]],
+    );
+  },
+);

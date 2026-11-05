@@ -67,8 +67,24 @@ questionnaire by supplying flags:
 sudo lictory install --yes --signup-mode closed
 ```
 
-For settings outside the installer's flags, use the
-[configuration reference](/self-hosting/configuration).
+For any other setting, use `lictory config`. It lists the change with
+secrets masked, keeps a copy of the previous `.env` and restarts the services
+with the new value, putting the previous settings back if they do not start:
+
+<Cli command="config" />
+
+```sh
+sudo lictory config show            # every setting, secrets masked
+sudo lictory config get APP_HOST    # one value, for scripts
+sudo lictory config edit            # in $EDITOR, with a review before saving
+sudo lictory config apply           # after editing .env by hand
+```
+
+A misspelled key or a change to a generated secret (database passwords,
+`DELIVERY_CREDENTIALS_KEY`) is refused unless you pass `--force`. The
+[configuration reference](/self-hosting/configuration) lists every setting.
+Every command explains its options with `--help`, for example
+`lictory install --help`.
 
 ## Unattended installation
 
