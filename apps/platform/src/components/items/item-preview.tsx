@@ -309,7 +309,9 @@ function PreviewContent({
           <Field
             label={project?.iterationMode === "automatic" ? "Cycle" : "Sprint"}
           >
-            <span className="truncate">{iterationLabel(iteration)}</span>
+            <span className="truncate">
+              {iterationLabel(iteration, project?.iterationMode)}
+            </span>
             {iteration.state === "active" && (
               <span className="text-xs text-success">Active</span>
             )}

@@ -343,7 +343,9 @@ function PeekContent({
                 }
               >
                 <Value muted={!iteration}>
-                  {iteration ? iterationLabel(iteration) : "Backlog"}
+                  {iteration
+                    ? iterationLabel(iteration, project?.iterationMode)
+                    : "Backlog"}
                   {iteration?.state === "active" && (
                     <span className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
                       <span

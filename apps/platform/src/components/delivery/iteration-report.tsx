@@ -48,7 +48,9 @@ export function IterationReportPage() {
         </Link>
         <header>
           <h1 className="text-lg font-semibold tracking-tight">
-            {iteration ? iterationLabel(iteration) : "Iteration"}
+            {iteration
+              ? iterationLabel(iteration, project?.iterationMode)
+              : "Iteration"}
             {iteration && (
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 {shortRange(iteration)} ·{" "}

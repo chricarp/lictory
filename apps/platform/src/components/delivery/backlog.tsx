@@ -391,6 +391,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 rows,
                 <IterationHeader
                   iteration={it}
+                  iterationMode={project.iterationMode}
                   rows={rows}
                   points={points(rows)}
                   // Velocity is the whole project's; it is no capacity for
@@ -426,14 +427,17 @@ function ProjectBacklog({ project }: { project: Project }) {
                       iterationId: it.id,
                       carryOverTo,
                     });
-                    toast(`${iterationLabel(it)} completed`, {
-                      label: "View report",
-                      href: paths.iteration(
-                        organization.slug,
-                        project.key,
-                        it.id,
-                      ),
-                    });
+                    toast(
+                      `${iterationLabel(it, project?.iterationMode)} completed`,
+                      {
+                        label: "View report",
+                        href: paths.iteration(
+                          organization.slug,
+                          project.key,
+                          it.id,
+                        ),
+                      },
+                    );
                   }}
                   onRename={(name, goal) =>
                     void mutate({
@@ -481,7 +485,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
                         >
                           <BarChart3 className="size-3.5 text-muted-foreground" />
-                          {iterationLabel(i)}
+                          {iterationLabel(i, project?.iterationMode)}
                           <span className="text-xs text-muted-foreground">
                             {shortRange(i)}
                           </span>
@@ -527,6 +531,7 @@ function IterationHeader({
   onStart,
   onComplete,
   onRename,
+  iterationMode,
 }: {
   iteration: Iteration;
   rows: WorkItem[];
@@ -541,6 +546,7 @@ function IterationHeader({
   onStart: () => void;
   onComplete: (carryOverTo: string | null) => void;
   onRename: (name: string | null, goal: string | null) => void;
+  iterationMode: Project["iterationMode"];
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(iteration.name ?? "");
@@ -550,7 +556,9 @@ function IterationHeader({
     <div className="px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <Repeat className="size-3.5 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">{iterationLabel(iteration)}</h2>
+        <h2 className="text-sm font-semibold">
+          {iterationLabel(iteration, iterationMode)}
+        </h2>
         {iteration.state === "active" && (
           <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
             <span aria-hidden className="size-1.5 rounded-full bg-success" />
@@ -639,7 +647,7 @@ function IterationHeader({
                         ? [
                             {
                               value: nextPlanned.id,
-                              label: iterationLabel(nextPlanned),
+                              label: iterationLabel(nextPlanned, iterationMode),
                               hint: shortRange(nextPlanned),
                             },
                           ]
@@ -673,7 +681,10 @@ function IterationHeader({
         >
           <Input
             className="h-8 w-48 text-sm"
-            placeholder={`Iteration ${iteration.number}`}
+            placeholder={iterationLabel(
+              { name: null, number: iteration.number },
+              iterationMode,
+            )}
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Sprint name"

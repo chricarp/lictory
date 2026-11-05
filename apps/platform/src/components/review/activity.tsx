@@ -86,11 +86,13 @@ function IconLabel({
 }
 
 export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
-  const { memberName, disciplineName } = useItem();
+  const { memberName, disciplineName, project } = useItem();
   const delivery = useDelivery();
   const iterationName = (id: string | undefined) => {
     const it = id ? delivery.iterations.get(id) : undefined;
-    return it ? iterationLabel(it) : "an earlier iteration";
+    return it
+      ? iterationLabel(it, project.iterationMode)
+      : "an earlier iteration";
   };
   const d = entry.detail ?? {};
   const auto = d.automatic === true;
