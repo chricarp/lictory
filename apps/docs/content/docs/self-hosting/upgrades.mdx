@@ -20,6 +20,12 @@ version while Lictory is `0.x`). Each release's notes list breaking changes
 first, with any upgrade action. An installation accepts only releases of its
 configured channel (`LICTORY_RELEASE_CHANNEL`: `stable` or `nightly`).
 
+Nightly releases are kept for 14 days once a newer nightly exists; the
+newest nightly is always available, however old. Stable releases are never
+removed. To stay on a specific nightly for longer, keep it installed: a
+removed nightly can no longer be installed by version, but an installation
+that runs it is unaffected.
+
 ## Upgrade
 
 <Cli command="upgrade" />
