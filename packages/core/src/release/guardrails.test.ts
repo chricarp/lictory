@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
@@ -422,10 +422,53 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   ]);
   const runs = (job: string) =>
     jobs[job]!.steps!.flatMap((step) => (step.run ? [step.run] : []));
-  assert.ok(runs("static").includes("bun run check"));
-  assert.ok(runs("static").includes("bun run db:check"));
+  // The static jobs together run everything `bun run check` runs: types, the
+  // remaining checks and lint over paths that cover the whole repository.
+  const scripts = (
+    JSON.parse(
+      readFileSync(
+        new URL("../../../../package.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { scripts: Record<string, string> }
+  ).scripts;
+  assert.equal(
+    scripts.check,
+    "bun scripts/check-toolchain.ts && bun run typecheck && bun run lint && bun run check:rest",
+  );
+  for (const run of [
+    "bun scripts/check-toolchain.ts",
+    "bun run typecheck",
+    "bun run check:rest",
+    "bun run db:check",
+  ])
+    assert.ok(runs("static").includes(run), run);
+  const groups = (
+    jobs.static as {
+      strategy?: {
+        matrix?: { check?: { group: string; paths?: string }[] };
+      };
+    }
+  ).strategy!.matrix!.check!;
+  const lint = groups.filter((group) => group.group === "lint");
+  const named = lint.flatMap((group) =>
+    group.paths!.startsWith(".") ? [] : [group.paths!],
+  );
+  assert.deepEqual(
+    lint.map((group) => group.paths),
+    [
+      ...named,
+      [".", ...named.map((path) => `--ignore-pattern ${path}/**`)].join(" "),
+    ],
+    "the last lint group is everything the others do not lint",
+  );
+  assert.ok(runs("static").some((run) => run.includes("eslint $LINT_PATHS")));
+  // Every domain test file runs, in parallel; browser shards split the suite.
   assert.ok(runs("domain").includes("bun run db:migrate"));
-  assert.ok(runs("domain").includes("bun test --isolate src"));
+  assert.ok(
+    runs("domain").some((run) => /^bun test --parallel\b.* src$/.test(run)),
+  );
+  assert.ok(!runs("domain").some((run) => run.includes("--shard")));
   assert.ok(runs("browser").some((run) => run.includes("--grep @smoke")));
   // Static checks are never skipped; the gate waits for every job and
   // accepts only success or a deliberate skip.

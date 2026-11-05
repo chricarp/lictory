@@ -422,7 +422,7 @@ deletes messages; durable activity records retain these actions.
 
 ## Verification and deferred work
 
-Domain tests (`bun test --isolate src`) run real PostgreSQL transactions in disposable
+Domain tests (`bun run test:domain`) run real PostgreSQL transactions in disposable
 databases, including Zero's own `handleMutateRequest` with the server
 mutators, forced projection failures and the projection rebuild invariant.
 `bun run test:e2e` builds every application, migrates a disposable database

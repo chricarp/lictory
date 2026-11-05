@@ -12,6 +12,8 @@ inputs:
 runs:
   using: composite
   steps:
+    # Parallel test files each hold their own connections beside the
+    # services' pools, beyond PostgreSQL's default of 100.
     - name: Start PostgreSQL
       shell: bash
       run: |
@@ -19,7 +21,8 @@ runs:
           -e POSTGRES_DB=lictory -e POSTGRES_USER=lictory -e POSTGRES_PASSWORD=lictory \
           postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b \
           postgres -c wal_level=logical -c max_wal_senders=10 -c max_replication_slots=10 \
-          -c fsync=off -c synchronous_commit=off -c full_page_writes=off >/dev/null
+          -c fsync=off -c synchronous_commit=off -c full_page_writes=off \
+          -c max_connections=200 >/dev/null
     - name: Start Mailpit
       if: inputs.mailpit == 'true'
       shell: bash
