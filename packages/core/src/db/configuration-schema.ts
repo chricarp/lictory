@@ -9,7 +9,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { organization } from "@lictory/core/db/auth-schema";
+import { invitation, organization } from "@lictory/core/db/auth-schema";
 
 // Immutable history of configuration changes: project and team settings,
 // memberships, disciplines, integrations, and the retired delegated roles.
@@ -169,4 +169,21 @@ export const organizationDeletion = pgTable(
       sql`${t.status} in ('scheduled', 'deleting')`,
     ),
   ],
+);
+
+// Private invitation metadata; workspace membership is written only on acceptance.
+export const invitationPlacement = pgTable(
+  "invitation_placement",
+  {
+    invitationId: text("invitation_id")
+      .primaryKey()
+      .references(() => invitation.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    projectId: text("project_id").notNull(),
+    disciplineIds: jsonb("discipline_ids").$type<string[]>().notNull(),
+    appliedAt: timestamp("applied_at"),
+  },
+  (t) => [index("invitation_placement_org_idx").on(t.organizationId)],
 );

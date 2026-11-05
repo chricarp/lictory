@@ -175,7 +175,7 @@ export const browserOperations: readonly BrowserOperation[] = [
       "organization.listInvitations",
       "organization.cancelInvitation",
     ],
-    routes: ["POST /api/invitations"],
+    routes: ["POST /api/invitations", "GET /api/invitations"],
   },
   {
     name: "acceptInvitation",

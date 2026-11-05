@@ -209,6 +209,7 @@ type PendingInvitation = {
   id: string;
   email: string;
   expiresAt: Date | string;
+  placement?: { projectId: string; disciplineIds: string[] } | null;
 };
 
 // Pending Better Auth invitations, so a mistaken invitation can be withdrawn.
@@ -219,22 +220,29 @@ function PendingInvitations({
   organizationId: string;
   version: number;
 }) {
+  const { directory } = useWorkspace();
   const [invitations, setInvitations] = useState<PendingInvitation[]>();
   const [error, setError] = useState<string>();
   useEffect(() => {
     let current = true;
-    void authClient.organization
-      .listInvitations({ query: { organizationId } })
-      .then((result) => {
-        if (!current) return;
-        if (result.error) return setError(result.error.message);
-        const now = Date.now();
-        setInvitations(
-          (result.data ?? []).filter(
-            (i) =>
-              i.status === "pending" && new Date(i.expiresAt).getTime() > now,
-          ),
-        );
+    void fetch(
+      `/api/invitations?organizationId=${encodeURIComponent(organizationId)}`,
+    )
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load invitations.");
+        const result = (await response.json()) as PendingInvitation[];
+        if (current) {
+          setInvitations(result);
+          setError(undefined);
+        }
+      })
+      .catch((error) => {
+        if (current)
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Could not load invitations.",
+          );
       });
     return () => {
       current = false;
@@ -254,7 +262,27 @@ function PendingInvitations({
             key={i.id}
             className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
           >
-            <span className="min-w-0 flex-1 truncate">{i.email}</span>
+            <div className="min-w-0 flex-1 truncate">
+              <span>{i.email}</span>
+              {i.placement && (
+                <p className="text-xs text-muted-foreground">
+                  Joins{" "}
+                  {directory.projects.find(
+                    (p) => p.id === i.placement?.projectId,
+                  )?.name ?? "unavailable project"}
+                  {i.placement.disciplineIds
+                    .map(
+                      (id) =>
+                        directory.disciplines.find(
+                          (d) => d.id === id && !d.archivedAt,
+                        )?.name,
+                    )
+                    .filter(Boolean)
+                    .map((name) => ` · ${name}`)
+                    .join("")}
+                </p>
+              )}
+            </div>
             <span className="text-xs text-muted-foreground">
               Expires {new Date(i.expiresAt).toLocaleDateString()}
             </span>
@@ -294,6 +322,20 @@ function Invite({
   organizationId: string;
   onSent: () => void;
 }) {
+  const { directory, isAdmin, userId } = useWorkspace();
+  const projects = directory.projects.filter((p) => !p.archivedAt);
+  const eligible = projects.filter(
+    (p) =>
+      isAdmin ||
+      directory.projectMembers.some(
+        (m) =>
+          m.projectId === p.id && m.userId === userId && m.role === "admin",
+      ),
+  );
+  const [projectId, setProjectId] = useState(
+    projects.length === 1 && eligible.length === 1 ? eligible[0]!.id : "",
+  );
+  const [disciplineIds, setDisciplineIds] = useState<string[]>([]);
   const [recipient, setRecipient] = useState("");
   const [url, setUrl] = useState<string>();
   const [error, setError] = useState<string>();
@@ -310,7 +352,11 @@ function Invite({
           const response = await fetch("/api/invitations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ organizationId, recipient }),
+            body: JSON.stringify({
+              organizationId,
+              recipient,
+              ...(projectId ? { placement: { projectId, disciplineIds } } : {}),
+            }),
           });
           const result = (await response.json()) as {
             id?: string;
@@ -361,9 +407,51 @@ function Invite({
           </Button>
         </div>
       </label>
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <label className="flex items-center gap-2">
+          Project
+          <select
+            className="rounded-md border bg-background px-2 py-1.5"
+            aria-label="Invitation project"
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              setDisciplineIds([]);
+              setUrl(undefined);
+            }}
+          >
+            <option value="">Organization only</option>
+            {eligible.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {projectId &&
+          directory.disciplines
+            .filter((d) => d.projectId === projectId && !d.archivedAt)
+            .map((d) => (
+              <label key={d.id} className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={disciplineIds.includes(d.id)}
+                  onChange={(e) => {
+                    setDisciplineIds((ids) =>
+                      e.target.checked
+                        ? [...ids, d.id]
+                        : ids.filter((id) => id !== d.id),
+                    );
+                    setUrl(undefined);
+                  }}
+                />
+                {d.name}
+              </label>
+            ))}
+      </div>
       <p className="text-xs text-muted-foreground">
-        People join as members. Add them to projects and disciplines in each
-        project’s settings.
+        People join as members. Project and disciplines are optional and apply
+        when they accept.
       </p>
       <InlineError>{error}</InlineError>
       {url && (
