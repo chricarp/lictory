@@ -23,7 +23,7 @@ home="${LICTORY_ROOT:-/srv/lictory}/$environment"
 release="${LICTORY_RELEASE_DIR:-$home/current}"
 [ -f "$home/.env" ] || { echo "Missing $home/.env" >&2; exit 1; }
 [ -f "$release/release.env" ] || {
-  echo "No release at $release; deploy one with lictory-deploy." >&2
+  echo "No active release of $environment yet ($release does not exist). Install one: sudo lictory install --env $environment" >&2
   exit 1
 }
 
