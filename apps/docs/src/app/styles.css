@@ -84,7 +84,9 @@ body {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-.docs-body :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *)) {
+/* Inline links; cards (Where to go next) are whole-card links without one. */
+.docs-body
+  :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *, [data-card])) {
   font-weight: 500;
   text-decoration-line: underline;
   text-decoration-color: color-mix(in srgb, var(--foreground) 28%, transparent);
@@ -93,7 +95,10 @@ body {
   border-bottom: 0;
   transition: text-decoration-color 150ms ease-out;
 }
-.docs-body :where(a):not(:where(.not-prose *, h1 *, h2 *, h3 *, h4 *)):hover {
+.docs-body
+  :where(a):not(
+    :where(.not-prose *, h1 *, h2 *, h3 *, h4 *, [data-card])
+  ):hover {
   text-decoration-color: var(--foreground);
 }
 /* Inline code: a warm chip, no border. */
@@ -181,4 +186,42 @@ body {
 /* The first entry has no top padding. */
 #nd-toc a.pt-0[data-active="true"]::before {
   top: 3px;
+}
+
+/* The command reference: one command per row, its summary underneath. */
+.docs-body dl.cli-reference {
+  margin-block: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.docs-body dl.cli-reference > div {
+  padding-block: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+.docs-body dl.cli-reference dt {
+  margin: 0;
+  font-weight: 450;
+}
+.docs-body dl.cli-reference dt code {
+  overflow-wrap: anywhere;
+}
+.docs-body dl.cli-reference dd {
+  max-width: 42rem;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* GitHub Dark's comment color (#6a737d) reads at 3.5:1 on the dark code
+   background; WCAG AA needs 4.5:1 for 13px text. #8b949e reaches 5.5:1. */
+/* (The span's inline style sets the variable, so the color itself is set.) */
+.dark .shiki code span[style*="--shiki-dark:#6A737D"] {
+  color: #8b949e;
+}
+
+/* GitHub Light's orange (#e36209) reads at 3.5:1 on white; #b35900 keeps
+   the hue at 6.6:1. */
+html:not(.dark) .shiki code span[style*="--shiki-light:#E36209"] {
+  color: #b35900;
 }
