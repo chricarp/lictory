@@ -1297,8 +1297,37 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeVisible();
   await reviewer.getByRole("button", { name: "Close comparison" }).click();
 
-  // 15-16. Resolve the blocking discussion, approve again → readiness passes → Ready.
-  await page.getByRole("button", { name: "Resolve" }).click();
+  // 15-16. Resolve the blocking discussion, keeping its conclusion as a
+  // decision, approve again → readiness passes → Ready.
+  await page.getByRole("button", { name: "Resolve as decision" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Decision title" }),
+  ).toBeFocused();
+  // Nothing changes until the decision is saved: cancelling keeps the
+  // discussion open.
+  await page
+    .locator("form", {
+      has: page.getByRole("textbox", { name: "Decision title" }),
+    })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(
+    page.getByText("No open discussions.", { exact: false }),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "Resolve as decision" }).click();
+  // The agreed conclusion is recorded and the discussion resolved together,
+  // without changing the revision. The second participant sees it through
+  // synchronization; history survives archive, restore and reload, and search
+  // finds its original evidence.
+  await page
+    .getByRole("textbox", { name: "Decision title" })
+    .fill("Cancellation amounts are bounded");
+  await page
+    .getByRole("textbox", { name: "Decision details" })
+    .fill("A partial cancellation cannot exceed the settled total.");
+  await page
+    .getByRole("button", { name: "Resolve and save decision", exact: true })
+    .click();
   await expect(
     page.getByText("No open discussions.", { exact: false }),
   ).toBeVisible();
@@ -1313,24 +1342,10 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     ),
   ).toBeVisible();
 
-  // Record the agreed conclusion without changing readiness or revision.
-  // The second participant sees it through synchronization; history survives
-  // archive, restore and reload, and search finds its original evidence.
-  await page
-    .getByRole("button", { name: "Record decision", exact: true })
-    .click();
-  await page
-    .getByRole("textbox", { name: "Decision title" })
-    .fill("Cancellation amounts are bounded");
-  await page
-    .getByRole("textbox", { name: "Decision details" })
-    .fill("A partial cancellation cannot exceed the settled total.");
-  await page
-    .getByRole("button", { name: "Save decision", exact: true })
-    .click();
   await expect(
     reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
   ).toBeVisible();
+  await expect(page.getByText(/from a resolved discussion/)).toBeVisible();
   await page
     .getByRole("button", {
       name: "Archive decision: Cancellation amounts are bounded",

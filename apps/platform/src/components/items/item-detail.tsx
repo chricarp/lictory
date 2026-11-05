@@ -85,7 +85,10 @@ import { Readiness } from "@lictory/platform/components/review/readiness";
 import { AiReviewView } from "@lictory/platform/components/review/ai-review";
 import { DockItemSource } from "@lictory/platform/components/intelligence/dock/item-source";
 import { Activity } from "@lictory/platform/components/review/activity";
-import { Decisions } from "@lictory/platform/components/review/decisions";
+import {
+  DecisionComposerScope,
+  Decisions,
+} from "@lictory/platform/components/review/decisions";
 import { DeliveryScope } from "@lictory/platform/components/items/delivery-scope";
 import { ItemWorkflow } from "@lictory/platform/components/items/item-workflow";
 import {
@@ -890,12 +893,14 @@ export function ItemDetail({
                   <section className="mt-10">
                     <Relations item={item} canChange={canChange} />
                   </section>
-                  <section className="mt-10">
-                    <Discussions draft={draft} onDraftChange={setDraft} />
-                  </section>
-                  <section className="mt-10">
-                    <Decisions />
-                  </section>
+                  <DecisionComposerScope>
+                    <section className="mt-10">
+                      <Discussions draft={draft} onDraftChange={setDraft} />
+                    </section>
+                    <section className="mt-10">
+                      <Decisions />
+                    </section>
+                  </DecisionComposerScope>
                 </>
               )}
               {!pendingCreate && (
