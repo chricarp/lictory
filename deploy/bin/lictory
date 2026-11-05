@@ -342,7 +342,7 @@ Usage: lictory config <command> [options]
   --force      Also change generated secrets, or keys Lictory does not know
 
 Settings live in <root>/<env>/.env (mode 0600). Every change keeps a copy of
-the previous file next to it (.env.backup-<time>). If applying fails, the
+the previous file next to it (.env.backup-<time>.<id>). If applying fails, the
 previous settings are restored and applied again. Settings the installer asks
 for can also change with: lictory install
 USAGE
@@ -1661,6 +1661,10 @@ cmd_install() {
   existed=false
   user=$(deploy_user)
   [ -f "$home/.env" ] && existed=true
+  if [ "$existed" = true ]; then
+    not_symlinked_env
+    settings_lock
+  fi
   active=$(current_version)
   steps_total=8
   banner "self-hosted installer"
@@ -2393,13 +2397,32 @@ config_print_diff() {
 
 # config_write <new file>: replaces .env with <new file>, keeping a copy of
 # the previous one; sets config_backup.
-config_backup=""
+config_backup="" config_written=""
 config_write() {
-  config_backup="$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ)"
+  # A name of its own, even for two changes within one second.
+  config_backup=$(mktemp "$home/.env.backup-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")
   cp -p "$home/.env" "$config_backup"
   chmod 0600 "$1"
   is_root && chown "$(owner_of "$home/.env")" "$1" 2>/dev/null || true
   mv -f "$1" "$home/.env"
+  config_written=$(sha256_of "$home/.env")
+}
+
+# settings_lock: one writer of the environment's settings at a time
+# (lictory config and lictory install); held until the command exits.
+settings_lock() {
+  local lock="$home/.settings.lock"
+  [ -e "$lock" ] || (umask 022 && : >"$lock") 2>/dev/null || true
+  [ -r "$lock" ] && command -v flock >/dev/null || return 0
+  exec 7<"$lock"
+  flock -n 7 || die "Another change to the settings of $environment is running (lictory install or lictory config); try again when it has finished." 75
+}
+
+# not_symlinked_env: settings are written by replacing .env, which would
+# turn a symbolic link into a separate file with the wrong owner.
+not_symlinked_env() {
+  [ ! -L "$home/.env" ] ||
+    die "$home/.env is a symbolic link; the installer and lictory config only change a regular file. Change its target, then apply it: sudo lictory config apply" 64
 }
 
 # config_apply: re-activates the active release with the current .env; on
@@ -2416,6 +2439,10 @@ config_apply() {
     return 0
   fi
   if [ -n "$config_backup" ]; then
+    # Never undo over a change made since (a hand edit while applying).
+    if [ "$(sha256_of "$home/.env")" != "$config_written" ]; then
+      die "The services did not start with the new settings, and $home/.env changed meanwhile, so it was left as it is. The settings before this change are in $config_backup. Check: lictory doctor"
+    fi
     warn "The services did not start with the new settings. Restoring the previous ones from $config_backup."
     cp -p "$config_backup" "$home/.env"
     if run_task "Re-applying the previous settings" deploy_sh activate "$active"; then
@@ -2448,7 +2475,9 @@ config_commit() {
 }
 
 config_writable() {
+  not_symlinked_env
   [ -w "$home/.env" ] || die "Cannot write $home/.env: run with sudo or as the deploy user."
+  settings_lock
 }
 # config_temp: a private scratch copy of .env next to it, in $config_tmp
 # (removed on exit unless it became the new .env).
@@ -2569,6 +2598,7 @@ cmd_config() {
       parse "" "" "$@"
       [ ${#positional[@]} -eq 0 ] || usage_error "config apply takes no arguments."
       select_environment
+      settings_lock
       [ "$fancy" = true ] && [ -t 0 ] && interactive=true
       config_apply
       ;;

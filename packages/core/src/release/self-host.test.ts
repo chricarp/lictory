@@ -8,8 +8,10 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  lstatSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -120,6 +122,8 @@ if (args[1] === "release") {
   console.log(version);
 }
 if (args[1] === "status") console.log("{}");
+// FAKE_ACTIVATE_EDITS: someone edits .env by hand while activation runs.
+if (args[1] === "activate" && process.env.FAKE_ACTIVATE_EDITS) appendFileSync(home + "/.env", process.env.FAKE_ACTIVATE_EDITS);
 // FAKE_ACTIVATE_FAILS_WITH: activation fails while .env contains this text.
 const failsWith = process.env.FAKE_ACTIVATE_FAILS_WITH;
 if (args[1] === "activate" && failsWith && readFileSync(home + "/.env", "utf8").includes(failsWith)) {
@@ -999,6 +1003,47 @@ void test(
       ],
     );
 
+    // A hand edit made while the failed change was applied is not undone.
+    const edited = f.lictory(["config", "set", "SMTP_PORT=2526"], {
+      FAKE_ACTIVATE_FAILS_WITH: "SMTP_PORT=2526",
+      FAKE_ACTIVATE_EDITS: "LEGAL_TERMS_URL=https://example.test/terms\n",
+    });
+    assert.equal(edited.status, 1);
+    assert.match(edited.stderr, /changed meanwhile, so it was left as it is/);
+    assert.match(env(), /^LEGAL_TERMS_URL=https:\/\/example\.test\/terms$/m);
+    assert.match(env(), /^SMTP_PORT=2526$/m);
+    writeFileSync(join(home, ".env"), good);
+
+    // Another settings change holds the lock: nothing is written.
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const busy = f.lictory(["config", "set", "SMTP_PORT=2600"]);
+    assert.equal(busy.status, 75);
+    assert.match(
+      busy.stderr,
+      /Another change to the settings of production is running/,
+    );
+    assert.equal(env(), good);
+    writeFileSync(join(f.base, "fake-bin/flock"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // Two changes within a second keep two backups.
+    const count = () =>
+      readdirSync(home).filter((name) => name.startsWith(".env.backup-"))
+        .length;
+    const before2 = count();
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PORT=2601"]).status,
+      0,
+    );
+    assert.equal(
+      f.lictory(["config", "set", "--no-apply", "SMTP_PORT=2602"]).status,
+      0,
+    );
+    assert.equal(count(), before2 + 2);
+
     // unset clears a setting; apply re-activates after a hand edit.
     assert.equal(
       f.lictory(["config", "unset", "--no-apply", "LICTORY_SCRATCH"]).status,
@@ -1012,6 +1057,33 @@ void test(
         .filter((call) => call.name === "deploy.sh")
         .map((call) => call.args),
       [["production", "activate", "1.2.3"]],
+    );
+  },
+);
+
+void test(
+  "settings behind a symbolic link are refused instead of being replaced",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    assert.equal(f.lictory([...acmeInstall]).status, 0);
+    const home = join(f.root, "production");
+    const target = join(f.base, "managed.env");
+    writeFileSync(target, readFileSync(join(home, ".env")), { mode: 0o600 });
+    rmSync(join(home, ".env"));
+    symlinkSync(target, join(home, ".env"));
+    for (const args of [
+      ["config", "set", "SMTP_PORT=2525"],
+      ["install", "--yes", "--ignore-requirements", "--signup-mode", "closed"],
+    ]) {
+      const refused = f.lictory(args);
+      assert.equal(refused.status, 64, args.join(" "));
+      assert.match(refused.stderr, /is a symbolic link/);
+      assert.ok(lstatSync(join(home, ".env")).isSymbolicLink());
+    }
+    assert.equal(
+      f.lictory(["config", "get", "APP_HOST"]).stdout,
+      "lictory.example.test\n",
     );
   },
 );
