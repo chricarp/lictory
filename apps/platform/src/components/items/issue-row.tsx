@@ -49,6 +49,7 @@ export const IssueRow = memo(function IssueRow({
   memberName,
   onUpdate,
   onFocus,
+  onBlur,
   externalLink,
   deliveryTool = "your delivery tool",
   hint,
@@ -70,7 +71,9 @@ export const IssueRow = memo(function IssueRow({
     priority?: WorkItem["priority"];
     assigneeId?: string | null;
   }) => void;
+  // Pointer entering and leaving the row moves and hides the list's cursor.
   onFocus: () => void;
+  onBlur: () => void;
   externalLink?: ExternalLink;
   // Names the tool an external project delivers in, for row copy.
   deliveryTool?: string;
@@ -111,6 +114,7 @@ export const IssueRow = memo(function IssueRow({
               : "hover:bg-muted/50",
         )}
         onMouseEnter={onFocus}
+        onMouseLeave={onBlur}
         onPointerEnter={
           preview &&
           ((event) => {
@@ -180,6 +184,7 @@ export const IssueRow = memo(function IssueRow({
             : "hover:bg-muted/50",
       )}
       onMouseEnter={onFocus}
+      onMouseLeave={onBlur}
     >
       <IssuePriority
         priority={item.priority}

@@ -222,6 +222,9 @@ export function IssueList({
     return () => clearTimeout(timer);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   const [focus, setFocus] = useState<string | undefined>(selectedId);
+  // Hovering a row moves the keyboard cursor so j/k continue from it, but the
+  // highlight follows the pointer: it clears once the pointer leaves the row.
+  const [cursorShown, setCursorShown] = useState(true);
   const listRef = useRef<HTMLUListElement>(null);
   const { previewed, target: previewTarget } = useItemPreview();
   const previewedItem = previewed
@@ -401,10 +404,12 @@ export function IssueList({
         event.preventDefault();
         const next = order[Math.min(order.length - 1, index + 1)];
         if (next) setFocus(next.id);
+        setCursorShown(true);
       } else if (event.key === "k" || event.key === "ArrowUp") {
         event.preventDefault();
         const prev = order[Math.max(0, index - 1)];
         if (prev) setFocus(prev.id);
+        setCursorShown(true);
       } else if ((event.key === "Enter" || event.key === "o") && focus) {
         const item = order.find((i) => i.id === focus);
         if (item) {
@@ -1005,7 +1010,7 @@ export function IssueList({
                       }
                       href={hrefFor(item)}
                       selected={item.id === selectedId}
-                      focused={item.id === focus}
+                      focused={cursorShown && item.id === focus}
                       compact={compact}
                       memberName={memberName}
                       onUpdate={
@@ -1013,7 +1018,11 @@ export function IssueList({
                           ? (patch) => update(item, patch)
                           : undefined
                       }
-                      onFocus={() => setFocus(item.id)}
+                      onFocus={() => {
+                        setFocus(item.id);
+                        setCursorShown(true);
+                      }}
+                      onBlur={() => setCursorShown(false)}
                       preview={compact ? previewTarget : undefined}
                     />
                   ))}

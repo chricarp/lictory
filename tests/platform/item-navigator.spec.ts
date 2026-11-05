@@ -87,11 +87,14 @@ test("the list beside an item keeps titles readable and previews items on hover"
     contentType: "image/png",
   });
 
-  // Leaving the row ends the preview; the row's status is still a control.
+  // Leaving the row ends the preview and its highlight; the row's status is
+  // still a control.
+  await expect(row).toHaveAttribute("data-focused", "true");
   await page
     .getByRole("heading", { name: "Show the refund status", level: 1 })
     .hover();
   await expect(preview).toBeHidden();
+  await expect(row).not.toHaveAttribute("data-focused");
   await row.getByRole("button", { name: /^Status:/ }).click();
   await expect(page.getByRole("option").first()).toBeVisible();
   await page.keyboard.press("Escape");
