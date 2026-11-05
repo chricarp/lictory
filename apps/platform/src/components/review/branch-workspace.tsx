@@ -430,8 +430,10 @@ function BranchOverview({
               <Plus className="size-4" /> Start a change
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              A branch is a private copy of the specification. Nobody is asked
-              to review anything until you open a pull request.
+              A branch is a separate draft of the specification: you and the
+              collaborators you invite edit it while main stays unchanged.
+              Everyone who can open this item can see its branches; nobody is
+              asked to review anything until you open a pull request.
             </p>
           </div>
           <div className="flex flex-wrap items-start gap-2">
