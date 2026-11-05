@@ -1977,3 +1977,43 @@ void test(
     });
   },
 );
+
+void test("lictory completion bash completes commands, subcommands, environments and settings", (t) => {
+  const f = bootstrapped(t);
+  mkdirSync(join(f.root, "staging"));
+  writeFileSync(
+    join(f.root, "staging/.env"),
+    "APP_HOST=staging.example.test\n",
+  );
+  const script = f.lictory(["completion", "bash"]);
+  assert.equal(script.status, 0, script.stderr);
+  const file = join(f.base, "completion.bash");
+  writeFileSync(file, script.stdout);
+  const complete = (...words: string[]) =>
+    spawnSync(
+      "bash",
+      [
+        "-c",
+        `source "$1"; shift; COMP_WORDS=("$@"); COMP_CWORD=$(($# - 1)); _lictory; printf '%s\\n' "\${COMPREPLY[@]}"`,
+        "complete",
+        file,
+        ...words,
+      ],
+      {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, LICTORY_ROOT: f.root },
+      },
+    )
+      .stdout.trim()
+      .split("\n");
+  assert.deepEqual(complete("lictory", "con"), ["config"]);
+  assert.deepEqual(complete("lictory", "config", "s"), ["show", "set"]);
+  assert.ok(
+    complete("lictory", "config", "set", "SMTP_H").includes("SMTP_HOST"),
+  );
+  assert.deepEqual(complete("lictory", "status", "--env", "st"), ["staging"]);
+  assert.deepEqual(complete("lictory", "logs", "zer"), ["zero-cache"]);
+  assert.ok(
+    complete("lictory", "install", "--smtp-p").includes("--smtp-password"),
+  );
+});
