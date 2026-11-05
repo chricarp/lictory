@@ -193,6 +193,10 @@ for (const {
     await providerRow
       .getByRole("button", { name: "Connect", exact: true })
       .click();
+    // The provider page must have replaced the account page before the next
+    // navigation: otherwise the provider redirect, still in flight on a busy
+    // machine, replaces /account below and that navigation never loads.
+    await page.waitForURL((url) => url.hostname === host);
     await expect.poll(() => authorize()?.pathname).toContain(authorizationPath);
     expect(authorize()!.searchParams.get("redirect_uri")).toBe(
       `${platformOrigin}/api/auth/callback/${provider}`,
