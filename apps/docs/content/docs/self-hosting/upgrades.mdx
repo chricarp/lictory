@@ -30,6 +30,16 @@ that runs it is unaffected.
 
 <Cli command="upgrade" />
 
+To find out first whether there is anything to install, without changing
+anything:
+
+```sh
+lictory upgrade --check          # exit 10 when a newer release exists
+lictory upgrade --check --json   # {"version", "latest", "upgradeAvailable", …}
+```
+
+`lictory doctor` also says when a newer release of the channel is available.
+
 Without a version, the newest release of the channel is installed. An
 upgrade runs three steps, and stops before changing anything if the first
 fails:

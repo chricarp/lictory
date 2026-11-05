@@ -151,7 +151,7 @@ box() {
   printf ' %s%s%s%s%s\n' "$c_dim" "$g_bl" "$(repeat "$g_h" "$inner")" "$g_br" "$c_reset"
 }
 # row <label> <value>: one aligned line for a box or plain output.
-row() { printf '%s%-24s%s %s' "$c_dim" "$1" "$c_reset" "$2"; }
+row() { printf '%s%-*s%s %s' "$c_dim" "${row_width:-24}" "$1" "$c_reset" "$2"; }
 
 usage() {
   cat <<'USAGE'
@@ -248,9 +248,10 @@ USAGE
       cat <<'USAGE'
 Usage: lictory status [--json] [--env <name>]
 
-The active release and channel, the state of every service, the address and
-the access policy. --json prints the release and services for scripts (exit
-status 0 even when a service is unhealthy; check "healthy").
+The address, the active release and when it was activated, the state of
+every service, the backup timer's last and next run, and the access policy.
+Piped, it prints plain lines. --json prints the release and services for
+scripts (exit status 0 even when a service is unhealthy; check "healthy").
 USAGE
       ;;
     doctor)
@@ -265,12 +266,15 @@ USAGE
       ;;
     upgrade)
       cat <<'USAGE'
-Usage: lictory upgrade [version] [--yes] [--env <name>]
+Usage: lictory upgrade [version] [--check [--json]] [--yes] [--env <name>]
 
 Moves to the newest release of the environment's channel, or to <version>:
 verifies the release's digest, takes a backup before migrations, migrates and
 activates it. If activation fails the previous release keeps serving.
 Upgrades only move forward; see lictory rollback.
+
+  --check   Only say whether a newer release exists; exit 10 when it does,
+            0 when the environment runs the newest one
 USAGE
       ;;
     rollback)
@@ -2178,6 +2182,8 @@ cmd_status() {
   select_environment
   if [ "$(opt json)" = true ]; then
     deploy_sh status --json
+  elif [ "$fancy" = true ]; then
+    status_panel
   else
     deploy_sh status
     say "url: $(platform_url)"
@@ -2191,8 +2197,84 @@ cmd_status() {
   fi
 }
 
+# activated_at <version>: when the environment last activated it (UTC).
+activated_at() {
+  awk -v v="$1" '$2 == "activated" && $3 == v { t = $1 } END { print t }' "$home/release-history.log" 2>/dev/null || true
+}
+
+# timer_summary <unit>: the last run of a timer's service and the next one,
+# from systemd (no container needed); nothing without systemd.
+timer_summary() {
+  local unit="$1" last result next
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null || return 0
+  last=$(systemctl show "${unit%.timer}.service" -p ExecMainExitTimestamp --value 2>/dev/null || true)
+  result=$(systemctl show "${unit%.timer}.service" -p Result --value 2>/dev/null || true)
+  next=$(systemctl show "$unit" -p NextElapseUSecRealtime --value 2>/dev/null || true)
+  if ! systemctl is-active --quiet "$unit" 2>/dev/null; then
+    printf '%s' "${c_yellow}timer not active${c_reset} (lictory doctor)"
+    return 0
+  fi
+  if [ -z "$last" ] || [ "$last" = n/a ]; then
+    printf 'no run yet'
+  elif [ "$result" = success ]; then
+    printf '%s' "${c_green}${g_ok}${c_reset} last run $last"
+  else
+    printf '%s' "${c_red}${g_fail} last run failed${c_reset} ($last): lictory logs, journalctl -u ${unit%.timer}.service"
+  fi
+  [ -z "$next" ] || [ "$next" = n/a ] || printf '%s' "${c_dim} · next $next${c_reset}"
+}
+
+# The terminal view of status: one panel with what an operator checks first.
+status_panel() {
+  local json version services="" service state healthy=true lines=() backup when row_width=14
+  json=$(deploy_sh status --json 2>/dev/null) || json=""
+  version=$(printf '%s' "$json" | jq -r '.version // empty' 2>/dev/null || true)
+  lines+=("${c_accent}${g_step}${c_reset} ${c_bold}Lictory${c_reset} ${c_dim}${environment} on $(hostname 2>/dev/null || echo this server)${c_reset}" "")
+  lines+=("$(row "Address" "$(platform_url)")")
+  if [ -z "$version" ]; then
+    lines+=("$(row "Release" "${c_yellow}none active${c_reset}: sudo lictory install")")
+  else
+    when=$(activated_at "$version")
+    lines+=("$(row "Release" "$version ($(channel_of_environment))${when:+${c_dim} · activated $when${c_reset}}")")
+    for service in postgres zero-cache api worker proxy; do
+      state=$(printf '%s' "$json" | jq -r --arg s "$service" '.services[$s] // "missing"')
+      case "$state" in
+        running | running/healthy) services="$services${c_green}${g_ok}${c_reset} $service  " ;;
+        *)
+          services="$services${c_red}${g_fail} $service ($state)${c_reset}  "
+          healthy=false
+          ;;
+      esac
+    done
+    lines+=("$(row "Services" "${services%  }")")
+    [ "$(printf '%s' "$json" | jq -r .healthy)" = true ] || healthy=false
+  fi
+  case "$(setting BACKUP_TARGET)" in
+    none) backup="${c_yellow}disabled${c_reset} (BACKUP_TARGET=none)" ;;
+    *)
+      backup="$(setting BACKUP_TARGET)"
+      when=$(timer_summary "lictory-backup@$environment.timer")
+      [ -z "$when" ] || backup="$backup · $when"
+      ;;
+  esac
+  lines+=("$(row "Backups" "$backup")")
+  if [ -n "$version" ] && admin_status_json; then
+    lines+=("$(row "Accounts" "$(signup_words "$(admin_value '.signUpMode')")")")
+    lines+=("$(row "Organizations" "$(organization_words "$(admin_value '.organizationCreation')")")")
+    lines+=("$(row "Sign-in" "$([ "$(admin_value '.passwordLogin')" = false ] && printf 'single sign-on only' || printf 'password')$([ -z "$(admin_value '.sso // empty')" ] || printf ', %s' "$(admin_value '.sso')")")")
+    lines+=("$(row "People" "$(admin_value '.administrators') administrator(s), $(admin_value '.users') account(s), $(admin_value '.organizations') organization(s)")")
+  elif [ -n "$version" ]; then
+    lines+=("$(row "Access" "${c_yellow}unknown${c_reset} (the api service did not answer)")")
+  fi
+  box "${lines[@]}"
+  if [ -n "$version" ] && [ "$healthy" != true ]; then
+    warn "Not everything is healthy. Find out why: lictory doctor"
+  fi
+  return 0
+}
+
 cmd_upgrade() {
-  parse "" "" "$@"
+  parse "" "check json" "$@"
   [ ${#positional[@]} -le 1 ] || usage_error "upgrade takes at most one version."
   local target="${positional[0]:-}" reason active channel file order
   if [ -n "$target" ]; then
@@ -2205,6 +2287,10 @@ cmd_upgrade() {
   channel=$(channel_of_environment)
   resolve_release "$channel" "$target"
   order=$(semver_cmp "$release_version" "$active")
+  if [ "$(opt check)" = true ]; then
+    upgrade_check "$active" "$channel" "$order"
+    return
+  fi
   if [ "$order" = 0 ]; then
     say "$environment already runs $active, the newest $channel release."
     return 0
@@ -2226,6 +2312,28 @@ cmd_upgrade() {
   rm -f "$file"
   refresh_share
   say "$environment runs $release_version."
+}
+
+# upgrade_check <active> <channel> <order>: reports whether the resolved
+# release is newer, changing nothing. Exit 10 when an upgrade is available,
+# so a scheduled job can act on it.
+upgrade_check() {
+  local active="$1" channel="$2" order="$3" available=false
+  [ "$order" != 1 ] || available=true
+  if [ "$(opt json)" = true ]; then
+    jq -n --arg environment "$environment" --arg version "$active" --arg channel "$channel" \
+      --arg latest "$release_version" --arg notes "$release_notes" --argjson available "$available" \
+      '{environment: $environment, version: $version, channel: $channel, latest: $latest, notes: $notes, upgradeAvailable: $available}'
+  elif [ "$available" = true ]; then
+    say "Lictory $release_version is available for $environment (runs $active, $channel channel)."
+    say "Release notes: $release_notes"
+    say "Upgrade: sudo lictory upgrade$([ -z "${positional[0]:-}" ] || printf ' %s' "$release_version")"
+  elif [ -n "${positional[0]:-}" ]; then
+    say "$environment runs $active; $release_version is not newer."
+  else
+    say "$environment runs $active, the newest $channel release."
+  fi
+  [ "$available" = false ] || exit 10
 }
 
 cmd_rollback() {
@@ -2731,6 +2839,18 @@ cmd_doctor() {
       check_fail "deploy.sh status failed: $bin/deploy.sh $environment status"
     else
       check_ok "release $version ($(printf '%s' "$status_json" | jq -r .channel))"
+      local latest channel
+      channel=$(channel_of_environment)
+      # In a subshell: resolve_release exits on any GitHub problem.
+      if latest=$( (resolve_release "$channel" >/dev/null 2>&1 && printf '%s' "$release_version") ); then
+        if [ "$(semver_cmp "$latest" "$version")" = 1 ]; then
+          check_warn "Lictory $latest is available ($channel channel): sudo lictory upgrade"
+        else
+          check_ok "$version is the newest $channel release"
+        fi
+      else
+        check_warn "Could not ask GitHub for newer $channel releases (offline or rate limited): lictory upgrade --check"
+      fi
       for service in $services; do
         state=$(printf '%s' "$status_json" | jq -r --arg s "$service" '.services[$s] // "missing"')
         case "$state" in

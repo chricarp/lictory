@@ -41,8 +41,10 @@ required in CI.
 
 <Cli command={["status", "doctor", "logs"]} />
 
-`status` summarizes the active release, channel, services and access policy.
-`status --json` returns JSON for scripts. `doctor` checks the host,
+`status` summarizes the address, the active release and when it was
+activated, each service's health, the backup timer's last and next run, and
+the access policy. On a terminal it is one panel; piped, it prints the same
+plain lines as before, and `status --json` returns JSON for scripts. `doctor` checks the host,
 configuration, DNS, certificates, backup setup and replication, and gives
 remediation advice without sending alerts.
 

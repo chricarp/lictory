@@ -545,10 +545,30 @@ void test(
     ]);
     assert.equal(install.status, 0, install.stderr + install.stdout);
 
+    const current = f.lictory(["upgrade", "--check"]);
+    assert.equal(current.status, 0, current.stderr + current.stdout);
+    assert.match(current.stdout, /runs 1\.2\.3, the newest stable release/);
+
     f.route(
       `${api}/releases/latest`,
       JSON.stringify(githubRelease(f, "1.3.0")),
     );
+    // --check reports a newer release (exit 10) and changes nothing.
+    const check = f.lictory(["upgrade", "--check"]);
+    assert.equal(check.status, 10, check.stderr + check.stdout);
+    assert.match(check.stdout, /Lictory 1\.3\.0 is available for production/);
+    assert.ok(!check.calls.some((call) => call.name === "deploy.sh"));
+    const checkJson = f.lictory(["upgrade", "--check", "--json"]);
+    assert.equal(checkJson.status, 10);
+    assert.deepEqual(JSON.parse(checkJson.stdout), {
+      environment: "production",
+      version: "1.2.3",
+      channel: "stable",
+      latest: "1.3.0",
+      notes: "https://github.com/chricarp/lictory/releases/tag/v1.3.0",
+      upgradeAvailable: true,
+    });
+
     const upgrade = f.lictory(["upgrade", "--yes"]);
     assert.equal(upgrade.status, 0, upgrade.stderr + upgrade.stdout);
     assert.match(upgrade.stdout, /1\.2\.3 -> 1\.3\.0 \(stable\)/);

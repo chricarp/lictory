@@ -53,7 +53,7 @@ export const commands = {
   upgrade: {
     usage: "sudo lictory upgrade [version]",
     summary:
-      "Move forward to the newest release of the configured channel, or to an exact newer version: verified digests, backup, migrations, then activation.",
+      "Move forward to the newest release of the configured channel, or to an exact newer version: verified digests, backup, migrations, then activation. --check only reports whether a newer release exists (exit 10).",
   },
   rollback: {
     usage: "sudo lictory rollback",

@@ -36,6 +36,15 @@ recovery. It also pings `MONITOR_PING_URL` (or `<url>/fail`), so an external
 dead-man's switch notices a server that stopped reporting. Both are optional.
 In-server checks cannot report a total outage: keep one external check.
 
+The monitor does not install releases. To hear about a new one, schedule
+`lictory upgrade --check`, which exits 10 when the channel has a newer
+release:
+
+```sh
+# /etc/cron.d/lictory-release-check: weekdays at 08:00, posts to the alert webhook
+0 8 * * 1-5 root lictory upgrade --check >/dev/null; [ $? -ne 10 ] || curl -fsS -H 'Content-Type: application/json' -d '{"text":"A new Lictory release is available: sudo lictory upgrade"}' "$(lictory config get ALERT_WEBHOOK_URL)"
+```
+
 ## Existing monitoring
 
 Scrape container health with cAdvisor or the Docker engine metrics endpoint,
