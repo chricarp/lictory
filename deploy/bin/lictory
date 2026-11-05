@@ -2984,6 +2984,18 @@ cmd_uninstall() {
   if [ "$target" = none ] || { [ "$target" = local ] && [ -z "$local_path" ]; }; then
     off_server=false
   fi
+  # A backup directory inside the environment's directory (Compose reads a
+  # relative BACKUP_LOCAL_PATH from it) is deleted by --purge as well.
+  local inside=false
+  if [ "$target" = local ] && [ -n "$local_path" ]; then
+    case "$local_path" in /*) ;; *) local_path="$home/$local_path" ;; esac
+    local_path=$(realpath -m "$local_path" 2>/dev/null || printf '%s' "$local_path")
+    case "$local_path/" in "$(realpath -m "$home" 2>/dev/null || printf '%s' "$home")"/*)
+      off_server=false
+      inside=true
+      ;;
+    esac
+  fi
   others=$(configured_environments | grep -vx "$environment" | tr '\n' ' ' || true)
 
   if [ "$purge" != true ]; then
@@ -2998,8 +3010,11 @@ cmd_uninstall() {
   fi
 
   warn "--purge deletes $environment for good: its database, realtime replica, certificates$([ "$off_server" = true ] || printf ', backups'), settings and secrets ($home)."
-  [ "$off_server" = true ] || [ "$target" = none ] ||
+  if [ "$inside" = true ]; then
+    warn "Its backups are in $local_path, inside $home, and are deleted too."
+  elif [ "$off_server" != true ] && [ "$target" != none ]; then
     warn "Its backups live in a Docker volume on this server and are deleted too."
+  fi
   if [ "$off_server" = true ] && [ -n "$active" ] && [ "$(opt no-backup)" != true ]; then
     note "A final backup goes to $target first (--no-backup skips it)."
   fi

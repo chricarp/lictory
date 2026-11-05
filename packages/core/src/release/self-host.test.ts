@@ -1353,6 +1353,24 @@ void test(
       "lictory-compose production up -d --wait --wait-timeout 180 postgres",
     ]);
 
+    // Backups inside the environment's directory are not "off the server":
+    // no final backup that the purge would delete, and a warning instead.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8").replace(
+        /^BACKUP_TARGET=.*$/m,
+        "BACKUP_TARGET=local",
+      ) + "BACKUP_LOCAL_PATH=backups\n",
+    );
+    const insideTarget = f.lictory(["uninstall", "--purge"]);
+    assert.equal(insideTarget.status, 1); // no terminal, no --yes: nothing happens
+    assert.match(
+      insideTarget.stderr,
+      /backups are in .*\/production\/backups, inside .*production, and are deleted too/,
+    );
+    assert.doesNotMatch(insideTarget.stdout, /A final backup goes to/);
+    assert.deepEqual(host(), []);
+
     // Off-server backups: a failed final backup deletes nothing.
     writeFileSync(
       join(home, ".env"),
