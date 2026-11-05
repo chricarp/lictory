@@ -1847,7 +1847,7 @@ cmd_admin() {
       step "First administrator"
       first_administrator setup
       [ -z "$admin_email_created" ] || {
-        say "Sign in at $(platform_url) as $admin_email_created, then open $(platform_url)/admin."
+        note "Next: sign in at $(platform_url) as $admin_email_created, then open $(platform_url)/admin."
       }
       ;;
     status)
