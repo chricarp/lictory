@@ -37,6 +37,14 @@ function useCallbackPath(name = "callbackUrl") {
 const fromInvitation = (callbackURL: string) =>
   callbackURL.startsWith("/invitation");
 
+// The address an invitation link was sent to, to start the form with.
+function useInvitedEmail(callbackURL: string) {
+  const email = useSearchParams().get("email")?.trim();
+  return fromInvitation(callbackURL) && email && /^[^\s@]+@[^\s@]+$/.test(email)
+    ? email
+    : undefined;
+}
+
 // Whether this installation lets someone create an account from here
 // (instance policy; the server refuses otherwise either way).
 function canSignUp(
@@ -54,6 +62,7 @@ export function SignInPage() {
   const providers = useAuthProviders();
   const { password, ssoName, signUpMode } = useSignInOptions();
   const callbackURL = useCallbackPath();
+  const invitedEmail = useInvitedEmail(callbackURL);
   const here = `/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`;
   return (
     <>
@@ -71,7 +80,7 @@ export function SignInPage() {
       {password && (
         <>
           <PasskeySignIn callbackURL={callbackURL} />
-          <SignInForm callbackURL={callbackURL} />
+          <SignInForm callbackURL={callbackURL} defaultEmail={invitedEmail} />
           <AuthFooter>
             {canSignUp(signUpMode, callbackURL) ? (
               <>
@@ -104,6 +113,7 @@ export function SignUpPage() {
   const providers = useAuthProviders();
   const { password, ssoName, signUpMode } = useSignInOptions();
   const callbackURL = useCallbackPath();
+  const invitedEmail = useInvitedEmail(callbackURL);
   if (signUpMode === "closed")
     return <SignUpClosed callbackURL={callbackURL} />;
   return (
@@ -112,11 +122,11 @@ export function SignUpPage() {
       <AuthHeading
         title="Create your account"
         description={
-          signUpMode === "invite"
-            ? fromInvitation(callbackURL)
-              ? "Use the email address your invitation was sent to."
-              : "Accounts on this installation need an invitation. Use the link in your invitation email, with the address it was sent to."
-            : undefined
+          fromInvitation(callbackURL)
+            ? "Create your account to accept your invitation. Use the email address it was sent to."
+            : signUpMode === "invite"
+              ? "Accounts on this installation need an invitation. Use the link in your invitation email, with the address it was sent to."
+              : undefined
         }
       />
       <AccountLegalNotice />
@@ -128,7 +138,9 @@ export function SignUpPage() {
         errorCallbackURL={`/sign-up?callbackUrl=${encodeURIComponent(callbackURL)}`}
         error={params.get("error") ?? undefined}
       />
-      {password && <SignUpForm callbackURL={callbackURL} />}
+      {password && (
+        <SignUpForm callbackURL={callbackURL} defaultEmail={invitedEmail} />
+      )}
       <AuthFooter>
         Already have an account?{" "}
         <AuthLink
