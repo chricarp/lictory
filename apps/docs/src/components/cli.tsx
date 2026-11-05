@@ -1,5 +1,6 @@
 import { Callout } from "fumadocs-ui/components/callout";
 import { CodeBlock, Pre } from "fumadocs-ui/components/codeblock";
+import { highlight } from "fumadocs-core/highlight";
 
 import { bootstrap, commands, type CliCommand } from "@lictory/docs/lib/cli";
 
@@ -7,16 +8,24 @@ function usage(command: CliCommand) {
   return command === "bootstrap" ? bootstrap : commands[command].usage;
 }
 
-/** One or more `lictory` commands as a copyable shell block. */
-export function Cli({ command }: { command: CliCommand | CliCommand[] }) {
+/**
+ * One or more `lictory` commands as a copyable shell block, highlighted like
+ * the Markdown code blocks around it (same themes, padded `.line` rows).
+ */
+export async function Cli({ command }: { command: CliCommand | CliCommand[] }) {
   const lines = (Array.isArray(command) ? command : [command]).map(usage);
-  return (
-    <CodeBlock title="lictory CLI">
-      <Pre>
-        <code>{lines.join("\n")}</code>
-      </Pre>
-    </CodeBlock>
-  );
+  return highlight(lines.join("\n"), {
+    lang: "sh",
+    themes: { light: "github-light", dark: "github-dark" },
+    defaultColor: false,
+    components: {
+      pre: (props) => (
+        <CodeBlock title="lictory CLI">
+          <Pre {...props} />
+        </CodeBlock>
+      ),
+    },
+  });
 }
 
 /** States what the commands are, wherever the documentation relies on them. */
@@ -35,32 +44,26 @@ export function CliNotice() {
   );
 }
 
-/** Every command with a one-line summary. */
+/**
+ * Every command with its summary: the command on its own line, the summary
+ * below at reading width. (A two-column table squeezed the summaries into a
+ * narrow column beside the long commands.)
+ */
 export function CliReference() {
+  const entries = [
+    { usage: bootstrap, summary: "Install the lictory command itself." },
+    ...Object.values(commands),
+  ];
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Command</th>
-          <th>What it does</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <code>{bootstrap}</code>
-          </td>
-          <td>Install the lictory command itself.</td>
-        </tr>
-        {Object.values(commands).map(({ usage, summary }) => (
-          <tr key={usage}>
-            <td>
-              <code>{usage}</code>
-            </td>
-            <td>{summary}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <dl className="cli-reference">
+      {entries.map(({ usage, summary }) => (
+        <div key={usage}>
+          <dt>
+            <code>{usage}</code>
+          </dt>
+          <dd>{summary}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
