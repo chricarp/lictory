@@ -6,6 +6,12 @@ name: CI
 #   Domain tests    bun test against PostgreSQL         (unless prose only)
 #   Browser smoke   the @smoke critical journeys        (when apps change)
 #
+# Every tier is split across parallel jobs so the slowest job, not the sum,
+# sets the duration: lint runs as three jobs over disjoint paths, domain test
+# files run in parallel, and the full browser suite runs as four shards
+# balanced by recorded duration (scripts/e2e-selection.ts), each with two
+# Playwright workers. Splitting never narrows what is checked.
+#
 # .github/scripts/ci-changes.sh decides from the changed paths and fails open.
 # The required `Verify` check passes only when every job passed or was
 # skipped by that decision. Nightly calls this workflow with `suite: full`
@@ -82,10 +88,31 @@ jobs:
           bash .github/scripts/ci-changes.sh < "$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT"
 
   static:
-    name: Static checks
+    name: Static checks (${{ matrix.check.name }})
     needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The lint paths together cover the whole repository: the last group
+        # is everything except the first two.
+        check:
+          - name: types, formatting, unused code, migrations
+            group: other
+          - name: lint packages/core
+            group: lint
+            paths: packages/core
+          - name: lint apps/platform
+            group: lint
+            paths: apps/platform
+          - name: lint everything else
+            group: lint
+            paths: . --ignore-pattern packages/core/** --ignore-pattern apps/platform/**
+    # Type-aware ESLint peaks near 4 GB on its largest group, above Node's
+    # default heap on these runners; one thread per job keeps it within memory.
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,21 +121,47 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           release-version: ${{ inputs.release_version }}
+      - name: Toolchain
+        run: bun scripts/check-toolchain.ts
+      # Type-aware rules need the route types Next.js generates (PageProps,
+      # RouteContext); locally `bun run typecheck` makes them before lint.
+      - name: Generate Next.js route types
+        if: matrix.check.group == 'lint'
+        run: |
+          bun run --cwd apps/marketing next typegen
+          bun run --cwd apps/docs next typegen
+      - name: Lint ${{ matrix.check.paths }}
+        if: matrix.check.group == 'lint'
+        env:
+          LINT_PATHS: ${{ matrix.check.paths }}
+        run: |
+          # The ignore patterns are ESLint globs, not the shell's.
+          set -f
+          # shellcheck disable=SC2086 # several arguments, split on purpose
+          bunx eslint $LINT_PATHS
       # Only when dependencies change: a new advisory for an untouched
       # dependency must not block unrelated pull requests. Nightly audits always.
       - name: Dependency audit
-        if: needs.changes.outputs.audit == 'true'
+        if: matrix.check.group == 'other' && needs.changes.outputs.audit == 'true'
         run: bun audit --audit-level=high
-      - name: Types, lint, formatting, unused code and PR assets
-        # Type-aware ESLint over every workspace peaks near 4 GB, above
-        # Node's default heap on these runners.
-        env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: bun run check
+      - name: Types
+        if: matrix.check.group == 'other'
+        run: bun run typecheck
+      - name: Formatting, unused code and PR assets
+        if: matrix.check.group == 'other'
+        run: bun run check:rest
       - name: Schema changes have committed migrations
+        if: matrix.check.group == 'other'
         run: bun run db:check
+      - name: Restore the documentation build cache
+        if: matrix.check.group == 'other' && needs.changes.outputs.docs == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: apps/docs/.next/cache
+          key: next-docs-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ hashFiles('apps/docs/**', 'packages/ui/**') }}
+          restore-keys: next-docs-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
       - name: Documentation site builds
-        if: needs.changes.outputs.docs == 'true'
+        if: matrix.check.group == 'other' && needs.changes.outputs.docs == 'true'
         run: bun run --cwd apps/docs build
 
   domain:
@@ -128,15 +181,23 @@ jobs:
           release-version: ${{ inputs.release_version }}
       - name: Committed migrations apply to an empty database
         run: bun run db:migrate
+      # Files run in parallel, each in its own module registry and database;
+      # recorded durations start the slowest files first. Three processes
+      # keep two cores busy while PostgreSQL answers.
       - name: Domain tests
-        run: bun test --isolate src
+        run: bun test --parallel=3 --timings=scripts/test-timings/domain.json src
 
   browser:
-    name: Browser workflows (${{ inputs.suite || 'smoke' }})
+    name: Browser workflows (${{ inputs.suite || 'smoke' }} ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ inputs.suite == 'full' && 60 || 25 }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # The smoke tier fits one runner; the full suite is split in four.
+        shard: ${{ fromJSON(inputs.suite == 'full' && '[1, 2, 3, 4]' || '[1]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,9 +215,19 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: playwright-${{ runner.os }}-
       - run: bunx playwright install --with-deps --only-shell chromium
+      # Next.js keeps compiled modules between builds of the website and the
+      # documentation (its documented CI cache); a miss only costs time.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            apps/marketing/.next/cache
+            apps/docs/.next/cache
+          key: next-e2e-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ hashFiles('apps/marketing/**', 'apps/docs/**', 'packages/ui/**', 'packages/core/src/**') }}
+          restore-keys: next-e2e-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
       - name: Browser workflows
         env:
           SUITE: ${{ inputs.suite || 'smoke' }}
+          E2E_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
         run: |
           if [ "$SUITE" = full ]; then
             bun run test:e2e
@@ -166,7 +237,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: browser-failures-${{ github.run_attempt }}
+          name: browser-failures-${{ matrix.shard }}-${{ github.run_attempt }}
           path: /tmp/lictory-playwright-results
           if-no-files-found: ignore
           retention-days: 7

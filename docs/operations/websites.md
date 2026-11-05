@@ -74,6 +74,10 @@ running the workflow once, then revoking the old token.
   ([who can release](releases.md#who-can-release)). There is no `push`
   trigger, no `pull_request_target` and no preview deployment: pull requests
   only build the sites (`bun run check`, the browser suite).
+- **Release** calls the site workflows with `secrets: inherit`. GitHub
+  resolves an environment secret in a called workflow only when the caller
+  passes secrets; without it the `websites` token is empty on `workflow_call`
+  while `workflow_dispatch` still works. Release itself names no secret.
 - `contents: read` plus `deployments: write` for the site's own journal,
   `persist-credentials: false`, actions pinned by commit SHA. Build steps get
   no secret; only the `wrangler deploy` step receives `CLOUDFLARE_API_TOKEN`.

@@ -5,6 +5,11 @@
 // Playwright, then stops everything
 // and drops the database and its replication slots, also on failure.
 // Usage: bun run test:e2e [playwright args]   (E2E_SKIP_BUILD=1 reuses builds)
+//
+// E2E_SHARD=2/4 runs the second of four shards balanced by recorded duration
+// (scripts/e2e-selection.ts); E2E_UPDATE_TIMINGS=1 records this run's
+// durations for that balance. The applications build concurrently, and the
+// documentation is built and served only when the selected tests include it.
 import { spawn, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +17,12 @@ import { join } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import {
+  listTests,
+  parseShard,
+  shardFiles,
+  updateTimings,
+} from "./e2e-selection";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -113,8 +124,9 @@ const appEnv = {
   ZERO_MUTATE_API_KEY: "e2e-zero-api-key-for-mutate-local-only",
 };
 
-// The build or Playwright process in the foreground, stopped on interruption.
-let foreground: ChildProcess | undefined;
+// The builds or the Playwright process in the foreground, stopped on
+// interruption or when a concurrent build fails.
+const foreground = new Set<ChildProcess>();
 let interrupted: NodeJS.Signals | undefined;
 // Services that exited while they were needed: every later result is invalid.
 const crashed: string[] = [];
@@ -129,11 +141,12 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
 // Foreground processes get their own process group (like services), so
 // stopping one also stops what its package-manager wrapper spawned.
 function stopForeground() {
-  try {
-    if (foreground?.pid) process.kill(-foreground.pid, "SIGTERM");
-  } catch {
-    // Already gone.
-  }
+  for (const child of foreground)
+    try {
+      if (child.pid) process.kill(-child.pid, "SIGTERM");
+    } catch {
+      // Already gone.
+    }
 }
 
 function run(command: string, args: string[], env: NodeJS.ProcessEnv = appEnv) {
@@ -145,13 +158,23 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv = appEnv) {
       env,
       detached: true,
     });
-    foreground = child;
-    child.on("exit", (code) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`${command} ${args.join(" ")} exited ${code}`)),
-    );
+    foreground.add(child);
+    child.on("exit", (code) => {
+      foreground.delete(child);
+      if (code === 0) resolve();
+      else reject(new Error(`${command} ${args.join(" ")} exited ${code}`));
+    });
   });
+}
+
+// Runs independent steps side by side; the first failure stops the others.
+async function together(steps: (() => Promise<void>)[]) {
+  try {
+    await Promise.all(steps.map((step) => step()));
+  } catch (error) {
+    stopForeground();
+    throw error;
+  }
 }
 
 function start(
@@ -259,6 +282,39 @@ async function stopAll() {
   );
 }
 
+const playwrightArgs = process.argv.slice(2);
+const shard = parseShard(process.env.E2E_SHARD);
+const listed = await listTests(playwrightArgs);
+let files: string[] | undefined;
+if (shard) {
+  if (!listed)
+    throw new Error("The browser tests could not be listed to shard them.");
+  files = shardFiles(listed, shard.index, shard.total);
+  console.log(
+    `Shard ${shard.index}/${shard.total}: ${files.length ? files.join(", ") : "no test files"}.`,
+  );
+  if (!files.length) process.exit(0);
+}
+// Without a listing, every application is started.
+const projects =
+  listed &&
+  new Set(
+    [...listed]
+      .filter(([file]) => !files || files.includes(file))
+      .flatMap(([, file]) => [...file.projects]),
+  );
+const docsNeeded = !projects || projects.has("docs");
+if (!docsNeeded)
+  console.log("No documentation tests selected: the docs site is not built.");
+// File durations are recorded only from a complete run: a filtered or sharded
+// run would record part of a file as all of it.
+if (process.env.E2E_UPDATE_TIMINGS && (shard || playwrightArgs.length))
+  throw new Error("E2E_UPDATE_TIMINGS needs the whole suite: no arguments.");
+const reportDir = process.env.E2E_UPDATE_TIMINGS
+  ? mkdtempSync(join(tmpdir(), "lictory-e2e-report-"))
+  : undefined;
+const jsonReport = reportDir && join(reportDir, "report.json");
+
 const admin = postgres(adminUrl, { max: 1, onnotice: () => undefined });
 await admin`CREATE DATABASE ${admin(name)}`;
 try {
@@ -273,36 +329,50 @@ try {
       NODE_ENV: "production" as const,
       NEXT_TELEMETRY_DISABLED: "1",
     };
-    await run(
-      "bun",
-      ["run", "--filter", "@lictory/platform", "build"],
-      buildEnv,
-    );
-    await run("bun", ["run", "--filter", "@lictory/api", "build"], buildEnv);
-    if (workerAvailable)
-      await run(
-        "bun",
-        ["run", "--filter", "@lictory/worker", "build"],
-        buildEnv,
-      );
-    // The website is built with a placeholder PostHog project so its consent
-    // banner can be tested; its relay path does not exist on the test server,
-    // so nothing loads or leaves the machine. The platform, API and worker
-    // run without analytics (tests/platform/analytics-off.spec.ts).
-    await run("bun", ["run", "--filter", "@lictory/marketing", "build"], {
-      ...buildEnv,
-      NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
-      NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
-      // A synthetic operator, never a developer's own legal details.
-      LICTORY_LEGAL_NAME: "Example Operator",
-      LICTORY_LEGAL_EMAIL: "privacy@example.org",
-      LICTORY_LEGAL_ADDRESS: "",
-      LICTORY_LEGAL_REGISTRATION: "",
-    });
-    await run("bun", ["run", "--filter", "@lictory/docs", "build"], {
-      ...buildEnv,
-      SITE_URL: docsUrl,
-    });
+    // Independent builds run side by side; the backend bundles take seconds,
+    // the two Next.js sites most of the time.
+    await together([
+      async () => {
+        await run(
+          "bun",
+          ["run", "--filter", "@lictory/platform", "build"],
+          buildEnv,
+        );
+        await run(
+          "bun",
+          ["run", "--filter", "@lictory/api", "build"],
+          buildEnv,
+        );
+        if (workerAvailable)
+          await run(
+            "bun",
+            ["run", "--filter", "@lictory/worker", "build"],
+            buildEnv,
+          );
+      },
+      // The website is built with a placeholder PostHog project so its consent
+      // banner can be tested; its relay path does not exist on the test server,
+      // so nothing loads or leaves the machine. The platform, API and worker
+      // run without analytics (tests/platform/analytics-off.spec.ts).
+      () =>
+        run("bun", ["run", "--filter", "@lictory/marketing", "build"], {
+          ...buildEnv,
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
+          NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
+          // A synthetic operator, never a developer's own legal details.
+          LICTORY_LEGAL_NAME: "Example Operator",
+          LICTORY_LEGAL_EMAIL: "privacy@example.org",
+          LICTORY_LEGAL_ADDRESS: "",
+          LICTORY_LEGAL_REGISTRATION: "",
+        }),
+      async () => {
+        if (docsNeeded)
+          await run("bun", ["run", "--filter", "@lictory/docs", "build"], {
+            ...buildEnv,
+            SITE_URL: docsUrl,
+          });
+      },
+    ]);
   }
 
   start("api", "node", ["apps/api/dist/index.js"], {
@@ -358,48 +428,48 @@ try {
     },
   );
 
-  start(
-    "docs",
-    "node_modules/.bin/wrangler",
-    [
-      "dev",
-      "--config",
-      "apps/docs/wrangler.jsonc",
-      "--ip",
-      "127.0.0.1",
-      "--port",
-      String(ports.docs),
-      "--inspector-port",
-      String(ports.docsInspector),
-      "--show-interactive-dev-session=false",
-      "--log-level",
-      "warn",
-    ],
-    { ...process.env, WRANGLER_SEND_METRICS: "false" },
-  );
+  if (docsNeeded)
+    start(
+      "docs",
+      "node_modules/.bin/wrangler",
+      [
+        "dev",
+        "--config",
+        "apps/docs/wrangler.jsonc",
+        "--ip",
+        "127.0.0.1",
+        "--port",
+        String(ports.docs),
+        "--inspector-port",
+        String(ports.docsInspector),
+        "--show-interactive-dev-session=false",
+        "--log-level",
+        "warn",
+      ],
+      { ...process.env, WRANGLER_SEND_METRICS: "false" },
+    );
 
   await waitFor("api", `http://localhost:${ports.api}/readyz`);
   await waitFor("zero-cache", `http://localhost:${ports.zero}/keepalive`);
   await waitFor("edge", `${platformUrl}/sign-in`);
   await waitFor("marketing", `${siteUrl}/`);
-  await waitFor("docs", `${docsUrl}/`);
+  if (docsNeeded) await waitFor("docs", `${docsUrl}/`);
 
-  const child = spawn(
-    "bunx",
-    ["playwright", "test", ...process.argv.slice(2)],
-    {
-      stdio: "inherit",
-      detached: true,
-      env: {
-        ...process.env,
-        DATABASE_URL: url,
-        E2E_PLATFORM_URL: platformUrl,
-        E2E_MARKETING_URL: siteUrl,
-        E2E_DOCS_URL: docsUrl,
-      },
+  const child = spawn("bunx", ["playwright", "test", ...playwrightArgs], {
+    stdio: "inherit",
+    detached: true,
+    env: {
+      ...process.env,
+      DATABASE_URL: url,
+      E2E_PLATFORM_URL: platformUrl,
+      E2E_MARKETING_URL: siteUrl,
+      E2E_DOCS_URL: docsUrl,
+      // This shard's files (playwright.config.ts restricts the run to them).
+      E2E_FILES: files && JSON.stringify(files),
+      E2E_JSON_REPORT: jsonReport,
     },
-  );
-  foreground = child;
+  });
+  foreground.add(child);
   process.exitCode = await new Promise<number>((resolve) =>
     child.on("exit", (code) => resolve(code ?? 1)),
   );
@@ -408,7 +478,8 @@ try {
       `${crashed.join(", ")} exited during the run; the results are invalid.`,
     );
     process.exitCode = 1;
-  }
+  } else if (process.exitCode === 0 && jsonReport && existsSync(jsonReport))
+    updateTimings(jsonReport);
 } finally {
   if (interrupted) process.exitCode = 130;
   await stopAll();
@@ -423,4 +494,5 @@ try {
   await admin`DROP DATABASE IF EXISTS ${admin(name)} WITH (FORCE)`;
   await admin.end();
   rmSync(replicaDir, { recursive: true, force: true });
+  if (reportDir) rmSync(reportDir, { recursive: true, force: true });
 }

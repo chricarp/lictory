@@ -1,4 +1,5 @@
-import { defineConfig } from "@playwright/test";
+import { resolve } from "node:path";
+import { defineConfig, type ReporterDescription } from "@playwright/test";
 import { consentStatePath } from "./tests/consent-setup";
 
 // Browser workflows run against production builds started by
@@ -9,15 +10,41 @@ const platformURL = process.env.E2E_PLATFORM_URL ?? "http://localhost:3001";
 const marketingURL = process.env.E2E_MARKETING_URL ?? "http://localhost:3101";
 const docsURL = process.env.E2E_DOCS_URL ?? "http://localhost:3201";
 
+// A CI shard runs only the files scripts/e2e-selection.ts assigned to it.
+const shardFiles = process.env.E2E_FILES
+  ? (JSON.parse(process.env.E2E_FILES) as string[]).map(
+      (file) =>
+        new RegExp(`${resolve(file).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+    )
+  : undefined;
+const reporter: ReporterDescription[] = process.env.CI
+  ? [["github"], ["list"]]
+  : [["list"]];
+// Durations for balancing shards (E2E_UPDATE_TIMINGS in scripts/test-e2e.ts).
+if (process.env.E2E_JSON_REPORT)
+  reporter.push(["json", { outputFile: process.env.E2E_JSON_REPORT }]);
+
+/** A worker count ("3") or a share of the cores ("50%"). */
+function workers(value: string | undefined) {
+  if (!value?.trim()) return undefined;
+  return value.trim().endsWith("%") ? value.trim() : Number(value);
+}
+
 export default defineConfig({
   globalSetup: "./tests/consent-setup.ts",
-  workers: 1,
+  // Test files run side by side; the tests inside a file keep their order and
+  // may build on each other. No two files share a person, handle or
+  // organization (unique or randomized per file), and sign-in rate limits are
+  // per worker (tests/helpers/client-address.ts). CI runners have two cores;
+  // a contributor's machine uses half of its cores. E2E_WORKERS overrides both.
+  workers: workers(process.env.E2E_WORKERS) ?? (process.env.CI ? 2 : "50%"),
   // One CI retry absorbs runner timing noise; a pass on retry is still
   // reported as flaky so the underlying race gets fixed, not hidden.
   retries: process.env.CI ? 1 : 0,
   // Report each test as it finishes so a hanging test is visible in CI logs.
-  reporter: process.env.CI ? [["github"], ["list"]] : "list",
+  reporter,
   timeout: 90_000,
+  ...(shardFiles && { testMatch: shardFiles }),
   // A broken step should fail in seconds, not consume the whole test timeout
   // (twice, with the retry). Known-slow waits pass their own timeout.
   expect: { timeout: 15_000 },

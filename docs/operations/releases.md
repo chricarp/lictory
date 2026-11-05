@@ -136,6 +136,53 @@ platform's account menu shows `X.Y.Z-nightly.*` on nightlies and the clean
 `X.Y.Z` on stable releases; the marketing website shows the latest stable. Release manifests and image labels record
 that same version and SHA.
 
+## Nightly retention
+
+Nightlies are candidates, not a history. **Prune nightlies**
+(`.github/workflows/prune-nightlies.yml`) runs daily at 05:47 UTC and deletes
+the GitHub Release of a nightly when both are true:
+
+- it was published more than **14 days** ago (exactly 14 days is kept), and
+- a **newer nightly exists**, by publication date.
+
+The newest nightly is therefore never deleted, however old it is: if nothing
+was published for weeks, the last nightly stays and the nightly channel
+(`lictory upgrade`, `get.sh`), which installs the newest nightly by
+publication date, always has one. Nightlies sharing that newest publication
+time are kept with it.
+
+A nightly is a published (not draft) prerelease whose tag has the shape
+`vX.Y.Z-nightly.YYYYMMDD.N`, the same test `lictory upgrade` and `get.sh`
+apply. Stable releases, drafts (including candidates being reserved) and any
+other release are never touched. Only the GitHub Release is deleted: the Git
+tag stays, so release-note compare links and `git checkout <tag>` keep
+working, and the images stay in the registry. Installations keep running
+whatever they installed; `lictory rollback` uses the release files on the
+server, not GitHub.
+
+A stable release reads its source nightly again when it publishes and when a
+run is retried, so every nightly named by a `production-intent` record from
+the last 30 days (how long a run can wait for approval or be re-run) is kept
+too. In practice Release promotes the newest eligible nightly, which retention
+keeps anyway; this matters when `nightly_tag` names an older one, such as a
+hotfix nightly. Promote a hotfix nightly within 14 days, or while it is still
+the newest nightly.
+
+The run reads every page of the release listing and the release intents
+before deleting anything; if either is incomplete or fails, nothing is
+deleted. Deletions go oldest first and stop at the first failure; the summary
+says what was deleted, what failed and what remains. Running it again
+recomputes the selection. Runs share the nightly queue, so a prune never
+overlaps a nightly being planned or published.
+
+**Actions → Prune nightlies → Run workflow** previews by default (`dry_run`
+checked): it lists what would be deleted and cannot write. Unchecking
+`dry_run` applies the rule now, with the same selection as the schedule; only
+a release manager may do that by hand, and the schedule needs no one.
+
+A deleted nightly can no longer be installed by version
+(`lictory upgrade <version>`) or selected as `nightly_tag`.
+
 ## Who can release
 
 Nightlies are automatic. **Release** changes what every installation upgrades
@@ -256,7 +303,8 @@ range, fails validation. Do not use version-bump commits or move published tags.
 
 Previously published nightlies remain immutable after a stable promotion.
 Their old baseline can make them ineligible; a new nightly recalculates from
-the new stable release.
+the new stable release. Their GitHub Releases expire under
+[nightly retention](#nightly-retention); their tags stay.
 
 ## One-time GitHub configuration
 

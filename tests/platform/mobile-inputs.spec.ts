@@ -70,8 +70,11 @@ test.describe("touch devices", () => {
       await signIn(page, workspace.owner.email);
       await page.goto(workspace.itemPath(1));
 
+      // The heading becomes a rename button once the person's capabilities
+      // have synced; tapping the bare heading before that does nothing.
       await page
         .getByRole("heading", { name: "Readable mobile requirements" })
+        .getByRole("button")
         .tap();
       const title = page.getByRole("textbox", { name: "Title", exact: true });
       await expect(title).toBeFocused();

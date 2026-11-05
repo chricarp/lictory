@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
@@ -122,6 +122,7 @@ type Workflow = {
       needs?: string[];
       if?: string;
       uses?: string;
+      secrets?: "inherit" | Record<string, string>;
       with?: Record<string, string>;
       environment?: string | { name: string; url?: string };
       permissions?: Record<string, string>;
@@ -283,6 +284,57 @@ void test("only release managers can release or deploy a website", () => {
   assert.match(script, /refs\/heads\/main/);
 });
 
+void test("nightly pruning never runs on forks, queues with nightlies and deletes only when asked", () => {
+  const prune = workflow("prune-nightlies");
+  assert.deepEqual(Object.keys(prune.on).sort(), [
+    "schedule",
+    "workflow_dispatch",
+  ]);
+  const dryRun = (
+    prune.on.workflow_dispatch as {
+      inputs: Record<string, { type: string; default: boolean }>;
+    }
+  ).inputs.dry_run!;
+  assert.deepEqual([dryRun.type, dryRun.default], ["boolean", true]);
+  assert.deepEqual(prune.permissions, {});
+  // The same queue as nightly publication, never cancelled.
+  assert.equal(
+    (prune.concurrency as { group?: string }).group,
+    (workflow("nightly").concurrency as { group?: string }).group,
+  );
+  assert.equal(prune.concurrency?.["cancel-in-progress"], false);
+  const job = prune.jobs.prune!;
+  assert.equal(job.if, "github.repository == 'chricarp/lictory'");
+  assert.deepEqual(job.permissions, {
+    contents: "write",
+    deployments: "read",
+  });
+  // Schedules prune; a manual run previews unless a release manager unchecks it.
+  assert.equal(
+    job.env?.DRY_RUN,
+    "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}",
+  );
+  const steps = job.steps!;
+  const gate = steps.findIndex(
+    (step) => step.uses === "./.github/actions/release-manager",
+  );
+  const run = steps.findIndex((step) =>
+    step.run?.includes("scripts/prune-nightlies.ts"),
+  );
+  assert.ok(gate >= 0 && gate < run);
+  assert.equal(
+    (steps[gate] as { if?: string }).if,
+    "github.event_name == 'workflow_dispatch' && !inputs.dry_run",
+  );
+  // Only the pruning step holds the token.
+  assert.deepEqual(
+    steps.flatMap((step, index) =>
+      JSON.stringify(step).includes("github.token") ? [index] : [],
+    ),
+    [run],
+  );
+});
+
 void test("PR title enforcement never checks out or runs untrusted PR code", () => {
   const title = workflow("pr-title");
   assert.ok(Object.hasOwn(title.on, "pull_request_target"));
@@ -344,6 +396,9 @@ void test("websites deploy only from Release or a release manager, with the toke
     ["docs", "deploy-docs"],
   ] as const) {
     assert.equal(release.jobs[job]!.uses, `./.github/workflows/${file}.yml`);
+    // Environment-scoped secrets resolve empty in a called workflow unless
+    // the caller passes them; inherit keeps Release from naming any.
+    assert.equal(release.jobs[job]!.secrets, "inherit", job);
     assert.match(
       release.jobs[job]!.if!,
       /needs\.plan\.outputs\.platform != 'true' \|\| needs\.publish\.result == 'success'/,
@@ -422,10 +477,53 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   ]);
   const runs = (job: string) =>
     jobs[job]!.steps!.flatMap((step) => (step.run ? [step.run] : []));
-  assert.ok(runs("static").includes("bun run check"));
-  assert.ok(runs("static").includes("bun run db:check"));
+  // The static jobs together run everything `bun run check` runs: types, the
+  // remaining checks and lint over paths that cover the whole repository.
+  const scripts = (
+    JSON.parse(
+      readFileSync(
+        new URL("../../../../package.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { scripts: Record<string, string> }
+  ).scripts;
+  assert.equal(
+    scripts.check,
+    "bun scripts/check-toolchain.ts && bun run typecheck && bun run lint && bun run check:rest",
+  );
+  for (const run of [
+    "bun scripts/check-toolchain.ts",
+    "bun run typecheck",
+    "bun run check:rest",
+    "bun run db:check",
+  ])
+    assert.ok(runs("static").includes(run), run);
+  const groups = (
+    jobs.static as {
+      strategy?: {
+        matrix?: { check?: { group: string; paths?: string }[] };
+      };
+    }
+  ).strategy!.matrix!.check!;
+  const lint = groups.filter((group) => group.group === "lint");
+  const named = lint.flatMap((group) =>
+    group.paths!.startsWith(".") ? [] : [group.paths!],
+  );
+  assert.deepEqual(
+    lint.map((group) => group.paths),
+    [
+      ...named,
+      [".", ...named.map((path) => `--ignore-pattern ${path}/**`)].join(" "),
+    ],
+    "the last lint group is everything the others do not lint",
+  );
+  assert.ok(runs("static").some((run) => run.includes("eslint $LINT_PATHS")));
+  // Every domain test file runs, in parallel; browser shards split the suite.
   assert.ok(runs("domain").includes("bun run db:migrate"));
-  assert.ok(runs("domain").includes("bun test --isolate src"));
+  assert.ok(
+    runs("domain").some((run) => /^bun test --parallel\b.* src$/.test(run)),
+  );
+  assert.ok(!runs("domain").some((run) => run.includes("--shard")));
   assert.ok(runs("browser").some((run) => run.includes("--grep @smoke")));
   // Static checks are never skipped; the gate waits for every job and
   // accepts only success or a deliberate skip.

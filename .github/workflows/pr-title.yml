@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 5
     steps:
       # No checkout or execution of PR code in pull_request_target.
-      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
