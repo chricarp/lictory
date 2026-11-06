@@ -1,8 +1,9 @@
 // Decides whether a package the runtime tracer cannot find may be left out of
 // an image: only when the package that imports it declares it optional. Such
 // imports sit in try/catch (ws loads bufferutil and utf-8-validate this way),
-// so the code runs without them; any other missing package fails the build.
-import { readFileSync } from "node:fs";
+// so the code runs without them; any other missing package fails the build,
+// and so does a missing file inside an optional package that is installed.
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 /** The package a bare specifier names, or undefined for relative, absolute
@@ -38,11 +39,28 @@ export function owningManifest(file, readJson = readJsonFile) {
   }
 }
 
+/** Whether package `name` is installed where Node would look for it from
+ * `file` (a node_modules directory in `file`'s directory or above). */
+export function isInstalled(name, file, exists = existsSync) {
+  let dir = dirname(file);
+  for (;;) {
+    if (exists(join(dir, "node_modules", name, "package.json"))) return true;
+    const up = dirname(dir);
+    if (up === dir) return false;
+    dir = up;
+  }
+}
+
 /** The importing package's name when it declares the missing `specifier`
- * optional, otherwise undefined. */
-export function optionalMiss(specifier, parent, readJson = readJsonFile) {
+ * optional and that package is not installed at all, otherwise undefined. */
+export function optionalMiss(
+  specifier,
+  parent,
+  readJson = readJsonFile,
+  exists = existsSync,
+) {
   const name = packageName(specifier);
-  if (!name) return undefined;
+  if (!name || isInstalled(name, parent, exists)) return undefined;
   const manifest = owningManifest(parent, readJson);
   return manifest && declaresOptional(manifest, name)
     ? manifest.name

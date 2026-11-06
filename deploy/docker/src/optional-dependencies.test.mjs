@@ -103,4 +103,15 @@ describe("optional dependency misses", () => {
       optionalMiss("bufferutil", "/elsewhere/file.js", read),
     ).toBeUndefined();
   });
+
+  test("a missing file inside an installed optional package is not tolerated", () => {
+    const read = files({ "/src/node_modules/ws/package.json": ws });
+    const installed = new Set(["/src/node_modules/bufferutil/package.json"]);
+    const exists = (path) => installed.has(path);
+    const importer = "/src/node_modules/ws/lib/buffer-util.js";
+    expect(
+      optionalMiss("bufferutil/missing.node", importer, read, exists),
+    ).toBeUndefined();
+    expect(optionalMiss("utf-8-validate", importer, read, exists)).toBe("ws");
+  });
 });
