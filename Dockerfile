@@ -133,6 +133,7 @@ COPY --from=server-build /src/apps/api/dist ./apps/api/dist
 COPY --from=server-build /src/apps/worker/dist ./apps/worker/dist
 COPY --from=server-build /src/apps/collaboration/dist ./apps/collaboration/dist
 COPY deploy/docker/trace-runtime.mjs ./deploy/docker/trace-runtime.mjs
+COPY deploy/docker/src/optional-dependencies.mjs ./deploy/docker/src/optional-dependencies.mjs
 RUN node deploy/docker/trace-runtime.mjs /deps \
       apps/api/dist/index.js apps/api/dist/admin.js apps/worker/dist/index.js \
       apps/collaboration/dist/index.js

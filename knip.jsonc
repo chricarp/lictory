@@ -7,6 +7,7 @@
         "scripts/*.ts",
         "tests/**/*.ts",
         "deploy/docker/*.mjs",
+        "deploy/docker/src/*.test.mjs",
         "deploy/cloudflare/src/worker.ts",
         "deploy/cloudflare/src/*.test.ts",
         "better-auth.config.ts",
