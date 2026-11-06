@@ -474,6 +474,7 @@ const spaceFacts = [
   ],
 ] as const;
 
+/** Lictory Spaces: pages written together live and changed through reviewed history. */
 function Spaces() {
   return (
     <section
@@ -486,11 +487,11 @@ function Spaces() {
         label="Spaces"
         title="Write down what the team knows"
       >
-        Lictory Spaces keeps runbooks, architecture notes and team handbooks
-        in spaces of nested pages. Several people edit a page at once, and the
+        Lictory Spaces keeps runbooks, architecture notes and team handbooks in
+        spaces of nested pages. Several people edit a page at once, and the
         editor says Saved only once the server has stored every edit. Readers
-        see a change when it is published, through the same reviewed history
-        as a specification.
+        see a change when it is published, through the same reviewed history as
+        a specification.
       </SectionHeading>
       <SpacesEditorScene />
 
@@ -510,7 +511,10 @@ function Spaces() {
         <SpacesReviewScene />
       </div>
 
-      <dl className="review-tools spaces-facts" aria-label="Built into every space">
+      <dl
+        className="review-tools spaces-facts"
+        aria-label="Built into every space"
+      >
         {spaceFacts.map(([title, body]) => (
           <div key={title}>
             <dt>{title}</dt>

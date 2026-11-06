@@ -41,6 +41,7 @@ const MERGED = 3;
 const initial: S = { beat: 0 };
 const poster: S = { beat: MERGED };
 
+/** The reviewer approves, the checks pass, then Maria merges. */
 async function script(a: Act<S>) {
   await a.wait(1100);
   a.mark("approve");
@@ -59,6 +60,7 @@ async function script(a: Act<S>) {
   await a.wait(2400);
 }
 
+/** The edited block, before and after, with the changed word marked. */
 function Diff({ layout }: { layout: Layout }) {
   const wide = layout === "wide";
   const tail = wide ? " times with exponential backoff." : " times.";
@@ -89,6 +91,7 @@ function Diff({ layout }: { layout: Layout }) {
   );
 }
 
+/** The required reviewer and their decision on this exact result. */
 function Review({ s, layout }: { s: S; layout: Layout }) {
   const wide = layout === "wide";
   const approved = s.beat >= APPROVED;
@@ -111,6 +114,7 @@ function Review({ s, layout }: { s: S; layout: Layout }) {
   );
 }
 
+/** Merge pull request: disabled until the checks pass, then Merged. */
 function MergeButton({ s }: { s: S }) {
   const ready = s.beat >= CHECKED;
   const merged = s.beat >= MERGED;
@@ -134,6 +138,7 @@ function MergeButton({ s }: { s: S }) {
   );
 }
 
+/** Reviewers, merge checks and the merge, as the pull request page shows them. */
 function Side({ s }: { s: S }) {
   const merged = s.beat >= MERGED;
   return (
@@ -175,6 +180,7 @@ function Side({ s }: { s: S }) {
   );
 }
 
+/** The pull request window: change and review side by side wide, stacked on a phone. */
 function Scene({ s, layout }: { s: S; layout: Layout }) {
   const wide = layout === "wide";
   const merged = s.beat >= MERGED;
@@ -232,6 +238,7 @@ function Scene({ s, layout }: { s: S; layout: Layout }) {
   );
 }
 
+/** The landing illustration of a page change reviewed and merged in a Reviewed space. */
 export function SpacesReviewScene() {
   const theme = useSiteTheme();
   return (

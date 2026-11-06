@@ -9,6 +9,7 @@ import { cn } from "@lictory/core/lib/utils";
 
 const footerLinkClass = "hover:text-foreground";
 
+/** Site footer; section links point home when it appears on an article. */
 export function MarketingFooter({ sections = "" }: { sections?: string }) {
   return (
     <footer className="marketing-footer border-t border-border py-12">

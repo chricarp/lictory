@@ -66,6 +66,7 @@ const poster: S = {
   published: true,
 };
 
+/** Two people type at once, the draft is stored, then Maria publishes it. */
 async function script(a: Act<S>) {
   const wide = a.layout === "wide";
   await a.wait(900);
@@ -114,6 +115,7 @@ const TREE = [
   { name: "Runbooks", depth: 0, open: false },
 ] as const;
 
+/** The space's page tree, with the open page marked. */
 function Tree() {
   return (
     <nav className="se-tree" aria-hidden>
@@ -147,6 +149,7 @@ function Tree() {
   );
 }
 
+/** The draft's version, save state, unpublished changes and who else is editing. */
 function Status({ s, layout }: { s: S; layout: Layout }) {
   const wide = layout === "wide";
   return (
@@ -204,6 +207,7 @@ function Status({ s, layout }: { s: S; layout: Layout }) {
   );
 }
 
+/** The live draft's text, with Dev's caret, Maria's new item and the commented sentence. */
 function Doc({ s, layout }: { s: S; layout: Layout }) {
   const wide = layout === "wide";
   const devText = DEV_WORDS.slice(0, s.dev).join(" ");
@@ -259,6 +263,7 @@ function Doc({ s, layout }: { s: S; layout: Layout }) {
   );
 }
 
+/** The comments panel: one blocking discussion on the retry sentence. */
 function Comments() {
   return (
     <aside className="se-comments" aria-hidden>
@@ -291,6 +296,7 @@ function Comments() {
   );
 }
 
+/** The editor window: tree, draft and comments wide; the draft alone on a phone. */
 function Scene({ s, layout }: { s: S; layout: Layout }) {
   const wide = layout === "wide";
   const lead = (
@@ -325,6 +331,7 @@ function Scene({ s, layout }: { s: S; layout: Layout }) {
   );
 }
 
+/** The landing illustration of a page written together in a live draft. */
 export function SpacesEditorScene() {
   const theme = useSiteTheme();
   return (
