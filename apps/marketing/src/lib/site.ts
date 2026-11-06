@@ -64,7 +64,7 @@ export const marketingImage = {
  * Date the published legal notices took effect. Shown on the pages and
  * reported to search engines, so change it only when their text changes.
  */
-export const legalVersion = { date: "2026-11-04", label: "4 November 2026" };
+export const legalVersion = { date: "2026-11-05", label: "5 November 2026" };
 
 export type PublicPage = {
   path: string;

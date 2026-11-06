@@ -39,10 +39,11 @@ import {
 // - Strict (ANALYTICS_CONSENT=strict): PostHog loads only after Analytics
 //   consent, and server events are sent only for people who granted it.
 // Withdrawing consent clears PostHog storage and c15t reloads the page.
-/** Which public site sent an event, when several share one PostHog project. */
-type AnalyticsSite = "marketing" | "docs";
-
-function consentScripts(site: AnalyticsSite | undefined) {
+// `site` is a super property on every event, so PostHog can tell the public
+// websites apart in one project. Opting out in cookieless mode (every visit
+// before a choice, and after rejecting) resets PostHog, which clears super
+// properties, so `before_send` also adds it to each event.
+function consentScripts(site: "marketing" | "docs" | undefined) {
   const analytics = browserAnalyticsSettings();
   if (!analytics) return [];
   const strict = analytics.consent === "strict";
@@ -77,9 +78,7 @@ function consentScripts(site: AnalyticsSite | undefined) {
           event: { properties: Record<string, unknown> } | null,
         ) => {
           if (!event) return event;
-          // A consent change reloads PostHog's persistence and drops the
-          // registered `site` for the rest of the page, so restore it here.
-          if (site) event.properties.site ??= site;
+          if (site) event.properties.site = site;
           sanitizeAnalyticsProperties(event.properties);
           if (!hasAnalyticsConsent()) {
             minimizeAnonymousAnalyticsProperties(event.properties);
@@ -87,9 +86,8 @@ function consentScripts(site: AnalyticsSite | undefined) {
           return event;
         },
         loaded: (client: {
-          register: (properties: { site: AnalyticsSite }) => void;
+          register: (p: Record<string, unknown>) => void;
         }) => {
-          // Before identity, so every event, the first pageview included, carries it.
           if (site) client.register({ site });
           onPostHogLoaded(client);
         },
@@ -105,7 +103,7 @@ export function ConsentProvider({
 }: {
   children: ReactNode;
   privacyHref?: string;
-  site?: AnalyticsSite;
+  site?: "marketing" | "docs";
 }) {
   const [scripts] = useState(() => consentScripts(site));
   if (!analyticsConfigured()) return children;

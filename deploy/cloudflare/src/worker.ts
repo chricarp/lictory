@@ -5,11 +5,12 @@ import {
 
 interface Environment {
   ASSETS: { fetch(request: Request): Promise<Response> };
-  /** marketing (lictory.com) or docs (docs.lictory.com: static files and
-   * headers only). Lictory itself is self-hosted; no Worker serves it. */
+  /** marketing (lictory.com) or docs (docs.lictory.com: static files,
+   * headers and the analytics relay). Lictory itself is self-hosted; no
+   * Worker serves it. */
   SITE_KIND: "marketing" | "docs";
   SITE_URL: string;
-  /** PostHog ingestion host for the website's analytics relay (passed with
+  /** PostHog ingestion host for the websites' analytics relay (passed with
    * `wrangler deploy --var`); unset, the relay answers 404 and nothing leaves. */
   POSTHOG_HOST?: string;
 }
@@ -21,7 +22,7 @@ function destinationUrl(base: string, path: string, search: string) {
   return url;
 }
 
-// The website's first-party analytics relay goes straight to PostHog, with
+// The websites' first-party analytics relay goes straight to PostHog, with
 // the same forwarded headers and stripped cookies as the application's API.
 // Cloudflare's client IP header is the only one this edge trusts.
 function relay(request: Request, env: Environment) {
@@ -38,6 +39,8 @@ export default {
   async fetch(request: Request, env: Environment): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const relayPath =
+      path === analyticsRelayPath || path.startsWith(`${analyticsRelayPath}/`);
     if (env.SITE_KIND === "marketing") {
       let destination: URL | undefined;
       if (url.hostname === `www.${new URL(env.SITE_URL).hostname}`) {
@@ -46,11 +49,7 @@ export default {
         destination = destinationUrl(env.SITE_URL, "/", url.search);
       }
       if (destination) return Response.redirect(destination.toString(), 308);
-      if (
-        path === analyticsRelayPath ||
-        path.startsWith(`${analyticsRelayPath}/`)
-      )
-        return relay(request, env);
+      if (relayPath) return relay(request, env);
       if (path.startsWith("/markdown/"))
         return new Response(null, { status: 404 });
       if (
@@ -69,6 +68,9 @@ export default {
         );
         return new Response(asset.body, { status: asset.status, headers });
       }
+    } else if (relayPath) {
+      // The documentation has no redirects; only its analytics relay.
+      return relay(request, env);
     }
     const asset = await env.ASSETS.fetch(request);
     const headers = new Headers(asset.headers);

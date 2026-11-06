@@ -3,7 +3,7 @@ import { chromium, type FullConfig } from "@playwright/test";
 // Browser tests record "Reject All" on the website so its consent banner does
 // not cover the flows under test. The platform runs without analytics in
 // browser tests and shows no banner (tests/platform/analytics-off.spec.ts);
-// the documentation has no analytics at all.
+// so does the documentation, built without analytics settings.
 // Consent behaviour itself is covered in tests/marketing/consent.spec.ts.
 // Checkouts running side by side (E2E_PORT_OFFSET) keep their own files.
 const suffix = process.env.E2E_PORT_OFFSET
