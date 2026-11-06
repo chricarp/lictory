@@ -229,9 +229,10 @@ test("two editors write one live draft, publish it, and a reader sees the publis
   const saveStates = await ada.page.evaluate(
     () => (window as unknown as { saveStates: string[] }).saveStates,
   );
-  // "Saving…" once, "Saved" once typing stopped (a slow moment on a loaded
-  // machine may add a pair; 39 keystrokes used to make 78 changes).
-  expect(saveStates.length, saveStates.join(" → ")).toBeLessThanOrEqual(4);
+  // "Saving…" once, "Saved" once typing stopped. A loaded machine that
+  // pauses typing for over a second shows "Saved" in the pause, which is
+  // right, so a few pairs are allowed; 39 keystrokes used to make 78 changes.
+  expect(saveStates.length, saveStates.join(" → ")).toBeLessThanOrEqual(12);
   expect(saveStates.at(-1)).toBe("Saved");
   await liveEditor(ben.page).click();
   await ben.page.keyboard.press("ControlOrMeta+End");
