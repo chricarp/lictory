@@ -9,6 +9,10 @@ import {
 import { canonicalJson } from "@lictory/core/domain/projections";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import {
+  discussionCounts,
+  discussionsOfDeletedBranch,
+} from "@lictory/core/spaces/discussion-lifecycle";
+import {
   refreshSpaceAccess,
   spaceAccessDrift,
 } from "@lictory/core/spaces/access";
@@ -535,6 +539,13 @@ async function lineRows(
               .map((x) => x.userId),
             draft: draftSummary(state.drafts.find((d) => d.branchId === b.id)),
             createdAt: iso(b.createdAt),
+            ...(b.isMain
+              ? {}
+              : {
+                  discussionsOnDelete: discussionCounts(
+                    discussionsOfDeletedBranch(state.threads, b.id),
+                  ),
+                }),
           },
           pageId,
         ),
@@ -581,6 +592,10 @@ async function lineRows(
                   changesRequested: evaluation.changesRequested.length,
                   staleReviews: evaluation.staleReviews,
                   blockers: evaluation.blockers,
+                  onMerge: {
+                    sourceRetired: evaluation.removedOnMerge.sourceRetired,
+                    discussions: evaluation.removedOnMerge.discussions,
+                  },
                 }
               : null,
           },

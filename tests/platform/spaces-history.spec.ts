@@ -26,6 +26,17 @@ test.beforeAll(async () => {
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
+// Merging asks first; these pull requests have no discussions to delete.
+async function confirmMerge(page: Page) {
+  await page
+    .getByRole("button", { name: "Merge pull request…", exact: true })
+    .click();
+  const confirm = page.getByRole("group", { name: "Confirm merge" });
+  await expect(confirm).toContainText("There are no discussions on");
+  await confirm
+    .getByRole("button", { name: "Confirm merge", exact: true })
+    .click();
+}
 
 test("reviewed page: inspect result, request independent review, approve, merge and inspect history", async ({
   page,
@@ -139,11 +150,9 @@ test("reviewed page: inspect result, request independent review, approve, merge 
       .getByText("Approved", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Merge pull request", exact: true }),
+    page.getByRole("button", { name: "Merge pull request…", exact: true }),
   ).toBeEnabled();
-  await page
-    .getByRole("button", { name: "Merge pull request", exact: true })
-    .click();
+  await confirmMerge(page);
   await expect(page.getByText(/Merged by Page Author/)).toBeVisible();
   await page.goto(`${url}/history`);
   const selectedVersion = page.getByRole("region", {
@@ -203,9 +212,7 @@ test("direct page: restoring an old version creates a new published commit", asy
     message: "Update instructions",
   });
   await page.goto(`${url}/history?view=pulls&pr=${pullRequestId}`);
-  await page
-    .getByRole("button", { name: "Merge pull request", exact: true })
-    .click();
+  await confirmMerge(page);
   await expect(page.getByText(/Merged by/)).toBeVisible();
   await page.goto(`${url}/history`);
   await page.getByRole("button", { name: /Original title/ }).click();
@@ -341,9 +348,7 @@ test("sync overlapping changes explicitly before merging the remaining proposal"
   };
   const merge = async (pullRequestId: string) => {
     await page.goto(`${url}/history?view=pulls&pr=${pullRequestId}`);
-    await page
-      .getByRole("button", { name: "Merge pull request", exact: true })
-      .click();
+    await confirmMerge(page);
     await expect(page.getByText(/Merged by/)).toBeVisible();
   };
   await merge((await propose("Original retry policy")).pullRequestId);
@@ -363,11 +368,9 @@ test("sync overlapping changes explicitly before merging the remaining proposal"
     .click();
   await expect(dialog).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Merge pull request", exact: true }),
+    page.getByRole("button", { name: "Merge pull request…", exact: true }),
   ).toBeEnabled();
-  await page
-    .getByRole("button", { name: "Merge pull request", exact: true })
-    .click();
+  await confirmMerge(page);
   await expect(page.getByText(/Merged by/)).toBeVisible();
   await page.goto(url);
   await expect(page.getByText("Retry once.", { exact: true })).toBeVisible();
@@ -516,4 +519,124 @@ test("the comments count and panel follow the branch on screen and point to othe
   await expect(toggle).toHaveText("Comments");
   await expect(panel.getByText("Branch note about timeouts")).toHaveCount(0);
   await expect(toBranch).toBeVisible();
+});
+
+test("discussions end with their line: merging and deleting a branch warn first and keep other lines' discussions", async ({
+  page,
+}) => {
+  await signIn(page, seeded.owner.email);
+  const spaceId = crypto.randomUUID(),
+    pageId = crypto.randomUUID(),
+    slug = `lines-${pageId.slice(0, 8)}`;
+  await capability(page, "createSpace", { spaceId, name: "Lines", slug });
+  const created = await capability<{ mainBranchId: string }>(
+    page,
+    "createPage",
+    { spaceId, pageId, title: "Timeouts" },
+  );
+  const url = `/${seeded.slug}/spaces/${slug}/pages/${pageId}`;
+  const branchId = crypto.randomUUID(),
+    pullRequestId = crypto.randomUUID();
+  await capability(page, "proposePageChange", {
+    pageId,
+    branchId,
+    pullRequestId,
+    branchName: "client-timeouts",
+    title: "Timeouts",
+    markdown: "Give up after 30 seconds.",
+    message: "Define the client timeout",
+  });
+  const thread = async (
+    line: { branchId?: string; pullRequestId?: string },
+    blocking: boolean,
+    resolved = false,
+  ) => {
+    const threadId = crypto.randomUUID();
+    await capability(page, "createPageThread", {
+      pageId,
+      threadId,
+      messageId: crypto.randomUUID(),
+      anchor: { v: 1, kind: "page" },
+      body: "What does the client show?",
+      blocking,
+      ...line,
+    });
+    if (resolved) await capability(page, "resolvePageThread", { threadId });
+    return threadId;
+  };
+  const threadIds = async () =>
+    (
+      await capability<{ threads: { id: string }[] }>(page, "listPageThreads", {
+        pageId,
+        includeResolved: true,
+      })
+    ).threads
+      .map((t) => t.id)
+      .sort();
+  const onSource = [
+    await thread({ branchId }, false),
+    await thread({ branchId }, true, true),
+    await thread({ pullRequestId }, false, true),
+  ];
+  const onMain = await thread({ branchId: created.mainBranchId }, true, true);
+
+  await page.goto(`${url}/history?view=pulls&pr=${pullRequestId}`);
+  await page
+    .getByRole("button", { name: "Merge pull request…", exact: true })
+    .click();
+  const confirm = page.getByRole("group", { name: "Confirm merge" });
+  await expect(confirm).toContainText(
+    "Branch client-timeouts will be deleted after the merge.",
+  );
+  await expect(confirm).toContainText(
+    "This permanently deletes 3 discussions (1 open; 2 resolved, 1 of them blocking) on client-timeouts and this pull request, with all their replies.",
+  );
+  await expect(confirm).toContainText(
+    "Open and resolved, blocking and non-blocking discussions are all deleted. This cannot be undone.",
+  );
+  await expect(confirm).toContainText(
+    "Discussions on main and on other branches are kept.",
+  );
+  await expectNoAccessibilityViolations(page, "page merge confirmation");
+  // Cancelling changes nothing.
+  await confirm.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(confirm).toHaveCount(0);
+  expect(await threadIds()).toEqual([...onSource, onMain].sort());
+
+  await page
+    .getByRole("button", { name: "Merge pull request…", exact: true })
+    .click();
+  await confirm
+    .getByRole("button", { name: "Merge and delete discussions", exact: true })
+    .click();
+  await expect(page.getByText(/Merged by/)).toBeVisible();
+  expect(await threadIds()).toEqual([onMain]);
+
+  // Deleting a branch says the same before it happens.
+  const draftsId = crypto.randomUUID();
+  await capability(page, "createPageBranch", {
+    pageId,
+    branchId: draftsId,
+    name: "drafts",
+  });
+  const onDrafts = await thread({ branchId: draftsId }, true);
+  await page.goto(`${url}/history?view=branches`);
+  const drafts = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "drafts", exact: true }),
+  });
+  await drafts
+    .getByRole("button", { name: "Delete branch…", exact: true })
+    .click();
+  const deleting = page.getByRole("group", { name: "Delete branch drafts" });
+  await expect(deleting).toContainText(
+    "This permanently deletes 1 discussion (1 open, blocking) on this branch, with all their replies.",
+  );
+  expect(await threadIds()).toEqual([onDrafts, onMain].sort());
+  await deleting
+    .getByRole("button", { name: "Confirm delete", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "drafts", exact: true }),
+  ).toHaveCount(0);
+  expect(await threadIds()).toEqual([onMain]);
 });

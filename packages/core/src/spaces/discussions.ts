@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import * as s from "@lictory/core/db/schema";
 import {
   spaceLevelAtLeast,
@@ -9,6 +10,7 @@ import {
 import { DomainError } from "@lictory/core/domain/errors";
 import {
   authorize,
+  lock,
   type Database,
   type Tx,
 } from "@lictory/core/domain/service";
@@ -24,6 +26,13 @@ import {
   type PageNotice,
 } from "@lictory/core/spaces/notifications";
 import { writeSpaceProjections } from "@lictory/core/spaces/projections";
+import {
+  discussionCounts,
+  discussionsOfDeletedBranch,
+  onDeletedLine,
+  type LineThread,
+} from "@lictory/core/spaces/discussion-lifecycle";
+import { pageLineStates } from "@lictory/core/spaces/history-state";
 
 // Discussions on pages (docs/internals/spaces.md#comments), applied by
 // `applySpaceCommand` inside `applyMutation`'s transaction. They follow the
@@ -279,6 +288,7 @@ export async function applyPageDiscussionCommand(
           .select({
             pageId: s.pagePullRequest.pageId,
             deletedAt: s.pagePullRequest.deletedAt,
+            status: s.pagePullRequest.status,
           })
           .from(s.pagePullRequest)
           .where(
@@ -291,6 +301,12 @@ export async function applyPageDiscussionCommand(
           throw new DomainError(
             "not_found",
             "This pull request is unavailable on this page.",
+          );
+        // Merging removed its discussions; a new one would outlive it.
+        if (pr.status === "merged")
+          throw new DomainError(
+            "conflict",
+            "This pull request is merged. Comment on the page instead.",
           );
       }
       const blocking = c.blocking ?? false;
@@ -426,30 +442,42 @@ export async function applyPageDiscussionCommand(
 
 // ------------------------------------------------------------------ reads
 
-// Open blocking threads of a page, in the caller's transaction: what a
-// merge of the page's changes must refuse while any remains (each with the
-// line and pull request it was written on, for the merge to choose).
-export async function openBlockingPageThreads(
-  tx: Database | Tx,
+// Removes discussions with all their messages, in the caller's transaction:
+// what a deleted branch or a merged pull request takes with it
+// (docs/internals/spaces.md#when-a-line-ends; the threads come from
+// `discussion-lifecycle.ts`). The only way discussions are ever deleted;
+// the caller records `discussions_removed` and reprojects the page.
+export async function removePageThreads(
+  tx: Tx,
   organizationId: string,
   pageId: string,
+  threads: readonly LineThread[],
 ) {
-  return tx
-    .select({
-      id: s.pageThread.id,
-      branchId: s.pageThread.branchId,
-      pullRequestId: s.pageThread.pullRequestId,
-    })
-    .from(s.pageThread)
+  if (!threads.length) return null;
+  const threadIds = threads.map((t) => t.id);
+  const messages = await tx
+    .delete(s.pageThreadMessage)
+    .where(
+      and(
+        eq(s.pageThreadMessage.organizationId, organizationId),
+        inArray(s.pageThreadMessage.threadId, threadIds),
+      ),
+    )
+    .returning({ id: s.pageThreadMessage.id });
+  await tx
+    .delete(s.pageThread)
     .where(
       and(
         eq(s.pageThread.organizationId, organizationId),
         eq(s.pageThread.pageId, pageId),
-        eq(s.pageThread.status, "open"),
-        eq(s.pageThread.blocking, true),
+        inArray(s.pageThread.id, threadIds),
       ),
-    )
-    .orderBy(asc(s.pageThread.createdAt), asc(s.pageThread.id));
+    );
+  return {
+    threadIds,
+    messages: messages.length,
+    ...discussionCounts(threads),
+  };
 }
 
 const readOnly = {
@@ -547,4 +575,114 @@ export async function listPageThreads(
       threads: result,
     };
   }, readOnly);
+}
+
+// ------------------------------------------------------------------ repair
+
+// Removes discussions left on lines deleted before deletion removed them
+// (docs/internals/spaces.md#when-a-line-ends): repair of older data, run by
+// the `remove-orphaned-page-discussions` backfill. One short transaction per
+// page under the organization lock, so it is safe while people work and
+// resumable; idempotent (a second run finds nothing). Each removal is
+// recorded like the deletion that should have made it, attributed to whoever
+// deleted the branch, and the page is reprojected in the same transaction.
+export async function removeOrphanedPageDiscussions(
+  db: Database,
+  organizationId: string,
+  options: { dryRun?: boolean } = {},
+) {
+  const branch = alias(s.pageBranch, "thread_branch");
+  const source = alias(s.pageBranch, "source_branch");
+  const candidates = await db
+    .selectDistinct({ pageId: s.pageThread.pageId })
+    .from(s.pageThread)
+    .leftJoin(
+      branch,
+      and(
+        eq(branch.organizationId, s.pageThread.organizationId),
+        eq(branch.id, s.pageThread.branchId),
+      ),
+    )
+    .leftJoin(
+      s.pagePullRequest,
+      and(
+        eq(s.pagePullRequest.organizationId, s.pageThread.organizationId),
+        eq(s.pagePullRequest.id, s.pageThread.pullRequestId),
+      ),
+    )
+    .leftJoin(
+      source,
+      and(
+        eq(source.organizationId, s.pagePullRequest.organizationId),
+        eq(source.id, s.pagePullRequest.sourceBranchId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.pageThread.organizationId, organizationId),
+        or(
+          isNotNull(branch.deletedAt),
+          and(isNull(s.pageThread.branchId), isNotNull(source.deletedAt)),
+        ),
+      ),
+    )
+    .orderBy(s.pageThread.pageId);
+  const summary = { pages: 0, threads: 0, messages: 0 };
+  for (const { pageId } of candidates)
+    await db.transaction(async (tx) => {
+      await lock(tx, organizationId);
+      const state = (await pageLineStates(tx, organizationId, [pageId])).get(
+        pageId,
+      );
+      if (!state) return;
+      const live = new Set(state.branches.map((b) => b.id));
+      const orphans = state.threads.filter((t) => onDeletedLine(t, live));
+      if (!orphans.length) return;
+      summary.pages++;
+      summary.threads += orphans.length;
+      if (options.dryRun) return;
+      const lines = await tx
+        .select({
+          id: s.pageBranch.id,
+          name: s.pageBranch.name,
+          deletedById: s.pageBranch.deletedById,
+        })
+        .from(s.pageBranch)
+        .where(
+          and(
+            eq(s.pageBranch.organizationId, organizationId),
+            eq(s.pageBranch.pageId, pageId),
+            isNotNull(s.pageBranch.deletedAt),
+          ),
+        );
+      for (const line of lines) {
+        const gone = await removePageThreads(
+          tx,
+          organizationId,
+          pageId,
+          discussionsOfDeletedBranch(orphans, line.id),
+        );
+        if (!gone) continue;
+        summary.messages += gone.messages;
+        await tx.insert(s.pageActivity).values({
+          organizationId,
+          pageId,
+          actorId: line.deletedById!,
+          action: "discussions_removed",
+          detail: {
+            ...gone,
+            reason: "branch_deleted",
+            branchId: line.id,
+            name: line.name,
+            repair: true,
+          },
+        });
+      }
+      await writeSpaceProjections(tx, organizationId, {
+        pages: [pageId],
+        pageLines: [pageId],
+        pageDiscussions: [pageId],
+      });
+    });
+  return summary;
 }

@@ -5,7 +5,14 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { usePageBranchSelection } from "./branch-selection";
-import { ActionError, ChoosePerson, field, useHistoryAction } from "./shared";
+import { discussionTotal } from "@lictory/core/spaces/discussion-lifecycle";
+import {
+  ActionError,
+  ChoosePerson,
+  DiscussionRemovalWarning,
+  field,
+  useHistoryAction,
+} from "./shared";
 import { ConflictResolution } from "./conflicts";
 
 export function Branches({ pageId }: { pageId: string }) {
@@ -104,17 +111,35 @@ export function Branches({ pageId }: { pageId: string }) {
               ))}
           </div>
           {deleting === b.id && (
-            <div className="space-y-2">
+            <div
+              role="group"
+              aria-label={`Delete branch ${b.name}`}
+              className="space-y-2"
+            >
               <p>
                 Delete this branch and disconnect its editors? Commits remain in
                 history. Close any open pull requests first.
               </p>
+              <DiscussionRemovalWarning
+                where="this branch"
+                counts={b.discussionsOnDelete}
+              />
               <Button
                 size="sm"
                 disabled={action.pending}
                 onClick={() => {
                   void action.run(
-                    { type: "deletePageBranch", branchId: b.id },
+                    {
+                      type: "deletePageBranch",
+                      branchId: b.id,
+                      ...(b.discussionsOnDelete
+                        ? {
+                            discussionsToRemove: discussionTotal(
+                              b.discussionsOnDelete,
+                            ),
+                          }
+                        : {}),
+                    },
                     () => {
                       setDeleting(undefined);
                       if (branch?.id === b.id) setBranch(null);

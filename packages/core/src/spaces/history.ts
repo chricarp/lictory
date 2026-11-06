@@ -22,7 +22,14 @@ import type {
   SpaceCommandContext,
   SpaceCommandSummary,
 } from "@lictory/core/spaces/commands";
-import { openBlockingPageThreads } from "@lictory/core/spaces/discussions";
+import { removePageThreads } from "@lictory/core/spaces/discussions";
+import {
+  describeDiscussions,
+  discussionCounts,
+  discussionTotal,
+  discussionsOfDeletedBranch,
+  type DiscussionCounts,
+} from "@lictory/core/spaces/discussion-lifecycle";
 import {
   canonicalizeDocument,
   documentHash,
@@ -803,6 +810,21 @@ function requireInspectedHeads(
     );
 }
 
+// Deleting a branch or merging a pull request removes discussions; people
+// confirm the counts they were shown (`discussionsToRemove`). When they
+// differ, nothing is removed and the person is asked to look again.
+function requireConfirmedRemoval(
+  expected: number | undefined,
+  counts: DiscussionCounts,
+) {
+  if (expected === undefined || expected === discussionTotal(counts)) return;
+  fail(
+    `The discussions this removes changed since you confirmed: it now removes ${describeDiscussions(counts)}. Review the warning and confirm again.`,
+    "conflict",
+    "discussions_changed",
+  );
+}
+
 function conflictRefusal(count: number, source: string, target: string): never {
   return fail(
     `${count === 1 ? "One conflict" : `${count} conflicts`} between ${source} and ${target} must be resolved first: sync ${target} into ${source} with a resolution for each (previewPageMerge lists them).`,
@@ -1211,6 +1233,10 @@ export async function applyPageHistoryCommand(
           `${branch.name} has an unmerged pull request. Merge or delete it before deleting the branch.`,
           "conflict",
         );
+      // Its discussions go with it, open or resolved, blocking or not.
+      const state = await lineState(tx, organizationId, branch.pageId);
+      const removed = discussionsOfDeletedBranch(state.threads, branch.id);
+      requireConfirmedRemoval(c.discussionsToRemove, discussionCounts(removed));
       await tx
         .update(s.pageBranch)
         .set({ deletedAt: new Date(), deletedById: userId })
@@ -1228,6 +1254,19 @@ export async function applyPageHistoryCommand(
         name: branch.name,
         headCommitId: branch.headCommitId,
       });
+      const gone = await removePageThreads(
+        tx,
+        organizationId,
+        branch.pageId,
+        removed,
+      );
+      if (gone)
+        await record(branch.pageId, "discussions_removed", {
+          ...gone,
+          reason: "branch_deleted",
+          branchId: branch.id,
+          name: branch.name,
+        });
       await project(branch.pageId);
       return undefined;
     }
@@ -1692,12 +1731,12 @@ export async function applyPageHistoryCommand(
         );
       if (evaluation.noChanges)
         fail("The pull request has no remaining changes to merge.");
-      const blocking = (
-        await openBlockingPageThreads(tx, organizationId, pr.pageId)
-      ).filter((t) => t.pullRequestId === pr.id || target.isMain);
-      if (blocking.length)
+      // Open blockers on a line that still exists hold the merge, including
+      // the source's: merging removes them, so they are resolved first.
+      const blocking = evaluation.blockingThreads;
+      if (blocking)
         fail(
-          `${blocking.length === 1 ? "A blocking discussion is" : `${blocking.length} blocking discussions are`} still open${target.isMain ? " on this page" : " on this pull request"}. Resolve them before merging.`,
+          `${blocking === 1 ? "A blocking discussion is" : `${blocking} blocking discussions are`} still open${target.isMain ? " on this page" : ` on this pull request or ${source.name}`}. Resolve them before merging.`,
           "conflict",
           "blocking_threads",
         );
@@ -1738,6 +1777,11 @@ export async function applyPageHistoryCommand(
           "conflict",
           "review_pending",
         );
+      const { removedOnMerge } = evaluation;
+      requireConfirmedRemoval(
+        c.discussionsToRemove,
+        removedOnMerge.discussions,
+      );
       const commit = await insertCommit(tx, ctx, {
         pageId: pr.pageId,
         parentIds: [target.headCommitId, source.headCommitId],
@@ -1776,16 +1820,7 @@ export async function applyPageHistoryCommand(
       });
       // Like specification branches: merging into main retires the source
       // branch unless another unmerged pull request still uses it.
-      if (
-        target.isMain &&
-        !state.pullRequests.some(
-          (other) =>
-            other.id !== pr.id &&
-            other.status !== "merged" &&
-            (other.sourceBranchId === source.id ||
-              other.targetBranchId === source.id),
-        )
-      ) {
+      if (removedOnMerge.sourceRetired) {
         await tx
           .update(s.pageBranch)
           .set({ deletedAt: now, deletedById: userId })
@@ -1805,6 +1840,23 @@ export async function applyPageHistoryCommand(
           pullRequestId: pr.id,
         });
       }
+      // The source's discussions and the pull request's own end with the
+      // merge (all of the source's when it retires).
+      const gone = await removePageThreads(
+        tx,
+        organizationId,
+        pr.pageId,
+        state.threads.filter((t) => removedOnMerge.threadIds.includes(t.id)),
+      );
+      if (gone)
+        await record(pr.pageId, "discussions_removed", {
+          ...gone,
+          reason: "pull_request_merged",
+          pullRequestId: pr.id,
+          branchId: source.id,
+          name: source.name,
+          sourceRetired: removedOnMerge.sourceRetired,
+        });
       await invalidateStaleReviews(tx, ctx, pr.pageId);
       await project(pr.pageId, { commits: [commit.id] });
       return {

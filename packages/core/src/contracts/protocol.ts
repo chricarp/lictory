@@ -1062,6 +1062,14 @@ export const storedPageThreadAnchorSchema = z.union([
 export type StoredPageThreadAnchor = z.infer<
   typeof storedPageThreadAnchorSchema
 >;
+// Discussions a branch deletion or a merge removes, by state (see
+// spaces/discussion-lifecycle.ts).
+export const pageDiscussionCountsSchema = z.object({
+  open: z.number().int().min(0),
+  openBlocking: z.number().int().min(0),
+  resolved: z.number().int().min(0),
+  resolvedBlocking: z.number().int().min(0),
+});
 // The live draft of a line as the browser needs it to connect: the
 // collaboration document name (`<draftId>.<epoch>`), the last sequence
 // sealed into a commit and whether stored edits exist beyond it. The stored
@@ -1183,6 +1191,9 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     // The open live draft of this line; null for main in Reviewed spaces.
     draft: pageDraftSummarySchema.nullable(),
     createdAt: z.string(),
+    // The discussions deleting this branch removes (absent for main and in
+    // rows projected before this field existed).
+    discussionsOnDelete: pageDiscussionCountsSchema.optional(),
   }),
   // A pull request between two lines of the page (deleted ones are not
   // projected). `mergeability` is null once merged.
@@ -1228,6 +1239,14 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
         changesRequested: z.number().int().min(0),
         staleReviews: z.number().int().min(0),
         blockers: z.array(z.enum(pageMergeBlockers)),
+        // What merging now does beyond the content: whether the source
+        // branch is deleted and the discussions removed with it.
+        onMerge: z
+          .object({
+            sourceRetired: z.boolean(),
+            discussions: pageDiscussionCountsSchema,
+          })
+          .optional(),
       })
       .nullable(),
   }),
@@ -1526,7 +1545,14 @@ export const commandSchema = z.discriminatedUnion("type", [
     userId: id,
     collaborator: z.boolean(),
   }),
-  z.object({ type: z.literal("deletePageBranch"), branchId: id }),
+  // Deleting a branch removes its discussions (`discussionsOnDelete` of the
+  // branch). `discussionsToRemove` is how many the person was shown before
+  // confirming; the command is refused when the count changed.
+  z.object({
+    type: z.literal("deletePageBranch"),
+    branchId: id,
+    discussionsToRemove: z.number().int().min(0).optional(),
+  }),
   // Merges another line (main unless `fromBranchId`) into a branch with a
   // merge commit. Conflicts are refused (kind `page_merge_conflicts`; see
   // previewPageMerge) until `resolutions` names a choice for each.
@@ -1578,11 +1604,14 @@ export const commandSchema = z.discriminatedUnion("type", [
     inspectedSourceHead: id,
     inspectedTargetHead: id,
   }),
+  // Merging removes the source's discussions and the pull request's own
+  // (`mergeability.onMerge`); `discussionsToRemove` as for deletePageBranch.
   z.object({
     type: z.literal("mergePagePullRequest"),
     pullRequestId: id,
     inspectedSourceHead: id,
     inspectedTargetHead: id,
+    discussionsToRemove: z.number().int().min(0).optional(),
   }),
   // Proposes new content for a page without publishing it: a branch from
   // main, a commit with this title and content (Markdown or canonical
