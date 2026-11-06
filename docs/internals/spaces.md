@@ -4,21 +4,10 @@ Lictory Spaces is the knowledge side of Lictory: spaces of nested pages that
 people write together in real time and change through the same reviewed,
 Git-inspired history as specifications.
 
-> **Status:** in development on the `feat/lictory-spaces` branch, shipping as
-> one change without a feature flag. This document records the agreed model so
-> that every step of the implementation preserves it. The foundation (schema,
-> access, space and page commands, projections, Zero queries, reads, export
-> and deletion), the collaboration service and the first slice of the
-> interface (navigation, spaces, the page tree, published pages and space
-> settings) are implemented as described under [Implementation](#implementation),
-> [the collaboration service in operation](#the-collaboration-service-in-operation)
-> and [Interface](#interface); the domain of page discussions, page files and
-> page notifications as described under [Comments](#comments); the page
-> history (commits, publishing, branches, pull requests, reviews, merges and
-> conflict resolution) as described under
-> [History in practice](#history-in-practice); the page reader, the live
-> editor and the discussion interface as described under
-> [Interface](#interface). The history and review interface follows.
+This document records the model; the sections under
+[Implementation](#implementation), [History in practice](#history-in-practice),
+[Comments](#comments), [the collaboration service in operation](#the-collaboration-service-in-operation)
+and [Interface](#interface) describe how it is built.
 
 ## Concepts
 

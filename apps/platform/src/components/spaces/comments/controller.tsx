@@ -16,6 +16,7 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { keepTabInside } from "@lictory/platform/components/spaces/dialog";
 import type { FileContext } from "@lictory/platform/components/items/file-upload";
 import {
   blockIndex,
@@ -428,13 +429,19 @@ function CommentsSheet({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // The caller passes a new function each render; the sheet must not move
+  // focus on re-renders (a remote reply would pull focus out of a composer).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     ref.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -442,7 +449,7 @@ function CommentsSheet({
       document.removeEventListener("keydown", onKey);
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
-  }, [onClose]);
+  }, []);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div
@@ -450,12 +457,16 @@ function CommentsSheet({
         className="absolute inset-0 bg-black/30"
         onClick={onClose}
       />
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Tab bubbles from the sheet's controls; keeping it inside is the modal dialog pattern. */}
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label="Comments"
         tabIndex={-1}
+        onKeyDown={(event) => {
+          if (ref.current) keepTabInside(event, ref.current);
+        }}
         className="relative max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-background p-4 shadow-xl outline-none"
       >
         {children}

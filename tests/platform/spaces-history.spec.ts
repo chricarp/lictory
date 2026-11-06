@@ -87,10 +87,6 @@ test("reviewed page: inspect result, request independent review, approve, merge 
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBeTruthy();
-  await page.screenshot({
-    path: "/tmp/claude-1001/-home-t3runner--t3-worktrees-lictory-t3-dece9c2f/67a6223b-909a-4099-9093-3abe2b8c3b40/scratchpad/screens/history-pull-request-phone.png",
-    fullPage: true,
-  });
   await page.setViewportSize({ width: 1280, height: 900 });
   const reviewerContext = await browser.newContext();
   const reviewer = await reviewerContext.newPage();

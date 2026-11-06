@@ -2,3 +2,6 @@
 # deploy.sh sends a fixed, public WebSocket handshake key (base64 of
 # "lictory-deploy!!") to probe zero-cache; it is not a credential.
 e009fdc76f90bfafecafd44d815f9071a12ccd1b:deploy/deploy.sh:generic-api-key:223
+# The same probe key, added for the collaboration service's upgrade probe
+# (since computed at runtime instead of written out).
+ceb348fa5d7564d74067b51521c0af0f21c2bfdc:deploy/deploy.sh:generic-api-key:414

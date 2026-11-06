@@ -399,11 +399,15 @@ verify() { # verify <dir>
       --resolve "$host:${port}:127.0.0.1" -o /dev/null "${url/$host/$host:$port}" ||
       { log "Verification failed: $url"; return 1; }
   done
+  # A fixed, public handshake key (base64 of "lictory-deploy!!"), not a
+  # credential: the probes only check that each upgrade is routed.
+  local ws_key
+  ws_key=$(printf '%s' 'lictory-deploy!!' | base64)
   # Zero answers WebSocket upgrades only: 101 proves proxy -> zero-cache routing.
   code=$(curl -s "${insecure[@]+"${insecure[@]}"}" --http1.1 -m 3 -o /dev/null -w '%{http_code}' \
     --resolve "$app:${port}:127.0.0.1" -H "Origin: $origin" \
     -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
-    -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
+    -H "Sec-WebSocket-Key: $ws_key" \
     "$scheme://$app:$port/zero/sync/v1/connect" || true)
   [ "$code" = 101 ] || { log "Verification failed: Zero WebSocket upgrade returned $code"; return 1; }
   # The collaboration service upgrades any request with the platform Origin:
@@ -411,7 +415,7 @@ verify() { # verify <dir>
   code=$(curl -s "${insecure[@]+"${insecure[@]}"}" --http1.1 -m 3 -o /dev/null -w '%{http_code}' \
     --resolve "$app:${port}:127.0.0.1" -H "Origin: $origin" \
     -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
-    -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
+    -H "Sec-WebSocket-Key: $ws_key" \
     "$scheme://$app:$port/collaboration" || true)
   [ "$code" = 101 ] || { log "Verification failed: collaboration WebSocket upgrade returned $code"; return 1; }
   active_matches "$dir" || return 1

@@ -192,6 +192,6 @@ void test("discussions keep their identity while nothing in them changes", () =>
     ]),
   );
   assert.notEqual(replied, first);
-  assert.equal(replied.threads, replied.threads);
+  assert.equal(replied.threads, first.threads);
   assert.equal(replied.messages.get("t1")!.length, 2);
 });

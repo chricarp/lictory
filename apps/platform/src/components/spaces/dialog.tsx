@@ -6,6 +6,31 @@ import { cn } from "@lictory/core/lib/utils";
 const focusable =
   'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Keeps Tab and Shift+Tab cycling through a modal surface's controls.
+export function keepTabInside(
+  event: React.KeyboardEvent,
+  container: HTMLElement,
+) {
+  if (event.key !== "Tab") return;
+  const items = [...container.querySelectorAll<HTMLElement>(focusable)].filter(
+    (el) => el.offsetParent !== null,
+  );
+  if (!items.length) {
+    event.preventDefault();
+    return;
+  }
+  const firstItem = items[0]!;
+  const lastItem = items.at(-1)!;
+  const active = document.activeElement;
+  if (event.shiftKey && (active === firstItem || active === container)) {
+    event.preventDefault();
+    lastItem.focus();
+  } else if (!event.shiftKey && active === lastItem) {
+    event.preventDefault();
+    firstItem.focus();
+  }
+}
+
 // A modal dialog for Spaces flows (WAI-ARIA dialog pattern): focus moves in
 // on open (to `[data-autofocus]` or the first control), Tab stays inside,
 // Escape closes, and focus returns to whatever opened it. Popovers opened
@@ -48,20 +73,7 @@ export function Dialog({
       onClose();
       return;
     }
-    if (event.key !== "Tab" || !panel.current) return;
-    const items = [
-      ...panel.current.querySelectorAll<HTMLElement>(focusable),
-    ].filter((el) => el.offsetParent !== null);
-    if (!items.length) return;
-    const firstItem = items[0]!;
-    const lastItem = items.at(-1)!;
-    if (event.shiftKey && document.activeElement === firstItem) {
-      event.preventDefault();
-      lastItem.focus();
-    } else if (!event.shiftKey && document.activeElement === lastItem) {
-      event.preventDefault();
-      firstItem.focus();
-    }
+    if (panel.current) keepTabInside(event, panel.current);
   };
   const body = (
     <>

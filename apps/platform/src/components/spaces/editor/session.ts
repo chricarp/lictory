@@ -77,6 +77,13 @@ export function closedKindOf(reason: string | undefined): ClosedKind | null {
   return null;
 }
 
+// Sessions still flushing after they were closed, by document name. The
+// shared socket registers providers by document name, so a new session for
+// the same draft must not attach while an old one is still registered:
+// attaching would throw, and the old one's later detach would remove the new
+// registration and silently stop its sync.
+const retiringByName = new Map<string, DraftSession>();
+
 export class DraftSession {
   readonly doc = new Y.Doc();
   readonly provider: HocuspocusProvider;
@@ -86,6 +93,8 @@ export class DraftSession {
   private timer: ReturnType<typeof setTimeout>;
   private destroyed = false;
   private retiring = false;
+  private keep: ((doc: Y.Doc, storedClock: number) => void) | null = null;
+  private kept = false;
   // The clock of this tab's own edits when the service last had stored
   // all of them: anything this tab typed from it on is not stored yet.
   // (The provider's own counter also counts a reconnect that the service
@@ -96,6 +105,9 @@ export class DraftSession {
     readonly documentName: string,
     user: { userId: string; name: string; color: string },
   ) {
+    // A session closed moments ago for this draft gives up its flush now:
+    // its unstored text goes to `keep` and its registration is released.
+    retiringByName.get(documentName)?.finishRetiring();
     const websocketProvider = sharedSocket();
     this.snapshot = {
       status: websocketProvider.status,
@@ -253,6 +265,8 @@ export class DraftSession {
   ) {
     if (this.destroyed || this.retiring) return;
     this.retiring = true;
+    this.keep = keep;
+    retiringByName.set(this.documentName, this);
     try {
       if (!this.hasUnstoredEdits()) return;
       if (
@@ -260,10 +274,25 @@ export class DraftSession {
         !this.snapshot.closed
       )
         await this.saved(flushMs).catch(() => undefined);
-      if (this.hasUnstoredEdits()) keep(this.doc, this.storedClock);
+    } finally {
+      this.finishRetiring();
+    }
+  }
+
+  // Ends a retirement at once: keeps what is still unstored (once), then
+  // destroys the provider and document.
+  private finishRetiring() {
+    if (this.destroyed) return;
+    try {
+      if (this.keep && !this.kept && this.hasUnstoredEdits()) {
+        this.kept = true;
+        this.keep(this.doc, this.storedClock);
+      }
     } catch {
       // Keeping is best effort; closing must still happen.
     } finally {
+      if (retiringByName.get(this.documentName) === this)
+        retiringByName.delete(this.documentName);
       this.destroy();
     }
   }

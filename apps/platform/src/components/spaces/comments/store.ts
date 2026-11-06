@@ -48,12 +48,18 @@ export function createDiscussionsMemo() {
       const before = previous?.messages.get(id);
       if (before && sameList(before, list)) messages.set(id, before);
     }
+    const sameThreads = !!previous && sameList(previous.threads, threads);
     const unchanged =
-      previous &&
-      sameList(previous.threads, threads) &&
-      previous.messages.size === messages.size &&
+      sameThreads &&
+      previous!.messages.size === messages.size &&
       [...messages].every(([id, list]) => previous!.messages.get(id) === list);
-    if (!unchanged) previous = { threads, messages };
+    // A reply changes the messages, not the thread list: keep the same
+    // threads array so the highlights are not recomputed.
+    if (!unchanged)
+      previous = {
+        threads: sameThreads ? previous!.threads : threads,
+        messages,
+      };
     return previous!;
   };
 }

@@ -485,6 +485,21 @@ async function lineRows(
       .orderBy(asc(s.pageBranchCollaborator.userId)),
   ]);
   const rows: SpaceProjectionRow[] = [];
+  // Every open pull request's commits in one query: a rebuild or drift check
+  // covers every page of the organization under its lock.
+  const snapshots = await commitSnapshots(
+    db,
+    organizationId,
+    pages.flatMap(({ id }) => {
+      const state = states.get(id);
+      return state
+        ? pullRequestCommitIds(
+            state,
+            state.pullRequests.filter((p) => p.status !== "merged"),
+          )
+        : [];
+    }),
+  );
   for (const { id: pageId, spaceId } of pages) {
     const state = states.get(pageId);
     if (!state) continue;
@@ -510,12 +525,6 @@ async function lineRows(
           pageId,
         ),
       );
-    const unmerged = state.pullRequests.filter((p) => p.status !== "merged");
-    const snapshots = await commitSnapshots(
-      db,
-      organizationId,
-      pullRequestCommitIds(state, unmerged),
-    );
     for (const p of state.pullRequests) {
       const evaluation = evaluatePullRequest(state, p, snapshots);
       rows.push(
