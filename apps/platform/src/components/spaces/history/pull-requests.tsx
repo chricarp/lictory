@@ -679,6 +679,7 @@ function PullRequestDetail({
                     gate.blockers.length > 0
                   }
                   autoFocus={returnFocus}
+                  onFocus={() => setReturnFocus(false)}
                   onClick={() => {
                     setReturnFocus(false);
                     setMerging({ onMerge: gate.onMerge });
@@ -712,6 +713,8 @@ function PullRequestDetail({
                                 discussionsToRemove: discussionTotal(
                                   merging.onMerge.discussions,
                                 ),
+                                deletesSourceBranch:
+                                  merging.onMerge.sourceRetired,
                               }
                             : {}),
                         },

@@ -1606,12 +1606,15 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   // Merging removes the source's discussions and the pull request's own
   // (`mergeability.onMerge`); `discussionsToRemove` as for deletePageBranch.
+  // `deletesSourceBranch` is whether the person was told the source branch
+  // is deleted; the merge is refused when that changed.
   z.object({
     type: z.literal("mergePagePullRequest"),
     pullRequestId: id,
     inspectedSourceHead: id,
     inspectedTargetHead: id,
     discussionsToRemove: z.number().int().min(0).optional(),
+    deletesSourceBranch: z.boolean().optional(),
   }),
   // Proposes new content for a page without publishing it: a branch from
   // main, a commit with this title and content (Markdown or canonical

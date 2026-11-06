@@ -85,6 +85,9 @@ export function Branches({ pageId }: { pageId: string }) {
                 size="sm"
                 variant="ghost"
                 autoFocus={returnTo === b.id}
+                onFocus={() => {
+                  if (returnTo === b.id) setReturnTo(undefined);
+                }}
                 onClick={() => {
                   setReturnTo(undefined);
                   setDeleting({ id: b.id, counts: b.discussionsOnDelete });

@@ -498,7 +498,8 @@ merge confirmation say, in English, how many discussions are deleted, by
 state, and that this cannot be undone; the merge confirmation also says
 whether the source branch is deleted and that discussions on the target and
 other branches are kept. The confirmed total travels with the command
-(`discussionsToRemove`); if it no longer matches, the command is refused
+(`discussionsToRemove`; a merge also sends whether it was told the source
+branch is deleted, `deletesSourceBranch`, refused when that changed); if it no longer matches, the command is refused
 ("The discussions this removes changed since you confirmed…") and nothing is
 removed. A command that would remove discussions without a confirmed total
 (a browser tab loaded before the warning existed, an agent that did not look)

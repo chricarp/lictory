@@ -557,6 +557,18 @@ void test(
       "conflict",
       /Review the warning and confirm again/,
     );
+    // Told the source would stay, the person never agreed to its deletion.
+    await rejects(
+      f.run(f.owner, {
+        type: "mergePagePullRequest",
+        pullRequestId,
+        ...heads,
+        discussionsToRemove: 6,
+        deletesSourceBranch: false,
+      }),
+      "conflict",
+      /Merging now deletes branch .*, unlike what you confirmed/,
+    );
     assert.equal((await remaining(doomed)).length, doomed.length);
 
     await f.run(f.owner, {
@@ -564,6 +576,7 @@ void test(
       pullRequestId,
       ...heads,
       discussionsToRemove: 6,
+      deletesSourceBranch: true,
     });
     assert.deepEqual(await remaining(doomed), []);
     assert.deepEqual(await remaining(kept), [...kept].sort());

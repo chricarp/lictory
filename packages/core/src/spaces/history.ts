@@ -1792,6 +1792,15 @@ export async function applyPageHistoryCommand(
         c.discussionsToRemove,
         removedOnMerge.discussions,
       );
+      if (
+        c.deletesSourceBranch !== undefined &&
+        c.deletesSourceBranch !== removedOnMerge.sourceRetired
+      )
+        fail(
+          `Merging now ${removedOnMerge.sourceRetired ? "deletes" : "keeps"} branch ${source.name}, unlike what you confirmed. Review the warning and confirm again.`,
+          "conflict",
+          "source_branch_changed",
+        );
       const commit = await insertCommit(tx, ctx, {
         pageId: pr.pageId,
         parentIds: [target.headCommitId, source.headCommitId],
