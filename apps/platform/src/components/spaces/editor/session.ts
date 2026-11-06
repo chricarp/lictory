@@ -39,6 +39,8 @@ export type SessionSnapshot = {
   unavailable: boolean;
   closed: ClosedKind | null;
   peers: readonly Peer[];
+  // When the save state last changed (see `shownSaveState`).
+  save: SaveTiming;
 };
 
 const UNAVAILABLE_AFTER_MS = 8000;
@@ -109,7 +111,7 @@ export class DraftSession {
     // its unstored text goes to `keep` and its registration is released.
     retiringByName.get(documentName)?.finishRetiring();
     const websocketProvider = sharedSocket();
-    this.snapshot = {
+    this.snapshot = withSaveTiming(null, {
       status: websocketProvider.status,
       everSynced: false,
       unsynced: false,
@@ -119,7 +121,7 @@ export class DraftSession {
       unavailable: false,
       closed: null,
       peers: [],
-    };
+    });
     this.provider = new HocuspocusProvider({
       websocketProvider,
       name: documentName,
@@ -184,7 +186,10 @@ export class DraftSession {
 
   private set(patch: Partial<SessionSnapshot>) {
     if (this.destroyed) return;
-    this.snapshot = { ...this.snapshot, ...patch };
+    this.snapshot = withSaveTiming(this.snapshot.save, {
+      ...this.snapshot,
+      ...patch,
+    });
     for (const listener of this.listeners) listener();
   }
 
@@ -322,7 +327,7 @@ export type SaveState =
 // What the editor says about the draft, in order of what matters most.
 // "Saved" means the service stored every edit (it stores before it
 // acknowledges).
-export function saveStateOf(s: SessionSnapshot): SaveState {
+export function saveStateOf(s: Omit<SessionSnapshot, "save">): SaveState {
   if (s.closed) return { kind: "closed", label: CLOSE_REASONS[s.closed] };
   if (!s.everSynced)
     return s.unavailable
@@ -334,4 +339,103 @@ export function saveStateOf(s: SessionSnapshot): SaveState {
     return { kind: "offline", label: "Offline — changes kept on this device" };
   if (s.unsynced) return { kind: "saving", label: "Saving…" };
   return { kind: "saved", label: "Saved" };
+}
+
+// What the editor shows can trail the truth above, so that fast saves stay
+// quiet: every keystroke is stored within milliseconds, and following each
+// one would flash "Saving…" and "Saved" while someone types. The shown
+// state never claims more than the truth: "Saved" appears only once every
+// edit is stored and has stayed stored for a moment (typing pauses), a save
+// still unconfirmed after a second gets a spinner, and problems show at
+// once. Only the display waits; persistence, the unload guard and Publish
+// read the truth.
+export const SLOW_SAVE_MS = 1000;
+export const SETTLE_SAVE_MS = 1000;
+
+export type SaveTiming = {
+  kind: SaveState["kind"];
+  // When the save state became `kind` (`performance.now()`, a monotonic
+  // clock: a wall-clock change must not make "Saved" appear early).
+  since: number;
+  // "Saved" came straight from "Saving…": shown once it holds.
+  settling: boolean;
+  // A problem (offline, unavailable, closed) came since the last "Saved".
+  troubled: boolean;
+};
+
+const problems: ReadonlySet<SaveState["kind"]> = new Set([
+  "offline",
+  "unavailable",
+  "closed",
+]);
+
+export function nextSaveTiming(
+  prev: SaveTiming | null,
+  kind: SaveState["kind"],
+  now: number,
+): SaveTiming {
+  if (prev?.kind === kind) return prev;
+  const troubled =
+    problems.has(kind) || (!!prev && prev.kind !== "saved" && prev.troubled);
+  return {
+    kind,
+    since: now,
+    settling: kind === "saved" && prev?.kind === "saving" && !troubled,
+    troubled,
+  };
+}
+
+function withSaveTiming(
+  prev: SaveTiming | null,
+  s: Omit<SessionSnapshot, "save">,
+): SessionSnapshot {
+  return {
+    ...s,
+    save: nextSaveTiming(prev, saveStateOf(s).kind, performance.now()),
+  };
+}
+
+export type ShownSaveState = {
+  state: SaveState;
+  // A save is taking long enough to show progress.
+  slow: boolean;
+  // What assistive technology hears: problems and the recovery from one,
+  // never the routine saves of each keystroke.
+  announcement: string;
+  // When the shown state may change without a new session event.
+  wakeAt: number | null;
+};
+
+const saving = { kind: "saving", label: "Saving…" } as const;
+
+export function shownSaveState(
+  s: SessionSnapshot,
+  now: number,
+): ShownSaveState {
+  const state = saveStateOf(s);
+  const { since, settling, troubled } = s.save;
+  if (state.kind === "saving") {
+    const slowAt = since + SLOW_SAVE_MS;
+    const slow = now >= slowAt;
+    return { state, slow, announcement: "", wakeAt: slow ? null : slowAt };
+  }
+  if (state.kind === "saved" && settling && now < since + SETTLE_SAVE_MS)
+    return {
+      state: saving,
+      slow: false,
+      announcement: "",
+      wakeAt: since + SETTLE_SAVE_MS,
+    };
+  return {
+    state,
+    slow: false,
+    // Unavailable and closed sessions raise their own alerts.
+    announcement:
+      state.kind === "offline"
+        ? state.label
+        : state.kind === "saved" && troubled
+          ? "Connection restored. All edits are saved."
+          : "",
+    wakeAt: null,
+  };
 }

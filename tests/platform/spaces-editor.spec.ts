@@ -49,7 +49,7 @@ async function person(
 const liveEditor = (page: Page) =>
   page.locator('.page-document[contenteditable="true"]');
 const saved = (page: Page) =>
-  page.getByRole("status").filter({ hasText: /^Saved$/ });
+  page.getByTestId("draft-save-state").filter({ hasText: /^Saved$/ });
 
 async function openEditor(page: Page, url = pageUrl) {
   await page.goto(url);
@@ -202,11 +202,38 @@ test("two editors write one live draft, publish it, and a reader sees the publis
   await openEditor(ada.page);
   await openEditor(ben.page);
 
+  // Every keystroke is saved within milliseconds; the save state must not
+  // flash "Saving…" and "Saved" with each one.
+  await ada.page.evaluate(() => {
+    const shown: string[] = [];
+    (window as unknown as { saveStates: string[] }).saveStates = shown;
+    const read = () =>
+      document.querySelector('[data-testid="draft-save-state"]')?.textContent;
+    new MutationObserver(() => {
+      const text = read();
+      if (text && text !== shown.at(-1)) shown.push(text);
+    }).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
   await liveEditor(ada.page).click();
-  await ada.page.keyboard.type("Refunds are processed within five days.");
+  await ada.page.keyboard.type("Refunds are processed within five days.", {
+    delay: 40,
+  });
   await expect(liveEditor(ben.page)).toContainText(
     "Refunds are processed within five days.",
   );
+  await expect(saved(ada.page)).toBeVisible();
+  const saveStates = await ada.page.evaluate(
+    () => (window as unknown as { saveStates: string[] }).saveStates,
+  );
+  // "Saving…" once, "Saved" once typing stopped. A loaded machine that
+  // pauses typing for over a second shows "Saved" in the pause, which is
+  // right, so a few pairs are allowed; 39 keystrokes used to make 78 changes.
+  expect(saveStates.length, saveStates.join(" → ")).toBeLessThanOrEqual(12);
+  expect(saveStates.at(-1)).toBe("Saved");
   await liveEditor(ben.page).click();
   await ben.page.keyboard.press("ControlOrMeta+End");
   await expectCaretAtEnd(ada.page, "Ben Editor");
@@ -376,7 +403,7 @@ test("offline edits stay on the page and are saved after reconnecting", async ({
   await openEditor(ben.page);
   await ada.context.setOffline(true);
   await expect(
-    ada.page.getByRole("status").filter({ hasText: /^Offline/ }),
+    ada.page.getByTestId("draft-save-state").filter({ hasText: /^Offline/ }),
   ).toBeVisible();
   await liveEditor(ada.page).click();
   await ada.page.keyboard.press("ControlOrMeta+End");
@@ -414,7 +441,7 @@ test("text typed into a draft that is replaced before it was saved is kept and c
   await openEditor(ada.page, url);
   await ada.context.setOffline(true);
   await expect(
-    ada.page.getByRole("status").filter({ hasText: /^Offline/ }),
+    ada.page.getByTestId("draft-save-state").filter({ hasText: /^Offline/ }),
   ).toBeVisible();
   await liveEditor(ada.page).click();
   await ada.page.keyboard.type("Page the on-call engineer after ten minutes.");
