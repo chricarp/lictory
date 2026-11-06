@@ -31,7 +31,7 @@ function Flow({
       <div className="bg-fd-muted ring-fd-border rounded-[1.375rem] p-1.5 ring-1 ring-inset">
         <ol
           aria-label={label}
-          className={`grid gap-1.5 ${columns[stages.length] ?? ""}`}
+          className={`grid gap-1.5 ${columns[stages.length] ?? "sm:auto-cols-fr sm:grid-flow-col"}`}
         >
           {stages.map((stage, index) => (
             <li
