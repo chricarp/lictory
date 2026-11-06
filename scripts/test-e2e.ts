@@ -1,9 +1,10 @@
 // Browser workflows against production builds and an isolated, migrated
-// database. Starts the API, worker, zero-cache, the edge proxy (platform
-// origin), the marketing server and the documentation (its static export
-// behind the production Cloudflare Worker, in wrangler's local runtime), runs
-// Playwright, then stops everything
-// and drops the database and its replication slots, also on failure.
+// database. Starts the API, worker, collaboration service, zero-cache, the
+// edge proxy (platform origin, including /collaboration), the marketing
+// server and the documentation (its static export behind the production
+// Cloudflare Worker, in wrangler's local runtime), runs Playwright, then
+// stops everything and drops the database and its replication slots, also on
+// failure.
 // Usage: bun run test:e2e [playwright args]   (E2E_SKIP_BUILD=1 reuses builds)
 //
 // E2E_SHARD=2/4 runs the second of four shards balanced by recorded duration
@@ -33,6 +34,7 @@ const ports = {
   edge: 3001 + offset,
   api: 3002 + offset,
   workerHealth: 3003 + offset,
+  collaboration: 3004 + offset,
   marketing: 3101 + offset,
   docs: 3201 + offset,
   docsInspector: 9301 + offset,
@@ -50,6 +52,7 @@ const url = databaseUrl.toString();
 const replicaDir = mkdtempSync(join(tmpdir(), "lictory-e2e-zero-"));
 const children: { name: string; child: ChildProcess }[] = [];
 const workerAvailable = existsSync("apps/worker/build.mjs");
+const collaborationAvailable = existsSync("apps/collaboration/build.mjs");
 
 // The API discovers the provider when it starts, so Dex must already run.
 function oidcEnv(issuer: string | undefined) {
@@ -63,8 +66,9 @@ function oidcEnv(issuer: string | undefined) {
   };
 }
 
-// Application settings shared by the API and the worker. Integrations stay
-// disabled; placeholder OAuth clients let tests reach provider redirects.
+// Application settings shared by the API, the worker and the collaboration
+// service. Integrations stay disabled; placeholder OAuth clients let tests
+// reach provider redirects.
 const appEnv = {
   ...process.env,
   NODE_ENV: "production" as const,
@@ -349,6 +353,12 @@ try {
             ["run", "--filter", "@lictory/worker", "build"],
             buildEnv,
           );
+        if (collaborationAvailable)
+          await run(
+            "bun",
+            ["run", "--filter", "@lictory/collaboration", "build"],
+            buildEnv,
+          );
       },
       // The website is built with a placeholder PostHog project so its consent
       // banner can be tested; its relay path does not exist on the test server,
@@ -385,6 +395,14 @@ try {
       ...appEnv,
       WORKER_HEALTH_PORT: String(ports.workerHealth),
     });
+  // Live draft editing; browsers reach it through the edge proxy's
+  // /collaboration route, exactly as in production.
+  if (collaborationAvailable)
+    start("collaboration", "node", ["apps/collaboration/dist/index.js"], {
+      ...appEnv,
+      COLLABORATION_PORT: String(ports.collaboration),
+      COLLABORATION_HOST: "127.0.0.1",
+    });
   start("zero", "node_modules/.bin/zero-cache", [], {
     ...process.env,
     ZERO_UPSTREAM_DB: url,
@@ -409,6 +427,7 @@ try {
     EDGE_PORT: String(ports.edge),
     API_ORIGIN: `http://localhost:${ports.api}`,
     ZERO_ORIGIN: `http://localhost:${ports.zero}`,
+    COLLABORATION_ORIGIN: `http://127.0.0.1:${ports.collaboration}`,
     PLATFORM_DIST_DIR: "apps/platform/dist",
   });
   // Assemble the standalone server exactly as the production image does.
@@ -451,6 +470,11 @@ try {
 
   await waitFor("api", `http://localhost:${ports.api}/readyz`);
   await waitFor("zero-cache", `http://localhost:${ports.zero}/keepalive`);
+  if (collaborationAvailable)
+    await waitFor(
+      "collaboration",
+      `http://127.0.0.1:${ports.collaboration}/readyz`,
+    );
   await waitFor("edge", `${platformUrl}/sign-in`);
   await waitFor("marketing", `${siteUrl}/`);
   if (docsNeeded) await waitFor("docs", `${docsUrl}/`);

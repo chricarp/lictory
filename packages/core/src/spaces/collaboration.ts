@@ -8,6 +8,7 @@
 // only ever see stored edits. Throwing closes the connection; the client keeps
 // its unsaved changes and offers them again when it reconnects.
 import type {
+  Connection,
   Extension,
   Hocuspocus,
   beforeHandleMessagePayload,
@@ -80,6 +81,16 @@ class Refusal extends Error {
 }
 const forbidden = (reason: string) => new Refusal(Forbidden.code, reason);
 
+// Why the service closes a draft connection (the close reason the provider
+// reports). Short, without content; the editor shows them and, for
+// `replaced`, reopens the page's current draft.
+export const CLOSE_REASONS = {
+  signedOut: "Sign in again to edit this page.",
+  noAccess: "You do not have access to this page.",
+  revoked: "You no longer have access to this page.",
+  replaced: "This draft was closed or replaced. Reopen the page.",
+} as const;
+
 // How a refused save closes the connection. Only domain messages (short, no
 // content) reach the client and the log; anything else (a database failure)
 // becomes a reset, after which the client reconnects and offers its unsaved
@@ -130,11 +141,13 @@ export function draftCollaboration(options: Options) {
 
     async onAuthenticate(payload: onAuthenticatePayload) {
       const author = await options.authenticate(payload);
+      if (!author) throw forbidden(CLOSE_REASONS.signedOut);
       const ref = await options.resolve(payload.documentName);
-      const allowed =
-        author && ref ? await access(author, ref).catch(() => null) : null;
-      if (!author || !ref || !allowed)
-        throw forbidden("You do not have access to this page.");
+      // Unknown, fenced and replaced drafts read the same, so the answer
+      // says nothing about drafts the person cannot see.
+      if (!ref) throw forbidden(CLOSE_REASONS.replaced);
+      const allowed = await access(author, ref).catch(() => null);
+      if (!allowed) throw forbidden(CLOSE_REASONS.noAccess);
       payload.connectionConfig.readOnly = !allowed.edit;
       return { ...author, ref } satisfies CollaborationContext;
     },
@@ -196,7 +209,8 @@ export function draftCollaboration(options: Options) {
   };
 
   // Rechecks open connections (all, or one person's) against current access:
-  // closes those that lost read access or whose session ended, and makes
+  // closes rooms whose draft was fenced or replaced by a new epoch, closes
+  // connections that lost read access or whose session ended, and makes
   // read-only those that lost edit access. Runs after access changes
   // (signalled) and periodically.
   //
@@ -204,25 +218,65 @@ export function draftCollaboration(options: Options) {
   // after beforeHandleMessage, so promoting mid-message could apply an update
   // the hook skipped as read-only. A person who gains edit access reconnects.
   async function revalidate(instance: Hocuspocus, userId?: string) {
-    const checks = [...instance.documents.values()].flatMap((document) =>
-      document
+    const checks = [...instance.documents.values()].map(async (document) => {
+      const connections = document
         .getConnections()
         .filter(
           (c) =>
             !userId || (c.context as CollaborationContext).userId === userId,
-        )
-        .map(async (connection) => {
+        );
+      if (!connections.length) return;
+      if (!(await stillCurrent(document.name, connections[0]!))) {
+        for (const connection of connections)
+          connection.close(forbidden(CLOSE_REASONS.replaced));
+        return;
+      }
+      await Promise.all(
+        connections.map(async (connection) => {
           const context = connection.context as CollaborationContext;
           const allowed = await access(context, context.ref).catch(() => null);
-          if (!allowed)
-            connection.close(
-              forbidden("You no longer have access to this page."),
-            );
+          if (!allowed) connection.close(forbidden(CLOSE_REASONS.revoked));
           else if (!allowed.edit) connection.readOnly = true;
         }),
-    );
+      );
+    });
     await Promise.all(checks);
   }
 
-  return { extension, revalidate };
+  // Closes the rooms of these drafts when their epoch is no longer the
+  // current one (fenced, replaced, deleted). Signalled after commit.
+  async function revalidateDrafts(
+    instance: Hocuspocus,
+    draftIds: readonly string[],
+  ) {
+    const wanted = new Set(draftIds);
+    await Promise.all(
+      [...instance.documents.values()].map(async (document) => {
+        const [first] = document.getConnections();
+        if (!first) return;
+        const { ref } = first.context as CollaborationContext;
+        if (!wanted.has(ref.draftId)) return;
+        if (await stillCurrent(document.name, first)) return;
+        for (const connection of document.getConnections())
+          connection.close(forbidden(CLOSE_REASONS.replaced));
+      }),
+    );
+  }
+
+  // Whether a room's document name still resolves to the epoch its
+  // connections opened. A database failure keeps the room (the next check
+  // decides); writes are refused for an old epoch either way.
+  async function stillCurrent(documentName: string, connection: Connection) {
+    const { ref } = connection.context as CollaborationContext;
+    const current = await options
+      .resolve(documentName)
+      .catch(() => ref as DraftRef | null);
+    return (
+      current !== null &&
+      current.draftId === ref.draftId &&
+      current.epoch === ref.epoch
+    );
+  }
+
+  return { extension, revalidate, revalidateDrafts };
 }

@@ -1,5 +1,6 @@
 // WebSocket transport for the collaboration service: an HTTP server whose
-// upgrades are checked (origin) before Hocuspocus sees them. Uses `ws`
+// upgrades are checked (readiness, origin) before Hocuspocus sees them, and
+// which answers the container's health probes (/livez, /readyz). Uses `ws`
 // directly so the service runs on Node (production) and Bun (tests) alike.
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -22,6 +23,10 @@ type Options = {
   // Refuses cross-site WebSocket hijacking: the browser's Origin must be the
   // platform's public origin. Absent means "allow" (tests only).
   allowedOrigin?: string;
+  // Whether the service may take new connections (GET /readyz answers 200,
+  // else 503). GET /livez answers 200 while the process runs. Neither
+  // reports document content or identities.
+  ready?: () => boolean;
 };
 
 function toRequest(request: IncomingMessage) {
@@ -45,10 +50,34 @@ export async function listenCollaboration(options: Options) {
     // well below this (DRAFT_LIMITS.updateBytes).
     maxPayload: INBOUND.messageBytes,
   });
-  const http = createServer((_, response) => {
-    response.writeHead(404).end();
+  let accepting = true;
+  const ready = () => accepting && (options.ready?.() ?? true);
+  const http = createServer((request, response) => {
+    const path = request.url?.split("?")[0];
+    const probe =
+      request.method === "GET" || request.method === "HEAD"
+        ? path === "/livez"
+          ? true
+          : path === "/readyz"
+            ? ready()
+            : undefined
+        : undefined;
+    if (probe === undefined) {
+      response.writeHead(404).end();
+      return;
+    }
+    response
+      .writeHead(probe ? 200 : 503, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      })
+      .end(JSON.stringify({ status: probe ? "ok" : "unavailable" }));
   });
   http.on("upgrade", (request, socket, head) => {
+    if (!ready()) {
+      socket.end("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+      return;
+    }
     if (
       options.allowedOrigin &&
       request.headers.origin !== options.allowedOrigin
@@ -110,9 +139,12 @@ export async function listenCollaboration(options: Options) {
     // Graceful stop: refuse new connections, close open ones, wait until every
     // room has unloaded (its writer settled), then run the destroy hooks.
     async close() {
+      accepting = false;
       const stopped = new Promise<void>((resolve) =>
         http.close(() => resolve()),
       );
+      // Keep-alive health probes would hold the server open.
+      http.closeIdleConnections();
       options.hocuspocus.closeConnections();
       const deadline = Date.now() + 10_000;
       while (

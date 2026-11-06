@@ -14,9 +14,10 @@
 #   deploy.sh <env> status [--json]         active release and per-service state
 #
 # Order (Zero expand/contract): schema first, then wait until zero-cache has
-# replicated it, then zero-cache, proxy (keeps old + new assets), API and
-# worker, website. Schema is never rolled back; rollbacks switch images only,
-# so every migration must stay compatible with the previous release.
+# replicated it, then zero-cache, proxy (keeps old + new assets), API,
+# worker and collaboration, website. Schema is never rolled back; rollbacks
+# switch images only, so every migration must stay compatible with the
+# previous release.
 #
 # LICTORY_DATABASE=external (docs/operations/external-database.md): no
 # postgres container. Before migrating, the database's requirements are
@@ -362,7 +363,7 @@ roll() { # roll <dir>
   local dir="$1" service
   # zero-cache first (rolling-update order), proxy before the API so assets of
   # both releases exist when new documents are served.
-  for service in zero-cache proxy api worker; do
+  for service in zero-cache proxy api worker collaboration; do
     log "Rolling ${service}…"
     compose "$dir" up -d --no-deps --wait --wait-timeout "$([ "$service" = zero-cache ] && echo 900 || echo 180)" "$service" >&2 ||
       return 1
@@ -405,13 +406,21 @@ verify() { # verify <dir>
     -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
     "$scheme://$app:$port/zero/sync/v1/connect" || true)
   [ "$code" = 101 ] || { log "Verification failed: Zero WebSocket upgrade returned $code"; return 1; }
+  # The collaboration service upgrades any request with the platform Origin:
+  # 101 proves proxy -> collaboration routing (live draft editing).
+  code=$(curl -s "${insecure[@]+"${insecure[@]}"}" --http1.1 -m 3 -o /dev/null -w '%{http_code}' \
+    --resolve "$app:${port}:127.0.0.1" -H "Origin: $origin" \
+    -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+    -H "Sec-WebSocket-Key: bGljdG9yeS1kZXBsb3khIQ==" \
+    "$scheme://$app:$port/collaboration" || true)
+  [ "$code" = 101 ] || { log "Verification failed: collaboration WebSocket upgrade returned $code"; return 1; }
   active_matches "$dir" || return 1
 }
 
 active_matches() { # every service runs exactly the release's image
   local dir="$1" service key expected running
-  for service in api worker proxy; do
-    case "$service" in api | worker) key=API_IMAGE ;; proxy) key=PROXY_IMAGE ;; esac
+  for service in api worker collaboration proxy; do
+    case "$service" in api | worker | collaboration) key=API_IMAGE ;; proxy) key=PROXY_IMAGE ;; esac
     expected=$(docker image inspect --format '{{.Id}}' "$(env_value "$dir/release.env" "$key")" 2>/dev/null || true)
     running=$(docker inspect --format '{{.Image}}' "$(compose "$dir" ps -q "$service")" 2>/dev/null || true)
     [ -n "$expected" ] && [ "$expected" = "$running" ] || {
@@ -477,9 +486,9 @@ status() {
     [ "$json" = --json ] && printf '{"environment":"%s","version":null}\n' "$environment" || echo "No active release."
     return 0
   fi
-  local services="postgres zero-cache api worker proxy"
+  local services="postgres zero-cache api worker collaboration proxy"
   # An external database has no container on this server.
-  external_database && services="zero-cache api worker proxy"
+  external_database && services="zero-cache api worker collaboration proxy"
   for service in $services; do
     state=$(docker inspect --format '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' \
       "$(compose "$dir" ps -q "$service" 2>/dev/null)" 2>/dev/null || echo missing)

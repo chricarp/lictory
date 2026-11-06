@@ -36,9 +36,9 @@ default_registry="${LICTORY_DEFAULT_REGISTRY:-${LICTORY_IMAGE_REGISTRY:-ghcr.io/
 root="${LICTORY_ROOT:-/srv/lictory}"
 cli_path="${LICTORY_CLI_PATH:-/usr/local/bin/lictory}"
 # The services of an environment; an external database has no container here.
-all_services="postgres zero-cache api worker proxy"
+all_services="postgres zero-cache api worker collaboration proxy"
 services_of_environment() {
-  if [ "$(setting LICTORY_DATABASE)" = external ]; then echo "zero-cache api worker proxy"; else echo "$all_services"; fi
+  if [ "$(setting LICTORY_DATABASE)" = external ]; then echo "zero-cache api worker collaboration proxy"; else echo "$all_services"; fi
 }
 # Placeholder for ACME_EMAIL, which Compose requires even when the gateway
 # requests no certificates (proxy, local CA and plain HTTP modes).
@@ -353,8 +353,9 @@ USAGE
       cat <<'USAGE'
 Usage: lictory logs [service] [-f|--follow] [--tail N] [--since <when>] [--timestamps] [--env <name>]
 
-Logs of every service, or of one: proxy, api, worker, zero-cache, postgres
-(the bundled database only). The last 200 lines by default.
+Logs of every service, or of one: proxy, api, worker, collaboration,
+zero-cache, postgres (the bundled database only). The last 200 lines by
+default.
 
   --since <when>   Everything since then: a duration (30m, 2h) or a time
                    (2026-11-05, 2026-11-05T14:00Z); with --tail, at most N lines
@@ -3799,7 +3800,7 @@ cmd_restore() {
   restore_image="$image" restore_active="$active" restore_keep="$keep"
   restore_phase=stopped
   step "Stopping $environment"
-  compose stop proxy api worker zero-cache postgres
+  compose stop proxy api worker collaboration zero-cache postgres
   step "Keeping the current database in $keep"
   docker volume create "$keep" >/dev/null || die "Could not create the volume $keep; nothing was changed."
   docker run --rm --network none --entrypoint cp -v "${project}_postgres_data:/from:ro" -v "$keep:/to" "$image" -a /from/. /to/ ||

@@ -1,5 +1,6 @@
 // Every environment variable Lictory's runtime code reads, in one list. The
-// API, worker and migration runner validate their share at startup
+// API, worker, collaboration service and migration runner validate their
+// share at startup
 // (`@lictory/core/config/validate`); docs/operations/configuration.md is
 // generated from this list (`bun run config:docs`), and tests fail when code
 // reads a variable that is not declared here.
@@ -8,6 +9,7 @@
 export type Service =
   | "api"
   | "worker"
+  | "collaboration"
   | "migrate"
   | "platform"
   | "website"
@@ -16,11 +18,16 @@ export type Service =
   | "database";
 
 /** Services that validate their configuration when they start. */
-export type ValidatedService = Extract<Service, "api" | "worker" | "migrate">;
+export type ValidatedService = Extract<
+  Service,
+  "api" | "worker" | "collaboration" | "migrate"
+>;
 
 export const services: Record<Service, string> = {
   api: "HTTP API (`apps/api`)",
   worker: "Background worker (`apps/worker`)",
+  collaboration:
+    "Live draft editing for Lictory Spaces (`apps/collaboration`, behind `/collaboration`)",
   migrate: "Migration runner (`bun run db:migrate`, the `migrate` image)",
   platform:
     "Platform SPA build and Vite dev server (`apps/platform`); values are embedded at build time",
@@ -72,7 +79,7 @@ export const declarations: readonly Declaration[] = [
   {
     name: "NODE_ENV",
     group: "Runtime",
-    services: ["api", "worker", "platform", "website"],
+    services: ["api", "worker", "collaboration", "platform", "website"],
     default: "`development`",
     description:
       "`production` turns on the production rules: required settings, placeholder and length checks for secrets, no development fallbacks. Production images set it.",
@@ -123,18 +130,18 @@ export const declarations: readonly Declaration[] = [
   {
     name: "PLATFORM_URL",
     group: "Public URLs",
-    services: server,
+    services: [...server, "collaboration"],
     required: "production",
     default:
       "BETTER_AUTH_URL, then `http://localhost:3000` (outside production)",
     value: { type: "origin" },
     description:
-      "The platform's one public origin (`https://lictory.example.com`): Better Auth's base URL, links in email, Jira backlinks and the exact-origin check for cookie-authenticated writes.",
+      "The platform's one public origin (`https://lictory.example.com`): Better Auth's base URL, links in email, Jira backlinks and the exact-origin check for cookie-authenticated writes and for WebSocket connections to the collaboration service.",
   },
   {
     name: "BETTER_AUTH_URL",
     group: "Public URLs",
-    services: server,
+    services: [...server, "collaboration"],
     description:
       "Development fallback for PLATFORM_URL. Ignored in production.",
   },
@@ -193,9 +200,15 @@ export const declarations: readonly Declaration[] = [
   {
     name: "DATABASE_URL",
     group: "Database",
-    services: [...server, "migrate", "rebuild-projections", "database"],
+    services: [
+      ...server,
+      "collaboration",
+      "migrate",
+      "rebuild-projections",
+      "database",
+    ],
     required: "always",
-    requiredBy: server,
+    requiredBy: [...server, "collaboration"],
     secret: "issued",
     description:
       "PostgreSQL connection of the application role. The migration runner uses it only for the `local` target.",
@@ -203,11 +216,11 @@ export const declarations: readonly Declaration[] = [
   {
     name: "DATABASE_URL_UNPOOLED",
     group: "Database",
-    services: [...server, "migrate", "rebuild-projections"],
+    services: [...server, "collaboration", "migrate", "rebuild-projections"],
     default: "DATABASE_URL",
     secret: "issued",
     description:
-      "Direct connection (never a transaction pooler) for LISTEN/NOTIFY when DATABASE_URL is pooled.",
+      "Direct connection (never a transaction pooler) for LISTEN/NOTIFY when DATABASE_URL is pooled, and for the collaboration service's single-instance lock.",
   },
   {
     name: "ZERO_UPSTREAM_DB",
@@ -319,12 +332,12 @@ export const declarations: readonly Declaration[] = [
   {
     name: "BETTER_AUTH_SECRET",
     group: "Authentication",
-    services: server,
+    services: [...server, "collaboration"],
     required: "production",
-    requiredBy: ["api"],
+    requiredBy: ["api", "collaboration"],
     secret: "generated",
     description:
-      "Signs sessions and auth tokens. Rotating it signs everyone out. Keep it separate per environment. Also derives the delivery credentials key when DELIVERY_CREDENTIALS_KEY is unset.",
+      "Signs sessions and auth tokens; the collaboration service verifies session cookies with it. Rotating it signs everyone out. Keep it separate per environment. Also derives the delivery credentials key when DELIVERY_CREDENTIALS_KEY is unset.",
   },
   {
     name: "GOOGLE_CLIENT_ID",
@@ -853,5 +866,32 @@ export const declarations: readonly Declaration[] = [
     services: ["worker"],
     default: "`127.0.0.1`",
     description: "Interface of the health endpoint.",
+  },
+
+  // ---------------------------------------------------------- collaboration
+  {
+    name: "COLLABORATION_PORT",
+    group: "Collaboration service",
+    services: ["collaboration"],
+    default: "`3004`",
+    value: { type: "integer", minimum: 0 },
+    description:
+      "Port of the collaboration service: the WebSocket the proxy routes `/collaboration` to, and its health probes (`/livez`, `/readyz`).",
+  },
+  {
+    name: "COLLABORATION_HOST",
+    group: "Collaboration service",
+    services: ["collaboration"],
+    default: "`0.0.0.0`",
+    description:
+      "Interface the collaboration service listens on; the proxy must reach it.",
+  },
+  {
+    name: "COLLABORATION_ORIGIN",
+    group: "Public URLs",
+    services: ["platform", "edge-proxy"],
+    default: "`http://localhost:3004`",
+    description:
+      "Where the platform dev server and the edge proxy reach the collaboration service (`/collaboration`).",
   },
 ];

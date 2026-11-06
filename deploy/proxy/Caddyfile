@@ -1,6 +1,7 @@
 # Public entry point for one Lictory environment (deploy/compose.production.yaml).
 #
-#   {$APP_HOST}   platform: SPA static files, API, document handler, Zero
+#   {$APP_HOST}   platform: SPA static files, API, document handler, Zero,
+#                 live draft editing (collaboration)
 # Marketing and the www redirect are served by Cloudflare.
 #
 # scripts/edge-proxy.ts is the local stand-in for the {$APP_HOST} routes; keep
@@ -103,6 +104,26 @@
 		# (/zero/sync/v<n>/connect); the path is not stripped. Its diagnostic
 		# endpoints (/statz, /keepalive) live at the root and stay internal.
 		reverse_proxy zero-cache:4848 {
+			flush_interval -1
+			transport http {
+				dial_timeout 3s
+			}
+		}
+	}
+
+	# Live draft editing (Lictory Spaces): the collaboration service's
+	# WebSocket. Same Origin rule as /zero: it authenticates with the session
+	# cookie. Document names travel inside the protocol's messages, so the
+	# path only routes. The service also checks the Origin itself.
+	@collaboration path /collaboration /collaboration/*
+	handle @collaboration {
+		@foreignCollaborationSocket {
+			header_regexp Connection (?i)upgrade
+			not header Origin {$PLATFORM_URL}
+		}
+		respond @foreignCollaborationSocket 403
+
+		reverse_proxy collaboration:3004 {
 			flush_interval -1
 			transport http {
 				dial_timeout 3s

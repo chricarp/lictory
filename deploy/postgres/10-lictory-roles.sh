@@ -9,7 +9,7 @@
 #
 # Roles (docs/operations/deployment.md, "Database roles"):
 #   lictory_owner  owns the application database and schema; migrations only
-#   lictory_app    API and worker: DML on application tables, no DDL
+#   lictory_app    API, worker, collaboration: DML on application tables, no DDL
 #   zero           zero-cache: superuser (logical replication + event triggers);
 #                  owns the separate CVR/change database
 #   lictory_ops    backups and monitoring: read-only (pg_read_all_data, pg_monitor)

@@ -57,6 +57,19 @@
         "postgres": "^3.4.9",
       },
     },
+    "apps/collaboration": {
+      "name": "@lictory/collaboration",
+      "version": "0.0.0",
+      "dependencies": {
+        "@hocuspocus/server": "4.7.1",
+        "@lictory/core": "workspace:*",
+        "postgres": "^3.4.9",
+      },
+      "devDependencies": {
+        "drizzle-orm": "^0.45.4",
+        "esbuild": "0.28.2",
+      },
+    },
     "apps/docs": {
       "name": "@lictory/docs",
       "version": "0.0.0",
@@ -586,6 +599,8 @@
     "@levischuck/tiny-cbor": ["@levischuck/tiny-cbor@0.2.11", "", {}, "sha512-llBRm4dT4Z89aRsm6u2oEZ8tfwL/2l6BwpZ7JcyieouniDECM5AqNgr/y08zalEIvW3RSK4upYyybDcmjXqAow=="],
 
     "@lictory/api": ["@lictory/api@workspace:apps/api"],
+
+    "@lictory/collaboration": ["@lictory/collaboration@workspace:apps/collaboration"],
 
     "@lictory/core": ["@lictory/core@workspace:packages/core"],
 

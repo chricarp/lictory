@@ -1,11 +1,13 @@
 // Local stand-in for the production reverse proxy (deploy/Caddyfile), used by
 // browser tests and `bun run start:local`: one origin that serves the built SPA
-// assets, the API (including its document handler), the analytics relay and
-// Zero's WebSocket endpoint, exactly as the production proxy routes them.
+// assets, the API (including its document handler), the analytics relay,
+// Zero's WebSocket endpoint and the collaboration service's WebSocket
+// (/collaboration), exactly as the production proxy routes them.
 //
 // Usage: bun scripts/edge-proxy.ts
 // Env: EDGE_PORT (3001), PLATFORM_DIST_DIR (apps/platform/dist),
-//      API_ORIGIN (http://localhost:3002), ZERO_ORIGIN (http://localhost:4848)
+//      API_ORIGIN (http://localhost:3002), ZERO_ORIGIN (http://localhost:4848),
+//      COLLABORATION_ORIGIN (http://localhost:3004)
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage } from "node:http";
 import { extname, join, normalize } from "node:path";
@@ -16,6 +18,9 @@ const port = envInteger("EDGE_PORT") ?? 3001;
 const dist = env("PLATFORM_DIST_DIR") ?? "apps/platform/dist";
 const api = env("API_ORIGIN") ?? "http://localhost:3002";
 const zero = env("ZERO_ORIGIN") ?? "http://localhost:4848";
+const collaboration = env("COLLABORATION_ORIGIN") ?? "http://localhost:3004";
+const isCollaboration = (pathname: string) =>
+  pathname === "/collaboration" || pathname.startsWith("/collaboration/");
 
 const types: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
@@ -69,6 +74,8 @@ const server = createServer((req, res) => {
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
   if (pathname.startsWith("/zero/"))
     return proxy.web(req, res, { target: zero });
+  if (isCollaboration(pathname))
+    return proxy.web(req, res, { target: collaboration });
   if (pathname.startsWith("/api/zero/")) {
     res.writeHead(404).end();
     return;
@@ -94,18 +101,21 @@ const server = createServer((req, res) => {
   proxy.web(req, res, { target: api });
 });
 // Like the production proxy, only pages from this origin may open the sync
-// socket (cross-site WebSocket hijacking).
+// and collaboration sockets (cross-site WebSocket hijacking).
 server.on("upgrade", (req, socket, head) => {
   forwardedFor(req);
   const pathname = new URL(req.url ?? "/", "http://edge").pathname;
   const origin = `http://${req.headers.host}`;
-  if (pathname.startsWith("/zero/") && req.headers.origin === origin)
+  if (req.headers.origin !== origin) socket.destroy();
+  else if (pathname.startsWith("/zero/"))
     proxy.ws(req, socket, head, { target: zero });
+  else if (isCollaboration(pathname))
+    proxy.ws(req, socket, head, { target: collaboration });
   else socket.destroy();
 });
 server.listen(port, () =>
   console.log(
-    `edge proxy on http://localhost:${port} (api ${api}, zero ${zero})`,
+    `edge proxy on http://localhost:${port} (api ${api}, zero ${zero}, collaboration ${collaboration})`,
   ),
 );
 for (const signal of ["SIGINT", "SIGTERM"] as const)

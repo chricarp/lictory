@@ -1,6 +1,7 @@
-// Startup validation for the API, the worker and the migration runner. Every
-// problem is collected before the process stops, so an operator fixes the
-// configuration in one pass. Secrets are never echoed.
+// Startup validation for the API, the worker, the collaboration service and
+// the migration runner. Every problem is collected before the process stops,
+// so an operator fixes the configuration in one pass. Secrets are never
+// echoed.
 import {
   declarations,
   type Declaration,
@@ -32,7 +33,12 @@ const knownPlaceholders = new Set([
 const placeholderPattern =
   /change[-_ ]?(?:me|before[-_ ]?production)|replace[-_ ]?(?:me|with)|placeholder/i;
 
-const validated: readonly ValidatedService[] = ["api", "worker", "migrate"];
+const validated: readonly ValidatedService[] = [
+  "api",
+  "worker",
+  "collaboration",
+  "migrate",
+];
 
 function required(
   declaration: Declaration,
@@ -133,7 +139,10 @@ export function checkConfiguration(
   // Existing installations may have stored Jira credentials with the key
   // derived from BETTER_AUTH_SECRET; they keep working. New installations
   // cannot store any until the key is set (delivery/credentials.ts).
-  if (service !== "migrate" && derivedCredentialsKeyInProduction(source))
+  if (
+    (service === "api" || service === "worker") &&
+    derivedCredentialsKeyInProduction(source)
+  )
     warnings.push(
       "DELIVERY_CREDENTIALS_KEY is not set. Stored Jira credentials stay encrypted with a key derived from BETTER_AUTH_SECRET, so rotating BETTER_AUTH_SECRET would make them unreadable, and an installation without stored credentials cannot connect Jira. Set DELIVERY_CREDENTIALS_KEY to the current BETTER_AUTH_SECRET value (keeps existing credentials readable) or, on a new installation, to a new secret. See docs/operations/configuration.md.",
     );

@@ -9,6 +9,7 @@ import {
   type SpaceAccessMode,
 } from "@lictory/core/contracts/protocol";
 import type { Database, Tx } from "@lictory/core/domain/service";
+import { signalSpaceAccess } from "@lictory/core/spaces/signals";
 
 // Access to Lictory Spaces (docs/internals/spaces.md#access).
 //
@@ -250,9 +251,8 @@ async function readerDiff(
 // level changes, removals), never the whole table. Call it in the same
 // transaction as any change to a space's home or mode, its grants, project
 // or team membership, or organization membership, after taking the
-// organization lock. Returns the people whose access changed, so the caller
-// can ask the collaboration service to revalidate their connections after
-// commit.
+// organization lock. Returns the people whose access changed and signals
+// the collaboration service to revalidate their connections after commit.
 export async function refreshSpaceAccess(
   tx: Tx,
   organizationId: string,
@@ -282,11 +282,12 @@ export async function refreshSpaceAccess(
           eq(s.spaceReader.userId, row.userId),
         ),
       );
-  return {
-    changedUserIds: [
-      ...new Set([...upserts, ...deletes].map((r) => r.userId)),
-    ].sort(),
-  };
+  const changedUserIds = [
+    ...new Set([...upserts, ...deletes].map((r) => r.userId)),
+  ].sort();
+  // Open live draft connections of these people are rechecked after commit.
+  await signalSpaceAccess(tx, organizationId, changedUserIds);
+  return { changedUserIds };
 }
 
 // Rows of `space_reader` that differ from a recomputation (empty when the

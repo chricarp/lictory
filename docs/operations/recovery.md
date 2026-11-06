@@ -3,7 +3,10 @@
 PostgreSQL is the only state that must survive. Everything else is either in
 another system (file bytes in object storage, email with your provider) or
 rebuildable from PostgreSQL (Zero's replica, client view records and change
-log; container images in the registry).
+log; container images in the registry). The collaboration service keeps no
+state of its own: every saved live draft edit is in PostgreSQL before any
+other editor sees it, so live drafts are backed up and restored with the
+application database.
 
 | Data                           | Protection                                                     | Loss means                   |
 | ------------------------------ | -------------------------------------------------------------- | ---------------------------- |
@@ -134,7 +137,7 @@ By hand, when the CLI cannot run (replace `production` with the environment;
 
 1. Stop everything, PostgreSQL included, and remove its container so the
    volume is free: `lictory-compose production stop proxy api worker
-zero-cache postgres`, then `lictory-compose production rm -f postgres
+collaboration zero-cache postgres`, then `lictory-compose production rm -f postgres
 zero-cache`.
 2. Keep the damaged data for analysis. Docker cannot rename a volume: copy
    it into a new one (or take a disk snapshot):
@@ -212,6 +215,27 @@ exports) and are retried after a lease expires; external calls are idempotent
 crash therefore delays work but does not lose or duplicate it. The monitor
 reports work stuck past its expected time. Inspect with
 `lictory-compose production logs --tail 200 worker`.
+
+## Collaboration service restarts
+
+The collaboration service (live draft editing in Spaces) is restarted by
+Docker like the worker. Its rooms are in memory, but its state is not:
+every edit is stored in PostgreSQL before it is acknowledged ("Saved") or
+sent to other editors. A restart or crash therefore loses no saved edit.
+Editors' unsaved changes stay in their browsers and are sent again when they
+reconnect; until then the editor says that editing is paused, while reading,
+history, comments and reviews keep working through the API and Zero.
+
+Exactly one instance serves an installation: it holds a PostgreSQL advisory
+lock for as long as it runs. If it refuses to start with
+`collaboration.owner_busy` in `lictory-compose production logs collaboration`,
+another process holds that lock: a second copy of the service (another
+environment pointed at the same database, a manually started container, a
+scaled service). Stop the other copy; Docker retries this one. The holder's
+connection is named `lictory-collaboration-owner` in `pg_stat_activity`,
+whose client address shows where it runs. If the
+service loses the lock's database connection it stops, and Docker restarts it
+once the database is reachable again.
 
 ## Server loss
 

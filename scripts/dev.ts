@@ -1,6 +1,8 @@
 // Starts the applications for development on one origin:
 //   http://localhost:3000  SPA (Vite, proxies /api, /relay and /zero)
 //   http://localhost:3002  API        http://localhost:3100  website
+//   http://localhost:3004  collaboration (live drafts; the SPA proxies
+//                          /collaboration to it)
 //   worker (no port)
 // PostgreSQL, migrations, zero-cache and Mailpit run in Docker:
 //   docker compose up -d && bun run dev   (reads .env)
@@ -43,6 +45,12 @@ if (!zeroReady) {
 const services: [string, string, string[], NodeJS.ProcessEnv][] = [
   ["api", "bun", ["run", "--filter", "@lictory/api", "dev"], env],
   ["worker", "bun", ["run", "--filter", "@lictory/worker", "dev"], env],
+  [
+    "collaboration",
+    "bun",
+    ["run", "--filter", "@lictory/collaboration", "dev"],
+    env,
+  ],
   [
     "platform",
     "bun",

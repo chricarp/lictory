@@ -8,9 +8,10 @@ Git-inspired history as specifications.
 > one change without a feature flag. This document records the agreed model so
 > that every step of the implementation preserves it. The foundation (schema,
 > access, space and page commands, projections, Zero queries, reads, export
-> and deletion) is implemented as described under
-> [Implementation](#implementation); history commands, the collaboration
-> service and the interface follow.
+> and deletion) and the collaboration service are implemented as described
+> under [Implementation](#implementation) and
+> [the collaboration service in operation](#the-collaboration-service-in-operation);
+> history commands and the interface follow.
 
 ## Concepts
 
@@ -251,6 +252,47 @@ storage hook and promoting it mid-message could apply an unstored update.
 
 Compaction of the update log is a worker job with a lease and a fence; it never
 removes or alters commits.
+
+### The collaboration service in operation
+
+- **Process and route.** `apps/collaboration`, shipped in the API image and
+  run as the `collaboration` service. The proxy routes the public
+  `/collaboration` path (WebSocket upgrades only from the platform's own
+  origin, the same rule as `/zero`) to it unchanged; Hocuspocus carries
+  document names inside its messages, so the path only routes and one socket
+  serves every page a tab has open. The service checks the Origin itself as
+  well, and answers `/livez` and `/readyz` for health probes.
+- **Authentication.** The Better Auth session cookie of the upgrade request,
+  checked with the same Better Auth configuration as the API. Nothing in the
+  URL and no provider token is ever trusted; the browser provider sends an
+  empty token. Each stored batch re-checks that session in its transaction.
+- **Document names** are `<draft id>.<epoch>` (`draftDocumentName`); the
+  browser takes them from the page's synchronized state, never builds them
+  from anything else. A name of a fenced or replaced epoch no longer opens.
+- **Signals.** One NOTIFY channel, `lictory_spaces_access`, delivered on
+  commit, payload `{organizationId, userIds?, draftIds?}` (identifiers only).
+  `refreshSpaceAccess` sends the people whose effective access changed, from
+  every writer that calls it (space commands, project and team membership,
+  Better Auth membership hooks, account deletion, projection rebuilds); the
+  service rechecks their connections. A trigger on `space_draft` sends the
+  draft whenever its epoch changes, it is fenced or it is deleted, so every
+  current and future writer of drafts signals; the service closes that
+  draft's rooms with the reason "This draft was closed or replaced", and the
+  editor reopens the page's current draft. The service listens on the direct
+  connection (`DATABASE_URL_UNPOOLED`) and rechecks every connection whenever
+  that LISTEN is re-established, since signals sent while it was down are
+  lost.
+- **One instance.** Rooms live in the service's memory, so two copies would
+  split a page's editors into groups that do not see each other. The service
+  holds a session-level advisory lock (`hashtextextended('lictory:collaboration-owner', 0)`)
+  on a dedicated direct connection while it serves. A second copy waits up
+  to 15 seconds (a replaced container releasing it), then logs
+  `collaboration.owner_busy` and exits. If the lock's connection ends, the
+  service stops at once and its supervisor restarts it.
+- **Restarts lose nothing stored.** All draft state is in PostgreSQL. SIGTERM
+  refuses new connections, closes open ones and waits (bounded) for pending
+  saves; editors keep their unsaved changes and resend them when they
+  reconnect.
 
 ## Comments
 

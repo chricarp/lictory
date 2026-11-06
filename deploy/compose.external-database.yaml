@@ -77,6 +77,17 @@ services:
       NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
     volumes: [*database-ca]
 
+  # Internal-only with the bundled database; here it must reach DATABASE_HOST.
+  collaboration:
+    networks: [internal, egress]
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://lictory_app:${LICTORY_APP_PASSWORD:?}@${DATABASE_HOST:?}:${DATABASE_PORT:-5432}/${LICTORY_DB_NAME:?}?sslmode=${DATABASE_SSLMODE:-verify-full}
+      NODE_EXTRA_CA_CERTS: ${DATABASE_CA_FILE:+/run/lictory/database-ca.pem}
+    volumes: [*database-ca]
+
   # Monitoring only: Lictory takes no backups of an external database (the
   # provider's backups and point-in-time recovery cover it).
   ops:

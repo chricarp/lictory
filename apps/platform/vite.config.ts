@@ -81,17 +81,24 @@ export default defineConfig(({ mode }) => {
     env[name]?.trim() ? env[name].trim() : fallback;
   const apiOrigin = setting("API_ORIGIN", "http://localhost:3002");
   const zeroOrigin = setting("ZERO_ORIGIN", "http://localhost:4848");
+  const collaborationOrigin = setting(
+    "COLLABORATION_ORIGIN",
+    "http://localhost:3004",
+  );
   const version = (
     JSON.parse(readFileSync(workspace("package.json"), "utf8")) as {
       version: string;
     }
   ).version;
-  // One origin in development and previews: the API, zero-cache and the
-  // analytics relay sit behind the app's own server, as in production.
+  // One origin in development and previews: the API, zero-cache, the
+  // collaboration service and the analytics relay sit behind the app's own
+  // server, as in production.
   const proxy: Record<string, ProxyOptions> = {
     "/api": { target: apiOrigin, changeOrigin: false, xfwd: true },
     "/relay": { target: apiOrigin, changeOrigin: false, xfwd: true },
     "/zero": { target: zeroOrigin, ws: true, changeOrigin: true },
+    // The browser's Origin is kept: the service accepts only PLATFORM_URL.
+    "/collaboration": { target: collaborationOrigin, ws: true },
   };
   const port = Number(setting("PORT", "3120"));
   return {

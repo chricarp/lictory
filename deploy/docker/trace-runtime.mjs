@@ -1,6 +1,6 @@
-// Copies exactly the files the API and worker bundles load at runtime (npm
-// packages left external, including native binaries installed for this
-// platform) from ./node_modules into <out>/node_modules, using the same file
+// Copies exactly the files the API, worker and collaboration bundles load at
+// runtime (npm packages left external, including native binaries installed
+// for this platform) from ./node_modules into <out>/node_modules, using the same file
 // tracer as Next.js standalone output. Fails if a bundle imports a package
 // that is not installed.
 // Usage: node deploy/docker/trace-runtime.mjs <out> <entry>...

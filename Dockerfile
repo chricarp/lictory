@@ -33,6 +33,7 @@ COPY apps/platform/package.json apps/platform/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/marketing/package.json apps/marketing/package.json
 COPY apps/worker/package.json apps/worker/package.json
+COPY apps/collaboration/package.json apps/collaboration/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/core/package.json packages/core/package.json
 COPY packages/zero/package.json packages/zero/package.json
@@ -55,8 +56,10 @@ RUN bun scripts/inject-release-version.ts "$APP_VERSION" \
 FROM source AS server-build
 RUN bun run --filter @lictory/api build \
  && bun run --filter @lictory/worker build \
+ && bun run --filter @lictory/collaboration build \
  && test -f apps/api/dist/index.js && test -f apps/api/dist/admin.js \
  && test -f apps/worker/dist/index.js \
+ && test -f apps/collaboration/dist/index.js \
  && mkdir -p /manifests \
  && cp package.json bun.lock bunfig.toml /manifests/ \
  && for manifest in apps/*/package.json packages/*/package.json; do \
@@ -117,8 +120,9 @@ RUN --mount=type=cache,target=/src/apps/marketing/.next/cache \
 FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS bun-target
 
 # Installs the workspace lockfile's exact versions for the target platform,
-# then keeps only the files the API and worker bundles load (traced like
-# Next.js standalone output) and checks that the native packages load.
+# then keeps only the files the API, worker and collaboration bundles load
+# (traced like Next.js standalone output) and checks that the native packages
+# load.
 FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS server-dependencies
 COPY --from=bun-target /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /src
@@ -127,9 +131,11 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile --ignore-scripts
 COPY --from=server-build /src/apps/api/dist ./apps/api/dist
 COPY --from=server-build /src/apps/worker/dist ./apps/worker/dist
+COPY --from=server-build /src/apps/collaboration/dist ./apps/collaboration/dist
 COPY deploy/docker/trace-runtime.mjs ./deploy/docker/trace-runtime.mjs
 RUN node deploy/docker/trace-runtime.mjs /deps \
-      apps/api/dist/index.js apps/api/dist/admin.js apps/worker/dist/index.js
+      apps/api/dist/index.js apps/api/dist/admin.js apps/worker/dist/index.js \
+      apps/collaboration/dist/index.js
 
 FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS marketing-dependencies
 WORKDIR /deps
@@ -149,7 +155,8 @@ RUN mkdir -p /srv/platform/current/assets
 FROM ${PREVIOUS_PROXY_IMAGE} AS previous-assets
 
 # ------------------------------------------------------------ runtime images
-# API and worker: node apps/api/dist/index.js | node apps/worker/dist/index.js
+# API, worker and collaboration service: node apps/api/dist/index.js |
+# node apps/worker/dist/index.js | node apps/collaboration/dist/index.js
 FROM node:24.22-trixie-slim@sha256:54f84b4cf8432b21aaffd5d3ce8d41e12cea0d10d33c09d2f3c9879d49d6b446 AS api
 # Preserve the project and bundled-source notices in distributed images.
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/lictory/
@@ -159,6 +166,7 @@ WORKDIR /app
 COPY --from=server-dependencies /deps/node_modules ./node_modules
 COPY --from=server-build /src/apps/api/dist ./apps/api/dist
 COPY --from=server-build /src/apps/worker/dist ./apps/worker/dist
+COPY --from=server-build /src/apps/collaboration/dist ./apps/collaboration/dist
 COPY --from=platform-build /src/apps/platform/dist ./platform
 USER node
 EXPOSE 3002

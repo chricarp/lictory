@@ -705,6 +705,12 @@ void test("an installation with only an app host name renders without a website"
     "https://lictory.example.test",
   );
   assert.equal(single.services.proxy!.environment.PROXY_SCHEME, "https");
+  // The collaboration service checks WebSocket origins against the same
+  // public origin as the proxy.
+  assert.equal(
+    single.services.collaboration!.environment.PLATFORM_URL,
+    single.services.proxy!.environment.PLATFORM_URL,
+  );
 
   // Plain HTTP on loopback keeps 443 off the public interface.
   const http = render(
@@ -2519,7 +2525,14 @@ void test("the external database override removes the bundled postgres and encry
     >;
   };
   assert.ok(!("postgres" in config.services));
-  for (const name of ["migrate", "zero-cache", "api", "worker", "database"]) {
+  for (const name of [
+    "migrate",
+    "zero-cache",
+    "api",
+    "worker",
+    "collaboration",
+    "database",
+  ]) {
     const service = config.services[name]!;
     assert.ok("egress" in service.networks, name);
     assert.ok(!("postgres" in (service.depends_on ?? {})), name);
@@ -2543,6 +2556,7 @@ void test("the external database override removes the bundled postgres and encry
     config.services["zero-cache"]!.environment.ZERO_CVR_DB!,
     config.services.api!.environment.DATABASE_URL!,
     config.services.worker!.environment.DATABASE_URL!,
+    config.services.collaboration!.environment.DATABASE_URL!,
   ];
   for (const url of urls) {
     const parsed = new URL(url);
