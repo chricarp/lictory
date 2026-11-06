@@ -5,6 +5,7 @@
       // Bun runs colocated tests; operators and the Better Auth CLI load these by path.
       "entry": [
         "scripts/*.ts",
+        "scripts/backfills/*.ts",
         "tests/**/*.ts",
         "deploy/docker/*.mjs",
         "deploy/docker/src/*.test.mjs",

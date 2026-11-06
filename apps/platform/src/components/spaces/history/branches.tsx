@@ -5,7 +5,20 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { usePageBranchSelection } from "./branch-selection";
-import { ActionError, ChoosePerson, field, useHistoryAction } from "./shared";
+import {
+  discussionTotal,
+  type DiscussionCounts,
+} from "@lictory/core/spaces/discussion-lifecycle";
+import {
+  ActionError,
+  ChoosePerson,
+  Confirmation,
+  CountsChanged,
+  DiscussionRemovalWarning,
+  field,
+  sameCounts,
+  useHistoryAction,
+} from "./shared";
 import { ConflictResolution } from "./conflicts";
 
 export function Branches({ pageId }: { pageId: string }) {
@@ -16,7 +29,13 @@ export function Branches({ pageId }: { pageId: string }) {
   const [name, setName] = useState("");
   const [from, setFrom] = useState(branch?.headCommitId ?? "");
   const [sync, setSync] = useState<string>();
-  const [deleting, setDeleting] = useState<string>();
+  // The branch being deleted and the counts its confirmation shows.
+  const [deleting, setDeleting] = useState<{
+    id: string;
+    counts: DiscussionCounts | undefined;
+  }>();
+  // After a cancelled deletion, focus returns to that branch's button.
+  const [returnTo, setReturnTo] = useState<string>();
   const action = useHistoryAction();
   const problem =
     branchNameProblem(name) ??
@@ -61,11 +80,18 @@ export function Branches({ pageId }: { pageId: string }) {
                   Sync from main
                 </Button>
               )}
-            {canEdit && !b.isMain && (
+            {canEdit && !b.isMain && deleting?.id !== b.id && (
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setDeleting(b.id)}
+                autoFocus={returnTo === b.id}
+                onFocus={() => {
+                  if (returnTo === b.id) setReturnTo(undefined);
+                }}
+                onClick={() => {
+                  setReturnTo(undefined);
+                  setDeleting({ id: b.id, counts: b.discussionsOnDelete });
+                }}
               >
                 Delete branch…
               </Button>
@@ -103,18 +129,41 @@ export function Branches({ pageId }: { pageId: string }) {
                 </Button>
               ))}
           </div>
-          {deleting === b.id && (
-            <div className="space-y-2">
+          {deleting?.id === b.id && (
+            <Confirmation
+              label={`Delete branch ${b.name}`}
+              className="space-y-2"
+            >
               <p>
                 Delete this branch and disconnect its editors? Commits remain in
                 history. Close any open pull requests first.
               </p>
+              <DiscussionRemovalWarning
+                where="this branch"
+                counts={deleting.counts}
+              />
+              {!sameCounts(deleting.counts, b.discussionsOnDelete) && (
+                <CountsChanged />
+              )}
               <Button
                 size="sm"
-                disabled={action.pending}
+                disabled={
+                  action.pending ||
+                  !sameCounts(deleting.counts, b.discussionsOnDelete)
+                }
                 onClick={() => {
                   void action.run(
-                    { type: "deletePageBranch", branchId: b.id },
+                    {
+                      type: "deletePageBranch",
+                      branchId: b.id,
+                      ...(deleting.counts
+                        ? {
+                            discussionsToRemove: discussionTotal(
+                              deleting.counts,
+                            ),
+                          }
+                        : {}),
+                    },
                     () => {
                       setDeleting(undefined);
                       if (branch?.id === b.id) setBranch(null);
@@ -127,11 +176,14 @@ export function Branches({ pageId }: { pageId: string }) {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setDeleting(undefined)}
+                onClick={() => {
+                  setDeleting(undefined);
+                  setReturnTo(b.id);
+                }}
               >
                 Cancel
               </Button>
-            </div>
+            </Confirmation>
           )}
         </section>
       ))}

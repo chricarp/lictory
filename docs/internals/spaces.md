@@ -60,7 +60,8 @@ Each space chooses one publishing policy:
 Merges require no open blocking threads and, in Reviewed spaces, every required
 review approving the current result. A merge is refused while the source or
 the target has uncommitted live changes, so a published commit never omits or
-includes text nobody saw.
+includes text nobody saw. Deleting a branch or merging a pull request removes
+the discussions of the line that ends ([When a line ends](#when-a-line-ends)).
 
 ## Live drafts
 
@@ -119,12 +120,12 @@ The commands (`packages/core/src/spaces/history.ts`, all through
 | `restorePageCommit`                              | A new commit on a line with an earlier commit's title and content (`expectedHead` names the head you saw); the line's draft starts a new epoch from it                                                                                     |
 | `createPageBranch`                               | A named branch from main's head or `fromCommitId`, with its own draft seeded from that commit                                                                                                                                              |
 | `setPageBranchCollaborator`                      | The branch author invites or removes an editor of the space                                                                                                                                                                                |
-| `deletePageBranch`                               | The author or an editor of the space deletes a branch no unmerged pull request uses; its draft is fenced, its commits stay                                                                                                                 |
+| `deletePageBranch`                               | The author or an editor of the space deletes a branch no unmerged pull request uses; its draft is fenced, its commits stay, its discussions are removed (`discussionsToRemove` confirms the count shown)                                   |
 | `syncPageBranch`                                 | Merges main (or `fromBranchId`) into a branch with a two-parent merge commit; conflicts are refused until `resolutions` names a choice for each                                                                                            |
 | `createPagePullRequest`, `updatePagePullRequest` | Opens a pull request into main (default) or another branch, optionally as a draft; changes title, description and draft state                                                                                                              |
 | `requestPageReview`, `cancelPageReview`          | Asks someone who can comment on the page to review, `required` or not (the reviewer is notified); reviewers may decline                                                                                                                    |
 | `decidePagePullRequest`                          | `approve`, `request_changes` or `revoke`, bound to the merge result of `inspectedSourceHead` and `inspectedTargetHead`                                                                                                                     |
-| `mergePagePullRequest`                           | Merges after the gates below; into main it publishes and records the valid approvals on the new commit                                                                                                                                     |
+| `mergePagePullRequest`                           | Merges after the gates below; into main it publishes and records the valid approvals on the new commit; removes the source's and its own discussions (`discussionsToRemove` confirms the count shown)                                      |
 | `deletePagePullRequest`                          | The author or an editor of the space closes an unmerged pull request; it stays in the database with its reviews, and its open discussions are resolved (each recorded)                                                                     |
 | `proposePageChange`                              | A branch from main, a commit with the given title and content (GitHub-flavoured Markdown through `markdownToDocument`, or canonical JSON) and an open pull request into main, in one step: how agents change pages without publishing them |
 
@@ -207,8 +208,9 @@ reason ("policy changed after this review…"), and the approvers are told
 **Merge gates**, checked in this order: the pull request is open (not a
 draft); the inspected heads are current; no uncommitted changes in the source
 or target draft; a single merge base and no conflicts; changes remain; no
-open blocking thread of the pull request (merging into main: of the whole
-page); no current request for changes of this result; every required
+open blocking thread of the pull request or among the discussions the merge
+removes (merging into main: of every line of the page that still exists); no
+current request for changes of this result; every required
 reviewer has a current approval of this result and still can review the
 page; in a Reviewed space merging into main, at least one required review.
 Direct spaces need no review, but a request for changes still blocks.
@@ -463,14 +465,78 @@ access: whoever may comment on the page (`canCommentOnPage`: comment or edit
 access to an active space and page) starts a thread, replies, resolves,
 reopens and marks it blocking or non-blocking. Viewers read threads but
 cannot write them; people without access cannot tell a thread exists.
-Messages are never edited or deleted (specification messages are not
-either), and resolving keeps every message. Archived pages and spaces are
+Messages are never edited (specification messages are not either), and
+resolving keeps every message; discussions are deleted only with their line
+([When a line ends](#when-a-line-ends)). Archived pages and spaces are
 read-only, discussions included.
 
 A blocking thread blocks merging the page's changes while it is open; the
-history commands check it with `openBlockingPageThreads`
-(`packages/core/src/spaces/discussions.ts`, see
+merge gate counts it from the page's line state
+(`evaluatePullRequest` in `packages/core/src/spaces/history-state.ts`, see
 [History](#history-commits-branches-and-pull-requests)).
+
+### When a line ends
+
+A discussion belongs to the line it was written on: its `branch_id`, or,
+written on a pull request without a branch, that pull request's source. When
+a line ends, its discussions end with it, whatever their state: open or
+resolved, blocking or not, with every message. This is a deliberate product
+decision: a discussion about a line that no longer exists cannot be acted on,
+and left behind it would block merges into main forever with nothing to
+resolve it on. Lictory never deletes discussions in any other case.
+
+| Event                                 | Removed                                                                                                                                                              | Kept                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Deleting a branch                     | Every discussion on it, and branchless discussions of pull requests from it                                                                                          | Discussions on main and other branches; whole-page and commit discussions without a line |
+| Merging, the merge retires the source | The same as deleting the source, plus the pull request's own branchless discussions                                                                                  | As above; discussions written on the pull request but on the target                      |
+| Merging, the source stays             | Discussions on the source (not tied to another pull request) and the pull request's own; into main the source stays only while another unmerged pull request uses it | Discussions of the source's other pull requests; the target's; other lines'              |
+| Closing a pull request                | Nothing: its open discussions are resolved (each recorded), as before                                                                                                | Everything                                                                               |
+
+`packages/core/src/spaces/discussion-lifecycle.ts` decides the selection;
+the commands, the projections and the repair share it, so what people are
+told is exactly what is removed. Removal happens in the transaction of the
+deletion or merge, after every gate passed: a refused, failed or cancelled
+operation removes nothing, and repeating a completed one removes nothing
+more. A merge never removes an open blocking discussion: the ones it would
+remove hold the merge like the pull request's own until they are resolved.
+A merged pull request takes no new discussions.
+
+Each removal records one `discussions_removed` activity (reason, branch,
+pull request, thread ids, message count and the counts by state); messages
+are not copied into it. Older activity, notifications and exports that name
+a removed thread keep its id; following such a link opens the page.
+
+People are told before they confirm. Each branch projection carries
+`discussionsOnDelete` and each pull request's mergeability `onMerge` (whether
+the source is deleted and the counts by state). The branch deletion and the
+merge confirmation say, in English, how many discussions are deleted, by
+state, and that this cannot be undone; the merge confirmation also says
+whether the source branch is deleted and that discussions on the target and
+other branches are kept. The confirmed total travels with the command
+(`discussionsToRemove`; a merge also sends whether it was told the source
+branch is deleted, `deletesSourceBranch`, refused when that changed); if it no longer matches, the command is refused
+("The discussions this removes changed since you confirmed…") and nothing is
+removed. A command that would remove discussions without a confirmed total
+(a browser tab loaded before the warning existed, an agent that did not look)
+is refused the same way. Agents get the same counts and the same check.
+
+Discussions left on branches deleted before this rule are held by nothing
+(the merge gate ignores lines that no longer exist). Run the
+`remove-orphaned-page-discussions` backfill once after deploying it
+(`deploy.sh <env> backfill <version> remove-orphaned-page-discussions`; locally
+`bun scripts/backfills/remove-orphaned-page-discussions.ts [--dry-run]
+[organizationId ...]`, which rejects any other option). It removes those
+discussions and reprojects every page, so branch and pull request rows
+projected before the counts existed carry them (until then a confirmation
+on such a page has no counts, and the server refuses a removal nobody
+confirmed). It works one page per transaction under the organization lock,
+records each removal attributed to whoever deleted the branch
+(`repair: true`), and changes nothing on a second run.
+
+The confirmations capture the counts when they open and send exactly those.
+If the counts change while one is open, it says so and waits until the
+person cancels and opens it again; it takes focus when it opens and returns
+it to its button when cancelled.
 
 ### Anchors
 
@@ -579,22 +645,22 @@ its space's project, a parent page inside the same space, and commits,
 branches and drafts inside their page (`packages/core/src/db/spaces-schema.ts`).
 History uses restrictive deletes.
 
-| Table                                     | Holds                                                                                                                                                           |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `space`                                   | Name, handle (unique among active spaces, case-insensitively), description, icon, home (`project_id`, `team_id`), `access_mode`, `publishing`, creator, archive |
-| `space_grant`                             | Named access: one level per space and person                                                                                                                    |
-| `space_reader`                            | Effective access (derived, replicated)                                                                                                                          |
-| `page`                                    | Space, parent, `rank`, creator, archive                                                                                                                         |
-| `page_commit`                             | Immutable snapshots: parents, title, `content` (Tiptap JSON), `markdown`, `hash`, `schema_version`, message, author, contributors, draft provenance             |
-| `page_branch`, `page_branch_collaborator` | Pointers (`head_commit_id`, `base_commit_id`), exactly one `is_main` per page that is never deleted, author and invited collaborators                           |
-| `space_draft`, `space_draft_update`       | Live drafts (one per line, `branch_id` unique) with epoch, sequence, `committed_sequence`, base commit, snapshot and fence; the update log                      |
-| `space_draft_seed`                        | The starting Yjs state of every epoch of a draft, written once when the epoch starts, so replaced epochs stay reconstructable                                   |
-| `page_pull_request`                       | Pull requests: source and target branch, title, description, `status` (draft, open, merged), merge (who, when, `merge_commit_id`), close (`deleted_at`)         |
-| `page_pull_request_reviewer`              | Review requests: person, `required`, who asked                                                                                                                  |
-| `page_pull_request_review`                | Decisions (append-only): approved or changes requested, `result_hash`, inspected heads, `stale_at` with `stale_reason`, `withdrawn_at`                          |
-| `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), `pull_request_id`, resolution; messages (never edited)                   |
-| `page_activity`                           | Discussion events (opened, resolved, reopened, blocking changed) with actor, time and delegating agent                                                          |
-| `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                   |
+| Table                                     | Holds                                                                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `space`                                   | Name, handle (unique among active spaces, case-insensitively), description, icon, home (`project_id`, `team_id`), `access_mode`, `publishing`, creator, archive        |
+| `space_grant`                             | Named access: one level per space and person                                                                                                                           |
+| `space_reader`                            | Effective access (derived, replicated)                                                                                                                                 |
+| `page`                                    | Space, parent, `rank`, creator, archive                                                                                                                                |
+| `page_commit`                             | Immutable snapshots: parents, title, `content` (Tiptap JSON), `markdown`, `hash`, `schema_version`, message, author, contributors, draft provenance                    |
+| `page_branch`, `page_branch_collaborator` | Pointers (`head_commit_id`, `base_commit_id`), exactly one `is_main` per page that is never deleted, author and invited collaborators                                  |
+| `space_draft`, `space_draft_update`       | Live drafts (one per line, `branch_id` unique) with epoch, sequence, `committed_sequence`, base commit, snapshot and fence; the update log                             |
+| `space_draft_seed`                        | The starting Yjs state of every epoch of a draft, written once when the epoch starts, so replaced epochs stay reconstructable                                          |
+| `page_pull_request`                       | Pull requests: source and target branch, title, description, `status` (draft, open, merged), merge (who, when, `merge_commit_id`), close (`deleted_at`)                |
+| `page_pull_request_reviewer`              | Review requests: person, `required`, who asked                                                                                                                         |
+| `page_pull_request_review`                | Decisions (append-only): approved or changes requested, `result_hash`, inspected heads, `stale_at` with `stale_reason`, `withdrawn_at`                                 |
+| `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), `pull_request_id`, resolution; messages (never edited, removed with their line) |
+| `page_activity`                           | Discussion events (opened, resolved, reopened, blocking changed, removed with their line) with actor, time and delegating agent                                        |
+| `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                          |
 
 `page_thread.pull_request_id` names the pull request a thread was opened on
 (a foreign key within the page). `page_commit` also records the pull request
@@ -908,9 +974,9 @@ attributed to the anonymized account, like specification threads.
   that line has open threads), a sheet on narrow ones. Other live lines with
   open threads are named, never added to the count: "On other branches" in
   the panel switches to one, and the branch menu shows each line's open
-  discussions. Threads of deleted branches are counted on no line (the
-  page summary's `openThreads` and `blockingThreads` stay page-wide, as the
-  merge gate into main is). The count of blocking threads says what they block ("blocks merging
+  discussions. Deleting a branch removes its threads
+  ([When a line ends](#when-a-line-ends)); the page summary's `openThreads`
+  and `blockingThreads` stay page-wide, as the merge gate into main is. The count of blocking threads says what they block ("blocks merging
   pull requests" in Direct spaces, whose Publish they do not stop; "blocks
   merging" in Reviewed ones). Highlights are tints in the thread's colour;
   the selected thread and the one pointed at, in the panel or in the text,

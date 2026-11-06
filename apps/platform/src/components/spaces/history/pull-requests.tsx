@@ -18,7 +18,17 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
-import { ActionError, ChoosePerson, field, useHistoryAction } from "./shared";
+import { discussionTotal } from "@lictory/core/spaces/discussion-lifecycle";
+import {
+  ActionError,
+  ChoosePerson,
+  Confirmation,
+  CountsChanged,
+  DiscussionRemovalWarning,
+  field,
+  sameCounts,
+  useHistoryAction,
+} from "./shared";
 import { useMergePreview } from "./preview";
 import { ConflictResolution } from "./conflicts";
 
@@ -211,6 +221,11 @@ function PullRequestDetail({
   const [title, setTitle] = useState(pr.title);
   const [description, setDescription] = useState(pr.description ?? "");
   const [closing, setClosing] = useState(false);
+  type OnMerge = NonNullable<PullRequest["mergeability"]>["onMerge"];
+  // Open while confirming, with what the merge removes as it was shown.
+  const [merging, setMerging] = useState<{ onMerge: OnMerge } | null>(null);
+  // After a cancelled merge, focus returns to the merge button.
+  const [returnFocus, setReturnFocus] = useState(false);
   const target = commits.find((c) => c.id === preview?.theirs.headCommitId);
   const resultDocument = useMemo(() => {
     const base = commits.find((c) => c.id === preview?.baseCommitId);
@@ -250,6 +265,8 @@ function PullRequestDetail({
   const currentReviews = reviews.filter(
     (r) => r.pullRequestId === pr.id && !r.withdrawnAt,
   );
+  const branchName = (id: string) =>
+    branches.find((b) => b.id === id)?.name ?? "the branch";
   return (
     <section className="space-y-5">
       <header className="flex items-start justify-between gap-3">
@@ -421,7 +438,7 @@ function PullRequestDetail({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold">Review summary</h3>
             <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${pr.status === "merged" || gate?.blockers.length === 0 ? "bg-success/10 text-success" : "bg-muted text-foreground"}`}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${pr.status === "merged" || gate?.blockers.length === 0 ? "bg-card text-success ring-1 ring-success/30 ring-inset" : "bg-muted text-foreground"}`}
             >
               {pr.status === "merged"
                 ? "Merged"
@@ -476,7 +493,7 @@ function PullRequestDetail({
                         {r.required ? "Required" : "Optional"}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-0.5 ring-1 ring-inset ${state === "Approved" ? "bg-success/10 text-success ring-success/20" : "bg-muted ring-border"}`}
+                        className={`rounded-full px-2 py-0.5 ring-1 ring-inset ${state === "Approved" ? "bg-card text-success ring-success/30" : "bg-muted ring-border"}`}
                       >
                         {state}
                       </span>
@@ -652,7 +669,7 @@ function PullRequestDetail({
                   All merge checks pass.
                 </p>
               )}
-              {canEdit && (
+              {canEdit && !merging && (
                 <Button
                   className="w-full"
                   disabled={
@@ -661,17 +678,54 @@ function PullRequestDetail({
                     !inspected ||
                     gate.blockers.length > 0
                   }
+                  autoFocus={returnFocus}
+                  onFocus={() => setReturnFocus(false)}
                   onClick={() => {
-                    if (inspected)
-                      void action.run({
-                        type: "mergePagePullRequest",
-                        pullRequestId: pr.id,
-                        ...inspected,
-                      });
+                    setReturnFocus(false);
+                    setMerging({ onMerge: gate.onMerge });
                   }}
                 >
-                  Merge pull request
+                  Merge pull request…
                 </Button>
+              )}
+              {canEdit && merging && (
+                <MergeConfirmation
+                  sourceName={branchName(pr.sourceBranchId)}
+                  targetName={branchName(pr.targetBranchId)}
+                  onMerge={merging.onMerge}
+                  changed={!sameCounts(merging.onMerge, gate.onMerge)}
+                  disabled={
+                    action.pending ||
+                    !fresh ||
+                    !inspected ||
+                    gate.blockers.length > 0 ||
+                    !sameCounts(merging.onMerge, gate.onMerge)
+                  }
+                  onConfirm={() => {
+                    if (inspected)
+                      void action.run(
+                        {
+                          type: "mergePagePullRequest",
+                          pullRequestId: pr.id,
+                          ...inspected,
+                          ...(merging.onMerge
+                            ? {
+                                discussionsToRemove: discussionTotal(
+                                  merging.onMerge.discussions,
+                                ),
+                                deletesSourceBranch:
+                                  merging.onMerge.sourceRetired,
+                              }
+                            : {}),
+                        },
+                        () => setMerging(null),
+                      );
+                  }}
+                  onCancel={() => {
+                    setMerging(null);
+                    setReturnFocus(true);
+                  }}
+                />
               )}
             </section>
           )}
@@ -694,6 +748,61 @@ function PullRequestDetail({
         />
       )}
     </section>
+  );
+}
+
+// Asked before merging: what happens to the source branch and which
+// discussions the merge deletes (docs/internals/spaces.md#when-a-line-ends).
+function MergeConfirmation({
+  sourceName,
+  targetName,
+  onMerge,
+  changed,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  sourceName: string;
+  targetName: string;
+  onMerge: NonNullable<PullRequest["mergeability"]>["onMerge"];
+  changed: boolean;
+  disabled: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const removes = !onMerge || discussionTotal(onMerge.discussions) > 0;
+  return (
+    <Confirmation
+      label="Confirm merge"
+      className="space-y-3 rounded-xl border border-destructive/40 bg-card p-3 text-sm"
+    >
+      <p className="font-medium">
+        Merge {sourceName} into {targetName}?
+      </p>
+      {onMerge && (
+        <p>
+          {onMerge.sourceRetired
+            ? `Branch ${sourceName} will be deleted after the merge.`
+            : `Branch ${sourceName} stays available after the merge.`}
+        </p>
+      )}
+      <DiscussionRemovalWarning
+        where={`${sourceName} and this pull request`}
+        counts={onMerge?.discussions}
+      />
+      <p className="text-muted-foreground">
+        Discussions on {targetName} and on other branches are kept.
+      </p>
+      {changed && <CountsChanged />}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={disabled} onClick={onConfirm}>
+          {removes ? "Merge and delete discussions" : "Confirm merge"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </Confirmation>
   );
 }
 

@@ -15,6 +15,12 @@ import {
   type PageNode,
 } from "@lictory/core/spaces/document";
 import { draftDocumentName } from "@lictory/core/spaces/draft-access";
+import {
+  discussionCounts,
+  discussionsOfMerge,
+  onDeletedLine,
+  type LineThread,
+} from "@lictory/core/spaces/discussion-lifecycle";
 
 // The state of a page's history that commands, projections and reads share:
 // the commit graph, merge results of two lines, who contributed to a
@@ -239,8 +245,9 @@ export type PageLineState = {
   pullRequests: PullRequestRow[];
   reviews: ReviewRow[];
   reviewers: ReviewerRow[];
-  // Open blocking threads: their pull request (if any).
-  blockingThreads: { pullRequestId: string | null }[];
+  // Every discussion of the page with its line, for the merge gate and for
+  // what a merge or a branch deletion removes.
+  threads: LineThread[];
 };
 
 export async function pageLineStates(
@@ -300,18 +307,29 @@ export async function pageLineStates(
         ),
       db
         .select({
+          id: s.pageThread.id,
           pageId: s.pageThread.pageId,
+          status: s.pageThread.status,
+          blocking: s.pageThread.blocking,
+          branchId: s.pageThread.branchId,
           pullRequestId: s.pageThread.pullRequestId,
+          pullRequestSourceBranchId: s.pagePullRequest.sourceBranchId,
         })
         .from(s.pageThread)
+        .leftJoin(
+          s.pagePullRequest,
+          and(
+            eq(s.pagePullRequest.organizationId, s.pageThread.organizationId),
+            eq(s.pagePullRequest.id, s.pageThread.pullRequestId),
+          ),
+        )
         .where(
           and(
             eq(s.pageThread.organizationId, organizationId),
             inArray(s.pageThread.pageId, pageIds),
-            eq(s.pageThread.status, "open"),
-            eq(s.pageThread.blocking, true),
           ),
-        ),
+        )
+        .orderBy(asc(s.pageThread.createdAt), asc(s.pageThread.id)),
     ]);
   const prIds = pullRequests.map((p) => p.id);
   const [reviews, reviewers] = prIds.length
@@ -341,6 +359,13 @@ export async function pageLineStates(
           .orderBy(asc(s.pagePullRequestReviewer.userId)),
       ])
     : [[], []];
+  // An organization-wide rebuild loads every thread: group them once.
+  const threadsByPage = new Map<string, LineThread[]>();
+  for (const thread of threads) {
+    const list = threadsByPage.get(thread.pageId);
+    if (list) list.push(thread);
+    else threadsByPage.set(thread.pageId, [thread]);
+  }
   for (const page of pages) {
     const prs = pullRequests.filter((p) => p.pageId === page.id);
     const ids = new Set(prs.map((p) => p.id));
@@ -352,7 +377,7 @@ export async function pageLineStates(
       pullRequests: prs,
       reviews: reviews.filter((r) => ids.has(r.pullRequestId)),
       reviewers: reviewers.filter((r) => ids.has(r.pullRequestId)),
-      blockingThreads: threads.filter((t) => t.pageId === page.id),
+      threads: threadsByPage.get(page.id) ?? [],
     });
   }
   return states;
@@ -428,7 +453,8 @@ export type PullRequestEvaluation = NonNullable<
 // What stands between an unmerged pull request and its merge, from page
 // data only (the merge command adds the access checks of the moment):
 // conflicts, changes left, uncommitted drafts, blocking threads (the pull
-// request's own; when targeting main, every thread of the page) and
+// request's own and its source's; when targeting main, every thread of a
+// line that still exists) and
 // reviews. Every required reviewer needs a current approval of exactly this
 // result from someone who did not contribute to it; a current request for
 // changes of this result blocks; a Reviewed space merging into main needs
@@ -468,8 +494,31 @@ export function evaluatePullRequest(
     state.drafts.find((d) => d.branchId === branchId && !d.fencedAt);
   const sourceDraft = draftOf(source.id);
   const targetDraft = draftOf(target.id);
-  const blockingThreads = state.blockingThreads.filter(
-    (t) => t.pullRequestId === pr.id || target.isMain,
+  // Merging into main retires the source unless another unmerged pull
+  // request still uses it; the merge then removes the source's discussions
+  // (all of them when it retires the source).
+  const sourceRetired =
+    target.isMain &&
+    !state.pullRequests.some(
+      (other) =>
+        other.id !== pr.id &&
+        other.status !== "merged" &&
+        !other.deletedAt &&
+        (other.sourceBranchId === source.id ||
+          other.targetBranchId === source.id),
+    );
+  const removed = discussionsOfMerge(state.threads, pr, sourceRetired);
+  const removedIds = new Set(removed.map((t) => t.id));
+  // Open blocking discussions on a line that still exists: the pull
+  // request's own, the ones the merge would remove (a merge never deletes an
+  // open blocker) and, merging into main, every one of the page.
+  const live = new Set(state.branches.map((b) => b.id));
+  const blockingThreads = state.threads.filter(
+    (t) =>
+      t.status === "open" &&
+      t.blocking &&
+      !onDeletedLine(t, live) &&
+      (t.pullRequestId === pr.id || target.isMain || removedIds.has(t.id)),
   ).length;
   const blockers: PageMergeBlocker[] = [];
   if (pr.status === "draft") blockers.push("draft");
@@ -500,6 +549,11 @@ export function evaluatePullRequest(
     requiredApproved,
     staleReviews: reviews.filter((r) => r.staleAt).length,
     blockingThreads,
+    removedOnMerge: {
+      sourceRetired,
+      threadIds: [...removedIds],
+      discussions: discussionCounts(removed),
+    },
     sourceDraft,
     targetDraft,
     blockers,

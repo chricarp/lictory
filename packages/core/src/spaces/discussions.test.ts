@@ -25,7 +25,6 @@ import { executeMutation } from "@lictory/core/domain/service";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
 import { mentionToken } from "@lictory/core/notifications/mentions";
 import { createNotificationService } from "@lictory/core/notifications/service";
-import { openBlockingPageThreads } from "@lictory/core/spaces/discussions";
 import { notifyPageReviewRequested } from "@lictory/core/spaces/notifications";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
 
@@ -502,7 +501,18 @@ void test("resolving and reopening keep every message and record who did it; cou
     [2, 2],
   );
   assert.deepEqual(
-    (await openBlockingPageThreads(db, f.organizationId, pageId))
+    (
+      await db
+        .select({ id: s.pageThread.id })
+        .from(s.pageThread)
+        .where(
+          and(
+            eq(s.pageThread.pageId, pageId),
+            eq(s.pageThread.status, "open"),
+            eq(s.pageThread.blocking, true),
+          ),
+        )
+    )
       .map((t) => t.id)
       .sort(),
     [blocking, plain].sort(),
