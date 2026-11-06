@@ -54,6 +54,17 @@ export const queries = defineQueries({
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
+  // A space's review list needs proposal metadata, never every page's content.
+  spacePullRequests: defineQuery(
+    z.object({ organizationId: z.string().min(1), spaceId: z.string().min(1) }),
+    ({ args, ctx }) =>
+      zql.spaceEntity
+        .where("organizationId", args.organizationId)
+        .where("spaceId", args.spaceId)
+        .where("type", "pagePullRequest")
+        .whereExists("readers", (r) => r.where("userId", ctx.userID))
+        .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
   // My effective access level in each space I can read.
   mySpaceAccess: defineQuery(organizationArgs, ({ args, ctx }) =>
     zql.spaceReader

@@ -54,6 +54,12 @@ export function SpaceHome() {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`${paths.space(organization.slug, space.slug)}/pull-requests`}
+              className="text-sm underline underline-offset-4"
+            >
+              Pull requests
+            </Link>
             {(manage || level === "edit") && (
               <Link
                 href={paths.spaceSettings(organization.slug, space.slug)}

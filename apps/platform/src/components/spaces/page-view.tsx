@@ -1,3 +1,4 @@
+import { PageHistoryEntry } from "@lictory/platform/components/spaces/history/entry";
 import { useMemo } from "react";
 import {
   Archive,
@@ -184,6 +185,7 @@ function PageArticle({
             </div>
           )}
         </div>
+        <PageHistoryEntry pageId={page.id} />
       </header>
       <div className="mt-6">
         <PageDocument commit={head} loading={!history.loaded && !head} />

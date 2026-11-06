@@ -757,3 +757,19 @@ attributed to the anonymized account, like specification threads.
 - **Administrators without access.** `/{org}/spaces` lists the restricted
   spaces I administer but cannot read (from `listSpaces`, names only) with an
   explicit, audited "Grant myself access".
+
+- **History and review.** A page's `/history` address shows Versions,
+  Branches and Pull requests; `?view=pulls&pr=<id>` opens a particular review.
+  A space's `/pull-requests` address lists its open proposals through the
+  `spacePullRequests` query and `useSpacePullRequests(spaceId)` hook, which
+  authorize membership and space access and return proposal metadata only. History displays
+  immutable commits and block changes; restoring creates a new commit and
+  restarts the draft epoch, with explicit consent to discard live changes.
+- **Branch selection.** `usePageBranchSelection()` from
+  `components/spaces/history/branch-selection` returns `{ branchId, branch,
+setBranch }`. It reads the page parameter and `?branch=<id>`; absent branch
+  selects main. `setBranch(null)` returns to main and preserves other search
+  parameters. An unknown explicit branch stays undefined, so editors must not
+  fall back to writing main. The editor uses `branch.draft` to connect to the
+  selected line. Review decisions send the exact preview heads; conflicts are
+  resolved by syncing the target into the source before another review.

@@ -357,6 +357,22 @@ const spacePageRoute = createRoute({
   ),
   pendingComponent: () => <DocumentSkeleton />,
 });
+const spacePageHistoryRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/pages/$page/history",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/spaces/history/workspace"),
+    "PageHistoryWorkspace",
+  ),
+});
+const spacePullRequestsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/pull-requests",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/spaces/history/workspace"),
+    "SpacePullRequests",
+  ),
+});
 const spaceSettingsRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "/settings",
@@ -570,6 +586,8 @@ const routeTree = rootRoute.addChildren([
       spaceRoute.addChildren([
         spaceHomeRoute,
         spacePageRoute,
+        spacePageHistoryRoute,
+        spacePullRequestsRoute,
         spaceSettingsRoute,
       ]),
       projectRoute.addChildren([

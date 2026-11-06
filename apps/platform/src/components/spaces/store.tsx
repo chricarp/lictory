@@ -13,6 +13,7 @@ import { queries } from "@lictory/zero/queries";
 import type {
   SpaceAccessLevel,
   SpaceEntity,
+  SpaceEntityOf,
 } from "@lictory/core/contracts/protocol";
 import {
   createSpaceIndexMemo,
@@ -175,13 +176,19 @@ export function usePageHistory(pageId: string | undefined) {
   return useMemo(() => {
     const commits: PageCommit[] = [];
     const branches: PageBranch[] = [];
+    const pullRequests: SpaceEntityOf<"pagePullRequest">[] = [];
+    const reviews: SpaceEntityOf<"pagePullRequestReview">[] = [];
     for (const entity of entities.values())
       if (entity.type === "pageCommit") commits.push(entity);
       else if (entity.type === "pageBranch") branches.push(entity);
+      else if (entity.type === "pagePullRequest") pullRequests.push(entity);
+      else if (entity.type === "pagePullRequestReview") reviews.push(entity);
     commits.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return {
       commits,
       branches,
+      pullRequests,
+      reviews,
       head: mainHead(commits, branches, summary?.publishedCommitId),
       loaded: result.type === "complete",
     };
