@@ -16,6 +16,7 @@ export function MarketingHeader({ sections = "" }: { sections?: string }) {
         ["Workflow", `${sections}#features`],
         ["Agents", `${sections}#agents`],
         ["Delivery", `${sections}#delivery`],
+        ["Spaces", `${sections}#spaces`],
         ["Open source", `${sections}#open-source`],
         ["Guides", "/guides"],
       ] as const,
@@ -40,7 +41,7 @@ export function MarketingHeader({ sections = "" }: { sections?: string }) {
         pathname === "/guides" || pathname.startsWith("/guides/")
           ? "/guides"
           : null;
-      // Read only the four navigation targets, once per frame. Nested sections
+      // Read only the navigation targets, once per frame. Nested sections
       // (Agents inside Workflow) win once their heading clears the dock.
       for (const { href, element } of targets) {
         if (element.getBoundingClientRect().top <= 160) nextHref = href;

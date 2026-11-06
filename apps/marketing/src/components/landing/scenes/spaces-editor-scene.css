@@ -1,0 +1,567 @@
+/* The Spaces editor scene. Wide: the space's page tree, the live draft and
+   its comments, in one window a gutter in from the column's edges, fading
+   out at its foot over the rest of the page. Compact: the draft alone at the
+   phone column's width. */
+
+.se .ss-stage {
+  overflow: hidden;
+  /* Dev Patel keeps one color: his caret, his name, his avatar */
+  --lx-dev: oklch(0.55 0.17 255);
+}
+
+.se .ss-stage[data-theme="dark"] {
+  --lx-dev: oklch(0.72 0.14 255);
+}
+
+.se-window {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  width: 1136px;
+  height: 580px;
+  box-shadow: var(--ss-shadow-hero);
+  -webkit-mask-image: linear-gradient(to bottom, #000 440px, transparent 540px);
+  mask-image: linear-gradient(to bottom, #000 440px, transparent 540px);
+}
+
+.se .ss-stage[data-layout="compact"] .se-window {
+  top: 12px;
+  left: 16px;
+  width: 358px;
+  height: 400px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 330px, transparent 358px);
+  mask-image: linear-gradient(to bottom, #000 330px, transparent 358px);
+}
+
+/* ---- The bar: where the page sits, and the draft's actions ---- */
+
+.se-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: 4px;
+  color: var(--ss-text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.se-crumbs svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ss-icon-faint);
+}
+
+.se-crumbs > span:last-child {
+  color: var(--ss-text-strong);
+}
+
+.se-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.se-close {
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+}
+
+.se-publish {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  background: var(--ss-accent);
+  color: var(--lx-on-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition:
+    background-color 0.2s ease,
+    transform 0.12s ease;
+}
+
+.se-publish svg {
+  width: 13px;
+  height: 13px;
+}
+
+.se-publish[data-hover] {
+  background: color-mix(in srgb, var(--ss-accent) 86%, var(--ss-surface));
+}
+
+.se-publish[data-pressed] {
+  transform: scale(0.97);
+}
+
+/* ---- The body: tree, draft, comments ---- */
+
+.se-body {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr) 296px;
+  height: 100%;
+  background: var(--ss-surface);
+}
+
+.se .ss-stage[data-layout="compact"] .se-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---- The page tree ---- */
+
+.se-tree {
+  padding: 20px 12px;
+  border-right: 1px solid var(--ss-line);
+  background: var(--ss-chrome);
+}
+
+.se-space {
+  padding-inline: 8px;
+  color: var(--ss-text-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.se-space-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-inline: 8px;
+  color: var(--ss-text);
+  font-size: 12px;
+}
+
+.se-space-meta svg {
+  width: 12px;
+  height: 12px;
+}
+
+.se-section {
+  margin: 24px 0 6px;
+  padding-inline: 8px;
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.se-tree ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.se-tree li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding-inline: 4px 8px;
+  border-radius: var(--ss-radius-sm);
+  color: var(--ss-text);
+  font-size: 13px;
+}
+
+.se-tree li[data-depth="1"] {
+  padding-left: 22px;
+}
+
+.se-tree li[data-active] {
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+  font-weight: 500;
+}
+
+.se-tree li > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ss-icon);
+}
+
+.se-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: var(--ss-icon);
+}
+
+.se-tree li[data-depth="1"] .se-chevron {
+  display: none;
+}
+
+.se-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.se-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- The live draft ---- */
+
+.se-doc {
+  position: relative;
+  padding: 28px 44px 0;
+}
+
+.se .ss-stage[data-layout="compact"] .se-doc {
+  padding: 18px 18px 0;
+}
+
+.se-title {
+  color: var(--ss-text-strong);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.se .ss-stage[data-layout="compact"] .se-title {
+  font-size: 21px;
+}
+
+.se-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--ss-text);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.se .ss-stage[data-layout="compact"] .se-status {
+  gap: 5px;
+  font-size: 12px;
+}
+
+.se-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ss-text-strong);
+  font-weight: 500;
+}
+
+.se-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: oklch(0.68 0.19 45);
+}
+
+.se-sep {
+  color: var(--ss-text-faint);
+}
+
+.se-based {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.se-version {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ss-chrome);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+  font-family: var(--ss-mono);
+  font-size: 11px;
+}
+
+.se-version[data-new] {
+  background: var(--ss-success-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--ss-success) 30%, transparent);
+  color: var(--ss-success-text);
+}
+
+.se-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.se-saved svg {
+  width: 13px;
+  height: 13px;
+  color: var(--ss-success-text);
+}
+
+/* Shown while there are edits nobody has published */
+.se-unpublished {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ss-warning-text);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.se-unpublished[data-on] {
+  opacity: 1;
+}
+
+.se-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+.se-dev-avatar.ss-avatar {
+  background: var(--lx-dev) !important;
+}
+
+.se-p {
+  margin: 20px 0 0;
+  color: var(--ss-text-strong);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.se .ss-stage[data-layout="compact"] .se-p {
+  margin-top: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.se-h {
+  margin-top: 22px;
+  color: var(--ss-text-strong);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.se .ss-stage[data-layout="compact"] .se-h {
+  margin-top: 16px;
+  font-size: 15px;
+}
+
+.se-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--ss-text-strong);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.se .ss-stage[data-layout="compact"] .se-list {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.se-list-new {
+  margin-top: 0;
+}
+
+/* Dev's caret: his color, his name beside it. The editor hangs the name
+   above the caret; here it rides at the end of his line, so it never covers
+   the words above */
+.se-peer {
+  position: relative;
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  margin-left: 1px;
+  vertical-align: -0.22em;
+  background: var(--lx-dev);
+}
+
+.se-flag {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  padding: 2px 6px;
+  border-radius: 0 4px 4px 0;
+  background: var(--lx-dev);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.se-anchor {
+  display: inline-block;
+  width: 12px;
+  height: 1em;
+  vertical-align: -0.15em;
+}
+
+/* Maria's own caret has no name: it's hers */
+.se-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.15em;
+  margin-left: 1px;
+  vertical-align: -0.2em;
+  background: var(--ss-text-strong);
+  opacity: 0;
+}
+
+.se-caret[data-on] {
+  opacity: 1;
+}
+
+/* The blocking comment's text, tinted where it was written */
+.se-p mark {
+  padding: 1px 0;
+  border-radius: 3px;
+  background: var(--ss-danger-soft);
+  color: inherit;
+}
+
+/* A work item mention: a live reference with its status */
+.se-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--ss-chrome);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  font-size: 13px;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+.se-chip-status {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--ss-warning-text);
+  border-radius: 50%;
+  background: linear-gradient(
+    to right,
+    var(--ss-warning-text) 50%,
+    transparent 50%
+  );
+}
+
+.se-chip-key {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.se-rest {
+  position: absolute;
+  top: 36px;
+  right: 40px;
+  width: 40px;
+  height: 20px;
+}
+
+/* ---- Comments ---- */
+
+.se-comments {
+  padding: 20px 16px;
+  border-left: 1px solid var(--ss-line);
+  background: var(--ss-chrome);
+}
+
+.se-comments-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-inline: 4px;
+  font-size: 12px;
+}
+
+.se-comments-title {
+  color: var(--ss-text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.se-comments-count {
+  color: var(--ss-text);
+}
+
+.se-comments-blocking {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ss-danger-text);
+  font-weight: 500;
+}
+
+.se-comments-blocking::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  translate: 0 -1px;
+}
+
+.se-thread {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: var(--ss-radius-lg);
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+}
+
+.se-quote {
+  padding: 6px 10px;
+  border-left: 2px solid var(--ss-danger-text);
+  border-radius: 0 6px 6px 0;
+  background: var(--ss-danger-soft);
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.se-msg {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.se-who {
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.se-msg p {
+  margin: 3px 0 0;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.se-thread-foot {
+  display: flex;
+  gap: 16px;
+  padding-top: 10px;
+  justify-self: stretch;
+  border-top: 1px solid var(--ss-line);
+  color: var(--ss-text);
+  font-size: 12px;
+}
