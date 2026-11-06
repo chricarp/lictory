@@ -1,4 +1,5 @@
 import { lazy, Suspense, useMemo, useState } from "react";
+import { PageHistoryEntry } from "@lictory/platform/components/spaces/history/entry";
 import {
   Archive,
   ArchiveRestore,
@@ -236,6 +237,7 @@ function PageArticle({
               </div>
             )}
           </div>
+          <PageHistoryEntry pageId={page.id} />
         </header>
         <ReviewedNotice line={line} page={page} branches={history.branches} />
         <SurfaceBoundary>
