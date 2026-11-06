@@ -18,6 +18,7 @@ import {
   Check,
   CircleAlert,
   CloudOff,
+  CloudUpload,
   Copy,
   ListPlus,
   Loader,
@@ -45,7 +46,7 @@ import { touchTarget } from "@lictory/platform/components/spaces/touch";
 import {
   DraftSession,
   saveStateOf,
-  type SaveState,
+  shownSaveState,
   type SessionSnapshot,
 } from "@lictory/platform/components/spaces/editor/session";
 import {
@@ -585,7 +586,7 @@ function DraftEditor({
           <Fact>
             <SaveIndicator
               id={`${titleId}-state`}
-              state={state}
+              snapshot={snapshot}
               uploading={uploading}
             />
           </Fact>
@@ -833,43 +834,71 @@ function RecoveredText({
   );
 }
 
+// Shows when the shown save state changes on its own (a save turned slow,
+// "Saved" settled): one timer at a time, none while nothing is pending.
+function useShownSaveState(snapshot: SessionSnapshot) {
+  const [now, setNow] = useState(() => Date.now());
+  // A stale `now` only delays "slow" and "Saved", never shows them early.
+  const shown = shownSaveState(snapshot, now);
+  const { wakeAt } = shown;
+  useEffect(() => {
+    if (wakeAt === null) return;
+    const timer = setTimeout(
+      () => setNow(Math.max(Date.now(), wakeAt)),
+      wakeAt - Date.now(),
+    );
+    return () => clearTimeout(timer);
+  }, [wakeAt]);
+  return shown;
+}
+
 function SaveIndicator({
   id,
-  state,
+  snapshot,
   uploading,
 }: {
   id: string;
-  state: SaveState;
+  snapshot: SessionSnapshot;
   uploading: number;
 }) {
+  const { state, slow, announcement } = useShownSaveState(snapshot);
   const icon =
     state.kind === "saved" ? (
-      <Check className="size-3.5 text-success" aria-hidden />
+      <Check className="size-3.5" aria-hidden />
     ) : state.kind === "offline" || state.kind === "unavailable" ? (
       <CloudOff className="size-3.5 text-warning" aria-hidden />
     ) : state.kind === "closed" ? (
       <CircleAlert className="size-3.5 text-destructive" aria-hidden />
+    ) : state.kind === "saving" && !slow ? (
+      <CloudUpload className="size-3.5" aria-hidden />
     ) : (
       <Loader className="size-3.5 motion-safe:animate-spin" aria-hidden />
     );
   return (
-    <span
-      id={id}
-      role="status"
-      title={
-        state.kind === "offline"
-          ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
-          : state.kind === "saved"
-            ? "Every edit is stored by the server."
-            : undefined
-      }
-      className="inline-flex items-center gap-1"
-    >
-      {icon}
-      {state.label}
-      {uploading > 0 &&
-        ` · Uploading ${uploading === 1 ? "image" : `${uploading} images`}…`}
-    </span>
+    <>
+      {/* Read on demand (the editor is described by it), not announced:
+          it changes with every pause in typing. */}
+      <span
+        id={id}
+        data-testid="draft-save-state"
+        title={
+          state.kind === "offline"
+            ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
+            : state.kind === "saved"
+              ? "Every edit is stored by the server."
+              : undefined
+        }
+        className="inline-flex items-center gap-1"
+      >
+        {icon}
+        {state.label}
+        {uploading > 0 &&
+          ` · Uploading ${uploading === 1 ? "image" : `${uploading} images`}…`}
+      </span>
+      <span role="status" aria-atomic="true" className="sr-only">
+        {announcement}
+      </span>
+    </>
   );
 }
 

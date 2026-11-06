@@ -109,6 +109,7 @@ void test("save state: Saved only when the service stored every edit", () => {
     unavailable: false,
     closed: null,
     peers: [],
+    save: { kind: "saved", since: 0, settling: false, troubled: false },
   };
   assert.equal(saveStateOf(base).label, "Saved");
   assert.equal(saveStateOf({ ...base, unsynced: true }).label, "Saving…");

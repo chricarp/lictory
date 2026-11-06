@@ -822,7 +822,16 @@ attributed to the anonymized account, like specification threads.
   published page (main of a Direct space); the draft stays saved.
 - **Save state**, beside the title: "Saving…" while the provider has edits
   the service has not acknowledged, "Saved" when it has none (the service
-  stores before it acknowledges, so this means stored), "Offline — changes
+  stores before it acknowledges, so this means stored). Each keystroke is
+  stored within milliseconds, so the indicator does not follow every one:
+  typing shows a quiet "Saving…" (no spinner) at once, a spinner joins it only
+  when edits stay unstored for a second, and "Saved" returns once everything
+  has stayed stored for a second (a pause in typing). The display only ever
+  trails the truth (never "Saved" with an edit unstored); persistence, the
+  unload warning and Publish read the truth directly. Routine saves are not
+  announced to screen readers (the editor is described by the indicator, so
+  it can be read on demand); going offline and the confirmed recovery
+  afterwards are. "Offline — changes
   kept on this device" when the browser or the socket is offline (the edits
   stay in the open tab, which warns before closing with unsaved edits, and
   are offered again on reconnect), "Live editing unavailable" when the
