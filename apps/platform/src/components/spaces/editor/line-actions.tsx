@@ -35,33 +35,22 @@ export function EditButton({
 }) {
   const noteId = useId();
   if (!line.isMain || !line.writable) return null;
-  // The live draft's state is part of the action: "Continue editing" with
-  // the draft's dot when it holds unpublished changes.
+  // The live draft's state is part of the action, in words: "Edit
+  // unpublished draft" when the draft holds changes that are not published.
   const unpublished = line.draft?.uncommittedChanges;
   return (
     <Button
       size="sm"
       onClick={onEdit}
       aria-describedby={unpublished ? noteId : undefined}
-      title={
-        unpublished
-          ? "The live draft has changes that are not published yet."
-          : undefined
-      }
       className={cn(touchTarget, "max-sm:px-3.5 touch:px-3.5")}
     >
       <Pencil className="size-3.5" aria-hidden />
-      {unpublished ? "Continue editing" : "Edit"}
+      {unpublished ? "Edit unpublished draft" : "Edit"}
       {unpublished && (
-        <>
-          <span
-            aria-hidden
-            className="-mr-0.5 size-1.5 shrink-0 rounded-full bg-brand ring-2 ring-brand/25"
-          />
-          <span id={noteId} hidden>
-            Unpublished draft
-          </span>
-        </>
+        <span id={noteId} hidden>
+          The live draft has changes that are not published yet.
+        </span>
       )}
     </Button>
   );

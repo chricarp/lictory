@@ -53,7 +53,9 @@ const saved = (page: Page) =>
 
 async function openEditor(page: Page, url = pageUrl) {
   await page.goto(url);
-  await page.getByRole("button", { name: /^(Edit|Continue editing)$/ }).click();
+  await page
+    .getByRole("button", { name: /^(Edit|Edit unpublished draft)$/ })
+    .click();
   await expect(liveEditor(page)).toBeVisible();
   await expect(saved(page)).toBeVisible({ timeout: 20_000 });
 }
@@ -359,7 +361,9 @@ test("offline edits stay on the page and are saved after reconnecting", async ({
   await expect(liveEditor(ben.page)).toContainText("Written while offline.");
   // Durable: a reload of the draft has it.
   await ben.page.reload();
-  await ben.page.getByRole("button", { name: "Continue editing" }).click();
+  await ben.page
+    .getByRole("button", { name: "Edit unpublished draft" })
+    .click();
   await expect(liveEditor(ben.page)).toContainText("Written while offline.");
   await Promise.all([ada.context.close(), ben.context.close()]);
 });
@@ -431,7 +435,9 @@ test("text typed into a draft that is replaced before it was saved is kept and c
   await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });
   // Stored like any edit: a reload of the draft has both.
   await ada.page.reload();
-  await ada.page.getByRole("button", { name: "Continue editing" }).click();
+  await ada.page
+    .getByRole("button", { name: "Edit unpublished draft" })
+    .click();
   await expect(liveEditor(ada.page)).toContainText(
     "Page the on-call engineer after ten minutes.",
   );

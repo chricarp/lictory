@@ -96,18 +96,21 @@ export function SpaceHome() {
             description, facts and actions run full width below, so the
             pages start within the first screen; wider, the icon spans the
             text and the actions sit at the right. */}
-        <header className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 sm:mt-6 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-x-4">
-          <div className="grid size-10 place-items-center rounded-xl bg-muted shadow-(--shadow-border) sm:row-span-3 sm:size-12 sm:rounded-2xl">
+        <header className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 sm:mt-6 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-x-4">
+          {/* Phones: the app header already names the space with its icon,
+              so the hero starts with the description (the heading stays for
+              screen readers). */}
+          <div className="grid size-10 place-items-center rounded-xl bg-muted shadow-(--shadow-border) max-sm:hidden sm:row-span-3 sm:size-12 sm:rounded-2xl">
             <SpaceIcon
               space={space}
               className="size-6 text-xl sm:size-7 sm:text-2xl"
             />
           </div>
-          <h1 className="text-2xl leading-tight font-semibold tracking-tight break-words sm:col-start-2 sm:row-start-1 sm:self-center sm:text-[1.75rem]">
+          <h1 className="text-2xl leading-tight font-semibold tracking-tight break-words max-sm:sr-only sm:col-start-2 sm:row-start-1 sm:self-center sm:text-[1.75rem]">
             {space.name}
           </h1>
           {space.description && (
-            <p className="col-span-2 mt-2 text-sm leading-6 whitespace-pre-line text-muted-foreground sm:col-span-1 sm:col-start-2 sm:mt-1 sm:text-[15px]">
+            <p className="col-span-2 mt-0 text-sm leading-6 whitespace-pre-line text-muted-foreground sm:col-span-1 sm:col-start-2 sm:mt-1 sm:text-[15px]">
               {space.description}
             </p>
           )}

@@ -792,7 +792,7 @@ attributed to the anonymized account, like specification threads.
   links show the linked page's current title, or "Unavailable page" without
   a title when I cannot read it.
 - **Editing.** Main in a Direct space opens as published; "Edit" (or
-  "Continue editing" when it has unpublished changes) opens its live draft.
+  "Edit unpublished draft" when it has unpublished changes) opens its live draft.
   A branch I author or collaborate on opens in its draft. In a Reviewed
   space main is read-only and says "Changes to this page are reviewed. Start
   a branch to propose changes"; "Start a branch" creates one

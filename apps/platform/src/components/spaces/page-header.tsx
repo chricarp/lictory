@@ -140,7 +140,7 @@ export function PageStatement({
     !line.reviewed && line.canEditSpace && line.draft?.uncommittedChanges,
   );
   // An unpublished live draft is not a fact of the version on screen: it
-  // is said by the primary action ("Continue editing" and its dot).
+  // is said by the primary action ("Edit unpublished draft").
   return (
     <>
       <p className={cn(row, "max-sm:hidden")}>
