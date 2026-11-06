@@ -42,14 +42,40 @@ rendered state with seeded data:
 - native delivery: the board with an active sprint, and the backlog
 - settings: account settings, every organization settings section and every
   project settings section
-- Spaces (`tests/platform/spaces.spec.ts`): a space home with a nested page
-  tree, and a published page
+- Spaces (`tests/platform/spaces.spec.ts`, `tests/platform/spaces-editor.spec.ts`):
+  a space home with a nested page tree, a published page, the live page
+  editor, the editor with its comments panel, and the published page reader
 
 The helper `tests/helpers/accessibility.ts` checks the WCAG 2.0, 2.1 and 2.2
 A/AA rules and fails on any **serious or critical** violation. Moderate and
 minor findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
+
+## The page editor's keyboard model
+
+The live page editor (Lictory Spaces) is a rich text field
+(`role="textbox"`, multi-line, named by the page title and described by its
+save state). From the title field, Enter or Arrow Down moves into the
+content.
+
+- **Toolbar.** One tab stop (WAI-ARIA toolbar pattern): Arrow Left/Right,
+  Home and End move between controls; every control is labelled and toggles
+  report `aria-pressed`. Controls that do not apply right now stay focusable
+  with `aria-disabled`, so the toolbar keeps its place in the tab order.
+  Clicking a control keeps the editor's selection.
+- **Inline pickers.** "/" (blocks), "#" (work items) and "[[" (pages) open a
+  listbox while focus stays in the editor, which points
+  `aria-activedescendant` at the chosen option: Arrow Up/Down choose, Enter
+  or Tab inserts, Escape closes.
+- **Shortcuts.** Mod+B, Mod+I, Mod+Shift+S, Mod+E for marks, Markdown input
+  rules for blocks, Mod+Z / Mod+Shift+Z undo and redo one's own changes,
+  Mod+Alt+M comments on the selection.
+- **Comments.** The comments panel is a labelled region beside the page, or
+  a modal sheet on narrow frames (Escape closes it and focus returns to what
+  opened it). Composers post with Mod+Enter.
+- **Carets.** Other people's carets and their name labels are decorative
+  (`aria-hidden`); who is editing is stated next to the save state.
 
 ## Known gaps
 
@@ -62,6 +88,10 @@ checks found has been fixed.
 
 Not covered automatically, and worth checking by hand when these areas change:
 
+- **Comments on published page text.** The page reader is read-only, so
+  selecting its text needs a pointer (or the browser's caret browsing);
+  keyboard users comment on the whole page there, or on text in the live
+  editor, where the selection is keyboard-driven (Mod+Alt+M).
 - **Text selection comments.** Selecting specification text with a mouse
   offers a selection toolbar (comment, ask); keyboard users start a
   discussion from the composer instead, without the quoted anchor.
@@ -80,4 +110,6 @@ Not covered automatically, and worth checking by hand when these areas change:
 - **The website.** The marketing site is linted but not scanned in the browser
   suite.
 - **Screen reader announcements** for realtime changes (another person's edit,
-  sync state) and the Lictory Intelligence conversation.
+  sync state) and the Lictory Intelligence conversation. The page editor's
+  save state is a status region, so its changes are announced politely;
+  other people's edits are not announced.

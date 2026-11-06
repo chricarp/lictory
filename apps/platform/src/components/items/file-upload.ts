@@ -6,7 +6,10 @@ import {
 } from "@lictory/core/storage/policy";
 export { ACCEPT_FILES, MAX_FILE_SIZE };
 
-export type FileContext = { organizationId: string; workItemId: string };
+// A file belongs to a work item or to a Spaces page.
+export type FileContext =
+  | { organizationId: string; workItemId: string; pageId?: never }
+  | { organizationId: string; pageId: string; workItemId?: never };
 export type FileEntry = {
   id: string;
   filename: string;
@@ -62,7 +65,9 @@ export async function uploadFile(
     id: started.id,
   });
   window.dispatchEvent(
-    new CustomEvent("lictory:file-uploaded", { detail: context.workItemId }),
+    new CustomEvent("lictory:file-uploaded", {
+      detail: context.workItemId ?? context.pageId,
+    }),
   );
   return {
     id: started.id,
@@ -78,7 +83,10 @@ export function fileMarkdown(file: FileEntry) {
   return `${file.mimeType.startsWith("image/") ? "!" : ""}[${label}](${fileUrl(file.id)})`;
 }
 export async function listFiles(context: FileContext): Promise<FileEntry[]> {
-  const response = await fetch(`/api/files?${new URLSearchParams(context)}`);
+  const query = new URLSearchParams();
+  for (const [name, value] of Object.entries(context))
+    if (typeof value === "string") query.set(name, value);
+  const response = await fetch(`/api/files?${query}`);
   if (!response.ok) throw new Error("Attachments could not be loaded.");
   const result: unknown = await response.json();
   return z

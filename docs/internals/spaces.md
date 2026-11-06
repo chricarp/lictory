@@ -16,8 +16,9 @@ Git-inspired history as specifications.
 > page notifications as described under [Comments](#comments); the page
 > history (commits, publishing, branches, pull requests, reviews, merges and
 > conflict resolution) as described under
-> [History in practice](#history-in-practice). The page editor, the history
-> and review interface and the discussion interface follow.
+> [History in practice](#history-in-practice); the page reader, the live
+> editor and the discussion interface as described under
+> [Interface](#interface). The history and review interface follows.
 
 ## Concepts
 
@@ -751,9 +752,78 @@ attributed to the anonymized account, like specification threads.
   does the same without a pointer. Trees over 120 visible rows render only
   the rows in view. Archived pages are hidden unless shown, and archiving
   offers an undo.
-- **Published content** is rendered read-only from main's latest commit
-  (`PageDocument`, currently its derived Markdown) until the page editor
-  replaces it.
+- **Reading.** A page shows main's latest commit, a branch's head
+  (`?branch=<branchId>`) or a version picked with `?commit=<commitId>`,
+  rendered by a read-only Tiptap editor from the commit's canonical JSON with
+  the same extensions that wrote it, so a commit looks the same everywhere.
+  Readers load no Yjs and open no socket; while the reader's code loads, the
+  commit's derived Markdown stands in. Work item mentions render as live
+  chips (identifier, status, refinement and readiness as I can see the item
+  now); an item I cannot see shows only the key stored in the content. Page
+  links show the linked page's current title, or "Unavailable page" without
+  a title when I cannot read it.
+- **Editing.** Main in a Direct space opens as published; "Edit" (or
+  "Continue editing" when it has unpublished changes) opens its live draft.
+  A branch I author or collaborate on opens in its draft. In a Reviewed
+  space main is read-only and says "Changes to this page are reviewed. Start
+  a branch to propose changes"; "Start a branch" creates one
+  (`createPageBranch`, a name suggested from my handle and the title) and
+  switches `?branch=` to it. The editor binds Tiptap's Collaboration to the
+  line's draft (`draft.documentName` from the projection; a new name, after
+  a new epoch, remounts the editor with a fresh Y.Doc) through one
+  Hocuspocus socket per tab (`/collaboration`, session cookie, empty token).
+  It never calls `setContent` on a mounted draft: projections never touch
+  its content, carets or selection. Others' carets carry their name and a
+  per-person color; "Anna is editing" lists who else has the draft open.
+  The working title is part of the draft (a `title` Y.Text beside the
+  `default` fragment, which commits never read) so every editor sees the same
+  title; the editor sends it with `commitDraft`, falling back to the line's
+  committed title when it is empty. Blocks come from the toolbar, from "/"
+  (blocks, image, work item, page link) and from Markdown shortcuts; "#"
+  picks a work item and "[[" a page from what I can read. Images are pasted,
+  dropped or chosen and stored as page files (`/api/files/{id}`).
+- **Save state**, beside the title: "Saving…" while the provider has edits
+  the service has not acknowledged, "Saved" when it has none (the service
+  stores before it acknowledges, so this means stored), "Offline — changes
+  kept on this device" when the browser or the socket is offline (the edits
+  stay in the open tab, which warns before closing with unsaved edits, and
+  are offered again on reconnect), "Live editing unavailable" when the
+  service cannot be reached before the first sync (reading, history and
+  comments keep working). A pill says "Unpublished changes" (main) or
+  "Uncommitted changes" (branch) from the projection's
+  `uncommittedChanges`, the stored sequence the service announced, or local
+  unsaved edits. Close reasons from the service are shown as they are: a
+  replaced draft reopens the current one, revoked or missing access leaves
+  the editor, a signed-out session asks to sign in again.
+- **Publish and Commit.** "Publish" (main, Direct space) or "Commit"
+  (branch) takes an optional message, waits for "Saved", asks the service
+  for the stored sequence (`lictory.draft.sequence`, falling back to the
+  last announced one) and sends `commitDraft` with it and the title. The
+  browser learns the outcome from the line's synchronized branch row: the
+  head moved ("Published version N", counting main's first-parent chain) or
+  only the committed sequence did ("No changes to publish"); the refusal
+  "Nothing to commit" reads the same.
+- **Comments.** Selecting text offers "Comment" (people with comment
+  access; in the live editor also Mod+Alt+M and the toolbar). On the reader
+  the anchor is a commit anchor (the block id, offsets in the block's
+  content, the quote); in a live draft it is a draft anchor (base64 Yjs
+  relative positions of this epoch). Open threads are highlighted as
+  decorations that follow typing and are recomputed from their anchors after
+  remote changes. A commit anchor also finds its text in later versions and
+  drafts while its block and words survive; otherwise the thread shows its
+  quote ("The quoted text changed"). The panel lists the line's threads in
+  document order (threads without a range after them, comments on the whole
+  page last), with replies, resolve and reopen, blocking toggles, resolved
+  threads folded away, and "Original text removed" with a link to the
+  version for detached anchors. Threads belong to the line they were
+  written on (`branchId`; main also shows threads without one); pull
+  request threads are left to the pull request. The header shows the page's
+  open and blocking counts and toggles the panel: beside the page on wide
+  frames (open by default when the page has comments), a sheet on narrow
+  ones.
+- **Loading.** The space home and tree load none of this: the page surface
+  (Tiptap, the reader, comments) is its own chunk, and the live editor (Yjs,
+  y-tiptap, the Hocuspocus provider) another one that only editors load.
 - **Administrators without access.** `/{org}/spaces` lists the restricted
   spaces I administer but cannot read (from `listSpaces`, names only) with an
   explicit, audited "Grant myself access".

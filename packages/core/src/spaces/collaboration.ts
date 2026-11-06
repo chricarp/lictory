@@ -31,6 +31,13 @@ import {
   type DraftAuthor,
   type DraftRef,
 } from "@lictory/core/spaces/drafts";
+import {
+  CLOSE_REASONS,
+  DRAFT_SEQUENCE_REQUEST,
+  draftStoredPayload,
+} from "@lictory/core/spaces/collaboration-protocol";
+
+export { CLOSE_REASONS } from "@lictory/core/spaces/collaboration-protocol";
 
 export type CollaborationContext = DraftAuthor & { ref: DraftRef };
 
@@ -83,16 +90,6 @@ class Refusal extends Error {
 }
 const forbidden = (reason: string) => new Refusal(Forbidden.code, reason);
 
-// Why the service closes a draft connection (the close reason the provider
-// reports). Short, without content; the editor shows them and, for
-// `replaced`, reopens the page's current draft.
-export const CLOSE_REASONS = {
-  signedOut: "Sign in again to edit this page.",
-  noAccess: "You do not have access to this page.",
-  revoked: "You no longer have access to this page.",
-  replaced: "This draft was closed or replaced. Reopen the page.",
-} as const;
-
 // How a refused save closes the connection. Only domain messages (short, no
 // content) reach the client and the log; anything else (a database failure)
 // becomes a reset, after which the client reconnects and offers its unsaved
@@ -110,15 +107,6 @@ function refusal(error: unknown) {
     "Changes not saved yet; reconnecting.",
   );
 }
-
-// Stateless messages telling editors the last stored sequence of their
-// draft epoch, the cut `commitDraft` seals (`expectedSequence`). Sent to
-// every editor after each stored batch and to an editor when it connects;
-// an editor may ask again with `{ "type": "lictory.draft.sequence" }`.
-export const DRAFT_STORED_MESSAGE = "lictory.draft.stored";
-const DRAFT_SEQUENCE_REQUEST = "lictory.draft.sequence";
-export const draftStoredPayload = (sequence: number) =>
-  JSON.stringify({ type: DRAFT_STORED_MESSAGE, sequence });
 
 export function draftCollaboration(options: Options) {
   const writers = new Map<string, DraftWriter>();

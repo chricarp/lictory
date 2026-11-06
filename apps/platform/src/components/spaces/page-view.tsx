@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -9,6 +9,7 @@ import {
   Plus,
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
+import { cn } from "@lictory/core/lib/utils";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Popover } from "@lictory/ui/popover";
@@ -32,6 +33,20 @@ import { PageTree } from "@lictory/platform/components/spaces/page-tree";
 import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumbs";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 import { ArchivedSpaceNotice } from "@lictory/platform/components/spaces/archived-notice";
+import { usePageLine } from "@lictory/platform/components/spaces/editor/line";
+import { useLaidOut } from "@lictory/platform/components/spaces/editor/layout";
+import { SurfaceBoundary } from "@lictory/platform/components/spaces/editor/boundary";
+import {
+  CommentsToggle,
+  EditButton,
+  ReviewedNotice,
+} from "@lictory/platform/components/spaces/editor/line-actions";
+
+// The reader, the live editor and the discussions load on demand: the space
+// home and the tree never pay for them.
+const PageSurface = lazy(
+  () => import("@lictory/platform/components/spaces/editor/page-surface"),
+);
 
 // One page as published: the tree of its space beside it (on wide frames),
 // breadcrumbs, title, who published it and when, and main's latest content.
@@ -50,7 +65,11 @@ export function PageView() {
         <PageTree variant="pane" activePageId={page?.id} />
       </aside>
       <div className="min-w-0 flex-1 overflow-y-auto">
-        {page ? <PageArticle page={page} pages={pages} /> : <PageNotFound />}
+        {page ? (
+          <PageArticle key={page.id} page={page} pages={pages} />
+        ) : (
+          <PageNotFound />
+        )}
       </div>
     </div>
   );
@@ -96,6 +115,7 @@ function PageArticle({
   const { canEdit, createPage, movePage, archivePage, restorePage } =
     usePageActions();
   const history = usePageHistory(page.id);
+  const line = usePageLine(space, page, history);
   const ancestors = useMemo(
     () => ancestorsOf(new Map(pages.map((p) => [p.id, p])), page.id),
     [pages, page.id],
@@ -103,98 +123,164 @@ function PageArticle({
   const archived = Boolean(page.archivedAt);
   const parentArchived = ancestors.some((a) => a.archivedAt);
   const head = history.head;
+  // Main opens as published; Edit switches to its live draft. A branch I
+  // write to opens in its draft directly.
+  const [editingMain, setEditingMain] = useState(false);
+  const editing =
+    line.writable && (!line.isMain || editingMain) && !line.viewed;
+  // Until someone chooses, comments are open beside the page on wide frames
+  // when it has any; on narrow frames the sheet opens only when asked.
+  const [commentsChoice, setCommentsChoice] = useState<boolean | null>(null);
+  const [commentsSlot, setCommentsSlot] = useState<HTMLElement | null>(null);
+  const commentsWide = useLaidOut(commentsSlot);
+  // Once open by default it stays open (resolving the last thread does not
+  // fold the panel away under the reader).
+  const [openedByDefault, setOpenedByDefault] = useState(false);
+  if (commentsWide && page.openThreads > 0 && !openedByDefault)
+    setOpenedByDefault(true);
+  const commentsOpen = commentsChoice ?? openedByDefault;
   return (
-    <article className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
-      <SpaceBreadcrumbs space={space} ancestors={ancestors} page={page} />
-      {space.archivedAt && <ArchivedSpaceNotice space={space} />}
-      {archived && !space.archivedAt && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-4 py-3 text-[13px] ring-1 ring-foreground/8 ring-inset">
-          <Archive
-            className="size-4 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          <p className="min-w-0 flex-1 basis-56">
-            <span className="font-medium">This page is archived.</span>{" "}
-            <span className="text-muted-foreground">
-              {parentArchived
-                ? "It was archived with a page above it; restore that page to bring it back."
-                : "It is hidden from the space until it is restored."}
-            </span>
-          </p>
-          {canEdit && !parentArchived && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => restorePage(page)}
-            >
-              <ArchiveRestore className="size-3.5" aria-hidden /> Restore
-            </Button>
-          )}
-        </div>
-      )}
-      <header className="mt-5">
-        <h1 className="text-2xl font-semibold tracking-tight break-words">
-          {page.title}
-        </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
-          <p>
-            {head ? (
-              <>
-                Published by {memberName(head.authorId)}{" "}
-                <time
-                  dateTime={head.createdAt}
-                  title={absoluteTime(head.createdAt)}
-                >
-                  {relativeTime(head.createdAt)}
-                </time>
-              </>
-            ) : (
-              <>
-                Published{" "}
-                <time
-                  dateTime={page.updatedAt}
-                  title={absoluteTime(page.updatedAt)}
-                >
-                  {relativeTime(page.updatedAt)}
-                </time>
-              </>
+    <div className="mx-auto flex max-w-[76rem] gap-8 px-4 py-6 sm:px-8 sm:py-8">
+      <article className="mx-auto w-full max-w-3xl min-w-0">
+        <SpaceBreadcrumbs space={space} ancestors={ancestors} page={page} />
+        {space.archivedAt && <ArchivedSpaceNotice space={space} />}
+        {archived && !space.archivedAt && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-4 py-3 text-[13px] ring-1 ring-foreground/8 ring-inset">
+            <Archive
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <p className="min-w-0 flex-1 basis-56">
+              <span className="font-medium">This page is archived.</span>{" "}
+              <span className="text-muted-foreground">
+                {parentArchived
+                  ? "It was archived with a page above it; restore that page to bring it back."
+                  : "It is hidden from the space until it is restored."}
+              </span>
+            </p>
+            {canEdit && !parentArchived && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => restorePage(page)}
+              >
+                <ArchiveRestore className="size-3.5" aria-hidden /> Restore
+              </Button>
             )}
-          </p>
-          <PageInfo page={page} history={history} />
-          {canEdit && !archived && (
-            <div className="ml-auto flex flex-wrap items-center gap-1">
-              {/* The page editor (live drafts) adds its "Edit" action here. */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => createPage(page.id)}
-              >
-                <CornerDownRight className="size-3.5" aria-hidden /> New subpage
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => movePage(page)}>
-                <MoveRight className="size-3.5" aria-hidden /> Move…
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => archivePage(page)}
-              >
-                <Archive className="size-3.5" aria-hidden /> Archive
-              </Button>
-            </div>
+          </div>
+        )}
+        <header className="mt-5">
+          {/* The live editor shows the title as a field of its own. */}
+          {!editing && (
+            <h1 className="text-2xl font-semibold tracking-tight break-words">
+              {line.isMain ? page.title : (line.head?.title ?? page.title)}
+            </h1>
           )}
-        </div>
-      </header>
-      <div className="mt-6">
-        <PageDocument commit={head} loading={!history.loaded && !head} />
-      </div>
-    </article>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
+            <p>
+              {head ? (
+                <>
+                  Published by {memberName(head.authorId)}{" "}
+                  <time
+                    dateTime={head.createdAt}
+                    title={absoluteTime(head.createdAt)}
+                  >
+                    {relativeTime(head.createdAt)}
+                  </time>
+                </>
+              ) : (
+                <>
+                  Published{" "}
+                  <time
+                    dateTime={page.updatedAt}
+                    title={absoluteTime(page.updatedAt)}
+                  >
+                    {relativeTime(page.updatedAt)}
+                  </time>
+                </>
+              )}
+            </p>
+            <PageInfo page={page} history={history} />
+            <CommentsToggle
+              page={page}
+              open={commentsOpen}
+              onToggle={() => setCommentsChoice(!commentsOpen)}
+            />
+            {canEdit && !archived && (
+              <div className="ml-auto flex flex-wrap items-center gap-1">
+                {!editing && (
+                  <EditButton line={line} onEdit={() => setEditingMain(true)} />
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => createPage(page.id)}
+                >
+                  <CornerDownRight className="size-3.5" aria-hidden /> New
+                  subpage
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => movePage(page)}
+                >
+                  <MoveRight className="size-3.5" aria-hidden /> Move…
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => archivePage(page)}
+                >
+                  <Archive className="size-3.5" aria-hidden /> Archive
+                </Button>
+              </div>
+            )}
+          </div>
+        </header>
+        <ReviewedNotice line={line} page={page} branches={history.branches} />
+        <SurfaceBoundary>
+          <Suspense
+            fallback={
+              <div className="mt-6">
+                <PageDocument
+                  commit={line.viewed ?? line.head}
+                  loading={!history.loaded}
+                />
+              </div>
+            }
+          >
+            <PageSurface
+              space={space}
+              page={page}
+              history={history}
+              line={line}
+              editing={editing}
+              onStopEditing={() => setEditingMain(false)}
+              commentsOpen={commentsOpen}
+              onCommentsOpenChange={setCommentsChoice}
+              commentsSlot={commentsSlot}
+              commentsWide={commentsWide}
+            />
+          </Suspense>
+        </SurfaceBoundary>
+      </article>
+      {/* Wide frames show the discussions beside the page; narrower ones
+          open them as a sheet. */}
+      <div
+        ref={setCommentsSlot}
+        role={commentsOpen ? "complementary" : undefined}
+        aria-label={commentsOpen ? "Page comments" : undefined}
+        className={cn(
+          "hidden shrink-0 @min-[80rem]/frame:block",
+          commentsOpen ? "w-80" : "w-0",
+        )}
+      />
+    </div>
   );
 }
 
-// The published content of a page: main's latest commit, read-only. The
-// page editor (Tiptap reader and live drafts) replaces this component; until
-// then the commit's derived Markdown is rendered.
+// A commit's derived Markdown: what readers see while the page surface
+// (the Tiptap reader of the canonical content) loads.
 export function PageDocument({
   commit,
   loading,
