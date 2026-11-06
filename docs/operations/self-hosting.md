@@ -85,10 +85,11 @@ upgrades.
 Pass variables to the shell that runs the script:
 `curl -fsSL … | sudo LICTORY_CHANNEL=nightly sh`.
 
-**Private repository or fork.** GitHub answers 404 for a private repository
-without a token; `get.sh` and `lictory` then say so. Use a token with read
-access to the repository's contents (a fine-grained token is enough) in a root
-shell, so `sudo` does not drop it and it stays out of the process list:
+**Private fork.** The official repository is public and needs no token. For a
+private fork, GitHub answers 404 without a token; `get.sh` and `lictory` then
+say so. Use a token with read access to the repository's contents (a
+fine-grained token is enough) in a root shell, so `sudo` does not drop it and it
+stays out of the process list:
 
 ```sh
 sudo -i
@@ -109,11 +110,12 @@ GitHub redirects downloads to its storage, so curl 7.58.0 or newer is required
 with a token (older versions forward the token on redirects; the tools refuse
 to run with them).
 
-**Private images.** While the images on `ghcr.io` are not public, pulls fail
-with an explanation. Log in with a GitHub token that can read packages: as root
-before `get.sh` (`docker login ghcr.io`), and afterwards for the deploy user
-with `sudo lictory registry-login --username <github-user>` (the token on
-stdin or at the prompt).
+**Images.** The release images (`ghcr.io/chricarp/lictory-*`) are public:
+pulling them needs no `docker login`. A fork that publishes private images
+needs a GitHub token that can read packages: log in as root before `get.sh`
+(`docker login ghcr.io`), and afterwards for the deploy user with
+`sudo lictory registry-login --username <github-user>` (the token on stdin or
+at the prompt).
 
 ## Install
 
@@ -434,7 +436,7 @@ Start with `lictory doctor`; every failure line names the fix.
 
 | Symptom                                                   | Fix                                                                                                                                 |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| "The registry refused to pull"                            | The images are private: `sudo lictory registry-login --username <github-user>` (and `docker login ghcr.io` as root before `get.sh`) |
+| "The registry refused to pull"                            | Official images are public, so check `LICTORY_IMAGE_REGISTRY`. A fork with private images must log in, see [Bootstrap](#bootstrap). |
 | "Port 80 is in use"                                       | Another web server runs on the host: stop it, or put Lictory behind it with `--tls proxy`                                           |
 | `/readyz` not reachable but "the gateway answers locally" | DNS, the firewall (80/443) or your proxy; certificates are issued only once DNS points here                                         |
 | No certificate yet                                        | `lictory logs proxy`: Let's Encrypt reports why (DNS, rate limits, a CAA record)                                                    |

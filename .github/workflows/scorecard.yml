@@ -2,9 +2,9 @@ name: Scorecard
 
 # OpenSSF Scorecard: supply-chain posture (pinned dependencies, branch
 # protection, token permissions, ...). Results go to the Security tab and the
-# public Scorecard API, which only accepts public repositories, so the job is
-# skipped while the repository is private; see docs/operations/open-source.md
-# ("Security scanning"). Runs when main or its protection rules change rather
+# public Scorecard API, which only accepts public repositories. The repository
+# is public, so the job runs; the visibility condition skips it in private
+# forks. See docs/operations/open-source.md ("Security scanning"). Runs when main or its protection rules change rather
 # than on a schedule, because scheduled events carry no repository payload to
 # check. Keep this workflow in the shape Scorecard verifies: no top-level env or
 # defaults, and only the allowed actions.
