@@ -170,8 +170,8 @@ export function TryLictory({
         </p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
-        <GetStartedCta className="w-full sm:w-auto" />
-        <RepositoryCta className="w-full sm:w-auto" />
+        <GetStartedCta placement="final" className="w-full sm:w-auto" />
+        <RepositoryCta placement="final" className="w-full sm:w-auto" />
       </div>
     </aside>
   );

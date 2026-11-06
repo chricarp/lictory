@@ -27,6 +27,7 @@ import {
   PublishStill,
 } from "@lictory/marketing/components/landing/scenes/delivery-scenes";
 import { openSource } from "@lictory/marketing/lib/open-source";
+import { TrackedLink } from "@lictory/marketing/components/marketing/tracked-link";
 
 export function Landing() {
   return (
@@ -62,8 +63,8 @@ function Hero() {
             specification in parallel, then approve one reviewed result.
           </p>
           <div className="hero-actions">
-            <GetStartedCta />
-            <RepositoryCta />
+            <GetStartedCta placement="hero" />
+            <RepositoryCta placement="hero" />
           </div>
         </div>
       </div>
@@ -478,9 +479,13 @@ function OpenSource() {
           {openSource.summary} {openSource.detail}
         </p>
       </div>
-      <a href={openSource.repositoryUrl} className="source-link">
+      <TrackedLink
+        href={openSource.repositoryUrl}
+        tracking={{ cta: "github", placement: "open_source" }}
+        className="source-link"
+      >
         View on GitHub <ArrowUpRight aria-hidden />
-      </a>
+      </TrackedLink>
     </section>
   );
 }
@@ -524,8 +529,8 @@ function FinalCta() {
         </p>
       </div>
       <div className="final-cta-actions">
-        <GetStartedCta />
-        <RepositoryCta />
+        <GetStartedCta placement="final" />
+        <RepositoryCta placement="final" />
       </div>
     </section>
   );
