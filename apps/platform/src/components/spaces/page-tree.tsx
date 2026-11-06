@@ -39,14 +39,20 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpacePages } from "@lictory/platform/components/spaces/store";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
+import {
+  touchRow,
+  useTouchSizing,
+} from "@lictory/platform/components/spaces/touch";
 
 // The page tree of one space (WAI-ARIA tree view): arrow keys move and
 // expand, Enter opens, Alt+Arrow reorders among siblings, Shift+F10 opens
 // a page's actions (new subpage, move, archive). Pages are dragged before,
 // after or into another page; "Move…" does the same without a pointer.
-// Large trees render only the rows in view.
+// Large trees render only the rows in view. Rows are 30px for a mouse and
+// 44px on phones and touch screens.
 
-const ROW = 30;
+const DENSE_ROW = 30;
+const TOUCH_ROW = 44;
 const WINDOW_FROM = 120;
 const OVERSCAN = 12;
 const DRAG_TYPE = "application/x-lictory-page";
@@ -127,6 +133,7 @@ export function PageTree({
     over?: { targetId: string; position: DropPosition };
   }>();
   const listRef = useRef<HTMLDivElement>(null);
+  const rowHeight = useTouchSizing() ? TOUCH_ROW : DENSE_ROW;
   const pendingFocus = useRef<string | undefined>(undefined);
 
   // Windowing: only the rows in view (plus a margin) are in the document.
@@ -147,12 +154,12 @@ export function PageTree({
     };
   }, [windowed]);
   const start = windowed
-    ? Math.max(0, Math.floor(viewport.top / ROW) - OVERSCAN)
+    ? Math.max(0, Math.floor(viewport.top / rowHeight) - OVERSCAN)
     : 0;
   const end = windowed
     ? Math.min(
         rows.length,
-        Math.ceil((viewport.top + viewport.height) / ROW) + OVERSCAN,
+        Math.ceil((viewport.top + viewport.height) / rowHeight) + OVERSCAN,
       )
     : rows.length;
 
@@ -164,13 +171,13 @@ export function PageTree({
       const index = indexOf.get(id);
       const node = listRef.current;
       if (node && index !== undefined && windowed) {
-        const top = index * ROW;
+        const top = index * rowHeight;
         if (top < node.scrollTop) node.scrollTop = top;
-        else if (top + ROW > node.scrollTop + node.clientHeight)
-          node.scrollTop = top + ROW - node.clientHeight;
+        else if (top + rowHeight > node.scrollTop + node.clientHeight)
+          node.scrollTop = top + rowHeight - node.clientHeight;
       }
     },
-    [indexOf, windowed],
+    [indexOf, windowed, rowHeight],
   );
   useEffect(() => {
     const id = pendingFocus.current;
@@ -363,14 +370,14 @@ export function PageTree({
         >
           <div
             role="none"
-            style={windowed ? { height: rows.length * ROW } : undefined}
+            style={windowed ? { height: rows.length * rowHeight } : undefined}
             className="relative"
           >
             {rows.slice(start, end).map((row, offset) => (
               <TreeItem
                 key={row.page.id}
                 row={row}
-                top={windowed ? (start + offset) * ROW : undefined}
+                top={windowed ? (start + offset) * rowHeight : undefined}
                 active={row.page.id === activePageId}
                 tabbable={row.page.id === tabStop}
                 canEdit={canEdit}
@@ -497,7 +504,8 @@ function TreeItem({
           : {}),
       }}
       className={cn(
-        "group relative flex h-[30px] cursor-pointer items-center gap-1 rounded-md pr-1 text-[13px] outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset",
+        "group relative flex h-[30px] cursor-pointer items-center gap-1 rounded-md pr-1 text-[13px] outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset max-sm:text-sm touch:text-sm",
+        touchRow,
         active
           ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"
           : "text-foreground/85 hover:bg-muted/70",
@@ -526,7 +534,7 @@ function TreeItem({
             event.stopPropagation();
             onToggle();
           }}
-          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground max-sm:-mr-1.5 max-sm:size-11 touch:-mr-1.5 touch:size-11"
         >
           <ChevronRight
             className={cn(
@@ -536,7 +544,10 @@ function TreeItem({
           />
         </span>
       ) : (
-        <span aria-hidden className="size-6 shrink-0" />
+        <span
+          aria-hidden
+          className="size-6 shrink-0 max-sm:-mr-1.5 max-sm:w-11 touch:-mr-1.5 touch:w-11"
+        />
       )}
       <FileText
         aria-hidden
@@ -591,10 +602,11 @@ function PageMenu({
             props.onClick();
           }}
           className={cn(
-            "grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground",
+            "grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground max-sm:size-11 max-sm:text-muted-foreground/70 touch:size-11 touch:text-muted-foreground/70",
+            // Touch has no hover to reveal it.
             open
               ? "opacity-100"
-              : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+              : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100 touch:opacity-100",
           )}
         >
           <MoreHorizontal className="size-3.5" aria-hidden />

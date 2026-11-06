@@ -70,7 +70,9 @@ test("a project's space: pages are created, nested, moved and archived @smoke", 
     .click();
   const create = page.getByRole("dialog", { name: "New space" });
   await create.getByLabel("Name").fill("Payments handbook");
-  await expect(create.getByLabel("Handle")).toHaveValue("payments-handbook");
+  // The address follows the name; customizing it is one step away.
+  await create.getByRole("button", { name: "Customize address" }).click();
+  await expect(create.getByLabel("Address")).toHaveValue("payments-handbook");
   // Access & publishing start as a one-line summary of the defaults.
   await expect(
     create.getByRole("button", { name: /Access & publishing/ }),

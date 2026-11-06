@@ -8,6 +8,7 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
+import { Tooltip } from "@lictory/ui/tooltip";
 import type {
   PageBranch,
   Space,
@@ -15,6 +16,7 @@ import type {
 } from "@lictory/platform/data/spaces";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { blockingSummary } from "@lictory/platform/components/spaces/space-meta";
+import { touchTarget } from "@lictory/platform/components/spaces/touch";
 import {
   useSelectLine,
   type PageLine,
@@ -31,18 +33,43 @@ export function EditButton({
   line: PageLine;
   onEdit: () => void;
 }) {
+  const noteId = useId();
   if (!line.isMain || !line.writable) return null;
+  // The live draft's state is part of the action: "Continue editing" with
+  // the draft's dot when it holds unpublished changes.
   const unpublished = line.draft?.uncommittedChanges;
   return (
-    <Button size="sm" onClick={onEdit}>
+    <Button
+      size="sm"
+      onClick={onEdit}
+      aria-describedby={unpublished ? noteId : undefined}
+      title={
+        unpublished
+          ? "The live draft has changes that are not published yet."
+          : undefined
+      }
+      className={cn(touchTarget, "max-sm:px-3.5 touch:px-3.5")}
+    >
       <Pencil className="size-3.5" aria-hidden />
       {unpublished ? "Continue editing" : "Edit"}
+      {unpublished && (
+        <>
+          <span
+            aria-hidden
+            className="-mr-0.5 size-1.5 shrink-0 rounded-full bg-brand ring-2 ring-brand/25"
+          />
+          <span id={noteId} hidden>
+            Unpublished draft
+          </span>
+        </>
+      )}
     </Button>
   );
 }
 
-// The count of open discussions, and of blocking ones with what they block
-// (merging; a Direct space still publishes).
+// The open discussions, counted neutrally; a blocking one adds a small
+// marker whose words (tooltip and accessible name) say what it holds back.
+// Strong red belongs to the merge workflow, where blocking stops something.
 export function CommentsToggle({
   space,
   page,
@@ -54,33 +81,39 @@ export function CommentsToggle({
   open: boolean;
   onToggle: () => void;
 }) {
+  const count = page.openThreads;
+  const discussions = count === 1 ? "1 discussion" : `${count} discussions`;
   const blocking = page.blockingThreads
     ? blockingSummary(space, page.blockingThreads)
     : null;
-  const label = `Comments: ${page.openThreads} open${blocking ? `, ${blocking}` : ""}`;
+  const label = `Comments: ${discussions}${blocking ? `, ${blocking}` : ""}`;
   return (
-    <button
-      type="button"
-      aria-expanded={open}
-      aria-label={label}
-      title={label}
-      onClick={onToggle}
-      className={cn(
-        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 text-xs font-medium transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96]",
-        open
-          ? "bg-foreground/8 text-foreground"
-          : "bg-card text-foreground/80 shadow-(--shadow-border) hover:bg-muted hover:text-foreground",
-      )}
-    >
-      <MessageSquare className="size-3.5" aria-hidden />
-      <span className="tabular-nums">{page.openThreads}</span>
-      {page.blockingThreads > 0 && (
-        <span className="-mr-1 inline-flex h-5 items-center gap-1 rounded-full bg-destructive/6 px-1.5 text-[11px] text-destructive tabular-nums">
-          <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
-          {page.blockingThreads} blocking
+    <Tooltip label={blocking ? `${discussions} · ${blocking}` : discussions}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={onToggle}
+        className={cn(
+          "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 text-xs font-medium transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] max-sm:px-3 touch:px-3",
+          touchTarget,
+          open
+            ? "bg-foreground/8 text-foreground"
+            : "bg-card text-foreground/80 shadow-(--shadow-border) hover:bg-muted hover:text-foreground",
+        )}
+      >
+        <MessageSquare className="size-3.5" aria-hidden />
+        <span className="tabular-nums">
+          {count === 0 ? "Comments" : discussions}
         </span>
-      )}
-    </button>
+        {page.blockingThreads > 0 && (
+          <span
+            aria-hidden
+            className="-mr-0.5 size-1.5 shrink-0 rounded-full bg-destructive/80 ring-2 ring-destructive/12"
+          />
+        )}
+      </button>
+    </Tooltip>
   );
 }
 

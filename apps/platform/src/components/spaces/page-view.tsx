@@ -269,7 +269,9 @@ function PageArticle({
             showPage={false}
           />
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 max-sm:order-last">
+        {/* Phones: one row under the title, the primary action at its
+            end. */}
+        <div className="flex shrink-0 items-center gap-1.5 max-sm:order-last max-sm:w-full max-sm:gap-2 touch:gap-2">
           <LineSwitcher page={page} history={history} />
           <CommentsToggle
             space={space}
@@ -278,13 +280,15 @@ function PageArticle({
             onToggle={() => onCommentsOpenChange(!commentsOpen)}
           />
           <PageMoreMenu page={page} history={history} />
-          {editing ? (
-            <span ref={setActionsSlot} className="contents" />
-          ) : (
-            !archived && (
-              <EditButton line={line} onEdit={() => setEditingMain(true)} />
-            )
-          )}
+          <div className="flex items-center gap-1.5 max-sm:ml-auto max-sm:gap-2 touch:gap-2">
+            {editing ? (
+              <span ref={setActionsSlot} className="contents" />
+            ) : (
+              !archived && (
+                <EditButton line={line} onEdit={() => setEditingMain(true)} />
+              )
+            )}
+          </div>
         </div>
         {/* The live editor shows the title as a field and its own status
             line. */}
@@ -299,7 +303,6 @@ function PageArticle({
                 page={page}
                 line={line}
                 history={history}
-                onOpenDraft={() => setEditingMain(true)}
               />
             </div>
           </div>

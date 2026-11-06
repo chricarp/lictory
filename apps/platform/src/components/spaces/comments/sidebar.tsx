@@ -116,8 +116,12 @@ export function CommentsPanel({
           {open.length} open
           {blocking ? (
             <>
-              {" · "}
-              <span className="font-medium text-destructive">
+              <span className="sr-only">, </span>
+              <span className="ml-2 inline-flex items-center gap-1 font-medium text-foreground">
+                <span
+                  aria-hidden
+                  className="size-1.5 rounded-full bg-destructive/80"
+                />
                 {blocking} blocking
               </span>
             </>

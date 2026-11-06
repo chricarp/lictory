@@ -327,7 +327,7 @@ function DetailsSection({
               </div>
             </Setting>
             <Setting
-              label="Handle"
+              label="Address"
               htmlFor={ids.slug}
               status={slugSave.state}
               error={slugSave.error}

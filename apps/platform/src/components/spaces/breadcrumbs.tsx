@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronRight, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { Popover, usePopover } from "@lictory/ui/popover";
@@ -13,7 +13,9 @@ import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
 // view leaves its own title out (its heading follows right below) so the
 // path keeps room beside the toolbar. The immediate parent matters most:
 // ancestors between the space and the parent fold into "…", and the space's
-// name gives way before the parent's does.
+// name gives way before the parent's does. Phones, whose header already
+// names the space, show one step back: to the parent page, the space or
+// all spaces.
 export function SpaceBreadcrumbs({
   space,
   ancestors = [],
@@ -93,9 +95,25 @@ export function SpaceBreadcrumbs({
         ]
       : []),
   ];
+  const parent = ancestors.at(-1);
+  const back = page
+    ? parent
+      ? {
+          href: paths.spacePage(org, space.slug, parent.id),
+          label: parent.title,
+        }
+      : { href: paths.space(org, space.slug), label: space.name }
+    : { href: paths.spaces(org), label: "Spaces" };
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+      <Link
+        href={back.href}
+        className="inline-flex h-8 max-w-full min-w-0 items-center gap-0.5 rounded-md pr-2 text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 sm:hidden"
+      >
+        <ChevronLeft className="-ml-1 size-4 shrink-0" aria-hidden />
+        <span className="truncate">{back.label}</span>
+      </Link>
+      <ol className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden">
         {items.map((item, index) => (
           <li
             key={item.key}

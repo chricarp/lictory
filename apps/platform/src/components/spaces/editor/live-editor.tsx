@@ -31,10 +31,16 @@ import { toast } from "@lictory/ui/toast";
 import { useAttachmentsAvailable } from "@lictory/platform/lib/session";
 import { ACCEPT_FILES } from "@lictory/platform/components/items/file-upload";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  Link,
+  usePathname,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import type { SpacePage } from "@lictory/platform/data/spaces";
 import { documentExtensions } from "@lictory/platform/components/spaces/editor/document";
 import { personColor } from "@lictory/platform/components/spaces/editor/colors";
+import { touchTarget } from "@lictory/platform/components/spaces/touch";
 import {
   DraftSession,
   saveStateOf,
@@ -311,6 +317,8 @@ function DraftEditor({
   const { index } = useSpaces();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const attachments = useAttachmentsAvailable();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const head = line.head;
   const [title, setTitle] = useDraftTitle(
     session.doc,
@@ -512,6 +520,13 @@ function DraftEditor({
         headCommitId: line.branch.headCommitId,
       }
     : null;
+  // The version the draft started from: a link to read it as published.
+  const baseVersion = head ? versionOf(history.commits, head.id) : undefined;
+  const versionLink = (() => {
+    const next = new URLSearchParams(params);
+    if (head) next.set("commit", head.id);
+    return `${pathname}?${next}`;
+  })();
   const publishedVersion =
     shownOutcome?.kind === "published"
       ? versionOf(history.commits, shownOutcome.commitId)
@@ -551,6 +566,20 @@ function DraftEditor({
               ? "Live draft"
               : `Draft of ${line.branch?.name ?? "this branch"}`}
           </StateDot>
+          {head && baseVersion && (
+            <Fact>
+              <span>
+                based on{" "}
+                <Link
+                  href={versionLink}
+                  title={`Read ${line.isMain ? "published " : ""}version ${baseVersion}`}
+                  className="rounded-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+                >
+                  v{baseVersion}
+                </Link>
+              </span>
+            </Fact>
+          )}
           <Fact>
             <SaveIndicator
               id={`${titleId}-state`}
@@ -588,6 +617,7 @@ function DraftEditor({
               <Button
                 variant="ghost"
                 size="sm"
+                className={touchTarget}
                 title="Back to the published page. The draft stays saved."
                 onClick={onDone}
               >

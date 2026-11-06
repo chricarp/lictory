@@ -50,6 +50,7 @@ export function CreateSpaceDialog({
     accessBody: useId(),
   };
   const [showAccess, setShowAccess] = useState(false);
+  const [showAddress, setShowAddress] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
@@ -145,28 +146,24 @@ export function CreateSpaceDialog({
               className="border-foreground/15"
             />
           </div>
-          {/* The handle follows the name until someone edits it. */}
-          <details className="group text-xs text-muted-foreground">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-sm outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 [&::-webkit-details-marker]:hidden">
-              <span className="truncate">
-                /{organization.slug}/spaces/{handle || "…"}
-              </span>
-              <span className="font-medium text-foreground underline underline-offset-2 group-open:hidden">
-                Change
-              </span>
-            </summary>
-            <div className="mt-2">
-              <Field
-                label="Handle"
-                htmlFor={ids.slug}
-                hint={
-                  handle && !handleValid
-                    ? "Use lowercase letters, digits and single hyphens."
-                    : "Part of the space’s address; links keep working only while it stays the same."
-                }
-              >
-                <Input
+          {/* The address follows the name until someone edits it; it is
+              shown only when asked for (hovering or focusing the link
+              previews it). */}
+          {showAddress ? (
+            <div className="space-y-1.5 pt-1.5">
+              <label htmlFor={ids.slug} className="block text-xs font-medium">
+                Address
+              </label>
+              <div className="flex h-10 items-center rounded-xl border border-foreground/15 bg-card text-[15px] shadow-xs transition-[border-color,box-shadow] duration-150 focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10 has-[[aria-invalid=true]]:border-destructive/60 touch:text-base">
+                <span
+                  aria-hidden
+                  className="max-w-[45%] shrink-0 truncate pl-3.5 text-muted-foreground"
+                >
+                  /{organization.slug}/spaces/
+                </span>
+                <input
                   id={ids.slug}
+                  autoFocus
                   value={handle}
                   maxLength={60}
                   onChange={(e) => {
@@ -175,12 +172,45 @@ export function CreateSpaceDialog({
                   }}
                   placeholder="payments-handbook"
                   autoComplete="off"
-                  className="border-foreground/15"
+                  spellCheck={false}
                   aria-invalid={handle !== "" && !handleValid}
+                  aria-describedby={`${ids.slug}-hint`}
+                  className="h-full min-w-0 flex-1 bg-transparent pr-3.5 outline-none placeholder:text-muted-foreground/70"
                 />
-              </Field>
+              </div>
+              <p
+                id={`${ids.slug}-hint`}
+                className={cn(
+                  "text-xs",
+                  handle && !handleValid
+                    ? "text-destructive"
+                    : "text-muted-foreground",
+                )}
+              >
+                {handle && !handleValid
+                  ? "Use lowercase letters, digits and single hyphens."
+                  : "Links to the space keep working only while its address stays the same."}
+              </p>
             </div>
-          </details>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddress(true)}
+              aria-label="Customize address"
+              aria-describedby={`${ids.slug}-preview`}
+              className="group/address flex max-w-full min-w-0 items-center gap-2 rounded-sm text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <span className="shrink-0 font-medium text-muted-foreground underline decoration-muted-foreground/40 underline-offset-2 group-hover/address:text-foreground group-hover/address:decoration-foreground/60">
+                Customize address
+              </span>
+              <span
+                id={`${ids.slug}-preview`}
+                className="min-w-0 truncate text-muted-foreground opacity-0 transition-opacity duration-150 ease-out group-hover/address:opacity-100 group-focus-visible/address:opacity-100"
+              >
+                /{organization.slug}/spaces/{handle || "…"}
+              </span>
+            </button>
+          )}
         </div>
         <Field label="Description" htmlFor={ids.description} optional>
           <textarea
@@ -216,7 +246,7 @@ export function CreateSpaceDialog({
               </span>
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-foreground">
-              {showAccess ? "Hide" : "Change"}
+              {showAccess ? "Hide" : "Configure"}
               <ChevronDown
                 aria-hidden
                 className={cn(

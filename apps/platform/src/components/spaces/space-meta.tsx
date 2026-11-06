@@ -147,9 +147,7 @@ export function blockingSummary(
   space: Pick<Space, "publishing">,
   count: number,
 ) {
-  const what =
-    count === 1 ? "1 blocking discussion" : `${count} blocking discussions`;
   return space.publishing === "reviewed"
-    ? `${what} · blocks merging`
-    : `${what} · blocks merging pull requests`;
+    ? `${count} blocking: blocks merging`
+    : `${count} blocking: blocks merging pull requests`;
 }

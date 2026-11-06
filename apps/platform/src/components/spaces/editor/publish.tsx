@@ -6,6 +6,7 @@ import { Popover, usePopover } from "@lictory/ui/popover";
 import { MutationRejected } from "@lictory/platform/data/mutations";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type { DraftSession } from "@lictory/platform/components/spaces/editor/session";
+import { touchTarget } from "@lictory/platform/components/spaces/touch";
 
 // Publish (main in a Direct space) or Commit (a branch): seals the cut of
 // the draft the service has stored. The browser never sends content: it
@@ -55,7 +56,7 @@ export function PublishButton({
       align="end"
       disabled={!canPublish}
       trigger={(props) => (
-        <Button {...props} size="sm">
+        <Button {...props} size="sm" className={touchTarget}>
           {target.isMain ? (
             <Send className="size-3.5" aria-hidden />
           ) : (

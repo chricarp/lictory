@@ -210,10 +210,11 @@ function SpaceFilter({
 }
 
 // Rows share one grid with their group header, so the column names line up
-// with the values under them at every width. Wide lists give names and
-// purposes a column each, so descriptions start on one line.
+// with the values under them. Wide lists give names and purposes a column
+// each, so descriptions start on one line; narrow ones stack name, purpose
+// and one meta line ("10 pages · updated 2h ago") at full width.
 const columns =
-  "grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-4 @min-[40rem]/list:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_3.5rem_5rem] @min-[40rem]/list:gap-x-5";
+  "grid grid-cols-[minmax(0,1fr)] items-center gap-x-4 @min-[40rem]/list:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_3.5rem_5rem] @min-[40rem]/list:gap-x-5";
 
 function SpaceList({ groups }: { groups: Group[] }) {
   return (
@@ -257,7 +258,7 @@ function SpaceGroup({ group, first }: { group: Group; first: boolean }) {
             </span>
             <span
               aria-hidden
-              className="text-right font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase"
+              className="hidden text-right font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase @min-[40rem]/list:block"
             >
               Updated
             </span>
@@ -295,7 +296,7 @@ function SpaceRow({ space }: { space: Space }) {
         "min-h-13 px-4 py-2.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset",
       )}
     >
-      <span className="flex min-w-0 items-center gap-3">
+      <span className="flex min-w-0 items-start gap-3 @min-[40rem]/list:items-center">
         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted">
           <SpaceIcon space={space} className="-translate-y-px text-base" />
         </span>
@@ -314,10 +315,18 @@ function SpaceRow({ space }: { space: Space }) {
               <Badge className="shrink-0">{levelLabels[level]}</Badge>
             )}
           </span>
-          {/* Narrow lists keep the purpose under the name (two lines), or
-              the page count when there is none. */}
-          <span className="mt-0.5 line-clamp-2 text-[13px] leading-[1.125rem] text-muted-foreground @min-[40rem]/list:hidden">
-            {space.description?.length ? space.description : pageCount}
+          {/* Narrow lists keep the purpose under the name (two lines),
+              then the size and freshness. */}
+          {space.description?.length ? (
+            <span className="mt-0.5 line-clamp-2 text-[13px] leading-[1.125rem] text-muted-foreground @min-[40rem]/list:hidden">
+              {space.description}
+            </span>
+          ) : null}
+          <span className="mt-1 block text-xs text-muted-foreground tabular-nums @min-[40rem]/list:hidden">
+            {pageCount} · updated{" "}
+            <time dateTime={updatedAt} title={absoluteTime(updatedAt)}>
+              {relativeTime(updatedAt)}
+            </time>
           </span>
         </span>
       </span>
@@ -328,7 +337,7 @@ function SpaceRow({ space }: { space: Space }) {
         {live.length}
         <span className="sr-only"> {live.length === 1 ? "page" : "pages"}</span>
       </span>
-      <span className="text-right text-xs text-muted-foreground tabular-nums @min-[40rem]/list:text-[13px]">
+      <span className="hidden text-right text-[13px] text-muted-foreground tabular-nums @min-[40rem]/list:block">
         <span className="sr-only">Updated </span>
         <time dateTime={updatedAt} title={absoluteTime(updatedAt)}>
           {relativeTime(updatedAt)}

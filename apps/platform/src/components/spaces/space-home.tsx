@@ -35,6 +35,10 @@ import {
 } from "@lictory/platform/components/spaces/space-meta";
 import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumbs";
 import { ArchivedSpaceNotice } from "@lictory/platform/components/spaces/archived-notice";
+import {
+  touchIcon,
+  touchTarget,
+} from "@lictory/platform/components/spaces/touch";
 
 const RECENT = 5;
 
@@ -142,7 +146,7 @@ export function SpaceHome() {
                 href={`${paths.space(organization.slug, space.slug)}/pull-requests`}
                 className="contents"
               >
-                <Button variant="secondary" size="sm">
+                <Button variant="secondary" size="sm" className={touchTarget}>
                   <GitPullRequest className="size-3.5" aria-hidden /> Pull
                   requests
                 </Button>
@@ -158,13 +162,18 @@ export function SpaceHome() {
                   size="icon"
                   aria-label="Space settings"
                   title="Space settings"
+                  className={touchIcon}
                 >
                   <Settings2 className="size-3.5" aria-hidden />
                 </Button>
               </Link>
             )}
             {canEdit && (
-              <Button size="sm" onClick={() => createPage(null)}>
+              <Button
+                size="sm"
+                onClick={() => createPage(null)}
+                className={touchTarget}
+              >
                 <Plus className="size-3.5" aria-hidden /> New page
               </Button>
             )}
@@ -326,7 +335,7 @@ function PageFinder({
               ?.click();
           }
         }}
-        className="h-8 w-full min-w-0 rounded-full border border-foreground/15 bg-card pr-8 pl-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 touch:text-base [&::-webkit-search-cancel-button]:hidden"
+        className="h-8 w-full min-w-0 rounded-full border border-foreground/15 bg-card pr-8 pl-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 max-sm:h-10 touch:h-10 touch:text-base [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button
@@ -383,7 +392,7 @@ function FoundPages({
                 <Link
                   data-found-page
                   href={paths.spacePage(organization.slug, space.slug, page.id)}
-                  className="flex min-h-[30px] items-center gap-2 rounded-md px-2 py-1 text-[13px] outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
+                  className="flex min-h-[30px] items-center gap-2 rounded-md px-2 py-1 text-[13px] outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset max-sm:min-h-11 touch:min-h-11"
                 >
                   <FileText
                     className="size-3.5 shrink-0 text-muted-foreground"

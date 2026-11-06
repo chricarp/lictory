@@ -28,6 +28,10 @@ import {
   type PageLine,
 } from "@lictory/platform/components/spaces/editor/line";
 import { usePageBranchSelection } from "@lictory/platform/components/spaces/history/branch-selection";
+import {
+  touchIcon,
+  touchTarget,
+} from "@lictory/platform/components/spaces/touch";
 
 // The page header's statement and controls: what is on screen (the
 // published version, a branch, or the live draft) in one line, and one
@@ -81,21 +85,19 @@ export function Fact({ children }: { children: ReactNode }) {
   );
 }
 
-// "Published version 3 · by Maria Chen · 2 min ago", or the branch on
-// screen with its latest commit.
+// "Published version 3 · by Maria Chen · 2 min ago" ("Published v3 · Maria
+// Chen · 2 min ago" on phones, details on tap), or the branch on screen
+// with its latest commit.
 export function PageStatement({
   space,
   page,
   line,
   history,
-  onOpenDraft,
 }: {
   space: Space;
   page: SpacePage;
   line: PageLine;
   history: PageHistory;
-  // Switches to the live draft (people who may edit it).
-  onOpenDraft?: () => void;
 }) {
   const { memberName } = useWorkspace();
   const head = line.head;
@@ -132,49 +134,100 @@ export function PageStatement({
     head !== undefined &&
     head.approverIds.length > 0 &&
     page.approvedCommitId === head.id;
-  const unpublished =
-    !line.reviewed && line.canEditSpace && line.draft?.uncommittedChanges;
+  const author = memberName(head?.authorId ?? page.createdById);
+  const at = head?.createdAt ?? page.updatedAt;
+  const unpublished = Boolean(
+    !line.reviewed && line.canEditSpace && line.draft?.uncommittedChanges,
+  );
+  // An unpublished live draft is not a fact of the version on screen: it
+  // is said by the primary action ("Continue editing" and its dot).
   return (
-    <p className={row}>
-      <StateDot tone="published">
-        {version ? `Published version ${version}` : "Published"}
-      </StateDot>
-      {approved && (
-        <span
-          title={`Approved by ${head.approverIds.map(memberName).join(", ")}`}
-          className="inline-flex h-5 items-center rounded-full bg-success/8 px-2 text-[11px] font-medium text-success ring-1 ring-success/20 ring-inset"
-        >
-          Approved
-        </span>
-      )}
-      <Fact>
-        <span>by {memberName(head?.authorId ?? page.createdById)}</span>
-      </Fact>
-      <Fact>
-        <When at={head?.createdAt ?? page.updatedAt} />
-      </Fact>
-      {unpublished && (
-        <>
-          {onOpenDraft && line.writable ? (
-            <button
-              type="button"
-              onClick={onOpenDraft}
-              title="The live draft was edited after this version was published. Open it."
-              className="inline-flex h-6 items-center gap-1 rounded-full bg-warning/8 px-2 text-[11px] font-medium text-warning ring-1 ring-warning/25 transition-[background-color] duration-150 ease-out outline-none ring-inset hover:bg-warning/14 focus-visible:ring-2 focus-visible:ring-ring/60"
-            >
-              Unpublished draft
-            </button>
-          ) : (
-            <span
-              title="The live draft was edited after this version was published."
-              className="inline-flex h-5 items-center rounded-full bg-warning/8 px-2 text-[11px] font-medium text-warning ring-1 ring-warning/25 ring-inset"
-            >
-              Unpublished draft
-            </span>
-          )}
-        </>
-      )}
-    </p>
+    <>
+      <p className={cn(row, "max-sm:hidden")}>
+        <StateDot tone="published">
+          {version ? `Published version ${version}` : "Published"}
+        </StateDot>
+        {approved && (
+          <span
+            title={`Approved by ${head.approverIds.map(memberName).join(", ")}`}
+            className="inline-flex h-5 items-center rounded-full bg-success/8 px-2 text-[11px] font-medium text-success ring-1 ring-success/20 ring-inset"
+          >
+            Approved
+          </span>
+        )}
+        <Fact>
+          <span>by {author}</span>
+        </Fact>
+        <Fact>
+          <When at={at} />
+        </Fact>
+      </p>
+      {/* Phones: one short line; its details open on tap. */}
+      <Popover
+        width={264}
+        trigger={(props) => (
+          <button
+            {...props}
+            type="button"
+            aria-label={`Published ${version ? `version ${version}` : ""} by ${author}, ${relativeTime(at)}. Show details`}
+            className={cn(
+              row,
+              "-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:hidden",
+            )}
+          >
+            <StateDot tone="published">
+              {version ? `Published v${version}` : "Published"}
+            </StateDot>
+            <Fact>
+              <span>{author}</span>
+            </Fact>
+            <Fact>
+              <span>{relativeTime(at)}</span>
+            </Fact>
+            <ChevronDown
+              aria-hidden
+              className="size-3.5 shrink-0 text-muted-foreground/70"
+            />
+          </button>
+        )}
+      >
+        <StatementDetails
+          title={version ? `Published version ${version}` : "Published"}
+          facts={[
+            `By ${author}`,
+            absoluteTime(at),
+            approved
+              ? `Approved by ${head.approverIds.map(memberName).join(", ")}`
+              : null,
+            unpublished
+              ? "The live draft has changes that are not published yet."
+              : null,
+          ]}
+        />
+      </Popover>
+    </>
+  );
+}
+
+function StatementDetails({
+  title,
+  facts,
+}: {
+  title: string;
+  facts: (string | null)[];
+}) {
+  const labelId = usePopover()?.labelId;
+  return (
+    <div className="space-y-1 px-3 py-2.5 text-[13px]">
+      <h2 id={labelId} className="font-medium">
+        {title}
+      </h2>
+      {facts.filter(Boolean).map((fact) => (
+        <p key={fact} className="text-muted-foreground">
+          {fact}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -207,7 +260,7 @@ export function LineSwitcher({
           variant="secondary"
           size="sm"
           aria-label={`Branch: ${branch.name}`}
-          className="max-w-44 pr-2.5"
+          className={cn("max-w-44 pr-2.5", touchTarget)}
         >
           <GitBranch className="size-3.5 shrink-0" aria-hidden />
           <span className="truncate">{branch.name}</span>
@@ -323,6 +376,7 @@ export function PageMoreMenu({
           size="icon"
           aria-label="More page actions"
           title="More page actions"
+          className={touchIcon}
         >
           <MoreHorizontal className="size-4" aria-hidden />
         </Button>
