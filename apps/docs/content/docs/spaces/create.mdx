@@ -23,9 +23,11 @@ picks an icon, shown wherever the space is listed.
 
 **Address.** Lictory derives the space's address from its name, for example
 `/northwind/spaces/engineering-handbook`. **Customize address** changes it:
-lowercase letters, digits and single hyphens. Links to the space keep
-working only while its address stays the same; links to its pages never
-depend on it, because pages are addressed by their id.
+lowercase letters, digits and single hyphens. A space's address is part of
+the address of each of its pages, so links people copied or bookmarked keep
+working only while it stays the same. Page links inside pages (`[[`) are
+unaffected: they point at the page itself and always use the current
+address.
 
 </Step>
 <Step>
@@ -53,7 +55,10 @@ can open it and how it publishes, for example _Northwind · everyone can edit
 </Step>
 <Step>
 
-**Create space.** The space opens on its home, ready for a first page.
+**Create space.** The space opens on its home, ready for a first page,
+which needs edit access to the space. An administrator who creates an
+Inherited space for a team or project they are not a member of can view it
+but not write in it, until they join or name themselves with edit access.
 
 </Step>
 </Steps>

@@ -63,8 +63,9 @@ Dev can only view._ or _Without it, Dev loses access._
 ## Administrators
 
 A space's **administrators** are its creator, the administrators of its
-project (for a project or team location) and the organization's
-administrators. They manage what decides who can read what:
+project while that project is active (for a project or team location) and
+the organization's administrators, as long as they are members of the
+organization. They manage what decides who can read what:
 
 | Who                             | Can change                                                        |
 | ------------------------------- | ----------------------------------------------------------------- |
@@ -94,7 +95,9 @@ notifications alike:
 
 - a space or page you cannot read looks exactly like one that does not
   exist: the same "not found", no title, no count;
-- when someone's access is removed, they stop receiving live edits at once,
-  or within 30 seconds at the most, and they can no longer save any;
+- when someone's access is removed, every edit they try to save is
+  refused from then on, and their open live editing connection is closed as
+  soon as the editing service hears of the change, or at its next check of
+  every connection, made every 30 seconds;
 - notifications reach only people who can read the space at that moment,
   and disappear for someone who loses access.

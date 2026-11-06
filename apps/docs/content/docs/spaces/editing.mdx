@@ -159,4 +159,6 @@ or discard it, and it is removed when you sign out.
 The editor also closes when it can no longer let you edit: _Sign in again to
 keep editing this page._ after your session ended, or _You no longer have
 access to edit this draft._ when your access was removed. Removing someone's
-access stops their live editing at once, or within 30 seconds at most.
+access refuses their next save at once, and closes their editor as soon as
+the editing service hears of the change or at its next check of every
+connection, made every 30 seconds.

@@ -44,8 +44,9 @@ Ask, for example:
 
 ## What stays with people
 
-These are human decisions. An agent performs them only when you explicitly
-ask it to, and Litto asks you to confirm first:
+These are human decisions. Lictory's MCP tools tell an agent to perform
+them only when you explicitly ask it to, and Litto asks you to confirm
+first:
 
 - publishing a live draft;
 - approving or requesting changes on a pull request, and merging it;
@@ -53,5 +54,8 @@ ask it to, and Litto asks you to confirm first:
 
 An agent acting for you counts as you: nobody can approve a page change they
 contributed to, and that includes a change their agent proposed. Several
-agents using one person's token do not count as independent reviewers. Use a
-read-only token when an agent should only read.
+agents using one person's token do not count as independent reviewers.
+
+The MCP instruction is guidance for the agent, not a lock: a read/write token
+can perform anything your access allows. Use a read-only token when an agent
+should only read.
