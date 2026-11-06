@@ -213,6 +213,13 @@ void test("a domain rejection is an application error with details and writes no
   assert.equal(await f.lastMutationID(), 1);
   assert.equal((await f.results()).length, 1);
   assert.deepEqual(await f.projections(), before);
+  // A client that reloads before storing the answer resends the same Zero
+  // mutation: it is answered as already processed, not run (or reported) again.
+  const resent = await f.push(f.memberId, args, 1);
+  assert.equal(resent.error, "alreadyProcessed");
+  assert.equal(await f.lastMutationID(), 1);
+  assert.equal((await f.results()).length, 1);
+  assert.deepEqual(await f.projections(), before);
   assert.equal(
     (
       await db

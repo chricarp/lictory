@@ -1,9 +1,15 @@
 import type { BrowserContext, Page, WebSocketRoute } from "@playwright/test";
 
 type PushedMutation = {
+  clientID: string;
+  id: number;
   name: string;
   args: unknown[];
 };
+// Zero's own identity of a pushed mutation: the client that made it and its
+// sequence number there. A resend after a reload keeps it; the server answers
+// a mutation it already processed without running it again.
+export type ZeroMutationId = { clientID: string; id: number };
 export type WorkspaceMutation = {
   id: string;
   organizationId: string;
@@ -16,7 +22,8 @@ export type WorkspaceMutation = {
 // controls the connections of all its tabs.
 export async function controlZeroConnection(page: Page | BrowserContext) {
   let blocked = false;
-  let rewrite: ((mutation: WorkspaceMutation) => void) | undefined;
+  let rewrite:
+    ((mutation: WorkspaceMutation, zero: ZeroMutationId) => void) | undefined;
   let afterPush: ((socket: WebSocketRoute) => void) | undefined;
   const open = new Set<WebSocketRoute>();
   const pushed: WorkspaceMutation[] = [];
@@ -41,7 +48,7 @@ export async function controlZeroConnection(page: Page | BrowserContext) {
         if (mutation.name !== "workspace.apply") continue;
         const args = mutation.args[0] as WorkspaceMutation;
         pushed.push(structuredClone(args));
-        rewrite?.(args);
+        rewrite?.(args, { clientID: mutation.clientID, id: mutation.id });
       }
       server.send(JSON.stringify([kind, body]));
       afterPush?.(socket);
