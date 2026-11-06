@@ -5,7 +5,7 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { markdownToDocument } from "@lictory/core/spaces/document/from-markdown";
 import { Button } from "@lictory/ui/button";
-import { Markdown } from "@lictory/platform/components/items/markdown";
+import { PageReader } from "@lictory/platform/components/spaces/editor/document";
 import { Dialog } from "@lictory/platform/components/spaces/dialog";
 import { useMergePreview } from "./preview";
 import { ActionError, field, useHistoryAction } from "./shared";
@@ -133,9 +133,14 @@ export function ConflictResolution({
                   <h3 className="mb-2 text-xs font-semibold capitalize">
                     {side}
                   </h3>
-                  <Markdown
-                    source={c.kind === "title" ? c[side] : c[side].markdown}
-                  />
+                  {c.kind === "title" ? (
+                    <p className="text-sm">{c[side]}</p>
+                  ) : (
+                    <PageReader
+                      content={{ type: "doc", content: c[side].json }}
+                      label={`${side} conflict content`}
+                    />
+                  )}
                 </section>
               ))}
             </div>
