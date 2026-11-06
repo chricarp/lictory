@@ -1,0 +1,15 @@
+/* Keep review controls responsive while honoring reduced motion locally. */
+.spaces-history button:not(:disabled):active {
+  scale: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .spaces-history button {
+    transition-property:
+      background-color, color, box-shadow, border-color, scale;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+  .spaces-history button:not(:disabled):active {
+    scale: 0.96;
+  }
+}

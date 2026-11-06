@@ -1,3 +1,5 @@
+import { ReferencesProvider } from "@lictory/platform/components/spaces/editor/references";
+import "./history.css";
 import { paths } from "@lictory/core/lib/paths";
 import {
   Link,
@@ -35,47 +37,52 @@ export function PageHistoryWorkspace() {
   };
   if (!page) return <p className="p-6">This page was not found.</p>;
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-8">
-        <Link
-          className="text-sm underline underline-offset-4"
-          href={`${paths.spacePage(organization.slug, space.slug, page.id)}${branch && !branch.isMain ? `?branch=${branch.id}` : ""}`}
-        >
-          Back to {page.title}
-        </Link>
-        <h1 className="text-2xl font-semibold break-words">
-          {page.title} · History & review
-        </h1>
-        <nav aria-label="Page history views" className="flex flex-wrap gap-2">
-          {[
-            ["versions", "Versions"],
-            ["branches", "Branches"],
-            ["pulls", "Pull requests"],
-          ].map(([key, title]) => (
-            <button
-              key={key}
-              type="button"
-              aria-current={view === key ? "page" : undefined}
-              className={`rounded-full border px-4 py-2 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring ${view === key ? "bg-muted font-medium" : ""}`}
-              onClick={() => change({ view: key!, pr: null })}
-            >
-              {title}
-            </button>
-          ))}
-        </nav>
-        {view === "branches" ? (
-          <Branches pageId={page.id} />
-        ) : view === "pulls" ? (
-          <PullRequests
-            pageId={page.id}
-            selected={search.get("pr")}
-            onSelect={(id) => change({ pr: id })}
-          />
-        ) : (
-          <Versions pageId={page.id} branch={branch} />
-        )}
+    <ReferencesProvider>
+      <div className="spaces-history h-full overflow-y-auto overscroll-contain">
+        <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-8">
+          <Link
+            className="inline-flex min-h-8 items-center rounded-full text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            href={`${paths.spacePage(organization.slug, space.slug, page.id)}${branch && !branch.isMain ? `?branch=${branch.id}` : ""}`}
+          >
+            Back to {page.title}
+          </Link>
+          <h1 className="text-2xl font-semibold break-words">
+            {page.title} · History & review
+          </h1>
+          <nav
+            aria-label="Page history views"
+            className="flex flex-wrap gap-5 border-b"
+          >
+            {[
+              ["versions", "Versions"],
+              ["branches", "Branches"],
+              ["pulls", "Pull requests"],
+            ].map(([key, title]) => (
+              <button
+                key={key}
+                type="button"
+                aria-current={view === key ? "page" : undefined}
+                className={`min-h-10 border-b-2 px-1 py-2 text-sm transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring ${view === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground"}`}
+                onClick={() => change({ view: key!, pr: null })}
+              >
+                {title}
+              </button>
+            ))}
+          </nav>
+          {view === "branches" ? (
+            <Branches pageId={page.id} />
+          ) : view === "pulls" ? (
+            <PullRequests
+              pageId={page.id}
+              selected={search.get("pr")}
+              onSelect={(id) => change({ pr: id })}
+            />
+          ) : (
+            <Versions pageId={page.id} branch={branch} />
+          )}
+        </div>
       </div>
-    </div>
+    </ReferencesProvider>
   );
 }
 
@@ -90,7 +97,7 @@ export function SpacePullRequests() {
       pages.some((page) => page.id === p.pageId && !page.archivedAt),
   );
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="spaces-history h-full overflow-y-auto overscroll-contain">
       <section className="mx-auto max-w-3xl space-y-5 p-6">
         <Link
           className="text-sm underline"

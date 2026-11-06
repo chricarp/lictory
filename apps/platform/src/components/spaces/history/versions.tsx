@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
-import { diffDocuments } from "@lictory/core/spaces/document/diff";
+import { useState } from "react";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
-import { DocumentDiff } from "./document-diff";
-import { Markdown } from "@lictory/platform/components/items/markdown";
+import { DocumentDiff, RenderedDocumentDiff } from "./document-diff";
+import { PageReader } from "@lictory/platform/components/spaces/editor/document";
+import { Avatar } from "@lictory/ui/avatar";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
@@ -35,15 +35,9 @@ export function Versions({
   const before = commits.find(
     (c) => c.id === (compare || commit?.parentIds[0]),
   );
-  const changes = useMemo(
-    () =>
-      before && commit
-        ? diffDocuments(before.content, commit.content).filter(
-            (c) => c.kind !== "unchanged",
-          )
-        : [],
-    [before, commit],
-  );
+  const version = (id: string) =>
+    `v${commits.findIndex((c) => c.id === id) + 1}`;
+  const [showDocument, setShowDocument] = useState(false);
   const editable =
     canEdit &&
     branch?.draft &&
@@ -51,27 +45,55 @@ export function Versions({
       branch.authorId === userId ||
       branch.collaboratorIds.includes(userId));
   return (
-    <div className="grid gap-6 md:grid-cols-[15rem_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
       <section aria-label="Versions">
         <h2 className="mb-3 font-semibold">Version history</h2>
         {!loaded && <p role="status">Loading history…</p>}
-        <ol className="space-y-2">
+        <ol className="space-y-1">
           {[...commits].reverse().map((c) => (
             <li key={c.id}>
               <button
                 type="button"
                 aria-pressed={c.id === commit?.id}
-                className={`w-full rounded-xl border p-3 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring ${c.id === commit?.id ? "bg-muted" : ""}`}
+                className={`w-full rounded-xl border p-3 text-left text-sm transition-[background-color,border-color] duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring ${c.id === commit?.id ? "border-border bg-muted" : "border-transparent"}`}
                 onClick={() => {
                   setSelected(c.id);
                   setCompare("");
                 }}
               >
-                <span className="block font-medium break-words">
-                  {c.message ?? c.title}
+                <span className="mb-2 flex items-center gap-2">
+                  <span className="font-mono text-xs font-semibold">
+                    {version(c.id)}
+                  </span>
+                  <span className="truncate font-medium">
+                    {(c.message ?? c.title).replace(
+                      /^Merge pull request: /,
+                      "",
+                    )}
+                  </span>
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  {memberName(c.authorId)} · {relativeTime(c.createdAt)}
+                  <span className="flex items-center gap-2">
+                    <Avatar
+                      name={memberName(c.authorId)}
+                      userId={c.authorId}
+                      size="sm"
+                    />
+                    {memberName(c.authorId)}
+                  </span>
+                  <time
+                    className="mt-1 block"
+                    dateTime={c.createdAt}
+                    title={new Date(c.createdAt).toLocaleString()}
+                  >
+                    {new Date(c.createdAt).toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </time>
                 </span>
                 {c.contributorIds.filter((id) => id !== c.authorId).length >
                   0 && (
@@ -100,11 +122,46 @@ export function Versions({
       </section>
       {commit && (
         <section aria-label="Selected version" className="min-w-0 space-y-4">
-          <h2 className="text-xl font-semibold break-words">{commit.title}</h2>
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                {version(commit.id)} · {relativeTime(commit.createdAt)}
+              </p>
+              <h2 className="text-xl font-semibold break-words">
+                {commit.title}
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {editable && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setDiscard(false);
+                    setRestore(branch?.headCommitId);
+                  }}
+                >
+                  Restore this version
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-pressed={showDocument}
+                onClick={() => setShowDocument(!showDocument)}
+              >
+                {showDocument ? "View changes" : "View document"}
+              </Button>
+            </div>
+          </div>
           {commit.approverIds.length > 0 && (
             <p className="text-sm">{reviewOf(commit.approverIds)?.line}</p>
           )}
-          <Markdown source={commit.markdown} />
+          {(showDocument || !before) && (
+            <PageReader
+              content={commit.content}
+              label={`${version(commit.id)} document`}
+            />
+          )}
           <label className="block text-sm">
             Compare with
             <select
@@ -117,43 +174,28 @@ export function Versions({
                 .filter((c) => c.id !== commit.id)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.message ?? c.title} · {relativeTime(c.createdAt)}
+                    {version(c.id)} ·{" "}
+                    {(c.message ?? c.title).replace(
+                      /^Merge pull request: /,
+                      "",
+                    )}
                   </option>
                 ))}
             </select>
           </label>
-          {before && (
-            <div className="space-y-3">
-              <h3 className="font-medium">Changes from selected comparison</h3>
-              {before.title !== commit.title && (
-                <DocumentDiff before={before.title} after={commit.title} />
-              )}
-              {changes.map((c) => (
-                <section key={c.blockId} className="space-y-1">
-                  <h4 className="text-xs font-medium capitalize">
-                    {c.kind} block
-                  </h4>
-                  <DocumentDiff
-                    before={c.beforeMarkdown ?? ""}
-                    after={c.afterMarkdown ?? ""}
-                  />
-                </section>
-              ))}
-              {!changes.length && before.title === commit.title && (
-                <p className="text-sm text-muted-foreground">No changes.</p>
-              )}
+          {before && !showDocument && (
+            <div className="space-y-4">
+              <h3 className="font-medium">
+                Changes from {version(before.id)} to {version(commit.id)}
+              </h3>
+              <DocumentDiff before={before.title} after={commit.title} />
+              <RenderedDocumentDiff
+                before={before.content}
+                after={commit.content}
+                beforeLabel={version(before.id)}
+                afterLabel={version(commit.id)}
+              />
             </div>
-          )}
-          {editable && (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setDiscard(false);
-                setRestore(branch?.headCommitId);
-              }}
-            >
-              Restore this version
-            </Button>
           )}
           {restore && branch && (
             <Dialog

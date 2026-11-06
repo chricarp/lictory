@@ -58,8 +58,31 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     pullRequestId,
     branchName: "safe-retries",
     title: "Recovery",
-    markdown:
-      "## Safe retries\n\nReuse the transaction identifier after a timeout.",
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { id: "retry-heading", level: 2 },
+          content: [{ type: "text", text: "Safe retries" }],
+        },
+        {
+          type: "paragraph",
+          attrs: { id: "retry-policy" },
+          content: [
+            {
+              type: "text",
+              text: "Reuse the transaction identifier after a timeout.",
+            },
+          ],
+        },
+        {
+          type: "paragraph",
+          attrs: { id: "retry-reference" },
+          content: [{ type: "pageRef", attrs: { pageId } }],
+        },
+      ],
+    },
     message: "Define retry behavior",
   });
   await page.goto(
@@ -70,6 +93,15 @@ test("reviewed page: inspect result, request independent review, approve, merge 
   await expect(
     page.getByRole("region", { name: "Resulting document diff" }),
   ).toContainText("Reuse the transaction identifier");
+  await expect(
+    page.getByText("No text changes between these revisions"),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Revoke decision", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "Review summary" }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Request required review", exact: true })
     .click();
@@ -104,6 +136,23 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     .click();
   await expect(page.getByText(/Merged by Page Author/)).toBeVisible();
   await page.goto(`${url}/history`);
+  const selectedVersion = page.getByRole("region", {
+    name: "Selected version",
+  });
+  await expect(
+    selectedVersion.getByRole("link", { name: "Recovery", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "View document", exact: true })
+    .click();
+  await expect(selectedVersion.getByRole("document")).toContainText(
+    "Reuse the transaction identifier",
+  );
+  await page.getByRole("button", { name: "View changes", exact: true }).click();
+  await expect(
+    selectedVersion.getByRole("heading", { name: /Changes from v/ }),
+  ).toBeVisible();
+  await expectNoAccessibilityViolations(page, "rendered version comparison");
   await expect(
     page.getByRole("button", { name: /Published Approved/ }),
   ).toBeVisible();
