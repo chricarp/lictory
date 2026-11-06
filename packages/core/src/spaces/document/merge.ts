@@ -39,7 +39,7 @@ function identityAmbiguous(n: PageNode, seen = new Set<string>()): boolean {
   if (
     n.type !== "doc" &&
     n.type !== "text" &&
-    !["hardBreak", "workItemRef", "pageRef"].includes(n.type)
+    !["hardBreak", "workItemRef", "pageRef", "decisionRef"].includes(n.type)
   ) {
     if (!n.attrs?.id || seen.has(id(n))) return true;
     seen.add(id(n));
@@ -53,7 +53,13 @@ function structure(n: PageNode): unknown {
     children: n.content
       ?.filter(
         (c) =>
-          !["text", "hardBreak", "workItemRef", "pageRef"].includes(c.type),
+          ![
+            "text",
+            "hardBreak",
+            "workItemRef",
+            "pageRef",
+            "decisionRef",
+          ].includes(c.type),
       )
       .map(structure),
   };

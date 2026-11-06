@@ -66,7 +66,8 @@ export function pageExtensions() {
       },
     }),
     reference("workItemRef", ["workItemId", "key"]),
-    reference("pageRef", ["pageId"]),
+    reference("pageRef", ["pageId", "commitId"]),
+    reference("decisionRef", ["decisionId", "label"]),
     UniqueID.configure({ types: blockTypes, attributeName: "id" }),
   ];
 }

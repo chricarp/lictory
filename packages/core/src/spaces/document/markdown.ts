@@ -1,8 +1,18 @@
+import { formatReference } from "@lictory/core/contracts/references";
 import { canonicalizeDocument, type PageNode } from "./canonical";
 function escape(text: string) {
   return text.replace(/([\\`*_{}\[\]<>|])/g, "\\$1");
 }
-/** Deterministic GFM projection, never the source of truth. */
+// A linked page is written without its title: the projection is read by
+// everyone who reads this page, who may not be allowed to read the other one.
+export const LINKED_PAGE_LABEL = "Linked page";
+
+/**
+ * Deterministic GFM projection, never the source of truth. References keep
+ * their identity as typed links (`[PAY-2](item:ID)`, `[Linked page](page:ID)`,
+ * `[label](decision:ID)`, see contracts/references.ts), so Markdown read back
+ * with `markdownToDocument` restores them.
+ */
 export function documentToMarkdown(json: unknown): string {
   return render(canonicalizeDocument(json));
 }
@@ -95,9 +105,26 @@ function render(n: PageNode): string {
     case "image":
       return `![${escape(typeof a.alt === "string" ? a.alt : "")}](<${String(a.src).replace(/>/g, "%3E")}>)`;
     case "workItemRef":
-      return String(a.key);
+      return formatReference(
+        { kind: "item", id: String(a.workItemId) },
+        String(a.key),
+      );
     case "pageRef":
-      return `[[page:${String(a.pageId)}]]`;
+      return formatReference(
+        {
+          kind: "page",
+          id: String(a.pageId),
+          ...(typeof a.commitId === "string" && a.commitId
+            ? { commitId: a.commitId }
+            : {}),
+        },
+        LINKED_PAGE_LABEL,
+      );
+    case "decisionRef":
+      return formatReference(
+        { kind: "decision", id: String(a.decisionId) },
+        String(a.label),
+      );
     default:
       return blocks();
   }
