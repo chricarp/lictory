@@ -65,6 +65,10 @@ const concepts = `## How ${siteName} works
 
 Work in the UI, delegate to Litto, or connect your own agent through MCP. The same work item capabilities and server-side permissions apply across surfaces. Agents can propose changes on branches and open pull requests; human decisions require explicit authorization. Account security and credentials remain in the browser.
 
+## Lictory Spaces
+
+Lictory Spaces keeps what a team knows (runbooks, architecture notes, handbooks) in spaces of nested pages. A space belongs to the organization, a project or a team: members of that home edit it and other organization members read it, or the space is Restricted to named people. Several people edit a page's live draft at once; the editor says "Saved" only once the server has stored every edit. Pages change through the same reviewed history as specifications: in a Direct space editors publish the draft as a new version, in a Reviewed space changes arrive as pull requests that merge only after the required reviewers approve the exact result. Published versions never change and can be compared word by word. Comments stay anchored to the text they quote, pages mention work items with their live status, and agents connected over MCP propose page changes as pull requests rather than typing into live drafts.
+
 ## Lictory Intelligence
 
 Lictory Intelligence is the umbrella for AI-assisted features, including automated reviews and shared context. Litto is the conversational assistant, powered by Lictory Intelligence and its context. Lictory Intelligence finds missing information, contradictions, ambiguity and edge cases, and proposes acceptance criteria, rewrites and delivery decomposition. Its output is always a proposal: people decide what becomes part of the specification, and it never silently rewrites, resolves, approves or publishes. All core collaboration keeps working when it is disabled.`;

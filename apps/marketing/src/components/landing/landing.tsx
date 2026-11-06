@@ -22,6 +22,8 @@ import {
 import { ReviewScene } from "@lictory/marketing/components/landing/scenes/review-scene";
 import { HeroScene } from "@lictory/marketing/components/landing/scenes/hero-scene";
 import { AgentsScene } from "@lictory/marketing/components/landing/scenes/agents-scene";
+import { SpacesEditorScene } from "@lictory/marketing/components/landing/scenes/spaces-editor-scene";
+import { SpacesReviewScene } from "@lictory/marketing/components/landing/scenes/spaces-review-scene";
 import {
   BoardStill,
   PublishStill,
@@ -39,6 +41,7 @@ export function Landing() {
         <Agents />
         <Disciplines />
         <Delivery />
+        <Spaces />
         <Comparison />
         <OpenSource />
         <Faq />
@@ -432,6 +435,89 @@ function Delivery() {
           <p className="delivery-meta">Jira today · Linear is coming</p>
         </article>
       </div>
+    </section>
+  );
+}
+
+const spaceFacts = [
+  [
+    "Direct or Reviewed",
+    "Each space chooses: editors publish the live draft, or every change arrives as a pull request that needs approval.",
+  ],
+  [
+    "Every version kept",
+    "Published versions never change. Compare any two word by word; restoring an old one adds a new version.",
+  ],
+  [
+    "Approvals for the exact result",
+    "A later change to the result makes an approval stale and tells the reviewer. Nobody approves their own change.",
+  ],
+  [
+    "Comments on the words",
+    "Discussions stay on the text they quote while people keep typing. A blocking comment holds back the merge.",
+  ],
+  [
+    "Access from where it lives",
+    "Members of the space’s organization, project or team edit it, and everyone else in the organization reads it. Restricted spaces open only to the people named.",
+  ],
+  [
+    "Work items in the text",
+    "Type # to mention PAY-142. Readers see its current status, refinement state and readiness.",
+  ],
+  [
+    "Agents propose, people publish",
+    "Agents connected over MCP read pages and propose changes as pull requests. They never type into a live draft.",
+  ],
+  [
+    "On your own server",
+    "Live editing runs in your Lictory installation. If it stops, reading, history, comments and reviews keep working.",
+  ],
+] as const;
+
+function Spaces() {
+  return (
+    <section
+      id="spaces"
+      aria-labelledby="spaces-title"
+      className="section site-width"
+    >
+      <SectionHeading
+        id="spaces"
+        label="Spaces"
+        title="Write down what the team knows"
+      >
+        Lictory Spaces keeps runbooks, architecture notes and team handbooks
+        in spaces of nested pages. Several people edit a page at once, and the
+        editor says Saved only once the server has stored every edit. Readers
+        see a change when it is published, through the same reviewed history
+        as a specification.
+      </SectionHeading>
+      <SpacesEditorScene />
+
+      <div className="review-stage spaces-stage">
+        <div className="review-stage-copy">
+          <h3>
+            Change a page
+            <br />
+            the way you change a spec.
+          </h3>
+          <p>
+            A Reviewed space protects its published pages. Changes wait on a
+            branch, show the exact words that changed, and merge only after the
+            required reviewers approve that exact result.
+          </p>
+        </div>
+        <SpacesReviewScene />
+      </div>
+
+      <dl className="review-tools spaces-facts" aria-label="Built into every space">
+        {spaceFacts.map(([title, body]) => (
+          <div key={title}>
+            <dt>{title}</dt>
+            <dd>{body}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

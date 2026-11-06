@@ -25,6 +25,9 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
             <Link href={`${sections}#delivery`} className={footerLinkClass}>
               Delivery
             </Link>
+            <Link href={`${sections}#spaces`} className={footerLinkClass}>
+              Spaces
+            </Link>
             <Link href={`${sections}#faq`} className={footerLinkClass}>
               FAQ
             </Link>

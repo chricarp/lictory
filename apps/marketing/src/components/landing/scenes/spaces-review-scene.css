@@ -1,0 +1,365 @@
+/* The Spaces review scene: a page's pull request in a Reviewed space, the
+   window a gutter in from the top and sides, fading at its foot. */
+
+.sr .ss-stage {
+  overflow: hidden;
+  /* Dev Patel keeps the color he has in the editor scene above */
+  --lx-dev: oklch(0.55 0.17 255);
+}
+
+.sr .ss-stage[data-theme="dark"] {
+  --lx-dev: oklch(0.72 0.14 255);
+}
+
+.sr-dev.ss-avatar {
+  background: var(--lx-dev) !important;
+}
+
+.sr-window {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  width: 632px;
+  height: 540px;
+  box-shadow: var(--ss-shadow-hero);
+  -webkit-mask-image: linear-gradient(to bottom, #000 410px, transparent 476px);
+  mask-image: linear-gradient(to bottom, #000 410px, transparent 476px);
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-window {
+  top: 12px;
+  left: 16px;
+  width: 358px;
+  height: 400px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 334px, transparent 358px);
+  mask-image: linear-gradient(to bottom, #000 334px, transparent 358px);
+}
+
+.sr-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  color: var(--ss-text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sr-crumbs svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ss-icon-faint);
+}
+
+.sr-crumbs > span:last-child {
+  color: var(--ss-text-strong);
+  font-weight: 500;
+}
+
+.sr-policy {
+  margin-right: 4px;
+  color: var(--ss-text);
+  font-size: 12px;
+}
+
+.sr-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 224px;
+  height: 100%;
+  background: var(--ss-surface);
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---- The change ---- */
+
+.sr-main {
+  position: relative;
+  padding: 22px 24px 0;
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-main {
+  padding: 16px 16px 0;
+}
+
+.sr-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sr-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--ss-text-strong);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-title {
+  font-size: 15px;
+}
+
+.sr-merged-badge {
+  background: color-mix(in srgb, var(--lx-merged) 14%, transparent);
+  color: var(--lx-merged);
+}
+
+.sr-refs {
+  margin-top: 6px;
+  color: var(--ss-text-faint);
+  font-size: 12px;
+}
+
+.sr-refs span {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+}
+
+.sr-changes {
+  margin-top: 22px;
+  color: var(--ss-text-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-changes {
+  margin-top: 16px;
+}
+
+.sr-changes span {
+  margin-left: 6px;
+  color: var(--ss-text);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.sr-diff {
+  overflow: hidden;
+  margin-top: 10px;
+  border-radius: var(--ss-radius-lg);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+}
+
+.sr-diff-head {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--ss-line);
+  color: var(--ss-text-strong);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sr-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 14px 14px 12px;
+  border-left: 2px solid transparent;
+}
+
+.sr-row[data-kind="del"] {
+  border-left-color: var(--ss-danger-text);
+  background: var(--lx-diff-del);
+}
+
+.sr-row[data-kind="add"] {
+  border-left-color: var(--ss-success-text);
+  background: var(--lx-diff-add);
+}
+
+.sr-sign {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sr-label {
+  color: var(--ss-text);
+  font-size: 11.5px;
+}
+
+.sr-row p {
+  margin: 4px 0 0;
+  color: var(--ss-text-strong);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-row p {
+  font-size: 13.5px;
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-diff {
+  margin-top: 14px;
+}
+
+.sr .ss-stage[data-layout="compact"] .sr-row {
+  padding-block: 10px 12px;
+}
+
+/* The word that changed, marked inside its sentence */
+.sr-row del,
+.sr-row ins {
+  padding: 1px 2px;
+  border-radius: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+.sr-row del {
+  background: color-mix(in srgb, var(--ss-danger-text) 16%, transparent);
+  color: var(--ss-danger-text);
+  text-decoration-line: line-through;
+}
+
+.sr-row ins {
+  background: color-mix(in srgb, var(--ss-success-text) 18%, transparent);
+  color: var(--ss-success-text);
+  text-decoration: none;
+}
+
+.sr-rest {
+  position: absolute;
+  top: 24px;
+  right: 120px;
+  width: 30px;
+  height: 20px;
+}
+
+/* ---- Reviewers and merging ---- */
+
+.sr-side {
+  padding: 20px 16px;
+  border-left: 1px solid var(--ss-line);
+  background: var(--ss-chrome);
+}
+
+.sr-section {
+  margin-bottom: 8px;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sr-section ~ .sr-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ss-line);
+}
+
+.sr-reviewer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr-reviewer-who {
+  display: grid;
+  gap: 1px;
+  line-height: 1.3;
+}
+
+.sr-reviewer-name {
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.sr-required {
+  color: var(--ss-text);
+  font-size: 11.5px;
+}
+
+.sr-note {
+  margin: 10px 0 0;
+  color: var(--ss-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sr-check {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.sr-merge {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sr-merge-note {
+  color: var(--ss-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.sr-version {
+  color: var(--ss-text-strong);
+  font-family: var(--ss-mono);
+  font-size: 11.5px;
+}
+
+.sr-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--ss-ink-2);
+  color: var(--ss-text-faint);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    transform 0.12s ease;
+}
+
+.sr-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sr-button[data-ready] {
+  background: var(--ss-accent);
+  color: var(--lx-on-accent);
+}
+
+.sr-button[data-ready][data-hover] {
+  background: color-mix(in srgb, var(--ss-accent) 86%, var(--ss-surface));
+}
+
+.sr-button[data-pressed] {
+  transform: scale(0.97);
+}
+
+/* Merged: the badge says it; the button steps back */
+.sr-button[data-done] {
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text);
+}
+
+.sr-compact {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.sr-compact .sr-reviewer {
+  justify-self: stretch;
+}

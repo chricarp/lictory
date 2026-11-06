@@ -679,6 +679,18 @@ html {
   font-size: 13px !important;
 }
 
+/* Spaces: the live draft at full width, then a reviewed change beside its
+   copy, then what every space has. */
+.spaces-editor-scene {
+  margin-top: 56px;
+}
+.spaces-stage {
+  margin-top: 112px;
+}
+.spaces-facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 /* Comparison */
 .compare-links {
   display: flex;
@@ -847,7 +859,8 @@ html {
   .shift {
     gap: 56px;
   }
-  .steps {
+  .steps,
+  .spaces-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1005,8 +1018,13 @@ html {
   /* Scenes design their own phone gutter: they span the viewport */
   .hero-scene,
   .review-scene,
-  .agents-scene {
+  .agents-scene,
+  .spaces-editor-scene,
+  .spaces-review-scene {
     margin-inline: -16px;
+  }
+  .spaces-editor-scene {
+    margin-top: 32px;
   }
   .hero-scene {
     margin-top: 32px;
@@ -1046,6 +1064,7 @@ html {
   }
   .principles,
   .review-tools,
+  .spaces-facts,
   .agent-facts {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
