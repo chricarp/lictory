@@ -1,3 +1,10 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@lictory/ui/select";
 import { useState } from "react";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
@@ -10,7 +17,7 @@ import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { Dialog } from "@lictory/platform/components/spaces/dialog";
 import type { PageBranch } from "@lictory/platform/data/spaces";
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
-import { ActionError, field, useHistoryAction } from "./shared";
+import { ActionError, useHistoryAction } from "./shared";
 import { commitReview } from "./approval";
 
 export function Versions({
@@ -20,7 +27,19 @@ export function Versions({
   pageId: string;
   branch?: PageBranch;
 }) {
-  const { commits, head, loaded } = usePageHistory(pageId);
+  const { commits: allCommits, head, loaded } = usePageHistory(pageId);
+  const lineHead =
+    allCommits.find((c) => c.id === branch?.headCommitId) ?? head;
+  // The first-parent line is this branch’s history. Merged proposal commits
+  // remain on their own branch rather than appearing as duplicate versions.
+  const byId = new Map(allCommits.map((c) => [c.id, c]));
+  const lineage = new Set<string>();
+  let cursor = lineHead;
+  while (cursor && !lineage.has(cursor.id)) {
+    lineage.add(cursor.id);
+    cursor = byId.get(cursor.parentIds[0] ?? "");
+  }
+  const commits = allCommits.filter((c) => lineage.has(c.id));
   const { memberName, userId } = useWorkspace();
   const { canEdit } = usePageActions();
   const { publishing } = useSpace();
@@ -31,10 +50,11 @@ export function Versions({
   const [compare, setCompare] = useState("");
   const [restore, setRestore] = useState<string>();
   const [discard, setDiscard] = useState(false);
-  const commit = commits.find((c) => c.id === selected) ?? head;
-  const before = commits.find(
-    (c) => c.id === (compare || commit?.parentIds[0]),
-  );
+  const commit = commits.find((c) => c.id === selected) ?? lineHead;
+  // A merge’s previous published version is its first parent, not the
+  // chronologically adjacent source-branch commit (often identical content).
+  const previous = commits.find((c) => c.id === commit?.parentIds[0]);
+  const before = commits.find((c) => c.id === compare) ?? previous;
   const version = (id: string) =>
     `v${commits.findIndex((c) => c.id === id) + 1}`;
   const [showDocument, setShowDocument] = useState(false);
@@ -45,7 +65,7 @@ export function Versions({
       branch.authorId === userId ||
       branch.collaboratorIds.includes(userId));
   return (
-    <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+    <div className="grid gap-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
       <section aria-label="Versions">
         <h2 className="mb-3 font-semibold">Version history</h2>
         {!loaded && <p role="status">Loading history…</p>}
@@ -61,11 +81,11 @@ export function Versions({
                   setCompare("");
                 }}
               >
-                <span className="mb-2 flex items-center gap-2">
-                  <span className="font-mono text-xs font-semibold">
+                <span className="mb-2 flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold">
                     {version(c.id)}
                   </span>
-                  <span className="truncate font-medium">
+                  <span className="line-clamp-2 font-medium">
                     {(c.message ?? c.title).replace(
                       /^Merge pull request: /,
                       "",
@@ -86,13 +106,7 @@ export function Versions({
                     dateTime={c.createdAt}
                     title={new Date(c.createdAt).toLocaleString()}
                   >
-                    {new Date(c.createdAt).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}
+                    {relativeTime(c.createdAt)}
                   </time>
                 </span>
                 {c.contributorIds.filter((id) => id !== c.authorId).length >
@@ -125,14 +139,24 @@ export function Versions({
           <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
             <div>
               <p className="mb-1 text-xs font-medium text-muted-foreground">
-                {version(commit.id)} · {relativeTime(commit.createdAt)}
+                {commit.id === head?.id ? "Published · " : ""}
+                {version(commit.id)} · {memberName(commit.authorId)} ·{" "}
+                <time
+                  dateTime={commit.createdAt}
+                  title={new Date(commit.createdAt).toLocaleString()}
+                >
+                  {relativeTime(commit.createdAt)}
+                </time>
               </p>
               <h2 className="text-xl font-semibold break-words">
-                {commit.title}
+                {(commit.message ?? commit.title).replace(
+                  /^Merge pull request: /,
+                  "",
+                )}
               </h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              {editable && (
+              {editable && commit.id !== head?.id && (
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -162,27 +186,34 @@ export function Versions({
               label={`${version(commit.id)} document`}
             />
           )}
-          <label className="block text-sm">
-            Compare with
-            <select
-              className={`${field} mt-1`}
-              value={(compare || commit.parentIds[0]) ?? ""}
-              onChange={(e) => setCompare(e.target.value)}
-            >
-              <option value="">Choose a version</option>
-              {commits
-                .filter((c) => c.id !== commit.id)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {version(c.id)} ·{" "}
-                    {(c.message ?? c.title).replace(
-                      /^Merge pull request: /,
-                      "",
-                    )}
-                  </option>
-                ))}
-            </select>
-          </label>
+          {!showDocument && previous && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span id="compare-label" className="text-muted-foreground">
+                Compare with
+              </span>
+              <Select value={before?.id ?? ""} onValueChange={setCompare}>
+                <SelectTrigger
+                  aria-labelledby="compare-label"
+                  className="max-w-72 border-muted-foreground"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {commits
+                    .filter((c) => c.id !== commit.id)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {version(c.id)} ·{" "}
+                        {(c.message ?? c.title).replace(
+                          /^Merge pull request: /,
+                          "",
+                        )}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {before && !showDocument && (
             <div className="space-y-4">
               <h3 className="font-medium">

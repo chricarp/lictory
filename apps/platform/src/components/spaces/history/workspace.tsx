@@ -1,3 +1,5 @@
+import { ancestorsOf } from "@lictory/platform/data/spaces";
+import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumbs";
 import { ReferencesProvider } from "@lictory/platform/components/spaces/editor/references";
 import "./history.css";
 import { paths } from "@lictory/core/lib/paths";
@@ -21,7 +23,8 @@ export function PageHistoryWorkspace() {
   const { page: pageId } = useParams<{ page: string }>();
   const space = useSpace();
   const { organization } = useWorkspace();
-  const page = useSpacePages(space.id).find((p) => p.id === pageId);
+  const pages = useSpacePages(space.id);
+  const page = pages.find((p) => p.id === pageId);
   const { branch } = usePageBranchSelection();
   const search = useSearchParams();
   const router = useRouter();
@@ -39,16 +42,28 @@ export function PageHistoryWorkspace() {
   return (
     <ReferencesProvider>
       <div className="spaces-history h-full overflow-y-auto overscroll-contain">
-        <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-8">
-          <Link
-            className="inline-flex min-h-8 items-center rounded-full text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            href={`${paths.spacePage(organization.slug, space.slug, page.id)}${branch && !branch.isMain ? `?branch=${branch.id}` : ""}`}
-          >
-            Back to {page.title}
-          </Link>
-          <h1 className="text-2xl font-semibold break-words">
-            {page.title} · History & review
-          </h1>
+        <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-8">
+          <header className="space-y-3">
+            <SpaceBreadcrumbs
+              space={space}
+              page={page}
+              ancestors={ancestorsOf(
+                new Map(pages.map((p) => [p.id, p])),
+                page.id,
+              )}
+            />
+            <div className="flex items-center justify-between gap-4">
+              <h1 className="text-lg font-semibold break-words">
+                {page.title}
+              </h1>
+              <Link
+                className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                href={`${paths.spacePage(organization.slug, space.slug, page.id)}${branch && !branch.isMain ? `?branch=${branch.id}` : ""}`}
+              >
+                View page
+              </Link>
+            </div>
+          </header>
           <nav
             aria-label="Page history views"
             className="flex flex-wrap gap-5 border-b"
@@ -62,7 +77,7 @@ export function PageHistoryWorkspace() {
                 key={key}
                 type="button"
                 aria-current={view === key ? "page" : undefined}
-                className={`min-h-10 border-b-2 px-1 py-2 text-sm transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring ${view === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground"}`}
+                className={`min-h-8 border-b-2 px-1 py-1.5 text-sm transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring ${view === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground"}`}
                 onClick={() => change({ view: key!, pr: null })}
               >
                 {title}

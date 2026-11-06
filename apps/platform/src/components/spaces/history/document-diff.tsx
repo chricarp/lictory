@@ -1,10 +1,15 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import type { Editor } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { diffDocuments } from "@lictory/core/spaces/document/diff";
 import {
   canonicalizeDocument,
+  stableSerialize,
   type PageNode,
 } from "@lictory/core/spaces/document/canonical";
 import { PageReader } from "@lictory/platform/components/spaces/editor/document";
+import { changedWords, type TextRange } from "./word-diff";
 
 export function DocumentDiff({
   before,
@@ -14,22 +19,38 @@ export function DocumentDiff({
   after: string;
 }) {
   if (before === after) return null;
+  const ranges = changedWords(before, after);
+  const text = (value: string, spans: TextRange[], kind: "ins" | "del") => {
+    const result = [];
+    let offset = 0;
+    for (const span of spans) {
+      result.push(value.slice(offset, span.from));
+      result.push(
+        kind === "ins" ? (
+          <ins key={span.from}>{value.slice(span.from, span.to)}</ins>
+        ) : (
+          <del key={span.from}>{value.slice(span.from, span.to)}</del>
+        ),
+      );
+      offset = span.to;
+    }
+    result.push(value.slice(offset));
+    return result;
+  };
   return (
-    <div className="overflow-hidden rounded-lg border text-sm">
-      <div className="border-b bg-destructive/8 px-4 py-3">
-        <span className="mr-3 font-medium">− Before</span>
-        {before || "Untitled"}
+    <div className="history-word-diff overflow-hidden rounded-lg border text-sm">
+      <div className="border-b px-4 py-3">
+        <span className="mr-3 text-xs text-muted-foreground">Before title</span>
+        {text(before || "Untitled", ranges.before, "del")}
       </div>
-      <div className="bg-success/8 px-4 py-3">
-        <span className="mr-3 font-medium">+ After</span>
-        {after || "Untitled"}
+      <div className="px-4 py-3">
+        <span className="mr-3 text-xs text-muted-foreground">After title</span>
+        {text(after || "Untitled", ranges.after, "ins")}
       </div>
     </div>
   );
 }
 
-// Compare whole top-level blocks so nested lists and tables retain their schema
-// and are never rendered twice as both a parent change and a child change.
 export function RenderedDocumentDiff({
   before,
   after,
@@ -41,7 +62,7 @@ export function RenderedDocumentDiff({
   beforeLabel?: string;
   afterLabel?: string;
 }) {
-  const comparison = useMemo(() => {
+  const groups = useMemo(() => {
     const base = canonicalizeDocument(before),
       result = canonicalizeDocument(after);
     const old = new Map(
@@ -50,95 +71,176 @@ export function RenderedDocumentDiff({
     const next = new Map(
       (result.content ?? []).map((node) => [String(node.attrs?.id), node]),
     );
-    const placeholder =
-      base.content?.length === 1 &&
-      base.content[0]?.type === "paragraph" &&
-      !base.content[0].content?.length
-        ? String(base.content[0].attrs?.id)
-        : null;
-    return diffDocuments(base, result)
+    const changes = diffDocuments(base, result)
+      .filter((change) => old.has(change.blockId) || next.has(change.blockId))
       .filter(
         (change) =>
-          !(change.kind === "removed" && change.blockId === placeholder),
-      )
-      .filter(
-        (change) =>
-          change.kind !== "unchanged" &&
-          (old.has(change.blockId) || next.has(change.blockId)),
-      )
-      .map((change) => ({
-        ...change,
-        before: old.get(change.blockId),
-        after: next.get(change.blockId),
-      }));
-  }, [before, after]);
-  const groups: { kind: string; before: PageNode[]; after: PageNode[] }[] = [];
-  for (const change of comparison) {
-    let group = groups.at(-1);
-    if (group?.kind !== change.kind) {
-      group = { kind: change.kind, before: [], after: [] };
-      groups.push(group);
+          !(
+            change.kind === "removed" &&
+            base.content?.length === 1 &&
+            base.content[0]?.type === "paragraph" &&
+            !base.content[0].content?.length
+          ),
+      );
+    const grouped: { kind: string; before: PageNode[]; after: PageNode[] }[] =
+      [];
+    for (const change of changes) {
+      // Keep modified pairs separate so word offsets are local to each block.
+      let group = grouped.at(-1);
+      if (
+        group?.kind !== change.kind ||
+        change.kind === "changed" ||
+        change.kind === "moved"
+      ) {
+        group = { kind: change.kind, before: [], after: [] };
+        grouped.push(group);
+      }
+      const a = old.get(change.blockId),
+        b = next.get(change.blockId);
+      if (a) group.before.push(a);
+      if (b) group.after.push(b);
     }
-    if (change.before) group.before.push(change.before);
-    if (change.after) group.after.push(change.after);
-  }
+    return grouped;
+  }, [before, after]);
+  const count = groups
+    .filter((g) => g.kind !== "unchanged")
+    .reduce((sum, g) => sum + Math.max(g.before.length, g.after.length), 0);
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+    <div className="space-y-3">
+      <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
         <span>
           {beforeLabel} → {afterLabel}
         </span>
         <span>
-          {comparison.length}{" "}
-          {comparison.length === 1 ? "block changed" : "blocks changed"}
+          {count} {count === 1 ? "block changed" : "blocks changed"}
         </span>
       </div>
-      {!comparison.length && (
+      {!count && (
         <p className="rounded-lg bg-muted/50 p-5 text-sm text-muted-foreground">
           No document changes between these versions.
         </p>
       )}
-      {groups.map((change, index) => (
-        <section
-          key={index}
-          aria-label={`${change.kind} block`}
-          className="overflow-hidden rounded-xl border"
-        >
-          <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium">
-            <span className="capitalize">{change.kind}</span>
-            {change.kind === "moved" && (
-              <span className="text-muted-foreground">Position changed</span>
+      {groups.map((group, index) => {
+        if (group.kind === "unchanged")
+          return (
+            <details
+              key={index}
+              className="rounded-lg border border-dashed text-sm"
+            >
+              <summary className="min-h-9 cursor-pointer rounded-lg px-4 py-2 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                {group.after.length} unchanged{" "}
+                {group.after.length === 1 ? "block" : "blocks"}
+              </summary>
+              <Block nodes={group.after} kind="context" />
+            </details>
+          );
+        const movedOnly =
+          group.kind === "moved" &&
+          stableSerialize(group.before) === stableSerialize(group.after);
+        const words =
+          group.before.length && group.after.length
+            ? changedWords(plainText(group.before), plainText(group.after))
+            : undefined;
+        return (
+          <section
+            key={index}
+            aria-label={`${group.kind} block`}
+            className="overflow-hidden rounded-xl border"
+          >
+            <div className="border-b bg-muted/40 px-4 py-2 text-xs font-medium">
+              {group.kind === "moved"
+                ? movedOnly
+                  ? "Moved · position changed"
+                  : "Moved and edited"
+                : group.kind === "changed"
+                  ? "Edited"
+                  : group.kind === "added"
+                    ? "Added"
+                    : "Removed"}
+            </div>
+            {!movedOnly && group.before.length > 0 && (
+              <Block
+                nodes={group.before}
+                kind="removed"
+                ranges={words?.before}
+              />
             )}
-          </div>
-          {change.before.length > 0 && (
-            <Block nodes={change.before} kind="removed" label={beforeLabel} />
-          )}
-          {change.after.length > 0 && (
-            <Block nodes={change.after} kind="added" label={afterLabel} />
-          )}
-        </section>
-      ))}
+            {group.after.length > 0 && (
+              <Block
+                nodes={group.after}
+                kind={movedOnly ? "context" : "added"}
+                ranges={words?.after}
+              />
+            )}
+          </section>
+        );
+      })}
     </div>
   );
+}
+const wordHighlights = new PluginKey("history-word-highlights");
+function plainText(nodes: PageNode[]): string {
+  return nodes
+    .map((node) => node.text ?? plainText(node.content ?? []))
+    .join("");
 }
 function Block({
   nodes,
   kind,
-  label,
+  ranges,
 }: {
   nodes: PageNode[];
-  kind: "added" | "removed";
-  label: string;
+  kind: "added" | "removed" | "context";
+  ranges?: TextRange[];
 }) {
   const content = useMemo(() => ({ type: "doc", content: nodes }), [nodes]);
+  const highlight = useCallback(
+    (editor: Editor | null) => {
+      if (!editor || editor.isDestroyed) return;
+      editor.unregisterPlugin(wordHighlights);
+      if (!ranges?.length) return;
+      const decorations: Decoration[] = [];
+      let offset = 0;
+      editor.state.doc.descendants((node, pos) => {
+        if (!node.isText) return;
+        for (const range of ranges) {
+          const from = Math.max(offset, range.from),
+            to = Math.min(offset + node.nodeSize, range.to);
+          if (from < to)
+            decorations.push(
+              Decoration.inline(pos + from - offset, pos + to - offset, {
+                nodeName: kind === "added" ? "ins" : "del",
+              }),
+            );
+        }
+        offset += node.nodeSize;
+      });
+      const set = DecorationSet.create(editor.state.doc, decorations);
+      editor.registerPlugin(
+        new Plugin({ key: wordHighlights, props: { decorations: () => set } }),
+        (plugin, plugins) => [
+          ...plugins.filter((current) => current.spec.key !== wordHighlights),
+          plugin,
+        ],
+      );
+    },
+    [kind, ranges],
+  );
   return (
     <div
-      className={`border-l-2 px-5 py-4 [&_.page-document]:min-h-0 ${kind === "added" ? "border-l-success bg-success/5" : "border-l-destructive bg-destructive/5"}`}
+      className={`history-word-diff border-l-2 px-5 py-4 [&_.page-document]:min-h-0 ${kind === "added" ? "border-l-success bg-success/5" : kind === "removed" ? "border-l-destructive bg-destructive/5" : "border-l-transparent"}`}
     >
-      <p className="mb-3 text-xs font-medium text-muted-foreground">
-        {kind === "added" ? "+" : "−"} {label}
-      </p>
-      <PageReader content={content} label={`${label}: ${kind} content`} />
+      <PageReader
+        content={content}
+        label={
+          kind === "added"
+            ? "After changes"
+            : kind === "removed"
+              ? "Before changes"
+              : "Unchanged content"
+        }
+        onEditor={highlight}
+      />
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { Button } from "@lictory/ui/button";
 import { PeoplePicker } from "@lictory/platform/components/ui/people-picker";
 
 export const field =
-  "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "w-full rounded-lg border border-muted-foreground bg-card px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function useHistoryAction() {
   const { mutateConfirmed } = useWorkspace();

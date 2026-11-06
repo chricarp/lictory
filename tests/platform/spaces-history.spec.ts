@@ -107,7 +107,7 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     .click();
   await page.getByRole("option", { name: /Page Reviewer/ }).click();
   await expect(
-    page.getByText("Page Reviewer · Required", { exact: true }),
+    page.getByText("Review requested from Page Reviewer", { exact: true }),
   ).toBeVisible();
   await expectNoAccessibilityViolations(page, "page pull request");
   await page.setViewportSize({ width: 390, height: 844 });

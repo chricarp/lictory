@@ -1,3 +1,6 @@
+import { MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
+import { Popover, usePopover } from "@lictory/ui/popover";
+import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
 import { useMemo, useState } from "react";
 import type {
   PageMergeBlocker,
@@ -248,24 +251,52 @@ function PullRequestDetail({
   );
   return (
     <section className="space-y-5">
-      <Button variant="ghost" size="sm" onClick={onBack}>
-        Back to pull requests
-      </Button>
-      <header className="space-y-2">
-        <h2 className="text-2xl font-semibold tracking-tight break-words">
-          {pr.title}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          <span className="mr-2 inline-flex rounded-full bg-muted px-2.5 py-1 font-medium text-foreground capitalize">
-            {pr.status}
-          </span>{" "}
-          {branches.find((b) => b.id === pr.sourceBranchId)?.name ??
-            "Source branch"}{" "}
-          →{" "}
-          {branches.find((b) => b.id === pr.targetBranchId)?.name ??
-            "Target branch"}{" "}
-          · {memberName(pr.authorId)}
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <h2 className="text-xl font-semibold tracking-tight break-words">
+            {pr.title}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            <span className="mr-2 inline-flex rounded-full bg-muted px-2.5 py-1 font-medium text-foreground capitalize">
+              {pr.status}
+            </span>{" "}
+            {branches.find((b) => b.id === pr.sourceBranchId)?.name ??
+              "Source branch"}{" "}
+            →{" "}
+            {branches.find((b) => b.id === pr.targetBranchId)?.name ??
+              "Target branch"}{" "}
+            · {memberName(pr.authorId)}
+          </p>
+        </div>
+        {editable && pr.status !== "merged" && (
+          <Popover
+            width={220}
+            trigger={(props) => (
+              <Button
+                {...props}
+                variant="ghost"
+                size="icon"
+                aria-label="Pull request actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            )}
+          >
+            <PullRequestMenu
+              onEdit={() => setEditing(!editing)}
+              onDraft={() => {
+                if (!action.pending)
+                  void action.run({
+                    type: "updatePagePullRequest",
+                    pullRequestId: pr.id,
+                    draft: pr.status !== "draft",
+                  });
+              }}
+              onClose={() => setClosing(true)}
+              draft={pr.status === "draft"}
+            />
+          </Popover>
+        )}
       </header>
       <Markdown source={pr.description ?? "No description provided."} />
       <ActionError error={action.error || error} />
@@ -273,39 +304,6 @@ function PullRequestDetail({
         <Button variant="secondary" onClick={reload}>
           Reload preview
         </Button>
-      )}
-      {editable && pr.status !== "merged" && (
-        <details className="text-sm">
-          <summary className="w-fit cursor-pointer rounded-full px-3 py-2 font-medium hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-            Manage pull request
-          </summary>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setEditing(!editing)}
-            >
-              Edit details
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={action.pending}
-              onClick={() => {
-                void action.run({
-                  type: "updatePagePullRequest",
-                  pullRequestId: pr.id,
-                  draft: pr.status !== "draft",
-                });
-              }}
-            >
-              {pr.status === "draft" ? "Ready for review" : "Return to draft"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setClosing(true)}>
-              Close pull request…
-            </Button>
-          </div>
-        </details>
       )}
       {editing && (
         <form
@@ -458,8 +456,12 @@ function PullRequestDetail({
                   size="md"
                 />
                 <span>
-                  {memberName(r.userId)} ·{" "}
-                  {r.required ? "Required" : "Optional"}
+                  <span className="block font-medium">
+                    Review requested from {memberName(r.userId)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {r.required ? "Required review" : "Optional review"}
+                  </span>
                 </span>
                 {!currentReviews.some(
                   (review) => review.reviewerId === r.userId && !review.staleAt,
@@ -473,6 +475,7 @@ function PullRequestDetail({
                   <Button
                     size="sm"
                     variant="ghost"
+                    aria-label={`Cancel review request for ${memberName(r.userId)}`}
                     disabled={action.pending}
                     onClick={() => {
                       void action.run({
@@ -482,7 +485,7 @@ function PullRequestDetail({
                       });
                     }}
                   >
-                    Cancel review request
+                    Cancel
                   </Button>
                 )}
               </div>
@@ -506,7 +509,11 @@ function PullRequestDetail({
             ))}
             {editable && pr.status !== "merged" && (
               <ChoosePerson
-                label="Request required review"
+                label={
+                  pr.reviewers.length
+                    ? "Add reviewer"
+                    : "Request required review"
+                }
                 onSelect={(id) => {
                   void action.run({
                     type: "requestPageReview",
@@ -649,5 +656,36 @@ function PullRequestDetail({
         />
       )}
     </section>
+  );
+}
+
+function PullRequestMenu({
+  onEdit,
+  onDraft,
+  onClose,
+  draft,
+}: {
+  onEdit: () => void;
+  onDraft: () => void;
+  onClose: () => void;
+  draft: boolean;
+}) {
+  const popover = usePopover();
+  const select = (action: () => void) => () => {
+    popover?.close();
+    action();
+  };
+  return (
+    <Menu label="Pull request actions">
+      <MenuItem icon={<Pencil />} onSelect={select(onEdit)}>
+        Edit details
+      </MenuItem>
+      <MenuItem icon={<FileEdit />} onSelect={select(onDraft)}>
+        {draft ? "Ready for review" : "Mark as draft"}
+      </MenuItem>
+      <MenuItem icon={<X />} onSelect={select(onClose)}>
+        Close pull request…
+      </MenuItem>
+    </Menu>
   );
 }
