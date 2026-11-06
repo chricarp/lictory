@@ -802,7 +802,11 @@ attributed to the anonymized account, like specification threads.
   a new epoch, remounts the editor with a fresh Y.Doc) through one
   Hocuspocus socket per tab (`/collaboration`, session cookie, empty token).
   It never calls `setContent` on a mounted draft: projections never touch
-  its content, carets or selection. Others' carets carry their name and a
+  its content, carets or selection. A remote edit keeps my caret where Yjs
+  resolves it while the text holding it still exists (`remote-selection.ts`:
+  y-tiptap otherwise falls back to the caret's old offset whenever the
+  caret's paragraph changed, so typing before someone's caret in their
+  paragraph left it behind). Others' carets carry their name and a
   per-person color; "Anna is editing" lists who else has the draft open.
   The working title is part of the draft (a `title` Y.Text beside the
   `default` fragment) so every editor sees the same title, and a commit
