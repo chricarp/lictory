@@ -943,9 +943,9 @@ attributed to the anonymized account, like specification threads.
   that line has open threads), a sheet on narrow ones. Other live lines with
   open threads are named, never added to the count: "On other branches" in
   the panel switches to one, and the branch menu shows each line's open
-  discussions. Threads of deleted branches are counted on no line (the
-  page summary's `openThreads` and `blockingThreads` stay page-wide, as the
-  merge gate into main is). The count of blocking threads says what they block ("blocks merging
+  discussions. Deleting a branch removes its threads
+  ([When a line ends](#when-a-line-ends)); the page summary's `openThreads`
+  and `blockingThreads` stay page-wide, as the merge gate into main is. The count of blocking threads says what they block ("blocks merging
   pull requests" in Direct spaces, whose Publish they do not stop; "blocks
   merging" in Reviewed ones). Highlights are tints in the thread's colour;
   the selected thread and the one pointed at, in the panel or in the text,
