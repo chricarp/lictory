@@ -1,0 +1,33 @@
+/* Keep review controls responsive while honoring reduced motion locally. */
+.spaces-history button:not(:disabled):active {
+  scale: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .spaces-history button {
+    transition-property:
+      background-color, color, box-shadow, border-color, scale;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+  .spaces-history button:not(:disabled):active {
+    scale: 0.96;
+  }
+}
+
+.spaces-history :is(button, a, summary, input, textarea, select):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.history-word-diff ins {
+  background: color-mix(in oklch, var(--success) 18%, transparent);
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--success);
+  text-underline-offset: 3px;
+}
+.history-word-diff del {
+  background: color-mix(in oklch, var(--destructive) 14%, transparent);
+  color: inherit;
+  text-decoration: line-through;
+  text-decoration-color: var(--destructive);
+}

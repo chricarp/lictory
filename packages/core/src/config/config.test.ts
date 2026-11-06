@@ -162,7 +162,7 @@ void test("the migration runner checks only its own settings", () => {
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 
-// Runtime code: what the API, worker, migration runner, platform, website and
+// Runtime code: what the API, worker, collaboration service, migration runner, platform, website and
 // the operator scripts below execute. Deliberately excluded: tests (`*.test.*`,
 // `tests/`, `playwright.config.ts`), developer and CI tooling (`scripts/dev.ts`,
 // `scripts/test-e2e.ts`, `scripts/load-test.ts`, `scripts/release.ts`, the
@@ -171,6 +171,7 @@ const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const runtimeRoots = [
   "apps/api/src",
   "apps/worker/src",
+  "apps/collaboration/src",
   "apps/platform/src",
   "apps/marketing/src",
   "packages/core/src",

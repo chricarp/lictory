@@ -56,10 +56,10 @@ A `NODE_OPTIONS` you export comes after it and wins.
 cp .env.example .env
 bun install
 docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
-bun run dev            # SPA, API, worker and website on the host
+bun run dev            # SPA, API, worker, collaboration and website on the host
 ```
 
-- App: http://localhost:3000 (API 3002, zero-cache 4848)
+- App: http://localhost:3000 (API 3002, collaboration 3004, zero-cache 4848)
 - Website: http://localhost:3100
 - Documentation (not started by `bun run dev`):
   `bun run --cwd apps/docs dev`, http://localhost:3200
@@ -113,6 +113,16 @@ published on every interface. To reach them from another machine during remote d
 on, for example a private VPN address, and prefer an SSH tunnel
 (`ssh -L 5432:localhost:5432 …`) over `0.0.0.0` on any machine with a public
 address. `docker compose config` shows the resulting `host_ip`.
+
+The Vite dev server is the one origin in development: it proxies `/api` and
+`/relay` to the API, `/zero` to zero-cache and `/collaboration` (live draft
+editing in Spaces, a WebSocket) to the collaboration service
+(`COLLABORATION_ORIGIN`, default `http://localhost:3004`). The collaboration
+service accepts WebSockets only from `PLATFORM_URL` (`http://localhost:3000`
+in development) and allows one running copy per database: a second
+`bun run dev` against the same database waits briefly, then its collaboration
+service exits with `collaboration.owner_busy` while everything else keeps
+running.
 
 `bun run dev` refuses to start until zero-cache answers on port 4848. After
 generating a migration, apply it with `bun run db:migrate` (or
@@ -170,10 +180,10 @@ when files are added or grow. A stale entry only makes the run less even.
 
 Browser tests in `tests/platform`, `tests/marketing` and `tests/docs` run
 against production builds: `scripts/test-e2e.ts` migrates an isolated database,
-starts the API, worker, zero-cache, the website (port 3101), the documentation's
+starts the API, worker, collaboration service, zero-cache, the website (port 3101), the documentation's
 static export behind its Cloudflare Worker in `wrangler dev` (port 3201) and
 `scripts/edge-proxy.ts` (the platform origin, port 3001, routed like
-production), then drops the database and its replication slot. PostgreSQL must
+production, `/collaboration` included), then drops the database and its replication slot. PostgreSQL must
 run with `wal_level=logical` (`compose.yaml` does). `E2E_PORT_OFFSET` lets
 several checkouts run side by side; use multiples of 10 (10, 20...), because the
 services take consecutive ports (an offset of 1 would put the edge proxy on the

@@ -123,8 +123,9 @@ services:
     # Sized for the measured production footprint (~1 GB across all services) on
     # a host shared with other workloads; raise POSTGRES_MEM_LIMIT together with
     # POSTGRES_SHARED_BUFFERS / POSTGRES_EFFECTIVE_CACHE_SIZE as data grows.
-    # Connections: API pool + worker + Zero (CVR 8, upstream 4, replication,
-    # change streamer, initial sync) + migrations, backups, monitoring.
+    # Connections: API pool + worker + collaboration (pool, LISTEN, owner
+    # lock) + Zero (CVR 8, upstream 4, replication, change streamer, initial
+    # sync) + migrations, backups, monitoring.
     command:
       - postgres
       - -c
@@ -334,6 +335,45 @@ services:
       timeout: 5s
       start_interval: 1s
       start_period: 20s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # Live draft editing in Lictory Spaces (Hocuspocus): the WebSocket behind
+  # /collaboration. Exactly one instance per installation (it takes a
+  # PostgreSQL advisory lock; a second copy refuses to serve). Every stored
+  # edit is in PostgreSQL before anyone sees it, so a restart loses nothing:
+  # editors reconnect and resend what was not yet saved.
+  collaboration:
+    image: ${API_IMAGE:?}
+    <<: *hardening
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    networks: [internal]
+    mem_limit: ${COLLABORATION_MEM_LIMIT:-384m}
+    # Closes editors' connections and lets pending saves finish.
+    stop_grace_period: 30s
+    command:
+      ["node", "--enable-source-maps", "apps/collaboration/dist/index.js"]
+    environment:
+      <<: *server-environment
+      COLLABORATION_PORT: "3004"
+      NODE_OPTIONS: --max-old-space-size=${COLLABORATION_HEAP_MB:-256}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3004/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      start_interval: 1s
+      # A replaced container may hold the owner lock for a few seconds.
+      start_period: 30s
       retries: 3
     depends_on:
       postgres:

@@ -131,7 +131,7 @@ const encryptedModes = new Set(["require", ...verifiedModes]);
 
 const providerHelp = "docs/operations/external-database.md#providers";
 const degradedMode =
-  "Zero runs in degraded mode: a migration that changes a replicated table (sync_entity, the replicated member columns or the lictory_zero publication) halts replication, and zero-cache (ZERO_AUTO_RESET) rebuilds its replica from scratch, so every client resyncs and live updates pause until the copy completes. Migrations that change only other tables replicate normally.";
+  "Zero runs in degraded mode: a migration that changes a replicated table (sync_entity, space_entity, space_reader, the replicated member columns or the lictory_zero publication) halts replication, and zero-cache (ZERO_AUTO_RESET) rebuilds its replica from scratch, so every client resyncs and live updates pause until the copy completes. Migrations that change only other tables replicate normally.";
 
 // --------------------------------------------------------------- evaluation
 

@@ -1,0 +1,253 @@
+---
+title: Spaces and pages
+description: Lictory Spaces keeps the pages a team writes together, edited live by several people and changed through the same reviewed history as specifications.
+---
+
+**Lictory Spaces** is where a team keeps what it knows: handbooks, runbooks,
+architecture notes, decision records, onboarding guides. Pages are written
+together in real time, and every published version stays in the page's
+history, so you can always see what changed, who changed it and who approved
+it.
+
+```text
+Organization
+└─ Space        a home for knowledge, optionally belonging to a project or a team
+   └─ Page      nested pages; each has its own history
+      ├─ main         the published version readers see
+      └─ branches     proposed changes, each with its own live draft
+```
+
+Pages are not work items. They have no key, status, estimate, iteration or
+readiness, and work item specifications stay where they are: on the item,
+with its [revisions](/concepts/specifications) and
+[reviews](/concepts/reviews). Pages and work items link to each other
+instead ([below](#work-items-and-page-links)).
+
+## Spaces and their home
+
+A **space** belongs to the organization and, optionally, to one project or to
+one team of a project: its **home**. The home decides where the space appears
+(the organization's sidebar under **Spaces**, and each project's and team's
+navigation) and who can edit it by default. Moving work items between teams
+never changes a space.
+
+Create a space with **New space** in the sidebar, or **Create space** in the
+command palette. Give it a name, an optional icon and description, and if you
+like choose **Customize address** to change its **Address**
+(`/<organization>/spaces/<address>`).
+Where it lives, who can open it and how it publishes start from defaults,
+summarized in one line under **Access & publishing** (for example _Northwind ·
+everyone can edit · direct publishing_); **Configure** picks its **Location**
+(the home), its **Access** (**Inherited** or **Restricted**,
+[below](#access)) and its [publishing policy](#publishing-direct-or-reviewed).
+**Settings** on the space's page changes these later; each setting saves as
+soon as you change it and says **Saved** beside it, and moving a space whose
+access is inherited first says who will be able to edit it. Archiving a space
+hides it from navigation and freezes its pages; nothing is deleted, and its
+administrators can restore it.
+
+## Pages and the page tree
+
+A **page** belongs to one space and can sit under another page of the same
+space. **New page** adds one at the end of the space; **New subpage** in a
+page's actions adds one under it. Drag pages in the tree to reorder them or
+nest them, or use **Move…** to do the same with the keyboard. Pages move only
+within their space. Pages are addressed by their id, so moving or renaming
+one never breaks a link.
+
+**Archive** hides a page and its subpages. It is reversible: **Show archived
+pages** in the tree, then **Restore**. Restoring a page brings back the
+subpages that were archived with it. There is no permanent delete.
+
+**Find a page** on a space's home narrows its pages to the titles that
+match, wherever they sit in the tree. Beside a page, **Hide pages** puts the
+tree away for more room (this browser remembers it) and **Show pages** brings
+it back; while comments are open on a narrower screen the tree steps aside on
+its own. The command palette finds spaces and page titles you can read.
+
+## Live editing
+
+Each page shows its published version. Editors choose **Edit** (or
+**Edit unpublished draft** when unpublished changes are waiting) to open the page's
+**live draft**: a shared working copy that several people edit at the same
+time. Everyone sees each other's cursors with their names, and the header
+says who else is there, for example _Anna is editing_.
+
+Write in the editor directly, use Markdown shortcuts, or type `/` for blocks
+(headings, lists, tables, code, images, a work item, a page link). The
+toolbar keeps undo, bold, italic, strikethrough, code, **Link** and
+**Comment** at hand; **Text** changes the block (heading, list, quote, code
+block) and **Insert** adds a table, divider, image, work item or page link.
+**Close editor** goes back to the published page; the draft stays saved. Paste,
+drop or choose images to attach them to the page; like other attachments
+they are stored privately and need your installation's file storage.
+
+Beside the title, the editor tells you where your edits are:
+
+| State                                     | What it means                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Saving…**                               | Your latest edits are on their way to the server.                                                                        |
+| **Saved**                                 | The server has stored every edit you made. Only stored edits ever reach other editors.                                   |
+| **Offline — changes kept on this device** | The connection dropped. Your edits stay in this tab and are sent when it returns.                                        |
+| **Live editing unavailable**              | The editing service cannot be reached. Reading, history and comments keep working; try again or read the published page. |
+
+<Callout title="Keep the tab open while offline" type="warn">
+  Offline edits live only in the open browser tab, not on the server. The tab
+  warns you before it closes with unsaved edits; if you close it anyway, or the
+  browser quits, before the connection returns, those edits are lost. Wait for
+  **Saved** before closing the page.
+</Callout>
+
+A live draft is a working copy, not history. Nobody reviews or approves it,
+search and agents never treat it as the page's content, and readers do not
+see it until it is published or committed. If someone restores an older
+version or merges changes into the draft while you are editing, the editor
+says _This draft was replaced_ and opens the current one.
+
+## Publishing: Direct or Reviewed
+
+Each space chooses how changes reach the published page (**Settings →
+Publishing**):
+
+| Policy               | How changes are published                                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Direct** (default) | Editors edit the page's live draft and **Publish** it. Every published version stays in the history. Branches and pull requests remain available for bigger changes. |
+| **Reviewed**         | The published page is protected. Changes are proposed on a branch and published only after a review approves them.                                                   |
+
+In a **Direct** space, **Publish** takes an optional message (_What
+changed?_), waits for **Saved** and turns exactly what the server has stored
+into the next published version. Edits typed afterwards stay **Unpublished
+changes** until the next publish. If nothing changed since the last version,
+the editor says _No changes to publish_.
+
+In a **Reviewed** space the page says _Changes to this page are reviewed.
+Start a branch to propose changes._ **Start a branch** creates your branch
+and opens its live draft. A version merged into a Reviewed space records the
+people who approved it. A person working alone should use a Direct space: nobody can approve their
+own changes.
+
+Publishing a page only makes a version the published one inside Lictory. It
+is unrelated to handing work items off to Jira.
+
+## Versions, branches and pull requests
+
+A page's history works like a specification's:
+
+- A **version** (a commit) is an immutable snapshot of the page's title and
+  content, with a message, its author and everyone who contributed to it.
+  Versions are never changed afterwards. **Restoring** an old version creates
+  a new version with its content; the history keeps both.
+- A **branch** is a proposed change with its own live draft. Anyone who can
+  edit the space can start one. Its author and the collaborators they invite
+  edit it; everyone who can read the space can look at it. **Commit** saves
+  what the server has stored as the branch's next version, the way
+  **Publish** does on the page itself; uncommitted edits show as
+  **Uncommitted changes**.
+- A **pull request** proposes merging a branch into the published page (or
+  into another branch). Anyone with comment or edit access to the space
+  can be asked to review it, and reviews can be required.
+- **Approvals belong to the result.** An approval records the exact result of
+  the merge the reviewer inspected. Any later change to the branch or to the
+  published page that alters that result makes the approval **stale**, and
+  the reviewer is told. People who contributed to the change cannot approve
+  it.
+- **Merging** into the published page publishes the result as a new version
+  and records the valid approvals on it. It needs no open blocking comments
+  on the page, nobody currently requesting changes, every required review
+  approving the current result, and, in a Reviewed space, at least one
+  required review. A merge also waits until neither side has uncommitted
+  live edits, so a published version never contains text nobody saw.
+
+### Conflicts
+
+When a branch and the published page both changed, Lictory combines changes
+that do not overlap automatically. Edits that overlap are never merged
+silently: they become **conflicts**, each on the smallest piece that can be
+decided (a paragraph or heading, a whole list, a whole table, or the title).
+Resolve them on the branch, conflict by conflict: keep the branch's version,
+keep the published one, keep both, or write the result by hand. Resolving
+creates a new version of the branch, which reviewers then approve as usual.
+
+History is never rewritten: approvals are revoked, review requests
+cancelled, pull requests closed (their reviews and discussions are kept), and
+a deleted branch keeps its versions in the page's history.
+
+## Comments
+
+Select text and choose **Comment** (or press **Mod+Alt+M** in the editor) to
+start a discussion on exactly that text, or comment on the whole page. The
+**Comments** panel lists the page's discussions in document order, beside the
+page on wide screens and as a sheet on narrow ones. Commented text is tinted
+(red for blocking comments); pointing at a comment or at its text marks the
+other.
+
+- Comments stay attached to their text as people keep typing, and to the
+  version they were written on once a draft is published or committed.
+- **Mark blocking** when something must be settled first. An open blocking
+  comment keeps the page's pull requests from merging, and the people who
+  wrote the page are told. (In a Direct space it does not stop **Publish**.)
+- **Resolve** and **Reopen** keep every message; messages are never edited
+  or deleted.
+- When the commented text has been deleted, the comment shows **Original
+  text removed** with the quote and a link to the version it was written on.
+  When the text has changed, it says **The quoted text changed**. Comments are
+  never silently moved to other text.
+- Mention people to notify them. Lictory also notifies reviewers when their
+  review is requested or their approval goes stale, never for every edit.
+
+## Access
+
+Access is decided per space, never per page.
+
+| Access                  | Who can edit                                                                           | Who can read                                         |
+| ----------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Inherited** (default) | Members of the home (organization, project or team), and people named with edit access | Every organization member                            |
+| **Restricted**          | People named with edit access                                                          | Only people named in the space's **Access** settings |
+
+- Inherited access follows membership: joining a team gives edit access to
+  its spaces, leaving takes it away. Team and project membership grant access
+  to spaces only; they still grant nothing on work items.
+- Everyone else in the organization can view an Inherited space, but not
+  comment. Name people with **Give access** to let them comment or edit:
+  **Can view** (read pages and their history), **Can comment** (also take
+  part in discussions and review) or **Can edit** (also create, move and
+  publish pages). In an Inherited space named access only adds to what the
+  home gives: **Access** settings show what each named person can do in the
+  end and why (_Can edit · member of Payments_, _Can comment · named
+  access_), and **Remove named access** says what they keep.
+- A **Restricted** space ignores home membership: only named people can open
+  it. Whoever restricts a space keeps edit access, and switching back to
+  Inherited keeps the named access.
+- A space's **administrators** are its creator, the administrators of its
+  home project and the organization's administrators. They manage access,
+  the home, the publishing policy and archiving. Managing a Restricted space
+  does not let them read it: they find it under _Restricted spaces you
+  administer_ and choose **Grant myself access…**, which is recorded in the
+  audit log.
+- Pages cannot be restricted individually. To keep part of a tree private,
+  put it in its own Restricted space (it can have the same home).
+
+A space or page you cannot read looks exactly like one that does not exist.
+Every check runs on the server, for the browser, agents and live editing
+alike: someone whose access is removed stops receiving live edits at once,
+or within 30 seconds at most.
+
+## Work items and page links
+
+Type `#` (or choose **Work item** after `/`) to mention a work item such as
+`PAY-142`. Readers see it as a live chip with its current status, refinement
+state and readiness; someone who cannot see the item sees only its key. Type
+`[[` (or **Link to page**) to link another page of a space you can read. A link always shows the
+linked page's current title, or _Unavailable page_ for readers who cannot
+open it.
+
+## Agents
+
+Agents connected through [MCP](/integrations/agents#spaces) work with spaces
+using your access. They can list spaces and pages, read any published
+version, compare versions, read the history and the discussions, and take
+part in discussions. They cannot type into live drafts: they change a page
+by proposing a new version as a branch with an open pull request, which
+people review and merge. Publishing, deciding reviews, merging and resolving
+discussions are your decisions; an agent performs them only when you
+explicitly ask.

@@ -19,6 +19,7 @@ import {
   SquareKanban,
   Upload,
   Building2,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
@@ -62,6 +63,7 @@ const categoryIcons: Record<NotificationCategory, typeof Bell> = {
   delivery: SquareKanban,
   iterations: RefreshCw,
   export: Upload,
+  pages: BookOpen,
   organization: Building2,
 };
 

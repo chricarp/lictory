@@ -62,6 +62,30 @@ Always:
 Mentions are stored in message Markdown as `@[Name](mention:USER_ID)`. The
 label is display text; the server trusts only the ID after checking membership.
 
+## Lictory Spaces
+
+Page notifications (`page_mentioned`, `page_thread_reply`,
+`page_blocking_thread`, `page_review_requested`,
+`page_approval_invalidated`; the "Pages" category) are written by the page
+discussion commands and by the page review entry points in
+`packages/core/src/spaces/notifications.ts`. They carry the page's title and
+message excerpts, which are space content, so organization membership is not
+enough:
+
+- each notification row names its `space_id` and `page_id`, and is written
+  only for people who hold effective access to the space (`space_reader`) at
+  that moment;
+- the inbox, the unread counts and the email worker check that access again
+  on every read (`spaceNotificationReadable`): someone who loses access no
+  longer sees the notification, its title or its excerpt, and its pending
+  email is `skipped`. Regaining access shows it again;
+- preferences resolve against the space's home: its team, then its project,
+  then the organization.
+
+Mentions use the same `@[label](mention:USER_ID)` tokens as specification
+discussions; mentioning someone who cannot read the space notifies nobody.
+See [Lictory Spaces](spaces.md#notifications) for who receives each kind.
+
 ## Preferences
 
 Only explicit choices are stored. For a kind, the most specific rule wins:

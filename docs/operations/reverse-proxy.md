@@ -2,7 +2,8 @@
 
 The bundled gateway (`proxy`, Caddy) is always the entry point of a Lictory
 environment: it routes the API, server-sent events, AI streams, Zero's
-WebSocket and the SPA's assets, applies the security headers and request size
+WebSocket, the collaboration WebSocket (live draft editing in Spaces) and the
+SPA's assets, applies the security headers and request size
 limits, and checks the WebSocket `Origin`. What varies is what sits in front of
 it and who terminates TLS:
 
@@ -16,14 +17,15 @@ it and who terminates TLS:
 One environment serves one origin: `PLATFORM_URL`, the address users type,
 scheme included (default `https://<PUBLIC_APP_HOST or APP_HOST>`). The API
 uses it for sign-in, links in email and the same-origin check of
-cookie-authenticated writes; the gateway accepts Zero WebSocket upgrades only
-from it. It must be an origin: lowercase, no path, no trailing slash
+cookie-authenticated writes; the gateway accepts Zero and collaboration
+WebSocket upgrades only from it (and the collaboration service checks it
+again). It must be an origin: lowercase, no path, no trailing slash
 (`deploy.sh` refuses anything else).
 
 **Subpath hosting is not supported.** Lictory must own the root of its host
 (`https://lictory.example.com/`, not `https://example.com/lictory/`): the SPA,
-the API (`/api`), Zero (`/zero`) and the relay (`/relay`) all live at fixed
-root paths. Use a dedicated host name.
+the API (`/api`), Zero (`/zero`), live editing (`/collaboration`) and the
+relay (`/relay`) all live at fixed root paths. Use a dedicated host name.
 
 ## Behind an existing reverse proxy or ingress
 
@@ -51,8 +53,11 @@ ACME_EMAIL=ops@example.com
 Requirements for the proxy in front:
 
 - **Host.** Forward the original `Host` (the gateway serves `APP_HOST` only).
-- **WebSockets.** `/zero/*` upgrades to a WebSocket. Pass `Upgrade` and
-  `Connection` through and keep the browser's `Origin` header unchanged.
+- **WebSockets.** `/zero/*` and `/collaboration` upgrade to WebSockets. Pass
+  `Upgrade` and `Connection` through, keep the browser's `Origin` header and
+  the session cookie unchanged, and do not strip or rewrite the path. The
+  collaboration socket authenticates with the session cookie only, never a
+  token in the URL.
 - **No buffering.** `/api/events` (server-sent events, up to 240 s), AI chat
   streams and `/relay/*` stream their responses: disable response buffering
   (at least for `/api/` and `/relay/`).
@@ -78,10 +83,14 @@ field `client_ip`) that your own address appears, and that two clients get
 independent sign-in limits.
 
 The gateway keeps sending HSTS and the other security headers; your proxy
-should not strip them. Do not publish the API, zero-cache or PostgreSQL
-directly: only the gateway.
+should not strip them. Do not publish the API, zero-cache, the collaboration
+service or PostgreSQL directly: only the gateway.
 
 ### nginx
+
+One `location /` covers every route, including both WebSockets, as long as it
+passes the upgrade headers. If you split locations, give `/zero/` and
+`/collaboration` the same upgrade headers, no buffering and long timeouts.
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -235,6 +244,7 @@ Caveats:
 ## After any change
 
 Release or re-activate the environment (`sudo lictory config apply`),
-then check: sign-in, live updates between two browsers (Zero WebSocket), a
+then check: sign-in, live updates between two browsers (Zero WebSocket),
+editing one Spaces page from two browsers (collaboration WebSocket), a
 streamed AI answer or the notifications stream (`/api/events`), an attachment
 upload, and the client address in the gateway log.

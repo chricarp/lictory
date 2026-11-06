@@ -125,11 +125,12 @@ With `LICTORY_DATABASE=external`, `lictory-compose` adds
 `deploy/compose.external-database.yaml` to the release's compose file:
 
 - the `postgres` service never starts, and nothing depends on it;
-- the API and worker (`lictory_app`), migrations (`lictory_owner`, transport
+- the API, worker and collaboration service (`lictory_app`), migrations (`lictory_owner`, transport
   `tls`, [migrations](migrations.md)), zero-cache (`zero`) and monitoring
   (`lictory_ops`) connect to `DATABASE_HOST` with `DATABASE_SSLMODE`; Node
   trusts `DATABASE_CA_FILE` through `NODE_EXTRA_CA_CERTS`;
-- `migrate`, zero-cache and the `database` tool join the `egress` network,
+- `migrate`, zero-cache, the collaboration service and the `database` tool
+  join the `egress` network,
   since the database is no longer on the internal one. Restrict outbound
   traffic to the database at your firewall or security group if you need to.
 
@@ -137,12 +138,12 @@ The override needs Docker Compose 2.24.4 (`!override`); `install` checks it.
 
 What each connection may be:
 
-| Connection                      | Direct?                    | Notes                                                                      |
-| ------------------------------- | -------------------------- | -------------------------------------------------------------------------- |
-| `ZERO_UPSTREAM_DB` (zero-cache) | Always direct              | Holds the replication slot (Zero's documentation)                          |
-| `ZERO_CVR_DB`, `ZERO_CHANGE_DB` | Direct, as Compose sets it | Zero allows a session pooler here; Lictory uses the direct endpoint        |
-| `DATABASE_MIGRATION_URL`        | Always direct              | Session advisory lock and session settings; transaction poolers break them |
-| `DATABASE_URL` (API, worker)    | Direct, as Compose sets it | A pooler needs named prepared statements; not configurable through install |
+| Connection                                  | Direct?                    | Notes                                                                                                                                                         |
+| ------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ZERO_UPSTREAM_DB` (zero-cache)             | Always direct              | Holds the replication slot (Zero's documentation)                                                                                                             |
+| `ZERO_CVR_DB`, `ZERO_CHANGE_DB`             | Direct, as Compose sets it | Zero allows a session pooler here; Lictory uses the direct endpoint                                                                                           |
+| `DATABASE_MIGRATION_URL`                    | Always direct              | Session advisory lock and session settings; transaction poolers break them                                                                                    |
+| `DATABASE_URL` (API, worker, collaboration) | Direct, as Compose sets it | A pooler needs named prepared statements; not configurable through install. The collaboration service also holds a session advisory lock (one instance) on it |
 
 ## Roles
 
@@ -248,7 +249,7 @@ Moving data is a migration, not a setting, and it is not scripted:
 
 1. Create the roles and databases on the new server (`lictory database setup`
    against a separate, not-yet-active environment, or the SQL above).
-2. Stop the API, worker and zero-cache; `lictory backup` (bundled) gives a
+2. Stop the API, worker, collaboration service and zero-cache; `lictory backup` (bundled) gives a
    `pg_dump` of the application database. Restore it into the new database as
    `lictory_owner` with `pg_restore --no-owner --role=lictory_owner`, skipping
    event triggers and Zero's publications as `deploy/backup/restore.sh` does.

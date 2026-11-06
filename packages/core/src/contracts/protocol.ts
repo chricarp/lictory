@@ -973,7 +973,334 @@ export function directoryName(
   const former = directory.formerMembers.find((m) => m.id === userId);
   return formerMemberName(former?.name ?? "");
 }
-export const PROTOCOL = 15 as const;
+// Lictory Spaces (docs/internals/spaces.md). Space projections travel in their
+// own table (`space_entity`) and union (`SpaceEntity`), never as an `Entity`,
+// so space data cannot reach `sync_entity`, the directory or the organization
+// and work item queries.
+export const spaceAccessModes = ["inherited", "restricted"] as const;
+export type SpaceAccessMode = (typeof spaceAccessModes)[number];
+export const spacePublishingPolicies = ["direct", "reviewed"] as const;
+export type SpacePublishing = (typeof spacePublishingPolicies)[number];
+// Ordered from least to most access.
+export const spaceAccessLevels = ["view", "comment", "edit"] as const;
+export type SpaceAccessLevel = (typeof spaceAccessLevels)[number];
+export function spaceLevelAtLeast(
+  level: SpaceAccessLevel | null | undefined,
+  minimum: SpaceAccessLevel,
+) {
+  return (
+    level != null &&
+    spaceAccessLevels.indexOf(level) >= spaceAccessLevels.indexOf(minimum)
+  );
+}
+const inSpace = { id, organizationId: id, spaceId: id };
+// Where a page discussion is anchored (docs/internals/spaces.md#comments).
+// Versioned: `v` changes when a shape changes, and readers keep
+// understanding older versions.
+// - commit: a range of one block of an immutable commit. `from` and `to`
+//   are offsets into the block's text, `quote` the text they covered; a
+//   commit never changes, so the anchor never moves.
+// - draft: a range of a live draft within one epoch, as base64 encodings of
+//   Yjs relative positions (`Y.encodeRelativePosition`), which follow
+//   concurrent edits. Committing the draft freezes it to a commit anchor.
+// - page: the whole page.
+// The server checks the shape, the bounds and that the commit or draft
+// belongs to the page; it never resolves positions.
+export const PAGE_THREAD_QUOTE_MAX = 2000;
+const anchorQuote = z.string().min(1).max(PAGE_THREAD_QUOTE_MAX);
+const relativePosition = z
+  .string()
+  .min(4)
+  .max(512)
+  .regex(/^[A-Za-z0-9+/]+={0,2}$/, "Use a base64 Yjs relative position.");
+export const pageThreadAnchorSchema = z.discriminatedUnion("kind", [
+  z
+    .strictObject({
+      v: z.literal(1),
+      kind: z.literal("commit"),
+      commitId: id,
+      // The block's stable id (Tiptap UniqueID).
+      blockId: z
+        .string()
+        .min(1)
+        .max(128)
+        .regex(/^[A-Za-z0-9_-]+$/, "Use the block's id."),
+      from: z.number().int().min(0),
+      to: z.number().int().min(0),
+      quote: anchorQuote,
+    })
+    .refine((a) => a.from < a.to, {
+      message: "An anchor range ends after it starts.",
+      path: ["to"],
+    }),
+  z.strictObject({
+    v: z.literal(1),
+    kind: z.literal("draft"),
+    draftId: id,
+    epoch: z.number().int().positive(),
+    start: relativePosition,
+    end: relativePosition,
+    quote: anchorQuote,
+  }),
+  z.strictObject({ v: z.literal(1), kind: z.literal("page") }),
+]);
+export type PageThreadAnchor = z.infer<typeof pageThreadAnchorSchema>;
+// Anchors as stored and synchronized: the shapes above plus `detached`, a
+// draft anchor whose text no longer existed when its draft was committed.
+// It keeps the quote and names that commit ("Original text removed").
+// Only the commit command writes it; clients never create one.
+const pageThreadDetachedAnchorSchema = z.strictObject({
+  v: z.literal(1),
+  kind: z.literal("detached"),
+  commitId: id,
+  quote: anchorQuote,
+});
+export const storedPageThreadAnchorSchema = z.union([
+  pageThreadAnchorSchema,
+  pageThreadDetachedAnchorSchema,
+]);
+export type StoredPageThreadAnchor = z.infer<
+  typeof storedPageThreadAnchorSchema
+>;
+// The live draft of a line as the browser needs it to connect: the
+// collaboration document name (`<draftId>.<epoch>`), the last sequence
+// sealed into a commit and whether stored edits exist beyond it. The stored
+// sequence itself changes with every keystroke batch and is never
+// projected; the collaboration service tells connected editors.
+export const pageDraftSummarySchema = z.object({
+  id,
+  epoch: z.number().int().positive(),
+  documentName: z.string(),
+  committedSequence: z.number().int().min(0),
+  uncommittedChanges: z.boolean(),
+});
+export type PageDraftSummary = z.infer<typeof pageDraftSummarySchema>;
+// Why an open page pull request cannot merge yet, computed from the page's
+// history, drafts, threads and reviews (access is checked when merging).
+export const pageMergeBlockers = [
+  "draft",
+  "no_merge_base",
+  "conflicts",
+  "no_changes",
+  "uncommitted_source",
+  "uncommitted_target",
+  "blocking_threads",
+  "no_required_review",
+  "review_pending",
+  "changes_requested",
+] as const;
+export type PageMergeBlocker = (typeof pageMergeBlockers)[number];
+export const spaceEntitySchema = z.discriminatedUnion("type", [
+  // Space-level rows (`page_id` NULL): the space, its named grants and its
+  // page tree. No per-reader data: effective access is `space_reader`.
+  z.object({
+    id,
+    organizationId: id,
+    type: z.literal("space"),
+    name: z.string(),
+    slug: z.string(),
+    description: z.string().nullable(),
+    icon: z.string().nullable(),
+    // Home: neither (organization), a project, or a team of that project.
+    projectId: id.nullable(),
+    teamId: id.nullable(),
+    accessMode: z.enum(spaceAccessModes),
+    publishing: z.enum(spacePublishingPolicies),
+    createdById: id,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    archivedAt: z.string().nullable(),
+  }),
+  // `id` is `${spaceId}:${userId}`.
+  z.object({
+    ...inSpace,
+    type: z.literal("spaceGrant"),
+    userId: id,
+    level: z.enum(spaceAccessLevels),
+    grantedById: id,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  }),
+  // A node of the page tree, with the title and commit main publishes.
+  z.object({
+    ...inSpace,
+    type: z.literal("page"),
+    parentId: id.nullable(),
+    rank: z.string(),
+    title: z.string(),
+    publishedCommitId: id,
+    // The published commit when it merged with valid approvals in a
+    // Reviewed space ("Approved" names it); null otherwise.
+    approvedCommitId: id.nullable(),
+    // Main's live draft in Direct spaces (null in Reviewed spaces).
+    // `uncommittedChanges` there means "unpublished changes".
+    mainDraft: pageDraftSummarySchema.nullable(),
+    createdById: id,
+    createdAt: z.string(),
+    // When main last moved (the published commit's time).
+    updatedAt: z.string(),
+    // Who made the published commit and its message, so lists can say what
+    // changed without the page's history (absent on rows projected before
+    // they were added, until the projection is rebuilt).
+    publishedById: id.optional(),
+    publishedMessage: z.string().nullable().optional(),
+    archivedAt: z.string().nullable(),
+    // Open discussions on the page, and how many of them block merging.
+    openThreads: z.number().int().min(0),
+    blockingThreads: z.number().int().min(0),
+  }),
+  // Page-level rows (`page_id` set): the page's history.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageCommit"),
+    pageId: id,
+    parentIds: z.array(id),
+    title: z.string(),
+    // Canonical Tiptap JSON; Markdown is derived from it.
+    content: z.record(z.string(), z.unknown()),
+    markdown: z.string(),
+    hash: z.string(),
+    schemaVersion: z.number().int(),
+    message: z.string().nullable(),
+    authorId: id,
+    contributorIds: z.array(id),
+    // The pull request this commit merged and the reviewers whose approval
+    // of exactly this result was valid when it merged.
+    pullRequestId: id.nullable(),
+    approverIds: z.array(id),
+    createdAt: z.string(),
+  }),
+  z.object({
+    ...inSpace,
+    type: z.literal("pageBranch"),
+    pageId: id,
+    name: z.string(),
+    isMain: z.boolean(),
+    headCommitId: id,
+    baseCommitId: id.nullable(),
+    authorId: id,
+    collaboratorIds: z.array(id),
+    // The open live draft of this line; null for main in Reviewed spaces.
+    draft: pageDraftSummarySchema.nullable(),
+    createdAt: z.string(),
+  }),
+  // A pull request between two lines of the page (deleted ones are not
+  // projected). `mergeability` is null once merged.
+  z.object({
+    ...inSpace,
+    type: z.literal("pagePullRequest"),
+    pageId: id,
+    sourceBranchId: id,
+    targetBranchId: id,
+    title: z.string(),
+    description: z.string().nullable(),
+    status: z.enum(["draft", "open", "merged"]),
+    authorId: id,
+    reviewers: z.array(
+      z.object({
+        userId: id,
+        required: z.boolean(),
+        requestedById: id,
+        createdAt: z.string().optional(),
+      }),
+    ),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    mergedAt: z.string().nullable(),
+    mergedById: id.nullable(),
+    mergeCommitId: id.nullable(),
+    mergeability: z
+      .object({
+        sourceHeadId: id,
+        targetHeadId: id,
+        baseCommitId: id.nullable(),
+        // `documentHash` of the merged title and content; null while the
+        // merge has conflicts or no single merge base.
+        resultHash: z.string().nullable(),
+        conflicts: z.number().int().min(0),
+        // People whose commits are in the result: they cannot approve it.
+        contributorIds: z.array(id),
+        blockingThreads: z.number().int().min(0),
+        requiredReviews: z.number().int().min(0),
+        // Required reviewers whose current approval binds this result.
+        requiredApprovals: z.number().int().min(0),
+        approvals: z.number().int().min(0),
+        changesRequested: z.number().int().min(0),
+        staleReviews: z.number().int().min(0),
+        blockers: z.array(z.enum(pageMergeBlockers)),
+      })
+      .nullable(),
+  }),
+  // One review decision (append-only). Current decisions have neither
+  // `staleAt` nor `withdrawnAt`; stale ones name why.
+  z.object({
+    ...inSpace,
+    type: z.literal("pagePullRequestReview"),
+    pageId: id,
+    pullRequestId: id,
+    reviewerId: id,
+    decision: z.enum(["approved", "changes_requested"]),
+    resultHash: z.string(),
+    sourceHeadId: id,
+    targetHeadId: id,
+    staleAt: z.string().nullable(),
+    staleReason: z.string().nullable(),
+    withdrawnAt: z.string().nullable(),
+    createdAt: z.string(),
+  }),
+  // A discussion on the page. Messages are separate rows, so a reply
+  // replicates one new row instead of the whole thread.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageThread"),
+    pageId: id,
+    authorId: id,
+    status: z.enum(["open", "resolved"]),
+    blocking: z.boolean(),
+    anchor: storedPageThreadAnchorSchema,
+    commitId: id.nullable(),
+    branchId: id.nullable(),
+    pullRequestId: id.nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    resolvedById: id.nullable(),
+    resolvedAt: z.string().nullable(),
+  }),
+  z.object({
+    ...inSpace,
+    type: z.literal("pageThreadMessage"),
+    pageId: id,
+    threadId: id,
+    authorId: id,
+    body: z.string(),
+    createdAt: z.string(),
+  }),
+  // Discussion events (opened, resolved, reopened, blocking changed) that
+  // the threads' current state no longer shows.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageActivity"),
+    pageId: id,
+    actorId: id,
+    action: z.string(),
+    detail: z.record(z.string(), z.unknown()),
+    createdAt: z.string(),
+  }),
+]);
+export type SpaceEntity = z.infer<typeof spaceEntitySchema>;
+export type SpaceEntityType = SpaceEntity["type"];
+export type SpaceEntityOf<T extends SpaceEntityType> = Extract<
+  SpaceEntity,
+  { type: T }
+>;
+// Projection key, as in `sync_entity`.
+export function spaceEntityKey(e: Pick<SpaceEntity, "type" | "id">) {
+  return `${e.type}:${e.id}`;
+}
+// Protocol 16 adds Lictory Spaces commands (spaces, pages, page
+// discussions and page history); their projections use the separate
+// `space_entity` table.
+export const PROTOCOL = 16 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -1026,7 +1353,257 @@ export const onboardingSetupSchema = z
   );
 export type OnboardingSetup = z.infer<typeof onboardingSetupSchema>;
 
+const spaceSlug = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(60)
+  .regex(
+    /^[a-z0-9]+(-[a-z0-9]+)*$/,
+    "Use lowercase letters, digits and single hyphens, e.g. payments-handbook.",
+  );
+// A space's home: {} is the organization, { projectId } a project and
+// { projectId, teamId } a team of that project.
+const spaceHome = z
+  .strictObject({ projectId: id.optional(), teamId: id.optional() })
+  .refine((home) => !home.teamId || home.projectId, {
+    message: "A team home also names the team's project.",
+  });
+const pageTitle = z.string().trim().min(1).max(200);
+const pageCommitMessage = z.string().trim().max(2000);
+// A ProseMirror node of page content; the document engine validates it.
+const pageNodeInput = z.record(z.string(), z.json());
+// How one merge conflict of a page is resolved (`resolveMerge`): keep one
+// side, keep both, or replace it with edited blocks. The title conflict
+// (`page-conflict:title`) takes "ours", "theirs" or { title }.
+export const pageMergeResolutionSchema = z.union([
+  z.enum(["ours", "theirs", "both"]),
+  z.strictObject({
+    manual: z.union([pageNodeInput, z.array(pageNodeInput).min(1)]),
+  }),
+  z.strictObject({ title: pageTitle }),
+]);
+export type PageMergeResolution = z.infer<typeof pageMergeResolutionSchema>;
+// Siblings to place a page between (both omitted: last under its parent).
+const pagePosition = {
+  afterId: id.nullable().optional(),
+  beforeId: id.nullable().optional(),
+};
+
 export const commandSchema = z.discriminatedUnion("type", [
+  // Lictory Spaces. Anyone in the organization may create a space; its
+  // administrators (creator, organization administrators, home project
+  // administrators) manage access, home, publishing and archiving.
+  z.object({
+    type: z.literal("createSpace"),
+    spaceId: z.uuid(),
+    name: text.max(120),
+    slug: spaceSlug,
+    description: z.string().trim().max(2000).optional(),
+    icon: z.string().trim().min(1).max(32).optional(),
+    home: spaceHome.optional(),
+    accessMode: z.enum(spaceAccessModes).optional(),
+    publishing: z.enum(spacePublishingPolicies).optional(),
+  }),
+  // Editors change name, slug, description and icon; home and publishing
+  // are administrators' decisions.
+  z.object({
+    type: z.literal("updateSpace"),
+    spaceId: id,
+    name: text.max(120).optional(),
+    slug: spaceSlug.optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    icon: z.string().trim().min(1).max(32).nullable().optional(),
+    home: spaceHome.optional(),
+    publishing: z.enum(spacePublishingPolicies).optional(),
+  }),
+  z.object({
+    type: z.literal("setSpaceAccessMode"),
+    spaceId: id,
+    accessMode: z.enum(spaceAccessModes),
+  }),
+  // null removes the person's named access.
+  z.object({
+    type: z.literal("setSpaceGrant"),
+    spaceId: id,
+    userId: id,
+    level: z.enum(spaceAccessLevels).nullable(),
+  }),
+  z.object({
+    type: z.literal("archiveSpace"),
+    spaceId: id,
+    archived: z.boolean(),
+  }),
+  // Creates the page with its main branch, an initial commit and, in Direct
+  // spaces, main's live draft.
+  z.object({
+    type: z.literal("createPage"),
+    spaceId: id,
+    pageId: z.uuid(),
+    parentId: id.nullable().optional(),
+    title: pageTitle,
+    ...pagePosition,
+  }),
+  z.object({
+    type: z.literal("movePage"),
+    pageId: id,
+    parentId: id.nullable(),
+    ...pagePosition,
+  }),
+  // Archiving hides the page and its subtree; restoring brings back what
+  // was archived with it.
+  z.object({
+    type: z.literal("archivePage"),
+    pageId: id,
+    archived: z.boolean(),
+  }),
+  // Discussions on pages: commenters (comment or edit access) start, answer,
+  // resolve and reopen them and mark them blocking, as on specifications.
+  // Messages are never edited or deleted.
+  z.object({
+    type: z.literal("createPageThread"),
+    pageId: id,
+    threadId: z.uuid(),
+    messageId: z.uuid(),
+    anchor: pageThreadAnchorSchema,
+    body: text,
+    blocking: z.boolean().optional(),
+    // The line the thread was written on; required for draft anchors
+    // (the draft's branch) and otherwise optional.
+    branchId: id.optional(),
+    // The pull request the thread is about (a review comment); blocking
+    // threads of a pull request block its merge.
+    pullRequestId: id.optional(),
+  }),
+  z.object({
+    type: z.literal("replyToPageThread"),
+    threadId: id,
+    messageId: z.uuid(),
+    body: text,
+  }),
+  z.object({ type: z.literal("resolvePageThread"), threadId: id }),
+  z.object({ type: z.literal("reopenPageThread"), threadId: id }),
+  z.object({
+    type: z.literal("setPageThreadBlocking"),
+    threadId: id,
+    blocking: z.boolean(),
+  }),
+  // Page history (docs/internals/spaces.md#history-commits-branches-and-pull-requests).
+  // Seals the live draft of a line at exactly `expectedSequence` (the
+  // stored sequence the editor last saw) into an immutable commit with this
+  // title. On main in a Direct space this is "Publish".
+  z.object({
+    type: z.literal("commitDraft"),
+    pageId: id,
+    branchId: id,
+    draftId: id,
+    epoch: z.number().int().positive(),
+    expectedSequence: z.number().int().min(0),
+    title: pageTitle,
+    message: pageCommitMessage.optional(),
+  }),
+  // A new commit on the line with an earlier commit's title and content;
+  // the line's draft starts a new epoch from it.
+  z.object({
+    type: z.literal("restorePageCommit"),
+    pageId: id,
+    branchId: id,
+    commitId: id,
+    expectedHead: id,
+    discardDraftChanges: z.boolean().optional(),
+    message: pageCommitMessage.optional(),
+  }),
+  z.object({
+    type: z.literal("createPageBranch"),
+    pageId: id,
+    branchId: z.uuid(),
+    name: z.string().trim().min(1).max(80),
+    fromCommitId: id.optional(),
+  }),
+  z.object({
+    type: z.literal("setPageBranchCollaborator"),
+    branchId: id,
+    userId: id,
+    collaborator: z.boolean(),
+  }),
+  z.object({ type: z.literal("deletePageBranch"), branchId: id }),
+  // Merges another line (main unless `fromBranchId`) into a branch with a
+  // merge commit. Conflicts are refused (kind `page_merge_conflicts`; see
+  // previewPageMerge) until `resolutions` names a choice for each.
+  z.object({
+    type: z.literal("syncPageBranch"),
+    branchId: id,
+    fromBranchId: id.optional(),
+    expectedHead: id,
+    expectedTargetHead: id,
+    resolutions: z.record(z.string(), pageMergeResolutionSchema).optional(),
+  }),
+  z.object({
+    type: z.literal("createPagePullRequest"),
+    pageId: id,
+    pullRequestId: z.uuid(),
+    sourceBranchId: id,
+    targetBranchId: id.optional(),
+    title: pageTitle,
+    description: z.string().trim().max(20_000).optional(),
+    draft: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("updatePagePullRequest"),
+    pullRequestId: id,
+    title: pageTitle.optional(),
+    description: z.string().trim().max(20_000).nullable().optional(),
+    draft: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("deletePagePullRequest"),
+    pullRequestId: id,
+  }),
+  z.object({
+    type: z.literal("requestPageReview"),
+    pullRequestId: id,
+    userId: id,
+    required: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("cancelPageReview"),
+    pullRequestId: id,
+    userId: id,
+  }),
+  // Binds the decision to the merge result of exactly these heads.
+  z.object({
+    type: z.literal("decidePagePullRequest"),
+    pullRequestId: id,
+    decision: z.enum(["approve", "request_changes", "revoke"]),
+    inspectedSourceHead: id,
+    inspectedTargetHead: id,
+  }),
+  z.object({
+    type: z.literal("mergePagePullRequest"),
+    pullRequestId: id,
+    inspectedSourceHead: id,
+    inspectedTargetHead: id,
+  }),
+  // Proposes new content for a page without publishing it: a branch from
+  // main, a commit with this title and content (Markdown or canonical
+  // Tiptap JSON) and an open pull request into main.
+  z
+    .object({
+      type: z.literal("proposePageChange"),
+      pageId: id,
+      branchId: z.uuid(),
+      pullRequestId: z.uuid(),
+      title: pageTitle,
+      markdown: z.string().max(1_000_000).optional(),
+      content: pageNodeInput.optional(),
+      message: z.string().trim().min(1).max(2000),
+      description: z.string().trim().max(20_000).optional(),
+      branchName: z.string().trim().min(1).max(80).optional(),
+    })
+    .refine((c) => (c.markdown === undefined) !== (c.content === undefined), {
+      message: "Provide the new page as either markdown or content.",
+      path: ["markdown"],
+    }),
   // Organization administrators create and archive projects. The creator
   // becomes a project administrator and joins its first discipline.
   z.object({
@@ -1619,6 +2196,99 @@ export type TypeCommand = Extract<
 >;
 export function isTypeCommand(c: Command): c is TypeCommand {
   return c.type === "createType" || c.type === "updateType";
+}
+export type SpaceCommand = Extract<
+  Command,
+  {
+    type:
+      | "createSpace"
+      | "updateSpace"
+      | "setSpaceAccessMode"
+      | "setSpaceGrant"
+      | "archiveSpace"
+      | "createPage"
+      | "movePage"
+      | "archivePage"
+      | PageDiscussionCommand["type"]
+      | PageHistoryCommand["type"];
+  }
+>;
+export type PageHistoryCommand = Extract<
+  Command,
+  {
+    type:
+      | "commitDraft"
+      | "restorePageCommit"
+      | "createPageBranch"
+      | "setPageBranchCollaborator"
+      | "deletePageBranch"
+      | "syncPageBranch"
+      | "createPagePullRequest"
+      | "updatePagePullRequest"
+      | "deletePagePullRequest"
+      | "requestPageReview"
+      | "cancelPageReview"
+      | "decidePagePullRequest"
+      | "mergePagePullRequest"
+      | "proposePageChange";
+  }
+>;
+const pageHistoryCommandTypes = new Set<string>([
+  "commitDraft",
+  "restorePageCommit",
+  "createPageBranch",
+  "setPageBranchCollaborator",
+  "deletePageBranch",
+  "syncPageBranch",
+  "createPagePullRequest",
+  "updatePagePullRequest",
+  "deletePagePullRequest",
+  "requestPageReview",
+  "cancelPageReview",
+  "decidePagePullRequest",
+  "mergePagePullRequest",
+  "proposePageChange",
+]);
+export function isPageHistoryCommand(c: Command): c is PageHistoryCommand {
+  return pageHistoryCommandTypes.has(c.type);
+}
+export type PageDiscussionCommand = Extract<
+  Command,
+  {
+    type:
+      | "createPageThread"
+      | "replyToPageThread"
+      | "resolvePageThread"
+      | "reopenPageThread"
+      | "setPageThreadBlocking";
+  }
+>;
+const pageDiscussionCommandTypes = new Set<string>([
+  "createPageThread",
+  "replyToPageThread",
+  "resolvePageThread",
+  "reopenPageThread",
+  "setPageThreadBlocking",
+]);
+export function isPageDiscussionCommand(
+  c: Command,
+): c is PageDiscussionCommand {
+  return pageDiscussionCommandTypes.has(c.type);
+}
+const spaceCommandTypes = new Set<string>([
+  "createSpace",
+  "updateSpace",
+  "setSpaceAccessMode",
+  "setSpaceGrant",
+  "archiveSpace",
+  "createPage",
+  "movePage",
+  "archivePage",
+  ...pageDiscussionCommandTypes,
+  ...pageHistoryCommandTypes,
+]);
+export function isSpaceCommand(c: Command): c is SpaceCommand {
+  return spaceCommandTypes.has(c.type);
 }
 export type Command = z.infer<typeof commandSchema>;
 export const mutationSchema = z.object({

@@ -183,6 +183,44 @@ async function workspace(title: string, key: string) {
     lastVerifiedAt: new Date(),
     createdById: owner,
   });
+  // A team space with nested pages, a grant and live drafts.
+  const teamId = crypto.randomUUID();
+  await command({ type: "createTeam", projectId, teamId, name: "Platform" });
+  await command({
+    type: "setTeamMembership",
+    projectId,
+    teamId,
+    userId: owner,
+    member: true,
+  });
+  const spaceId = crypto.randomUUID();
+  await command({
+    type: "createSpace",
+    spaceId,
+    name: "Runbooks",
+    slug: "runbooks",
+    home: { projectId, teamId },
+  });
+  await command({
+    type: "setSpaceGrant",
+    spaceId,
+    userId: reviewer,
+    level: "comment",
+  });
+  const parentPageId = crypto.randomUUID();
+  await command({
+    type: "createPage",
+    spaceId,
+    pageId: parentPageId,
+    title: "Incidents",
+  });
+  await command({
+    type: "createPage",
+    spaceId,
+    pageId: crypto.randomUUID(),
+    parentId: parentPageId,
+    title: "Payment outage",
+  });
   await requestOrganizationExport(db, owner, organizationId);
   return {
     owner,

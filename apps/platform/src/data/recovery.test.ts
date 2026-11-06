@@ -234,3 +234,43 @@ void test("a rejected breakdown proposal stays recoverable until its exact scope
     true,
   );
 });
+
+void test("space and page names are kept until their effect is synchronized", () => {
+  const create: Command = {
+    type: "createSpace",
+    spaceId: "00000000-0000-4000-8000-000000000020",
+    name: "Payments handbook",
+    slug: "payments-handbook",
+    description: "How we run payments.",
+  };
+  const page: Command = {
+    type: "createPage",
+    spaceId: create.spaceId,
+    pageId: "00000000-0000-4000-8000-000000000021",
+    title: "Refund runbook",
+  };
+  assert.deepEqual(
+    authoredText(create).map((f) => f.label),
+    ["Name", "Description"],
+  );
+  assert.equal(recoveryText(page), "Refund runbook");
+  assert.equal(recoveryScope(page), undefined);
+  assert.equal(effectPresent(page, {}), false);
+  const synced = new Map([
+    [`page:${page.pageId}`, { type: "page" } as never],
+    [
+      `space:${create.spaceId}`,
+      { type: "space", name: "Payments handbook", description: null } as never,
+    ],
+  ]);
+  assert.equal(effectPresent(page, {}, synced), true);
+  assert.equal(effectPresent(create, {}, synced), true);
+  assert.equal(
+    effectPresent(
+      { type: "updateSpace", spaceId: create.spaceId, name: "Handbook" },
+      {},
+      synced,
+    ),
+    false,
+  );
+});

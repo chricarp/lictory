@@ -239,6 +239,55 @@
       "when": 1793873339145,
       "tag": "0033_invitation_placement",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793922721258,
+      "tag": "0034_lictory_spaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793922730609,
+      "tag": "0035_spaces_zero_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793925497412,
+      "tag": "0036_space_draft_signal",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793930063632,
+      "tag": "0037_page_discussions",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793931685287,
+      "tag": "0038_page_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793939362026,
+      "tag": "0039_space_draft_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793939366976,
+      "tag": "0040_space_draft_seed_backfill",
+      "breakpoints": true
     }
   ]
 }

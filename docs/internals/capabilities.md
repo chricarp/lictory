@@ -81,8 +81,11 @@ decides it is a capability or records why it is not.
 
 Capabilities that record a human decision (accepting delivery scope, recording or
 archiving a durable conclusion, approving or requesting changes on
-reviews, suggestions and pull requests; merging; resolving threads; the Lictory
-Intelligence policy; exporting to delivery tools) are marked `decision`. MCP tells agents to
+reviews, suggestions and pull requests, page pull requests included; merging;
+publishing a page draft (`commitDraft`); resolving threads; the Lictory
+Intelligence policy; exporting to delivery tools) are marked `decision`.
+Agents change pages by proposing (`proposePageChange`: a branch, a commit and
+a pull request), never by publishing. MCP tells agents to
 call them only when the person explicitly asked; the embedded agent requires the
 person's approval before running them or any destructive command
 (`needsApproval`). Nothing about agents or Lictory Intelligence changes the domain rule that approvals belong

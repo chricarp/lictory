@@ -9,24 +9,27 @@ service that needs it ([privacy and telemetry](/self-hosting/privacy)).
 
 ```text
 https://lictory.example.com ──▶ proxy (Caddy: TLS, routing, security headers)
-                                 ├─ api      Hono API, sign-in, files, sync endpoints
-                                 ├─ worker   AI runs, email, Jira exports, cycles
+                                 ├─ api            Hono API, sign-in, files, sync endpoints
+                                 ├─ worker         AI runs, email, Jira exports, cycles
+                                 ├─ collaboration  live editing of pages in Spaces
                                  └─ zero-cache ──▶ postgres
 ```
 
-| Service      | Purpose                                                                                                                                       |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `proxy`      | The only public entry point: the app, the API, streaming and the sync socket                                                                  |
-| `api`        | API, authentication, file access and the application's pages                                                                                  |
-| `worker`     | Background jobs: AI runs, notification email, Jira exports and status sync                                                                    |
-| `zero-cache` | Realtime sync engine with a replica that can always be rebuilt                                                                                |
-| `postgres`   | The source of truth: the only data that must be backed up. Optional: any compatible [external database](/self-hosting/database) works instead |
-| `migrate`    | One-shot: applies database migrations before a release is activated                                                                           |
-| `ops`        | One-shot: backups, restores and monitoring checks                                                                                             |
+| Service         | Purpose                                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxy`         | The only public entry point: the app, the API, streaming and the sync and live editing sockets                                                |
+| `api`           | API, authentication, file access and the application's pages                                                                                  |
+| `worker`        | Background jobs: AI runs, notification email, Jira exports and status sync                                                                    |
+| `collaboration` | Live editing of [pages in Spaces](/concepts/spaces) (`/collaboration`); exactly one per installation, it stores every edit in PostgreSQL      |
+| `zero-cache`    | Realtime sync engine with a replica that can always be rebuilt                                                                                |
+| `postgres`      | The source of truth: the only data that must be backed up. Optional: any compatible [external database](/self-hosting/database) works instead |
+| `migrate`       | One-shot: applies database migrations before a release is activated                                                                           |
+| `ops`           | One-shot: backups, restores and monitoring checks                                                                                             |
 
-PostgreSQL and zero-cache are on an internal network with no route to or from
-the internet; with an external database, zero-cache and migrations reach it
-over TLS instead. Only the proxy publishes ports (80 and 443).
+PostgreSQL, zero-cache and the collaboration service are on an internal
+network with no route to or from the internet; with an external database,
+zero-cache, the collaboration service and migrations reach it over TLS
+instead. Only the proxy publishes ports (80 and 443).
 
 ## Requirements
 
@@ -37,9 +40,11 @@ over TLS instead. Only the proxy publishes ports (80 and 443).
   hosting under a path (`example.com/lictory/`) is not supported.
 - Ports 80 and 443 reachable for automatic certificates, unless TLS ends at
   [your own reverse proxy](/self-hosting/reverse-proxy).
-- Memory for the default service limits: about 4 GB in total (PostgreSQL
-  1.5 GB, zero-cache 1 GB, API 768 MB, worker 512 MB), adjustable in the
-  configuration.
+- Memory for the default service limits: about 4.5 GB in total (PostgreSQL
+  1.5 GB, zero-cache 1 GB, API 768 MB, worker 512 MB, collaboration
+  384 MB), adjustable in the configuration. These are ceilings: a running
+  installation measures about 1 GB, so 2 GB is the minimum and 4 GB
+  recommended.
 - An email service (SMTP or Resend) so people can verify addresses and
   receive invitations.
 

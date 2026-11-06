@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { Entities } from "@lictory/core/contracts/optimistic";
-import { commandSchema, type Command } from "@lictory/core/contracts/protocol";
+import {
+  commandSchema,
+  type Command,
+  type SpaceEntity,
+} from "@lictory/core/contracts/protocol";
 import { sameProposedChildren } from "@lictory/core/contracts/decomposition";
 
 // Text people wrote is kept in this browser until the server has accepted the
@@ -49,6 +53,24 @@ export function authoredText(command: Command): AuthoredField[] {
       case "createThread":
       case "replyToThread":
         return [{ label: "Comment", text: command.body }];
+      case "createSpace":
+        return [
+          { label: "Name", text: command.name },
+          !!command.description && {
+            label: "Description",
+            text: command.description,
+          },
+        ];
+      case "updateSpace":
+        return [
+          command.name !== undefined && { label: "Name", text: command.name },
+          !!command.description && {
+            label: "Description",
+            text: command.description,
+          },
+        ];
+      case "createPage":
+        return [{ label: "Title", text: command.title }];
       case "commitBranch":
         return [
           { label: "Title", text: command.title },
@@ -108,10 +130,28 @@ const same = (a: string | null | undefined, b: string | null | undefined) =>
   (a ?? "").trim() === (b ?? "").trim();
 
 // Whether synchronized data already shows the command's effect, so a
-// recovered entry from an earlier session can be dropped silently.
-export function effectPresent(command: Command, entities: Entities): boolean {
+// recovered entry from an earlier session can be dropped silently. Spaces
+// commands are checked against the synchronized Spaces rows.
+export function effectPresent(
+  command: Command,
+  entities: Entities,
+  spaceEntities: ReadonlyMap<string, SpaceEntity> = new Map(),
+): boolean {
   const all = () => Object.values(entities);
   switch (command.type) {
+    case "createSpace":
+      return spaceEntities.has(`space:${command.spaceId}`);
+    case "createPage":
+      return spaceEntities.has(`page:${command.pageId}`);
+    case "updateSpace": {
+      const space = spaceEntities.get(`space:${command.spaceId}`);
+      return (
+        space?.type === "space" &&
+        (command.name === undefined || same(space.name, command.name)) &&
+        (command.description === undefined ||
+          same(space.description, command.description))
+      );
+    }
     case "createProject":
       return !!entities[`project:${command.projectId}`];
     case "recordDecision":

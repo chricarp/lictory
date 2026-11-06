@@ -6,8 +6,19 @@ import {
   projectionRow,
   type DirectoryProjection,
 } from "@lictory/core/contracts/projection";
-import { mutationSchema, type Entity } from "@lictory/core/contracts/protocol";
-import { zql } from "@lictory/zero/schema";
+import {
+  isSpaceCommand,
+  mutationSchema,
+  type Entity,
+  type SpaceEntityOf,
+} from "@lictory/core/contracts/protocol";
+import {
+  predictPageTree,
+  predictsPageTree,
+  type PredictedPageCommand,
+} from "@lictory/core/spaces/optimistic";
+import { zql, type Schema } from "@lictory/zero/schema";
+import type { Transaction } from "@rocicorp/zero";
 
 // Every workspace command is one mutation of the existing domain protocol.
 // The client run predicts safe changes with the shared optimistic reducers;
@@ -21,6 +32,14 @@ export const mutators = defineMutators({
       if (tx.location === "server")
         throw new Error("The API must override workspace.apply.");
       const command = args.command;
+      // Spaces commands never touch `sync_entity`. Page tree changes are
+      // predicted on `space_entity`; access, publishing and every other
+      // Spaces decision waits for the server.
+      if (isSpaceCommand(command)) {
+        if (predictsPageTree(command))
+          await predictSpaceTree(tx, args.organizationId, command, ctx.userID);
+        return;
+      }
       const workItemId =
         "workItemId" in command && typeof command.workItemId === "string"
           ? command.workItemId
@@ -79,3 +98,44 @@ export const mutators = defineMutators({
     }),
   },
 });
+
+async function predictSpaceTree(
+  tx: Transaction<Schema>,
+  organizationId: string,
+  command: PredictedPageCommand,
+  userId: string,
+) {
+  let spaceId: string | undefined;
+  if (command.type === "createPage") spaceId = command.spaceId;
+  else {
+    const [row] = await tx.run(
+      zql.spaceEntity
+        .where("organizationId", organizationId)
+        .where("key", `page:${command.pageId}`),
+    );
+    spaceId = row?.spaceId;
+  }
+  if (!spaceId) return;
+  const rows = await tx.run(
+    zql.spaceEntity
+      .where("organizationId", organizationId)
+      .where("spaceId", spaceId)
+      .where("type", "page"),
+  );
+  const pages = rows.map((row) => row.data as unknown as SpaceEntityOf<"page">);
+  const now = Date.now();
+  for (const page of predictPageTree(pages, command, {
+    organizationId,
+    userId,
+    now: new Date(now).toISOString(),
+  }))
+    await tx.mutate.spaceEntity.upsert({
+      key: `page:${page.id}`,
+      organizationId,
+      spaceId: page.spaceId,
+      pageId: null,
+      type: "page",
+      data: page,
+      updatedAt: now,
+    });
+}

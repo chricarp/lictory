@@ -13,6 +13,9 @@ type TitleContext = {
   project: Project | undefined;
   // The open item, once the store has it.
   item: { title: string; number: number } | undefined;
+  // The space and page named by a Spaces route, once synchronized.
+  space?: { name: string };
+  page?: { title: string };
 };
 
 // The browser title for a workspace route: what the page is about, then the
@@ -36,6 +39,16 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
     case "settings":
       parts.push("Settings", ctx.organization.name);
       break;
+    case "spaces": {
+      const space = ctx.space?.name ?? "Space";
+      if (second === undefined) parts.push("Spaces", ctx.organization.name);
+      else if (third === "pages") {
+        if (ctx.page) parts.push(ctx.page.title);
+        parts.push(space);
+      } else if (third === "settings") parts.push("Settings", space);
+      else parts.push(space, ctx.organization.name);
+      break;
+    }
     case "account":
       parts.push("Account");
       break;

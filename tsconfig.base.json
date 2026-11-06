@@ -25,7 +25,8 @@
       "@lictory/docs/*": ["./apps/docs/src/*"],
       "@lictory/platform/*": ["./apps/platform/src/*"],
       "@lictory/api/*": ["./apps/api/src/*"],
-      "@lictory/worker/*": ["./apps/worker/src/*"]
+      "@lictory/worker/*": ["./apps/worker/src/*"],
+      "@lictory/collaboration/*": ["./apps/collaboration/src/*"]
     }
   }
 }

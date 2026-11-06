@@ -7,15 +7,15 @@ application boot, image builds or containers starting.
 
 ## Connections
 
-| Variable                               | Used by                                           | Where it lives                                                         |
-| -------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                         | API and worker (`lictory_app`, DML only)          | Built by Compose from the server's `.env`                              |
-| `DATABASE_MIGRATION_URL`               | `scripts/migrate.ts`, backfills (owner)           | Only in the `migrate` service on the server                            |
-| `DATABASE_MIGRATION_EXPECTED_HOST`     | Guard: host the migration URL must match          | Compose (`postgres`)                                                   |
-| `DATABASE_MIGRATION_EXPECTED_DATABASE` | Guard: database name the URL must match           | Compose (`LICTORY_DB_NAME` of the environment)                         |
-| `DATABASE_MIGRATION_TRANSPORT`         | `tls` (default) or `compose-internal`             | Compose sets `compose-internal` (bundled database) or `tls` (external) |
-| `DATABASE_MIGRATION_TARGET`            | `local`, `test`, `preview` or an environment name | Compose sets the environment; default `local`                          |
-| `LICTORY_ENVIRONMENT`                  | Confirms the target for `compose-internal`        | Server `.env`                                                          |
+| Variable                               | Used by                                                 | Where it lives                                                         |
+| -------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                         | API, worker and collaboration (`lictory_app`, DML only) | Built by Compose from the server's `.env`                              |
+| `DATABASE_MIGRATION_URL`               | `scripts/migrate.ts`, backfills (owner)                 | Only in the `migrate` service on the server                            |
+| `DATABASE_MIGRATION_EXPECTED_HOST`     | Guard: host the migration URL must match                | Compose (`postgres`)                                                   |
+| `DATABASE_MIGRATION_EXPECTED_DATABASE` | Guard: database name the URL must match                 | Compose (`LICTORY_DB_NAME` of the environment)                         |
+| `DATABASE_MIGRATION_TRANSPORT`         | `tls` (default) or `compose-internal`                   | Compose sets `compose-internal` (bundled database) or `tls` (external) |
+| `DATABASE_MIGRATION_TARGET`            | `local`, `test`, `preview` or an environment name       | Compose sets the environment; default `local`                          |
+| `LICTORY_ENVIRONMENT`                  | Confirms the target for `compose-internal`              | Server `.env`                                                          |
 
 The runtime role only has DML on application tables; the migration role owns
 the schema ([database roles](deployment.md#database-roles)). The migration
@@ -92,7 +92,7 @@ drives `deploy.sh release` with that release's `release.env`
 2. **Migrate** (`deploy.sh migrate`): a pre-deploy
    backup when migrations are pending, then the `migrate` image's runner, then
    a wait until zero-cache has replicated past the migration.
-3. **Activate**: zero-cache, proxy, API and worker switch to the new images
+3. **Activate**: zero-cache, proxy, API, worker and collaboration switch to the new images
    ([deployment](deployment.md#deploying-a-release)).
 
 A failed preparation or migration leaves the previous version serving.

@@ -19,7 +19,7 @@ export function Button({
       type={type}
       className={cn(
         // Pills: the shape of every action, from the sidebar to the website.
-        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
+        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50",
         size === "sm" && "h-7 px-3 text-xs",
         size === "md" && "h-8 px-3.5 text-[13px]",
         size === "lg" && "h-10 px-5 text-sm",

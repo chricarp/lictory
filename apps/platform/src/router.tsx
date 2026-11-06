@@ -320,6 +320,69 @@ const orgSettingsSectionRoute = createRoute({
   pendingComponent: SettingsSectionSkeleton,
 });
 
+// Lictory Spaces. Static segments rank above `$project`, so these addresses
+// never resolve as a project key.
+const spacesRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/spaces",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/spaces"),
+    "SpacesRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+const spaceRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/spaces/$space",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/spaces"),
+    "SpaceRoute",
+  ),
+  pendingComponent: () => <DocumentSkeleton />,
+});
+const spaceHomeRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/spaces"),
+    "SpaceHomeRoute",
+  ),
+});
+const spacePageRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/pages/$page",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/spaces"),
+    "SpacePageRoute",
+  ),
+  pendingComponent: () => <DocumentSkeleton />,
+});
+const spacePageHistoryRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/pages/$page/history",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/spaces/history/workspace"),
+    "PageHistoryWorkspace",
+  ),
+});
+const spacePullRequestsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/pull-requests",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/spaces/history/workspace"),
+    "SpacePullRequests",
+  ),
+});
+const spaceSettingsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "/settings",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/spaces"),
+    "SpaceSettingsRoute",
+  ),
+  pendingComponent: SettingsSectionSkeleton,
+});
+
 const projectRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/$project",
@@ -518,6 +581,14 @@ const routeTree = rootRoute.addChildren([
       orgSettingsRoute.addChildren([
         orgSettingsIndexRoute,
         orgSettingsSectionRoute,
+      ]),
+      spacesRoute,
+      spaceRoute.addChildren([
+        spaceHomeRoute,
+        spacePageRoute,
+        spacePageHistoryRoute,
+        spacePullRequestsRoute,
+        spaceSettingsRoute,
       ]),
       projectRoute.addChildren([
         projectIndexRoute,

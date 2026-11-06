@@ -35,7 +35,10 @@ import {
 import { deliverAuthEmail } from "@lictory/core/lib/email";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { deletionDay } from "@lictory/core/domain/organization-access";
-import { refreshDirectories } from "@lictory/core/domain/projections";
+import {
+  refreshDirectories,
+  refreshMemberships,
+} from "@lictory/core/domain/projections";
 import {
   AccountDeletionError,
   deleteAccount,
@@ -341,7 +344,7 @@ export const auth = betterAuth({
         const leaverId =
           userId ?? (await getSessionFromCtx(ctx).catch(() => null))?.user.id;
         if (leaverId) await recordDeparture(db, left, leaverId);
-        else await refreshOrganizations([left]);
+        else await refreshMemberships(db, [left]);
       }
       if (event && userId && !(ctx.context.returned instanceof APIError))
         trackServer(userId, event, {}, ctx.headers);
@@ -553,8 +556,10 @@ export const auth = betterAuth({
             invitation.id,
           );
         },
-        afterAddMember: async ({ organization }) => {
-          await refreshOrganizations([organization.id]);
+        // Membership feeds the directory and Spaces access
+        // (docs/internals/spaces.md#access).
+        afterAddMember: async ({ organization, member }) => {
+          await refreshMemberships(db, [organization.id], member.userId);
         },
         afterRemoveMember: async ({ organization, member }) => {
           await recordDeparture(db, organization.id, member.userId);
@@ -565,7 +570,7 @@ export const auth = betterAuth({
           previousRole,
         }) => {
           rememberPreviousRole(member.id, previousRole);
-          await refreshOrganizations([organization.id]);
+          await refreshMemberships(db, [organization.id], member.userId);
         },
         afterAcceptInvitation: async ({ invitation, user, organization }) => {
           await applyInvitationPlacement(
@@ -574,7 +579,7 @@ export const auth = betterAuth({
             organization.id,
             user.id,
           );
-          await refreshOrganizations([organization.id]);
+          await refreshMemberships(db, [organization.id], user.id);
           trackServer(
             user.id,
             "invitation_accepted",

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   epicPageSchema,
@@ -65,4 +66,18 @@ export async function readinessHistory(
   return readinessHistorySchema.parse(
     await callCapability("getReadinessHistory", { organizationId, projectId }),
   ).revisions;
+}
+
+const manageableSpacesSchema = z.object({
+  manageableWithoutAccess: z.array(
+    z.object({ id: z.string(), name: z.string() }),
+  ),
+});
+
+// Restricted spaces I administer without reading them (names only): the
+// spaces an administrator may grant themselves access to.
+export async function spacesIManageWithoutAccess(organizationId: string) {
+  return manageableSpacesSchema.parse(
+    await callCapability("listSpaces", { organizationId }),
+  ).manageableWithoutAccess;
 }

@@ -11,8 +11,10 @@ import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
   BookOpenCheck,
+  FileText,
   Inbox,
   KanbanSquare,
+  Library,
   ListOrdered,
   Send,
   Settings,
@@ -37,6 +39,8 @@ import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
+import { useSpaces } from "@lictory/platform/components/spaces/store";
+import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 
 type Item = {
   id: string;
@@ -69,6 +73,7 @@ export function CommandPalette({
     directory,
   } = useWorkspace();
   const { openCreate, currentItem, project: shellProject } = useShell();
+  const { spaces, index: spaceIndex, openCreateSpace } = useSpaces();
   // The dock is absent on the Intelligence page itself.
   const pathname = usePathname();
   const dockStore = useDock();
@@ -208,6 +213,27 @@ export function CommandPalette({
         run: () => go(paths.intelligence(org)),
       },
       {
+        id: "spaces",
+        label: "Go to Spaces",
+        group: "Navigate",
+        icon: <Library className="size-4" />,
+        keywords: "spaces pages knowledge handbook docs wiki",
+        run: () => go(paths.spaces(org)),
+      },
+      {
+        id: "create-space",
+        label: "Create space",
+        group: "Create",
+        icon: <Library className="size-4" />,
+        keywords: "new space pages knowledge handbook docs wiki",
+        run: () => {
+          onClose();
+          openCreateSpace(
+            currentProject ? { projectId: currentProject.id } : {},
+          );
+        },
+      },
+      {
         id: "inbox",
         label: "Go to Inbox",
         group: "Navigate",
@@ -273,6 +299,16 @@ export function CommandPalette({
         run: () => go(paths.projectSettings(org, p.key)),
       });
     }
+    for (const space of spaces)
+      if (!space.archivedAt)
+        list.push({
+          id: `space-${space.id}`,
+          label: `${space.name} · Space`,
+          group: "Spaces",
+          icon: <SpaceIcon space={space} />,
+          keywords: `space pages ${space.slug}`,
+          run: () => go(paths.space(org, space.slug)),
+        });
     for (const p of projects) {
       list.push(
         {
@@ -329,6 +365,8 @@ export function CommandPalette({
     delivery,
     aiOn,
     dock,
+    spaces,
+    openCreateSpace,
   ]);
   const q = query.trim().toLowerCase();
   const parsed = parseIdentifier(query);
@@ -360,6 +398,23 @@ export function CommandPalette({
             ),
           ),
       }));
+    // Page titles of readable, active spaces.
+    const matchedPages: Item[] = [];
+    if (q && !parsed)
+      for (const page of spaceIndex.pageById.values()) {
+        if (matchedPages.length >= 12) break;
+        if (page.archivedAt || !page.title.toLowerCase().includes(q)) continue;
+        const space = spaceIndex.spaceById.get(page.spaceId);
+        if (!space || space.archivedAt) continue;
+        matchedPages.push({
+          id: `page-${page.id}`,
+          label: page.title,
+          hint: space.name,
+          group: "Pages",
+          icon: <FileText className="size-4" />,
+          run: () => go(paths.spacePage(org, space.slug, page.id)),
+        });
+      }
     const matchedCommands = commands.filter(
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
@@ -381,6 +436,7 @@ export function CommandPalette({
         : [];
     return [
       ...matchedItems,
+      ...matchedPages,
       ...(q ? matchedCommands : commands.slice(0, 8)),
       ...ask,
     ];
@@ -397,6 +453,7 @@ export function CommandPalette({
     aiOn,
     dock,
     onClose,
+    spaceIndex,
   ]);
   const [lastQuery, setLastQuery] = useState(q);
   if (lastQuery !== q) {
@@ -455,7 +512,7 @@ export function CommandPalette({
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search items by ID or title, or type a command…"
+            placeholder="Search items, pages or commands…"
             aria-label="Search"
             className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
           />

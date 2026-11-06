@@ -4943,6 +4943,8 @@ void test("projections written by every command above equal a rebuild from the d
     upserted: 2,
     deleted: 1,
     unchanged: keys.length - 2,
+    // No spaces in this organization (spaces.test.ts covers their rebuild).
+    spaces: { upserted: 0, deleted: 0, unchanged: 0, readersChanged: 0 },
   });
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });

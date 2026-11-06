@@ -18,7 +18,9 @@ Organization   a company, or a very large department of one
 A work item belongs to exactly one project (its identity, `PAY-142`) and
 optionally one of the project's teams. Moving it between teams never changes
 its identifier, status or iteration. A team owns no configuration: boards and
-backlogs can be narrowed to it, and team membership grants nothing.
+backlogs can be narrowed to it, and team membership grants no work item
+capabilities. Membership of a project or team does give edit access to the
+[spaces](/concepts/spaces#access) whose home it is.
 
 ## Roles and disciplines
 
@@ -53,7 +55,8 @@ membership. Every check runs on the server; the interface only hides
 controls you cannot use.
 
 Every organization member can read every project. There are no private
-projects.
+projects; knowledge that must stay private goes in a
+[Restricted space](/concepts/spaces#access).
 
 ## Deleting an organization
 
@@ -66,7 +69,8 @@ nobody can open its projects or change anything in it, and every member is
 told by email. Owners can still download exports and **Cancel deletion**.
 After the grace period (30 days unless your installation sets another) its
 projects, work items, specifications with every revision, reviews,
-approvals, discussions, decisions, attachments, Jira connections with their
+approvals, discussions, decisions, spaces and pages with their history,
+attachments, Jira connections with their
 credentials, and its audit log are permanently deleted. People's accounts and
 their other organizations are not affected. The installation's history keeps
 a record that the organization existed and was deleted.

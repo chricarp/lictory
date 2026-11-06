@@ -159,7 +159,8 @@ async function auditLogPage(
         u.email as actor_email, c.action, null::text as target_type,
         null::text as target_id, null::text as target_label,
         c.detail || jsonb_build_object('names', jsonb_build_object(
-          'user', su.name, 'discipline', d.name, 'project', p.name)) as detail
+          'user', su.name, 'discipline', d.name, 'project', p.name,
+          'space', sp.name)) as detail
       from configuration_audit c
       left join "user" u on u.id = c.actor_id
       -- Names of what the command touched, so the log reads "Added Ben to
@@ -170,6 +171,8 @@ async function auditLogPage(
         and d.id = c.detail->'command'->>'disciplineId'
       left join project p on p.organization_id = c.organization_id
         and p.id = c.detail->'command'->>'projectId'
+      left join space sp on sp.organization_id = c.organization_id
+        and sp.id = c.detail->'command'->>'spaceId'
       where ${sql.join(where, sql` and `)}
       order by c.created_at desc, c.id desc
       limit ${take})`);
@@ -248,6 +251,18 @@ function describeConfiguration(
           ? `Removed ${person} from ${project}`
           : `Set ${person}'s role in ${project} to ${command.role === "admin" ? "admin" : "member"}`;
       break;
+    case "setSpaceGrant": {
+      const space = names.space ?? "a space";
+      const level = typeof command.level === "string" ? command.level : null;
+      if (level === null) return `Removed ${person}'s access to ${space}`;
+      return detail.selfGrant === true
+        ? `Granted themselves ${level} access to ${space}`
+        : `Gave ${person} ${level} access to ${space}`;
+    }
+    case "setSpaceAccessMode":
+      return command.accessMode === "restricted"
+        ? `Restricted ${names.space ?? "a space"} to named people`
+        : `Opened ${names.space ?? "a space"} to its home's members`;
   }
   return project ? `${humanize(action)} in ${project}` : humanize(action);
 }

@@ -147,6 +147,18 @@ its domain writes, after taking the organization advisory lock
   status sync, branding, profile photos, handles, `seedOrganization` and the
   Better Auth hooks write projections the same way.
 
+The live draft writer of [Lictory Spaces](spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule)
+is the one writer outside this list: it persists only draft updates, which no
+projection reads, under the organization lock in shared mode.
+
+Lictory Spaces keep their projections in a separate table, `space_entity`,
+with the effective access rows `space_reader`; both are in the `lictory_zero`
+publication. The `spaces`, `page` and `mySpaceAccess` queries authorize
+through the current user's `space_reader` rows and organization membership,
+and `organization` and `workItem` never return space data (see
+[the Spaces implementation](spaces.md#projections-and-zero)).
+`rebuildProjections` reconciles them too.
+
 A failed projection write rolls back the domain change (covered by tests that
 force `sync_entity` failures). Host side effects (analytics) run only after
 commit. Never write domain rows that a projection depends on without writing
@@ -254,7 +266,9 @@ the single Zero mutator `workspace.apply` with the existing protocol mutation.
 The mutator's client run predicts changes with the shared optimistic reducers
 (`packages/core/src/contracts/optimistic.ts`): item and project creation,
 property updates, ranking, relations, archive, threads, replies, thread state,
-review requests and cancellations. Everything else predicts nothing and waits
+review requests and cancellations. In Lictory Spaces only the page tree's
+structure is predicted (creating, moving and archiving pages, on
+`space_entity`); creating a space and every access change wait for the server. Everything else predicts nothing and waits
 for the server: revisions, restores, branch commits, pull requests, every
 suggestion command, review decisions, merges, readiness sign-offs and
 configuration. A local prediction is never shown as a confirmed human decision.

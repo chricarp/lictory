@@ -13,6 +13,7 @@ import {
 } from "@lictory/platform/data/recovery";
 import type { SyncRow } from "@lictory/platform/data/rows";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useSpaces } from "@lictory/platform/components/spaces/store";
 
 // Entries this tab is not waiting for: rejected ones, and those left over from
 // an earlier session whose effect is not visible in synchronized data.
@@ -41,6 +42,7 @@ const SETTLE_MS = 3000;
 export function RecoveryWatcher() {
   const zero = useZero();
   const { recovery, view, organization, connection } = useWorkspace();
+  const { entities: spaceEntities } = useSpaces();
   const entries = useRecoveryEntries();
   const ready = connection === "connected" && view.status === "synced";
   const [settled, setSettled] = useState(false);
@@ -76,7 +78,8 @@ export function RecoveryWatcher() {
           }
         }
         if (cancelled) return;
-        if (effectPresent(entry.command, entities)) recovery.remove(entry.id);
+        if (effectPresent(entry.command, entities, spaceEntities))
+          recovery.remove(entry.id);
         else
           recovery.reject(
             entry.id,
@@ -87,7 +90,15 @@ export function RecoveryWatcher() {
     return () => {
       cancelled = true;
     };
-  }, [settled, stale, view.entities, zero, organization.id, recovery]);
+  }, [
+    settled,
+    stale,
+    view.entities,
+    spaceEntities,
+    zero,
+    organization.id,
+    recovery,
+  ]);
   return null;
 }
 
@@ -102,6 +113,9 @@ const describe: Partial<Record<RecoveryEntry["command"]["type"], string>> = {
   createPullRequest: "Pull request",
   createSuggestion: "Suggestion",
   updateSuggestion: "Suggestion edit",
+  createSpace: "New space",
+  updateSpace: "Space details",
+  createPage: "New page",
 };
 
 export function RecoveryList({ entries }: { entries: RecoveryEntry[] }) {

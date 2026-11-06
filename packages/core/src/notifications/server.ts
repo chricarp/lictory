@@ -27,13 +27,18 @@ export type NotificationDraft = {
   projectId?: string | null;
   teamId?: string | null;
   workItemId?: string | null;
+  // Lictory Spaces notifications: only people who can read the space
+  // receive them (checked here and again whenever one is read or emailed).
+  spaceId?: string | null;
+  pageId?: string | null;
   detail?: Record<string, unknown>;
   dedupeKey?: string;
 };
 
 // Writes notifications (and queued emails) for drafts, in the caller's
-// transaction. Recipients are filtered to current organization members and to
-// their resolved preferences; the actor is never notified about their own
+// transaction. Recipients are filtered to current organization members (and,
+// for Spaces notifications, to current readers of the space) and to their
+// resolved preferences; the actor is never notified about their own
 // action. When one event yields several drafts for the same person on the same
 // item, only the first survives: callers order drafts most-specific first
 // (a mention beats "new discussion" for the same message).
@@ -45,7 +50,7 @@ export async function deliverNotifications(
   const seen = new Set<string>();
   const unique = drafts.filter((d) => {
     if (d.actorId && d.userId === d.actorId) return false;
-    const key = `${d.userId}:${d.workItemId ?? ""}:${typeof d.detail?.group === "string" ? d.detail.group : d.kind}`;
+    const key = `${d.userId}:${d.workItemId ?? d.pageId ?? ""}:${typeof d.detail?.group === "string" ? d.detail.group : d.kind}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -64,6 +69,28 @@ export async function deliverNotifications(
           ),
         )
     ).map((m) => m.userId),
+  );
+  const spaceIds = [
+    ...new Set(unique.flatMap((d) => (d.spaceId ? [d.spaceId] : []))),
+  ];
+  const readers = new Set(
+    spaceIds.length
+      ? (
+          await tx
+            .select({
+              spaceId: s.spaceReader.spaceId,
+              userId: s.spaceReader.userId,
+            })
+            .from(s.spaceReader)
+            .where(
+              and(
+                eq(s.spaceReader.organizationId, organizationId),
+                inArray(s.spaceReader.spaceId, spaceIds),
+                inArray(s.spaceReader.userId, userIds),
+              ),
+            )
+        ).map((r) => `${r.spaceId}:${r.userId}`)
+      : [],
   );
   const rules = await tx
     .select()
@@ -85,6 +112,7 @@ export async function deliverNotifications(
   const emailIds = new Set<string>();
   for (const d of unique) {
     if (!members.has(d.userId)) continue;
+    if (d.spaceId && !readers.has(`${d.spaceId}:${d.userId}`)) continue;
     const channels = resolveChannels(rulesByUser.get(d.userId) ?? [], d.kind, {
       organizationId,
       projectId: d.projectId,
@@ -103,6 +131,8 @@ export async function deliverNotifications(
       projectId: d.projectId ?? null,
       teamId: d.teamId ?? null,
       workItemId: d.workItemId ?? null,
+      spaceId: d.spaceId ?? null,
+      pageId: d.pageId ?? null,
       detail,
       dedupeKey: d.dedupeKey ?? null,
     });

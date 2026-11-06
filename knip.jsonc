@@ -61,6 +61,10 @@
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
+    "apps/collaboration": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+    },
   },
   // Tailwind is loaded through CSS.
   "ignoreDependencies": ["tailwindcss"],

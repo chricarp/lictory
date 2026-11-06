@@ -13,6 +13,7 @@ export const notificationCategories = [
   "delivery",
   "iterations",
   "export",
+  "pages",
   "organization",
 ] as const;
 export type NotificationCategory = (typeof notificationCategories)[number];
@@ -24,6 +25,7 @@ export const categoryLabels: Record<NotificationCategory, string> = {
   delivery: "Work items",
   iterations: "Iterations",
   export: "Exports",
+  pages: "Pages",
   organization: "Organization",
 };
 
@@ -238,6 +240,45 @@ export const notificationKinds = {
     category: "export",
     label: "Export completed",
     description: "An export you started finished successfully.",
+    inApp: true,
+    email: false,
+  },
+  // Lictory Spaces. Delivered only to people who can read the space, and
+  // hidden again from anyone who loses that access.
+  page_review_requested: {
+    category: "pages",
+    label: "Page review requested",
+    description: "You are asked to review a proposed change to a page.",
+    inApp: true,
+    email: true,
+  },
+  page_approval_invalidated: {
+    category: "pages",
+    label: "Your page approval went stale",
+    description:
+      "A proposed page change you approved changed and needs your review again.",
+    inApp: true,
+    email: true,
+  },
+  page_mentioned: {
+    category: "pages",
+    label: "Mentioned on a page",
+    description: "Someone @mentioned you in a page discussion.",
+    inApp: true,
+    email: true,
+  },
+  page_blocking_thread: {
+    category: "pages",
+    label: "Blocking page discussion",
+    description:
+      "A blocking discussion was opened (or a discussion was marked blocking) on a page you wrote.",
+    inApp: true,
+    email: true,
+  },
+  page_thread_reply: {
+    category: "pages",
+    label: "Page discussion reply",
+    description: "Someone replied in a page discussion you took part in.",
     inApp: true,
     email: false,
   },

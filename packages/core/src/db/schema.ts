@@ -8,3 +8,4 @@ export * from "@lictory/core/db/chat-schema";
 export * from "@lictory/core/db/configuration-schema";
 export * from "@lictory/core/db/projection-schema";
 export * from "@lictory/core/db/export-schema";
+export * from "@lictory/core/db/spaces-schema";

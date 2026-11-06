@@ -1,0 +1,22 @@
+{
+  "name": "@lictory/collaboration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "node build.mjs",
+    "start": "node --enable-source-maps dist/index.js",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@hocuspocus/server": "4.7.1",
+    "@lictory/core": "workspace:*",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.45.4",
+    "esbuild": "0.28.2"
+  },
+  "license": "MIT"
+}

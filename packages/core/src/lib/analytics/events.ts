@@ -79,12 +79,41 @@ export const commandEvents = {
   rerunAiAction: "ai_action_requested",
   createAiCorrectivePr: "ai_corrective_pr_created",
   applyAiSuggestion: "ai_suggestion_applied",
+  createSpace: "space_created",
+  updateSpace: "space_updated",
+  setSpaceAccessMode: "space_access_mode_changed",
+  setSpaceGrant: "space_grant_changed",
+  archiveSpace: "space_archive_changed",
+  createPage: "page_created",
+  movePage: "page_moved",
+  archivePage: "page_archive_changed",
+  createPageThread: "page_thread_created",
+  replyToPageThread: "page_thread_replied",
+  resolvePageThread: "page_thread_resolved",
+  reopenPageThread: "page_thread_reopened",
+  setPageThreadBlocking: "page_thread_blocking_changed",
+  commitDraft: "page_draft_committed",
+  restorePageCommit: "page_commit_restored",
+  createPageBranch: "page_branch_created",
+  setPageBranchCollaborator: "page_branch_collaborator_changed",
+  deletePageBranch: "page_branch_deleted",
+  syncPageBranch: "page_branch_synced",
+  createPagePullRequest: "page_pull_request_created",
+  updatePagePullRequest: "page_pull_request_updated",
+  deletePagePullRequest: "page_pull_request_deleted",
+  requestPageReview: "page_review_requested",
+  cancelPageReview: "page_review_cancelled",
+  decidePagePullRequest: "page_review_decided",
+  mergePagePullRequest: "page_pull_request_merged",
+  proposePageChange: "page_change_proposed",
 } satisfies Record<Command["type"], string>;
 
 // Explicit allowlist: never spread a command, form, document or error into events.
 const safeFields = [
   "projectId",
   "workItemId",
+  "spaceId",
+  "pageId",
   "teamId",
   "typeId",
   "parentId",
@@ -120,6 +149,8 @@ const safeFields = [
   "role",
   "hasSpecification",
   "level",
+  "accessMode",
+  "publishing",
   "category",
 ] as const;
 const snakeCase = (value: string) =>
@@ -167,6 +198,10 @@ export function commandEvent(command: Command): AnalyticsEvent {
   if (command.type === "createThread") {
     properties.anchored = Boolean(command.quote) || Boolean(command.section);
     properties.context = command.suggestionId ? "suggestion" : "specification";
+  }
+  if (command.type === "createPageThread") {
+    properties.anchor = command.anchor.kind;
+    properties.blocking = command.blocking === true;
   }
   return { event: commandEvents[command.type], properties };
 }

@@ -9,11 +9,12 @@ description: Health endpoints, the built-in monitor and its alerts, and how to p
 
 ## Health endpoints
 
-| Check                    | Where                                              |
-| ------------------------ | -------------------------------------------------- |
-| API liveness / readiness | `GET /healthz`, `GET /readyz` on your Lictory host |
-| zero-cache               | `GET /keepalive`, inside the internal network      |
-| Worker, proxy            | Container health checks                            |
+| Check                    | Where                                                                 |
+| ------------------------ | --------------------------------------------------------------------- |
+| API liveness / readiness | `GET /healthz`, `GET /readyz` on your Lictory host                    |
+| zero-cache               | `GET /keepalive`, inside the internal network                         |
+| Collaboration            | `GET /livez`, `GET /readyz` on port 3004, inside the internal network |
+| Worker, proxy            | Container health checks                                               |
 
 Point any uptime checker or load balancer at `https://<your host>/readyz`.
 
@@ -23,7 +24,7 @@ Every five minutes the monitor checks, and alerts on:
 
 - the public `/readyz` route;
 - disk usage above 80 %;
-- unhealthy or stopped containers;
+- unhealthy or stopped containers, the collaboration service included;
 - a lagging, lost or orphaned replication slot, and `pg_wal` above 6 GB;
 - failed or stuck AI runs, failed or overdue notification email, and
   partial, failed or stuck Jira exports;

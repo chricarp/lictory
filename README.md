@@ -56,6 +56,15 @@ chooses its delivery owner:
 - **In Jira Cloud:** publish ready work, update it explicitly after changes and
   read Jira's delivery status back. Jira owns delivery status and assignment.
 
+### Write down what the team knows in Spaces
+
+Runbooks, architecture notes and team handbooks live in spaces of nested pages,
+owned by the organization, a project or a team. Several people edit a page at
+once, and every published version stays in its history. A space can publish
+directly or require reviewed pull requests, with approvals that go stale when
+the result changes. Pages mention work items with their live status, and agents
+propose page changes for people to review.
+
 Screenshots show the application with fictional data. See the
 [team guide](https://docs.lictory.com/getting-started) for the complete workflow.
 

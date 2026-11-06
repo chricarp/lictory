@@ -2,6 +2,8 @@ import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
+import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
+import { pageAccess } from "@lictory/core/spaces/access";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
 import {
   SUPPORTED_FILE_EXTENSIONS,
@@ -20,10 +22,13 @@ import {
   type Database,
 } from "@lictory/core/capabilities/core";
 
-// Attachments on work items. Bytes travel directly between the caller and
-// object storage through short-lived presigned URLs; Lictory stores metadata
-// under the organization lock after re-checking membership. Removal marks the
-// row first (no new links) and then moves the bytes (old links stop working).
+// Attachments on work items and Lictory Spaces pages. Bytes travel directly
+// between the caller and object storage through short-lived presigned URLs;
+// Lictory stores metadata under the organization lock after re-checking
+// membership. Removal marks the row first (no new links) and then moves the
+// bytes (old links stop working). A page's files follow its space's access:
+// commenters attach files (they already add content every reader sees),
+// readers list and download them, and nobody else learns they exist.
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -59,6 +64,48 @@ async function requireMember(
     );
   await assertOrganizationAccess(db, userId, organizationId);
 }
+// The page's space access for a file operation: `comment` to attach, `view`
+// to list, download, finish or remove. People without access get not found.
+async function requirePageAccess(
+  db: Database | Tx,
+  organizationId: string,
+  userId: string,
+  pageId: string,
+  level: "view" | "comment",
+  missing = "Page not found.",
+) {
+  const row = await pageAccess(db, { organizationId, userId }, pageId);
+  if (!row?.level) throw new CapabilityError("not_found", missing);
+  if (level === "comment") {
+    if (!spaceLevelAtLeast(row.level, "comment"))
+      throw new CapabilityError(
+        "forbidden",
+        `You can view ${row.space.name} but not add files to it. Ask one of its administrators for comment or edit access.`,
+      );
+    if (row.space.archivedAt || row.page.archivedAt)
+      throw new CapabilityError(
+        "conflict",
+        "This page is archived. Restore it before adding files.",
+      );
+  }
+  return row;
+}
+
+// What a file belongs to: a work item or a page, never both.
+const fileOwner = {
+  workItemId: id.optional().describe("The work item the file belongs to."),
+  pageId: id
+    .optional()
+    .describe(
+      "The Lictory Spaces page the file belongs to (instead of workItemId).",
+    ),
+};
+const oneOwner = (input: { workItemId?: string; pageId?: string }) =>
+  Boolean(input.workItemId) !== Boolean(input.pageId);
+const oneOwnerMessage = {
+  message: "Name either a work item (workItemId) or a page (pageId).",
+};
+
 async function fileOf(
   ctx: CapabilityContext,
   organizationId: string,
@@ -80,26 +127,42 @@ async function fileOf(
 const listAttachments = defineCapability({
   name: "listAttachments",
   title: "List attachments",
-  description: "Files attached to a work item.",
+  description:
+    "Files attached to a work item (workItemId) or to a page (pageId; readers of its space).",
   kind: "query",
   surfaces: everywhere,
-  input: z.object({ organizationId, workItemId: id }),
+  input: z
+    .object({ organizationId, ...fileOwner })
+    .refine(oneOwner, oneOwnerMessage),
   async run(ctx, input) {
-    await requireMember(ctx.db, input.organizationId, ctx.principal.userId);
-    const [item] = await ctx.db
-      .select({ id: s.workItem.id })
-      .from(s.workItem)
-      .where(
-        and(
-          eq(s.workItem.organizationId, input.organizationId),
-          eq(s.workItem.id, input.workItemId),
-        ),
+    const userId = ctx.principal.userId;
+    await requireMember(ctx.db, input.organizationId, userId);
+    if (input.pageId)
+      await requirePageAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        input.pageId,
+        "view",
       );
-    if (!item) throw new CapabilityError("not_found", "Work item not found.");
+    else {
+      const [item] = await ctx.db
+        .select({ id: s.workItem.id })
+        .from(s.workItem)
+        .where(
+          and(
+            eq(s.workItem.organizationId, input.organizationId),
+            eq(s.workItem.id, input.workItemId!),
+          ),
+        );
+      if (!item) throw new CapabilityError("not_found", "Work item not found.");
+    }
     const files = await ctx.db.query.fileObject.findMany({
       where: and(
         eq(s.fileObject.organizationId, input.organizationId),
-        eq(s.fileObject.workItemId, input.workItemId),
+        input.pageId
+          ? eq(s.fileObject.pageId, input.pageId)
+          : eq(s.fileObject.workItemId, input.workItemId!),
         sql`${s.fileObject.readyAt} is not null`,
         sql`${s.fileObject.removedAt} is null`,
       ),
@@ -122,17 +185,19 @@ const listAttachments = defineCapability({
 const startAttachmentUpload = defineCapability({
   name: "startAttachmentUpload",
   title: "Start attachment upload",
-  description: `Reserve an attachment on a work item and get a presigned URL. PUT the bytes to \`uploadUrl\` with \`headers\` within five minutes, then call finishAttachmentUpload. Allowed types: ${SUPPORTED_FILE_EXTENSIONS.join(", ")}. Files must be between 1 byte and 25 MB.`,
+  description: `Reserve an attachment on a work item (workItemId) or a page (pageId; comment or edit access to its space) and get a presigned URL. PUT the bytes to \`uploadUrl\` with \`headers\` within five minutes, then call finishAttachmentUpload. Allowed types: ${SUPPORTED_FILE_EXTENSIONS.join(", ")}. Files must be between 1 byte and 25 MB.`,
   kind: "command",
   surfaces: everywhere,
   external: true,
-  input: z.object({
-    organizationId,
-    workItemId: id,
-    filename: z.string().max(255),
-    mimeType: z.string().max(200),
-    size: z.number().int().min(1),
-  }),
+  input: z
+    .object({
+      organizationId,
+      ...fileOwner,
+      filename: z.string().max(255),
+      mimeType: z.string().max(200),
+      size: z.number().int().min(1),
+    })
+    .refine(oneOwner, oneOwnerMessage),
   async run(ctx, input) {
     const userId = ctx.principal.userId;
     await requireMember(ctx.db, input.organizationId, userId);
@@ -141,6 +206,15 @@ const startAttachmentUpload = defineCapability({
     } catch (error) {
       throw new CapabilityError("validation", (error as Error).message);
     }
+    // Refuse before signing anything when the page cannot take files.
+    if (input.pageId)
+      await requirePageAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        input.pageId,
+        "comment",
+      );
     const fileId = crypto.randomUUID();
     const key = objectKey(input.organizationId, fileId);
     // Validate storage configuration before reserving metadata.
@@ -151,22 +225,42 @@ const startAttachmentUpload = defineCapability({
     );
     await ctx.db.transaction(async (tx) => {
       await lockedMember(tx, input.organizationId, userId);
-      const [item] = await tx
-        .select()
-        .from(s.workItem)
-        .where(
-          and(
-            eq(s.workItem.organizationId, input.organizationId),
-            eq(s.workItem.id, input.workItemId),
-          ),
-        );
-      if (!item || item.archivedAt)
-        throw new CapabilityError("not_found", "Work item not found.");
+      const owner = input.pageId
+        ? {
+            projectId: null,
+            workItemId: null,
+            pageId: (
+              await requirePageAccess(
+                tx,
+                input.organizationId,
+                userId,
+                input.pageId,
+                "comment",
+              )
+            ).page.id,
+          }
+        : await (async () => {
+            const [item] = await tx
+              .select()
+              .from(s.workItem)
+              .where(
+                and(
+                  eq(s.workItem.organizationId, input.organizationId),
+                  eq(s.workItem.id, input.workItemId!),
+                ),
+              );
+            if (!item || item.archivedAt)
+              throw new CapabilityError("not_found", "Work item not found.");
+            return {
+              projectId: item.projectId,
+              workItemId: item.id,
+              pageId: null,
+            };
+          })();
       await tx.insert(s.fileObject).values({
         id: fileId,
         organizationId: input.organizationId,
-        projectId: item.projectId,
-        workItemId: item.id,
+        ...owner,
         objectKey: key,
         filename: input.filename,
         mimeType: input.mimeType,
@@ -196,6 +290,15 @@ const finishAttachmentUpload = defineCapability({
     const userId = ctx.principal.userId;
     await requireMember(ctx.db, input.organizationId, userId);
     const file = await fileOf(ctx, input.organizationId, input.id);
+    if (file.pageId)
+      await requirePageAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        file.pageId,
+        "view",
+        "File not found.",
+      );
     if (file.createdById !== userId)
       throw new CapabilityError(
         "forbidden",
@@ -234,8 +337,9 @@ const finishAttachmentUpload = defineCapability({
       "attachment_uploaded",
       {
         organization_id: input.organizationId,
-        project_id: file.projectId,
-        work_item_id: file.workItemId,
+        ...(file.pageId
+          ? { page_id: file.pageId }
+          : { project_id: file.projectId, work_item_id: file.workItemId }),
         file_size: file.size,
         file_kind: file.mimeType.startsWith("image/") ? "image" : "document",
       },
@@ -303,6 +407,15 @@ const removeAttachment = defineCapability({
     const userId = ctx.principal.userId;
     await requireMember(ctx.db, input.organizationId, userId);
     const file = await fileOf(ctx, input.organizationId, input.id);
+    if (file.pageId)
+      await requirePageAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        file.pageId,
+        "view",
+        "File not found.",
+      );
     if (file.createdById !== userId)
       throw new CapabilityError(
         "forbidden",
@@ -328,7 +441,9 @@ const removeAttachment = defineCapability({
         "attachment_removed",
         {
           organization_id: input.organizationId,
-          work_item_id: file.workItemId,
+          ...(file.pageId
+            ? { page_id: file.pageId }
+            : { work_item_id: file.workItemId }),
         },
         `${file.id}:removed`,
       );
@@ -342,7 +457,7 @@ const getAttachmentDownloadUrl = defineCapability({
   name: "getAttachmentDownloadUrl",
   title: "Get attachment download URL",
   description:
-    "A short-lived URL to download an attachment's bytes. The file id appears in `/api/files/<id>` references inside specifications and comments.",
+    "A short-lived URL to download an attachment's bytes. The file id appears in `/api/files/<id>` references inside specifications, pages and comments. A page's files are available to readers of its space.",
   kind: "query",
   surfaces: everywhere,
   external: true,
@@ -360,6 +475,15 @@ const getAttachmentDownloadUrl = defineCapability({
     if (!file || file.removedAt)
       throw new CapabilityError("not_found", "File not found.");
     await requireMember(ctx.db, file.organizationId, ctx.principal.userId);
+    if (file.pageId)
+      await requirePageAccess(
+        ctx.db,
+        file.organizationId,
+        ctx.principal.userId,
+        file.pageId,
+        "view",
+        "File not found.",
+      );
     return {
       url: await storage(ctx).presignDownload(
         file.objectKey,

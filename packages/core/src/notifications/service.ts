@@ -101,6 +101,15 @@ export type NotificationItem = {
   createdAt: string;
 };
 
+// A Spaces notification (one naming a space) is readable only while its
+// recipient holds effective access to that space; others need nothing more
+// than the member join.
+export const spaceNotificationReadable = sql`(${s.notification.spaceId} is null or exists (
+  select 1 from ${s.spaceReader}
+  where ${s.spaceReader.organizationId} = ${s.notification.organizationId}
+    and ${s.spaceReader.spaceId} = ${s.notification.spaceId}
+    and ${s.spaceReader.userId} = ${s.notification.userId}))`;
+
 // Every read and write is scoped to the authenticated user and, through the
 // member join, to organizations they still belong to.
 export function createNotificationService(db: Database) {
@@ -128,7 +137,10 @@ export function createNotificationService(db: Database) {
   return {
     async list(userId: string, input: NotificationQuery) {
       const q = notificationQuerySchema.parse(input);
-      const where: (SQL | undefined)[] = [eq(s.notification.userId, userId)];
+      const where: (SQL | undefined)[] = [
+        eq(s.notification.userId, userId),
+        spaceNotificationReadable,
+      ];
       if (q.organizationId)
         where.push(eq(s.notification.organizationId, q.organizationId));
       if (q.projectId) where.push(eq(s.notification.projectId, q.projectId));
@@ -212,6 +224,7 @@ export function createNotificationService(db: Database) {
             eq(s.notification.userId, userId),
             isNull(s.notification.readAt),
             isNull(s.notification.archivedAt),
+            spaceNotificationReadable,
           ),
         )
         .groupBy(s.notification.organizationId);

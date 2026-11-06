@@ -19,7 +19,8 @@ to:
 - personal data that is not history: private assistant conversations, the
   notification inbox, notification preferences, watched items and records of
   what their agents called;
-- organization, project, discipline and team memberships.
+- organization, project, discipline and team memberships, and named access to
+  [spaces](./spaces.md#access) (with the effective access derived from them).
 
 The account is also deactivated, so no sign-in method and no token can bring
 it back, and the admin console refuses every change to a deleted account.

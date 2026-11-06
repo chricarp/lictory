@@ -48,6 +48,7 @@ import {
   ShieldUser,
   UserRound,
   KanbanSquare,
+  Library,
   ListOrdered,
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
@@ -83,6 +84,12 @@ import { OrganizationMark } from "@lictory/platform/components/workspace/organiz
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import {
+  useNavigationSpaces,
+  useSpaceBySlug,
+  useSpaces,
+} from "@lictory/platform/components/spaces/store";
+import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -227,7 +234,11 @@ export function Shell({
   // The route names the project while browsing it. Organization-level surfaces
   // (Inbox, settings, account) keep the last project in context instead of
   // dropping the person out of it.
-  const params = useParams<{ project?: string }>();
+  const params = useParams<{
+    project?: string;
+    space?: string;
+    page?: string;
+  }>();
   const routeKey = params.project?.toUpperCase();
   const lastKey = useLastProjectKey(organization.id);
   const routeProject = projects.find((p) => p.key === routeKey);
@@ -247,10 +258,14 @@ export function Shell({
   // The shell owns the document title: it stays mounted across in-workspace
   // navigations, so React updates the hoisted <title> in place instead of the
   // route metadata swapping the node on every page change.
+  const routeSpace = useSpaceBySlug(params.space);
+  const { index: spaceIndex } = useSpaces();
   const title = workspaceTitle(pathname, {
     organization,
     project: routeProject,
     item: currentItem,
+    space: routeSpace,
+    page: params.page ? spaceIndex.pageById.get(params.page) : undefined,
   });
   // Creation is authoring: every entry point (button, shortcut, palette)
   // funnels here so a person without the capability gets one clear message.
@@ -416,9 +431,22 @@ export function Shell({
                 >
                   <Menu className="size-4" />
                 </Button>
-                <span className="text-sm font-medium">
-                  {project?.name ?? organization.name}
-                </span>
+                {/* Name where the person is: a space's pages belong to the
+                    space, not to the project the sidebar remembers. */}
+                {routeSpace ? (
+                  <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                    <SpaceIcon space={routeSpace} />
+                    <span className="truncate">{routeSpace.name}</span>
+                  </span>
+                ) : pathname.split("/")[2] === "spaces" ? (
+                  // Spaces of the whole organization: not the project the
+                  // sidebar remembers.
+                  <span className="truncate text-sm font-medium">Spaces</span>
+                ) : (
+                  <span className="truncate text-sm font-medium">
+                    {project?.name ?? organization.name}
+                  </span>
+                )}
                 <div className="ml-auto flex items-center gap-1">
                   <Button
                     variant="ghost"
@@ -681,6 +709,11 @@ function Sidebar({
             Litto
           </NavLink>
         </div>
+        <SpacesNav
+          organizationId={organization.id}
+          projectId={project?.id}
+          active={active}
+        />
         <div>
           <ProjectSwitcher
             project={project}
@@ -842,6 +875,92 @@ function InboxLink({
     >
       Inbox
     </NavLink>
+  );
+}
+
+// Lictory Spaces in the organization's navigation: every space overview,
+// then the organization's spaces and those of my projects and teams.
+function SpacesNav({
+  organizationId,
+  projectId,
+  active,
+}: {
+  organizationId: string;
+  // The project shown below lists its own spaces; they are not repeated here.
+  projectId: string | undefined;
+  active: (href: string, exact?: boolean) => boolean;
+}) {
+  const { organization } = useWorkspace();
+  const collapsedSidebar = useContext(CollapsedSidebarContext);
+  const { openCreateSpace } = useSpaces();
+  const sidebar = useNavigationSpaces().sidebar.filter(
+    (space) => !projectId || space.projectId !== projectId,
+  );
+  const [collapsed, toggle] = usePanelCollapsed(
+    organizationId,
+    "sidebar-spaces",
+  );
+  const org = organization.slug;
+  const all = paths.spaces(org);
+  const listId = useId();
+  return (
+    <div>
+      {collapsedSidebar ? (
+        <div className="mx-1 mb-2 border-t" />
+      ) : (
+        <div className="mb-1 flex h-6 items-center gap-1">
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-controls={listId}
+            onClick={toggle}
+            className="flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            Spaces
+            <ChevronRight
+              aria-hidden
+              className={cn(
+                "size-3 transition-transform duration-150",
+                !collapsed && "rotate-90",
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            aria-label="New space"
+            title="New space"
+            onClick={() => openCreateSpace()}
+            className="grid size-6 place-items-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <Plus className="size-3.5" aria-hidden />
+          </button>
+        </div>
+      )}
+      {(!collapsed || collapsedSidebar) && (
+        <div id={listId} className="space-y-0.5">
+          <NavLink
+            href={all}
+            active={active(all, true)}
+            icon={<Library className="size-4" />}
+          >
+            All spaces
+          </NavLink>
+          {sidebar.map((space) => {
+            const href = paths.space(org, space.slug);
+            return (
+              <NavLink
+                key={space.id}
+                href={href}
+                active={active(href)}
+                icon={<SpaceIcon space={space} />}
+              >
+                {space.name}
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1020,6 +1139,7 @@ function ProjectNav({
   const viewActive = views.some(
     (v) => v.id !== "all" && active(paths.view(org, key, v.id)),
   );
+  const projectSpaces = useNavigationSpaces().ofProject(project.id);
   return (
     <>
       <NavGroup label="Prepare">
@@ -1109,6 +1229,23 @@ function ProjectNav({
                 }
               >
                 {t.name}
+              </NavLink>
+            );
+          })}
+        </NavGroup>
+      )}
+      {projectSpaces.length > 0 && (
+        <NavGroup label="Spaces">
+          {projectSpaces.map((space) => {
+            const href = paths.space(org, space.slug);
+            return (
+              <NavLink
+                key={space.id}
+                href={href}
+                active={active(href)}
+                icon={<SpaceIcon space={space} />}
+              >
+                {space.name}
               </NavLink>
             );
           })}

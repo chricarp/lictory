@@ -20,7 +20,7 @@ export function createJobDatabase(url: string, options: { max: number }) {
 }
 
 const connectionError = (what: string, code: string) =>
-  Object.assign(new Error(`The work signal connection ${what}.`), { code });
+  Object.assign(new Error(`The signal connection ${what}.`), { code });
 
 export type WorkListener = {
   listening(): boolean;
@@ -40,6 +40,34 @@ export function listenForWork(
   },
   options: { probeMs?: number; probeTimeoutMs?: number } = {},
 ): WorkListener {
+  return listenForSignals(
+    url,
+    WORK_CHANNEL,
+    {
+      ...handlers,
+      onSignal: (payload) => {
+        if ((workKinds as readonly string[]).includes(payload))
+          handlers.onSignal(payload as WorkKind);
+      },
+    },
+    options,
+  );
+}
+
+// The same for any channel (the collaboration service listens to
+// `lictory_spaces_access`): raw payloads, validated by the caller.
+export function listenForSignals(
+  url: string,
+  channel: string,
+  handlers: {
+    onSignal(payload: string): void;
+    onListening(reconnected: boolean): void;
+    onLost(error: unknown): void;
+  },
+  options: { probeMs?: number; probeTimeoutMs?: number } = {},
+): WorkListener {
+  if (!/^[a-z_][a-z0-9_]*$/.test(channel))
+    throw new Error(`Invalid channel name: ${channel}`);
   const probeMs = options.probeMs ?? 30_000;
   const probeTimeoutMs = options.probeTimeoutMs ?? 10_000;
   let client: postgres.Sql | null = null;
@@ -73,18 +101,14 @@ export function listenForWork(
       onclose: () => lost(c, connectionError("closed", "CONNECTION_CLOSED")),
       // Supported by postgres.js but missing from its option types.
       ...({
-        onnotify: (channel: string, payload: string) => {
-          if (
-            channel === WORK_CHANNEL &&
-            (workKinds as readonly string[]).includes(payload)
-          )
-            handlers.onSignal(payload as WorkKind);
+        onnotify: (name: string, payload: string) => {
+          if (name === channel) handlers.onSignal(payload);
         },
       } as object),
     });
     client = c;
     try {
-      await c.unsafe(`listen "${WORK_CHANNEL}"`);
+      await c.unsafe(`listen "${channel}"`);
     } catch (error) {
       lost(c, error);
       return;

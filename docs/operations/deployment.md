@@ -9,24 +9,26 @@ described here (`deploy.sh` and friends). The maintainer's websites
 (`lictory.com`, `docs.lictory.com`) are static and separate
 ([websites](websites.md)).
 
-A server runs five long-lived services: the app gateway, API, background
-worker, zero-cache and PostgreSQL.
+A server runs six long-lived services: the app gateway, API, background
+worker, collaboration service, zero-cache and PostgreSQL.
 
 ```text
 https://<your app host> ──▶ Caddy gateway (TLS, SPA assets)
-                              ├─ /api ──▶ API / worker
-                              └─ /zero ─▶ zero-cache ──▶ PostgreSQL
+                              ├─ /api ───────────▶ API / worker ─────┐
+                              ├─ /zero ──────────▶ zero-cache ───────┤
+                              └─ /collaboration ─▶ collaboration ────┴─▶ PostgreSQL
 ```
 
-| Service      | Image                   | Purpose                                                                           |
-| ------------ | ----------------------- | --------------------------------------------------------------------------------- |
-| `proxy`      | `lictory-proxy`         | Private app gateway: API, streaming, Zero and retained SPA assets                 |
-| `api`        | `lictory-api`           | Hono API, Better Auth, files, Zero query/mutate endpoints and document metadata   |
-| `worker`     | `lictory-api`           | Durable AI, email and delivery jobs; delivery status refresh and automatic cycles |
-| `zero-cache` | `rocicorp/zero:1.11.3`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume   |
-| `postgres`   | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                  |
-| `migrate`    | `lictory-migrate`       | One-shot: applies committed migrations before activation                          |
-| `ops`        | `lictory-ops`           | One-shot backups, restores and monitoring                                         |
+| Service         | Image                   | Purpose                                                                            |
+| --------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `proxy`         | `lictory-proxy`         | Private app gateway: API, streaming, Zero and retained SPA assets                  |
+| `api`           | `lictory-api`           | Hono API, Better Auth, files, Zero query/mutate endpoints and document metadata    |
+| `worker`        | `lictory-api`           | Durable AI, email and delivery jobs; delivery status refresh and automatic cycles  |
+| `collaboration` | `lictory-api`           | Live draft editing in Spaces (Hocuspocus WebSocket); one instance per installation |
+| `zero-cache`    | `rocicorp/zero:1.11.3`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume    |
+| `postgres`      | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                   |
+| `migrate`       | `lictory-migrate`       | One-shot: applies committed migrations before activation                           |
+| `ops`           | `lictory-ops`           | One-shot backups, restores and monitoring                                          |
 
 The release file retains the legacy marketing key for compatibility with
 installed controllers, using the API digest for new releases. No marketing
@@ -73,14 +75,15 @@ the maintainer's choice and may change.
 
 ## Network boundaries
 
-Only the proxy publishes ports (80 and 443). PostgreSQL and zero-cache are on
-an internal Docker network with no route to or from the internet. The API,
+Only the proxy publishes ports (80 and 443). PostgreSQL, zero-cache and the
+collaboration service are on an internal Docker network with no route to or
+from the internet. The API,
 worker and ops tooling also join an egress-only network for external
 APIs (object storage, Resend or SMTP, OpenAI, Jira, PostHog, OAuth providers). The host firewall
 allows SSH (rate limited), HTTP and HTTPS only. With an
 [external database](external-database.md#configuration) there is no
-PostgreSQL container: migrations and zero-cache join the egress network too
-and reach the database over TLS.
+PostgreSQL container: migrations, zero-cache and the collaboration service
+join the egress network too and reach the database over TLS.
 
 The proxy:
 
@@ -89,6 +92,10 @@ The proxy:
   platform's public origin, `PLATFORM_URL` (default
   `https://<PUBLIC_APP_HOST or APP_HOST>`;
   cross-site WebSocket hijacking);
+- sends `/collaboration` (live draft editing in Spaces) to the collaboration
+  service unchanged, as a WebSocket without buffering or timeouts, with the
+  same `Origin` rule as `/zero`; the service checks the origin and the
+  session cookie itself as well;
 - answers `/api/zero/*` with 404: zero-cache calls those endpoints on the
   internal network with its API key and forwarded session cookies;
 - streams `/api/*` and `/relay/*` without buffering (server-sent events,
@@ -242,13 +249,13 @@ roles on the first start and re-applies them before every migration. An
 without a superuser: `lictory database setup` creates them once, and the
 owning roles apply the grants before every migration.
 
-| Role            | Used by                     | Privileges                                                                                 |
-| --------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
-| `lictory_owner` | `migrate`                   | Owns the application database and schema; DDL                                              |
-| `lictory_app`   | `api`, `worker`             | DML on application tables (default privileges cover future tables); no DDL, no temp tables |
-| `zero`          | `zero-cache`                | Superuser with replication; owns `<db>_zero` (client view records and change log)          |
-| `lictory_ops`   | backups, monitoring         | `pg_read_all_data`, `pg_monitor`                                                           |
-| `postgres`      | operators via `docker exec` | Bootstrap superuser, local socket only                                                     |
+| Role            | Used by                          | Privileges                                                                                 |
+| --------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `lictory_owner` | `migrate`                        | Owns the application database and schema; DDL                                              |
+| `lictory_app`   | `api`, `worker`, `collaboration` | DML on application tables (default privileges cover future tables); no DDL, no temp tables |
+| `zero`          | `zero-cache`                     | Superuser with replication; owns `<db>_zero` (client view records and change log)          |
+| `lictory_ops`   | backups, monitoring              | `pg_read_all_data`, `pg_monitor`                                                           |
+| `postgres`      | operators via `docker exec`      | Bootstrap superuser, local socket only                                                     |
 
 zero-cache needs a superuser because PostgreSQL only lets superusers create
 event triggers, which Zero uses to replicate schema changes precisely. Without
@@ -300,7 +307,7 @@ REGISTRY=lictory-local VERSION=0.0.0 PLATFORMS=linux/$(uname -m | sed 's/x86_64/
   docker buildx bake -f deploy/docker-bake.hcl --load
 ```
 
-The API image bundles the API and worker; only packages left external by the
+The API image bundles the API, the worker and the collaboration service; only packages left external by the
 bundles (`sharp`, `@firecrawl/anydoc`, `postgres` and any other bare import)
 are installed for the target platform at the lockfile's versions.
 
@@ -354,7 +361,8 @@ traffic.
 On an empty database a normal release does everything in order: the first
 start of PostgreSQL creates the roles and databases, the migrate service
 applies every migration (including the `lictory_zero` publication), zero-cache
-performs its initial sync, then the proxy, API and worker start.
+performs its initial sync, then the proxy, API, worker and collaboration
+service start.
 
 ```sh
 sudo lictory install        # or, by hand, with a release file of digests:
@@ -389,14 +397,18 @@ steps:
    transactional; see [migrations](migrations.md)), then waits until
    zero-cache has confirmed replication past the migration's WAL position.
 3. **activate**: rolls zero-cache (if its image changed), the proxy (which
-   carries the old and new assets), the API and the worker, each
-   waiting for its health check; verifies app liveness and a Zero WebSocket
-   upgrade through the private proxy; checks that every service
+   carries the old and new assets), the API, the worker and the
+   collaboration service, each waiting for its health check; verifies app
+   liveness and the Zero and collaboration WebSocket upgrades through the
+   private proxy; checks that every service
    runs exactly the release's image; then records the activation. If anything
    fails it restores the previous release's images. The proxy holds requests
    for up to 30 s while the API container is replaced, so API restarts drop
    no requests; replacing the proxy itself refuses connections for about two
-   seconds (open WebSockets reconnect).
+   seconds (open WebSockets reconnect). Replacing the collaboration service
+   pauses live draft editing for a few seconds: the old container closes its
+   connections after the pending saves finish, editors keep unsaved changes
+   in the browser and send them again when they reconnect.
 
 This is Zero's expand order: database, then API, then the client the gateway
 serves. The gateway retains the previous release's SPA assets for open tabs. Contract changes (drop or
@@ -439,6 +451,7 @@ timeouts even when Caddy considers the configuration valid.
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | API liveness / readiness    | `GET /healthz`, `GET /readyz` (container health check uses `/readyz`)                                                     |
 | zero-cache                  | `GET /keepalive` inside the network (health check, monitor)                                                               |
+| Collaboration               | `GET /livez`, `GET /readyz` inside the network (health check uses `/readyz`: owner lock held, not shutting down)          |
 | Worker, proxy               | Container health checks                                                                                                   |
 | Active version and services | `deploy.sh <env> status [--json]`                                                                                         |
 | Zero diagnostics            | `lictory-compose <env> exec zero-cache sh -c 'curl -su "admin:$ZERO_ADMIN_PASSWORD" localhost:4848/statz'` (never public) |
@@ -512,6 +525,14 @@ several replicas depends on whether its state lives in PostgreSQL:
   the replication slot. Running more needs Zero's multi-node setup (a
   replication manager plus view syncers sharing a replica backup), which this
   deployment does not configure.
+- **`collaboration`: no.** Editors of one draft must share one in-memory
+  room, so exactly one instance serves an installation. It holds a
+  session-level PostgreSQL advisory lock on its unpooled connection; a second
+  copy waits up to 15 seconds (long enough for a replaced container to let
+  go), then logs `collaboration.owner_busy` and exits without serving. If the
+  lock's connection is lost the service stops and Docker restarts it. Saves
+  are serialized in the database either way, so a misconfigured second copy
+  could never corrupt a draft, only split its editors.
 - **`postgres`: no.** The single primary is the source of truth. There are no
   read replicas.
 - **`proxy`: no.** It is the only published entry point (ports 80 and 443) and
@@ -532,6 +553,8 @@ it, every visitor shares one counter.
 
 Each API replica opens up to 10 database connections plus one LISTEN
 connection. Each worker replica opens `WORKER_DB_POOL_MAX` (4) plus one.
+The collaboration service opens up to 10 plus its LISTEN and owner-lock
+connections.
 Before you add replicas, check the total against PostgreSQL's
 `max_connections`. The gateway's and zero-cache's upstreams are the `api`
 service name. Make sure each replica is reachable under that name and passes
