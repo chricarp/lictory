@@ -6,6 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 import type { Doc } from "yjs";
 import { Extension, type Editor } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
@@ -80,6 +81,10 @@ import {
   resolveDraftAnchor,
 } from "@lictory/platform/components/spaces/comments/draft-anchors";
 import { resolveCommitAnchor } from "@lictory/platform/components/spaces/comments/anchors";
+import {
+  Fact,
+  StateDot,
+} from "@lictory/platform/components/spaces/page-header";
 
 // Threads on a live draft: new ones anchor to relative positions of this
 // epoch; those of another epoch show their quote; commit anchors find
@@ -121,6 +126,8 @@ export type LiveDraftProps = {
   onDone?: () => void;
   onEditor: (editor: Editor | null, anchoring: Anchoring | null) => void;
   canComment: boolean;
+  // The page header's toolbar, where Done and Publish go.
+  actionsSlot?: HTMLElement | null;
 };
 
 export function LiveDraft(props: LiveDraftProps) {
@@ -298,6 +305,7 @@ function DraftEditor({
   onDone,
   onEditor,
   canComment,
+  actionsSlot,
 }: LiveDraftProps & { session: DraftSession; recovery: DraftRecoveryStore }) {
   const { userId, memberName, organization, items, projects } = useWorkspace();
   const { index } = useSpaces();
@@ -528,71 +536,88 @@ function DraftEditor({
             editor?.commands.focus("start");
           }
         }}
-        className="w-full bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground disabled:opacity-100"
+        className="w-full bg-transparent text-[1.75rem] leading-tight font-semibold tracking-tight outline-none placeholder:text-muted-foreground disabled:opacity-100"
         placeholder="Untitled page"
       />
       <span id={titleId} className="sr-only">
         {title || "Untitled page"} content
       </span>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
-        <SaveIndicator
-          id={`${titleId}-state`}
-          state={state}
-          uploading={uploading}
-        />
-        <span
-          className={cn(
-            "inline-flex h-5 items-center rounded-full px-2 ring-1 ring-inset",
-            uncommitted ? "text-warning ring-warning/30" : "ring-foreground/8",
-          )}
-        >
-          {uncommitted
-            ? line.isMain
-              ? "Unpublished changes"
-              : "Uncommitted changes"
-            : line.isMain
-              ? "No unpublished changes"
-              : "All changes committed"}
-        </span>
-        <Editors peers={snapshot.peers} />
-        <span aria-live="polite" className="text-success">
-          {shownOutcome?.kind === "published"
-            ? `${line.isMain ? "Published" : "Committed"}${publishedVersion ? ` version ${publishedVersion}` : ""}`
-            : shownOutcome?.kind === "nothing"
-              ? line.isMain
-                ? "No changes to publish"
-                : "No changes to commit"
-              : ""}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {onDone && (
-            <Button variant="ghost" size="sm" onClick={onDone}>
-              Done
-            </Button>
-          )}
-          {target && (
-            <PublishButton
-              session={session}
-              target={target}
-              title={title.trim() || (head?.title ?? page.title)}
-              canPublish={editable}
-              onOutcome={(result) => {
-                if (result.kind === "error")
-                  toast.add({
-                    title: "Not published",
-                    description: result.message,
-                    type: "error",
-                  });
-                else
-                  setOutcome({
-                    ...result,
-                    at: session.getSnapshot().storedSequence,
-                  });
-              }}
+      {/* One status line: what this is (the live draft), whether it is
+          saved and published, and who else is here. */}
+      <div className="mt-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-muted-foreground">
+          <StateDot tone="draft">
+            {line.isMain
+              ? "Live draft"
+              : `Draft of ${line.branch?.name ?? "this branch"}`}
+          </StateDot>
+          <Fact>
+            <SaveIndicator
+              id={`${titleId}-state`}
+              state={state}
+              uploading={uploading}
             />
-          )}
+          </Fact>
+          <Fact>
+            <span className={cn(uncommitted && "text-warning")}>
+              {uncommitted
+                ? line.isMain
+                  ? "Unpublished changes"
+                  : "Uncommitted changes"
+                : line.isMain
+                  ? "No unpublished changes"
+                  : "All changes committed"}
+            </span>
+          </Fact>
+          <Editors peers={snapshot.peers} />
+          <span aria-live="polite" className="font-medium text-success">
+            {shownOutcome?.kind === "published"
+              ? `${line.isMain ? "Published" : "Committed"}${publishedVersion ? ` version ${publishedVersion}` : ""}`
+              : shownOutcome?.kind === "nothing"
+                ? line.isMain
+                  ? "No changes to publish"
+                  : "No changes to commit"
+                : ""}
+          </span>
         </div>
       </div>
+      {actionsSlot &&
+        createPortal(
+          <>
+            {onDone && (
+              <Button
+                variant="secondary"
+                size="sm"
+                title="Back to the published page"
+                onClick={onDone}
+              >
+                Done
+              </Button>
+            )}
+            {target && (
+              <PublishButton
+                session={session}
+                target={target}
+                title={title.trim() || (head?.title ?? page.title)}
+                canPublish={editable}
+                onOutcome={(result) => {
+                  if (result.kind === "error")
+                    toast.add({
+                      title: "Not published",
+                      description: result.message,
+                      type: "error",
+                    });
+                  else
+                    setOutcome({
+                      ...result,
+                      at: session.getSnapshot().storedSequence,
+                    });
+                }}
+              />
+            )}
+          </>,
+          actionsSlot,
+        )}
       <RecoveredText
         store={recovery}
         editor={editor}
@@ -837,6 +862,9 @@ function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
         : `${names[0]} and ${names.length - 1} others are editing`;
   return (
     <span className="inline-flex items-center gap-1.5" title={names.join(", ")}>
+      <span aria-hidden className="text-muted-foreground/60">
+        ·
+      </span>
       <span className="flex -space-x-1">
         {people.slice(0, 4).map((p) => (
           <span

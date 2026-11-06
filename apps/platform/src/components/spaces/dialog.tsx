@@ -242,3 +242,72 @@ export function RadioCards<T extends string>({
     </fieldset>
   );
 }
+
+// A short choice between two or three named options, drawn as a segmented
+// control (native radios: arrow keys move, the group is named by its
+// label), with the chosen option explained underneath.
+export function SegmentedChoice<T extends string>({
+  label,
+  name,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  name: string;
+  value: T;
+  options: { value: T; label: string; description?: ReactNode }[];
+  onChange: (value: T) => void;
+  disabled?: boolean;
+}) {
+  const labelId = useId();
+  const descriptionId = useId();
+  const chosen = options.find((o) => o.value === value);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+        <span id={labelId} className="text-xs font-medium">
+          {label}
+        </span>
+        <div
+          role="radiogroup"
+          aria-labelledby={labelId}
+          aria-describedby={chosen?.description ? descriptionId : undefined}
+          className="inline-flex rounded-full bg-muted p-0.5"
+        >
+          {options.map((option) => (
+            <label
+              key={option.value}
+              className={cn(
+                "relative inline-flex h-7 cursor-pointer items-center rounded-full px-3 text-xs font-medium transition-[background-color,color,box-shadow] duration-150 ease-out has-focus-visible:ring-2 has-focus-visible:ring-ring/60 has-disabled:cursor-default",
+                value === option.value
+                  ? "bg-card text-foreground shadow-(--shadow-border)"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <input
+                type="radio"
+                name={name}
+                value={option.value}
+                checked={value === option.value}
+                disabled={disabled}
+                onChange={() => onChange(option.value)}
+                className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-full opacity-0 disabled:cursor-default"
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </div>
+      {chosen?.description && (
+        <p
+          id={descriptionId}
+          className="text-xs leading-5 text-muted-foreground"
+        >
+          {chosen.description}
+        </p>
+      )}
+    </div>
+  );
+}

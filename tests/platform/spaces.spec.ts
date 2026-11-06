@@ -90,7 +90,7 @@ test("a project's space: pages are created, nested, moved and archived @smoke", 
   await expect(
     page.getByRole("heading", { name: "No pages yet" }),
   ).toBeVisible();
-  // It appears in the organization's and the project's navigation.
+  // It appears once in the navigation, with its project.
   const nav = page.getByRole("navigation", { name: "Workspace" });
   await expect(
     nav.getByRole("link", { name: "Payments handbook" }).first(),
@@ -159,12 +159,17 @@ test("a project's space: pages are created, nested, moved and archived @smoke", 
       .getByRole("navigation", { name: "Breadcrumb" })
       .getByRole("link", { name: "Runbooks" }),
   ).toBeVisible();
-  await expect(page.getByText(/Published by Sasha Owner/)).toBeVisible();
+  await expect(page.getByText("Published version 1")).toBeVisible();
+  await expect(page.getByText(/^by Sasha Owner/)).toBeVisible();
   // The undone archive's notice has left (its closing animation is not
   // part of the page being checked).
   await expect(page.locator('[data-slot="toast-close"]')).toHaveCount(0);
   await expectNoAccessibilityViolations(page, "page view");
-  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await page.getByRole("button", { name: "More page actions" }).click();
+  await page
+    .getByRole("menu", { name: "Page actions" })
+    .getByRole("menuitem", { name: "Archive" })
+    .click();
   await expect(page.getByText("This page is archived.")).toBeVisible();
   await page.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(page.getByText("This page is archived.")).toBeHidden();
@@ -205,9 +210,13 @@ test("inherited access: project members edit, everyone else in the organization 
   await expect(
     reader.page.getByRole("heading", { level: 1, name: "Runbooks" }),
   ).toBeVisible();
-  await expect(reader.page.getByRole("button", { name: "Move…" })).toHaveCount(
-    0,
-  );
+  await reader.page.getByRole("button", { name: "More page actions" }).click();
+  const actions = reader.page.getByRole("menu", { name: "Page actions" });
+  await expect(
+    actions.getByRole("menuitem", { name: "Version history" }),
+  ).toBeVisible();
+  await expect(actions.getByRole("menuitem", { name: "Move…" })).toHaveCount(0);
+  await reader.page.keyboard.press("Escape");
   await reader.context.close();
 
   const editor = await newPerson(browser);

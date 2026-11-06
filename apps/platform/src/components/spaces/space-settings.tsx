@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Archive, FileText, Home, KeyRound, Plus, Send } from "lucide-react";
+import { Archive, FileText, Home, KeyRound, Plus } from "lucide-react";
 import {
   spaceLevelAtLeast,
   type Command,
@@ -36,7 +36,7 @@ import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumb
 import {
   Dialog,
   Field,
-  RadioCards,
+  SegmentedChoice,
 } from "@lictory/platform/components/spaces/dialog";
 import {
   HomeFields,
@@ -45,6 +45,7 @@ import {
   type HomeChoice,
 } from "@lictory/platform/components/spaces/space-fields";
 import {
+  SpaceIcon,
   homeOf,
   inheritedAccess,
   levelLabels,
@@ -81,17 +82,23 @@ export function SpaceSettings() {
   const manage = canManageSpace(space);
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 pt-5 pb-16 sm:px-8 sm:pt-7">
         <div>
           <SpaceBreadcrumbs space={space} />
-          <h1 className="mt-3 text-lg font-semibold tracking-tight">
-            Space settings
-          </h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            Editors change the details. The space’s administrators (its creator,
-            organization administrators and its project’s administrators) decide
-            its home, publishing, access and archiving.
-          </p>
+          <header className="mt-6 flex items-center gap-3.5">
+            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted shadow-(--shadow-border)">
+              <SpaceIcon space={space} className="size-6 text-xl" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight">
+                Space settings
+              </h1>
+              <p className="text-[13px] text-muted-foreground">
+                Editors change the details. Administrators of the space decide
+                its home, publishing, access and archiving.
+              </p>
+            </div>
+          </header>
         </div>
         {!manage && !canEditDetails && (
           <ReadOnlyNotice>
@@ -110,13 +117,45 @@ export function SpaceSettings() {
           space={space}
           canEdit={manage && !space.archivedAt}
         />
-        <PublishingSection
-          space={space}
-          canEdit={manage && !space.archivedAt}
-        />
         <AccessSection space={space} canEdit={manage && !space.archivedAt} />
         <ArchiveSection space={space} canEdit={manage} />
       </div>
+    </div>
+  );
+}
+
+// Appears once something changed: what is saved stays obvious, and a
+// pristine form shows no disabled button.
+function SaveBar({
+  pending,
+  canSave,
+  onDiscard,
+  submit,
+  onSave,
+}: {
+  pending: boolean;
+  canSave: boolean;
+  onDiscard: () => void;
+  // Submits the surrounding form (Enter in a field does the same).
+  submit?: boolean;
+  onSave?: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/40 px-5 py-2.5">
+      <span className="mr-auto text-xs text-muted-foreground">
+        Unsaved changes
+      </span>
+      <Button size="sm" variant="ghost" onClick={onDiscard} disabled={pending}>
+        Discard
+      </Button>
+      <Button
+        type={submit ? "submit" : "button"}
+        size="sm"
+        disabled={!canSave || pending}
+        onClick={onSave}
+      >
+        {pending ? "Saving…" : "Save changes"}
+      </Button>
     </div>
   );
 }
@@ -213,18 +252,20 @@ function DetailsSection({
             />
           </Field>
           <InlineError>{error}</InlineError>
-          {canEdit && (
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                size="sm"
-                disabled={!changed || !valid || pending}
-              >
-                {pending ? "Saving…" : "Save details"}
-              </Button>
-            </div>
-          )}
         </SettingsBody>
+        {canEdit && changed && (
+          <SaveBar
+            submit
+            pending={pending}
+            canSave={valid}
+            onDiscard={() => {
+              setName(space.name);
+              setSlug(space.slug);
+              setDescription(space.description ?? "");
+              setIcon(space.icon);
+            }}
+          />
+        )}
       </form>
     </SettingsSection>
   );
@@ -232,6 +273,7 @@ function DetailsSection({
 
 function HomeSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
   const { run, error, pending } = useConfirmed();
+  const publishing = useConfirmed();
   const [home, setHome] = useState<HomeChoice>(() =>
     homeChoice(space.projectId, space.teamId),
   );
@@ -241,10 +283,10 @@ function HomeSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
     <SettingsSection
       id="home"
       icon={<Home />}
-      title="Home"
-      description="The organization, a project or one of its teams. The space appears in its home’s navigation, and in Inherited mode the home’s members can edit."
+      title="Home & publishing"
+      description="Where the space appears in navigation, and how changes reach its published pages."
     >
-      <SettingsBody className="space-y-3">
+      <SettingsBody className="space-y-5">
         <HomeFields
           value={home}
           onChange={setHome}
@@ -252,55 +294,17 @@ function HomeSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
           hint="Changing the home changes who can edit while access is Inherited."
         />
         <InlineError>{error}</InlineError>
-        {canEdit && (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={!changed || pending}
-              onClick={() =>
-                void run({
-                  type: "updateSpace",
-                  spaceId: space.id,
-                  home: home.projectId
-                    ? home.teamId
-                      ? { projectId: home.projectId, teamId: home.teamId }
-                      : { projectId: home.projectId }
-                    : {},
-                })
-              }
-            >
-              {pending ? "Saving…" : "Save home"}
-            </Button>
-          </div>
-        )}
-      </SettingsBody>
-    </SettingsSection>
-  );
-}
-
-function PublishingSection({
-  space,
-  canEdit,
-}: {
-  space: Space;
-  canEdit: boolean;
-}) {
-  const { run, error, pending } = useConfirmed();
-  return (
-    <SettingsSection
-      id="publishing"
-      icon={<Send />}
-      title="Publishing"
-      description="How changes reach the published page."
-    >
-      <SettingsBody className="space-y-3">
-        <RadioCards<SpacePublishing>
-          legend="Publishing policy"
+        <SegmentedChoice<SpacePublishing>
+          label="Publishing"
           name="space-publishing-setting"
           value={space.publishing}
-          disabled={!canEdit || pending}
-          onChange={(publishing) =>
-            void run({ type: "updateSpace", spaceId: space.id, publishing })
+          disabled={!canEdit || publishing.pending}
+          onChange={(next) =>
+            void publishing.run({
+              type: "updateSpace",
+              spaceId: space.id,
+              publishing: next,
+            })
           }
           options={[
             {
@@ -315,8 +319,26 @@ function PublishingSection({
             },
           ]}
         />
-        <InlineError>{error}</InlineError>
+        <InlineError>{publishing.error}</InlineError>
       </SettingsBody>
+      {canEdit && changed && (
+        <SaveBar
+          pending={pending}
+          canSave
+          onDiscard={() => setHome(homeChoice(space.projectId, space.teamId))}
+          onSave={() =>
+            void run({
+              type: "updateSpace",
+              spaceId: space.id,
+              home: home.projectId
+                ? home.teamId
+                  ? { projectId: home.projectId, teamId: home.teamId }
+                  : { projectId: home.projectId }
+                : {},
+            })
+          }
+        />
+      )}
     </SettingsSection>
   );
 }
@@ -358,8 +380,8 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
       title="Access"
       description={
         space.accessMode === "inherited"
-          ? `Inherited from ${home.label}. ${inheritedAccess(home, organization.name)} Named access below adds to that.`
-          : "Restricted. Only the people below can open this space; membership of its home grants nothing."
+          ? `Who can open and edit the space: its home’s people (${home.label}), and anyone named below.`
+          : "Only the people named below can open this space; membership of its home grants nothing."
       }
       action={
         canEdit ? (
@@ -387,8 +409,8 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
       }
     >
       <SettingsBody className="space-y-3 border-b">
-        <RadioCards<SpaceAccessMode>
-          legend="Access mode"
+        <SegmentedChoice<SpaceAccessMode>
+          label="Access mode"
           name="space-access-setting"
           value={space.accessMode}
           disabled={!canEdit || mode.pending}

@@ -5,6 +5,7 @@ import {
   sanitizeBranchNameInput,
   branchNameProblem,
 } from "@lictory/core/lib/branch-name";
+import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import type { PageBranch, SpacePage } from "@lictory/platform/data/spaces";
@@ -28,7 +29,7 @@ export function EditButton({
   if (!line.isMain || !line.writable) return null;
   const unpublished = line.draft?.uncommittedChanges;
   return (
-    <Button size="sm" variant="secondary" onClick={onEdit}>
+    <Button size="sm" onClick={onEdit}>
       <Pencil className="size-3.5" aria-hidden />
       {unpublished ? "Continue editing" : "Edit"}
     </Button>
@@ -52,12 +53,17 @@ export function CommentsToggle({
       aria-label={label}
       title={label}
       onClick={onToggle}
-      className="inline-flex h-6 items-center gap-1 rounded-full px-2 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 text-xs font-medium transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96]",
+        open
+          ? "bg-foreground/8 text-foreground"
+          : "bg-card text-foreground/80 shadow-(--shadow-border) hover:bg-muted hover:text-foreground",
+      )}
     >
       <MessageSquare className="size-3.5" aria-hidden />
       <span className="tabular-nums">{page.openThreads}</span>
       {page.blockingThreads > 0 && (
-        <span className="rounded-full bg-destructive/8 px-1.5 text-destructive tabular-nums ring-1 ring-destructive/20 ring-inset">
+        <span className="-mr-1 inline-flex h-5 items-center gap-1 rounded-full bg-destructive/8 px-1.5 text-[11px] text-destructive tabular-nums ring-1 ring-destructive/20 ring-inset">
           {page.blockingThreads} blocking
         </span>
       )}

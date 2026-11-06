@@ -431,9 +431,18 @@ export function Shell({
                 >
                   <Menu className="size-4" />
                 </Button>
-                <span className="text-sm font-medium">
-                  {project?.name ?? organization.name}
-                </span>
+                {/* Name where the person is: a space's pages belong to the
+                    space, not to the project the sidebar remembers. */}
+                {routeSpace ? (
+                  <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                    <SpaceIcon space={routeSpace} />
+                    <span className="truncate">{routeSpace.name}</span>
+                  </span>
+                ) : (
+                  <span className="truncate text-sm font-medium">
+                    {project?.name ?? organization.name}
+                  </span>
+                )}
                 <div className="ml-auto flex items-center gap-1">
                   <Button
                     variant="ghost"
@@ -696,7 +705,11 @@ function Sidebar({
             Litto
           </NavLink>
         </div>
-        <SpacesNav organizationId={organization.id} active={active} />
+        <SpacesNav
+          organizationId={organization.id}
+          projectId={project?.id}
+          active={active}
+        />
         <div>
           <ProjectSwitcher
             project={project}
@@ -865,15 +878,20 @@ function InboxLink({
 // then the organization's spaces and those of my projects and teams.
 function SpacesNav({
   organizationId,
+  projectId,
   active,
 }: {
   organizationId: string;
+  // The project shown below lists its own spaces; they are not repeated here.
+  projectId: string | undefined;
   active: (href: string, exact?: boolean) => boolean;
 }) {
   const { organization } = useWorkspace();
   const collapsedSidebar = useContext(CollapsedSidebarContext);
   const { openCreateSpace } = useSpaces();
-  const { sidebar } = useNavigationSpaces();
+  const sidebar = useNavigationSpaces().sidebar.filter(
+    (space) => !projectId || space.projectId !== projectId,
+  );
   const [collapsed, toggle] = usePanelCollapsed(
     organizationId,
     "sidebar-spaces",

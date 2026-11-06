@@ -12,11 +12,11 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   Dialog,
   Field,
-  RadioCards,
+  SegmentedChoice,
 } from "@lictory/platform/components/spaces/dialog";
 import {
   HomeFields,
-  IconField,
+  IconPicker,
   homeChoice,
   type HomeChoice,
 } from "@lictory/platform/components/spaces/space-fields";
@@ -38,7 +38,12 @@ export function CreateSpaceDialog({
 }) {
   const { organization, directory, mutateConfirmed } = useWorkspace();
   const router = useRouter();
-  const ids = { name: useId(), slug: useId(), description: useId() };
+  const ids = {
+    name: useId(),
+    slug: useId(),
+    description: useId(),
+    access: useId(),
+  };
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
@@ -93,7 +98,7 @@ export function CreateSpaceDialog({
   return (
     <Dialog
       title="New space"
-      description="A space keeps pages your team writes and reviews together: handbooks, decisions, runbooks."
+      description="Pages your team writes and reviews together: handbooks, decisions, runbooks."
       onClose={onClose}
       onSubmit={() => void submit()}
       footer={
@@ -107,9 +112,13 @@ export function CreateSpaceDialog({
         </>
       }
     >
-      <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" htmlFor={ids.name}>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label htmlFor={ids.name} className="block text-xs font-medium">
+            Name
+          </label>
+          <div className="flex items-center gap-2">
+            <IconPicker value={icon} onChange={setIcon} />
             <Input
               id={ids.name}
               data-autofocus
@@ -119,31 +128,43 @@ export function CreateSpaceDialog({
               placeholder="Payments handbook"
               autoComplete="off"
             />
-          </Field>
-          <Field
-            label="Handle"
-            htmlFor={ids.slug}
-            hint={
-              handle && !handleValid
-                ? "Use lowercase letters, digits and single hyphens."
-                : `/${organization.slug}/spaces/${handle || "…"}`
-            }
-          >
-            <Input
-              id={ids.slug}
-              value={handle}
-              maxLength={60}
-              onChange={(e) => {
-                setSlugEdited(true);
-                setSlug(e.target.value.toLowerCase());
-              }}
-              placeholder="payments-handbook"
-              autoComplete="off"
-              aria-invalid={handle !== "" && !handleValid}
-            />
-          </Field>
+          </div>
+          {/* The handle follows the name until someone edits it. */}
+          <details className="group text-[11px] text-muted-foreground">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-sm outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 [&::-webkit-details-marker]:hidden">
+              <span className="truncate">
+                /{organization.slug}/spaces/{handle || "…"}
+              </span>
+              <span className="font-medium text-foreground underline underline-offset-2 group-open:hidden">
+                Change
+              </span>
+            </summary>
+            <div className="mt-2">
+              <Field
+                label="Handle"
+                htmlFor={ids.slug}
+                hint={
+                  handle && !handleValid
+                    ? "Use lowercase letters, digits and single hyphens."
+                    : "Part of the space’s address; links keep working only while it stays the same."
+                }
+              >
+                <Input
+                  id={ids.slug}
+                  value={handle}
+                  maxLength={60}
+                  onChange={(e) => {
+                    setSlugEdited(true);
+                    setSlug(e.target.value.toLowerCase());
+                  }}
+                  placeholder="payments-handbook"
+                  autoComplete="off"
+                  aria-invalid={handle !== "" && !handleValid}
+                />
+              </Field>
+            </div>
+          </details>
         </div>
-        <IconField value={icon} onChange={setIcon} />
         <Field label="Description" htmlFor={ids.description} optional>
           <textarea
             id={ids.description}
@@ -155,44 +176,56 @@ export function CreateSpaceDialog({
             className="w-full resize-y rounded-xl border border-input bg-card px-3.5 py-2 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
           />
         </Field>
-        <HomeFields value={home} onChange={setHome} />
-        <RadioCards
-          legend="Access"
-          name="space-access"
-          value={accessMode}
-          onChange={setAccessMode}
-          options={[
-            {
-              value: "inherited",
-              label: "Inherited",
-              description: inheritedAccess(homeInfo, organization.name),
-            },
-            {
-              value: "restricted",
-              label: "Restricted",
-              description:
-                "Only people you add can open it. You get edit access.",
-            },
-          ]}
-        />
-        <RadioCards
-          legend="Publishing"
-          name="space-publishing"
-          value={publishing}
-          onChange={setPublishing}
-          options={[
-            {
-              value: "direct",
-              label: "Direct",
-              description: publishingDescriptions.direct,
-            },
-            {
-              value: "reviewed",
-              label: "Reviewed",
-              description: publishingDescriptions.reviewed,
-            },
-          ]}
-        />
+        <section
+          aria-labelledby={ids.access}
+          className="space-y-4 rounded-xl bg-muted/50 p-4 ring-1 ring-foreground/6 ring-inset"
+        >
+          <h3 id={ids.access} className="text-[13px] font-semibold">
+            Access & publishing
+          </h3>
+          <HomeFields
+            value={home}
+            onChange={setHome}
+            hint="Where the space appears in navigation."
+          />
+          <SegmentedChoice
+            label="Access"
+            name="space-access"
+            value={accessMode}
+            onChange={setAccessMode}
+            options={[
+              {
+                value: "inherited",
+                label: "Inherited",
+                description: inheritedAccess(homeInfo, organization.name),
+              },
+              {
+                value: "restricted",
+                label: "Restricted",
+                description:
+                  "Only people you add can open it. You get edit access.",
+              },
+            ]}
+          />
+          <SegmentedChoice
+            label="Publishing"
+            name="space-publishing"
+            value={publishing}
+            onChange={setPublishing}
+            options={[
+              {
+                value: "direct",
+                label: "Direct",
+                description: publishingDescriptions.direct,
+              },
+              {
+                value: "reviewed",
+                label: "Reviewed",
+                description: publishingDescriptions.reviewed,
+              },
+            ]}
+          />
+        </section>
         {error && (
           <p role="alert" className="text-xs text-destructive">
             {error}

@@ -234,7 +234,7 @@ export function Toolbar({
       aria-label="Formatting"
       aria-disabled={disabled || undefined}
       onKeyDown={onKeyDown}
-      className="flex [scrollbar-width:none] items-center gap-0.5 overflow-x-auto rounded-full bg-card px-1.5 py-1 ring-1 ring-foreground/8"
+      className="flex [scrollbar-width:none] items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1 shadow-(--shadow-border)"
     >
       {controls.map((control, index) => (
         <span key={control.id} className="flex shrink-0 items-center">
@@ -266,8 +266,8 @@ export function Toolbar({
               if (!disabled && control.disabled !== true) control.run();
             }}
             className={cn(
-              "grid size-7 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 aria-disabled:opacity-40",
-              control.pressed && "bg-muted text-foreground",
+              "grid size-7 place-items-center rounded-full text-foreground/70 transition-[background-color,color] duration-150 ease-out outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 aria-disabled:opacity-40",
+              control.pressed && "bg-foreground/8 text-foreground",
             )}
           >
             {control.icon}

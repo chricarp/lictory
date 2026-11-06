@@ -50,6 +50,8 @@ export type PageSurfaceProps = {
   onCommentsOpenChange: (open: boolean) => void;
   commentsSlot: HTMLElement | null;
   commentsWide: boolean;
+  // Where the live draft puts Done and Publish (the page header's toolbar).
+  actionsSlot?: HTMLElement | null;
 };
 
 function commitAnchoring(
@@ -88,6 +90,7 @@ function Surface({
   onCommentsOpenChange,
   commentsSlot,
   commentsWide,
+  actionsSlot,
 }: PageSurfaceProps) {
   const { organization } = useWorkspace();
   const pathname = usePathname();
@@ -159,6 +162,7 @@ function Surface({
           onDone={line.isMain ? onStopEditing : undefined}
           onEditor={onLiveEditor}
           canComment={line.canComment}
+          actionsSlot={actionsSlot}
         />
       </Suspense>
     );
@@ -172,7 +176,7 @@ function Surface({
     );
   else
     content = (
-      <div className="mt-6">
+      <div className="mt-8">
         {line.viewed && (
           <ViewedVersion
             version={versionOf(history.commits, line.viewed.id)}

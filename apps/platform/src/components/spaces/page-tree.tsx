@@ -8,7 +8,6 @@ import {
   useState,
   type DragEvent,
   type KeyboardEvent,
-  type ReactNode,
 } from "react";
 import {
   Archive,
@@ -39,6 +38,7 @@ import {
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpacePages } from "@lictory/platform/components/spaces/store";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
+import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
 
 // The page tree of one space (WAI-ARIA tree view): arrow keys move and
 // expand, Enter opens, Alt+Arrow reorders among siblings, Shift+F10 opens
@@ -67,13 +67,33 @@ export function PageTree({
     () => pageTree(pages, showArchived),
     [pages, showArchived],
   );
+  // The space home opens the top level one step, so its sections show
+  // what they hold; the pane beside a page opens the way to that page.
+  const firstLevel = (list: readonly SpacePage[]) =>
+    variant === "home"
+      ? list.filter(
+          (p) =>
+            !p.parentId &&
+            !p.archivedAt &&
+            list.some((c) => c.parentId === p.id && !c.archivedAt),
+        )
+      : [];
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => {
-    const ids = new Set<string>();
+    const ids = new Set<string>(firstLevel(pages).map((p) => p.id));
     if (activePageId)
       for (const p of ancestorsOf(pageTree(pages, true).byId, activePageId))
         ids.add(p.id);
     return ids;
   });
+  // Pages that arrive after the first render (a cold start) open the same
+  // way, once.
+  const [opened, setOpened] = useState(pages.length > 0);
+  if (!opened && pages.length > 0) {
+    setOpened(true);
+    const first = firstLevel(pages);
+    if (first.length)
+      setExpanded(new Set([...expanded, ...first.map((p) => p.id)]));
+  }
   // Opening a page (from a link, the palette or after creating it), or
   // moving the open page, reveals it in the tree.
   const activeAncestors = activePageId
@@ -510,17 +530,19 @@ function TreeItem({
         >
           <ChevronRight
             className={cn(
-              "size-3.5 transition-transform duration-150",
+              "size-3.5 transition-transform duration-150 ease-out",
               expanded && "rotate-90",
             )}
           />
         </span>
       ) : (
-        <span aria-hidden className="grid size-5 shrink-0 place-items-center">
-          <FileText className="size-3.5 text-muted-foreground/70" />
-        </span>
+        <span aria-hidden className="size-5 shrink-0" />
       )}
-      <span className="min-w-0 flex-1 truncate">{page.title}</span>
+      <FileText
+        aria-hidden
+        className="size-3.5 shrink-0 text-muted-foreground"
+      />
+      <span className="ml-0.5 min-w-0 flex-1 truncate">{page.title}</span>
       {archived && (
         <span className="shrink-0 font-mono text-[10px] tracking-[0.06em] text-muted-foreground uppercase">
           Archived
@@ -551,8 +573,6 @@ function PageMenu({
 }) {
   const { createPage, movePage, archivePage, restorePage } = usePageActions();
   const archived = Boolean(page.archivedAt);
-  const item =
-    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:bg-muted";
   return (
     <Popover
       width={200}
@@ -584,7 +604,6 @@ function PageMenu({
       {(close) => (
         <Menu label={`Actions for ${page.title}`}>
           <MenuItem
-            className={item}
             onSelect={() => {
               close();
               onOpen();
@@ -596,7 +615,6 @@ function PageMenu({
           {!archived && (
             <>
               <MenuItem
-                className={item}
                 onSelect={() => {
                   close();
                   createPage(page.id);
@@ -606,7 +624,6 @@ function PageMenu({
                 New subpage
               </MenuItem>
               <MenuItem
-                className={item}
                 onSelect={() => {
                   close();
                   movePage(page);
@@ -618,7 +635,6 @@ function PageMenu({
             </>
           )}
           <MenuItem
-            className={item}
             onSelect={() => {
               close();
               if (archived) restorePage(page);
@@ -637,64 +653,5 @@ function PageMenu({
         </Menu>
       )}
     </Popover>
-  );
-}
-
-// The first item takes focus once the popover is placed (it starts hidden
-// while it measures itself).
-function Menu({ label, children }: { label: string; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() =>
-      ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus(),
-    );
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  return (
-    <div ref={ref} className="p-1" role="menu" aria-label={label}>
-      {children}
-    </div>
-  );
-}
-
-// Menu items move with the arrow keys (the menu pattern), Tab leaves.
-function MenuItem({
-  children,
-  icon,
-  onSelect,
-  className,
-}: {
-  children: string;
-  icon: ReactNode;
-  onSelect: () => void;
-  className: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      className={className}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        const items = [
-          ...(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>(
-            '[role="menuitem"]',
-          ) ?? []),
-        ];
-        const index = items.indexOf(event.currentTarget);
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          items[(index + 1) % items.length]?.focus();
-        } else if (event.key === "ArrowUp") {
-          event.preventDefault();
-          items[(index - 1 + items.length) % items.length]?.focus();
-        }
-      }}
-    >
-      <span aria-hidden className="text-muted-foreground">
-        {icon}
-      </span>
-      {children}
-    </button>
   );
 }

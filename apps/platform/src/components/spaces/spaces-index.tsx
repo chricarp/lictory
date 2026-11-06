@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
-import { Archive, Lock, Plus, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useId, useState } from "react";
+import { Archive, FileText, Lock, Plus, ShieldAlert } from "lucide-react";
 import type { SpaceAccessLevel } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
-import { Badge, EmptyState, SectionLabel } from "@lictory/ui/primitives";
+import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { spacesIManageWithoutAccess } from "@lictory/platform/data/lookups";
 import type { Space } from "@lictory/platform/data/spaces";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { useSpaces } from "@lictory/platform/components/spaces/store";
+import {
+  useSpacePages,
+  useSpaces,
+} from "@lictory/platform/components/spaces/store";
 import { Dialog, RadioCards } from "@lictory/platform/components/spaces/dialog";
 import {
   SpaceIcon,
@@ -18,10 +22,12 @@ import {
   levelLabels,
 } from "@lictory/platform/components/spaces/space-meta";
 
-// Every space I can read, organization spaces first, then by project.
+// Every space I can read, organization spaces first, then by project: a
+// card grid that uses the width, each card saying what the space holds and
+// when it last changed.
 export function SpacesIndex() {
   const { organization, directory } = useWorkspace();
-  const { spaces, complete, levelOf, openCreateSpace } = useSpaces();
+  const { spaces, complete, openCreateSpace } = useSpaces();
   const [showArchived, setShowArchived] = useState(false);
   const active = spaces.filter((s) => !s.archivedAt);
   const archived = spaces.filter((s) => s.archivedAt);
@@ -35,11 +41,11 @@ export function SpacesIndex() {
     .sort((a, b) => a.project.name.localeCompare(b.project.name));
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-8 sm:pt-8">
         <header className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1 basis-64">
             <h1 className="text-xl font-semibold tracking-tight">Spaces</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
               Pages your teams write and review together. Every space belongs to{" "}
               {organization.name}, a project or a team.
             </p>
@@ -64,20 +70,20 @@ export function SpacesIndex() {
             runbooks. You choose who can read and edit it.
           </EmptyState>
         ) : (
-          <div className="mt-8 space-y-8">
+          <div className="mt-8 space-y-10">
             {organizationSpaces.length > 0 && (
               <SpaceGroup
                 title={organization.name}
+                kind="Organization"
                 spaces={organizationSpaces}
-                levelOf={levelOf}
               />
             )}
             {byProject.map(({ project, spaces: list }) => (
               <SpaceGroup
                 key={project.id}
                 title={project.name}
+                kind="Project"
                 spaces={list}
-                levelOf={levelOf}
               />
             ))}
             {archived.length > 0 && (
@@ -95,11 +101,7 @@ export function SpacesIndex() {
                 </button>
                 {showArchived && (
                   <div className="mt-3">
-                    <SpaceGroup
-                      title="Archived"
-                      spaces={archived}
-                      levelOf={levelOf}
-                    />
+                    <SpaceGroup title="Archived" spaces={archived} />
                   </div>
                 )}
               </div>
@@ -114,55 +116,84 @@ export function SpacesIndex() {
 
 function SpaceGroup({
   title,
+  kind,
   spaces,
-  levelOf,
 }: {
   title: string;
+  kind?: string;
   spaces: Space[];
-  levelOf: (id: string) => SpaceAccessLevel | undefined;
 }) {
-  const { organization, directory } = useWorkspace();
+  const headingId = useId();
   return (
-    <section aria-label={title}>
-      <SectionLabel className="mb-2 px-1">{title}</SectionLabel>
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {spaces.map((space) => {
-          const level = levelOf(space.id);
-          const home = homeOf(space, directory, organization.name);
-          return (
-            <li key={space.id}>
-              <Link
-                href={paths.space(organization.slug, space.slug)}
-                className="flex h-full gap-3 rounded-xl bg-card p-3 shadow-(--shadow-border) outline-none hover:shadow-(--shadow-border-hover) focus-visible:ring-2 focus-visible:ring-ring/60"
-              >
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted">
-                  <SpaceIcon space={space} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium">
-                    {space.name}
-                  </span>
-                  <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-                    {space.description ?? home.label}
-                  </span>
-                  <span className="mt-2 flex flex-wrap gap-1">
-                    {home.kind === "team" && (
-                      <Badge>{home.teamName} team</Badge>
-                    )}
-                    {space.accessMode === "restricted" && (
-                      <Badge tone="warning">
-                        <Lock className="size-3" aria-hidden /> Restricted
-                      </Badge>
-                    )}
-                    {level && <Badge>{levelLabels[level]}</Badge>}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          );
-        })}
+    <section aria-labelledby={headingId}>
+      <div className="mb-3 flex items-baseline gap-2 px-1">
+        <h2 id={headingId} className="text-sm font-semibold">
+          {title}
+        </h2>
+        {kind && <span className="text-xs text-muted-foreground">{kind}</span>}
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {spaces.map((space) => (
+          <li key={space.id} className="min-w-0">
+            <SpaceCard space={space} />
+          </li>
+        ))}
       </ul>
     </section>
+  );
+}
+
+function SpaceCard({ space }: { space: Space }) {
+  const { organization, directory } = useWorkspace();
+  const { levelOf } = useSpaces();
+  const pages = useSpacePages(space.id);
+  const level = levelOf(space.id);
+  const home = homeOf(space, directory, organization.name);
+  const live = pages.filter((p) => !p.archivedAt);
+  const updatedAt = live.reduce(
+    (latest, p) => (p.updatedAt > latest ? p.updatedAt : latest),
+    space.updatedAt,
+  );
+  return (
+    <Link
+      href={paths.space(organization.slug, space.slug)}
+      className="group flex h-full min-h-36 flex-col rounded-2xl border border-transparent bg-card p-4 shadow-(--shadow-border) transition-[box-shadow,scale] duration-150 ease-out outline-none hover:shadow-(--shadow-border-hover) focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.99]"
+    >
+      <span className="flex items-start justify-between gap-2">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted">
+          <SpaceIcon space={space} className="size-6 text-xl" />
+        </span>
+        <span className="flex flex-wrap justify-end gap-1">
+          {home.kind === "team" && <Badge>{home.teamName} team</Badge>}
+          {space.accessMode === "restricted" && (
+            <Badge tone="warning">
+              <Lock className="size-3" aria-hidden /> Restricted
+            </Badge>
+          )}
+          {level && level !== "edit" && <Badge>{levelLabels[level]}</Badge>}
+        </span>
+      </span>
+      <span className="mt-3 block truncate text-[15px] font-semibold tracking-tight">
+        {space.name}
+      </span>
+      <span className="mt-1 line-clamp-2 block text-[13px] leading-5 text-muted-foreground">
+        {space.description ??
+          (space.publishing === "reviewed"
+            ? "Changes are reviewed before they are published."
+            : "Editors publish changes directly.")}
+      </span>
+      <span className="mt-auto flex flex-wrap items-center gap-x-1.5 pt-4 text-xs text-muted-foreground tabular-nums">
+        <FileText className="size-3.5" aria-hidden />
+        {live.length === 1 ? "1 page" : `${live.length} pages`}
+        <span aria-hidden>·</span>
+        <span>
+          Updated{" "}
+          <time dateTime={updatedAt} title={absoluteTime(updatedAt)}>
+            {relativeTime(updatedAt)}
+          </time>
+        </span>
+      </span>
+    </Link>
   );
 }
 
@@ -191,16 +222,17 @@ function ManagedWithoutAccess() {
   if (!shown.length) return null;
   return (
     <section aria-labelledby="managed-without-access" className="mt-10">
-      <SectionLabel className="mb-1 px-1">
-        <span id="managed-without-access">
-          Restricted spaces you administer
-        </span>
-      </SectionLabel>
+      <h2
+        id="managed-without-access"
+        className="mb-1 px-1 text-sm font-semibold"
+      >
+        Restricted spaces you administer
+      </h2>
       <p className="mb-3 px-1 text-xs text-muted-foreground">
         You manage these spaces but are not on their access list, so their pages
         stay closed to you.
       </p>
-      <ul className="divide-y rounded-xl bg-card shadow-(--shadow-border)">
+      <ul className="divide-y rounded-2xl border border-transparent bg-card shadow-(--shadow-border)">
         {shown.map((space) => (
           <li
             key={space.id}

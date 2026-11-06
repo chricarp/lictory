@@ -382,7 +382,7 @@ export function PageComments({
       actions={actions}
       fileContext={fileContext}
       versionHref={versionHref}
-      onClose={wide ? undefined : () => onOpenChange(false)}
+      onClose={() => onOpenChange(false)}
       hint={
         canComment
           ? "No open comments. Select text to comment on it, or comment on the whole page."
@@ -467,7 +467,7 @@ function CommentsSheet({
         onKeyDown={(event) => {
           if (ref.current) keepTabInside(event, ref.current);
         }}
-        className="relative max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-background p-4 shadow-xl outline-none"
+        className="relative max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl bg-background px-4 pb-4 shadow-(--shadow-panel) outline-none"
       >
         {children}
       </div>

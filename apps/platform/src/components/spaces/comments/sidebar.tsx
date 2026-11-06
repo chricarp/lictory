@@ -99,18 +99,25 @@ export function CommentsPanel({
   const headingId = useId();
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      {/* Stays in view while the threads scroll beneath it. */}
+      <div className="sticky top-0 z-10 -mx-4 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
         <h2 id={headingId} className="text-sm font-semibold">
           Comments
         </h2>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {open.length} open{blocking ? ` · ${blocking} blocking` : ""}
+          {open.length} open
+          {blocking ? (
+            <>
+              {" · "}
+              <span className="text-destructive">{blocking} blocking</span>
+            </>
+          ) : null}
         </span>
         {onClose && (
           <Button
             variant="ghost"
             size="icon"
-            className="ml-auto"
+            className="-mr-1.5 ml-auto"
             aria-label="Close comments"
             onClick={onClose}
           >
@@ -383,7 +390,7 @@ function ThreadCard({
       )}
       {/* Reopening is offered on folded resolved threads too. */}
       {canComment && (
-        <footer className="flex flex-wrap items-center gap-1 border-t px-2 py-1.5">
+        <footer className="flex flex-wrap items-center gap-0.5 border-t px-1.5 py-1.5">
           {replying ? (
             <form
               className="flex w-full flex-col gap-2"
@@ -436,6 +443,7 @@ function ThreadCard({
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="px-2.5"
                   onClick={() => setReplying(true)}
                 >
                   Reply
@@ -445,6 +453,7 @@ function ThreadCard({
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="px-2.5"
                   disabled={busy}
                   onClick={() =>
                     void run(() => actions.resolve(thread.id, true))
@@ -456,6 +465,7 @@ function ThreadCard({
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="px-2.5"
                   disabled={busy}
                   onClick={() =>
                     void run(() => actions.resolve(thread.id, false))
@@ -468,6 +478,7 @@ function ThreadCard({
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="px-2.5"
                   disabled={busy}
                   onClick={() =>
                     void run(() =>

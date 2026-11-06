@@ -1,5 +1,7 @@
-import { useId } from "react";
+import { useId, useRef } from "react";
+import { BookOpen } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { Popover, usePopover } from "@lictory/ui/popover";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -113,10 +115,12 @@ export function IconField({
   value,
   onChange,
   disabled,
+  legend = "Icon",
 }: {
   value: string | null;
   onChange: (icon: string | null) => void;
   disabled?: boolean;
+  legend?: string;
 }) {
   const name = useId();
   const choices: { value: string | null; label: string }[] = [
@@ -125,23 +129,23 @@ export function IconField({
   ];
   return (
     <fieldset disabled={disabled}>
-      <legend className="mb-1.5 text-xs font-medium">Icon</legend>
-      <div className="flex flex-wrap gap-1">
+      <legend className="mb-1.5 text-xs font-medium">{legend}</legend>
+      <div className="flex flex-wrap gap-1.5">
         {choices.map((choice) => (
           <label
             key={choice.label}
             className={cn(
-              "grid h-8 min-w-8 cursor-pointer place-items-center rounded-full px-2 text-[15px] shadow-(--shadow-border) has-focus-visible:ring-2 has-focus-visible:ring-ring/60",
-              choice.value === null && "text-xs text-muted-foreground",
+              "relative grid h-9 min-w-9 cursor-pointer place-items-center rounded-full border border-transparent px-2 text-[17px] transition-[background-color,box-shadow] duration-150 ease-out has-focus-visible:ring-2 has-focus-visible:ring-ring/60 has-disabled:cursor-default",
+              choice.value === null && "px-3 text-xs text-muted-foreground",
               value === choice.value
-                ? "bg-primary/8 ring-1 ring-primary/50"
-                : "hover:bg-muted",
+                ? "bg-card text-foreground shadow-[0_0_0_2px_var(--foreground)]"
+                : "shadow-(--shadow-border) hover:bg-muted",
             )}
           >
             <input
               type="radio"
               name={name}
-              className="sr-only"
+              className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-full opacity-0"
               checked={value === choice.value}
               onChange={() => onChange(choice.value)}
             />
@@ -150,5 +154,73 @@ export function IconField({
         ))}
       </div>
     </fieldset>
+  );
+}
+
+// The icon as one compact control beside the name: the current icon opens
+// the choices.
+export function IconPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (icon: string | null) => void;
+}) {
+  return (
+    <Popover
+      width={300}
+      trigger={(props) => (
+        <button
+          {...props}
+          type="button"
+          aria-label={value ? `Icon: ${value}` : "Icon: none"}
+          title="Choose an icon"
+          className="grid size-10 shrink-0 place-items-center rounded-xl border border-input bg-card text-xl shadow-xs transition-[background-color,scale] duration-150 ease-out outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.96]"
+        >
+          {value ?? (
+            <BookOpen className="size-4 text-muted-foreground" aria-hidden />
+          )}
+        </button>
+      )}
+    >
+      {(close) => (
+        <IconPickerBody value={value} onChange={onChange} onPicked={close} />
+      )}
+    </Popover>
+  );
+}
+
+// A pointer pick closes the choices; arrow keys only move the choice, so
+// a keyboard closes them with Escape or Tab.
+function IconPickerBody({
+  value,
+  onChange,
+  onPicked,
+}: {
+  value: string | null;
+  onChange: (icon: string | null) => void;
+  onPicked: () => void;
+}) {
+  const labelId = usePopover()?.labelId;
+  const pointer = useRef(false);
+  return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only records whether the pick came from a pointer; the radios are the controls.
+    <div
+      className="p-3"
+      onPointerDown={() => (pointer.current = true)}
+      onKeyDown={() => (pointer.current = false)}
+    >
+      <h2 id={labelId} className="sr-only">
+        Choose an icon
+      </h2>
+      <IconField
+        value={value}
+        legend="Space icon"
+        onChange={(icon) => {
+          onChange(icon);
+          if (pointer.current) onPicked();
+        }}
+      />
+    </div>
   );
 }
