@@ -183,7 +183,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   commitDraft: {
     title: "Commit page draft",
     description:
-      "Seal the live draft of a page line (`branchId`, its `draftId` and `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw, into an immutable commit with `title` and an optional `message`. Later edits stay uncommitted. On main in a Direct space this publishes the page. Allowed for editors of the space; a named branch only for its author and collaborators; main in a Reviewed space is protected (use proposePageChange or a branch and pull request). Edits that cancel out record the cut without a commit (`nothingToCommit`). Agents cannot type into live drafts; they propose changes with proposePageChange.",
+      "Seal the live draft of a page line (`branchId`, its `draftId` and `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw, into an immutable commit with an optional `message`. The commit's title is the draft's working title at that cut; `title` applies only when the draft has no working title of its own. Later edits stay uncommitted. On main in a Direct space this publishes the page. Allowed for editors of the space; a named branch only for its author and collaborators; main in a Reviewed space is protected (use proposePageChange or a branch and pull request). Edits that cancel out record the cut without a commit (`nothingToCommit`). Agents cannot type into live drafts; they propose changes with proposePageChange.",
     decision: true,
   },
   restorePageCommit: {

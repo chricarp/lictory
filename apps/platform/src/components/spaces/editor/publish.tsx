@@ -9,8 +9,10 @@ import type { DraftSession } from "@lictory/platform/components/spaces/editor/se
 
 // Publish (main in a Direct space) or Commit (a branch): seals the cut of
 // the draft the service has stored. The browser never sends content: it
-// waits for "Saved", asks for the stored sequence and names it, with the
-// current title. The answer comes from the page's synchronized history:
+// waits for "Saved", asks for the stored sequence and names it. The title
+// is part of the draft, so the server seals the title stored at that cut;
+// the one sent here only stands in for drafts without a working title.
+// The answer comes from the page's synchronized history:
 // the line's head moves (a new version), or only its committed sequence
 // does (edits that cancel out: nothing to publish).
 
@@ -150,7 +152,7 @@ function PublishForm({
           draftId: before.draft.id,
           epoch: before.draft.epoch,
           expectedSequence,
-          title,
+          title: session.doc.getText("title").toJSON().trim() || title,
           ...(message.trim() ? { message: message.trim() } : {}),
         });
       } catch (e) {

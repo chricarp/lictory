@@ -22,7 +22,11 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { projectionDrift } from "@lictory/core/domain/projection-reader.test-helper";
 import { executeMutation } from "@lictory/core/domain/service";
 import { canWriteDraft } from "@lictory/core/spaces/draft-access";
-import { DraftWriter, loadDraft } from "@lictory/core/spaces/drafts";
+import {
+  DraftWriter,
+  loadDraft,
+  recoverDraftEpoch,
+} from "@lictory/core/spaces/drafts";
 import {
   documentHash,
   draftStateToDocument,
@@ -643,6 +647,181 @@ void test("Reviewed spaces protect main; restore creates a new commit and starts
     head.content,
   );
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+const retitle = (title: string) => (_: Y.XmlFragment, doc: Y.Doc) => {
+  const text = doc.getText("title");
+  text.delete(0, text.length);
+  text.insert(0, title);
+};
+
+void test("edits discarded by a restore stay recoverable from the replaced epoch's seed and updates", async () => {
+  const f = await fixture();
+  const spaceId = await f.space();
+  const { pageId, mainBranchId, commitId: first } = await f.page(spaceId);
+  await edit(f.alice, mainBranchId, appendParagraph("p1", "Version two."));
+  const { commitId: second } = (await commit(
+    f,
+    f.alice,
+    pageId,
+    mainBranchId,
+  ))!;
+  await edit(f.bob, mainBranchId, appendParagraph("p2", "Unsaved thought."));
+  await edit(f.bob, mainBranchId, retitle("Retries, revised"));
+  const replaced = await draftOf(mainBranchId);
+  await f.run(f.alice, {
+    type: "restorePageCommit",
+    pageId,
+    branchId: mainBranchId,
+    commitId: first,
+    expectedHead: second,
+    discardDraftChanges: true,
+  });
+  const current = await draftOf(mainBranchId);
+  assert.equal(current.epoch, replaced.epoch + 1);
+  // The new epoch starts from the restored content…
+  assert.ok(
+    !texts(
+      draftStateToDocument((await loadDraft(db, refOf(current))).state),
+    ).includes("Unsaved thought."),
+  );
+  // …and the replaced epoch is still reconstructable, discarded text and
+  // working title included.
+  const recovered = await recoverDraftEpoch(
+    db,
+    { organizationId: f.organizationId, userId: f.bob },
+    replaced.id,
+    replaced.epoch,
+  );
+  assert.equal(recovered.current, false);
+  assert.deepEqual(texts(recovered.content), [
+    "",
+    "Version two.",
+    "Unsaved thought.",
+  ]);
+  assert.match(recovered.markdown, /Unsaved thought\./);
+  assert.equal(recovered.title, "Retries, revised");
+  assert.equal(recovered.lastSequence, replaced.sequence);
+  // Every epoch keeps its own seed; none is overwritten.
+  const seeds = await db
+    .select({ epoch: s.spaceDraftSeed.epoch })
+    .from(s.spaceDraftSeed)
+    .where(eq(s.spaceDraftSeed.draftId, replaced.id));
+  assert.deepEqual(seeds.map((r) => r.epoch).sort(), [
+    replaced.epoch,
+    current.epoch,
+  ]);
+  // A second replacement still leaves the first one recoverable.
+  await edit(f.alice, mainBranchId, appendParagraph("p3", "Second epoch."));
+  await f.run(f.alice, {
+    type: "restorePageCommit",
+    pageId,
+    branchId: mainBranchId,
+    commitId: second,
+    expectedHead: (await headOf(mainBranchId)).commit.id,
+    discardDraftChanges: true,
+  });
+  const actor = { organizationId: f.organizationId, userId: f.alice };
+  assert.deepEqual(
+    texts(
+      (await recoverDraftEpoch(db, actor, replaced.id, replaced.epoch)).content,
+    ),
+    ["", "Version two.", "Unsaved thought."],
+  );
+  assert.deepEqual(
+    texts(
+      (await recoverDraftEpoch(db, actor, replaced.id, current.epoch)).content,
+    ),
+    ["", "Second epoch."],
+  );
+  const latest = await recoverDraftEpoch(
+    db,
+    actor,
+    replaced.id,
+    current.epoch + 1,
+  );
+  assert.equal(latest.current, true);
+  assert.deepEqual(texts(latest.content), ["", "Version two."]);
+  // Only people who may write the line now can recover it; others learn
+  // nothing about the draft.
+  for (const userId of [f.carol, f.dave])
+    await rejects(
+      recoverDraftEpoch(
+        db,
+        { organizationId: f.organizationId, userId },
+        replaced.id,
+        replaced.epoch,
+      ),
+      "not_found",
+      /no longer available/,
+    );
+  await rejects(
+    recoverDraftEpoch(db, actor, replaced.id, current.epoch + 2),
+    "not_found",
+    /no epoch/,
+  );
+  const g = await fixture();
+  await rejects(
+    recoverDraftEpoch(
+      db,
+      { organizationId: g.organizationId, userId: g.alice },
+      replaced.id,
+      replaced.epoch,
+    ),
+    "not_found",
+  );
+});
+
+void test("a commit seals the draft's own title at the cut, not the title the editor sent", async () => {
+  const f = await fixture();
+  const spaceId = await f.space();
+  const { pageId, mainBranchId } = await f.page(spaceId);
+  // Alice's editor shows "Retry policy" and captures it…
+  const captured = await edit(f.alice, mainBranchId, (fragment, doc) => {
+    appendParagraph("p1", "Retry once.")(fragment);
+    retitle("Retry policy")(fragment, doc);
+  });
+  // …while Bob renames the page before her publish is sealed.
+  const renamed = await edit(f.bob, mainBranchId, retitle("Retry rules"));
+  const published = await commit(
+    f,
+    f.alice,
+    pageId,
+    mainBranchId,
+    "Retry policy",
+    renamed,
+  );
+  const { commit: head } = await headOf(mainBranchId);
+  assert.equal(head.id, published?.commitId);
+  assert.equal(head.title, "Retry rules", "the title stored at the cut");
+  assert.equal(head.hash, documentHash("Retry rules", head.content));
+  assert.equal(
+    (await projection<SpaceEntityOf<"page">>(`page:${pageId}`))?.title,
+    "Retry rules",
+  );
+  // A cut before a rename seals the earlier title, even when the editor
+  // already shows (and sends) the later one.
+  await edit(f.alice, mainBranchId, appendParagraph("p2", "Then stop."));
+  const cut = (await draftOf(mainBranchId)).sequence;
+  await edit(f.bob, mainBranchId, retitle("Retry rules, final"));
+  await commit(f, f.alice, pageId, mainBranchId, "Retry rules, final", cut);
+  assert.equal((await headOf(mainBranchId)).commit.title, "Retry rules");
+  assert.ok(captured < renamed);
+  // A draft whose title was never edited takes the title the request names.
+  const other = await f.page(spaceId, "Timeouts");
+  await edit(f.alice, other.mainBranchId, appendParagraph("t1", "Wait."));
+  await commit(f, f.alice, other.pageId, other.mainBranchId, "Timeout policy");
+  assert.equal(
+    (await headOf(other.mainBranchId)).commit.title,
+    "Timeout policy",
+  );
+  // An over-long working title is refused with the reason.
+  await edit(f.bob, mainBranchId, retitle("x".repeat(201)));
+  await rejects(
+    commit(f, f.alice, pageId, mainBranchId),
+    "validation",
+    /longer than 200 characters/,
+  );
 });
 
 void test("branches start from their base; only the author and collaborators write them; deleting keeps history", async () => {

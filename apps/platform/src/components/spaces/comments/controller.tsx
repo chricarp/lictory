@@ -96,7 +96,10 @@ function locate(
 }
 
 // The editor once its view is in the document (Tiptap creates the editor
-// before EditorContent mounts it; its view throws until then).
+// before EditorContent mounts it; its view throws until then, and again
+// once it is unmounted, which happens when a live draft is replaced by a
+// new epoch). Effects check it again: the editor this render saw may have
+// been unmounted by the time they run.
 function hasView(editor: Editor) {
   try {
     return !editor.isDestroyed && Boolean(editor.view.dom);
@@ -133,7 +136,7 @@ function useEditorSelection(editor: Editor | null) {
   useEffect(() => {
     if (!editor) return;
     const update = () => {
-      if (editor.isDestroyed) return;
+      if (!hasView(editor)) return;
       const view = editor.view;
       const selection = document.getSelection();
       if (
@@ -215,7 +218,7 @@ export function PageComments({
     let lastKey = "";
     const run = () => {
       frame = 0;
-      if (editor.isDestroyed) return;
+      if (!hasView(editor)) return;
       const next = locate(
         editor.state,
         discussions.threads,
@@ -249,7 +252,7 @@ export function PageComments({
 
   // Clicking highlighted text opens its thread.
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !hasView(editor)) return;
     const dom = editor.view.dom;
     const onClick = (event: MouseEvent) => {
       const target = (event.target as HTMLElement | null)?.closest?.(
@@ -302,7 +305,7 @@ export function PageComments({
   // The editor's keyboard shortcut and toolbar ask to comment on the
   // selection with an event on the editor's element.
   useEffect(() => {
-    if (!editor || !canComment) return;
+    if (!editor || !canComment || !hasView(editor)) return;
     const dom = editor.view.dom;
     const onRequest = () => {
       const { from, to } = editor.state.selection;
@@ -316,7 +319,7 @@ export function PageComments({
     (threadId: string) => {
       setActive(threadId);
       const target = located.find((l) => l.thread.id === threadId)?.range;
-      if (!editor || !target || editor.isDestroyed) return;
+      if (!editor || !target || !hasView(editor)) return;
       const dom = editor.view.domAtPos(target.from).node;
       const element = dom instanceof HTMLElement ? dom : dom.parentElement;
       element?.scrollIntoView({ block: "center", behavior: "smooth" });

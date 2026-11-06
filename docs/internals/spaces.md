@@ -88,9 +88,12 @@ line at the same time, with their cursors visible.
   "uncommitted changes".
 - The editor shows "Saved" only after the server has durably stored the edits.
 - Replacing a draft's content (merging main into a branch, restoring) starts a
-  new **epoch** of that draft. Clients of the old epoch reconnect; edits that
-  arrive for an old epoch are kept for explicit recovery, never applied
-  silently.
+  new **epoch** of that draft. Clients of the old epoch reconnect to the new
+  one; nothing of the old epoch is applied to it silently. Edits the server
+  had stored in the old epoch stay reconstructable on the server (see
+  [Epochs](#history-in-practice)); edits it never stored (typed offline or
+  still in flight) are refused and kept in the editor's browser, which
+  offers them back (see [Interface](#interface)).
 - Deleting a branch fences its draft, disconnects its editors and keeps its
   commits.
 
@@ -162,8 +165,13 @@ committed sequence of the epoch, plus the person sealing. A commit equal to
 the head (title and content) is refused as "Nothing to commit"; when edits
 since the last commit cancel out, the cut is recorded as committed without a
 commit (`nothingToCommit`), so a draft never keeps "uncommitted changes" it
-cannot get rid of. Page titles live in commits only: the editor sends the
-title with `commitDraft`, and there is no rename command.
+cannot get rid of. Page titles live in commits only, and there is no rename
+command. The working title is part of the draft (the `title` Y.Text), so
+the committed title is the draft's title at the sealed cut, exactly like
+the content: a title someone types after the cut stays uncommitted. Only
+when the draft has no title text (nobody edited it) does the `title` of
+`commitDraft` apply, and then the head's title; a working title longer than
+200 characters is refused.
 
 **Epochs.** Every head move that does not come from sealing a line's own
 draft (restore, sync, merging into the line, reopening main when a space goes
@@ -171,8 +179,19 @@ back to Direct) starts a new epoch of that line's draft whose snapshot is the
 new head's Yjs state (`documentToDraftState`), so the live draft starts with
 exactly the committed content. The `space_draft` trigger closes the old
 epoch's rooms. Restoring is refused while the draft has uncommitted changes
-unless `discardDraftChanges` is passed; discarded edits stay in the fenced
-epoch's update log (and in exports) for recovery.
+unless `discardDraftChanges` is passed. Every epoch's starting state is
+kept (`space_draft_seed`, written when the epoch starts and never changed)
+next to its update log, so a replaced epoch can be reconstructed exactly as
+it was last stored: `recoverDraftEpoch(db, actor, draftId, epoch)`
+(`packages/core/src/spaces/drafts.ts`) returns its canonical content,
+Markdown and working title, for support, operators or a later editor
+action. It reads only, needs `canEditDraft` on the draft's line now (others
+get "not found"), and putting text back is an ordinary edit of the current
+draft. This holds for every epoch started after migration
+`0039_space_draft_seed` and for the epochs current when it ran (backfilled
+from `space_draft.snapshot`); an epoch replaced before that cannot be
+reconstructed, and says so. Seeds and update logs are part of the
+organization export and are removed with the organization.
 
 **Merging and conflicts.** Merges use the merge base of the two heads
 (refused when there is none or more than one: restore the wanted version on
@@ -208,7 +227,8 @@ Direct spaces need no review, but a request for changes still blocks.
 **Merging into main** creates a two-parent commit on main (the target head
 first) whose contributors are the change's contributors plus the person
 merging, records the pull request and the valid approvers on it
-(`approver_ids`: "Approved" names that commit in Reviewed spaces), moves the
+(`approver_ids`: "Approved" names that commit in Reviewed spaces only; in
+Direct spaces history shows the same people as "Reviewed by"), moves the
 published pointer (main's head), starts a new epoch of main's draft in
 Direct spaces and retires the source branch (recorded as `branch_deleted`
 with `automatic: true`) unless another unmerged pull request uses it. A merge
@@ -564,6 +584,7 @@ History uses restrictive deletes.
 | `page_commit`                             | Immutable snapshots: parents, title, `content` (Tiptap JSON), `markdown`, `hash`, `schema_version`, message, author, contributors, draft provenance             |
 | `page_branch`, `page_branch_collaborator` | Pointers (`head_commit_id`, `base_commit_id`), exactly one `is_main` per page that is never deleted, author and invited collaborators                           |
 | `space_draft`, `space_draft_update`       | Live drafts (one per line, `branch_id` unique) with epoch, sequence, `committed_sequence`, base commit, snapshot and fence; the update log                      |
+| `space_draft_seed`                        | The starting Yjs state of every epoch of a draft, written once when the epoch starts, so replaced epochs stay reconstructable                                   |
 | `page_pull_request`                       | Pull requests: source and target branch, title, description, `status` (draft, open, merged), merge (who, when, `merge_commit_id`), close (`deleted_at`)         |
 | `page_pull_request_reviewer`              | Review requests: person, `required`, who asked                                                                                                                  |
 | `page_pull_request_review`                | Decisions (append-only): approved or changes requested, `result_hash`, inspected heads, `stale_at` with `stale_reason`, `withdrawn_at`                          |
@@ -599,7 +620,16 @@ discussion commands `createPageThread` (`pageId`, `threadId`, `messageId`,
 `resolvePageThread`, `reopenPageThread` and `setPageThreadBlocking`
 (`packages/core/src/spaces/discussions.ts`). They run through
 `applyMutation` like every command, so they are capabilities on every surface;
-the handlers live in `packages/core/src/spaces/commands.ts`. Restoring a page
+the handlers live in `packages/core/src/spaces/commands.ts`. Every command
+that names a space, page, branch, pull request or thread checks reading it
+first: someone who cannot read it gets the same "unavailable" answer as for
+one that does not exist, never its name or state. The exceptions are the
+administration commands `setSpaceAccessMode`, `setSpaceGrant` and
+`archiveSpace`, which a space's administrators may use without reading it
+(that is how they grant themselves access). `updateSpace` needs reading,
+then edit access for name, handle, description and icon and administration
+for home and publishing, and refuses an update that changes nothing
+("Nothing to change") without writing. Restoring a page
 restores the subpages archived together with it; subpages archived earlier
 stay archived. Switching a space to Reviewed fences main's drafts and is
 refused while one has unpublished changes; switching back opens them again as
@@ -719,7 +749,8 @@ and merging are `decision` commands like their specification counterparts
 ([human decisions](capabilities.md#human-decisions)): agents call them only
 when the person asked, and Litto asks for confirmation first. Organization export includes spaces, grants, pages, commits,
 branches, collaborators, pull requests with their review requests and
-decisions, drafts (binary Yjs state as base64), threads,
+decisions, drafts with their epoch seeds and update logs (binary Yjs state
+as base64), threads,
 messages, page activity and page files, an additive change that keeps
 archive format version 1; organization deletion removes them before projects
 and teams. Deleting an account keeps the person's threads and messages,
@@ -776,9 +807,9 @@ attributed to the anonymized account, like specification threads.
   its content, carets or selection. Others' carets carry their name and a
   per-person color; "Anna is editing" lists who else has the draft open.
   The working title is part of the draft (a `title` Y.Text beside the
-  `default` fragment, which commits never read) so every editor sees the same
-  title; the editor sends it with `commitDraft`, falling back to the line's
-  committed title when it is empty. Blocks come from the toolbar, from "/"
+  `default` fragment) so every editor sees the same title, and a commit
+  seals the title stored at its cut; the editor shows the line's committed
+  title while the draft's is empty. Blocks come from the toolbar, from "/"
   (blocks, image, work item, page link) and from Markdown shortcuts; "#"
   picks a work item and "[[" a page from what I can read. Images are pasted,
   dropped or chosen and stored as page files (`/api/files/{id}`).
@@ -793,12 +824,28 @@ attributed to the anonymized account, like specification threads.
   "Uncommitted changes" (branch) from the projection's
   `uncommittedChanges`, the stored sequence the service announced, or local
   unsaved edits. Close reasons from the service are shown as they are: a
-  replaced draft reopens the current one, revoked or missing access leaves
+  replaced draft reopens the current one (see unsaved text below), revoked
+  or missing access leaves
   the editor, a signed-out session asks to sign in again.
+- **Unsaved text.** When the editor closes a draft session (a new epoch
+  replaced it, or I leave the editor) while it holds edits of mine the
+  service has not stored, an open connection first gets about two seconds
+  to store them (a replaced epoch refuses them). What is still unstored is
+  never dropped: the top-level blocks my unstored edits touched (converted
+  by the document engine, as the server would) and the working title, if I
+  changed it, are kept in this browser under my person, organization, page
+  and draft, and removed with my other kept text when I sign out. The page
+  then says "This page was replaced while you had unsaved changes. Your
+  text is kept on this device." with "Copy text", "Insert at end" (an
+  ordinary edit of the current draft, with new block ids, made only when I
+  ask) and "Discard". "Unstored" is judged by my own edits in the Yjs
+  document since the service last acknowledged all of them, not by the
+  provider's counter, which a refused reconnect also raises.
 - **Publish and Commit.** "Publish" (main, Direct space) or "Commit"
   (branch) takes an optional message, waits for "Saved", asks the service
   for the stored sequence (`lictory.draft.sequence`, falling back to the
-  last announced one) and sends `commitDraft` with it and the title. The
+  last announced one) and sends `commitDraft` with it (and, for older
+  drafts without a working title, the title it shows). The
   browser learns the outcome from the line's synchronized branch row: the
   head moved ("Published version N", counting main's first-parent chain) or
   only the committed sequence did ("No changes to publish"); the refusal

@@ -16,6 +16,11 @@ import {
   type Tx,
 } from "@lictory/core/domain/service";
 import { DomainError } from "@lictory/core/domain/errors";
+import { canEditDraft, type SpaceActor } from "@lictory/core/spaces/access";
+import {
+  documentToMarkdown,
+  draftStateToDocument,
+} from "@lictory/core/spaces/document";
 import { refreshDraftProjections } from "@lictory/core/spaces/projections";
 
 // One epoch of one draft. A new epoch replaces the content (restore, merging
@@ -94,6 +99,91 @@ export async function loadDraft(db: Database, ref: DraftRef) {
         state: parts.length ? Y.mergeUpdates(parts) : new Uint8Array([0, 0]),
         sequence: draft.sequence,
       };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
+}
+
+// The content of one epoch of a draft as it was last stored, including an
+// epoch that a restore, merge or publishing change replaced: the epoch's
+// seed (`space_draft_seed`) plus every update stored for it. This is how
+// edits discarded by `restorePageCommit` with `discardDraftChanges` (or
+// typed into a replaced epoch and stored before the replacement) are
+// recovered, by support and operators or a future editor action. Needs the
+// right to write the draft's line now (`canEditDraft`); others learn
+// nothing about the draft. Nothing is written: recovering is reading, and
+// putting text back is an ordinary edit of the current draft.
+export async function recoverDraftEpoch(
+  db: Database,
+  actor: SpaceActor,
+  draftId: string,
+  epoch: number,
+) {
+  return db.transaction(
+    async (tx) => {
+      await authorize(tx, actor.userId, actor.organizationId);
+      const rows = await tx.execute<{
+        branch_id: string;
+        epoch: number;
+        snapshot: Buffer | null;
+        snapshot_sequence: number;
+      }>(
+        sql`select branch_id, epoch, snapshot, snapshot_sequence from space_draft
+              where id = ${draftId} and organization_id = ${actor.organizationId}`,
+      );
+      const draft = rows[0];
+      if (!draft || !(await canEditDraft(tx, actor, draft.branch_id)))
+        throw unavailable();
+      if (!Number.isSafeInteger(epoch) || epoch < 1 || epoch > draft.epoch)
+        throw new DomainError(
+          "not_found",
+          `This draft has no epoch ${epoch}; its current epoch is ${draft.epoch}.`,
+        );
+      const current = epoch === draft.epoch;
+      const seed = current
+        ? draft.snapshot
+        : (
+            await tx.execute<{ seed: Buffer }>(
+              sql`select seed from space_draft_seed
+                    where draft_id = ${draftId} and organization_id = ${actor.organizationId}
+                      and epoch = ${epoch}`,
+            )
+          )[0]?.seed;
+      if (!current && !seed)
+        throw new DomainError(
+          "not_found",
+          `The start of epoch ${epoch} of this draft was not kept (it was replaced before seeds were stored), so its edits cannot be reconstructed.`,
+        );
+      const updates = await tx.execute<{ update: Buffer; sequence: number }>(
+        sql`select "update", sequence from space_draft_update
+              where draft_id = ${draftId} and organization_id = ${actor.organizationId}
+                and epoch = ${epoch}
+                and sequence > ${current ? draft.snapshot_sequence : 0}
+              order by sequence`,
+      );
+      const parts = [
+        ...(seed ? [new Uint8Array(seed)] : []),
+        ...updates.map((u) => new Uint8Array(u.update)),
+      ];
+      const state = parts.length
+        ? Y.mergeUpdates(parts)
+        : new Uint8Array([0, 0]);
+      const doc = new Y.Doc();
+      try {
+        Y.applyUpdate(doc, state);
+        const content = draftStateToDocument(state);
+        return {
+          epoch,
+          current,
+          // The epoch's working title (empty when nobody changed it).
+          title: doc.getText("title").toJSON(),
+          content,
+          markdown: documentToMarkdown(content),
+          lastSequence: updates.at(-1)?.sequence ?? null,
+        };
+      } finally {
+        doc.destroy();
+      }
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },
   );

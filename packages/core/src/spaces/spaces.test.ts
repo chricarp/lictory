@@ -673,12 +673,13 @@ void test("pages form a tree within their space: ordering, moves, cycles and sub
     f.run(f.alice, { type: "movePage", pageId: a, parentId: a }),
     "validation",
   );
-  // Moves stay within the space.
+  // Moves stay within the space; a page of another space reads like a
+  // missing parent.
   const elsewhere = (await f.page(f.alice, other)).pageId;
   await rejects(
     f.run(f.alice, { type: "movePage", pageId: a1, parentId: elsewhere }),
-    "validation",
-    /within their space/,
+    "not_found",
+    /unavailable in this space\. Pages move only within their space/,
   );
   // A move to the top level, first.
   await f.run(f.alice, {
@@ -990,6 +991,76 @@ void test("space details are editors', home and publishing administrators', and 
     "conflict",
   );
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+});
+
+void test("updating a space checks reading first and refuses an update that changes nothing", async () => {
+  const f = await fixture();
+  const secret = await f.space(f.bob, {
+    name: "Secret plans",
+    accessMode: "restricted",
+  });
+  await f.run(f.bob, { type: "archiveSpace", spaceId: secret, archived: true });
+  const unchanged = async () =>
+    (
+      await db
+        .select({ updatedAt: s.space.updatedAt })
+        .from(s.space)
+        .where(eq(s.space.id, secret))
+    )[0]!.updatedAt.getTime();
+  const before = await unchanged();
+  // People who cannot read the space learn nothing, whatever they send:
+  // not its name, not that it is archived, and nothing is written.
+  for (const actor of [f.carol, f.alice, f.owner])
+    for (const command of [
+      { type: "updateSpace", spaceId: secret },
+      { type: "updateSpace", spaceId: secret, name: "Mine" },
+      { type: "updateSpace", spaceId: secret, publishing: "reviewed" },
+    ] as const)
+      await assert.rejects(f.run(actor, command), (error) => {
+        assert.ok(error instanceof DomainError, String(error));
+        assert.equal(error.category, "not_found", error.message);
+        assert.equal(error.message, "This space is unavailable.");
+        return true;
+      });
+  assert.equal(await unchanged(), before);
+  // Readers learn why.
+  await rejects(
+    f.run(f.bob, { type: "updateSpace", spaceId: secret, name: "Plans" }),
+    "conflict",
+    /Restore Secret plans/,
+  );
+
+  // An update without a change is refused without writing.
+  const open = await f.space(f.bob, {
+    name: "Runbooks",
+    icon: "book",
+    home: { projectId: f.projectId },
+  });
+  const [row] = await db.select().from(s.space).where(eq(s.space.id, open));
+  await rejects(
+    f.run(f.bob, { type: "updateSpace", spaceId: open }),
+    "validation",
+    /Nothing to change/,
+  );
+  await rejects(
+    f.run(f.bob, {
+      type: "updateSpace",
+      spaceId: open,
+      name: "Runbooks",
+      icon: "book",
+      publishing: "direct",
+    }),
+    "validation",
+    /Nothing to change/,
+  );
+  // Viewers are refused for what they asked, even when it would change
+  // nothing.
+  await rejects(
+    f.run(f.carol, { type: "updateSpace", spaceId: open, name: "Runbooks" }),
+    "forbidden",
+  );
+  const [after] = await db.select().from(s.space).where(eq(s.space.id, open));
+  assert.deepEqual(after, row);
 });
 
 void test("capability refusals are the same on every surface", async () => {

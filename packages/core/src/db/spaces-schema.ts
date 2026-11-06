@@ -423,6 +423,29 @@ export const spaceDraftUpdate = pgTable(
   ],
 );
 
+// The starting state (Yjs) of every epoch of a draft, written when the epoch
+// starts and never changed. `space_draft.snapshot` serves the current epoch;
+// these rows keep replaced epochs reconstructable (seed plus that epoch's
+// updates), so edits discarded by a restore or merge stay recoverable.
+export const spaceDraftSeed = pgTable(
+  "space_draft_seed",
+  {
+    organizationId: organizationId(),
+    draftId: text("draft_id").notNull(),
+    epoch: integer("epoch").notNull(),
+    seed: bytea("seed").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.draftId, t.epoch] }),
+    foreignKey({
+      columns: [t.organizationId, t.draftId],
+      foreignColumns: [spaceDraft.organizationId, spaceDraft.id],
+    }).onDelete("restrict"),
+    check("space_draft_seed_epoch_positive", sql`${t.epoch} > 0`),
+  ],
+);
+
 // A proposal to merge one branch of a page into main or another branch
 // (docs/internals/spaces.md#history-commits-branches-and-pull-requests).
 // Merging records the merge commit; deleting an unmerged pull request keeps

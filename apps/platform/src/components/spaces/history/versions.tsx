@@ -9,7 +9,9 @@ import { usePageActions } from "@lictory/platform/components/spaces/page-actions
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { Dialog } from "@lictory/platform/components/spaces/dialog";
 import type { PageBranch } from "@lictory/platform/data/spaces";
+import { useSpace } from "@lictory/platform/components/spaces/space-gate";
 import { ActionError, field, useHistoryAction } from "./shared";
+import { commitReview } from "./approval";
 
 export function Versions({
   pageId,
@@ -21,6 +23,9 @@ export function Versions({
   const { commits, head, loaded } = usePageHistory(pageId);
   const { memberName, userId } = useWorkspace();
   const { canEdit } = usePageActions();
+  const { publishing } = useSpace();
+  const reviewOf = (approverIds: readonly string[]) =>
+    commitReview(publishing, approverIds.map(memberName));
   const action = useHistoryAction();
   const [selected, setSelected] = useState("");
   const [compare, setCompare] = useState("");
@@ -85,7 +90,7 @@ export function Versions({
                 )}
                 {c.approverIds.length > 0 && (
                   <span className="ml-1 inline-block rounded-full border px-2 text-xs">
-                    Approved
+                    {reviewOf(c.approverIds)?.badge}
                   </span>
                 )}
               </button>
@@ -97,9 +102,7 @@ export function Versions({
         <section aria-label="Selected version" className="min-w-0 space-y-4">
           <h2 className="text-xl font-semibold break-words">{commit.title}</h2>
           {commit.approverIds.length > 0 && (
-            <p className="text-sm">
-              Approved by {commit.approverIds.map(memberName).join(", ")}
-            </p>
+            <p className="text-sm">{reviewOf(commit.approverIds)?.line}</p>
           )}
           <Markdown source={commit.markdown} />
           <label className="block text-sm">

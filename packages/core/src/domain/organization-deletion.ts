@@ -281,6 +281,7 @@ export const deletionOrder: readonly PgTable[] = [
   s.pagePullRequestReviewer,
   s.pagePullRequest,
   s.spaceDraftUpdate,
+  s.spaceDraftSeed,
   s.spaceDraft,
   s.pageBranchCollaborator,
   s.pageBranch,

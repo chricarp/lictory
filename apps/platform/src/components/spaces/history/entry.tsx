@@ -4,6 +4,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { usePageBranchSelection } from "./branch-selection";
+import { commitReview } from "./approval";
 
 export function PageHistoryEntry({ pageId }: { pageId: string }) {
   const { organization, memberName } = useWorkspace();
@@ -11,12 +12,17 @@ export function PageHistoryEntry({ pageId }: { pageId: string }) {
   const { branches, pullRequests, head } = usePageHistory(pageId);
   const { branchId, setBranch } = usePageBranchSelection();
   const href = `${paths.spacePage(organization.slug, space.slug, pageId)}/history`;
+  // Only Reviewed spaces publish approved versions; Direct spaces show
+  // their reviewers in the version history instead.
+  const review = head
+    ? commitReview(space.publishing, head.approverIds.map(memberName))
+    : null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-      {head && head.approverIds.length > 0 && (
+      {review?.approved && (
         <span
           className="rounded-full border px-2 py-1 text-xs"
-          title={`Approved by ${head.approverIds.map(memberName).join(", ")}`}
+          title={review.line}
         >
           Approved published version
         </span>

@@ -9,6 +9,7 @@ import {
   DRAFT_SEQUENCE_REQUEST,
   storedSequenceOf,
 } from "@lictory/core/spaces/collaboration-protocol";
+import { ownClock } from "@lictory/platform/components/spaces/editor/recovery";
 
 // One live draft connection: a fresh Y.Doc bound to the collaboration
 // service through a socket shared by every draft the tab has open. The
@@ -84,6 +85,12 @@ export class DraftSession {
   private sequenceWaiters = new Set<(sequence: number) => void>();
   private timer: ReturnType<typeof setTimeout>;
   private destroyed = false;
+  private retiring = false;
+  // The clock of this tab's own edits when the service last had stored
+  // all of them: anything this tab typed from it on is not stored yet.
+  // (The provider's own counter also counts a reconnect that the service
+  // refused, so it cannot tell unstored text from a refused handshake.)
+  private storedClock = 0;
 
   constructor(
     readonly documentName: string,
@@ -109,8 +116,11 @@ export class DraftSession {
       token: "",
       onStatus: ({ status }) => this.set({ status }),
       onSynced: () => this.set({ everSynced: true, unavailable: false }),
-      onUnsyncedChanges: () =>
-        this.set({ unsynced: this.provider.hasUnsyncedChanges }),
+      onUnsyncedChanges: () => {
+        const unsynced = this.provider.hasUnsyncedChanges;
+        if (!unsynced) this.storedClock = ownClock(this.doc);
+        this.set({ unsynced });
+      },
       onAuthenticated: ({ scope }) =>
         this.set({ readOnly: scope === "readonly" }),
       onAuthenticationFailed: ({ reason }) =>
@@ -224,6 +234,38 @@ export class DraftSession {
         JSON.stringify({ type: DRAFT_SEQUENCE_REQUEST }),
       );
     });
+  }
+
+  // Whether this tab typed something the service has not stored.
+  hasUnstoredEdits() {
+    return ownClock(this.doc) > this.storedClock;
+  }
+
+  // Closes the session without dropping unstored edits: while the
+  // connection is still open they get a short, bounded chance to be stored
+  // (a replaced epoch's service refuses them, which is fine); whatever is
+  // still unstored is handed to `keep` with the clock it starts at, before
+  // the provider and document are destroyed. Closes synchronously when
+  // there is nothing to keep.
+  async retire(
+    keep: (doc: Y.Doc, storedClock: number) => void,
+    flushMs = 2000,
+  ) {
+    if (this.destroyed || this.retiring) return;
+    this.retiring = true;
+    try {
+      if (!this.hasUnstoredEdits()) return;
+      if (
+        this.snapshot.status === WebSocketStatus.Connected &&
+        !this.snapshot.closed
+      )
+        await this.saved(flushMs).catch(() => undefined);
+      if (this.hasUnstoredEdits()) keep(this.doc, this.storedClock);
+    } catch {
+      // Keeping is best effort; closing must still happen.
+    } finally {
+      this.destroy();
+    }
   }
 
   destroy() {

@@ -45,7 +45,13 @@ export class MenuStore {
   getSnapshot = () => this.state;
   set(next: MenuState) {
     this.state = next;
-    const dom = this.editor?.isDestroyed ? null : this.editor?.view.dom;
+    let dom: HTMLElement | null = null;
+    try {
+      // An unmounted editor (a replaced draft closing) has no view.
+      dom = this.editor?.isDestroyed ? null : (this.editor?.view.dom ?? null);
+    } catch {
+      dom = null;
+    }
     if (dom) {
       if (next?.items.length) {
         dom.setAttribute("aria-controls", this.id);

@@ -15,12 +15,15 @@ import { seedItem, seedWorkspace, signIn, type Seeded } from "../helpers/seed";
 // image, publish, and a reader sees the published version without editing
 // controls; comments anchored to draft text are seen, answered, resolved
 // and reopened by the other editor; a Reviewed space starts a branch whose
-// draft commits; going offline keeps the text and saves it afterwards.
+// draft commits; going offline keeps the text and saves it afterwards;
+// text typed into a draft replaced before it was saved is kept and can be
+// inserted into the new draft.
 
 test.describe.configure({ mode: "serial" });
 
 let seeded: Seeded;
 let pageUrl: string;
+let operationsSpaceId: string;
 let reviewedUrl: string;
 const [owner, editor, viewer] = [0, 1, 2] as const;
 const user = (index: number) => seeded.users[index]!;
@@ -128,6 +131,7 @@ test.beforeAll(async () => {
   });
   await seedItem(seeded, { title: "Refund window policy" });
   const spaceId = crypto.randomUUID();
+  operationsSpaceId = spaceId;
   await seeded.command({
     type: "createSpace",
     spaceId,
@@ -360,6 +364,83 @@ test("offline edits stay on the page and are saved after reconnecting", async ({
   await Promise.all([ada.context.close(), ben.context.close()]);
 });
 
+test("text typed into a draft that is replaced before it was saved is kept and can be inserted again", async ({
+  browser,
+}) => {
+  // A page of its own, so a merge into main replaces its draft's epoch.
+  const created = await seeded.command({
+    type: "createPage",
+    spaceId: operationsSpaceId,
+    pageId: crypto.randomUUID(),
+    title: "Escalations",
+  });
+  const { pageId, commitId } = created.summary as {
+    pageId: string;
+    commitId: string;
+  };
+  const url = pageUrl.replace(/pages\/[^/]+$/, `pages/${pageId}`);
+  const ada = await person(browser, owner);
+  await openEditor(ada.page, url);
+  await ada.context.setOffline(true);
+  await expect(
+    ada.page.getByRole("status").filter({ hasText: /^Offline/ }),
+  ).toBeVisible();
+  await liveEditor(ada.page).click();
+  await ada.page.keyboard.type("Page the on-call engineer after ten minutes.");
+  // Meanwhile a proposal is merged into main: a new epoch of main's draft.
+  const proposal = (
+    await seeded.command({
+      type: "proposePageChange",
+      pageId,
+      branchId: crypto.randomUUID(),
+      pullRequestId: crypto.randomUUID(),
+      title: "Escalations",
+      markdown: "Escalate to the incident lead.",
+      message: "Name the incident lead",
+    })
+  ).summary as { pullRequestId: string; commitId: string };
+  await seeded.command({
+    type: "mergePagePullRequest",
+    pullRequestId: proposal.pullRequestId,
+    inspectedSourceHead: proposal.commitId,
+    inspectedTargetHead: commitId,
+  });
+  await ada.context.setOffline(false);
+
+  const notice = ada.page.getByRole("status", {
+    name: "Unsaved text kept on this device",
+  });
+  await expect(notice).toContainText(
+    "This page was replaced while you had unsaved changes. Your text is kept on this device.",
+    { timeout: 30_000 },
+  );
+  await expect(notice).toContainText(
+    "Page the on-call engineer after ten minutes.",
+  );
+  // The new draft has the merged content, not the unsaved text…
+  await expect(liveEditor(ada.page)).toContainText(
+    "Escalate to the incident lead.",
+  );
+  await expect(liveEditor(ada.page)).not.toContainText("on-call engineer");
+  // …until Ada asks for it back.
+  await notice.getByRole("button", { name: "Insert at end" }).click();
+  await expect(notice).toBeHidden();
+  await expect(liveEditor(ada.page)).toContainText(
+    "Page the on-call engineer after ten minutes.",
+  );
+  await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });
+  // Stored like any edit: a reload of the draft has both.
+  await ada.page.reload();
+  await ada.page.getByRole("button", { name: "Continue editing" }).click();
+  await expect(liveEditor(ada.page)).toContainText(
+    "Page the on-call engineer after ten minutes.",
+  );
+  await expect(liveEditor(ada.page)).toContainText(
+    "Escalate to the incident lead.",
+  );
+  await ada.context.close();
+});
+
 test("a Reviewed space protects main: a branch is started and its draft commits", async ({
   browser,
 }) => {
@@ -381,7 +462,9 @@ test("a Reviewed space protects main: a branch is started and its draft commits"
   await liveEditor(ada.page).click();
   await ada.page.keyboard.type("Chargebacks are answered within ten days.");
   await expect(saved(ada.page)).toBeVisible();
-  await expect(ada.page.getByText("Uncommitted changes")).toBeVisible();
+  await expect(
+    ada.page.getByText("Uncommitted changes", { exact: true }),
+  ).toBeVisible();
   await ada.page.getByRole("button", { name: "Commit", exact: true }).click();
   await ada.page
     .getByRole("dialog", { name: "Commit to this branch" })

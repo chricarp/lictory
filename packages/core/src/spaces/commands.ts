@@ -451,47 +451,63 @@ export async function applySpaceCommand(
     }
 
     case "updateSpace": {
-      const found = await spaceAccess(tx, actor, c.spaceId);
-      if (!found) throw unavailableSpace();
-      const space = found.space;
+      // Reading comes first, whatever the command carries: people who
+      // cannot read the space learn nothing (not even its name or archive
+      // state), exactly as for a space that does not exist.
+      const { space, level } = await readableSpace(tx, actor, c.spaceId);
+      const description =
+        c.description === undefined
+          ? undefined
+          : c.description?.trim()
+            ? c.description.trim()
+            : null;
+      // Name, handle, description and icon are editors'; home and
+      // publishing are administrators'.
+      if (
+        c.name !== undefined ||
+        c.slug !== undefined ||
+        c.description !== undefined ||
+        c.icon !== undefined
+      )
+        requireEdit(level, space.name);
       const homeChanged =
         c.home !== undefined &&
         ((c.home.projectId ?? null) !== space.projectId ||
           (c.home.teamId ?? null) !== space.teamId);
+      const publishingChanged =
+        c.publishing !== undefined && c.publishing !== space.publishing;
+      if (c.home !== undefined || c.publishing !== undefined)
+        await requireManager(tx, actor, c.spaceId);
+      const details = {
+        ...(c.name !== undefined && c.name !== space.name
+          ? { name: c.name }
+          : {}),
+        ...(c.slug !== undefined && c.slug !== space.slug
+          ? { slug: c.slug }
+          : {}),
+        ...(description !== undefined && description !== space.description
+          ? { description }
+          : {}),
+        ...(c.icon !== undefined && c.icon !== space.icon
+          ? { icon: c.icon }
+          : {}),
+      };
+      requireActiveSpace(space);
+      if (!homeChanged && !publishingChanged && !Object.keys(details).length)
+        fail(
+          "Nothing to change: the space already has these details and settings.",
+        );
       // Only a new home is validated: a space may stay in a project that
       // was archived after it was created.
       const home = homeChanged ? resolveHome(roster, c.home) : undefined;
-      const publishingChanged =
-        c.publishing !== undefined && c.publishing !== space.publishing;
-      const details =
-        c.name !== undefined ||
-        c.slug !== undefined ||
-        c.description !== undefined ||
-        c.icon !== undefined;
-      if (homeChanged || publishingChanged)
-        await requireManager(tx, actor, c.spaceId);
-      if (details) {
-        if (!found.level) throw unavailableSpace();
-        requireEdit(found.level, space.name);
-      }
-      requireActiveSpace(space);
-      if (c.slug !== undefined && c.slug !== space.slug)
-        await requireFreeSlug(tx, organizationId, c.slug, space.id);
+      if (details.slug !== undefined)
+        await requireFreeSlug(tx, organizationId, details.slug, space.id);
       if (publishingChanged)
         await changePublishing(tx, organizationId, space.id, c.publishing!);
       await tx
         .update(s.space)
         .set({
-          ...(c.name !== undefined ? { name: c.name } : {}),
-          ...(c.slug !== undefined ? { slug: c.slug } : {}),
-          ...(c.description !== undefined
-            ? {
-                description: c.description?.trim()
-                  ? c.description.trim()
-                  : null,
-              }
-            : {}),
-          ...(c.icon !== undefined ? { icon: c.icon } : {}),
+          ...details,
           ...(homeChanged ? home : {}),
           ...(publishingChanged ? { publishing: c.publishing } : {}),
           updatedAt: now,
@@ -722,13 +738,13 @@ export async function applySpaceCommand(
               eq(s.page.id, c.parentId),
             ),
           );
-        if (!parent)
+        // A page of another space reads like a missing one: whether it
+        // exists is not this space's business.
+        if (parent?.spaceId !== page.spaceId)
           throw new DomainError(
             "not_found",
-            "The new parent page is unavailable.",
+            "The new parent page is unavailable in this space. Pages move only within their space.",
           );
-        if (parent.spaceId !== page.spaceId)
-          fail("Pages move only within their space.");
         if (parent.archivedAt)
           fail(
             "Restore the new parent page before moving pages under it.",

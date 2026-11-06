@@ -13,7 +13,16 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { Placeholder } from "@tiptap/extensions";
-import { Check, CircleAlert, CloudOff, Loader, RefreshCw } from "lucide-react";
+import {
+  Check,
+  CircleAlert,
+  CloudOff,
+  Copy,
+  ListPlus,
+  Loader,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { Avatar } from "@lictory/ui/primitives";
@@ -31,6 +40,14 @@ import {
   type SaveState,
   type SessionSnapshot,
 } from "@lictory/platform/components/spaces/editor/session";
+import {
+  draftRecoveryKey,
+  draftRecoveryStore,
+  insertableBlocks,
+  recoveredDraft,
+  recoveredText,
+  type DraftRecoveryStore,
+} from "@lictory/platform/components/spaces/editor/recovery";
 import {
   MenuStore,
   SuggestionMenu,
@@ -107,8 +124,14 @@ export type LiveDraftProps = {
 };
 
 export function LiveDraft(props: LiveDraftProps) {
-  const { userId, memberName } = useWorkspace();
+  const { userId, memberName, organization } = useWorkspace();
   const documentName = props.line.draft.documentName;
+  const recoveryKey = draftRecoveryKey(
+    userId,
+    organization.id,
+    props.page.id,
+    props.line.draft.id,
+  );
   const [session, setSession] = useState<DraftSession | null>(null);
   const name = memberName(userId);
   useEffect(() => {
@@ -122,14 +145,26 @@ export function LiveDraft(props: LiveDraftProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the session is an external connection created by this effect
     setSession(next);
     return () => {
-      next.destroy();
+      // A new epoch (or leaving the editor) closes this session; text the
+      // service never stored is kept on this device and offered again.
+      void next.retire((doc, storedClock) => {
+        const kept = recoveredDraft(doc, storedClock, documentName);
+        if (kept) draftRecoveryStore(recoveryKey).put(kept);
+      });
       setSession(null);
     };
     // The person's name is set once per connection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentName, userId]);
+  }, [documentName, userId, recoveryKey]);
   if (!session) return <ConnectingPlaceholder />;
-  return <DraftEditor key={documentName} session={session} {...props} />;
+  return (
+    <DraftEditor
+      key={documentName}
+      session={session}
+      recovery={draftRecoveryStore(recoveryKey)}
+      {...props}
+    />
+  );
 }
 
 class Latest<T> {
@@ -256,13 +291,14 @@ function useDraftTitle(doc: Doc, fallback: string) {
 
 function DraftEditor({
   session,
+  recovery,
   page,
   line,
   history,
   onDone,
   onEditor,
   canComment,
-}: LiveDraftProps & { session: DraftSession }) {
+}: LiveDraftProps & { session: DraftSession; recovery: DraftRecoveryStore }) {
   const { userId, memberName, organization, items, projects } = useWorkspace();
   const { index } = useSpaces();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
@@ -557,6 +593,12 @@ function DraftEditor({
           )}
         </div>
       </div>
+      <RecoveredText
+        store={recovery}
+        editor={editor}
+        editable={editable}
+        documentName={line.draft.documentName}
+      />
       {snapshot.closed === "replaced" && (
         <p
           role="status"
@@ -632,6 +674,104 @@ function DraftEditor({
       <SuggestionMenu store={menus.slash} />
       <SuggestionMenu store={menus.items} />
       <SuggestionMenu store={menus.pages} />
+    </div>
+  );
+}
+
+// Text this person typed into an earlier draft of this line that was never
+// stored (the draft was replaced, or the editor closed while saving). Kept
+// on this device until they copy, insert or discard it; inserting is an
+// ordinary edit of the current draft, made only when they ask.
+function RecoveredText({
+  store,
+  editor,
+  editable,
+  documentName,
+}: {
+  store: DraftRecoveryStore;
+  editor: Editor | null;
+  editable: boolean;
+  documentName: string;
+}) {
+  const entries = useSyncExternalStore(
+    store.subscribe,
+    store.snapshot,
+    store.snapshot,
+  );
+  if (!entries.length) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {entries.map((entry) => {
+        const blocks = insertableBlocks(entry);
+        const preview = recoveredText(entry);
+        return (
+          <section
+            key={entry.id}
+            role="status"
+            aria-label="Unsaved text kept on this device"
+            className="flex flex-wrap items-start gap-3 rounded-xl bg-muted px-3 py-2 text-[13px]"
+          >
+            <CircleAlert
+              className="mt-0.5 size-4 shrink-0 text-warning"
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1 basis-60">
+              <p className="font-medium">
+                {entry.documentName !== documentName
+                  ? "This page was replaced while you had unsaved changes. Your text is kept on this device."
+                  : "The editor closed before some of your changes were saved. Your text is kept on this device."}
+              </p>
+              <p className="mt-1 line-clamp-3 break-words whitespace-pre-wrap text-muted-foreground">
+                {preview}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(preview).then(
+                    () => toast.add({ title: "Text copied", type: "success" }),
+                    () =>
+                      toast.add({
+                        title: "The text could not be copied",
+                        description:
+                          "Select it in the notice and copy it by hand.",
+                        type: "error",
+                      }),
+                  );
+                }}
+              >
+                <Copy className="size-3.5" aria-hidden /> Copy text
+              </Button>
+              {blocks && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!editable || !editor}
+                  onClick={() => {
+                    if (!editor) return;
+                    const inserted = editor
+                      .chain()
+                      .insertContentAt(editor.state.doc.content.size, blocks)
+                      .run();
+                    if (inserted) store.remove(entry.id);
+                  }}
+                >
+                  <ListPlus className="size-3.5" aria-hidden /> Insert at end
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => store.remove(entry.id)}
+              >
+                <X className="size-3.5" aria-hidden /> Discard
+              </Button>
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

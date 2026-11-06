@@ -164,6 +164,19 @@ async function branchOf(tx: Tx, organizationId: string, branchId: string) {
   return branch;
 }
 
+// A branch as the actor may see it: one on a page they cannot read reads
+// exactly like one that does not exist.
+async function readableBranch(tx: Tx, actor: SpaceActor, branchId: string) {
+  const branch = await branchOf(tx, actor.organizationId, branchId);
+  if (!branch) throw unavailableBranch();
+  const row = await pageAccess(tx, actor, branch.pageId);
+  if (!row?.level) throw unavailableBranch();
+  return {
+    branch,
+    row: row as typeof row & { level: NonNullable<typeof row.level> },
+  };
+}
+
 // A live branch of the page.
 async function liveBranch(
   tx: Tx,
@@ -284,11 +297,26 @@ async function requireNewId(
 
 // ------------------------------------------------------------------ drafts
 
+// Every epoch's seed is kept (`space_draft_seed`), so a replaced epoch can
+// be reconstructed from its seed and its updates (`recoverDraftEpoch`).
+async function keepEpochSeed(
+  tx: Tx,
+  organizationId: string,
+  draftId: string,
+  epoch: number,
+  seed: Buffer,
+) {
+  await tx
+    .insert(s.spaceDraftSeed)
+    .values({ organizationId, draftId, epoch, seed });
+}
+
 // Starts a new epoch of a draft whose content is the given commit: the
 // seeded Yjs state becomes the epoch's snapshot, so editors connecting to
 // the new document name load exactly the committed content. Clients of
 // the previous epoch are refused (the `space_draft` trigger signals the
-// collaboration service to close them).
+// collaboration service to close them). The previous epoch's seed and
+// update log stay stored.
 async function startDraftEpoch(
   tx: Tx,
   organizationId: string,
@@ -297,13 +325,15 @@ async function startDraftEpoch(
 ) {
   const { content } = await snapshotOf(tx, organizationId, commitId);
   const epoch = draft.epoch + 1;
+  const seed = Buffer.from(documentToDraftState(content));
+  await keepEpochSeed(tx, organizationId, draft.id, epoch, seed);
   await tx
     .update(s.spaceDraft)
     .set({
       epoch,
       baseCommitId: commitId,
       committedSequence: draft.sequence,
-      snapshot: Buffer.from(documentToDraftState(content)),
+      snapshot: seed,
       snapshotSequence: draft.sequence,
       fencedAt: null,
       updatedAt: new Date(),
@@ -333,14 +363,16 @@ export async function openLineDraft(
   if (existing) return startDraftEpoch(tx, organizationId, existing, commitId);
   const { content } = await snapshotOf(tx, organizationId, commitId);
   const id = crypto.randomUUID();
+  const seed = Buffer.from(documentToDraftState(content));
   await tx.insert(s.spaceDraft).values({
     id,
     organizationId,
     pageId,
     branchId,
     baseCommitId: commitId,
-    snapshot: Buffer.from(documentToDraftState(content)),
+    snapshot: seed,
   });
+  await keepEpochSeed(tx, organizationId, id, 1, seed);
   return { id, epoch: 1 };
 }
 
@@ -407,6 +439,21 @@ async function sealedDraftState(tx: Tx, draft: DraftRow, sequence: number) {
     state: parts.length ? Y.mergeUpdates(parts) : new Uint8Array([0, 0]),
     authorIds: authors.map((a) => a.authorId),
   };
+}
+
+// The title a commit seals: the draft's own title at the cut, else the
+// title the request named, else the line's current title.
+const PAGE_TITLE_MAX = 200;
+function sealedTitle(doc: Y.Doc, requested: string | undefined, head: string) {
+  const own = doc.getText("title").toJSON().trim();
+  if (own.length > PAGE_TITLE_MAX)
+    fail(
+      `The page title is longer than ${PAGE_TITLE_MAX} characters. Shorten it and commit again.`,
+    );
+  if (own) return own;
+  const asked = requested?.trim();
+  if (asked) return asked;
+  return head;
 }
 
 // ---------------------------------------------------------------- anchors
@@ -898,7 +945,13 @@ export async function applyPageHistoryCommand(
                 type: "doc",
                 content: [{ type: "paragraph" }],
               });
-        if (documentHash(c.title, content) === head.hash) {
+        // The committed title is the draft's working title at the sealed
+        // cut (Y.Text "title"), exactly like the content: a title someone
+        // typed after the cut stays uncommitted. Drafts whose title was
+        // never edited carry none; then the request's title (older
+        // editors) and finally the head's title apply.
+        const title = sealedTitle(doc, c.title, head.title);
+        if (documentHash(title, content) === head.hash) {
           if (c.expectedSequence === draft!.committedSequence)
             fail(
               "Nothing to commit: the title and content equal the latest commit.",
@@ -926,7 +979,7 @@ export async function applyPageHistoryCommand(
         const commit = await insertCommit(tx, ctx, {
           pageId: c.pageId,
           parentIds: [branch.headCommitId],
-          title: c.title,
+          title,
           content,
           message: c.message ?? null,
           contributorIds: sealed.authorIds,
@@ -1080,9 +1133,7 @@ export async function applyPageHistoryCommand(
     }
 
     case "setPageBranchCollaborator": {
-      const branch = await branchOf(tx, organizationId, c.branchId);
-      if (!branch) throw unavailableBranch();
-      const row = await readablePage(tx, actor, branch.pageId);
+      const { branch, row } = await readableBranch(tx, actor, c.branchId);
       if (branch.deletedAt) fail(`${branch.name} was deleted.`, "conflict");
       requireActive(row);
       if (branch.isMain)
@@ -1138,9 +1189,7 @@ export async function applyPageHistoryCommand(
     }
 
     case "deletePageBranch": {
-      const branch = await branchOf(tx, organizationId, c.branchId);
-      if (!branch) throw unavailableBranch();
-      const row = await readablePage(tx, actor, branch.pageId);
+      const { branch, row } = await readableBranch(tx, actor, c.branchId);
       if (branch.deletedAt) return undefined;
       requireActive(row);
       if (branch.isMain) fail("Main cannot be deleted.");
@@ -1184,9 +1233,7 @@ export async function applyPageHistoryCommand(
     }
 
     case "syncPageBranch": {
-      const branch = await branchOf(tx, organizationId, c.branchId);
-      if (!branch) throw unavailableBranch();
-      const row = await readablePage(tx, actor, branch.pageId);
+      const { branch, row } = await readableBranch(tx, actor, c.branchId);
       if (branch.deletedAt) fail(`${branch.name} was deleted.`, "conflict");
       if (branch.isMain)
         fail(

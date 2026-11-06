@@ -88,6 +88,7 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.pagePullRequestReview },
   { table: s.spaceDraft },
   { table: s.spaceDraftUpdate },
+  { table: s.spaceDraftSeed },
   { table: s.pageThread },
   { table: s.pageThreadMessage },
   { table: s.pageActivity },
