@@ -1,7 +1,6 @@
 import {
   Select,
   SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
 } from "@lictory/ui/select";
@@ -92,17 +91,15 @@ export function Versions({
                     )}
                   </span>
                 </span>
-                <span className="block text-xs text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <Avatar
-                      name={memberName(c.authorId)}
-                      userId={c.authorId}
-                      size="sm"
-                    />
-                    {memberName(c.authorId)}
-                  </span>
+                <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Avatar
+                    name={memberName(c.authorId)}
+                    userId={c.authorId}
+                    size="sm"
+                  />
+                  {memberName(c.authorId)}
+                  <span aria-hidden="true">·</span>
                   <time
-                    className="mt-1 block"
                     dateTime={c.createdAt}
                     title={new Date(c.createdAt).toLocaleString()}
                   >
@@ -136,11 +133,18 @@ export function Versions({
       </section>
       {commit && (
         <section aria-label="Selected version" className="min-w-0 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+          <div className="space-y-4 border-b pb-4">
             <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                {commit.id === head?.id ? "Published · " : ""}
-                {version(commit.id)} · {memberName(commit.authorId)} ·{" "}
+              <h2 className="text-lg font-semibold tracking-tight break-words">
+                <span className="font-mono text-sm">{version(commit.id)}</span>{" "}
+                ·{" "}
+                {(commit.message ?? commit.title).replace(
+                  /^Merge pull request: /,
+                  "",
+                )}
+              </h2>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {memberName(commit.authorId)} ·{" "}
                 <time
                   dateTime={commit.createdAt}
                   title={new Date(commit.createdAt).toLocaleString()}
@@ -148,14 +152,32 @@ export function Versions({
                   {relativeTime(commit.createdAt)}
                 </time>
               </p>
-              <h2 className="text-xl font-semibold break-words">
-                {(commit.message ?? commit.title).replace(
-                  /^Merge pull request: /,
-                  "",
-                )}
-              </h2>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {!showDocument && previous && (
+                <Select value={before?.id ?? ""} onValueChange={setCompare}>
+                  <SelectTrigger
+                    variant="secondary"
+                    aria-label="Compare with"
+                    className="w-auto gap-2 text-sm"
+                  >
+                    Compare with {before && version(before.id)}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {commits
+                      .filter((c) => c.id !== commit.id)
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {version(c.id)} ·{" "}
+                          {(c.message ?? c.title).replace(
+                            /^Merge pull request: /,
+                            "",
+                          )}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              )}
               {editable && commit.id !== head?.id && (
                 <Button
                   variant="secondary"
@@ -173,7 +195,7 @@ export function Versions({
                 aria-pressed={showDocument}
                 onClick={() => setShowDocument(!showDocument)}
               >
-                {showDocument ? "View changes" : "View document"}
+                {showDocument ? "View changes" : "Preview this version"}
               </Button>
             </div>
           </div>
@@ -186,39 +208,8 @@ export function Versions({
               label={`${version(commit.id)} document`}
             />
           )}
-          {!showDocument && previous && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span id="compare-label" className="text-muted-foreground">
-                Compare with
-              </span>
-              <Select value={before?.id ?? ""} onValueChange={setCompare}>
-                <SelectTrigger
-                  aria-labelledby="compare-label"
-                  className="max-w-72 border-muted-foreground"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {commits
-                    .filter((c) => c.id !== commit.id)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {version(c.id)} ·{" "}
-                        {(c.message ?? c.title).replace(
-                          /^Merge pull request: /,
-                          "",
-                        )}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {before && !showDocument && (
             <div className="space-y-4">
-              <h3 className="font-medium">
-                Changes from {version(before.id)} to {version(commit.id)}
-              </h3>
               <DocumentDiff before={before.title} after={commit.title} />
               <RenderedDocumentDiff
                 before={before.content}

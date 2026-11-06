@@ -58,9 +58,9 @@ export function PageHistoryWorkspace() {
               </h1>
               <Link
                 className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                href={`${paths.spacePage(organization.slug, space.slug, page.id)}${branch && !branch.isMain ? `?branch=${branch.id}` : ""}`}
+                href={paths.spacePage(organization.slug, space.slug, page.id)}
               >
-                View page
+                Open published page
               </Link>
             </div>
           </header>

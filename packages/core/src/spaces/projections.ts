@@ -559,6 +559,7 @@ async function lineRows(
                 userId: r.userId,
                 required: r.required,
                 requestedById: r.requestedById,
+                createdAt: iso(r.createdAt),
               })),
             createdAt: iso(p.createdAt),
             updatedAt: iso(p.updatedAt),
