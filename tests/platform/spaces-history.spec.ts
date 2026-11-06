@@ -375,3 +375,145 @@ test("sync overlapping changes explicitly before merging the remaining proposal"
     page.getByText("Keep the audit trail.", { exact: true }),
   ).toBeVisible();
 });
+
+test("the comments count and panel follow the branch on screen and point to other branches", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1680, height: 1000 });
+  await signIn(page, seeded.owner.email);
+  const spaceId = crypto.randomUUID(),
+    pageId = crypto.randomUUID();
+  const slug = `threads-${pageId.slice(0, 8)}`;
+  await capability(page, "createSpace", {
+    spaceId,
+    name: "Threaded handbook",
+    slug,
+  });
+  await capability(page, "createPage", { spaceId, pageId, title: "Timeouts" });
+  const url = `/${seeded.slug}/spaces/${slug}/pages/${pageId}`;
+  const branchId = crypto.randomUUID(),
+    pullRequestId = crypto.randomUUID();
+  await capability(page, "proposePageChange", {
+    pageId,
+    branchId,
+    pullRequestId,
+    branchName: "timeout-notes",
+    title: "Timeouts",
+    markdown: "Give up after thirty seconds.",
+    message: "Propose a timeout",
+  });
+  // A line nobody has discussed.
+  await capability(page, "proposePageChange", {
+    pageId,
+    branchId: crypto.randomUUID(),
+    pullRequestId: crypto.randomUUID(),
+    branchName: "spare-notes",
+    title: "Timeouts",
+    markdown: "Give up after a minute.",
+    message: "Propose a longer timeout",
+  });
+  const discuss = (
+    body: string,
+    extra: { branchId?: string; pullRequestId?: string; blocking?: boolean },
+  ) => {
+    const threadId = crypto.randomUUID();
+    return seeded
+      .command({
+        type: "createPageThread",
+        pageId,
+        threadId,
+        messageId: crypto.randomUUID(),
+        anchor: { v: 1, kind: "page" },
+        body,
+        ...extra,
+      })
+      .then(() => threadId);
+  };
+  const onMain = await discuss("Main note about retries", {});
+  await discuss("Branch note about timeouts", { branchId, blocking: true });
+  // A pull request's discussion belongs to the pull request: no line
+  // counts or lists it.
+  await discuss("Review note on the pull request", { branchId, pullRequestId });
+
+  const toggle = page.getByRole("button", { name: /^Comments:/ });
+  const panel = page.getByRole("complementary", { name: "Page comments" });
+  await page.goto(url);
+  // Main counts and lists its own discussion, and opens the panel for it.
+  await expect(toggle).toHaveText("1 discussion");
+  await expect(toggle).toHaveAccessibleName(
+    "Comments: 1 discussion on main, 1 open discussion on other branches",
+  );
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    panel.getByRole("heading", { name: "Comments on main" }),
+  ).toBeVisible();
+  await expect(panel.getByText("Main note about retries")).toBeVisible();
+  await expect(panel.getByText("Branch note about timeouts")).toHaveCount(0);
+  await expect(panel.getByText("Review note on the pull request")).toHaveCount(
+    0,
+  );
+  const toBranch = panel.getByRole("button", {
+    name: "Switch to timeout-notes 1 open 1 blocking",
+  });
+  await expect(toBranch).toBeVisible();
+
+  // Resolving main's discussion empties main truthfully, without hiding
+  // where the remaining discussion is.
+  await seeded.command({ type: "resolvePageThread", threadId: onMain });
+  await expect(toggle).toHaveText("Comments");
+  await expect(toggle).toHaveAccessibleName(
+    "Comments: No open discussions on main, 1 open discussion on other branches",
+  );
+  await expect(panel.getByText(/^No open discussions on main\./)).toBeVisible();
+  await expect(panel.getByText("Show 1 resolved")).toBeVisible();
+  await expectNoAccessibilityViolations(page, "page comments on main");
+
+  // Switching from the panel moves the count and the list together.
+  await toBranch.click();
+  await expect(page).toHaveURL(new RegExp(`[?&]branch=${branchId}`));
+  const heading = panel.getByRole("heading", {
+    name: "Comments on timeout-notes",
+  });
+  await expect(heading).toBeFocused();
+  await expect(toggle).toHaveText("1 discussion");
+  await expect(toggle).toHaveAccessibleName(
+    /^Comments: 1 discussion on timeout-notes, 1 blocking/,
+  );
+  await expect(panel.getByText("Branch note about timeouts")).toBeVisible();
+  await expect(panel.getByText("Main note about retries")).toHaveCount(0);
+  await expect(panel.getByText("Review note on the pull request")).toHaveCount(
+    0,
+  );
+  await expect(panel.getByText("On other branches")).toHaveCount(0);
+
+  // A line without any discussion shows none, not the previous line's.
+  await page.getByRole("button", { name: "Branch: timeout-notes" }).click();
+  await page
+    .getByRole("menu", { name: "Branches of this page" })
+    .getByRole("menuitemradio", { name: /^spare-notes/ })
+    .click();
+  await expect(
+    panel.getByRole("heading", { name: "Comments on spare-notes" }),
+  ).toBeVisible();
+  await expect(toggle).toHaveText("Comments");
+  await expect(
+    panel.getByText(/^No open discussions on spare-notes\./),
+  ).toBeVisible();
+  await expect(panel.getByText("Branch note about timeouts")).toHaveCount(0);
+  await expect(panel.getByText(/resolved/)).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", {
+      name: "Switch to timeout-notes 1 open 1 blocking",
+    }),
+  ).toBeVisible();
+
+  // The branch menu says where discussions are before switching back.
+  await page.getByRole("button", { name: "Branch: spare-notes" }).click();
+  const menu = page.getByRole("menu", { name: "Branches of this page" });
+  await expect(menu.getByText("1 open discussion")).toBeVisible();
+  await menu.getByRole("menuitemradio", { name: /^main/ }).click();
+  await expect(page).not.toHaveURL(/[?&]branch=/);
+  await expect(toggle).toHaveText("Comments");
+  await expect(panel.getByText("Branch note about timeouts")).toHaveCount(0);
+  await expect(toBranch).toBeVisible();
+});

@@ -4,6 +4,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleCheck,
+  GitBranch,
   MessageSquare,
   RotateCcw,
   X,
@@ -22,11 +23,15 @@ import type {
   PageThread,
   PageThreadMessage,
 } from "@lictory/platform/components/spaces/comments/store";
+import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
+import { useSelectLine } from "@lictory/platform/components/spaces/editor/line";
 
 // The page's discussions beside the document, in document order: threads
 // whose text is on screen first, then those whose text changed or was
 // removed (with their quote), then comments on the whole page. Resolved
-// threads are folded away until asked for. Every action is a command the
+// threads are folded away until asked for. Discussions of the page's other
+// lines are not shown against this text; the panel names those lines and
+// switches to them. Every action is a command the
 // server authorizes; the panel only offers what my access allows.
 
 export type ThreadPlacement =
@@ -78,6 +83,8 @@ export function CommentsPanel({
   onClose,
   hint,
   blockingEffect,
+  lineName,
+  otherLines,
 }: {
   threads: readonly ThreadView[];
   canComment: boolean;
@@ -97,6 +104,10 @@ export function CommentsPanel({
   hint: string;
   // What an open blocking discussion holds back on this page.
   blockingEffect: string;
+  // The line whose discussions these are, and the page's other lines with
+  // open discussions.
+  lineName: string;
+  otherLines: readonly OtherLine[];
 }) {
   const [showResolved, setShowResolved] = useState(false);
   const open = threads.filter((t) => t.thread.status === "open");
@@ -105,14 +116,38 @@ export function CommentsPanel({
   const inline = open.filter((t) => t.placement !== "page");
   const onPage = open.filter((t) => t.placement === "page");
   const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // After switching lines from this panel, focus lands on the heading of the
+  // destination's panel: the button that was pressed is gone, and the panel
+  // may be rebuilt more than once while the line's editor opens. Focus is
+  // only taken while it is lost or still in the panel.
+  useEffect(() => {
+    const request = headingFocusRequest;
+    const heading = headingRef.current;
+    if (!request || !heading) return;
+    if (request.line !== lineName || Date.now() > request.until) return;
+    const current = document.activeElement;
+    const panel = heading.closest("section");
+    if (current && current !== document.body && !panel?.contains(current))
+      return;
+    heading.focus({ preventScroll: true });
+  }, [lineName]);
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
       {/* Stays in view while the threads scroll beneath it. */}
       <div className="sticky top-0 z-10 -mx-4 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
-        <h2 id={headingId} className="text-sm font-semibold">
-          Comments
+        <h2
+          id={headingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="min-w-0 truncate text-sm font-semibold outline-none"
+        >
+          Comments{" "}
+          <span className="font-normal text-muted-foreground">
+            on {lineName}
+          </span>
         </h2>
-        <span className="text-xs text-muted-foreground tabular-nums">
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {open.length} open
           {blocking ? (
             <>
@@ -189,6 +224,7 @@ export function CommentsPanel({
           versionHref={versionHref}
         />
       ))}
+      {otherLines.length > 0 && <OtherLines lines={otherLines} />}
       {resolved.length > 0 && (
         <button
           type="button"
@@ -228,6 +264,60 @@ export function CommentsPanel({
         />
       )}
     </section>
+  );
+}
+
+// The line whose panel heading should take focus, briefly after a switch.
+let headingFocusRequest: { line: string; until: number } | null = null;
+
+// The page's other lines with open discussions, each a way to switch to it
+// (the panel stays open there).
+function OtherLines({ lines }: { lines: readonly OtherLine[] }) {
+  const selectLine = useSelectLine();
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <SectionLabel>On other branches</SectionLabel>
+      <ul className="flex flex-col gap-1">
+        {lines.map(({ branch, open, blocking }) => (
+          <li key={branch.id}>
+            <button
+              type="button"
+              onClick={() => {
+                headingFocusRequest = {
+                  line: branch.name,
+                  until: Date.now() + 10_000,
+                };
+                selectLine(branch.isMain ? null : branch.id);
+              }}
+              className="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <GitBranch
+                className="size-3.5 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+              {/* Named by what it shows: "Switch to {branch} 2 open 1
+                  blocking". */}
+              <span className="min-w-0 flex-1 truncate font-medium">
+                <span className="sr-only">Switch to </span>
+                {branch.name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {open} open
+                {blocking ? (
+                  <span className="ml-2 inline-flex items-center gap-1 font-medium text-foreground">
+                    <span
+                      aria-hidden
+                      className="size-1.5 rounded-full bg-destructive/80"
+                    />
+                    {blocking} blocking
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

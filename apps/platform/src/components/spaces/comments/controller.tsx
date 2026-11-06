@@ -37,6 +37,7 @@ import type {
   Discussions,
   PageThread,
 } from "@lictory/platform/components/spaces/comments/store";
+import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
 
 // The live editor's Mod+Alt+M and toolbar ask for a comment on the selection.
 export const COMMENT_SELECTION_EVENT = "lictory:comment-selection";
@@ -187,6 +188,8 @@ export function PageComments({
   fileContext,
   versionHref,
   blockingEffect,
+  lineName,
+  otherLines,
 }: {
   editor: Editor | null;
   pageId: string;
@@ -203,6 +206,9 @@ export function PageComments({
   versionHref: (commitId: string) => { href: string; label: string } | null;
   // What an open blocking discussion holds back on this page.
   blockingEffect: string;
+  // The line on screen, and the page's other lines with open discussions.
+  lineName: string;
+  otherLines: readonly OtherLine[];
 }) {
   const { mutateConfirmed } = useWorkspace();
   const editor = useMountedEditor(created);
@@ -211,6 +217,14 @@ export function PageComments({
   // The thread under the pointer, in the panel or in the text.
   const [hovered, setHovered] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingComment | null>(null);
+  // A comment being written on a selection belongs to the line it was
+  // selected on: switching lines discards it rather than posting it on the
+  // next line (new threads are written on the line on screen).
+  const [pendingLine, setPendingLine] = useState(anchoring.branchId);
+  if (pendingLine !== anchoring.branchId) {
+    setPendingLine(anchoring.branchId);
+    setPending(null);
+  }
   const anchoringRef = useRef(anchoring);
   useEffect(() => {
     anchoringRef.current = anchoring;
@@ -221,7 +235,9 @@ export function PageComments({
   useEffect(() => {
     if (!editor) return;
     let frame = 0;
-    let lastKey = "";
+    // Undefined until the first pass, so an empty list (a line without
+    // threads) still replaces what the previous line showed.
+    let lastKey: string | undefined;
     const run = () => {
       frame = 0;
       if (!hasView(editor)) return;
@@ -405,10 +421,12 @@ export function PageComments({
       versionHref={versionHref}
       onClose={() => onOpenChange(false)}
       blockingEffect={blockingEffect}
+      lineName={lineName}
+      otherLines={otherLines}
       hint={
         canComment
-          ? "No open comments. Select text to comment on it, or comment on the whole page."
-          : "No open comments."
+          ? `No open discussions on ${lineName}. Select text to comment on it, or comment on the whole page.`
+          : `No open discussions on ${lineName}.`
       }
     />
   );

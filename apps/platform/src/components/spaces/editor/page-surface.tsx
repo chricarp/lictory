@@ -25,7 +25,7 @@ import {
   PageComments,
   type Anchoring,
 } from "@lictory/platform/components/spaces/comments/controller";
-import { usePageDiscussions } from "@lictory/platform/components/spaces/comments/store";
+import type { LineDiscussions } from "@lictory/platform/components/spaces/comments/store";
 import { blockingEffect } from "@lictory/platform/components/spaces/space-meta";
 
 // The page's content with its discussions: a published (or selected)
@@ -45,6 +45,8 @@ export type PageSurfaceProps = {
   page: SpacePage;
   history: PageHistory;
   line: PageLine;
+  // The line's discussions, the same ones the header's toggle counts.
+  discussions: LineDiscussions;
   editing: boolean;
   onStopEditing?: () => void;
   commentsOpen: boolean;
@@ -86,6 +88,7 @@ function Surface({
   page,
   history,
   line,
+  discussions,
   editing,
   onStopEditing,
   commentsOpen,
@@ -97,28 +100,10 @@ function Surface({
   const { organization } = useWorkspace();
   const pathname = usePathname();
   const params = useSearchParams();
-  const discussions = usePageDiscussions(page.id);
   const [bound, setBound] = useState<{
     editor: Editor | null;
     anchoring: Anchoring | null;
   }>({ editor: null, anchoring: null });
-
-  // Threads of the line on screen; pull request discussions belong to the
-  // pull request.
-  const threads = useMemo(
-    () =>
-      discussions.threads.filter(
-        (t) =>
-          !t.pullRequestId &&
-          (t.branchId === line.branchId ||
-            (line.isMain && t.branchId === null)),
-      ),
-    [discussions.threads, line.branchId, line.isMain],
-  );
-  const lineDiscussions = useMemo(
-    () => ({ threads, messages: discussions.messages }),
-    [threads, discussions.messages],
-  );
 
   const live = editing && line.writable && line.draft !== null;
   const shown = line.viewed ?? line.head;
@@ -208,7 +193,9 @@ function Surface({
         <PageComments
           editor={bound.editor}
           pageId={page.id}
-          discussions={lineDiscussions}
+          discussions={discussions}
+          lineName={line.branch?.name ?? "main"}
+          otherLines={discussions.counts.others}
           anchoring={bound.anchoring}
           canComment={line.canComment}
           open={commentsOpen}

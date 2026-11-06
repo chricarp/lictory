@@ -21,6 +21,11 @@ import {
   useSelectLine,
   type PageLine,
 } from "@lictory/platform/components/spaces/editor/line";
+import {
+  discussionsLabel,
+  openDiscussionsLabel,
+  type LineDiscussionCounts,
+} from "@lictory/platform/components/spaces/comments/line-threads";
 
 // Page header controls that do not need the editor bundle: Edit (main in
 // a Direct space), Start a branch (main in a Reviewed space) and the
@@ -56,28 +61,38 @@ export function EditButton({
   );
 }
 
-// The open discussions, counted neutrally; a blocking one adds a small
-// marker whose words (tooltip and accessible name) say what it holds back.
-// Strong red belongs to the merge workflow, where blocking stops something.
+// The open discussions of the line on screen (exactly what the panel
+// lists), counted neutrally; a blocking one adds a small marker whose words
+// (tooltip and accessible name) say what it holds back. Strong red belongs
+// to the merge workflow, where blocking stops something. Open discussions
+// on other lines are named in words, never added to this line's count.
 export function CommentsToggle({
   space,
-  page,
+  lineName,
+  counts,
   open,
   onToggle,
 }: {
   space: Pick<Space, "publishing">;
-  page: SpacePage;
+  lineName: string;
+  counts: LineDiscussionCounts;
   open: boolean;
   onToggle: () => void;
 }) {
-  const count = page.openThreads;
-  const discussions = count === 1 ? "1 discussion" : `${count} discussions`;
-  const blocking = page.blockingThreads
-    ? blockingSummary(space, page.blockingThreads)
+  const count = counts.open;
+  const discussions = discussionsLabel(count);
+  const blocking = counts.blocking
+    ? blockingSummary(space, counts.blocking)
     : null;
-  const label = `Comments: ${discussions}${blocking ? `, ${blocking}` : ""}`;
+  const elsewhere = counts.others.reduce((n, o) => n + o.open, 0);
+  const others = elsewhere
+    ? `${openDiscussionsLabel(elsewhere)} on other branches`
+    : null;
+  const here = `${count ? discussions : "No open discussions"} on ${lineName}`;
+  const parts = [here, blocking, others].filter(Boolean);
+  const label = `Comments: ${parts.join(", ")}`;
   return (
-    <Tooltip label={blocking ? `${discussions} · ${blocking}` : discussions}>
+    <Tooltip label={parts.join(" · ")}>
       <button
         type="button"
         aria-expanded={open}
@@ -95,7 +110,7 @@ export function CommentsToggle({
         <span className="tabular-nums">
           {count === 0 ? "Comments" : discussions}
         </span>
-        {page.blockingThreads > 0 && (
+        {counts.blocking > 0 && (
           <span
             aria-hidden
             className="-mr-0.5 size-1.5 shrink-0 rounded-full bg-destructive/80 ring-2 ring-destructive/12"
