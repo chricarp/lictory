@@ -148,6 +148,8 @@ export function LiveDraft(props: LiveDraftProps) {
     props.line.draft.id,
   );
   const [session, setSession] = useState<DraftSession | null>(null);
+  // Reopening (after the service refused an edit) starts a new session.
+  const [opening, setOpening] = useState(0);
   const name = memberName(userId);
   useEffect(() => {
     // The session is a connection to the collaboration service, opened and
@@ -170,12 +172,13 @@ export function LiveDraft(props: LiveDraftProps) {
     };
     // The person's name is set once per connection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentName, userId, recoveryKey]);
+  }, [documentName, userId, recoveryKey, opening]);
   if (!session) return <ConnectingPlaceholder />;
   return (
     <DraftEditor
-      key={documentName}
+      key={`${documentName}:${opening}`}
       session={session}
+      onReopen={() => setOpening((n) => n + 1)}
       recovery={draftRecoveryStore(recoveryKey)}
       {...props}
     />
@@ -314,7 +317,12 @@ function DraftEditor({
   onEditor,
   canComment,
   actionsSlot,
-}: LiveDraftProps & { session: DraftSession; recovery: DraftRecoveryStore }) {
+  onReopen,
+}: LiveDraftProps & {
+  session: DraftSession;
+  recovery: DraftRecoveryStore;
+  onReopen: () => void;
+}) {
   const { userId, memberName, organization, items, projects } = useWorkspace();
   const { index } = useSpaces();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
@@ -666,6 +674,9 @@ function DraftEditor({
           Opening the current draft…
         </p>
       )}
+      {state.kind === "failed" && (
+        <SaveFailedNotice reason={snapshot.refused} onReopen={onReopen} />
+      )}
       {state.kind === "unavailable" && (
         <div
           role="alert"
@@ -868,7 +879,7 @@ function SaveIndicator({
       <Check className="size-3.5" aria-hidden />
     ) : state.kind === "offline" || state.kind === "unavailable" ? (
       <CloudOff className="size-3.5 text-warning" aria-hidden />
-    ) : state.kind === "closed" ? (
+    ) : state.kind === "closed" || state.kind === "failed" ? (
       <CircleAlert className="size-3.5 text-destructive" aria-hidden />
     ) : state.kind === "saving" && !slow ? (
       <CloudUpload className="size-3.5" aria-hidden />
@@ -887,7 +898,9 @@ function SaveIndicator({
             ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
             : state.kind === "saved"
               ? "Every edit is stored by the server."
-              : undefined
+              : state.kind === "failed"
+                ? "The server refused your latest edits. They are kept in this tab; reopen the editor to keep working."
+                : undefined
         }
         className="inline-flex items-center gap-1"
       >
@@ -940,6 +953,37 @@ function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
       </span>
       <span>{text}</span>
     </span>
+  );
+}
+
+// The service refused to store an edit: says why and reopens the editor on
+// request, from what is stored, offering the unsaved text back (copy,
+// insert, discard). Nothing is resent on its own. The save state's status
+// region announces it.
+function SaveFailedNotice({
+  reason,
+  onReopen,
+}: {
+  reason: string | null;
+  onReopen: () => void;
+}) {
+  return (
+    <div
+      data-testid="draft-save-failed"
+      className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-3 py-2 text-[13px]"
+    >
+      <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden />
+      <p className="min-w-0 flex-1 basis-60">
+        <span className="font-medium">Your latest edits were not saved.</span>{" "}
+        <span className="text-muted-foreground">
+          {reason} Reopen the editor to keep working from what is saved; your
+          unsaved text is kept on this device and offered back.
+        </span>
+      </p>
+      <Button size="sm" variant="secondary" onClick={onReopen}>
+        <RefreshCw className="size-3.5" aria-hidden /> Reopen editor
+      </Button>
+    </div>
   );
 }
 

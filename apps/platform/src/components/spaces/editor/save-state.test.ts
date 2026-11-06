@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  CLOSE_REASONS,
+  SAVE_REFUSALS,
+  saveRefusalOf,
+} from "@lictory/core/spaces/collaboration-protocol";
+import {
   nextSaveTiming,
   saveStateOf,
   shownSaveState,
@@ -22,6 +27,7 @@ function synced(): SessionSnapshot {
     online: true,
     unavailable: false,
     closed: null,
+    refused: null,
     peers: [],
   };
   return { ...s, save: nextSaveTiming(null, saveStateOf(s).kind, 0) };
@@ -235,4 +241,86 @@ void test("events that do not change the save state keep its timing", () => {
   const s = synced();
   const typingAt = nextSaveTiming(s.save, "saving", 100);
   assert.equal(nextSaveTiming(typingAt, "saving", 900), typingAt);
+});
+
+const tooLarge = SAVE_REFUSALS.tooLarge;
+const failedAnnouncement = `Save failed. ${tooLarge} Your unsaved text is kept in this tab; reopen the editor to keep working.`;
+
+void test("only the service's refusals of a change count as a failed save", () => {
+  for (const reason of Object.values(SAVE_REFUSALS))
+    assert.equal(saveRefusalOf(reason), reason);
+  // A database outage resets the connection (it reconnects and retries);
+  // closed sessions and unknown or missing reasons are not refusals either.
+  for (const reason of [
+    "Changes not saved yet; reconnecting.",
+    "Reset Connection",
+    "Server closed the connection",
+    "provider_initiated",
+    "permission-denied",
+    ...Object.values(CLOSE_REASONS),
+    "",
+    undefined,
+  ])
+    assert.equal(saveRefusalOf(reason), null, String(reason));
+});
+
+void test("a refused save shows Save failed at once and is announced once, however much is typed", () => {
+  const { shown, announced, claims } = replay(
+    [
+      [0, { unsynced: true }],
+      [300, { refused: tooLarge }],
+      // Typing goes on in the tab; nothing is stored.
+      ...[400, 520, 640, 760, 880, 3000].map((at): [number, Patch] => [
+        at,
+        { unsynced: true },
+      ]),
+    ],
+    10_000,
+  );
+  assert.deepEqual(shown, ["0 Saving…", "300 Save failed"]);
+  assert.deepEqual(announced, [`300 ${failedAnnouncement}`]);
+  for (const claim of claims) assert.equal(claim.truth, "saved");
+});
+
+void test("a refusal stays shown offline and after reconnecting: reconnecting does not offer a refused draft again", () => {
+  const { shown, announced } = replay(
+    [
+      [0, { unsynced: true }],
+      [100, { refused: tooLarge }],
+      [1000, { online: false, status: disconnected }],
+      [4000, { online: true, status: connected }],
+    ],
+    10_000,
+  );
+  assert.deepEqual(shown, ["0 Saving…", "100 Save failed"]);
+  assert.deepEqual(announced, [`100 ${failedAnnouncement}`]);
+});
+
+void test("a save that is only slow never shows as failed", () => {
+  const { shown, announced } = replay(
+    [
+      [0, { unsynced: true }],
+      [60_000, { unsynced: false }],
+    ],
+    70_000,
+  );
+  assert.deepEqual(shown, [
+    "0 Saving…",
+    "1000 Saving… (spinner)",
+    "60000 Saving…",
+    "61000 Saved",
+  ]);
+  assert.deepEqual(announced, []);
+});
+
+void test("a closed session wins over a refusal", () => {
+  const { shown } = replay(
+    [
+      [0, { unsynced: true }],
+      [100, { refused: SAVE_REFUSALS.draftGone }],
+      [200, { closed: "replaced" }],
+    ],
+    5000,
+  );
+  assert.deepEqual(shown.at(-1), `200 ${CLOSE_REASONS.replaced}`);
 });

@@ -34,6 +34,7 @@ import {
 import {
   CLOSE_REASONS,
   DRAFT_SEQUENCE_REQUEST,
+  SAVE_REFUSALS,
   draftStoredPayload,
 } from "@lictory/core/spaces/collaboration-protocol";
 
@@ -189,7 +190,7 @@ export function draftCollaboration(options: Options) {
       )
         return;
       const writer = writers.get(documentName);
-      if (!writer) throw forbidden("This draft is no longer available.");
+      if (!writer) throw forbidden(SAVE_REFUSALS.draftGone);
       const { userId, sessionId } = connection.context as CollaborationContext;
       const sequence = await writer
         .submit({ userId, sessionId }, change.update)

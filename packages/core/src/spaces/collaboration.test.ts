@@ -3,7 +3,11 @@
 // See docs/internals/spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { HocuspocusProvider } from "@hocuspocus/provider";
+import {
+  HocuspocusProvider,
+  HocuspocusProviderWebsocket,
+  WebSocketStatus,
+} from "@hocuspocus/provider";
 import WebSocket from "ws";
 import { Hocuspocus } from "@hocuspocus/server";
 import { sql } from "drizzle-orm";
@@ -16,6 +20,10 @@ import { PROTOCOL } from "@lictory/core/contracts/protocol";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { executeMutation } from "@lictory/core/domain/service";
 import { draftCollaboration } from "@lictory/core/spaces/collaboration";
+import {
+  SAVE_REFUSALS,
+  saveRefusalOf,
+} from "@lictory/core/spaces/collaboration-protocol";
 import {
   draftDocumentName,
   resolveDraftDocument,
@@ -215,10 +223,21 @@ function connect(instance: Instance, ref: DraftRef, userId: string) {
     document,
   });
   const closes: number[] = [];
-  provider.on("close", ({ event }: { event: { code: number } }) =>
-    closes.push(event.code),
+  const reasons: string[] = [];
+  provider.on(
+    "close",
+    ({ event }: { event: { code: number; reason: string } }) => {
+      closes.push(event.code);
+      reasons.push(event.reason);
+    },
   );
-  return { provider, document, text: document.getText("body"), closes };
+  return {
+    provider,
+    document,
+    text: document.getText("body"),
+    closes,
+    reasons,
+  };
 }
 
 async function until(check: () => boolean | Promise<boolean>, ms = 5000) {
@@ -300,6 +319,11 @@ void test("a long outage resets the connection and the edits are saved after rec
     await failWrites(true);
     a.text.insert(0, "Cancellation after settlement is unsupported.");
     await until(() => a.closes.length > 0);
+    // A reset, retried by reconnecting: never shown as a failed save.
+    assert.equal(
+      a.reasons.some((r) => saveRefusalOf(r) !== null),
+      false,
+    );
     assert.equal(b.text.toJSON(), "");
     await failWrites(false);
     await until(
@@ -313,6 +337,85 @@ void test("a long outage resets the connection and the edits are saved after rec
     await failWrites(false);
     a.provider.destroy();
     b.provider.destroy();
+    await instance.destroy();
+  }
+});
+
+void test("a refused change closes only its draft with a reason the editor recognises; a new session on the same socket stores truthfully", async () => {
+  const { organizationId, alice, bob } = await organization();
+  const ref = await draft(organizationId);
+  const instance = await server();
+  // One socket for Alice's sessions, as in the browser.
+  const socket = new HocuspocusProviderWebsocket({
+    url: `ws://127.0.0.1:${instance.port}`,
+  });
+  const session = () => {
+    const document = new Y.Doc();
+    const provider = new HocuspocusProvider({
+      websocketProvider: socket,
+      name: documentName(ref),
+      // As DraftSession: each session under its own key.
+      sessionAwareness: true,
+      token: sessions.get(alice)!.token,
+      document,
+    });
+    const reasons: string[] = [];
+    provider.on("close", ({ event }: { event: { reason: string } }) =>
+      reasons.push(event.reason),
+    );
+    provider.attach();
+    return { provider, document, text: document.getText("body"), reasons };
+  };
+  const a = session();
+  const b = connect(instance, ref, bob);
+  try {
+    await until(() => a.provider.synced && b.provider.synced);
+    // Over the update limit, under the frame limit: the service refuses it.
+    a.text.insert(0, "x".repeat(600 * 1024));
+    await until(() => a.reasons.length > 0);
+    assert.deepEqual(a.reasons, [SAVE_REFUSALS.tooLarge]);
+    assert.equal(saveRefusalOf(a.reasons[0]), SAVE_REFUSALS.tooLarge);
+    // Only the draft was closed: the socket stays open, the edit unsaved,
+    // and nobody sees the refused text.
+    assert.equal(socket.status, WebSocketStatus.Connected);
+    assert.equal(a.provider.hasUnsyncedChanges, true);
+    assert.equal(await stored(ref), "");
+    assert.equal(b.text.toJSON(), "");
+    // A change already on its way when the refusal arrived reaches the
+    // service after it closed the draft, and is queued there. (Under a client
+    // id of its own, so the service could apply it without the refused one.)
+    a.document.clientID += 1;
+    a.document.getText("late").insert(0, "Sent before the refusal arrived.");
+    await new Promise((r) => setTimeout(r, 200));
+    // DraftSession.stopSending: leave the socket without a close message.
+    socket.configuration.providerMap.delete(a.provider.effectiveName);
+    a.provider.detach();
+    a.text.insert(0, "Typed after the refusal. ");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(await stored(ref), "");
+    a.provider.destroy();
+    // Reopening: a new session for the same draft on the same socket syncs,
+    // stays open, and its Saved means stored.
+    const reopened = session();
+    await until(() => reopened.provider.synced);
+    reopened.text.insert(0, "Retries reuse the transaction ID.");
+    await until(() => !reopened.provider.hasUnsyncedChanges);
+    assert.equal(await stored(ref), "Retries reuse the transaction ID.");
+    await until(() => b.text.toJSON() === "Retries reuse the transaction ID.");
+    reopened.text.insert(0, "Yes. ");
+    await until(() => !reopened.provider.hasUnsyncedChanges);
+    assert.equal(await stored(ref), "Yes. Retries reuse the transaction ID.");
+    assert.deepEqual(reopened.reasons, []);
+    // The earlier session's queued change was never applied to (or
+    // acknowledged to) the new one, so its Saved counted only its own edits.
+    const state = new Y.Doc();
+    Y.applyUpdate(state, (await loadDraft(db, ref)).state);
+    assert.equal(state.getText("late").toJSON(), "");
+    reopened.provider.destroy();
+  } finally {
+    a.provider.destroy();
+    b.provider.destroy();
+    socket.destroy();
     await instance.destroy();
   }
 });

@@ -422,6 +422,21 @@ removes or alters commits.
   and sends it to an editor when it connects; an editor may ask again with
   `{"type":"lictory.draft.sequence"}`. `N` is the `expectedSequence` the
   editor passes to `commitDraft`: the cut it has seen stored.
+- **Refused changes.** A change the service will not store closes only that
+  draft's connection, with one of the `SAVE_REFUSALS` reasons: too large
+  (one change over 512 KiB), unreadable, edit access lost at write time, or
+  the draft gone. The socket stays open, so nothing reconnects or resends on
+  its own (a deterministic refusal would only repeat). A database failure is
+  different: after a few seconds of retries the service resets the socket and
+  the editor reconnects and resends, as after any outage. Hocuspocus queues
+  messages that reach a closed draft until that address is opened again on
+  the socket, then applies and acknowledges them. Each editor session
+  therefore addresses its draft under a key of its own (Hocuspocus session
+  awareness, `<document name>\0<session id>`): what an earlier session sent
+  is never applied or acknowledged to a later one, which would make the later
+  one read "Saved" too early. After a refusal the editor also stops sending
+  for that draft, without a close message, and only a new session opens it
+  again.
 - **Restarts lose nothing stored.** All draft state is in PostgreSQL. SIGTERM
   refuses new connections, closes open ones and waits (bounded) for pending
   saves; editors keep their unsaved changes and resend them when they
@@ -831,7 +846,13 @@ attributed to the anonymized account, like specification threads.
   unload warning and Publish read the truth directly. Routine saves are not
   announced to screen readers (the editor is described by the indicator, so
   it can be read on demand); going offline and the confirmed recovery
-  afterwards are. "Offline — changes
+  afterwards are. "Save failed" when the service refused a change (see
+  refused changes above), shown and announced at once with the reason, and
+  final for that session: it is never inferred from a slow save, and
+  neither reconnecting nor typing on clears it. The editor offers "Reopen
+  editor", which closes the session (the unstored edits are kept on this
+  device, see unsaved text below) and opens a new one from what is stored;
+  Publish refuses at once instead of waiting. "Offline — changes
   kept on this device" when the browser or the socket is offline (the edits
   stay in the open tab, which warns before closing with unsaved edits, and
   are offered again on reconnect), "Live editing unavailable" when the
@@ -844,9 +865,10 @@ attributed to the anonymized account, like specification threads.
   or missing access leaves
   the editor, a signed-out session asks to sign in again.
 - **Unsaved text.** When the editor closes a draft session (a new epoch
-  replaced it, or I leave the editor) while it holds edits of mine the
+  replaced it, I reopen it after "Save failed", or I leave the editor) while it holds edits of mine the
   service has not stored, an open connection first gets about two seconds
-  to store them (a replaced epoch refuses them). What is still unstored is
+  to store them (a replaced epoch refuses them; a refused session skips
+  this). What is still unstored is
   never dropped: the top-level blocks my unstored edits touched (converted
   by the document engine, as the server would) and the working title, if I
   changed it, are kept in this browser under my person, organization, page

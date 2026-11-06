@@ -11,6 +11,23 @@ export const CLOSE_REASONS = {
   replaced: "This draft was closed or replaced. Reopen the page.",
 } as const;
 
+// Why the service refused to store an editor's change (the close reason of
+// that draft's connection; the socket stays open). Unlike a database failure,
+// which resets the socket and is retried by reconnecting, these leave the
+// change unstored until the editor offers it again, so the editor shows that
+// saving failed. Short, without content.
+export const SAVE_REFUSALS = {
+  tooLarge: "This change is too large to save at once.",
+  unreadable: "This change could not be read.",
+  cannotEdit: "You can no longer edit this page.",
+  draftGone: "This draft is no longer available.",
+} as const;
+
+// The refusal a close reason names, or null for any other reason.
+export function saveRefusalOf(reason: string | undefined): string | null {
+  return Object.values(SAVE_REFUSALS).find((text) => text === reason) ?? null;
+}
+
 // Stateless messages telling editors the last stored sequence of their
 // draft epoch, the cut `commitDraft` seals (`expectedSequence`). Sent to
 // every editor after each stored batch and to an editor when it connects;
