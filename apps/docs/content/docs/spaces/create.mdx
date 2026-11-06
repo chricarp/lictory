@@ -1,0 +1,148 @@
+---
+title: Create and manage spaces
+description: Give a space a name, an icon and an address, choose where it lives, and find your way around the spaces list, a space's home and its settings.
+---
+
+## Create a space
+
+Any member of an organization can create a space. Choose **New space** on
+the **Spaces** page, the **+** next to **Spaces** in the sidebar, or
+**Create space** in the command palette.
+
+![The New space dialog: an icon button and a Name field, Customize address, an optional Description, and Access & publishing summarized as "Northwind · everyone can edit · direct publishing" with Configure](/screenshots/spaces-new-space.webp)
+
+<Steps>
+<Step>
+
+**Name and icon.** Name the space for what it holds (_Engineering
+Handbook_, _Payments_, _Architecture decisions_). The button beside the name
+picks an icon, shown wherever the space is listed.
+
+</Step>
+<Step>
+
+**Address.** Lictory derives the space's address from its name, for example
+`/northwind/spaces/engineering-handbook`. **Customize address** changes it:
+lowercase letters, digits and single hyphens. Links to the space keep
+working only while its address stays the same; links to its pages never
+depend on it, because pages are addressed by their id.
+
+</Step>
+<Step>
+
+**Description** (optional). One sentence about what belongs here. It is
+shown on the spaces list and on the space's home.
+
+</Step>
+<Step>
+
+**Access & publishing.** One line summarizes where the space will live, who
+can open it and how it publishes, for example _Northwind · everyone can edit
+· direct publishing_. **Configure** changes it:
+
+- **Location**: the organization, one of its projects or one of a project's
+  teams. The location decides where the space is listed in navigation and,
+  while access is inherited, who can edit it.
+- **Access**: **Inherited** (the location's members can edit; everyone else
+  in the organization can view) or **Restricted** (only people you add can
+  open it, and you get edit access). See [access](/spaces/access).
+- **Publishing**: **Direct** (editors publish changes straight to the page)
+  or **Reviewed** (changes are proposed on a branch and published only after
+  a review approves them). See [publishing](/spaces/publishing).
+
+</Step>
+<Step>
+
+**Create space.** The space opens on its home, ready for a first page.
+
+</Step>
+</Steps>
+
+Locations follow your organization's structure: an archived project or team
+cannot become the location of a new space.
+
+## Choose a location
+
+| Location         | Listed in                                | While access is inherited, who can edit |
+| ---------------- | ---------------------------------------- | --------------------------------------- |
+| **Organization** | The sidebar's **Spaces**, for everyone   | Everyone in the organization            |
+| **Project**      | The project's navigation                 | Members of the project                  |
+| **Team**         | The project's navigation, under its team | Members of the team                     |
+
+A space owns no delivery configuration. Moving work items between projects
+or teams never changes a space, and moving a space never changes work
+items. Pick the location by who maintains the knowledge: a team's runbooks
+belong to the team, a product area's decisions to the project, a company
+handbook to the organization.
+
+## The spaces list
+
+**Spaces** in the sidebar lists the organization's spaces and the spaces of
+your projects and teams; **All spaces** opens every space you can read,
+organization spaces first and then by project. Each row shows the space's
+icon, name and description, how many pages it has and when it was last
+updated. A filter appears when the list grows, and **Show archived spaces**
+reveals the archived ones.
+
+![The Spaces page of Northwind with four organization spaces (Design system, Engineering Handbook, Onboarding, Security) and five spaces of the Northwind project, each with a description, page count and last update, plus Filter spaces and New space](/screenshots/spaces-list.webp)
+
+Spaces you cannot read are not listed. The one exception is for
+administrators: Restricted spaces you administer without reading them appear
+under **Restricted spaces you administer**, by name only (see
+[administrators](/spaces/access#administrators)).
+
+## A space's home
+
+Opening a space shows its home:
+
+![The home of the Engineering Handbook space: its icon, name and description, the facts Northwind, Direct publishing and Can edit, a New page button, a nested tree of nine pages with Find a page, and Recently updated listing who published what](/screenshots/spaces-space-home.webp)
+
+- **The header** names the space with its location, its publishing policy
+  (**Direct publishing** or **Reviewed publishing**), **Restricted** when it
+  is, and your own access (**Can view**, **Can comment** or **Can edit**).
+- **New page** adds a page at the end of the space (editors only).
+- **Space settings** (the sliders button) opens the settings, for editors
+  and administrators.
+- **Pull requests**, in Reviewed spaces, lists the open proposals across the
+  space's pages.
+- **Pages** is the space's tree, with **Find a page** to narrow it to the
+  titles that match, wherever they sit. See [pages](/spaces/pages).
+- **Recently updated** lists the latest published versions with who
+  published them and their message, so you can see what changed without
+  opening each page.
+
+## Space settings
+
+Every setting applies as soon as you change it (text fields when you leave
+them or press Enter) and says **Saving…**, then **Saved**, or why it was
+refused, right beside it.
+
+| Group                     | Settings                                            | Who can change them                                          |
+| ------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
+| **Details**               | Name, icon, address, description                    | Editors of the space                                         |
+| **Location & publishing** | Location; publishing policy (Direct or Reviewed)    | [Administrators](/spaces/access#administrators) of the space |
+| **Access**                | Access mode (Inherited or Restricted); named access | Administrators of the space                                  |
+| **Archive**               | Archive or restore the space                        | Administrators of the space                                  |
+
+Changes that decide who can read or edit ask first:
+
+- **Moving an Inherited space** to another location says where it will be
+  listed and who will be able to edit it before anything changes.
+- **Restricting** says that members of the location lose access unless they
+  are named, and that you keep edit access.
+
+Switching a space from Direct to Reviewed is refused while a page has
+unpublished changes: publish or discard them first, so nothing typed in a
+live draft is stranded. Switching back to Direct reopens each page's live
+draft at its published version.
+
+## Archive a space
+
+**Archive space** hides the space from navigation and freezes its pages:
+they stay readable through their links and history, but nobody can edit,
+publish or comment until it is restored. Nothing is deleted. Archived spaces
+appear under **Show archived spaces**, and **Restore space** (on the space or
+in its settings) brings everything back as it was.
+
+Archiving a project or a team does not archive its spaces or change who can
+read them.

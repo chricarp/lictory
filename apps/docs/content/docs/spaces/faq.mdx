@@ -1,0 +1,156 @@
+---
+title: FAQ and troubleshooting
+description: Answers to the questions teams ask when they start with Spaces, and what to check when live editing, publishing or merging does not work.
+---
+
+## Editing
+
+### "Live editing unavailable"
+
+The editor could not reach Lictory's editing service when it opened the
+draft. Reading the page, its history and its comments keep working; only
+editing waits. Reload the page after a moment. If it persists for everyone,
+the server's `collaboration` service is down or your network blocks its
+WebSocket: ask whoever runs your installation, and see
+[running Spaces on your server](#running-spaces-on-your-server).
+
+### Is my text safe if the connection drops?
+
+Yes, while the tab stays open. The editor says **Offline — changes kept on
+this device**, keeps your edits in the tab and sends them when the
+connection returns. Closing the tab or the browser before then loses what
+was never saved, and the tab warns you before it closes. Opening a page or
+starting to edit needs a connection: Spaces is not an offline editor. See
+[offline, honestly](/spaces/editing#offline-honestly).
+
+### Does "Saved" mean everyone can read it?
+
+No. **Saved** means the server has stored your edits in the live draft.
+Readers see them after someone publishes the draft (Direct spaces) or a pull
+request with them merges (branches). See [publishing](/spaces/publishing).
+
+### "This page was replaced while you had unsaved changes"
+
+Someone restored a version, synced the branch or merged into it while you
+had edits the server had not stored yet. Your text is kept in this browser:
+**Copy text**, **Insert at end** of the new draft, or **Discard** it. See
+[when the draft is replaced](/spaces/editing#when-the-draft-is-replaced).
+
+### Why can't I add images?
+
+Images are stored as private page files, which needs file storage on your
+installation. Without it the editor says _Images are unavailable_; your
+administrator can set it up ([file storage](/self-hosting/configuration#file-storage)).
+
+## Publishing and reviews
+
+### Why can't I publish in this space?
+
+One of these:
+
+- **The space is Reviewed.** Its pages have no live draft to publish: choose
+  **Start a branch**, then propose your change in a pull request
+  ([Reviewed spaces](/spaces/publishing#reviewed-spaces)).
+- **You can view or comment, but not edit.** Ask someone who manages the
+  space for edit access, or join the project or team it belongs to
+  ([access](/spaces/access)).
+- **The space or page is archived.** Archived content is read-only until it
+  is restored.
+- **Nothing changed.** _No changes to publish_ means the draft equals the
+  published version.
+
+Open blocking comments never stop **Publish** in a Direct space.
+
+### Why did my approval go stale?
+
+Approvals belong to the exact result of the merge you inspected. A new
+commit on the branch, a newly published version on main or a sync changed
+that result, so your approval shows **Review outdated** and you were
+notified. Look at the new resulting changes and approve again if they are
+still right. Changes that leave the result identical keep approvals. See
+[approvals belong to the exact result](/spaces/branches#approvals-belong-to-the-exact-result).
+
+### Why can't I approve this pull request?
+
+You contributed to it: you authored or typed in one of the commits it would
+merge. Nobody approves their own changes, and that includes changes their
+agent proposed. If you work alone, use a Direct space.
+
+### Why is "Merge pull request" disabled?
+
+The pull request's **Merge checks** list each reason in plain words:
+uncommitted live changes, conflicts, blocking discussions, missing or
+pending required reviews, or a request for changes. See
+[merge](/spaces/branches#merge).
+
+### My branch has conflicts. Where do I resolve them?
+
+On the branch: **Resolve conflicts** on the pull request (or **Sync from
+main** in the branch list) shows each conflict with **Base**, **Ours** and
+**Theirs** and lets you pick a side, keep both or edit by hand. See
+[conflicts](/spaces/branches#conflicts).
+
+### Can I undo a publish or a merge?
+
+Versions are never deleted or rewritten. Restore the earlier version: that
+creates a new version with its content, and the history keeps both. In a
+Reviewed space, start a branch from the earlier version and propose it. See
+[restore a version](/spaces/history#restore-a-version).
+
+## Access
+
+### Someone can see the space but cannot comment
+
+In an Inherited space whose location is a project or a team, everyone else
+in the organization can view but not comment. Add them under **Space
+settings → Access → Give access** with **Can comment** or **Can edit**.
+
+### Can I hide one page from part of the team?
+
+Not inside a space: access belongs to the space. Put the page in its own
+Restricted space, which can have the same location so it is listed beside
+the other one. See [access](/spaces/access#no-page-level-restrictions).
+
+### As an administrator, why can't I open a Restricted space?
+
+Administering a space does not let you read it. On the **Spaces** page,
+under **Restricted spaces you administer**, choose **Grant myself access…**.
+The grant is recorded in the audit log. See
+[administrators](/spaces/access#administrators).
+
+## Pages and work items
+
+### Should this be a page or a work item specification?
+
+Behavior the team is about to build belongs in the work item's
+specification: it is refined, reviewed by the project's disciplines, checked
+for readiness and delivered. Knowledge that outlives one piece of work (how a
+service works, a runbook, a decision record) belongs on a page. Mention the
+work item in the page with `#` to connect them.
+
+### Where did my page go?
+
+It may have been moved (its link still works: pages are addressed by id) or
+archived. Look in **Show archived pages** in the space's tree, or search its
+title with **Find a page** or the command palette.
+
+## Running Spaces on your server
+
+Live editing is served by the `collaboration` service, which ships in the
+same image as the API and is part of every installation. Nothing needs to be
+configured for it; behind your own reverse proxy, pass WebSocket upgrades
+for `/collaboration`. Run exactly one per database: a second copy refuses to
+start (`collaboration.owner_busy`).
+
+- What it is and what it needs: [self-hosting overview](/self-hosting) and
+  [configuration → live editing](/self-hosting/configuration#live-editing)
+  (its memory limit and heap).
+- Proxy rules: [reverse proxy and TLS](/self-hosting/reverse-proxy).
+- Health checks and alerts: [monitoring](/self-hosting/monitoring).
+- Upgrades pause live editing for a few seconds while the service is
+  replaced; saved edits are stored and unsaved ones are sent again
+  ([upgrades](/self-hosting/upgrades)).
+- Backups: pages, their history and even unpublished live drafts are in
+  PostgreSQL, so your usual database backup covers Spaces
+  ([backups](/self-hosting/backups)).
+- When editing fails: [troubleshooting](/self-hosting/troubleshooting#live-editing-unavailable-on-pages-in-spaces).

@@ -1,0 +1,129 @@
+---
+title: Publishing
+description: How a live draft becomes the version everyone reads, in Direct spaces that publish straight away and Reviewed spaces that publish through approved pull requests.
+---
+
+Readers always see a page's **published version**: the latest version on
+its main line. A live draft becomes that version in one of two ways,
+depending on the space's publishing policy.
+
+| Policy               | How changes are published                                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Direct** (default) | Editors edit the page's live draft together and **Publish** it. Branches and pull requests remain available for bigger changes.                  |
+| **Reviewed**         | The published page is protected: it has no live draft. Changes are proposed on a branch and published only when an approved pull request merges. |
+
+Choose Direct for the knowledge a team keeps current day to day (runbooks,
+onboarding, team notes), and Reviewed where a published change must be
+agreed first (policies, architecture decisions, anything others rely on).
+A person working alone should use a Direct space: in a Reviewed space nobody
+can approve their own changes.
+
+Publishing a page only makes a version the published one inside Lictory. It
+is unrelated to handing work items off to Jira.
+
+## Direct spaces
+
+<DirectPublishing />
+
+<Steps>
+<Step>
+
+**Edit.** Open the page's live draft with **Edit** and write, alone or with
+others ([writing together](/spaces/editing)).
+
+</Step>
+<Step>
+
+**Publish.** Choose **Publish**. _Publish this page_ explains that readers
+will see what is saved now and later edits stay unpublished. Add a
+**Message** (optional, _What changed?_) and choose **Publish now**, or press
+Mod+Enter.
+
+</Step>
+<Step>
+
+**Done.** Lictory waits until your edits are **Saved**, then turns exactly
+what the server has stored into the next version: _Published version 3_. If
+nothing changed since the last version, it says _No changes to publish_.
+
+</Step>
+</Steps>
+
+Publish never includes something nobody saw: it seals the draft at the
+point the server had stored when you published, title included, and edits
+typed after that point stay **Unpublished changes** until the next Publish.
+Everyone who typed since the last version is recorded as a contributor to
+the new one, next to the person who published.
+
+Who can publish: everyone with **edit** access to the space. Open blocking
+comments do not stop **Publish** in a Direct space; they block merging pull
+requests ([comments](/spaces/comments#blocking-comments)).
+
+## What readers see
+
+![The Payments service page in dark mode: "Published version 2 by Maria Chen", the Edit unpublished draft button because the live draft has changes, and the comments panel](/screenshots/spaces-unpublished-draft-dark.webp)
+
+- The published version, with _Published version N · by … · when_ under the
+  title (_Published vN_ on a phone, where tapping it shows the details). In
+  a Reviewed space it is marked **Approved**, naming who approved it.
+- **Edit unpublished draft** instead of **Edit** when the live draft has
+  changes that are not published yet, so editors know someone's work is
+  waiting there. Readers without edit access see no difference: they never
+  see a draft.
+- Search and agents read only versions (the published one, or an earlier
+  one on request), never a live draft.
+
+Any earlier version can be read too, from the page's
+[history](/spaces/history) or from the _based on vN_ link in the editor.
+
+## Reviewed spaces
+
+In a Reviewed space the page's main line has no live draft. Editors see
+_Changes to this page are reviewed. Start a branch to propose changes._
+with **Start a branch**:
+
+<Steps>
+<Step>
+
+**Start a branch.** Lictory suggests a name from your handle and the page
+title (for example `maria/Payments-service`); change it if you like and
+choose **Start branch**. The page switches to your branch's live draft.
+
+</Step>
+<Step>
+
+**Write and commit.** Edit the branch's draft, alone or with the
+[collaborators](/spaces/branches#collaborators) you invite, and **Commit**
+when a step is done (_Commit to this branch_, then **Commit now**).
+
+</Step>
+<Step>
+
+**Propose.** Open a pull request into main and ask for a review. When every
+required reviewer approves the current result and the merge checks pass,
+**Merge pull request** publishes it. See
+[branches and pull requests](/spaces/branches).
+
+</Step>
+</Steps>
+
+<ReviewedChange />
+
+A version merged in a Reviewed space records who approved it: the version
+list marks it **Approved** and names the approvers. In a
+Direct space a merged pull request records the same people as **Reviewed
+by**, never as an approval, because the space did not require one.
+
+## Change the publishing policy
+
+A space's [administrators](/spaces/access#administrators) change the policy
+in **Space settings → Location & publishing → Publishing**.
+
+- **Direct → Reviewed** is refused while any page has unpublished changes in
+  its live draft. Publish them (or have their editors do it) first; nothing
+  typed in a draft is thrown away by a policy change.
+- **Reviewed → Direct** reopens each page's live draft at its published
+  version.
+
+Branches, pull requests, reviews and every version stay as they are either
+way.

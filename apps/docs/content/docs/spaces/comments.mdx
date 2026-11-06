@@ -1,0 +1,107 @@
+---
+title: Comments
+description: Discussions anchored to the exact text they are about, blocking comments that hold back merges, and the few notifications that unblock work.
+---
+
+Comments in Spaces are discussions about something specific: a passage of
+the page, or the page as a whole. They stay attached to that text as the
+page changes, so nobody has to ask what a comment was about.
+
+![The Payments service page with the Comments panel open: 1 open, 1 blocking. A blocking comment by Maria Chen quotes "Failed captures are retried three times with exponential backoff", which is tinted in the page, and asks whether the third retry should page the on-call engineer, with Reply, Resolve and Mark non-blocking](/screenshots/spaces-comments.webp)
+
+## Start a discussion
+
+- **On text.** Select it and choose **Comment**. In the live editor, use
+  **Comment on selection** in the toolbar or press **Mod+Alt+M**.
+- **On the whole page.** Choose **Comment on the page** at the foot of the
+  Comments panel.
+
+Write in the composer and post with **Mod+Enter**. Tick **Blocking** when the
+point must be settled before the page's changes can merge. Mention people
+with `@` to notify them.
+
+On the published page, selecting text needs a pointer (or the browser's caret
+browsing): keyboard users comment on the whole page there, or on text in the
+live editor, where the selection is made with the keyboard.
+
+## The Comments panel
+
+The **discussions** button in the page header shows how many discussions are
+open, with a red dot when one is blocking, and opens the **Comments** panel:
+beside the page on wide screens (open by default when the page has
+comments), as a sheet on narrow ones. Escape closes the sheet.
+
+- Discussions are listed in the order of their text in the page, then the
+  ones whose text is gone, then comments on the whole page.
+- Commented text is tinted in the page (red for blocking discussions).
+  Pointing at a discussion or at its text marks the other; **Show in the
+  page** scrolls to it.
+- Each discussion offers **Reply**, **Resolve** (or **Reopen**) and **Mark
+  blocking** (or **Mark non-blocking**).
+- Resolved discussions fold away under **Show N resolved**, and can be
+  reopened from there.
+
+A discussion belongs to the line it was written on: the published page and
+its live draft share theirs, each branch has its own, and a pull request's
+discussions stay on the pull request.
+
+## Comments stay on their text
+
+- **While people type**, a comment on the live draft follows its text as it
+  moves, even with several people editing at once. Comments written on the
+  draft say _On the unpublished draft_ until it is published.
+- **When the draft is published or committed**, the comment is pinned to the
+  exact words of that version.
+- **In later versions**, a comment finds its text again while the passage
+  survives. When the words around it were edited, it says _The quoted text
+  changed_ and keeps showing the original quote.
+- **When the text is deleted**, the comment shows **Original text removed**
+  with the quote and a link to the version it was written on.
+
+A comment is never silently moved to other text.
+
+## Blocking comments
+
+**Blocking** marks something that must be settled first. The page header's
+count says what blocking comments hold back:
+
+- **In a Direct space**, open blocking comments keep the page's pull requests
+  from merging. They do **not** stop **Publish**: a Direct space trusts its
+  editors to publish, and the comment stays visible to everyone until it is
+  resolved.
+- **In a Reviewed space**, they keep changes to the page from merging until
+  they are resolved.
+
+When a blocking comment is added, the people who wrote the page (the authors
+and contributors of its versions) are notified.
+
+## Who can do what
+
+| Access          | Comments                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| **Can view**    | Read every discussion                                                                       |
+| **Can comment** | Also start discussions, reply, resolve, reopen, mark blocking or non-blocking, attach files |
+| **Can edit**    | The same as comment                                                                         |
+
+Messages are never edited or deleted, and resolving keeps every message:
+the history shows who resolved or reopened a discussion and when it became
+blocking. Discussions on an archived page or in an archived space are
+read-only. People who cannot read a space cannot tell a discussion exists.
+
+## Notifications
+
+Notifications exist to unblock work, so Spaces sends few of them, and only
+to people who can still read the space:
+
+| Notification                 | Who receives it                                       | Default        |
+| ---------------------------- | ----------------------------------------------------- | -------------- |
+| You were mentioned           | People mentioned in a message                         | In app + email |
+| A reply in a discussion      | Its earlier participants                              | In app         |
+| A blocking comment on a page | Authors and contributors of the page's versions       | In app + email |
+| Your review was requested    | Reviewers asked to review a pull request              | In app + email |
+| Your approval went stale     | Reviewers whose approval no longer matches the result | In app + email |
+
+Opening or resolving a non-blocking discussion notifies nobody, and editing
+or publishing a page notifies nobody either. Mentioning someone who cannot
+read the space notifies nobody. Notification preferences follow the space's
+location: its team, then its project, then the organization.
