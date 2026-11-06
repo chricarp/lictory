@@ -453,7 +453,7 @@ test("the comments count and panel follow the branch on screen and point to othe
     0,
   );
   const toBranch = panel.getByRole("button", {
-    name: "Show 1 open discussion (1 blocking) on timeout-notes",
+    name: "Switch to timeout-notes 1 open 1 blocking",
   });
   await expect(toBranch).toBeVisible();
 
@@ -503,7 +503,7 @@ test("the comments count and panel follow the branch on screen and point to othe
   await expect(panel.getByText(/resolved/)).toHaveCount(0);
   await expect(
     panel.getByRole("button", {
-      name: "Show 1 open discussion (1 blocking) on timeout-notes",
+      name: "Switch to timeout-notes 1 open 1 blocking",
     }),
   ).toBeVisible();
 

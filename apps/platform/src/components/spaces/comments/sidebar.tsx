@@ -23,10 +23,7 @@ import type {
   PageThread,
   PageThreadMessage,
 } from "@lictory/platform/components/spaces/comments/store";
-import {
-  openDiscussionsLabel,
-  type OtherLine,
-} from "@lictory/platform/components/spaces/comments/line-threads";
+import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
 import { useSelectLine } from "@lictory/platform/components/spaces/editor/line";
 
 // The page's discussions beside the document, in document order: threads
@@ -285,7 +282,6 @@ function OtherLines({ lines }: { lines: readonly OtherLine[] }) {
           <li key={branch.id}>
             <button
               type="button"
-              aria-label={`Show ${openDiscussionsLabel(open)}${blocking ? ` (${blocking} blocking)` : ""} on ${branch.name}`}
               onClick={() => {
                 headingFocusRequest = {
                   line: branch.name,
@@ -299,7 +295,10 @@ function OtherLines({ lines }: { lines: readonly OtherLine[] }) {
                 className="size-3.5 shrink-0 text-muted-foreground"
                 aria-hidden
               />
+              {/* Named by what it shows: "Switch to {branch} 2 open 1
+                  blocking". */}
               <span className="min-w-0 flex-1 truncate font-medium">
+                <span className="sr-only">Switch to </span>
                 {branch.name}
               </span>
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
