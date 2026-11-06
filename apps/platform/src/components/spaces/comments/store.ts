@@ -7,9 +7,16 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import {
   createSpaceRowMemo,
+  type PageBranch,
   type SpaceRow,
 } from "@lictory/platform/data/spaces";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  lineDiscussionCounts,
+  lineThreads,
+  type LineDiscussionCounts,
+  type LineRef,
+} from "@lictory/platform/components/spaces/comments/line-threads";
 
 export type PageThread = SpaceEntityOf<"pageThread">;
 export type PageThreadMessage = SpaceEntityOf<"pageThreadMessage">;
@@ -79,4 +86,38 @@ export function usePageDiscussions(pageId: string) {
     [memo, rowMemo, rows],
   );
   return { ...discussions, loaded: result.type === "complete" };
+}
+
+export type LineDiscussions = Discussions & {
+  counts: LineDiscussionCounts;
+  loaded: boolean;
+};
+
+// The discussions of the line on screen (open and resolved) and the open
+// counts of every line: what the header's toggle counts and the panel lists.
+export function useLineDiscussions(
+  pageId: string,
+  line: LineRef,
+  branches: readonly PageBranch[],
+): LineDiscussions {
+  const discussions = usePageDiscussions(pageId);
+  const { branchId, isMain } = line;
+  const threads = useMemo(
+    () => lineThreads(discussions.threads, { branchId, isMain }),
+    [discussions.threads, branchId, isMain],
+  );
+  const counts = useMemo(
+    () =>
+      lineDiscussionCounts(discussions.threads, branches, { branchId, isMain }),
+    [discussions.threads, branches, branchId, isMain],
+  );
+  return useMemo(
+    () => ({
+      threads,
+      messages: discussions.messages,
+      counts,
+      loaded: discussions.loaded,
+    }),
+    [threads, discussions.messages, counts, discussions.loaded],
+  );
 }

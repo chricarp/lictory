@@ -29,6 +29,10 @@ import {
 } from "@lictory/platform/components/spaces/editor/line";
 import { usePageBranchSelection } from "@lictory/platform/components/spaces/history/branch-selection";
 import {
+  openDiscussionsLabel,
+  type LineDiscussionCounts,
+} from "@lictory/platform/components/spaces/comments/line-threads";
+import {
   touchIcon,
   touchTarget,
 } from "@lictory/platform/components/spaces/touch";
@@ -236,9 +240,12 @@ function StatementDetails({
 export function LineSwitcher({
   page,
   history,
+  discussions,
 }: {
   page: SpacePage;
   history: PageHistory;
+  // Open discussions per line, so they can be found before switching.
+  discussions: LineDiscussionCounts;
 }) {
   const { memberName, organization } = useWorkspace();
   const { space } = usePageActions();
@@ -277,6 +284,12 @@ export function LineSwitcher({
           <Menu label="Branches of this page">
             {branches.map((b) => {
               const open = openPulls.some((p) => p.sourceBranchId === b.id);
+              const discussed =
+                b.id === branchId
+                  ? discussions.open
+                  : (discussions.others.find((o) => o.branch.id === b.id)
+                      ?.open ?? 0);
+              const talk = discussed ? openDiscussionsLabel(discussed) : null;
               const facts = b.isMain
                 ? [
                     "Published",
@@ -285,11 +298,13 @@ export function LineSwitcher({
                       : b.draft?.uncommittedChanges
                         ? "draft has unpublished changes"
                         : null,
+                    talk,
                   ]
                 : [
                     `by ${memberName(b.authorId)}`,
                     b.draft?.uncommittedChanges ? "uncommitted changes" : null,
                     open ? "pull request" : null,
+                    talk,
                   ];
               return (
                 <MenuItem

@@ -1,4 +1,11 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -32,6 +39,7 @@ import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumb
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 import { ArchivedSpaceNotice } from "@lictory/platform/components/spaces/archived-notice";
 import { usePageLine } from "@lictory/platform/components/spaces/editor/line";
+import { useLineDiscussions } from "@lictory/platform/components/spaces/comments/store";
 import { useLaidOut } from "@lictory/platform/components/spaces/editor/layout";
 import { SurfaceBoundary } from "@lictory/platform/components/spaces/editor/boundary";
 import {
@@ -73,13 +81,22 @@ export function PageView() {
   const roomy = useLaidOut(roomyProbe);
   const treeFits = useLaidOut(treeProbe);
   const treeFitsBeside = useLaidOut(besideProbe);
-  // Until someone chooses, comments are open beside a page that has any
-  // when everything fits; once open by default they stay open (resolving
-  // the last thread does not fold the panel away under the reader).
+  // Until someone chooses, comments are open beside a page whose line on
+  // screen has open discussions when everything fits; once open by default
+  // they stay open (resolving the last thread does not fold the panel away
+  // under the reader).
   const [choice, setChoice] = useState<{ pageId: string; open: boolean }>();
   const [openedFor, setOpenedFor] = useState<string>();
-  if (page && roomy && page.openThreads > 0 && openedFor !== page.id)
+  const [discussedFor, setDiscussedFor] = useState<string>();
+  if (page && roomy && discussedFor === page.id && openedFor !== page.id)
     setOpenedFor(page.id);
+  const onLineDiscussed = useCallback(
+    (id: string, discussed: boolean) =>
+      setDiscussedFor((current) =>
+        discussed ? id : current === id ? undefined : current,
+      ),
+    [],
+  );
   const commentsOpen = page
     ? choice?.pageId === page.id
       ? choice.open
@@ -154,6 +171,7 @@ export function PageView() {
             onCommentsOpenChange={setCommentsOpen}
             commentsSlot={commentsSlot}
             commentsWide={commentsWide}
+            onLineDiscussed={onLineDiscussed}
             treeToggle={treeToggle}
           />
         ) : (
@@ -210,6 +228,7 @@ function PageArticle({
   onCommentsOpenChange,
   commentsSlot,
   commentsWide,
+  onLineDiscussed,
   treeToggle,
 }: {
   page: SpacePage;
@@ -218,6 +237,9 @@ function PageArticle({
   onCommentsOpenChange: (open: boolean) => void;
   commentsSlot: HTMLElement | null;
   commentsWide: boolean;
+  // Whether the line on screen has open discussions (opens the comments
+  // by default).
+  onLineDiscussed: (pageId: string, discussed: boolean) => void;
   // Puts the page tree away or brings it back (frames wide enough for it).
   treeToggle?: { shown: boolean; toggle: () => void };
 }) {
@@ -225,6 +247,14 @@ function PageArticle({
   const { canEdit, restorePage } = usePageActions();
   const history = usePageHistory(page.id);
   const line = usePageLine(space, page, history);
+  // The line's discussions: the toggle counts them, the panel lists them.
+  const discussions = useLineDiscussions(page.id, line, history.branches);
+  const discussed = discussions.counts.open > 0;
+  useEffect(
+    () => onLineDiscussed(page.id, discussed),
+    [onLineDiscussed, page.id, discussed],
+  );
+  const lineName = line.branch?.name ?? "main";
   const ancestors = useMemo(
     () => ancestorsOf(new Map(pages.map((p) => [p.id, p])), page.id),
     [pages, page.id],
@@ -272,10 +302,15 @@ function PageArticle({
         {/* Phones: one row under the title, the primary action at its
             end. */}
         <div className="flex shrink-0 items-center gap-1.5 max-sm:order-last max-sm:w-full max-sm:gap-2 touch:gap-2">
-          <LineSwitcher page={page} history={history} />
+          <LineSwitcher
+            page={page}
+            history={history}
+            discussions={discussions.counts}
+          />
           <CommentsToggle
             space={space}
-            page={page}
+            lineName={lineName}
+            counts={discussions.counts}
             open={commentsOpen}
             onToggle={() => onCommentsOpenChange(!commentsOpen)}
           />
@@ -351,6 +386,7 @@ function PageArticle({
             page={page}
             history={history}
             line={line}
+            discussions={discussions}
             editing={editing}
             onStopEditing={() => setEditingMain(false)}
             commentsOpen={commentsOpen}

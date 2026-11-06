@@ -37,6 +37,7 @@ import type {
   Discussions,
   PageThread,
 } from "@lictory/platform/components/spaces/comments/store";
+import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
 
 // The live editor's Mod+Alt+M and toolbar ask for a comment on the selection.
 export const COMMENT_SELECTION_EVENT = "lictory:comment-selection";
@@ -187,6 +188,8 @@ export function PageComments({
   fileContext,
   versionHref,
   blockingEffect,
+  lineName,
+  otherLines,
 }: {
   editor: Editor | null;
   pageId: string;
@@ -203,6 +206,9 @@ export function PageComments({
   versionHref: (commitId: string) => { href: string; label: string } | null;
   // What an open blocking discussion holds back on this page.
   blockingEffect: string;
+  // The line on screen, and the page's other lines with open discussions.
+  lineName: string;
+  otherLines: readonly OtherLine[];
 }) {
   const { mutateConfirmed } = useWorkspace();
   const editor = useMountedEditor(created);
@@ -405,10 +411,12 @@ export function PageComments({
       versionHref={versionHref}
       onClose={() => onOpenChange(false)}
       blockingEffect={blockingEffect}
+      lineName={lineName}
+      otherLines={otherLines}
       hint={
         canComment
-          ? "No open comments. Select text to comment on it, or comment on the whole page."
-          : "No open comments."
+          ? `No open discussions on ${lineName}. Select text to comment on it, or comment on the whole page.`
+          : `No open discussions on ${lineName}.`
       }
     />
   );

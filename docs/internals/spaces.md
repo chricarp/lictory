@@ -871,10 +871,15 @@ attributed to the anonymized account, like specification threads.
   threads folded away, and "Original text removed" with a link to the
   version for detached anchors. Threads belong to the line they were
   written on (`branchId`; main also shows threads without one); pull
-  request threads are left to the pull request. The header shows the page's
-  open and blocking counts and toggles the panel: beside the page on wide
-  frames (open by default when the page has comments), a sheet on narrow
-  ones. The count of blocking threads says what they block ("blocks merging
+  request threads are left to the pull request. The header counts exactly
+  the open and blocking threads the panel lists for the line on screen and
+  toggles the panel: beside the page on wide frames (open by default when
+  that line has open threads), a sheet on narrow ones. Other live lines with
+  open threads are named, never added to the count: "On other branches" in
+  the panel switches to one, and the branch menu shows each line's open
+  discussions. Threads of deleted branches are counted on no line (the
+  page summary's `openThreads` and `blockingThreads` stay page-wide, as the
+  merge gate into main is). The count of blocking threads says what they block ("blocks merging
   pull requests" in Direct spaces, whose Publish they do not stop; "blocks
   merging" in Reviewed ones). Highlights are tints in the thread's colour;
   the selected thread and the one pointed at, in the panel or in the text,
