@@ -217,6 +217,14 @@ export function PageComments({
   // The thread under the pointer, in the panel or in the text.
   const [hovered, setHovered] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingComment | null>(null);
+  // A comment being written on a selection belongs to the line it was
+  // selected on: switching lines discards it rather than posting it on the
+  // next line (new threads are written on the line on screen).
+  const [pendingLine, setPendingLine] = useState(anchoring.branchId);
+  if (pendingLine !== anchoring.branchId) {
+    setPendingLine(anchoring.branchId);
+    setPending(null);
+  }
   const anchoringRef = useRef(anchoring);
   useEffect(() => {
     anchoringRef.current = anchoring;
