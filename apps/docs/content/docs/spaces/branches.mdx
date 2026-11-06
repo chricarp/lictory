@@ -1,0 +1,187 @@
+---
+title: Branches and pull requests
+description: Propose a change to a page on a branch, invite collaborators, ask for reviews that bind to the exact result, resolve conflicts and merge.
+---
+
+A **branch** is a proposed change to one page, with its own live draft. A
+**pull request** proposes merging a branch into the published page (or into
+another branch), and is where the change is reviewed. In a
+[Reviewed space](/spaces/publishing#reviewed-spaces) this is the only way to
+publish; in a Direct space it is there for bigger changes you want looked at
+before readers see them.
+
+<ReviewedChange />
+
+## Start a branch
+
+Anyone who can edit the space can start a branch:
+
+- In a Reviewed space, **Start a branch** on the page creates one from the
+  published version, suggests a name and opens its draft.
+- In any space, **Version history → Branches → New branch** takes a **Branch
+  name** and where to **Start from**: the **Current main version** or any
+  earlier version, which is how you bring back an old version through a
+  review.
+
+Once a page has more than one line, a **branch switcher** appears in the page
+header. It lists main (with _Published_, and whether its draft has
+unpublished changes) and every branch with its author, _uncommitted changes_
+and _pull request_ when they apply, plus **All branches** and **Pull
+requests**. Everyone who can read the space can open any branch and read its
+latest commit.
+
+### Collaborators
+
+A branch belongs to its author. In **Version history → Branches**, the
+author can **Add collaborator** (anyone with edit access to the space) and
+**Remove** them again. The author and collaborators edit the branch's draft
+together, commit, sync it and open pull requests from it.
+
+## Commit
+
+On a branch, **Commit** turns what the server has stored into the branch's
+next version, exactly as **Publish** does on main: _Commit to this branch_,
+an optional message, **Commit now**. The editor then says _Committed version
+N_, or _No changes to commit_ when nothing changed. Edits typed afterwards
+stay **Uncommitted changes**.
+
+Only commits are reviewed. A pull request shows the branch's latest commit,
+never its live draft, and a merge waits until the branch has no uncommitted
+changes, so reviewers approve exactly what will be published.
+
+## Pull requests
+
+In **Version history → Pull requests**, **Create pull request** asks for:
+
+- the **Source branch** (one you author or collaborate on);
+- the **Target branch**: **main**, the published page, or another branch;
+- a **Title** and a **Description**;
+- **Start as draft**, to share it before asking for reviews.
+
+![The pull request "Allow partial refunds" from partial-refunds into main: its description, the resulting changes (two added sections, Partial refunds and Timing), and the review summary with Dev Patel as a required reviewer, Pending, with Cancel request, Add reviewer, and the merge check "Requires approval from Dev Patel" above a disabled Merge pull request](/screenshots/spaces-pull-request.webp)
+
+A pull request shows:
+
+- **Resulting changes**: what merging would change on the target, compared
+  block by block and word by word (**Current** and **Proposed**), the same
+  way [versions are compared](/spaces/history#compare-two-versions);
+- the **Review summary**: its state (**Open**, **Draft**, **Conflicts to
+  resolve**, **Ready to merge** or **Merged**), the reviewers and the
+  **Merge checks**.
+
+Its actions menu (**⋯**) has **Edit details**, **Mark as draft** or **Ready
+for review**, and **Close pull request…**. In a Reviewed space, **Pull
+requests** on the space's home lists the open ones across all its pages,
+marking those that wait for your review.
+
+### Reviewers
+
+**Add reviewer** (or **Request required review** for the first one) asks a
+person to review; they are notified. Anyone with comment or edit access to
+the space can be asked. Each reviewer shows **Required**, their state
+(**Pending**, **Approved**, **Changes requested** or **Review outdated**)
+and when they were asked; **Cancel request** withdraws the request.
+
+Reviewers decide with **Approve** or **Request changes**, and can **Revoke
+decision** later. A new decision replaces their previous one.
+
+People who contributed to the change cannot approve it: everyone who
+authored or typed in any of the commits it brings in.
+_Contributors cannot approve their own changes._ This holds for agents acting
+for them too, and there is no exception for a team of one: a person working
+alone should use a Direct space.
+
+### Approvals belong to the exact result
+
+An approval records the exact result the reviewer inspected: the merged
+title and content, computed from the branch and the target as they were
+when they decided. _Approval is required for this exact result._
+
+When anything changes that result (a new commit on the branch, a new
+version published on main, a sync), the approval goes **stale**: the
+reviewer shows **Review outdated**, the decision reads _Approved an earlier
+result_, and the reviewer is notified that their approval needs another
+look. Changes that leave the result identical keep the approval. A stale
+approval never counts toward merging. Old decisions stay in the history.
+
+## Merge
+
+**Merge checks** list everything still in the way, in plain words:
+
+| Check                                                    | What to do                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| _Mark this pull request ready for review_                | It is a draft: choose **Ready for review**                                                 |
+| _Commit or discard live changes on branch …_             | Commit the branch's draft (or the target's, in a Direct space: publish it)                 |
+| _Resolve conflicts on the source branch_                 | See [conflicts](#conflicts)                                                                |
+| _Resolve N blocking discussion(s)_                       | Resolve the blocking comments on the page ([comments](/spaces/comments#blocking-comments)) |
+| _Request at least one required review_                   | Reviewed spaces only: ask someone for a required review                                    |
+| _Requires approval from …_                               | Every required reviewer must approve the current result                                    |
+| _Address the requested changes and ask for review again_ | A reviewer requests changes: commit the fix; they approve or revoke their decision         |
+| _No changes remain to merge_                             | The target already contains everything; close the pull request                             |
+
+When every check passes the summary says _All merge checks pass_ and
+**Merge pull request** becomes available: to editors of the space for a
+merge into main, to the target branch's author and collaborators for a merge
+into a branch. In a Direct space no
+review is required, but a request for changes or a blocking discussion still
+stops the merge.
+
+Merging into **main** publishes the result as the page's next version,
+records the valid approvals on it (**Approved** in a Reviewed space,
+**Reviewed by** in a Direct one), restarts main's live draft from the new
+version in a Direct space and retires the source branch unless another open
+pull request still uses it. Merging into **another branch** only moves that
+branch.
+
+## Conflicts
+
+When the branch and its target both changed since they split, Lictory
+combines changes that do not overlap automatically, and identical changes on
+both sides count once. Overlapping changes are never merged silently: they
+become **conflicts**, each on the smallest piece that can be decided on its
+own: one paragraph or heading, a whole list, a whole table, or the title.
+
+A pull request with conflicts says **Conflicts to resolve** and cannot be
+reviewed or merged. Conflicts are resolved on the source branch: choose
+**Resolve conflicts**.
+
+1. Each conflict shows three columns: **Base** (the version both sides
+   started from), **Ours** (your branch) and **Theirs** (the target).
+2. Choose **Use ours**, **Use theirs**, **Use both** (not for the title) or
+   **Edit manually**, which takes the resolved text in Markdown.
+3. **Sync branch** applies your choices as a new commit on the branch and
+   restarts its live draft from it.
+
+The pull request now shows the new result, and reviewers approve that. If
+either side moved while you were resolving, Lictory refuses the sync rather
+than guess: **Reload preview** and look again.
+
+When a branch and its target have no single common version (rare, after
+unusual merges), Lictory cannot merge them; restore the version you want on
+a new branch instead.
+
+## Sync a branch with main
+
+A long-lived branch can take in what was published meanwhile: **Sync from
+main** in **Version history → Branches** (for the branch's author and
+collaborators). It uses the same dialog: without
+conflicts it says _No conflicts. Sync main into …_, with conflicts you
+resolve them as above, and when there is nothing to take in it says _Your
+branch already includes the target version._ A sync is a commit on the
+branch and restarts its live draft, so editors are moved to the new content
+and any unsaved text of theirs is kept for them
+([when the draft is replaced](/spaces/editing#when-the-draft-is-replaced)).
+
+## Close, delete and undo
+
+Nothing in a page's history is ever rewritten:
+
+- **Revoke decision** withdraws an approval or a request for changes;
+  **Cancel request** withdraws a review request.
+- **Mark as draft** takes a pull request back out of review; **Close pull
+  request…** closes it for good. A closed pull request keeps its reviews, and
+  its open discussions are resolved, each recorded.
+- **Delete branch…** (by its author or an editor of the space) disconnects
+  its editors and removes it from the page's branches; its commits stay in
+  the history. Close its open pull requests first. A deleted branch is not
+  restored: start a new branch from its last version instead.

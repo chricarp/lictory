@@ -1,0 +1,103 @@
+---
+title: Access
+description: Who can view, comment on and edit a space - inherited from its location or restricted to named people - and how administrators manage it without reading it.
+---
+
+Access is decided per space, never per page. Every page of a space, with its
+history, branches and discussions, is open to exactly the people who can
+open the space.
+
+## Inherited and Restricted
+
+| Access                  | Who can edit                                                                               | Who can read                  |
+| ----------------------- | ------------------------------------------------------------------------------------------ | ----------------------------- |
+| **Inherited** (default) | Members of the location (organization, project or team), and people named with edit access | Every organization member     |
+| **Restricted**          | People named with edit access                                                              | Only people with named access |
+
+<SpaceAccess />
+
+- **Inherited access follows membership, live.** Joining a team gives edit
+  access to its spaces at once; leaving takes it away. A space whose location
+  is the organization can be edited by everyone in it.
+- **A Restricted space ignores membership** of its location: only named people
+  can open it, whatever their role in the project or team. Whoever restricts
+  a space (or creates it Restricted) keeps edit access, so nobody locks
+  themselves out by accident.
+- **Switching back to Inherited** keeps every named access.
+
+Membership of a project or team gives access to its spaces only. It still
+grants nothing on work items: what you can do with work items comes from
+your [disciplines](/concepts/organizations#roles-and-disciplines).
+
+## Levels
+
+| Level           | What it allows                                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Can view**    | Read published pages, any earlier version, branches, pull requests and discussions                                                              |
+| **Can comment** | Also start and take part in discussions, resolve them, mark them blocking, and be asked to review pull requests                                 |
+| **Can edit**    | Also create, move and archive pages, edit and publish live drafts, start branches, open and merge pull requests, and change the space's details |
+
+Editing a branch also requires being its author or one of its collaborators,
+and merging is subject to the [merge checks](/spaces/branches#merge). In
+an Inherited space with a project or team location, everyone else in the
+organization can view, but not comment, until they are named.
+
+## Named access
+
+In **Space settings → Access**, **Give access** adds a person to the space's
+named access; then choose their level: **Can view**, **Can comment** or
+**Can edit**.
+
+Each row shows what the person can do in the end and why, for example _Can
+edit · member of Payments_ or _Can comment · named access_. Removing named
+access (the remove button on its row) first says what they would keep: _Without it,
+Dev can only view._ or _Without it, Dev loses access._
+
+- In an Inherited space, named access only adds to what the location gives.
+  Name people from outside the project or team to let them comment or edit.
+- In a Restricted space, named access is the only access.
+- Named access counts only while the person is a member of the organization.
+  Someone who leaves keeps their rows and gets the access back if they
+  rejoin; deleting their account removes it.
+
+## Administrators
+
+A space's **administrators** are its creator, the administrators of its
+project while that project is active (for a project or team location) and
+the organization's administrators, as long as they are members of the
+organization. They manage what decides who can read what:
+
+| Who                             | Can change                                                        |
+| ------------------------------- | ----------------------------------------------------------------- |
+| **Editors** of the space        | Name, icon, address and description                               |
+| **Administrators** of the space | Location, publishing policy, access mode, named access, archiving |
+
+Managing a Restricted space does **not** let an administrator read it. They
+find it on the **Spaces** page under **Restricted spaces you administer**, by
+name only, and can choose **Grant myself access…**: pick the level and
+**Grant access (audited)**. The grant is recorded in the audit log with their
+name, shows as _Self-granted · audited_ in the space's named access, and
+other administrators can see and remove it.
+
+Every change to a space's access mode, named access, location, publishing
+policy and archiving is recorded in the organization's audit log.
+
+## No page-level restrictions
+
+Pages cannot be restricted one by one. To keep part of a tree private, put
+it in its own Restricted space; it can have the same location as the open
+one, so it is listed right beside it.
+
+## Enforced on the server
+
+Every check runs on the server, for the browser, live editing, agents and
+notifications alike:
+
+- a space or page you cannot read looks exactly like one that does not
+  exist: the same "not found", no title, no count;
+- when someone's access is removed, every edit they try to save is
+  refused from then on, and their open live editing connection is closed as
+  soon as the editing service hears of the change, or at its next check of
+  every connection, made every 30 seconds;
+- notifications reach only people who can read the space at that moment,
+  and disappear for someone who loses access.

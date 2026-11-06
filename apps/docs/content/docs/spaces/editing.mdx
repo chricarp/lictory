@@ -1,0 +1,164 @@
+---
+title: Writing together
+description: The live editor - its toolbar and menus, mentions and page links, other people's cursors, and exactly what "Saved" and "Offline" mean.
+---
+
+Every page you can change has a **live draft**: a shared working copy that
+everyone allowed to edit it changes at the same time. Main has one in a
+[Direct space](/spaces/publishing#direct-spaces); every branch has its own
+([branches](/spaces/branches)).
+
+## Open the editor
+
+On a page of a Direct space, choose **Edit**, or **Edit unpublished draft**
+when unpublished changes are already waiting. On a branch you author or
+collaborate on, the page opens straight in that branch's draft. **Close
+editor** returns to the published page; the draft stays saved and is there
+the next time anyone opens it.
+
+![The live draft of the Payments service page: "Live draft · based on v2 · Saved · Unpublished changes · Dev Patel is editing", the formatting toolbar, Dev Patel's caret with their name label at the end of a new sentence, Close editor and Publish, and the comments panel with one blocking discussion](/screenshots/spaces-live-editor.webp)
+
+The line under the title tells you where you are:
+
+- **Live draft · based on v2** on main, or **Draft of _branch_** on a branch.
+  The version link opens the version the draft started from.
+- The **save state** (see [below](#saved-means-stored)).
+- **Unpublished changes** (main) or **Uncommitted changes** (a branch) when
+  the draft holds edits that are not yet a version, otherwise **No
+  unpublished changes** or **All changes committed**.
+- Who else has the draft open, for example _Dev Patel is editing_.
+
+## Write
+
+Type directly, use Markdown shortcuts (`#` and a space for a heading, `-` for
+a list, `[ ]` for a task, `>` for a quote, three backticks for code), or
+type `/` for any block. The title is part of the draft too: everyone editing
+sees the same title, and it is published with the content. From the title,
+Enter or Arrow Down moves into the page.
+
+### The toolbar
+
+| Control                                  | What it does                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Undo, Redo                               | Undo or redo **your own** changes; other editors' changes are theirs                                     |
+| **Text**                                 | The current block's style: Text, Heading 1-3, Bulleted list, Numbered list, Task list, Quote, Code block |
+| Bold, Italic, Strikethrough, Inline code | Inline marks                                                                                             |
+| **Link**                                 | Add a link to the selection, or edit the link under the cursor                                           |
+| **Insert**                               | Table, Divider, Image, Work item, Link to page                                                           |
+| **Table**                                | Appears inside a table: Add row below, Add column after, Delete row, Delete column                       |
+| **Comment on selection**                 | Starts a discussion on the selected text (see [comments](/spaces/comments))                              |
+
+The toolbar is one stop in the Tab order: Arrow Left and Right, Home and End
+move between its controls. On a phone it is one scrolling row.
+
+### Keyboard shortcuts
+
+| Shortcut           | Action                                   |
+| ------------------ | ---------------------------------------- |
+| Mod+B, Mod+I       | Bold, italic                             |
+| Mod+Shift+S        | Strikethrough                            |
+| Mod+E              | Inline code                              |
+| Mod+Z, Mod+Shift+Z | Undo, redo                               |
+| Mod+Alt+M          | Comment on the selection                 |
+| `/`, `#`, `[[`     | Insert a block, a work item, a page link |
+
+_Mod_ is ⌘ on a Mac and Ctrl elsewhere.
+
+### Work items and page links
+
+- Type `#` (or **Insert → Work item**) and pick an item you can see. Readers
+  see it as a live chip with its key, title, status, refinement state and
+  readiness as they can see the item at that moment.
+- Type `[[` (or **Insert → Link to page**) and pick a page of any space you
+  can read. The link always shows the page's current title, and readers who
+  cannot open that page see _Unavailable page_ instead.
+
+The pickers open as a list while you keep typing to narrow it: Arrow Up and
+Down choose, Enter or Tab inserts, Escape closes.
+
+### Images
+
+Paste, drop or choose an image (**Insert → Image**) to add it. Images are
+stored as the page's files, privately, with the same access as the page.
+They need file storage on your installation; without it the editor says
+_Images are unavailable_.
+
+## Editing with others
+
+Several people can edit the same draft at once. Each sees the others'
+carets and selections with their names in a per-person colour, and the line
+under the title says who else is there. Typing merges character by character
+within the draft; nobody's edit overwrites another's.
+
+Who may edit a draft:
+
+- main's draft in a Direct space: everyone with **edit** access to the space;
+- a branch's draft: its author and the collaborators they invited (see
+  [branches](/spaces/branches#collaborators)).
+
+Everyone else who can read the space sees the published version, or a
+branch's latest commit, never someone's half-typed draft.
+
+## "Saved" means stored
+
+Beside the title, the editor tells you where your edits are:
+
+| State                                     | What it means                                                                                                                                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Connecting…**                           | The editor is joining the draft. You can type once it has the draft's current content.                                                                   |
+| **Saving…**                               | Your latest edits are on their way to the server.                                                                                                        |
+| **Saved**                                 | The server has stored every edit you made. Edits reach other editors only after they are stored, so what they see is never lost.                         |
+| **Offline — changes kept on this device** | The connection dropped. Your edits stay in this tab and are sent when it returns.                                                                        |
+| **Live editing unavailable**              | The editor could not reach the editing service. Reading, history and comments keep working. See [troubleshooting](/spaces/faq#live-editing-unavailable). |
+
+**Saved** is not a promise that a change is published: it means the
+server holds it in the live draft. Readers see it only after someone
+**publishes** (main) or it is **committed** and merged (a branch). See
+[publishing](/spaces/publishing).
+
+## Offline, honestly
+
+Live drafts are made for working together online. Lictory keeps what you type
+safe through short interruptions, but it is not an offline editor:
+
+- **A dropped connection** keeps your edits in the open tab and sends them
+  when the connection returns, merged with what others typed meanwhile. The
+  tab warns you before it closes with unsaved edits.
+- **Closing the tab or quitting the browser while offline** loses edits that
+  were never saved. Wait for **Saved** before you close the page.
+- **There is no cold start offline.** Opening a page needs a connection, and
+  the editor lets you type only once it has joined the draft.
+
+<Callout title="Keep the tab open while offline" type="warn">
+  Offline edits live only in the open browser tab, not on the server. If you
+  close it, or the browser quits, before the connection returns, those edits are
+  lost.
+</Callout>
+
+## When the draft is replaced
+
+Some actions replace a draft's content as a whole: [restoring a
+version](/spaces/history#restore-a-version), [syncing a branch with
+main](/spaces/branches#sync-a-branch-with-main) or merging a pull request into
+it. Everyone editing that draft is moved to
+the new content; nothing of the old draft is silently mixed into it.
+
+If you had edits the server had not stored yet, they are not dropped. The
+page says _This page was replaced while you had unsaved changes. Your text
+is kept on this device._ and offers:
+
+- **Copy text** to paste it wherever you like;
+- **Insert at end** to add it to the current draft as an ordinary edit;
+- **Discard** to let it go.
+
+The same notice appears, worded _The editor closed before some of your
+changes were saved_, if you leave the editor before the server stored your
+last edits. That kept text stays in this browser, for your account only, until you use
+or discard it, and it is removed when you sign out.
+
+The editor also closes when it can no longer let you edit: _Sign in again to
+keep editing this page._ after your session ended, or _You no longer have
+access to edit this draft._ when your access was removed. Removing someone's
+access refuses their next save at once, and closes their editor as soon as
+the editing service hears of the change or at its next check of every
+connection, made every 30 seconds.

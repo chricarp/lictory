@@ -1,0 +1,87 @@
+---
+title: Versions and history
+description: Every published or committed version stays in a page's history. Compare any two word by word, read an old one as it was, and restore it as a new version.
+---
+
+A **version** is an immutable snapshot of a page: its title and content,
+with a message, the person who published or committed it and everyone who
+contributed to it. Versions are never changed afterwards, not by editing,
+restoring or merging. That is what lets a team answer _what did this page
+say when we approved it?_ months later.
+
+## Open the history
+
+Open **More page actions** (**⋯**) on a page and choose **Version history**.
+The history has three views:
+
+- **Versions**: the page's versions, newest first;
+- **Branches**: the page's branches ([branches](/spaces/branches));
+- **Pull requests**: proposed changes and their reviews
+  ([pull requests](/spaces/branches#pull-requests)).
+
+**Open published page** goes back to the page.
+
+![The version history of the Capture resilience page: v3 "Increase capture retries from three to five", marked Published, selected and compared with v2. One block changed: the word "three" is struck out in the Before · v2 block and "five" is highlighted in the After · v3 block, with 4 and 5 unchanged blocks folded above and below](/screenshots/spaces-version-diff.webp)
+
+## The version list
+
+Each version shows its number (**v1**, **v2**…), its message (or the title
+when it has none), its author and when it was made. Versions that more
+people worked on add _With …_ and their names. Badges mark the **Published**
+version and versions that merged with reviews: **Approved** in a Reviewed
+space, **Reviewed** in a Direct one.
+
+The list follows one line of the page: main by default, or the branch you
+selected with the branch switcher. A pull request merged into main shows as
+one version on main; the branch's own commits stay in the branch's history.
+
+## Compare two versions
+
+Select a version to see what it changed. By default it is compared with the
+version before it; **Compare with** picks any other version of the line,
+older or newer.
+
+- The summary counts the **blocks changed**. A block is a paragraph, heading,
+  list, table, quote or code block.
+- Each change is labelled **Added**, **Removed**, **Edited**, **Moved ·
+  position changed** or **Moved and edited**.
+- An edited block shows **Before** and **After** side by side, labelled with
+  their versions, and highlights the exact words that changed: struck out in
+  Before, marked in After. A one-word fix reads as a one-word fix.
+- Runs of **unchanged blocks** fold into one line, so a long page shows only
+  what changed; open a fold to read the context.
+- A changed title is compared word by word above the content.
+
+## Read an old version
+
+**Preview this version** shows the selected version as readers saw it,
+rendered exactly as when it was published, with its work item chips and
+page links resolved for you now. **View changes** returns to the comparison.
+Each version also has its own address, so you can link someone to exactly
+what a page said at that point.
+
+## Restore a version
+
+People who can edit a line can restore one of its earlier versions:
+**Restore this version** on the selected version.
+
+Restoring never rewrites history. It creates a **new version** with the old
+version's title and content, on the line you are viewing (_Restore to
+main_, or to the branch). The version you restored from and everything after
+it stay in the history, so a restore is itself easy to undo by restoring
+again. A version with the same title and content as the latest one cannot be
+restored: Lictory says _Nothing to restore_.
+
+Restoring also replaces the line's live draft with the restored content:
+
+- Editors who have the draft open are moved to the new content; unsaved
+  text of theirs is kept for them to reinsert or copy
+  ([when the draft is replaced](/spaces/editing#when-the-draft-is-replaced)).
+- If the draft has unpublished or uncommitted changes, the dialog asks you
+  to tick **Discard live changes on this branch** before **Restore version**
+  is allowed. Publish or commit those changes first if you want to keep them
+  in the history.
+
+In a Reviewed space main has no live draft and is changed only through pull
+requests: to bring back an old version there, start a branch from it
+(**Branches → New branch → Start from**) and propose it.

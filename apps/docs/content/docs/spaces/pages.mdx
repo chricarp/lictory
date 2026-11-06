@@ -1,0 +1,106 @@
+---
+title: Pages and the page tree
+description: Create pages, nest and reorder them with the mouse or the keyboard, archive and restore them, and find the page you need.
+---
+
+A **page** belongs to one space and can sit under another page of the same
+space, as deep as you like. The space's **page tree** shows that structure
+beside every page and on the space's home.
+
+## Create a page
+
+People who can edit the space create pages:
+
+- **New page** on the space's home, or the **+** at the top of the tree,
+  adds a page at the end of the space.
+- **New subpage**, in a page's actions (the **⋯** button in the page header
+  or next to the page in the tree), adds one under it.
+
+Give it a title and it opens, ready to write. In a
+[Reviewed space](/spaces/publishing#reviewed-spaces) the new page is
+published with its title and no content; its first content arrives through a
+pull request like every other change.
+
+## Read a page
+
+![The Payments service page in its Engineering Handbook tree: breadcrumbs Spaces › Engineering Handbook › Architecture, "Published version 2 by Maria Chen just now", a 1 discussion button, the More actions button and Edit](/screenshots/spaces-page-reader.webp)
+
+A page opens on its **published version**. The line under the title says
+which one and who published it, for example _Published version 2 · by Maria
+Chen · just now_; in a Reviewed space it also names who approved it. The
+header holds:
+
+- the **breadcrumbs**: the space, then the page's parent. Deeper ancestors
+  fold into **…** so the trail stays short;
+- the **discussions** button with the number of open discussions, and a red
+  dot when one of them is blocking (see [comments](/spaces/comments));
+- **More page actions** (**⋯**): **New subpage**, **Move…**, **Archive**,
+  then **Version history**, **Branches** and **Pull requests**, and who
+  created the page;
+- the primary action: **Edit**, **Edit unpublished draft** when unpublished
+  changes are waiting, or **Start a branch** in a Reviewed space (see
+  [publishing](/spaces/publishing)).
+
+Work item mentions show the item's current status, refinement state and
+readiness as _you_ can see it now; an item you cannot see shows only its key.
+Links to other pages show the linked page's current title, or _Unavailable
+page_ when you cannot open it.
+
+Beside a page, **Hide pages** (the panel button before the breadcrumbs) puts
+the tree away for more room, and **Show pages** brings it back; this browser
+remembers your choice. While comments are open on a narrower screen, the tree
+steps aside on its own.
+
+## Nest and reorder pages
+
+Drag a page in the tree and drop it **before**, **after** or **into**
+another page. **Move…** does the same without a pointer: choose the **New
+parent** (filter the pages by title, or pick the top level of the space) and
+the **Position** among its new siblings, **First** or **Last**. A page moves
+with all its subpages, and pages move only within their space.
+
+Pages are addressed by their id, not by their place in the tree or their
+title, so moving a page or changing its title never breaks a link to it.
+Changing the space's address does change its pages' addresses; page links
+inside pages follow it on their own.
+
+### With the keyboard
+
+The page tree follows the standard tree pattern, so every action works
+without a mouse:
+
+| Key                       | Action                                                           |
+| ------------------------- | ---------------------------------------------------------------- |
+| Arrow Up / Arrow Down     | Move between visible pages                                       |
+| Home / End                | Move to the first or last visible page                           |
+| Arrow Right / Arrow Left  | Expand or collapse a page; move to its first child or its parent |
+| Enter                     | Open the page                                                    |
+| Alt+Arrow Up / Arrow Down | Move the page before or after its sibling                        |
+| Shift+F10                 | Open the page's actions (New subpage, Move…, Archive)            |
+
+## Archive and restore
+
+**Archive** hides a page and its subpages from the tree. Right after
+archiving, the confirmation offers **Undo**. Archiving is always reversible
+and there is no permanent delete: **Show archived pages** in the tree lists
+them, and **Restore** brings a page back where it was. Restoring a
+page also restores the subpages that were archived together with it;
+subpages archived earlier, on their own, stay archived.
+
+An archived page keeps its history and discussions, read-only.
+
+## Find a page
+
+- **Find a page** on the space's home narrows the tree to the titles that
+  match, wherever they sit, and shows each match with its path (_Payments
+  service · in Architecture_).
+- The **command palette** finds spaces and page titles across every space
+  you can read.
+
+## On a phone
+
+On a narrow screen the tree becomes the space's home, with every page's
+actions behind its **⋯** button, and a page puts its primary action and its
+discussions on one row under the title.
+
+![Two phone screens: the Engineering Handbook home with Find a page and the nested page tree, and the Payments service page with "Published v2", 1 discussion and Edit unpublished draft](/screenshots/spaces-phone.webp)

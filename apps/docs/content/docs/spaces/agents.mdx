@@ -1,0 +1,61 @@
+---
+title: Agents and MCP
+description: What an agent connected through MCP can read and propose in Spaces, and the decisions that stay with people.
+---
+
+Agents connected through [MCP](/integrations/agents) work in Spaces as the
+person whose token they use, with exactly that person's space access. A space
+you cannot read does not exist for your agent either.
+
+## What an agent can read
+
+- the spaces you can read and your level in each (`listSpaces`), and a
+  space's page tree (`listPages`);
+- a page's published title and content as Markdown, or any earlier version
+  (`getPage`), never an unpublished live draft;
+- a page's history and branches, and what changed between two versions
+  (`listPageCommits`, `diffPageCommits`);
+- what merging a pull request would produce right now, with any conflicts
+  (`previewPageMerge`);
+- a page's discussions (`listPageThreads`).
+
+The complete list of capabilities is in
+[AI agents and MCP](/integrations/agents#spaces).
+
+## How an agent changes a page
+
+Agents cannot type into live drafts, so what people are writing stays
+theirs. An agent changes a page by **proposing** a new version:
+`proposePageChange` takes the new page as Markdown and, in one step, creates
+a branch from the published version, commits the new content to it and opens
+a pull request into main. People then review it like any other pull request
+([branches and pull requests](/spaces/branches)).
+
+An agent can also start discussions on a page or a quoted passage and reply
+to them, organize spaces and pages as your access allows (create a space or
+a page, move or archive pages), and work with branches: start one, open a
+pull request, request a review or resolve conflicts on a branch.
+
+Ask, for example:
+
+> Read the refund runbook in the Payments space and PAY-142's current
+> specification. Propose an updated runbook that matches the new timeout
+> behavior, open a pull request and ask Dev for a review. Do not merge it.
+
+## What stays with people
+
+These are human decisions. Lictory's MCP tools tell an agent to perform
+them only when you explicitly ask it to, and Litto asks you to confirm
+first:
+
+- publishing a live draft;
+- approving or requesting changes on a pull request, and merging it;
+- resolving, reopening or marking a discussion blocking.
+
+An agent acting for you counts as you: nobody can approve a page change they
+contributed to, and that includes a change their agent proposed. Several
+agents using one person's token do not count as independent reviewers.
+
+The MCP instruction is guidance for the agent, not a lock: a read/write token
+can perform anything your access allows. Use a read-only token when an agent
+should only read.
