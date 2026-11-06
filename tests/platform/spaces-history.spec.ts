@@ -628,10 +628,29 @@ test("discussions end with their line: merging and deleting a branch warn first 
     .getByRole("button", { name: "Delete branch…", exact: true })
     .click();
   const deleting = page.getByRole("group", { name: "Delete branch drafts" });
+  // The confirmation takes focus so its warning is read first.
+  await expect(deleting).toBeFocused();
   await expect(deleting).toContainText(
     "This permanently deletes 1 discussion (1 open, blocking) on this branch, with all their replies.",
   );
-  expect(await threadIds()).toEqual([onDrafts, onMain].sort());
+  // A discussion written meanwhile is never deleted unseen: confirming
+  // waits until the person looks again.
+  const late = await thread({ branchId: draftsId }, false);
+  await expect(deleting.getByRole("alert")).toHaveText(
+    /The discussions changed while this was open/,
+  );
+  await expect(
+    deleting.getByRole("button", { name: "Confirm delete", exact: true }),
+  ).toBeDisabled();
+  await deleting.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    drafts.getByRole("button", { name: "Delete branch…", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(deleting).toContainText(
+    "This permanently deletes 2 discussions (2 open, 1 of them blocking) on this branch, with all their replies.",
+  );
+  expect(await threadIds()).toEqual([late, onDrafts, onMain].sort());
   await deleting
     .getByRole("button", { name: "Confirm delete", exact: true })
     .click();

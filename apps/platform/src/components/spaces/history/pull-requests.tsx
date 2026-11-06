@@ -22,8 +22,11 @@ import { discussionTotal } from "@lictory/core/spaces/discussion-lifecycle";
 import {
   ActionError,
   ChoosePerson,
+  Confirmation,
+  CountsChanged,
   DiscussionRemovalWarning,
   field,
+  sameCounts,
   useHistoryAction,
 } from "./shared";
 import { useMergePreview } from "./preview";
@@ -218,7 +221,11 @@ function PullRequestDetail({
   const [title, setTitle] = useState(pr.title);
   const [description, setDescription] = useState(pr.description ?? "");
   const [closing, setClosing] = useState(false);
-  const [merging, setMerging] = useState(false);
+  type OnMerge = NonNullable<PullRequest["mergeability"]>["onMerge"];
+  // Open while confirming, with what the merge removes as it was shown.
+  const [merging, setMerging] = useState<{ onMerge: OnMerge } | null>(null);
+  // After a cancelled merge, focus returns to the merge button.
+  const [returnFocus, setReturnFocus] = useState(false);
   const target = commits.find((c) => c.id === preview?.theirs.headCommitId);
   const resultDocument = useMemo(() => {
     const base = commits.find((c) => c.id === preview?.baseCommitId);
@@ -671,7 +678,11 @@ function PullRequestDetail({
                     !inspected ||
                     gate.blockers.length > 0
                   }
-                  onClick={() => setMerging(true)}
+                  autoFocus={returnFocus}
+                  onClick={() => {
+                    setReturnFocus(false);
+                    setMerging({ onMerge: gate.onMerge });
+                  }}
                 >
                   Merge pull request…
                 </Button>
@@ -680,12 +691,14 @@ function PullRequestDetail({
                 <MergeConfirmation
                   sourceName={branchName(pr.sourceBranchId)}
                   targetName={branchName(pr.targetBranchId)}
-                  onMerge={gate.onMerge}
+                  onMerge={merging.onMerge}
+                  changed={!sameCounts(merging.onMerge, gate.onMerge)}
                   disabled={
                     action.pending ||
                     !fresh ||
                     !inspected ||
-                    gate.blockers.length > 0
+                    gate.blockers.length > 0 ||
+                    !sameCounts(merging.onMerge, gate.onMerge)
                   }
                   onConfirm={() => {
                     if (inspected)
@@ -694,18 +707,21 @@ function PullRequestDetail({
                           type: "mergePagePullRequest",
                           pullRequestId: pr.id,
                           ...inspected,
-                          ...(gate.onMerge
+                          ...(merging.onMerge
                             ? {
                                 discussionsToRemove: discussionTotal(
-                                  gate.onMerge.discussions,
+                                  merging.onMerge.discussions,
                                 ),
                               }
                             : {}),
                         },
-                        () => setMerging(false),
+                        () => setMerging(null),
                       );
                   }}
-                  onCancel={() => setMerging(false)}
+                  onCancel={() => {
+                    setMerging(null);
+                    setReturnFocus(true);
+                  }}
                 />
               )}
             </section>
@@ -738,6 +754,7 @@ function MergeConfirmation({
   sourceName,
   targetName,
   onMerge,
+  changed,
   disabled,
   onConfirm,
   onCancel,
@@ -745,15 +762,15 @@ function MergeConfirmation({
   sourceName: string;
   targetName: string;
   onMerge: NonNullable<PullRequest["mergeability"]>["onMerge"];
+  changed: boolean;
   disabled: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   const removes = !onMerge || discussionTotal(onMerge.discussions) > 0;
   return (
-    <div
-      role="group"
-      aria-label="Confirm merge"
+    <Confirmation
+      label="Confirm merge"
       className="space-y-3 rounded-xl border border-destructive/40 bg-card p-3 text-sm"
     >
       <p className="font-medium">
@@ -773,6 +790,7 @@ function MergeConfirmation({
       <p className="text-muted-foreground">
         Discussions on {targetName} and on other branches are kept.
       </p>
+      {changed && <CountsChanged />}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={disabled} onClick={onConfirm}>
           {removes ? "Merge and delete discussions" : "Confirm merge"}
@@ -781,7 +799,7 @@ function MergeConfirmation({
           Cancel
         </Button>
       </div>
-    </div>
+    </Confirmation>
   );
 }
 

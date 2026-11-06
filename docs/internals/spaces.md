@@ -505,14 +505,22 @@ removed. A command that would remove discussions without a confirmed total
 is refused the same way. Agents get the same counts and the same check.
 
 Discussions left on branches deleted before this rule are held by nothing
-(the merge gate ignores lines that no longer exist) and are removed by the
-`remove-orphaned-page-discussions` backfill
+(the merge gate ignores lines that no longer exist). Run the
+`remove-orphaned-page-discussions` backfill once after deploying it
 (`deploy.sh <env> backfill <version> remove-orphaned-page-discussions`; locally
 `bun scripts/backfills/remove-orphaned-page-discussions.ts [--dry-run]
-[organizationId ...]`). It works one page per transaction under the
-organization lock, reprojects the page in the same transaction, records the
-removal attributed to whoever deleted the branch (`repair: true`), and finds
-nothing on a second run.
+[organizationId ...]`, which rejects any other option). It removes those
+discussions and reprojects every page, so branch and pull request rows
+projected before the counts existed carry them (until then a confirmation
+on such a page has no counts, and the server refuses a removal nobody
+confirmed). It works one page per transaction under the organization lock,
+records each removal attributed to whoever deleted the branch
+(`repair: true`), and changes nothing on a second run.
+
+The confirmations capture the counts when they open and send exactly those.
+If the counts change while one is open, it says so and waits until the
+person cancels and opens it again; it takes focus when it opens and returns
+it to its button when cancelled.
 
 ### Anchors
 

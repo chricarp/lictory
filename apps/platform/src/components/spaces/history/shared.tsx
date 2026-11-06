@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Command } from "@lictory/core/contracts/protocol";
 import {
   useCanWrite,
@@ -89,6 +89,46 @@ export function DiscussionRemovalWarning({
         : `This permanently deletes every discussion on ${where}, with all their replies.`}{" "}
       Open and resolved, blocking and non-blocking discussions are all deleted.
       This cannot be undone.
+    </p>
+  );
+}
+
+// An inline confirmation. It takes focus when it opens, so keyboard and
+// screen reader users land on its warning.
+export function Confirmation({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  return (
+    <div
+      ref={ref}
+      role="group"
+      aria-label={label}
+      tabIndex={-1}
+      className={`outline-none ${className ?? ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// People confirm the counts they read: captured when the confirmation
+// opened. When the server's counts change meanwhile, confirming waits until
+// they look again.
+export const sameCounts = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
+export function CountsChanged() {
+  return (
+    <p role="alert" className="font-medium">
+      The discussions changed while this was open. Cancel and open it again to
+      review what would be deleted.
     </p>
   );
 }

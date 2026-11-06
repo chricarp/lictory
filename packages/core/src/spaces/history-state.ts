@@ -359,6 +359,13 @@ export async function pageLineStates(
           .orderBy(asc(s.pagePullRequestReviewer.userId)),
       ])
     : [[], []];
+  // An organization-wide rebuild loads every thread: group them once.
+  const threadsByPage = new Map<string, LineThread[]>();
+  for (const thread of threads) {
+    const list = threadsByPage.get(thread.pageId);
+    if (list) list.push(thread);
+    else threadsByPage.set(thread.pageId, [thread]);
+  }
   for (const page of pages) {
     const prs = pullRequests.filter((p) => p.pageId === page.id);
     const ids = new Set(prs.map((p) => p.id));
@@ -370,7 +377,7 @@ export async function pageLineStates(
       pullRequests: prs,
       reviews: reviews.filter((r) => ids.has(r.pullRequestId)),
       reviewers: reviewers.filter((r) => ids.has(r.pullRequestId)),
-      threads: threads.filter((t) => t.pageId === page.id),
+      threads: threadsByPage.get(page.id) ?? [],
     });
   }
   return states;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -410,291 +410,347 @@ const removals = async (pageId: string) =>
 const summaryOf = (pageId: string) =>
   projection<SpaceEntityOf<"page">>(`page:${pageId}`);
 
-void test("deleting a branch removes every discussion on it, whatever its state, after warning with the same counts", async () => {
-  const f = await fixture();
-  const { branchId, pullRequestId } = await f.propose("Retry **once**.");
-  const other = await f.branch("other");
-  const doomed = await f.everyState({ branchId });
-  // Branchless discussions of a closed pull request from the branch.
-  const prOnly = await f.thread({ pullRequestId, blocking: true });
-  const kept = [
-    await f.thread({ branchId: f.mainBranchId, blocking: true }),
-    await f.thread({ branchId: other, resolved: true }),
-    await f.thread(),
-  ];
-  await f.run(f.alice, { type: "deletePagePullRequest", pullRequestId });
+void test(
+  "deleting a branch removes every discussion on it, whatever its state, after warning with the same counts",
+  { timeout: 30_000 },
+  async () => {
+    const f = await fixture();
+    const { branchId, pullRequestId } = await f.propose("Retry **once**.");
+    const other = await f.branch("other");
+    const doomed = await f.everyState({ branchId });
+    // Branchless discussions of a closed pull request from the branch.
+    const prOnly = await f.thread({ pullRequestId, blocking: true });
+    const kept = [
+      await f.thread({ branchId: f.mainBranchId, blocking: true }),
+      await f.thread({ branchId: other, resolved: true }),
+      await f.thread(),
+    ];
+    await f.run(f.alice, { type: "deletePagePullRequest", pullRequestId });
 
-  const shown = await projection<SpaceEntityOf<"pageBranch">>(
-    `pageBranch:${branchId}`,
-  );
-  // Closing resolved the pull request's own discussion.
-  assert.deepEqual(shown?.discussionsOnDelete, {
-    open: 2,
-    openBlocking: 1,
-    resolved: 3,
-    resolvedBlocking: 2,
-  });
-  assert.equal(
-    (
-      await projection<SpaceEntityOf<"pageBranch">>(
-        `pageBranch:${f.mainBranchId}`,
-      )
-    )?.discussionsOnDelete,
-    undefined,
-  );
+    const shown = await projection<SpaceEntityOf<"pageBranch">>(
+      `pageBranch:${branchId}`,
+    );
+    // Closing resolved the pull request's own discussion.
+    assert.deepEqual(shown?.discussionsOnDelete, {
+      open: 2,
+      openBlocking: 1,
+      resolved: 3,
+      resolvedBlocking: 2,
+    });
+    assert.equal(
+      (
+        await projection<SpaceEntityOf<"pageBranch">>(
+          `pageBranch:${f.mainBranchId}`,
+        )
+      )?.discussionsOnDelete,
+      undefined,
+    );
 
-  // Without a confirmation (a client from before the warning) nothing is
-  // removed.
-  await rejects(
-    f.run(f.alice, { type: "deletePageBranch", branchId }),
-    "conflict",
-    /Confirm the deletion first: .* discussionsToRemove: 5\./,
-  );
-  // Confirming outdated counts removes nothing.
-  await rejects(
-    f.run(f.alice, {
+    // Without a confirmation (a client from before the warning) nothing is
+    // removed.
+    await rejects(
+      f.run(f.alice, { type: "deletePageBranch", branchId }),
+      "conflict",
+      /Confirm the deletion first: .* discussionsToRemove: 5\./,
+    );
+    // Confirming outdated counts removes nothing.
+    await rejects(
+      f.run(f.alice, {
+        type: "deletePageBranch",
+        branchId,
+        discussionsToRemove: 4,
+      }),
+      "conflict",
+      /changed since you confirmed: it now removes 5 discussions/,
+    );
+    assert.equal((await remaining([...doomed, prOnly])).length, 5);
+
+    await f.run(f.alice, {
       type: "deletePageBranch",
       branchId,
-      discussionsToRemove: 4,
-    }),
-    "conflict",
-    /changed since you confirmed: it now removes 5 discussions/,
-  );
-  assert.equal((await remaining([...doomed, prOnly])).length, 5);
+      discussionsToRemove: 5,
+    });
+    assert.deepEqual(await remaining([...doomed, prOnly]), []);
+    assert.deepEqual(await remaining(kept), [...kept].sort());
+    const [removal] = await removals(f.pageId);
+    assert.equal(removal?.actorId, f.alice);
+    assert.equal(removal?.reason, "branch_deleted");
+    assert.equal(removal?.branchId, branchId);
+    assert.deepEqual(
+      (removal?.threadIds as string[]).sort(),
+      [...doomed, prOnly].sort(),
+    );
+    assert.equal(removal?.messages, 10);
+    // The page's counters no longer count them.
+    const summary = await summaryOf(f.pageId);
+    assert.deepEqual([summary?.openThreads, summary?.blockingThreads], [2, 1]);
 
-  await f.run(f.alice, {
-    type: "deletePageBranch",
-    branchId,
-    discussionsToRemove: 5,
-  });
-  assert.deepEqual(await remaining([...doomed, prOnly]), []);
-  assert.deepEqual(await remaining(kept), [...kept].sort());
-  const [removal] = await removals(f.pageId);
-  assert.equal(removal?.actorId, f.alice);
-  assert.equal(removal?.reason, "branch_deleted");
-  assert.equal(removal?.branchId, branchId);
-  assert.deepEqual(
-    (removal?.threadIds as string[]).sort(),
-    [...doomed, prOnly].sort(),
-  );
-  assert.equal(removal?.messages, 10);
-  // The page's counters no longer count them.
-  const summary = await summaryOf(f.pageId);
-  assert.deepEqual([summary?.openThreads, summary?.blockingThreads], [2, 1]);
+    // Deleting again changes nothing.
+    await f.run(f.alice, { type: "deletePageBranch", branchId });
+    assert.equal((await removals(f.pageId)).length, 1);
+    assert.deepEqual(await remaining(kept), [...kept].sort());
+    assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+  },
+);
 
-  // Deleting again changes nothing.
-  await f.run(f.alice, { type: "deletePageBranch", branchId });
-  assert.equal((await removals(f.pageId)).length, 1);
-  assert.deepEqual(await remaining(kept), [...kept].sort());
-  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
-});
+void test(
+  "merging into main removes the source's and the pull request's discussions and keeps every other line's",
+  { timeout: 30_000 },
+  async () => {
+    const f = await fixture();
+    const { branchId, pullRequestId } = await f.propose("Retry **once**.");
+    const other = await f.branch("other");
+    const onSource = await f.everyState({ branchId });
+    const onPullRequest = [
+      await f.thread({ pullRequestId, resolved: true }),
+      await f.thread({ pullRequestId }),
+    ];
+    const kept = [
+      await f.thread({ branchId: f.mainBranchId, resolved: true }),
+      await f.thread({ branchId: other }),
+      await f.thread({ branchId: other, blocking: true, resolved: true }),
+      // Written on the pull request but about the target.
+      await f.thread({ branchId: f.mainBranchId, pullRequestId }),
+      await f.thread(),
+    ];
+    const doomed = [...onSource, ...onPullRequest];
 
-void test("merging into main removes the source's and the pull request's discussions and keeps every other line's", async () => {
-  const f = await fixture();
-  const { branchId, pullRequestId } = await f.propose("Retry **once**.");
-  const other = await f.branch("other");
-  const onSource = await f.everyState({ branchId });
-  const onPullRequest = [
-    await f.thread({ pullRequestId, resolved: true }),
-    await f.thread({ pullRequestId }),
-  ];
-  const kept = [
-    await f.thread({ branchId: f.mainBranchId, resolved: true }),
-    await f.thread({ branchId: other }),
-    await f.thread({ branchId: other, blocking: true, resolved: true }),
-    // Written on the pull request but about the target.
-    await f.thread({ branchId: f.mainBranchId, pullRequestId }),
-    await f.thread(),
-  ];
-  const doomed = [...onSource, ...onPullRequest];
+    // An open blocking discussion on the source holds the merge, and the
+    // refused merge removes nothing.
+    const heads = await f.heads(pullRequestId);
+    await rejects(
+      f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
+      "conflict",
+      /A blocking discussion is still open/,
+    );
+    assert.equal((await remaining(doomed)).length, doomed.length);
+    await f.run(f.alice, { type: "resolvePageThread", threadId: onSource[1]! });
 
-  // An open blocking discussion on the source holds the merge, and the
-  // refused merge removes nothing.
-  const heads = await f.heads(pullRequestId);
-  await rejects(
-    f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
-    "conflict",
-    /A blocking discussion is still open/,
-  );
-  assert.equal((await remaining(doomed)).length, doomed.length);
-  await f.run(f.alice, { type: "resolvePageThread", threadId: onSource[1]! });
+    const pr = await projection<SpaceEntityOf<"pagePullRequest">>(
+      `pagePullRequest:${pullRequestId}`,
+    );
+    assert.deepEqual(pr?.mergeability?.blockers, []);
+    assert.deepEqual(pr?.mergeability?.onMerge, {
+      sourceRetired: true,
+      discussions: {
+        open: 2,
+        openBlocking: 0,
+        resolved: 4,
+        resolvedBlocking: 2,
+      },
+    });
 
-  const pr = await projection<SpaceEntityOf<"pagePullRequest">>(
-    `pagePullRequest:${pullRequestId}`,
-  );
-  assert.deepEqual(pr?.mergeability?.blockers, []);
-  assert.deepEqual(pr?.mergeability?.onMerge, {
-    sourceRetired: true,
-    discussions: { open: 2, openBlocking: 0, resolved: 4, resolvedBlocking: 2 },
-  });
+    // An unconfirmed or stale confirmation is refused before anything
+    // changes.
+    await rejects(
+      f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
+      "conflict",
+      /This permanently deletes 6 discussions/,
+    );
+    await rejects(
+      f.run(f.owner, {
+        type: "mergePagePullRequest",
+        pullRequestId,
+        ...heads,
+        discussionsToRemove: 5,
+      }),
+      "conflict",
+      /Review the warning and confirm again/,
+    );
+    assert.equal((await remaining(doomed)).length, doomed.length);
 
-  // An unconfirmed or stale confirmation is refused before anything
-  // changes.
-  await rejects(
-    f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
-    "conflict",
-    /This permanently deletes 6 discussions/,
-  );
-  await rejects(
-    f.run(f.owner, {
+    await f.run(f.owner, {
       type: "mergePagePullRequest",
       pullRequestId,
       ...heads,
-      discussionsToRemove: 5,
-    }),
-    "conflict",
-    /Review the warning and confirm again/,
-  );
-  assert.equal((await remaining(doomed)).length, doomed.length);
+      discussionsToRemove: 6,
+    });
+    assert.deepEqual(await remaining(doomed), []);
+    assert.deepEqual(await remaining(kept), [...kept].sort());
+    const [removal] = await removals(f.pageId);
+    assert.equal(removal?.reason, "pull_request_merged");
+    assert.equal(removal?.pullRequestId, pullRequestId);
+    assert.equal(removal?.sourceRetired, true);
+    assert.equal(removal?.actorId, f.owner);
+    const [source] = await db
+      .select({ deletedAt: s.pageBranch.deletedAt })
+      .from(s.pageBranch)
+      .where(eq(s.pageBranch.id, branchId));
+    assert.ok(source?.deletedAt, "the merge retired the source");
 
-  await f.run(f.owner, {
-    type: "mergePagePullRequest",
-    pullRequestId,
-    ...heads,
-    discussionsToRemove: 6,
-  });
-  assert.deepEqual(await remaining(doomed), []);
-  assert.deepEqual(await remaining(kept), [...kept].sort());
-  const [removal] = await removals(f.pageId);
-  assert.equal(removal?.reason, "pull_request_merged");
-  assert.equal(removal?.pullRequestId, pullRequestId);
-  assert.equal(removal?.sourceRetired, true);
-  assert.equal(removal?.actorId, f.owner);
-  const [source] = await db
-    .select({ deletedAt: s.pageBranch.deletedAt })
-    .from(s.pageBranch)
-    .where(eq(s.pageBranch.id, branchId));
-  assert.ok(source?.deletedAt, "the merge retired the source");
+    // Repeating the merge is refused and removes nothing more; a merged pull
+    // request takes no new discussions.
+    await rejects(
+      f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
+      "conflict",
+      /already merged/,
+    );
+    await rejects(
+      f.thread({ pullRequestId }),
+      "conflict",
+      /This pull request is merged/,
+    );
+    assert.equal((await removals(f.pageId)).length, 1);
+    assert.deepEqual(await remaining(kept), [...kept].sort());
+    const summary = await summaryOf(f.pageId);
+    assert.deepEqual([summary?.openThreads, summary?.blockingThreads], [3, 0]);
+    assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+  },
+);
 
-  // Repeating the merge is refused and removes nothing more; a merged pull
-  // request takes no new discussions.
-  await rejects(
-    f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
-    "conflict",
-    /already merged/,
-  );
-  await rejects(
-    f.thread({ pullRequestId }),
-    "conflict",
-    /This pull request is merged/,
-  );
-  assert.equal((await removals(f.pageId)).length, 1);
-  assert.deepEqual(await remaining(kept), [...kept].sort());
-  const summary = await summaryOf(f.pageId);
-  assert.deepEqual([summary?.openThreads, summary?.blockingThreads], [3, 0]);
-  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
-});
+void test(
+  "merging into another branch removes the source's discussions while the source stays, and its blockers hold the merge",
+  { timeout: 30_000 },
+  async () => {
+    const f = await fixture();
+    const { branchId: source, pullRequestId: intoMain } =
+      await f.propose("Retry **once**.");
+    const target = await f.branch("release");
+    const pullRequestId = crypto.randomUUID();
+    await f.run(f.alice, {
+      type: "createPagePullRequest",
+      pageId: f.pageId,
+      pullRequestId,
+      sourceBranchId: source,
+      targetBranchId: target,
+      title: "Into release",
+    });
+    const onSource = await f.everyState({ branchId: source });
+    // The source's other pull request (into main) keeps its discussions.
+    const forOtherPullRequest = [
+      await f.thread({ branchId: source, pullRequestId: intoMain }),
+      await f.thread({ pullRequestId: intoMain, resolved: true }),
+    ];
+    const onTarget = await f.everyState({ branchId: target });
 
-void test("merging into another branch removes the source's discussions while the source stays, and its blockers hold the merge", async () => {
-  const f = await fixture();
-  const { branchId: source, pullRequestId: intoMain } =
-    await f.propose("Retry **once**.");
-  const target = await f.branch("release");
-  const pullRequestId = crypto.randomUUID();
-  await f.run(f.alice, {
-    type: "createPagePullRequest",
-    pageId: f.pageId,
-    pullRequestId,
-    sourceBranchId: source,
-    targetBranchId: target,
-    title: "Into release",
-  });
-  const onSource = await f.everyState({ branchId: source });
-  // The source's other pull request (into main) keeps its discussions.
-  const forOtherPullRequest = [
-    await f.thread({ branchId: source, pullRequestId: intoMain }),
-    await f.thread({ pullRequestId: intoMain, resolved: true }),
-  ];
-  const onTarget = await f.everyState({ branchId: target });
+    const heads = await f.heads(pullRequestId);
+    // Before, only the pull request's own blockers held a merge into a
+    // branch; the source's would now be deleted with it.
+    await rejects(
+      f.run(f.alice, { type: "mergePagePullRequest", pullRequestId, ...heads }),
+      "conflict",
+      /on this pull request or/,
+    );
+    await f.run(f.alice, { type: "resolvePageThread", threadId: onSource[1]! });
+    const pr = await projection<SpaceEntityOf<"pagePullRequest">>(
+      `pagePullRequest:${pullRequestId}`,
+    );
+    assert.deepEqual(pr?.mergeability?.onMerge, {
+      sourceRetired: false,
+      discussions: {
+        open: 1,
+        openBlocking: 0,
+        resolved: 3,
+        resolvedBlocking: 2,
+      },
+    });
+    await f.run(f.alice, {
+      type: "mergePagePullRequest",
+      pullRequestId,
+      ...heads,
+      discussionsToRemove: 4,
+    });
+    assert.deepEqual(await remaining(onSource), []);
+    assert.deepEqual(
+      await remaining([...forOtherPullRequest, ...onTarget]),
+      [...forOtherPullRequest, ...onTarget].sort(),
+    );
+    const [branch] = await db
+      .select({ deletedAt: s.pageBranch.deletedAt })
+      .from(s.pageBranch)
+      .where(eq(s.pageBranch.id, source));
+    assert.equal(branch?.deletedAt, null, "the source stays");
+    const [removal] = await removals(f.pageId);
+    assert.equal(removal?.sourceRetired, false);
+    assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+  },
+);
 
-  const heads = await f.heads(pullRequestId);
-  // Before, only the pull request's own blockers held a merge into a
-  // branch; the source's would now be deleted with it.
-  await rejects(
-    f.run(f.alice, { type: "mergePagePullRequest", pullRequestId, ...heads }),
-    "conflict",
-    /on this pull request or/,
-  );
-  await f.run(f.alice, { type: "resolvePageThread", threadId: onSource[1]! });
-  const pr = await projection<SpaceEntityOf<"pagePullRequest">>(
-    `pagePullRequest:${pullRequestId}`,
-  );
-  assert.deepEqual(pr?.mergeability?.onMerge, {
-    sourceRetired: false,
-    discussions: { open: 1, openBlocking: 0, resolved: 3, resolvedBlocking: 2 },
-  });
-  await f.run(f.alice, {
-    type: "mergePagePullRequest",
-    pullRequestId,
-    ...heads,
-    discussionsToRemove: 4,
-  });
-  assert.deepEqual(await remaining(onSource), []);
-  assert.deepEqual(
-    await remaining([...forOtherPullRequest, ...onTarget]),
-    [...forOtherPullRequest, ...onTarget].sort(),
-  );
-  const [branch] = await db
-    .select({ deletedAt: s.pageBranch.deletedAt })
-    .from(s.pageBranch)
-    .where(eq(s.pageBranch.id, source));
-  assert.equal(branch?.deletedAt, null, "the source stays");
-  const [removal] = await removals(f.pageId);
-  assert.equal(removal?.sourceRetired, false);
-  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
-});
+void test(
+  "discussions left on branches deleted earlier block nothing and are repaired once",
+  { timeout: 30_000 },
+  async () => {
+    const f = await fixture();
+    const { branchId, pullRequestId } = await f.propose("Retry **once**.");
+    const orphans = [
+      ...(await f.everyState({ branchId })),
+      await f.thread({ pullRequestId, blocking: true }),
+    ];
+    const kept = [await f.thread({ branchId: f.mainBranchId })];
+    // Older versions deleted a branch (after closing its pull request) and
+    // kept its discussions.
+    await f.run(f.alice, { type: "deletePagePullRequest", pullRequestId });
+    await f.run(f.alice, {
+      type: "reopenPageThread",
+      threadId: orphans[4]!,
+    });
+    await db
+      .update(s.pageBranch)
+      .set({ deletedAt: new Date(), deletedById: f.alice })
+      .where(eq(s.pageBranch.id, branchId));
 
-void test("discussions left on branches deleted earlier block nothing and are repaired once", async () => {
-  const f = await fixture();
-  const { branchId, pullRequestId } = await f.propose("Retry **once**.");
-  const orphans = [
-    ...(await f.everyState({ branchId })),
-    await f.thread({ pullRequestId, blocking: true }),
-  ];
-  const kept = [await f.thread({ branchId: f.mainBranchId })];
-  // Older versions deleted a branch (after closing its pull request) and
-  // kept its discussions.
-  await f.run(f.alice, { type: "deletePagePullRequest", pullRequestId });
-  await f.run(f.alice, {
-    type: "reopenPageThread",
-    threadId: orphans[4]!,
-  });
-  await db
-    .update(s.pageBranch)
-    .set({ deletedAt: new Date(), deletedById: f.alice })
-    .where(eq(s.pageBranch.id, branchId));
+    // They hold no merge into main.
+    const next = await f.propose("Retry **twice**.");
+    const pr = await projection<SpaceEntityOf<"pagePullRequest">>(
+      `pagePullRequest:${next.pullRequestId}`,
+    );
+    assert.deepEqual(pr?.mergeability?.blockers, []);
 
-  // They hold no merge into main.
-  const next = await f.propose("Retry **twice**.");
-  const pr = await projection<SpaceEntityOf<"pagePullRequest">>(
-    `pagePullRequest:${next.pullRequestId}`,
-  );
-  assert.deepEqual(pr?.mergeability?.blockers, []);
+    assert.deepEqual(
+      await removeOrphanedPageDiscussions(db, f.organizationId, {
+        dryRun: true,
+      }),
+      { pages: 1, threads: 5, messages: 0 },
+    );
+    assert.equal((await remaining(orphans)).length, 5);
 
-  assert.deepEqual(
-    await removeOrphanedPageDiscussions(db, f.organizationId, { dryRun: true }),
-    { pages: 1, threads: 5, messages: 0 },
-  );
-  assert.equal((await remaining(orphans)).length, 5);
+    assert.deepEqual(
+      await removeOrphanedPageDiscussions(db, f.organizationId),
+      {
+        pages: 1,
+        threads: 5,
+        messages: 10,
+      },
+    );
+    assert.deepEqual(await remaining(orphans), []);
+    assert.deepEqual(await remaining(kept), kept);
+    const [removal] = await removals(f.pageId);
+    assert.equal(removal?.actorId, f.alice, "attributed to who deleted it");
+    assert.equal(removal?.repair, true);
+    assert.equal(removal?.branchId, branchId);
+    assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 
-  assert.deepEqual(await removeOrphanedPageDiscussions(db, f.organizationId), {
-    pages: 1,
-    threads: 5,
-    messages: 10,
-  });
-  assert.deepEqual(await remaining(orphans), []);
-  assert.deepEqual(await remaining(kept), kept);
-  const [removal] = await removals(f.pageId);
-  assert.equal(removal?.actorId, f.alice, "attributed to who deleted it");
-  assert.equal(removal?.repair, true);
-  assert.equal(removal?.branchId, branchId);
-  assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+    // A second run finds nothing.
+    assert.deepEqual(
+      await removeOrphanedPageDiscussions(db, f.organizationId),
+      {
+        pages: 0,
+        threads: 0,
+        messages: 0,
+      },
+    );
+    assert.equal((await removals(f.pageId)).length, 1);
 
-  // A second run finds nothing.
-  assert.deepEqual(await removeOrphanedPageDiscussions(db, f.organizationId), {
-    pages: 0,
-    threads: 0,
-    messages: 0,
-  });
-  assert.equal((await removals(f.pageId)).length, 1);
-});
+    // Branch rows projected before the counts existed get them from the
+    // rollout, so their confirmations can be answered.
+    const live = await f.branch("live");
+    await db
+      .update(s.spaceEntity)
+      .set({
+        data: sql`${s.spaceEntity.data} - 'discussionsOnDelete'`,
+      })
+      .where(eq(s.spaceEntity.key, `pageBranch:${live}`));
+    assert.notEqual(
+      (await projectionDrift(db, f.organizationId)).length,
+      0,
+      "the old row lacks the counts",
+    );
+    await removeOrphanedPageDiscussions(db, f.organizationId);
+    assert.deepEqual(
+      (await projection<SpaceEntityOf<"pageBranch">>(`pageBranch:${live}`))
+        ?.discussionsOnDelete,
+      { open: 0, openBlocking: 0, resolved: 0, resolvedBlocking: 0 },
+    );
+    assert.deepEqual(await projectionDrift(db, f.organizationId), []);
+  },
+);

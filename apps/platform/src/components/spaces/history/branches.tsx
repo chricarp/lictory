@@ -5,12 +5,18 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { usePageBranchSelection } from "./branch-selection";
-import { discussionTotal } from "@lictory/core/spaces/discussion-lifecycle";
+import {
+  discussionTotal,
+  type DiscussionCounts,
+} from "@lictory/core/spaces/discussion-lifecycle";
 import {
   ActionError,
   ChoosePerson,
+  Confirmation,
+  CountsChanged,
   DiscussionRemovalWarning,
   field,
+  sameCounts,
   useHistoryAction,
 } from "./shared";
 import { ConflictResolution } from "./conflicts";
@@ -23,7 +29,13 @@ export function Branches({ pageId }: { pageId: string }) {
   const [name, setName] = useState("");
   const [from, setFrom] = useState(branch?.headCommitId ?? "");
   const [sync, setSync] = useState<string>();
-  const [deleting, setDeleting] = useState<string>();
+  // The branch being deleted and the counts its confirmation shows.
+  const [deleting, setDeleting] = useState<{
+    id: string;
+    counts: DiscussionCounts | undefined;
+  }>();
+  // After a cancelled deletion, focus returns to that branch's button.
+  const [returnTo, setReturnTo] = useState<string>();
   const action = useHistoryAction();
   const problem =
     branchNameProblem(name) ??
@@ -68,11 +80,15 @@ export function Branches({ pageId }: { pageId: string }) {
                   Sync from main
                 </Button>
               )}
-            {canEdit && !b.isMain && (
+            {canEdit && !b.isMain && deleting?.id !== b.id && (
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setDeleting(b.id)}
+                autoFocus={returnTo === b.id}
+                onClick={() => {
+                  setReturnTo(undefined);
+                  setDeleting({ id: b.id, counts: b.discussionsOnDelete });
+                }}
               >
                 Delete branch…
               </Button>
@@ -110,10 +126,9 @@ export function Branches({ pageId }: { pageId: string }) {
                 </Button>
               ))}
           </div>
-          {deleting === b.id && (
-            <div
-              role="group"
-              aria-label={`Delete branch ${b.name}`}
+          {deleting?.id === b.id && (
+            <Confirmation
+              label={`Delete branch ${b.name}`}
               className="space-y-2"
             >
               <p>
@@ -122,20 +137,26 @@ export function Branches({ pageId }: { pageId: string }) {
               </p>
               <DiscussionRemovalWarning
                 where="this branch"
-                counts={b.discussionsOnDelete}
+                counts={deleting.counts}
               />
+              {!sameCounts(deleting.counts, b.discussionsOnDelete) && (
+                <CountsChanged />
+              )}
               <Button
                 size="sm"
-                disabled={action.pending}
+                disabled={
+                  action.pending ||
+                  !sameCounts(deleting.counts, b.discussionsOnDelete)
+                }
                 onClick={() => {
                   void action.run(
                     {
                       type: "deletePageBranch",
                       branchId: b.id,
-                      ...(b.discussionsOnDelete
+                      ...(deleting.counts
                         ? {
                             discussionsToRemove: discussionTotal(
-                              b.discussionsOnDelete,
+                              deleting.counts,
                             ),
                           }
                         : {}),
@@ -152,11 +173,14 @@ export function Branches({ pageId }: { pageId: string }) {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setDeleting(undefined)}
+                onClick={() => {
+                  setDeleting(undefined);
+                  setReturnTo(b.id);
+                }}
               >
                 Cancel
               </Button>
-            </div>
+            </Confirmation>
           )}
         </section>
       ))}

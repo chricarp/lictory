@@ -1,5 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
   spaceLevelAtLeast,
@@ -579,56 +578,28 @@ export async function listPageThreads(
 
 // ------------------------------------------------------------------ repair
 
-// Removes discussions left on lines deleted before deletion removed them
-// (docs/internals/spaces.md#when-a-line-ends): repair of older data, run by
-// the `remove-orphaned-page-discussions` backfill. One short transaction per
-// page under the organization lock, so it is safe while people work and
-// resumable; idempotent (a second run finds nothing). Each removal is
+// Rollout of docs/internals/spaces.md#when-a-line-ends for existing data,
+// run by the `remove-orphaned-page-discussions` backfill: removes
+// discussions left on lines deleted before deletion removed them, and
+// reprojects every page so its branches and pull requests carry the counts
+// people confirm (rows projected earlier lack them, and the server refuses
+// a removal nobody confirmed). One short transaction per page under the
+// organization lock, so it is safe while people work and resumable;
+// idempotent (a second run removes and rewrites nothing). Each removal is
 // recorded like the deletion that should have made it, attributed to whoever
-// deleted the branch, and the page is reprojected in the same transaction.
+// deleted the branch.
 export async function removeOrphanedPageDiscussions(
   db: Database,
   organizationId: string,
   options: { dryRun?: boolean } = {},
 ) {
-  const branch = alias(s.pageBranch, "thread_branch");
-  const source = alias(s.pageBranch, "source_branch");
-  const candidates = await db
-    .selectDistinct({ pageId: s.pageThread.pageId })
-    .from(s.pageThread)
-    .leftJoin(
-      branch,
-      and(
-        eq(branch.organizationId, s.pageThread.organizationId),
-        eq(branch.id, s.pageThread.branchId),
-      ),
-    )
-    .leftJoin(
-      s.pagePullRequest,
-      and(
-        eq(s.pagePullRequest.organizationId, s.pageThread.organizationId),
-        eq(s.pagePullRequest.id, s.pageThread.pullRequestId),
-      ),
-    )
-    .leftJoin(
-      source,
-      and(
-        eq(source.organizationId, s.pagePullRequest.organizationId),
-        eq(source.id, s.pagePullRequest.sourceBranchId),
-      ),
-    )
-    .where(
-      and(
-        eq(s.pageThread.organizationId, organizationId),
-        or(
-          isNotNull(branch.deletedAt),
-          and(isNull(s.pageThread.branchId), isNotNull(source.deletedAt)),
-        ),
-      ),
-    )
-    .orderBy(s.pageThread.pageId);
+  const pages = await db
+    .select({ pageId: s.page.id })
+    .from(s.page)
+    .where(eq(s.page.organizationId, organizationId))
+    .orderBy(s.page.id);
   const summary = { pages: 0, threads: 0, messages: 0 };
-  for (const { pageId } of candidates)
+  for (const { pageId } of pages)
     await db.transaction(async (tx) => {
       await lock(tx, organizationId);
       const state = (await pageLineStates(tx, organizationId, [pageId])).get(
@@ -637,24 +608,27 @@ export async function removeOrphanedPageDiscussions(
       if (!state) return;
       const live = new Set(state.branches.map((b) => b.id));
       const orphans = state.threads.filter((t) => onDeletedLine(t, live));
-      if (!orphans.length) return;
-      summary.pages++;
-      summary.threads += orphans.length;
+      if (orphans.length) {
+        summary.pages++;
+        summary.threads += orphans.length;
+      }
       if (options.dryRun) return;
-      const lines = await tx
-        .select({
-          id: s.pageBranch.id,
-          name: s.pageBranch.name,
-          deletedById: s.pageBranch.deletedById,
-        })
-        .from(s.pageBranch)
-        .where(
-          and(
-            eq(s.pageBranch.organizationId, organizationId),
-            eq(s.pageBranch.pageId, pageId),
-            isNotNull(s.pageBranch.deletedAt),
-          ),
-        );
+      const lines = !orphans.length
+        ? []
+        : await tx
+            .select({
+              id: s.pageBranch.id,
+              name: s.pageBranch.name,
+              deletedById: s.pageBranch.deletedById,
+            })
+            .from(s.pageBranch)
+            .where(
+              and(
+                eq(s.pageBranch.organizationId, organizationId),
+                eq(s.pageBranch.pageId, pageId),
+                isNotNull(s.pageBranch.deletedAt),
+              ),
+            );
       for (const line of lines) {
         const gone = await removePageThreads(
           tx,
