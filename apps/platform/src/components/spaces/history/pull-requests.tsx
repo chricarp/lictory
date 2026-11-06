@@ -1,3 +1,4 @@
+import { relativeTime } from "@lictory/core/lib/work-items";
 import { MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
@@ -383,8 +384,8 @@ function PullRequestDetail({
                     <RenderedDocumentDiff
                       before={target.content}
                       after={resultDocument}
-                      beforeLabel={`${preview.theirs.name} · current`}
-                      afterLabel="Proposed result"
+                      beforeLabel="Current"
+                      afterLabel="Proposed"
                     />
                   ) : (
                     <p role="status" className="text-sm text-muted-foreground">
@@ -430,7 +431,7 @@ function PullRequestDetail({
                     ? "Draft"
                     : gate?.blockers.includes("conflicts")
                       ? "Conflicts to resolve"
-                      : "Awaiting review"}
+                      : "Open"}
             </span>
           </div>
           <section className="space-y-3">
@@ -445,68 +446,105 @@ function PullRequestDetail({
                 No reviewers requested yet.
               </p>
             )}
-            {pr.reviewers.map((r) => (
-              <div
-                key={r.userId}
-                className="flex flex-wrap items-center gap-2 text-sm"
-              >
-                <Avatar
-                  name={memberName(r.userId)}
-                  userId={r.userId}
-                  size="md"
-                />
-                <span>
-                  <span className="block font-medium">
-                    Review requested from {memberName(r.userId)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {r.required ? "Required review" : "Optional review"}
-                  </span>
-                </span>
-                {!currentReviews.some(
-                  (review) => review.reviewerId === r.userId && !review.staleAt,
-                ) &&
-                  pr.status !== "merged" && (
-                    <span className="rounded-full bg-muted px-2 py-1 text-xs">
-                      Pending
+            {pr.reviewers.map((r) => {
+              const review = currentReviews.find(
+                (review) => review.reviewerId === r.userId,
+              );
+              const state = review?.staleAt
+                ? "Review outdated"
+                : review?.decision === "approved"
+                  ? "Approved"
+                  : review
+                    ? "Changes requested"
+                    : "Pending";
+              return (
+                <div
+                  key={r.userId}
+                  className="flex items-start gap-2.5 text-sm"
+                >
+                  <Avatar
+                    name={memberName(r.userId)}
+                    userId={r.userId}
+                    size="md"
+                  />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="font-medium break-words">
+                      {memberName(r.userId)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">
+                        {r.required ? "Required" : "Optional"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 ring-1 ring-inset ${state === "Approved" ? "bg-success/10 text-success ring-success/20" : "bg-muted ring-border"}`}
+                      >
+                        {state}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {r.createdAt && (
+                        <p className="text-xs text-muted-foreground">
+                          requested{" "}
+                          <time
+                            dateTime={r.createdAt}
+                            title={new Date(r.createdAt).toLocaleString()}
+                          >
+                            {relativeTime(r.createdAt)}
+                          </time>
+                        </p>
+                      )}
+                      {editable && pr.status !== "merged" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="-ml-2 h-7 px-2 text-xs text-muted-foreground"
+                          aria-label={`Cancel request for ${memberName(r.userId)}`}
+                          disabled={action.pending}
+                          onClick={() => {
+                            void action.run({
+                              type: "cancelPageReview",
+                              pullRequestId: pr.id,
+                              userId: r.userId,
+                            });
+                          }}
+                        >
+                          Cancel request
+                        </Button>
+                      )}
+                    </div>
+                    {review?.staleReason && (
+                      <p className="text-xs text-muted-foreground">
+                        {review.staleReason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {currentReviews
+              .filter(
+                (r) =>
+                  !pr.reviewers.some(
+                    (requested) => requested.userId === r.reviewerId,
+                  ),
+              )
+              .map((r) => (
+                <p key={r.id} className="text-sm">
+                  {memberName(r.reviewerId)}:{" "}
+                  {r.staleAt
+                    ? r.decision === "approved"
+                      ? "Approved an earlier result"
+                      : "Requested changes on an earlier result"
+                    : r.decision === "approved"
+                      ? "Approved this result"
+                      : "Changes requested"}
+                  {r.staleReason && (
+                    <span className="block text-xs text-muted-foreground">
+                      {r.staleReason}
                     </span>
                   )}
-                {editable && pr.status !== "merged" && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`Cancel review request for ${memberName(r.userId)}`}
-                    disabled={action.pending}
-                    onClick={() => {
-                      void action.run({
-                        type: "cancelPageReview",
-                        pullRequestId: pr.id,
-                        userId: r.userId,
-                      });
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
-            ))}
-            {currentReviews.map((r) => (
-              <p key={r.id} className="text-sm">
-                {memberName(r.reviewerId)}:{" "}
-                {r.staleAt
-                  ? r.decision === "approved"
-                    ? "Approved an earlier result"
-                    : "Requested changes on an earlier result"
-                  : r.decision === "approved"
-                    ? "Approved this result"
-                    : "Changes requested"}
-                {r.staleReason && (
-                  <span className="block text-xs text-muted-foreground">
-                    {r.staleReason}
-                  </span>
-                )}
-              </p>
-            ))}
+                </p>
+              ))}
             {editable && pr.status !== "merged" && (
               <ChoosePerson
                 label={

@@ -40,10 +40,22 @@ export function DocumentDiff({
   return (
     <div className="history-word-diff overflow-hidden rounded-lg border text-sm">
       <div className="border-b px-4 py-3">
+        <span
+          aria-hidden="true"
+          className="mr-3 font-mono text-muted-foreground"
+        >
+          −
+        </span>
         <span className="mr-3 text-xs text-muted-foreground">Before title</span>
         {text(before || "Untitled", ranges.before, "del")}
       </div>
       <div className="px-4 py-3">
+        <span
+          aria-hidden="true"
+          className="mr-3 font-mono text-muted-foreground"
+        >
+          +
+        </span>
         <span className="mr-3 text-xs text-muted-foreground">After title</span>
         {text(after || "Untitled", ranges.after, "ins")}
       </div>
@@ -54,8 +66,8 @@ export function DocumentDiff({
 export function RenderedDocumentDiff({
   before,
   after,
-  beforeLabel = "Base version",
-  afterLabel = "Result",
+  beforeLabel = "Current",
+  afterLabel = "Proposed",
 }: {
   before: unknown;
   after: unknown;
@@ -109,9 +121,6 @@ export function RenderedDocumentDiff({
     <div className="space-y-3">
       <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
         <span>
-          {beforeLabel} → {afterLabel}
-        </span>
-        <span>
           {count} {count === 1 ? "block changed" : "blocks changed"}
         </span>
       </div>
@@ -162,6 +171,7 @@ export function RenderedDocumentDiff({
               <Block
                 nodes={group.before}
                 kind="removed"
+                label={`Before · ${beforeLabel}`}
                 ranges={words?.before}
               />
             )}
@@ -169,6 +179,7 @@ export function RenderedDocumentDiff({
               <Block
                 nodes={group.after}
                 kind={movedOnly ? "context" : "added"}
+                label={`After · ${afterLabel}`}
                 ranges={words?.after}
               />
             )}
@@ -188,10 +199,12 @@ function Block({
   nodes,
   kind,
   ranges,
+  label,
 }: {
   nodes: PageNode[];
   kind: "added" | "removed" | "context";
   ranges?: TextRange[];
+  label?: string;
 }) {
   const content = useMemo(() => ({ type: "doc", content: nodes }), [nodes]);
   const highlight = useCallback(
@@ -228,8 +241,21 @@ function Block({
   );
   return (
     <div
-      className={`history-word-diff border-l-2 px-5 py-4 [&_.page-document]:min-h-0 ${kind === "added" ? "border-l-success bg-success/5" : kind === "removed" ? "border-l-destructive bg-destructive/5" : "border-l-transparent"}`}
+      className={`history-word-diff relative border-l-2 py-4 pr-5 pl-10 [&_.page-document]:min-h-0 ${kind === "added" ? "border-l-success bg-success/5" : kind === "removed" ? "border-l-destructive bg-destructive/5" : "border-l-transparent"}`}
     >
+      {kind !== "context" && (
+        <span
+          aria-hidden="true"
+          className="absolute top-4 left-3 font-mono text-sm text-muted-foreground"
+        >
+          {kind === "added" ? "+" : "−"}
+        </span>
+      )}
+      {label && (
+        <p className="mb-2 text-xs font-medium text-muted-foreground">
+          {label}
+        </p>
+      )}
       <PageReader
         content={content}
         label={

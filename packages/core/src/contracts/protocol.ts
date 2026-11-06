@@ -1197,7 +1197,12 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     status: z.enum(["draft", "open", "merged"]),
     authorId: id,
     reviewers: z.array(
-      z.object({ userId: id, required: z.boolean(), requestedById: id }),
+      z.object({
+        userId: id,
+        required: z.boolean(),
+        requestedById: id,
+        createdAt: z.string().optional(),
+      }),
     ),
     createdAt: z.string(),
     updatedAt: z.string(),

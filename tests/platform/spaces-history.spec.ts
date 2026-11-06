@@ -107,7 +107,15 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     .click();
   await page.getByRole("option", { name: /Page Reviewer/ }).click();
   await expect(
-    page.getByText("Review requested from Page Reviewer", { exact: true }),
+    page
+      .getByRole("complementary", { name: "Review summary" })
+      .getByText("Page Reviewer", { exact: true }),
+  ).toBeVisible();
+  const summary = page.getByRole("complementary", { name: "Review summary" });
+  await expect(summary.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(summary.getByText(/requested just now/)).toBeVisible();
+  await expect(
+    page.getByText("After · Proposed", { exact: true }).first(),
   ).toBeVisible();
   await expectNoAccessibilityViolations(page, "page pull request");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -126,7 +134,9 @@ test("reviewed page: inspect result, request independent review, approve, merge 
   await reviewer.goto(`${url}/history?view=pulls&pr=${pullRequestId}`);
   await reviewer.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(
-    reviewer.getByText("Page Reviewer: Approved this result", { exact: true }),
+    reviewer
+      .getByRole("complementary", { name: "Review summary" })
+      .getByText("Approved", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Merge pull request", exact: true }),
@@ -143,14 +153,14 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     selectedVersion.getByRole("link", { name: "Recovery", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "View document", exact: true })
+    .getByRole("button", { name: "Preview this version", exact: true })
     .click();
   await expect(selectedVersion.getByRole("document")).toContainText(
     "Reuse the transaction identifier",
   );
   await page.getByRole("button", { name: "View changes", exact: true }).click();
   await expect(
-    selectedVersion.getByRole("heading", { name: /Changes from v/ }),
+    selectedVersion.getByRole("combobox", { name: "Compare with" }),
   ).toBeVisible();
   await expectNoAccessibilityViolations(page, "rendered version comparison");
   await expect(
