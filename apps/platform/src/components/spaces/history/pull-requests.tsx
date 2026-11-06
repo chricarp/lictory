@@ -431,7 +431,7 @@ function PullRequestDetail({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold">Review summary</h3>
             <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${pr.status === "merged" || gate?.blockers.length === 0 ? "bg-success/10 text-success" : "bg-muted text-foreground"}`}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${pr.status === "merged" || gate?.blockers.length === 0 ? "bg-card text-success ring-1 ring-success/30 ring-inset" : "bg-muted text-foreground"}`}
             >
               {pr.status === "merged"
                 ? "Merged"
@@ -486,7 +486,7 @@ function PullRequestDetail({
                         {r.required ? "Required" : "Optional"}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-0.5 ring-1 ring-inset ${state === "Approved" ? "bg-success/10 text-success ring-success/20" : "bg-muted ring-border"}`}
+                        className={`rounded-full px-2 py-0.5 ring-1 ring-inset ${state === "Approved" ? "bg-card text-success ring-success/30" : "bg-muted ring-border"}`}
                       >
                         {state}
                       </span>
