@@ -39,7 +39,10 @@ import {
 // - Strict (ANALYTICS_CONSENT=strict): PostHog loads only after Analytics
 //   consent, and server events are sent only for people who granted it.
 // Withdrawing consent clears PostHog storage and c15t reloads the page.
-function consentScripts() {
+/** Which public site sent an event, when several share one PostHog project. */
+type AnalyticsSite = "marketing" | "docs";
+
+function consentScripts(site: AnalyticsSite | undefined) {
   const analytics = browserAnalyticsSettings();
   if (!analytics) return [];
   const strict = analytics.consent === "strict";
@@ -74,13 +77,22 @@ function consentScripts() {
           event: { properties: Record<string, unknown> } | null,
         ) => {
           if (!event) return event;
+          // A consent change reloads PostHog's persistence and drops the
+          // registered `site` for the rest of the page, so restore it here.
+          if (site) event.properties.site ??= site;
           sanitizeAnalyticsProperties(event.properties);
           if (!hasAnalyticsConsent()) {
             minimizeAnonymousAnalyticsProperties(event.properties);
           }
           return event;
         },
-        loaded: onPostHogLoaded,
+        loaded: (client: {
+          register: (properties: { site: AnalyticsSite }) => void;
+        }) => {
+          // Before identity, so every event, the first pageview included, carries it.
+          if (site) client.register({ site });
+          onPostHogLoaded(client);
+        },
       },
     }),
   ];
@@ -89,11 +101,13 @@ function consentScripts() {
 export function ConsentProvider({
   children,
   privacyHref,
+  site,
 }: {
   children: ReactNode;
   privacyHref?: string;
+  site?: AnalyticsSite;
 }) {
-  const [scripts] = useState(consentScripts);
+  const [scripts] = useState(() => consentScripts(site));
   if (!analyticsConfigured()) return children;
   return (
     <ConsentManagerProvider

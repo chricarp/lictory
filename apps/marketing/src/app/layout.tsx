@@ -58,7 +58,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
       </head>
       <body className="marketing-site min-h-full">
-        <ConsentProvider privacyHref="/privacy">{children}</ConsentProvider>
+        <ConsentProvider privacyHref="/privacy" site="marketing">
+          {children}
+        </ConsentProvider>
       </body>
     </html>
   );

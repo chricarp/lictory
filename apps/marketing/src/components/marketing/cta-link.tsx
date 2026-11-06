@@ -1,27 +1,31 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { cn } from "@lictory/core/lib/utils";
+import { TrackedLink } from "@lictory/marketing/components/marketing/tracked-link";
+import type { CtaTracking } from "@lictory/marketing/lib/cta-analytics";
 
 const linkBase =
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-full font-medium whitespace-nowrap transition-[background-color,color,box-shadow,transform] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.98]";
 
 export function CtaLink({
   href,
+  tracking,
   children,
   variant = "primary",
   size = "md",
   className,
 }: {
   href: string;
+  tracking: CtaTracking;
   children: ReactNode;
   variant?: "primary" | "secondary" | "ghost";
   size?: "md" | "lg";
   className?: string;
 }) {
   return (
-    <Link
+    <TrackedLink
       href={href}
+      tracking={tracking}
       className={cn(
         linkBase,
         size === "md" && "h-8 px-3 text-[13px]",
@@ -36,6 +40,6 @@ export function CtaLink({
       )}
     >
       {children}
-    </Link>
+    </TrackedLink>
   );
 }
