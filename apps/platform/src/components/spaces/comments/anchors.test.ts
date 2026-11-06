@@ -108,6 +108,7 @@ void test("save state: Saved only when the service stored every edit", () => {
     online: true,
     unavailable: false,
     closed: null,
+    refused: null,
     peers: [],
     save: { kind: "saved", since: 0, settling: false, troubled: false },
   };

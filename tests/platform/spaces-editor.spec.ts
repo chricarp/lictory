@@ -501,6 +501,94 @@ test("text typed into a draft that is replaced before it was saved is kept and c
   await ada.context.close();
 });
 
+test("a change the service refuses shows Save failed, keeps the text and offers it back after reopening", async ({
+  browser,
+}) => {
+  const created = await seeded.command({
+    type: "createPage",
+    spaceId: operationsSpaceId,
+    pageId: crypto.randomUUID(),
+    title: "Refund appendix",
+  });
+  const { pageId } = created.summary as { pageId: string };
+  const url = pageUrl.replace(/pages\/[^/]+$/, `pages/${pageId}`);
+  const ada = await person(browser, owner);
+  const ben = await person(browser, editor);
+  await openEditor(ada.page, url);
+  await openEditor(ben.page, url);
+  await liveEditor(ada.page).click();
+  await ada.page.keyboard.type("Refunds take five days.");
+  await expect(saved(ada.page)).toBeVisible();
+
+  // One paste larger than the service stores at once (512 KiB per change).
+  await ada.page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData(
+      "text/plain",
+      ` Imported appendix: ${"settlement ".repeat(60_000)}`,
+    );
+    document
+      .querySelector('.page-document[contenteditable="true"]')!
+      .dispatchEvent(
+        new ClipboardEvent("paste", {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+  });
+  const state = ada.page.getByTestId("draft-save-state");
+  await expect(state).toHaveText("Save failed", { timeout: 20_000 });
+  const failed = ada.page.getByTestId("draft-save-failed");
+  await expect(failed).toContainText("Your latest edits were not saved.");
+  await expect(failed).toContainText(
+    "This change is too large to save at once.",
+  );
+  // Announced once to assistive technology, with the reason.
+  await expect(
+    ada.page.getByRole("status").filter({ hasText: /^Save failed\./ }),
+  ).toHaveText(
+    "Save failed. This change is too large to save at once. Your unsaved text is kept in this tab; reopen the editor to keep working.",
+  );
+  // The text stays in the tab, and typing on does not pretend to save.
+  await ada.page.keyboard.type(" Typed after the refusal.");
+  await expect(liveEditor(ada.page)).toContainText("Typed after the refusal.");
+  await ada.page.waitForTimeout(1500);
+  await expect(state).toHaveText("Save failed");
+  // Nobody else saw the refused text; what was stored before is intact.
+  await expect(liveEditor(ben.page)).toContainText("Refunds take five days.");
+  await expect(liveEditor(ben.page)).not.toContainText("Imported appendix");
+  await expectNoAccessibilityViolations(ada.page, "live editor, save failed");
+
+  await failed.getByRole("button", { name: "Reopen editor" }).click();
+  const notice = ada.page.getByRole("status", {
+    name: "Unsaved text kept on this device",
+  });
+  await expect(notice).toContainText(
+    "The editor closed before some of your changes were saved. Your text is kept on this device.",
+  );
+  await expect(notice).toContainText("Typed after the refusal.");
+  // Inserting it as one change would be refused again.
+  await expect(notice).toContainText(
+    "It is too large to insert at once. Copy it and paste it in smaller parts.",
+  );
+  await expect(
+    notice.getByRole("button", { name: "Insert at end" }),
+  ).toHaveCount(0);
+  await expect(notice.getByRole("button", { name: "Copy text" })).toBeVisible();
+  // The reopened editor starts from what is stored, takes the keyboard
+  // focus back, and saves again.
+  await expect(liveEditor(ada.page)).toContainText("Refunds take five days.");
+  await expect(liveEditor(ada.page)).not.toContainText("Imported appendix");
+  await expect(failed).toBeHidden();
+  await expect(liveEditor(ada.page)).toBeFocused();
+  await ada.page.keyboard.press("ControlOrMeta+End");
+  await ada.page.keyboard.type(" Partial refunds too.");
+  await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });
+  await expect(liveEditor(ben.page)).toContainText("Partial refunds too.");
+  await Promise.all([ada.context.close(), ben.context.close()]);
+});
+
 test("a Reviewed space protects main: a branch is started and its draft commits", async ({
   browser,
 }) => {

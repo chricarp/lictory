@@ -3,6 +3,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -26,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { DRAFT_UPDATE_BYTES } from "@lictory/core/spaces/collaboration-protocol";
 import { Button } from "@lictory/ui/button";
 import { Avatar } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
@@ -148,6 +150,8 @@ export function LiveDraft(props: LiveDraftProps) {
     props.line.draft.id,
   );
   const [session, setSession] = useState<DraftSession | null>(null);
+  // Reopening (after the service refused an edit) starts a new session.
+  const [opening, setOpening] = useState(0);
   const name = memberName(userId);
   useEffect(() => {
     // The session is a connection to the collaboration service, opened and
@@ -170,12 +174,14 @@ export function LiveDraft(props: LiveDraftProps) {
     };
     // The person's name is set once per connection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentName, userId, recoveryKey]);
+  }, [documentName, userId, recoveryKey, opening]);
   if (!session) return <ConnectingPlaceholder />;
   return (
     <DraftEditor
-      key={documentName}
+      key={`${documentName}:${opening}`}
       session={session}
+      reopened={opening > 0}
+      onReopen={() => setOpening((n) => n + 1)}
       recovery={draftRecoveryStore(recoveryKey)}
       {...props}
     />
@@ -314,7 +320,14 @@ function DraftEditor({
   onEditor,
   canComment,
   actionsSlot,
-}: LiveDraftProps & { session: DraftSession; recovery: DraftRecoveryStore }) {
+  reopened,
+  onReopen,
+}: LiveDraftProps & {
+  session: DraftSession;
+  recovery: DraftRecoveryStore;
+  reopened: boolean;
+  onReopen: () => void;
+}) {
   const { userId, memberName, organization, items, projects } = useWorkspace();
   const { index } = useSpaces();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
@@ -496,6 +509,28 @@ function DraftEditor({
     };
   }, [editor, editable]);
 
+  // Reopening removed the focused button: once the new session can be
+  // edited, focus returns to the editor, unless it went somewhere else.
+  const focusWhenEditable = useRef(reopened);
+  useEffect(() => {
+    if (!focusWhenEditable.current || !editor || !editable) return;
+    // Tiptap's view is ready for focus once the editor is created.
+    const focus = () => {
+      if (!focusWhenEditable.current || editor.isDestroyed) return;
+      if (!editor.isInitialized || !editor.isEditable) return;
+      focusWhenEditable.current = false;
+      const active = document.activeElement;
+      if (!active || active === document.body) editor.commands.focus("end");
+    };
+    focus();
+    editor.on("create", focus);
+    editor.on("mount", focus);
+    return () => {
+      editor.off("create", focus);
+      editor.off("mount", focus);
+    };
+  }, [editor, editable]);
+
   // Leaving with edits the service has not stored would lose them.
   useEffect(() => {
     if (!snapshot.unsynced) return;
@@ -666,6 +701,9 @@ function DraftEditor({
           Opening the current draft…
         </p>
       )}
+      {state.kind === "failed" && (
+        <SaveFailedNotice reason={snapshot.refused} onReopen={onReopen} />
+      )}
       {state.kind === "unavailable" && (
         <div
           role="alert"
@@ -762,6 +800,11 @@ function RecoveredText({
       {entries.map((entry) => {
         const blocks = insertableBlocks(entry);
         const preview = recoveredText(entry);
+        // The service would refuse it as one change: copy and paste in parts.
+        const tooLarge =
+          !!blocks &&
+          new TextEncoder().encode(JSON.stringify(blocks)).length >
+            DRAFT_UPDATE_BYTES;
         return (
           <section
             key={entry.id}
@@ -782,6 +825,12 @@ function RecoveredText({
               <p className="mt-1 line-clamp-3 break-words whitespace-pre-wrap text-muted-foreground">
                 {preview}
               </p>
+              {tooLarge && (
+                <p className="mt-1 text-muted-foreground">
+                  It is too large to insert at once. Copy it and paste it in
+                  smaller parts.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-1">
               <Button
@@ -802,7 +851,7 @@ function RecoveredText({
               >
                 <Copy className="size-3.5" aria-hidden /> Copy text
               </Button>
-              {blocks && (
+              {blocks && !tooLarge && (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -868,7 +917,7 @@ function SaveIndicator({
       <Check className="size-3.5" aria-hidden />
     ) : state.kind === "offline" || state.kind === "unavailable" ? (
       <CloudOff className="size-3.5 text-warning" aria-hidden />
-    ) : state.kind === "closed" ? (
+    ) : state.kind === "closed" || state.kind === "failed" ? (
       <CircleAlert className="size-3.5 text-destructive" aria-hidden />
     ) : state.kind === "saving" && !slow ? (
       <CloudUpload className="size-3.5" aria-hidden />
@@ -887,7 +936,9 @@ function SaveIndicator({
             ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
             : state.kind === "saved"
               ? "Every edit is stored by the server."
-              : undefined
+              : state.kind === "failed"
+                ? "The server refused your latest edits. They are kept in this tab; reopen the editor to keep working."
+                : undefined
         }
         className="inline-flex items-center gap-1"
       >
@@ -940,6 +991,37 @@ function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
       </span>
       <span>{text}</span>
     </span>
+  );
+}
+
+// The service refused to store an edit: says why and reopens the editor on
+// request, from what is stored, offering the unsaved text back (copy,
+// insert, discard). Nothing is resent on its own. The save state's status
+// region announces it.
+function SaveFailedNotice({
+  reason,
+  onReopen,
+}: {
+  reason: string | null;
+  onReopen: () => void;
+}) {
+  return (
+    <div
+      data-testid="draft-save-failed"
+      className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-3 py-2 text-[13px]"
+    >
+      <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden />
+      <p className="min-w-0 flex-1 basis-60">
+        <span className="font-medium">Your latest edits were not saved.</span>{" "}
+        <span className="text-muted-foreground">
+          {reason} Reopen the editor to keep working from what is saved; your
+          unsaved text is kept on this device and offered back.
+        </span>
+      </p>
+      <Button size="sm" variant="secondary" onClick={onReopen}>
+        <RefreshCw className="size-3.5" aria-hidden /> Reopen editor
+      </Button>
+    </div>
   );
 }
 

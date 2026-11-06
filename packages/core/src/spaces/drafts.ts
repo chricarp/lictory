@@ -21,6 +21,10 @@ import {
   documentToMarkdown,
   draftStateToDocument,
 } from "@lictory/core/spaces/document";
+import {
+  DRAFT_UPDATE_BYTES,
+  SAVE_REFUSALS,
+} from "@lictory/core/spaces/collaboration-protocol";
 import { refreshDraftProjections } from "@lictory/core/spaces/projections";
 
 // One epoch of one draft. A new epoch replaces the content (restore, merging
@@ -42,7 +46,7 @@ export type DraftAccess = (
 
 export const DRAFT_LIMITS = {
   // A single Yjs update (one message from one editor).
-  updateBytes: 512 * 1024,
+  updateBytes: DRAFT_UPDATE_BYTES,
   // One group-commit transaction.
   batchBytes: 4 * 1024 * 1024,
   // Waiting to be stored per draft; beyond it new changes are refused and the
@@ -50,8 +54,7 @@ export const DRAFT_LIMITS = {
   pendingBytes: 8 * 1024 * 1024,
 };
 
-const unavailable = () =>
-  new DomainError("not_found", "This draft is no longer available.");
+const unavailable = () => new DomainError("not_found", SAVE_REFUSALS.draftGone);
 
 async function currentDraft(
   tx: Database | Tx,
@@ -311,10 +314,7 @@ export class DraftWriter {
   submit(author: DraftAuthor, update: Uint8Array): Promise<number> {
     if (update.byteLength > DRAFT_LIMITS.updateBytes)
       return Promise.reject(
-        new DomainError(
-          "validation",
-          "This change is too large to save at once.",
-        ),
+        new DomainError("validation", SAVE_REFUSALS.tooLarge),
       );
     // Never store what cannot be read back: a malformed update would make
     // the draft impossible to load.
@@ -322,7 +322,7 @@ export class DraftWriter {
       Y.decodeUpdate(update);
     } catch {
       return Promise.reject(
-        new DomainError("validation", "This change could not be read."),
+        new DomainError("validation", SAVE_REFUSALS.unreadable),
       );
     }
     if (this.pendingBytes + update.byteLength > DRAFT_LIMITS.pendingBytes)
@@ -374,10 +374,7 @@ export class DraftWriter {
           for (const entry of batch)
             if (denied.has(authorKey(entry)))
               entry.reject(
-                new DomainError(
-                  "forbidden",
-                  "You can no longer edit this page.",
-                ),
+                new DomainError("forbidden", SAVE_REFUSALS.cannotEdit),
               );
             else entry.resolve(sequence);
           // After the authors were told "Saved": a failure here only delays

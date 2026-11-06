@@ -7,6 +7,9 @@ import {
 import {
   CLOSE_REASONS,
   DRAFT_SEQUENCE_REQUEST,
+  draftProviderOptions,
+  saveRefusalOf,
+  stopSendingDraft,
   storedSequenceOf,
 } from "@lictory/core/spaces/collaboration-protocol";
 import { ownClock } from "@lictory/platform/components/spaces/editor/recovery";
@@ -38,6 +41,9 @@ export type SessionSnapshot = {
   // The service could not be reached before the first sync.
   unavailable: boolean;
   closed: ClosedKind | null;
+  // Why the service refused to store this tab's edits (see
+  // `SAVE_REFUSALS`). Final for this session: nothing more is saved.
+  refused: string | null;
   peers: readonly Peer[];
   // When the save state last changed (see `shownSaveState`).
   save: SaveTiming;
@@ -120,11 +126,13 @@ export class DraftSession {
       online: typeof navigator === "undefined" ? true : navigator.onLine,
       unavailable: false,
       closed: null,
+      refused: null,
       peers: [],
     });
     this.provider = new HocuspocusProvider({
       websocketProvider,
       name: documentName,
+      ...draftProviderOptions,
       document: this.doc,
       // The session cookie authenticates; the service never reads a token.
       token: "",
@@ -142,6 +150,17 @@ export class DraftSession {
       onClose: ({ event }) => {
         const kind = closedKindOf(event.reason);
         if (kind) this.set({ closed: kind });
+        // The service closed this draft's connection over a change it would
+        // not store: nothing this session sends is stored any more, so it
+        // stops sending; the editor reopens the draft in a new session, which
+        // keeps the unstored text (`retire`) and offers it back.
+        else {
+          const refused = saveRefusalOf(event.reason);
+          if (refused) {
+            stopSendingDraft(this.provider);
+            this.set({ refused });
+          }
+        }
       },
       onStateless: ({ payload }) => {
         const sequence = storedSequenceOf(payload);
@@ -202,12 +221,18 @@ export class DraftSession {
   getSnapshot = () => this.snapshot;
 
   // Resolves once every local edit is stored (the editor shows "Saved").
+  // Rejects at once when the service refused them.
   saved(timeoutMs = 15_000) {
     return new Promise<void>((resolve, reject) => {
       const done = () =>
         !this.provider.hasUnsyncedChanges &&
         this.snapshot.status === WebSocketStatus.Connected &&
         this.snapshot.everSynced;
+      const refusal = () =>
+        new Error(
+          `Your latest edits were not saved: ${this.snapshot.refused} Reopen the editor and try again.`,
+        );
+      if (this.snapshot.refused) return reject(refusal());
       if (done()) return resolve();
       const timeout = setTimeout(() => {
         unsubscribe();
@@ -218,10 +243,12 @@ export class DraftSession {
         );
       }, timeoutMs);
       const unsubscribe = this.subscribe(() => {
-        if (!done()) return;
+        const refused = !!this.snapshot.refused;
+        if (!refused && !done()) return;
         clearTimeout(timeout);
         unsubscribe();
-        resolve();
+        if (refused) reject(refusal());
+        else resolve();
       });
     });
   }
@@ -274,9 +301,11 @@ export class DraftSession {
     retiringByName.set(this.documentName, this);
     try {
       if (!this.hasUnstoredEdits()) return;
+      // A refused draft is not being stored: waiting would not help.
       if (
         this.snapshot.status === WebSocketStatus.Connected &&
-        !this.snapshot.closed
+        !this.snapshot.closed &&
+        !this.snapshot.refused
       )
         await this.saved(flushMs).catch(() => undefined);
     } finally {
@@ -321,14 +350,20 @@ export type SaveState =
   | { kind: "saving"; label: string }
   | { kind: "saved"; label: string }
   | { kind: "offline"; label: string }
+  | { kind: "failed"; label: string }
   | { kind: "unavailable"; label: string }
   | { kind: "closed"; label: string };
 
 // What the editor says about the draft, in order of what matters most.
 // "Saved" means the service stored every edit (it stores before it
-// acknowledges).
+// acknowledges). "Save failed" only when the service said it refused a
+// change, never because a save is slow: a database outage resets the
+// connection, which reads as offline and retries by reconnecting. A refused
+// draft is not offered again by reconnecting, so it stays failed, online or
+// not, until the editor reopens it.
 export function saveStateOf(s: Omit<SessionSnapshot, "save">): SaveState {
   if (s.closed) return { kind: "closed", label: CLOSE_REASONS[s.closed] };
+  if (s.refused) return { kind: "failed", label: "Save failed" };
   if (!s.everSynced)
     return s.unavailable
       ? { kind: "unavailable", label: "Live editing unavailable" }
@@ -359,12 +394,14 @@ export type SaveTiming = {
   since: number;
   // "Saved" came straight from "Saving…": shown once it holds.
   settling: boolean;
-  // A problem (offline, unavailable, closed) came since the last "Saved".
+  // A problem (offline, failed, unavailable, closed) came since the last
+  // "Saved".
   troubled: boolean;
 };
 
 const problems: ReadonlySet<SaveState["kind"]> = new Set([
   "offline",
+  "failed",
   "unavailable",
   "closed",
 ]);
@@ -433,9 +470,11 @@ export function shownSaveState(
     announcement:
       state.kind === "offline"
         ? state.label
-        : state.kind === "saved" && troubled
-          ? "Connection restored. All edits are saved."
-          : "",
+        : state.kind === "failed"
+          ? `Save failed. ${s.refused} Your unsaved text is kept in this tab; reopen the editor to keep working.`
+          : state.kind === "saved" && troubled
+            ? "Connection restored. All edits are saved."
+            : "",
     wakeAt: null,
   };
 }
