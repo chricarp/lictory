@@ -60,6 +60,31 @@ async function openEditor(page: Page, url = pageUrl) {
   await expect(saved(page)).toBeVisible({ timeout: 20_000 });
 }
 
+// Waits until `viewer` shows `name`'s caret at the very end of the page,
+// which is what the other person sees once the editor has taken the caret
+// there. The browser reports a click or Ctrl+End to the editor a moment
+// later (a selectionchange event); a key pressed within those few
+// milliseconds, which only automation does, would still act at the
+// editor's previous caret.
+async function expectCaretAtEnd(viewer: Page, name: string) {
+  await expect
+    .poll(() =>
+      viewer.evaluate((name) => {
+        const block =
+          document.querySelector(".page-document")?.lastElementChild;
+        const caret = [
+          ...(block?.querySelectorAll(".collaboration-carets__caret") ?? []),
+        ].find((c) => c.textContent === name);
+        if (!block || !caret) return false;
+        const after = document.createRange();
+        after.setStartAfter(caret);
+        after.setEnd(block, block.childNodes.length);
+        return after.toString() === "";
+      }, name),
+    )
+    .toBe(true);
+}
+
 // Selects the first occurrence of `text` inside the page content.
 async function selectText(page: Page, text: string) {
   await page.evaluate((wanted) => {
@@ -184,6 +209,7 @@ test("two editors write one live draft, publish it, and a reader sees the publis
   );
   await liveEditor(ben.page).click();
   await ben.page.keyboard.press("ControlOrMeta+End");
+  await expectCaretAtEnd(ada.page, "Ben Editor");
   await ben.page.keyboard.press("Enter");
   await ben.page.keyboard.type("Escalate disputes to finance.");
   await expect(liveEditor(ada.page)).toContainText(
@@ -204,6 +230,7 @@ test("two editors write one live draft, publish it, and a reader sees the publis
   // A work item mention picked with "#".
   await liveEditor(ada.page).click();
   await ada.page.keyboard.press("ControlOrMeta+End");
+  await expectCaretAtEnd(ben.page, "Ada Owner");
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("Policy: #HB-1");
   const listbox = ada.page.getByRole("listbox", { name: "Work items" });

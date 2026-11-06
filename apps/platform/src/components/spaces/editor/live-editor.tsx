@@ -40,6 +40,7 @@ import { useSpaces } from "@lictory/platform/components/spaces/store";
 import type { SpacePage } from "@lictory/platform/data/spaces";
 import { documentExtensions } from "@lictory/platform/components/spaces/editor/document";
 import { personColor } from "@lictory/platform/components/spaces/editor/colors";
+import { RemoteSelection } from "@lictory/platform/components/spaces/editor/remote-selection";
 import { touchTarget } from "@lictory/platform/components/spaces/touch";
 import {
   DraftSession,
@@ -399,6 +400,7 @@ function DraftEditor({
           filterTransaction: (tr) => !isChangeOrigin(tr),
         }),
         Collaboration.configure({ document: session.doc, field: "default" }),
+        RemoteSelection,
         CollaborationCaret.configure({
           provider: session.provider,
           user,
