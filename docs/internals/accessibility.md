@@ -42,6 +42,8 @@ rendered state with seeded data:
 - native delivery: the board with an active sprint, and the backlog
 - settings: account settings, every organization settings section and every
   project settings section
+- Spaces (`tests/platform/spaces.spec.ts`): a space home with a nested page
+  tree, and a published page
 
 The helper `tests/helpers/accessibility.ts` checks the WCAG 2.0, 2.1 and 2.2
 A/AA rules and fails on any **serious or critical** violation. Moderate and
@@ -67,7 +69,10 @@ Not covered automatically, and worth checking by hand when these areas change:
   with a pointer. Stories reorder with Alt+Arrow keys from their grip button,
   and a card's status and iteration can be changed from the item's properties;
   whether every drag has a single-pointer alternative on the same surface
-  (WCAG 2.5.7) has not been audited.
+  (WCAG 2.5.7) has not been audited. Space page trees are dragged with a
+  pointer too; their alternative is "Move…" in a page's actions (Shift+F10
+  on the focused page, or the page's own header), and Alt+Arrow reorders a
+  focused page among its siblings.
 - **Dark mode and themes.** The browser checks run in the default light theme,
   whose primary and destructive colors were darkened to reach 4.5:1. Dark mode
   and the optional themes are not scanned; the default dark mode's destructive

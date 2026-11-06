@@ -22,6 +22,15 @@ export const paths = {
   // integrations, intelligence.
   settings: (org: string, section?: string) =>
     `/${org}/settings${section ? `/${section}` : ""}`,
+  // Lictory Spaces: every space I can read, one space's home and settings,
+  // and a page (addressed by its id, which never changes when it moves).
+  spaces: (org: string) => `/${org}/spaces`,
+  space: (org: string, space: string) =>
+    `/${org}/spaces/${encodeURIComponent(space)}`,
+  spaceSettings: (org: string, space: string) =>
+    `/${org}/spaces/${encodeURIComponent(space)}/settings`,
+  spacePage: (org: string, space: string, page: string) =>
+    `/${org}/spaces/${encodeURIComponent(space)}/pages/${page}`,
   account: (returnTo?: string) =>
     returnTo ? `/account?returnTo=${encodeURIComponent(returnTo)}` : "/account",
   project: (org: string, project: string) => `/${org}/${project.toLowerCase()}`,

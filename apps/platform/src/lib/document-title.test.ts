@@ -67,3 +67,23 @@ void test("item pages lead with the identifier and title", () => {
   );
   assert.equal(title("/northstar/items/pay-7"), "PAY-7 · Lictory");
 });
+
+void test("Spaces name the space and the page", () => {
+  assert.equal(title("/northstar/spaces"), "Spaces · Northstar · Lictory");
+  const space = { name: "Handbook" };
+  assert.equal(
+    title("/northstar/spaces/handbook", { space }),
+    "Handbook · Northstar · Lictory",
+  );
+  assert.equal(
+    title("/northstar/spaces/handbook/pages/p1", {
+      space,
+      page: { title: "Refunds" },
+    }),
+    "Refunds · Handbook · Lictory",
+  );
+  assert.equal(
+    title("/northstar/spaces/handbook/settings", { space }),
+    "Settings · Handbook · Lictory",
+  );
+});

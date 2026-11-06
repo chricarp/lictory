@@ -49,6 +49,7 @@ import {
   useConnectionBlocked,
 } from "@lictory/platform/components/workspace/connection-notice";
 import { RecoveryWatcher } from "@lictory/platform/components/workspace/recovery";
+import { SpacesProvider } from "@lictory/platform/components/spaces/store";
 import {
   SyncIssue,
   isSyncBlocked,
@@ -233,9 +234,11 @@ function OrganizationWorkspace({
       complete={complete}
       queryError={error}
     >
-      {content}
-      {ready && <ConnectionNotice />}
-      <RecoveryWatcher />
+      <SpacesProvider>
+        {content}
+        {ready && <ConnectionNotice />}
+        <RecoveryWatcher />
+      </SpacesProvider>
     </WorkspaceProvider>
   );
 }

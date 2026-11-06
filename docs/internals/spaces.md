@@ -8,10 +8,12 @@ Git-inspired history as specifications.
 > one change without a feature flag. This document records the agreed model so
 > that every step of the implementation preserves it. The foundation (schema,
 > access, space and page commands, projections, Zero queries, reads, export
-> and deletion) and the collaboration service are implemented as described
-> under [Implementation](#implementation) and
-> [the collaboration service in operation](#the-collaboration-service-in-operation);
-> history commands and the interface follow.
+> and deletion), the collaboration service and the first slice of the
+> interface (navigation, spaces, the page tree, published pages and space
+> settings) are implemented as described under [Implementation](#implementation),
+> [the collaboration service in operation](#the-collaboration-service-in-operation)
+> and [Interface](#interface); the page editor, history commands, reviews and
+> comments follow.
 
 ## Concepts
 
@@ -417,3 +419,37 @@ Organization export includes spaces, grants, pages, commits, branches,
 collaborators and drafts (binary Yjs state as base64), an additive change
 that keeps archive format version 1; organization deletion removes them
 before projects and teams.
+
+### Interface
+
+- **Addresses.** `/{org}/spaces` lists every space I can read (organization
+  spaces, then by project), `/{org}/spaces/{handle}` is a space's home,
+  `/{org}/spaces/{handle}/pages/{pageId}` a page and
+  `/{org}/spaces/{handle}/settings` its settings. Pages are addressed by id,
+  so moving one never breaks a link. A space or page I cannot read shows the
+  same "not found" as one that does not exist.
+- **Subscriptions.** The workspace subscribes to `spaces` and `mySpaceAccess`
+  when it opens (space-level rows only) and to `page` while a page is open.
+  The page tree is built in the browser from `parentId` and `rank`.
+- **Predictions.** Only the tree's structure is predicted locally:
+  `createPage`, `movePage` and `archivePage`
+  (`packages/core/src/spaces/optimistic.ts`, run by the Zero client mutator
+  on `space_entity`). Creating a space, every access, home and publishing
+  change and archiving a space wait for the server, because they decide who
+  can read what.
+- **Navigation.** The organization sidebar lists the organization's spaces
+  and those of my projects and teams (the rest under "All spaces"); each
+  project's navigation lists its own and its teams' spaces. The command
+  palette finds spaces and page titles.
+- **The page tree** is a WAI-ARIA tree: arrow keys move and expand, Enter
+  opens, Alt+Arrow moves a page among its siblings and Shift+F10 opens its
+  actions. Dragging drops a page before, after or into another; "Move…"
+  does the same without a pointer. Trees over 120 visible rows render only
+  the rows in view. Archived pages are hidden unless shown, and archiving
+  offers an undo.
+- **Published content** is rendered read-only from main's latest commit
+  (`PageDocument`, currently its derived Markdown) until the page editor
+  replaces it.
+- **Administrators without access.** `/{org}/spaces` lists the restricted
+  spaces I administer but cannot read (from `listSpaces`, names only) with an
+  explicit, audited "Grant myself access".

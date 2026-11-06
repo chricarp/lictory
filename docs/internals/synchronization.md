@@ -266,7 +266,9 @@ the single Zero mutator `workspace.apply` with the existing protocol mutation.
 The mutator's client run predicts changes with the shared optimistic reducers
 (`packages/core/src/contracts/optimistic.ts`): item and project creation,
 property updates, ranking, relations, archive, threads, replies, thread state,
-review requests and cancellations. Everything else predicts nothing and waits
+review requests and cancellations. In Lictory Spaces only the page tree's
+structure is predicted (creating, moving and archiving pages, on
+`space_entity`); creating a space and every access change wait for the server. Everything else predicts nothing and waits
 for the server: revisions, restores, branch commits, pull requests, every
 suggestion command, review decisions, merges, readiness sign-offs and
 configuration. A local prediction is never shown as a confirmed human decision.
