@@ -38,6 +38,10 @@ function reference(name: string, attributes: string[]) {
     ],
   });
 }
+/** Link addresses a page keeps: web and mail addresses, Lictory paths and anchors. */
+export function isSafePageLink(href: string): boolean {
+  return /^(https?:\/\/|mailto:|\/[^/]|#)/i.test(href);
+}
 /** Shared schema; the browser adds collaboration, cursors and placeholders. */
 export function pageExtensions() {
   return [
@@ -46,6 +50,8 @@ export function pageExtensions() {
       underline: false,
       undoRedo: false,
       trailingNode: false,
+      // Pasted or typed links the canonical document would reject stay text.
+      link: { isAllowedUri: (url) => isSafePageLink(url) },
     }),
     TableKit,
     TaskList,

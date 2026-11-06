@@ -504,3 +504,34 @@ test("at phone width the editor fits and comments open as a sheet", async ({
   await expect(sheet).toBeHidden();
   await ada.context.close();
 });
+
+test("the link form refuses an address the page cannot keep and explains why", async ({
+  browser,
+}) => {
+  const ada = await person(browser, owner);
+  await openEditor(ada.page);
+  await liveEditor(ada.page).click();
+  await ada.page.keyboard.press("End");
+  await ada.page.keyboard.press("Enter");
+  await ada.page.keyboard.type("Refund status page");
+  await selectText(ada.page, "Refund status page");
+  await ada.page
+    .getByRole("toolbar", { name: "Formatting" })
+    .getByRole("button", { name: "Link", exact: true })
+    .click();
+  const address = ada.page.getByLabel("Link address");
+  await address.fill("ftp://status.example.com");
+  await address.press("Enter");
+  await expect(ada.page.getByRole("alert")).toContainText(
+    "Use a web or mail address",
+  );
+  await expect(address).toHaveAttribute("aria-invalid", "true");
+  await address.fill("status.example.com");
+  await address.press("Enter");
+  await expect(address).toBeHidden();
+  await expect(
+    liveEditor(ada.page).locator('a[href="https://status.example.com"]'),
+  ).toHaveText("Refund status page");
+  await expect(saved(ada.page)).toBeVisible();
+  await ada.context.close();
+});

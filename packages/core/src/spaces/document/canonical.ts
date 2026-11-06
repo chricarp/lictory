@@ -1,6 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { pageSchema, PAGE_SCHEMA_VERSION } from "./schema";
+import { isSafePageLink, pageSchema, PAGE_SCHEMA_VERSION } from "./schema";
 
 export type PageNode = {
   type: string;
@@ -114,10 +114,7 @@ function inspect(value: unknown, depth = 0): PageNode {
       checkAttrs(m.attrs, pageSchema.marks[m.type]!.spec.attrs ?? {});
       if (m.type === "link") {
         const href = object(m.attrs).href;
-        if (
-          typeof href !== "string" ||
-          !/^(https?:\/\/|mailto:|\/[^/]|#)/i.test(href)
-        )
+        if (typeof href !== "string" || !isSafePageLink(href))
           throw new PageDocumentError("Page links must use a safe URL.");
       }
     }

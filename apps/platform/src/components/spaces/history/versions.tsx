@@ -178,7 +178,7 @@ export function Versions({
                   </SelectContent>
                 </Select>
               )}
-              {editable && commit.id !== head?.id && (
+              {editable && commit.id !== lineHead?.id && (
                 <Button
                   variant="secondary"
                   onClick={() => {

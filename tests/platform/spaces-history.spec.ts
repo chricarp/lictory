@@ -94,7 +94,7 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     page.getByRole("region", { name: "Resulting document diff" }),
   ).toContainText("Reuse the transaction identifier");
   await expect(
-    page.getByText("No text changes between these revisions"),
+    page.getByText("No document changes between these versions."),
   ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Revoke decision", exact: true }),
@@ -257,6 +257,32 @@ test("direct page: restoring an old version creates a new published commit", asy
   await page.goto(url);
   await expect(
     page.getByRole("heading", { name: "Original title", exact: true }),
+  ).toBeVisible();
+  // On a branch, its own latest version is not offered for restoring; the
+  // published version it started from is.
+  const branchId = crypto.randomUUID();
+  await capability(page, "proposePageChange", {
+    pageId,
+    branchId,
+    pullRequestId: crypto.randomUUID(),
+    title: "Branch title",
+    markdown: "Branch instructions",
+    message: "Branch proposal",
+  });
+  await page.goto(`${url}/history?branch=${branchId}`);
+  const selected = page.getByRole("region", { name: "Selected version" });
+  await expect(selected.getByRole("heading", { level: 2 })).toContainText(
+    "Branch proposal",
+  );
+  await expect(
+    page.getByRole("button", { name: "Restore this version", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: /Restore the version of/ }).click();
+  await expect(selected.getByRole("heading", { level: 2 })).toContainText(
+    "Restore the version of",
+  );
+  await expect(
+    page.getByRole("button", { name: "Restore this version", exact: true }),
   ).toBeVisible();
 });
 

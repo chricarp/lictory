@@ -27,6 +27,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { isSafePageLink } from "@lictory/core/spaces/document/schema";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { blocks } from "@lictory/platform/components/spaces/editor/commands";
@@ -485,7 +486,8 @@ function MenuTitle({ children }: { children: ReactNode }) {
 }
 
 // A link on the selection (or the link around the caret): its address,
-// applied with Enter; "Remove" unlinks the text and keeps it.
+// applied with Enter; "Remove" unlinks the text and keeps it. An address the
+// page could not commit keeps the form open with the reason.
 function LinkForm({
   editor,
   href: initial,
@@ -499,16 +501,22 @@ function LinkForm({
 }) {
   const id = useId();
   const [href, setHref] = useState(initial);
+  const [invalid, setInvalid] = useState(false);
   const apply = () => {
     const value = href.trim();
-    close();
     if (!value) {
+      close();
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
     const url = /^[a-z][a-z0-9+.-]*:|^\/|^#/i.test(value)
       ? value
       : `https://${value}`;
+    if (!isSafePageLink(url)) {
+      setInvalid(true);
+      return;
+    }
+    close();
     const chain = editor.chain().focus().extendMarkRange("link");
     if (editor.state.selection.empty && !linked)
       chain
@@ -538,10 +546,21 @@ function LinkForm({
         type="text"
         inputMode="url"
         value={href}
-        onChange={(e) => setHref(e.target.value)}
+        onChange={(e) => {
+          setHref(e.target.value);
+          setInvalid(false);
+        }}
         placeholder="https://"
-        className="h-8 w-full rounded-md border border-foreground/20 bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 touch:text-base"
+        aria-invalid={invalid}
+        aria-describedby={invalid ? `${id}-error` : undefined}
+        className="h-8 w-full rounded-md border border-foreground/20 bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive/60 touch:text-base"
       />
+      {invalid && (
+        <p id={`${id}-error`} role="alert" className="text-xs text-destructive">
+          Use a web or mail address (https://, http://, mailto:), a path
+          starting with / or an anchor starting with #.
+        </p>
+      )}
       <div className="flex justify-end gap-1">
         {linked && (
           <Button

@@ -1,4 +1,9 @@
-export { pageExtensions, pageSchema, PAGE_SCHEMA_VERSION } from "./schema";
+export {
+  isSafePageLink,
+  pageExtensions,
+  pageSchema,
+  PAGE_SCHEMA_VERSION,
+} from "./schema";
 export {
   canonicalizeDocument,
   emptyDocument,

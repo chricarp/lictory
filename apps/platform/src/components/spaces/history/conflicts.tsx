@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { PageNode } from "@lictory/core/spaces/document/canonical";
 import {
   pageMergeResolutionSchema,
   type Command,
@@ -136,8 +137,8 @@ export function ConflictResolution({
                   {c.kind === "title" ? (
                     <p className="text-sm">{c[side]}</p>
                   ) : (
-                    <PageReader
-                      content={{ type: "doc", content: c[side].json }}
+                    <ConflictSide
+                      json={c[side].json}
                       label={`${side} conflict content`}
                     />
                   )}
@@ -183,4 +184,12 @@ export function ConflictResolution({
       </div>
     </Dialog>
   );
+}
+
+// One side of a content conflict. The document object stays the same while
+// the preview does, so typing a manual resolution or picking a side does not
+// recreate the reader (its editor is rebuilt whenever `content` changes).
+function ConflictSide({ json, label }: { json: PageNode[]; label: string }) {
+  const content = useMemo(() => ({ type: "doc", content: json }), [json]);
+  return <PageReader content={content} label={label} />;
 }

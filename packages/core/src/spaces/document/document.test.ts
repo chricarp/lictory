@@ -7,11 +7,13 @@ import {
   documentToDraftState,
   draftStateToDocument,
   emptyDocument,
+  markdownToDocument,
   mergeDocuments,
   resolveMerge,
   diffDocuments,
   pageSchema,
   pageExtensions,
+  isSafePageLink,
   PAGE_SCHEMA_VERSION,
   PageDocumentError,
   type PageNode,
@@ -88,6 +90,49 @@ void test("rejects unsupported nodes, marks, attributes, structures and unsafe r
       },
     ),
   );
+});
+void test("the editor, Markdown import and canonical documents keep the same links", () => {
+  const linked = (href: string) =>
+    doc({
+      type: "paragraph",
+      content: [
+        { type: "text", text: "x", marks: [{ type: "link", attrs: { href } }] },
+      ],
+    });
+  const element = (href: string) =>
+    ({
+      getAttribute: (name: string) => (name === "href" ? href : null),
+    }) as unknown as HTMLElement;
+  const pasted = (href: string) =>
+    pageSchema.marks.link!.spec.parseDOM!.some(
+      (rule) => "getAttrs" in rule && rule.getAttrs?.(element(href)) !== false,
+    );
+  for (const href of [
+    "https://a.example",
+    "http://a.example",
+    "mailto:a@b.example",
+    "/acme/spaces/x",
+    "#retries",
+  ]) {
+    assert.ok(isSafePageLink(href), href);
+    assert.doesNotThrow(() => linked(href));
+    assert.ok(pasted(href), href);
+  }
+  for (const href of [
+    "ftp://a.example",
+    "tel:123",
+    "javascript:alert(1)",
+    "//a.example",
+    "a.example",
+  ]) {
+    assert.ok(!isSafePageLink(href), href);
+    assert.throws(() => linked(href), PageDocumentError);
+    assert.ok(!pasted(href), href);
+    assert.doesNotMatch(
+      JSON.stringify(markdownToDocument(`[x](${href})`)),
+      /"link"/,
+    );
+  }
 });
 void test("canonical attrs and hashes ignore input property order and include title and schema", () => {
   const a = doc(p("a"));

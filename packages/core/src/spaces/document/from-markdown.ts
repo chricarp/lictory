@@ -3,6 +3,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { gfm } from "micromark-extension-gfm";
 import { canonicalizeDocument, type PageNode } from "./canonical";
+import { isSafePageLink } from "./schema";
 
 // GFM Markdown → canonical page content, for callers that cannot type into a
 // live draft (agents proposing a change, imports). The inverse of
@@ -15,8 +16,6 @@ import { canonicalizeDocument, type PageNode } from "./canonical";
 
 type Mark = NonNullable<PageNode["marks"]>[number];
 
-const safeHref = (href: string) =>
-  /^(https?:\/\/|mailto:|\/[^/]|#)/i.test(href);
 const safeImage = (src: string) =>
   /^\/api\/files\/[a-zA-Z0-9_-]+$/.test(src) ||
   /^https:\/\/[^@\s]+$/i.test(src);
@@ -64,7 +63,7 @@ function inline(nodes: PhrasingContent[], marks: Mark[] = []): PageNode[] {
       case "link":
         return inline(
           node.children,
-          safeHref(node.url)
+          isSafePageLink(node.url)
             ? [...marks, { type: "link", attrs: { href: node.url } }]
             : marks,
         );
