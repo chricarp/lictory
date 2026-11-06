@@ -151,11 +151,33 @@ async function workspace(title: string, key = "PAY") {
     },
     reviewer,
   );
+  // A space with one page (its main line has a live draft).
+  const spaceId = crypto.randomUUID();
+  await command({
+    type: "createSpace",
+    spaceId,
+    name: `${title} handbook`,
+    slug: "handbook",
+    home: { projectId },
+  });
+  const pageId = crypto.randomUUID();
+  await command({
+    type: "createPage",
+    spaceId,
+    pageId,
+    title: `${title} notes`,
+  });
+  await db
+    .update(s.spaceDraft)
+    .set({ snapshot: Buffer.from([1, 2, 3]) })
+    .where(eq(s.spaceDraft.pageId, pageId));
   return {
     owner,
     reviewer,
     organizationId,
     workItemId,
+    spaceId,
+    pageId,
     revisionIds: (await revisions()).map((r) => r.id),
   };
 }
@@ -263,6 +285,23 @@ void test(
       members.map((m) => m.userId).sort(),
       [w.owner, w.reviewer].sort(),
     );
+
+    // Spaces: the space, its page and the page's history, and the live
+    // draft as a working tree (binary state in base64).
+    assert.deepEqual(
+      jsonl(files, "space").map((x) => x.id),
+      [w.spaceId],
+    );
+    assert.deepEqual(
+      jsonl(files, "page").map((x) => x.id),
+      [w.pageId],
+    );
+    assert.deepEqual(
+      jsonl(files, "page_commit").map((x) => x.title),
+      ["Retry payments notes"],
+    );
+    assert.equal(jsonl(files, "page_branch")[0]?.name, "main");
+    assert.equal(jsonl(files, "space_draft")[0]?.snapshot, "AQID");
 
     const csv = files.get("work-items.csv")!.toString("utf8");
     assert.match(csv.split("\r\n")[0]!, /^Identifier,ID,Project,Type,Title/);

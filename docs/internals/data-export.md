@@ -67,10 +67,13 @@ every query:
 - attachments metadata, and attachment files when file storage is configured;
 - delivery connections (without credentials), targets and publications;
   onboarding decisions; Lictory Intelligence runs and context;
+- [spaces](./spaces.md), named grants, pages, page commits, branches and
+  their collaborators, and live drafts (as working trees: their Yjs state and
+  update log, with binary columns as base64 strings);
 - the audit log: audit events, configuration changes and agent calls.
 
-Not included: synchronization projections and receipts (derived from the
-above), personal notifications, watch and notification preferences, Litto
+Not included: synchronization projections, effective Spaces access and
+receipts (derived from the above), personal notifications, watch and notification preferences, Litto
 conversations (personal), and credentials of any kind (sessions, accounts,
 access tokens, encrypted delivery credentials).
 

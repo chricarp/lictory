@@ -973,7 +973,115 @@ export function directoryName(
   const former = directory.formerMembers.find((m) => m.id === userId);
   return formerMemberName(former?.name ?? "");
 }
-export const PROTOCOL = 15 as const;
+// Lictory Spaces (docs/internals/spaces.md). Space projections travel in their
+// own table (`space_entity`) and union (`SpaceEntity`), never as an `Entity`,
+// so space data cannot reach `sync_entity`, the directory or the organization
+// and work item queries.
+export const spaceAccessModes = ["inherited", "restricted"] as const;
+export type SpaceAccessMode = (typeof spaceAccessModes)[number];
+export const spacePublishingPolicies = ["direct", "reviewed"] as const;
+export type SpacePublishing = (typeof spacePublishingPolicies)[number];
+// Ordered from least to most access.
+export const spaceAccessLevels = ["view", "comment", "edit"] as const;
+export type SpaceAccessLevel = (typeof spaceAccessLevels)[number];
+export function spaceLevelAtLeast(
+  level: SpaceAccessLevel | null | undefined,
+  minimum: SpaceAccessLevel,
+) {
+  return (
+    level != null &&
+    spaceAccessLevels.indexOf(level) >= spaceAccessLevels.indexOf(minimum)
+  );
+}
+const inSpace = { id, organizationId: id, spaceId: id };
+export const spaceEntitySchema = z.discriminatedUnion("type", [
+  // Space-level rows (`page_id` NULL): the space, its named grants and its
+  // page tree. No per-reader data: effective access is `space_reader`.
+  z.object({
+    id,
+    organizationId: id,
+    type: z.literal("space"),
+    name: z.string(),
+    slug: z.string(),
+    description: z.string().nullable(),
+    icon: z.string().nullable(),
+    // Home: neither (organization), a project, or a team of that project.
+    projectId: id.nullable(),
+    teamId: id.nullable(),
+    accessMode: z.enum(spaceAccessModes),
+    publishing: z.enum(spacePublishingPolicies),
+    createdById: id,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    archivedAt: z.string().nullable(),
+  }),
+  // `id` is `${spaceId}:${userId}`.
+  z.object({
+    ...inSpace,
+    type: z.literal("spaceGrant"),
+    userId: id,
+    level: z.enum(spaceAccessLevels),
+    grantedById: id,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  }),
+  // A node of the page tree, with the title and commit main publishes.
+  z.object({
+    ...inSpace,
+    type: z.literal("page"),
+    parentId: id.nullable(),
+    rank: z.string(),
+    title: z.string(),
+    publishedCommitId: id,
+    createdById: id,
+    createdAt: z.string(),
+    // When main last moved (the published commit's time).
+    updatedAt: z.string(),
+    archivedAt: z.string().nullable(),
+  }),
+  // Page-level rows (`page_id` set): the page's history.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageCommit"),
+    pageId: id,
+    parentIds: z.array(id),
+    title: z.string(),
+    // Canonical Tiptap JSON; Markdown is derived from it.
+    content: z.record(z.string(), z.unknown()),
+    markdown: z.string(),
+    hash: z.string(),
+    schemaVersion: z.number().int(),
+    message: z.string().nullable(),
+    authorId: id,
+    contributorIds: z.array(id),
+    createdAt: z.string(),
+  }),
+  z.object({
+    ...inSpace,
+    type: z.literal("pageBranch"),
+    pageId: id,
+    name: z.string(),
+    isMain: z.boolean(),
+    headCommitId: id,
+    baseCommitId: id.nullable(),
+    authorId: id,
+    collaboratorIds: z.array(id),
+    createdAt: z.string(),
+  }),
+]);
+export type SpaceEntity = z.infer<typeof spaceEntitySchema>;
+export type SpaceEntityType = SpaceEntity["type"];
+export type SpaceEntityOf<T extends SpaceEntityType> = Extract<
+  SpaceEntity,
+  { type: T }
+>;
+// Projection key, as in `sync_entity`.
+export function spaceEntityKey(e: Pick<SpaceEntity, "type" | "id">) {
+  return `${e.type}:${e.id}`;
+}
+// Protocol 16 adds Lictory Spaces commands; their projections use the
+// separate `space_entity` table.
+export const PROTOCOL = 16 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
   changes: z.array(changeSchema),
@@ -1026,7 +1134,96 @@ export const onboardingSetupSchema = z
   );
 export type OnboardingSetup = z.infer<typeof onboardingSetupSchema>;
 
+const spaceSlug = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(60)
+  .regex(
+    /^[a-z0-9]+(-[a-z0-9]+)*$/,
+    "Use lowercase letters, digits and single hyphens, e.g. payments-handbook.",
+  );
+// A space's home: {} is the organization, { projectId } a project and
+// { projectId, teamId } a team of that project.
+const spaceHome = z
+  .strictObject({ projectId: id.optional(), teamId: id.optional() })
+  .refine((home) => !home.teamId || home.projectId, {
+    message: "A team home also names the team's project.",
+  });
+const pageTitle = z.string().trim().min(1).max(200);
+// Siblings to place a page between (both omitted: last under its parent).
+const pagePosition = {
+  afterId: id.nullable().optional(),
+  beforeId: id.nullable().optional(),
+};
+
 export const commandSchema = z.discriminatedUnion("type", [
+  // Lictory Spaces. Anyone in the organization may create a space; its
+  // administrators (creator, organization administrators, home project
+  // administrators) manage access, home, publishing and archiving.
+  z.object({
+    type: z.literal("createSpace"),
+    spaceId: z.uuid(),
+    name: text.max(120),
+    slug: spaceSlug,
+    description: z.string().trim().max(2000).optional(),
+    icon: z.string().trim().min(1).max(32).optional(),
+    home: spaceHome.optional(),
+    accessMode: z.enum(spaceAccessModes).optional(),
+    publishing: z.enum(spacePublishingPolicies).optional(),
+  }),
+  // Editors change name, slug, description and icon; home and publishing
+  // are administrators' decisions.
+  z.object({
+    type: z.literal("updateSpace"),
+    spaceId: id,
+    name: text.max(120).optional(),
+    slug: spaceSlug.optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    icon: z.string().trim().min(1).max(32).nullable().optional(),
+    home: spaceHome.optional(),
+    publishing: z.enum(spacePublishingPolicies).optional(),
+  }),
+  z.object({
+    type: z.literal("setSpaceAccessMode"),
+    spaceId: id,
+    accessMode: z.enum(spaceAccessModes),
+  }),
+  // null removes the person's named access.
+  z.object({
+    type: z.literal("setSpaceGrant"),
+    spaceId: id,
+    userId: id,
+    level: z.enum(spaceAccessLevels).nullable(),
+  }),
+  z.object({
+    type: z.literal("archiveSpace"),
+    spaceId: id,
+    archived: z.boolean(),
+  }),
+  // Creates the page with its main branch, an initial commit and, in Direct
+  // spaces, main's live draft.
+  z.object({
+    type: z.literal("createPage"),
+    spaceId: id,
+    pageId: z.uuid(),
+    parentId: id.nullable().optional(),
+    title: pageTitle,
+    ...pagePosition,
+  }),
+  z.object({
+    type: z.literal("movePage"),
+    pageId: id,
+    parentId: id.nullable(),
+    ...pagePosition,
+  }),
+  // Archiving hides the page and its subtree; restoring brings back what
+  // was archived with it.
+  z.object({
+    type: z.literal("archivePage"),
+    pageId: id,
+    archived: z.boolean(),
+  }),
   // Organization administrators create and archive projects. The creator
   // becomes a project administrator and joins its first discipline.
   z.object({
@@ -1619,6 +1816,33 @@ export type TypeCommand = Extract<
 >;
 export function isTypeCommand(c: Command): c is TypeCommand {
   return c.type === "createType" || c.type === "updateType";
+}
+export type SpaceCommand = Extract<
+  Command,
+  {
+    type:
+      | "createSpace"
+      | "updateSpace"
+      | "setSpaceAccessMode"
+      | "setSpaceGrant"
+      | "archiveSpace"
+      | "createPage"
+      | "movePage"
+      | "archivePage";
+  }
+>;
+const spaceCommandTypes = new Set<string>([
+  "createSpace",
+  "updateSpace",
+  "setSpaceAccessMode",
+  "setSpaceGrant",
+  "archiveSpace",
+  "createPage",
+  "movePage",
+  "archivePage",
+]);
+export function isSpaceCommand(c: Command): c is SpaceCommand {
+  return spaceCommandTypes.has(c.type);
 }
 export type Command = z.infer<typeof commandSchema>;
 export const mutationSchema = z.object({

@@ -1,5 +1,5 @@
-// Spike: proves the live draft persistence contract against real PostgreSQL
-// and a real Hocuspocus server before Spaces builds on it.
+// Proves the live draft persistence contract against real PostgreSQL (the
+// migrated Spaces tables) and a real Hocuspocus server.
 // See docs/internals/spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -12,7 +12,14 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as Y from "yjs";
 import * as s from "@lictory/core/db/schema";
+import { PROTOCOL } from "@lictory/core/contracts/protocol";
+import { seedOrganization } from "@lictory/core/domain/organization";
+import { executeMutation } from "@lictory/core/domain/service";
 import { draftCollaboration } from "@lictory/core/spaces/collaboration";
+import {
+  draftDocumentName,
+  resolveDraftDocument,
+} from "@lictory/core/spaces/draft-access";
 import { listenCollaboration } from "@lictory/core/spaces/transport";
 import {
   appendDraftUpdates,
@@ -37,31 +44,6 @@ before(async () => {
   await admin`CREATE DATABASE ${admin(databaseName)}`;
   created = true;
   await migrate(db, { migrationsFolder: "drizzle" });
-  // Spike tables; the real ones arrive with the Spaces schema.
-  await db.execute(sql`
-    create table space_draft (
-      id text primary key,
-      organization_id text not null references organization(id),
-      epoch integer not null default 1,
-      sequence integer not null default 0,
-      snapshot bytea,
-      snapshot_sequence integer not null default 0,
-      fenced_at timestamp,
-      updated_at timestamp not null default now()
-    );
-    create table space_draft_update (
-      organization_id text not null references organization(id),
-      draft_id text not null references space_draft(id),
-      epoch integer not null,
-      sequence integer not null,
-      author_id text not null references "user"(id),
-      digest bytea not null,
-      "update" bytea not null,
-      created_at timestamp not null default now(),
-      primary key (draft_id, sequence),
-      unique (draft_id, epoch, digest)
-    );
-  `);
 });
 after(async () => {
   await client.end();
@@ -93,8 +75,29 @@ async function organization() {
     })),
   );
   for (const userId of [alice, bob]) await signIn(userId);
+  // An organization space (both edit) in Direct publishing: each page's
+  // main line has a live draft.
+  await seedOrganization(db, organizationId);
+  const spaceId = crypto.randomUUID();
+  await executeMutation(
+    db,
+    { userId: alice },
+    {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId,
+      command: {
+        type: "createSpace",
+        spaceId,
+        name: "Handbook",
+        slug: "handbook",
+      },
+    },
+  );
+  spaces.set(organizationId, { spaceId, creator: alice });
   return { organizationId, alice, bob };
 }
+const spaces = new Map<string, { spaceId: string; creator: string }>();
 
 // One Better Auth session per person; the provider sends its token.
 const sessions = new Map<string, { sessionId: string; token: string }>();
@@ -117,18 +120,34 @@ const author = (userId: string) => ({
   sessionId: sessions.get(userId)!.sessionId,
 });
 
+// A new page's main draft, created through the domain command.
 async function draft(organizationId: string): Promise<DraftRef> {
-  const draftId = crypto.randomUUID();
-  await db.execute(
-    sql`insert into space_draft (id, organization_id) values (${draftId}, ${organizationId})`,
+  const { spaceId, creator } = spaces.get(organizationId)!;
+  const result = await executeMutation(
+    db,
+    { userId: creator },
+    {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId,
+      command: {
+        type: "createPage",
+        spaceId,
+        pageId: crypto.randomUUID(),
+        title: "Retries",
+      },
+    },
   );
-  return { organizationId, draftId, epoch: 1 };
+  const draftId = result.summary?.draftId;
+  assert.equal(typeof draftId, "string");
+  return { organizationId, draftId: draftId as string, epoch: 1 };
 }
 
-const documentName = (ref: DraftRef) => `${ref.draftId}.${ref.epoch}`;
+const documentName = draftDocumentName;
 
-// Space access is not built yet: everyone may read; people in `readOnly`
-// may not edit; writes can be slowed to observe ordering.
+// Access is a test double here (draft-access.ts adapts the real checks, see
+// spaces.test.ts): everyone may read; people in `readOnly` may not edit;
+// writes can be slowed to observe ordering.
 const writes = { delayMs: 0 };
 const readOnly = new Set<string>();
 const canRead: DraftAccess = async () => true;
@@ -141,8 +160,8 @@ const canEdit: DraftAccess = async (_, userId) => {
 const failWrites = (fail: boolean) =>
   db.execute(
     fail
-      ? sql`alter table space_draft_update add constraint spike_fail check (false) not valid`
-      : sql`alter table space_draft_update drop constraint if exists spike_fail`,
+      ? sql`alter table space_draft_update add constraint test_fail_writes check (false) not valid`
+      : sql`alter table space_draft_update drop constraint if exists test_fail_writes`,
   );
 
 const collaboration = (retryForMs: number, revalidateEveryMs: number) =>
@@ -159,20 +178,7 @@ const collaboration = (retryForMs: number, revalidateEveryMs: number) =>
         .where(sql`${s.session.token} = ${token}`);
       return session ? { userId: session.userId, sessionId: session.id } : null;
     },
-    resolve: async (name) => {
-      const [draftId, epoch] = name.split(".");
-      const rows = await db.execute<{ organization_id: string; epoch: number }>(
-        sql`select organization_id, epoch from space_draft where id = ${draftId ?? ""}`,
-      );
-      const row = rows[0];
-      return row && String(row.epoch) === epoch
-        ? {
-            organizationId: row.organization_id,
-            draftId: draftId!,
-            epoch: row.epoch,
-          }
-        : null;
-    },
+    resolve: (name) => resolveDraftDocument(db, name),
     canRead,
     canEdit,
   });

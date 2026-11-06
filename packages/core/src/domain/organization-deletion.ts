@@ -271,6 +271,17 @@ export const deletionOrder: readonly PgTable[] = [
   s.workItemLabel,
   s.workItemRelation,
   s.workItem,
+  // Lictory Spaces: drafts, then history, then pages and spaces (which
+  // reference projects and teams). Effective access and projections
+  // cascade with their space and organization.
+  s.spaceDraftUpdate,
+  s.spaceDraft,
+  s.pageBranchCollaborator,
+  s.pageBranch,
+  s.pageCommit,
+  s.page,
+  s.spaceGrant,
+  s.space,
   s.organizationOnboarding,
   s.teamMember,
   s.team,

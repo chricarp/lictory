@@ -151,6 +151,14 @@ The live draft writer of [Lictory Spaces](spaces.md#draft-writes-a-narrow-except
 is the one writer outside this list: it persists only draft updates, which no
 projection reads, under the organization lock in shared mode.
 
+Lictory Spaces keep their projections in a separate table, `space_entity`,
+with the effective access rows `space_reader`; both are in the `lictory_zero`
+publication. The `spaces`, `page` and `mySpaceAccess` queries authorize
+through the current user's `space_reader` rows and organization membership,
+and `organization` and `workItem` never return space data (see
+[the Spaces implementation](spaces.md#projections-and-zero)).
+`rebuildProjections` reconciles them too.
+
 A failed projection write rolls back the domain change (covered by tests that
 force `sync_entity` failures). Host side effects (analytics) run only after
 commit. Never write domain rows that a projection depends on without writing

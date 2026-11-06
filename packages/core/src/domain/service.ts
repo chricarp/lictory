@@ -23,6 +23,7 @@ import {
   entitySchema,
   estimateOptions,
   isProjectConfigurationCommand,
+  isSpaceCommand,
   isTypeCommand,
   noCapabilities,
   type Capabilities,
@@ -69,6 +70,8 @@ import {
   seedProject,
 } from "@lictory/core/domain/projects";
 import { auditConfiguration } from "@lictory/core/domain/audit";
+import { applySpaceCommand } from "@lictory/core/spaces/commands";
+import { refreshSpaceAccess } from "@lictory/core/spaces/access";
 import { applyDecisionCommand } from "@lictory/core/domain/decisions";
 import {
   refreshDirectoryProjection,
@@ -1994,6 +1997,23 @@ export async function applyMutation(
       await applyTypeCommand(tx, { organizationId, userId, admin, roster }, c);
       return receipt(tx, organizationId, mutation.id, userId, fingerprint);
     }
+    if (isSpaceCommand(c)) {
+      // Spaces write their own projections (`space_entity`) and effective
+      // access; no `sync_entity` row and no directory input changes.
+      const summary = await applySpaceCommand(
+        tx,
+        { organizationId, userId, roster },
+        c,
+      );
+      return receipt(
+        tx,
+        organizationId,
+        mutation.id,
+        userId,
+        fingerprint,
+        summary,
+      );
+    }
     if (c.type === "setAiPolicy") {
       require(admin, "An organization administrator must decide whether Lictory Intelligence may be used.");
       await setAiPolicy(tx, organizationId, userId, c.enabled);
@@ -2027,6 +2047,12 @@ export async function applyMutation(
         },
         c,
       );
+      // Project and team members edit the spaces homed there.
+      if (spaceAccessCommands.has(c.type))
+        await refreshSpaceAccess(tx, organizationId, {
+          projectId: c.projectId,
+          ...("userId" in c ? { userIds: [c.userId] } : {}),
+        });
       // Readiness and activity live in each item's own scope.
       const itemChanges =
         c.type === "publishReadinessChecks"
@@ -4775,6 +4801,15 @@ export async function executeMutation(
   return result;
 }
 
+// Project configuration commands that change who edits the project's and
+// its teams' spaces (docs/internals/spaces.md#access). Archiving a project
+// or team changes nothing: its spaces keep their access, and memberships of
+// an archived project cannot change until it is restored.
+const spaceAccessCommands = new Set<string>([
+  "setProjectMember",
+  "setDisciplineMember",
+  "setTeamMembership",
+]);
 const reservedKeys = new Set([
   "INBOX",
   "SETTINGS",

@@ -4,6 +4,10 @@ import "@lictory/zero/context";
 import { zql } from "@lictory/zero/schema";
 
 const organizationArgs = z.object({ organizationId: z.string().min(1) });
+const pageArgs = z.object({
+  organizationId: z.string().min(1),
+  pageId: z.string().min(1),
+});
 const workItemArgs = z.object({
   organizationId: z.string().min(1),
   workItemId: z.string().min(1),
@@ -30,6 +34,31 @@ export const queries = defineQueries({
     zql.syncEntity
       .where("organizationId", args.organizationId)
       .where("workItemId", args.workItemId)
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Lictory Spaces: every space I can read, with its grants and page tree
+  // (space-level rows). Authorized by my effective access and my
+  // organization membership; never part of the queries above.
+  spaces: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("pageId", "IS", null)
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // One page's history (commits and branches), loaded when it is opened.
+  page: defineQuery(pageArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("pageId", args.pageId)
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // My effective access level in each space I can read.
+  mySpaceAccess: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.spaceReader
+      .where("organizationId", args.organizationId)
+      .where("userId", ctx.userID)
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
 });

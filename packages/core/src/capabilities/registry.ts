@@ -25,12 +25,14 @@ import { intakeCapabilities } from "@lictory/core/capabilities/intake";
 import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligence";
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
 import { securityCapabilities } from "@lictory/core/capabilities/security";
+import { spaceCapabilities } from "@lictory/core/capabilities/spaces";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
 // routes, the MCP server, the embedded agent) lists and invokes from here.
 export const capabilities: readonly AnyCapability[] = [
   ...workspaceCapabilities,
+  ...spaceCapabilities,
   ...notificationCapabilities,
   ...deliveryCapabilities,
   ...intelligenceCapabilities,

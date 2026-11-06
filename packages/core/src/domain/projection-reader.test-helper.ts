@@ -10,6 +10,7 @@ import {
   type Scope,
 } from "@lictory/core/contracts/protocol";
 import { DomainError } from "@lictory/core/domain/errors";
+import { spaceProjectionDrift } from "@lictory/core/spaces/projections";
 import {
   canonicalJson,
   expectedProjections,
@@ -225,6 +226,9 @@ export async function projectionDrift(db: Database, organizationId: string) {
     }
     for (const key of expected.keys())
       if (!seen.has(key)) drift.push(`missing ${key}`);
+    // Lictory Spaces projections and effective access hold the same
+    // invariant.
+    drift.push(...(await spaceProjectionDrift(tx, organizationId)));
     return drift.sort();
   });
 }

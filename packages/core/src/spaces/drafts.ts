@@ -1,5 +1,6 @@
-// Live draft persistence for Lictory Spaces (spike: the draft tables are not
-// migrated yet; see docs/internals/spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule).
+// Live draft persistence for Lictory Spaces (tables `space_draft` and
+// `space_draft_update`, packages/core/src/db/spaces-schema.ts; see
+// docs/internals/spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule).
 //
 // A live draft is a Yjs document stored as a compacted snapshot plus an
 // append-only update log. Updates are written by one writer per draft that
@@ -24,7 +25,9 @@ export type DraftRef = {
   epoch: number;
 };
 
-// Space access, decided inside the writer's transaction.
+// Space access, decided inside the writer's transaction. The production
+// adapters over the domain checks are `canReadDraft` and `canWriteDraft` in
+// draft-access.ts.
 export type DraftAccess = (
   tx: Tx,
   userId: string,
@@ -104,7 +107,7 @@ const authorKey = (author: DraftAuthor) =>
 
 // Session validity, membership, two-factor policy, scheduled deletion and
 // space edit access, decided inside the caller's transaction.
-export async function canWriteDraft(
+async function authorMayWrite(
   tx: Tx,
   author: DraftAuthor,
   ref: DraftRef,
@@ -158,7 +161,7 @@ export async function appendDraftUpdates(
     const denied = new Set<string>();
     const authors = new Map(entries.map((e) => [authorKey(e), e]));
     for (const [key, author] of authors)
-      if (!(await canWriteDraft(tx, author, ref, canEdit))) denied.add(key);
+      if (!(await authorMayWrite(tx, author, ref, canEdit))) denied.add(key);
     const draft = await currentDraft(tx, ref, true);
     const accepted = entries.filter((e) => !denied.has(authorKey(e)));
     let sequence = draft.sequence;

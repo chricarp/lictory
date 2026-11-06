@@ -4,10 +4,13 @@ Lictory Spaces is the knowledge side of Lictory: spaces of nested pages that
 people write together in real time and change through the same reviewed,
 Git-inspired history as specifications.
 
-> **Status:** in development behind the `spaces` feature flag. This document
-> records the agreed model so that every step of the implementation preserves
-> it. Nothing here is available to users until the flag is turned on, and the
-> sections describe the target behavior, not shipped behavior.
+> **Status:** in development on the `feat/lictory-spaces` branch, shipping as
+> one change without a feature flag. This document records the agreed model so
+> that every step of the implementation preserves it. The foundation (schema,
+> access, space and page commands, projections, Zero queries, reads, export
+> and deletion) is implemented as described under
+> [Implementation](#implementation); history commands, the collaboration
+> service and the interface follow.
 
 ## Concepts
 
@@ -131,6 +134,24 @@ Access is decided per space, from its home, with one restriction mechanism.
 Team and project membership grant access to Spaces only. They still grant no
 work item capabilities; disciplines do (see
 [organizations, projects and teams](organization-model.md)).
+
+A few consequences of these rules, decided while implementing them:
+
+- A person who creates a Restricted space, or switches a space to Restricted,
+  receives an edit grant if they hold none, so nobody locks themselves out by
+  accident. The grant is ordinary: visible, audited, removable.
+- Creating an Inherited space grants its creator nothing beyond what the home
+  gives them: an administrator who creates a team's space without being in
+  the team reads it like any other organization member (and administers it).
+- Archiving a project or a team changes no space access. Its spaces keep
+  their home and readers; memberships of an archived project cannot change
+  until it is restored, and an archived project or team cannot become a new
+  home.
+- Grants count only for current organization members. A person who leaves
+  keeps their grant rows (like their project memberships) and gets them back
+  if they rejoin; deleting the account removes them.
+- Space details (name, handle, description, icon) are the editors'; the home,
+  publishing policy, access mode, grants and archiving are the administrators'.
 
 Effective access is materialized as one row per organization, space, person and
 level, recomputed in the same transaction as every change to its inputs:
@@ -264,3 +285,93 @@ server: 10,000 pages per organization, pages up to about 1 MB of content, 25
 people editing one page at once and 200 open editing connections per
 installation, with "Saved" under 300 ms (p95, 50 ms round trip) while ordinary
 work item mutations run.
+
+## Implementation
+
+### Tables
+
+All tables carry `organization_id`; composite foreign keys keep a team inside
+its space's project, a parent page inside the same space, and commits,
+branches and drafts inside their page (`packages/core/src/db/spaces-schema.ts`).
+History uses restrictive deletes.
+
+| Table                                     | Holds                                                                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `space`                                   | Name, handle (unique among active spaces, case-insensitively), description, icon, home (`project_id`, `team_id`), `access_mode`, `publishing`, creator, archive |
+| `space_grant`                             | Named access: one level per space and person                                                                                                                    |
+| `space_reader`                            | Effective access (derived, replicated)                                                                                                                          |
+| `page`                                    | Space, parent, `rank`, creator, archive                                                                                                                         |
+| `page_commit`                             | Immutable snapshots: parents, title, `content` (Tiptap JSON), `markdown`, `hash`, `schema_version`, message, author, contributors, draft provenance             |
+| `page_branch`, `page_branch_collaborator` | Pointers (`head_commit_id`, `base_commit_id`), exactly one `is_main` per page that is never deleted, author and invited collaborators                           |
+| `space_draft`, `space_draft_update`       | Live drafts (one per line, `branch_id` unique) with epoch, sequence, `committed_sequence`, base commit, snapshot and fence; the update log                      |
+| `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                   |
+
+`hash` is the SHA-256 of the canonical JSON of `{ title, content,
+schemaVersion }`. Until the document engine lands, a new page's first commit is
+an empty document from `initialPageCommit` (`packages/core/src/spaces/commands.ts`)
+and a new main draft starts with empty Yjs state; the engine replaces both.
+
+### Commands
+
+Protocol version **16** adds `createSpace`, `updateSpace`,
+`setSpaceAccessMode`, `setSpaceGrant`, `archiveSpace` (with `archived`),
+`createPage` (main branch, first commit and, in Direct spaces, main's draft;
+its receipt names `pageId`, `mainBranchId`, `commitId` and `draftId`),
+`movePage` and `archivePage` (with `archived`). They run through
+`applyMutation` like every command, so they are capabilities on every surface;
+the handlers live in `packages/core/src/spaces/commands.ts`. Restoring a page
+restores the subpages archived together with it; subpages archived earlier
+stay archived. Switching a space to Reviewed fences main's drafts and is
+refused while one has unpublished changes; switching back opens them again as
+a new epoch at main's head.
+
+Access, mode, grant, home, publishing and archive changes are recorded in
+`configuration_audit` with identifiers and settings only; a grant someone
+gives themselves carries `selfGrant: true`. Spaces commands record no work
+item activity: a page's commits are its history.
+
+### Access
+
+`refreshSpaceAccess(tx, organizationId, { spaceIds?, projectId?, userIds? })`
+(`packages/core/src/spaces/access.ts`) recomputes `space_reader` for the scope
+and writes only the rows that differ. It runs in the same transaction as the
+space commands, `setProjectMember`, `setDisciplineMember` and
+`setTeamMembership`, the Better Auth membership hooks
+(`refreshMemberships`, after a member is added, changes role or accepts an
+invitation, and in `recordDeparture`), account deletion and the projection
+rebuild. The domain checks read the current rows and also require the
+membership row, so a removed member is refused even before Better Auth's hook
+has run. `canReadDraft` and `canWriteDraft`
+(`packages/core/src/spaces/draft-access.ts`) adapt them for the collaboration
+service, with `resolveDraftDocument` mapping document names
+(`<draftId>.<epoch>`) to open draft epochs.
+
+### Projections and Zero
+
+`space_entity` rows (`key` = `{type}:{id}`) hold protocol `SpaceEntity`
+values, a union separate from `Entity`: `space`, `spaceGrant` (id
+`{spaceId}:{userId}`) and `page` summaries (title and commit of main's head)
+with a NULL `page_id`; `pageCommit` (with content) and `pageBranch` (with
+collaborators) carry their page. `writeSpaceProjections` rewrites what a
+command touched; `rebuildSpaceProjections`, called by `rebuildProjections`,
+reconciles `space_entity` and `space_reader`, and the projection invariant
+the test suites check includes both. No `space_entity` row depends on who
+reads it, so access changes rewrite only `space_reader`.
+
+Both tables are in the `lictory_zero` publication. The synced queries
+`spaces({ organizationId })` (space-level rows), `page({ organizationId,
+pageId })` (one page's history) and `mySpaceAccess({ organizationId })` (my
+reader rows) require a `space_reader` row for the current user and their
+organization membership; `organization` and `workItem` read only
+`sync_entity`.
+
+### Reads, export and deletion
+
+The capabilities `listSpaces` (readable spaces with the reader's level, plus
+the restricted spaces the person administers without reading them, names
+only), `listPages` (one space's tree in reading order) and `getPage` (main's
+latest title and Markdown, never a draft) are available on every surface.
+Organization export includes spaces, grants, pages, commits, branches,
+collaborators and drafts (binary Yjs state as base64), an additive change
+that keeps archive format version 1; organization deletion removes them
+before projects and teams.

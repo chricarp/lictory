@@ -120,6 +120,18 @@ Title, content and labels are owned here and pushed one-way on explicit export;
 external status is a read-only copy. Adapters live behind
 `src/delivery/provider.ts`; nothing else may know provider-specific shapes.
 
+## Lictory Spaces
+
+Spaces, pages and their history live in `packages/core/src/db/spaces-schema.ts`
+under the same rules: an explicit organization key on every row, composite
+keys that keep a space's team inside its project, a parent page inside the
+same space, and commits, branches and live drafts inside their page, and
+restrictive deletes for history. Page commits are immutable snapshots of
+canonical Tiptap JSON with derived Markdown and a content hash; branches point
+to commits, with exactly one `main` per page. `space_reader` (effective
+access) and `space_entity` (read projections) are derived and rebuilt by the
+projection rebuild. See [Lictory Spaces](spaces.md#implementation).
+
 ## Retention
 
 Domain history and actor references use restrictive foreign keys. Deleting a

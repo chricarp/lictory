@@ -3,6 +3,8 @@ import * as s from "@lictory/core/db/schema";
 import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { refreshDirectoryProjection } from "@lictory/core/domain/projections";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
+import { refreshSpaceAccess } from "@lictory/core/spaces/access";
+import { writeSpaceProjections } from "@lictory/core/spaces/projections";
 
 // Deleting an account anonymizes it rather than removing the row: revisions,
 // reviews, approvals, threads and audit entries keep referring to the person,
@@ -158,6 +160,16 @@ export async function deleteAccount(db: Database, userId: string) {
       .delete(s.disciplineMember)
       .where(eq(s.disciplineMember.userId, userId));
     await tx.delete(s.projectMember).where(eq(s.projectMember.userId, userId));
+    // Named Spaces access is access, not history; spaces they created,
+    // pages and commits they wrote and branches they collaborated on stay
+    // attributed to them (and grant nothing without membership).
+    const grantedSpaces = await tx
+      .delete(s.spaceGrant)
+      .where(eq(s.spaceGrant.userId, userId))
+      .returning({
+        organizationId: s.spaceGrant.organizationId,
+        spaceId: s.spaceGrant.spaceId,
+      });
     await tx.delete(s.member).where(eq(s.member.userId, userId));
     if (organizationIds.length)
       await tx
@@ -194,6 +206,12 @@ export async function deleteAccount(db: Database, userId: string) {
         target: { type: "member", id: userId, label: user.name || user.email },
       });
       await refreshDirectoryProjection(tx, organizationId);
+      await refreshSpaceAccess(tx, organizationId, { userIds: [userId] });
+      await writeSpaceProjections(tx, organizationId, {
+        spaces: grantedSpaces
+          .filter((g) => g.organizationId === organizationId)
+          .map((g) => g.spaceId),
+      });
     }
     // Instance administrators see the deletion in the installation history.
     await tx.insert(s.instanceAuditEvent).values({
@@ -238,6 +256,9 @@ export async function recordDeparture(
           set: { leftAt: sql`now()` },
         });
     await refreshDirectoryProjection(tx, organizationId);
+    // Spaces access follows organization membership; grants stay (and grant
+    // nothing) like project memberships, in case the person rejoins.
+    await refreshSpaceAccess(tx, organizationId, { userIds: [userId] });
   });
 }
 

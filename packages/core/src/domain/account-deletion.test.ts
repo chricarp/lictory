@@ -390,6 +390,8 @@ void test("account deletion decides on every table that references a user with O
     "profile_photo",
     "project_member",
     "session",
+    // Effective Spaces access, recomputed when the membership goes.
+    "space_reader",
     "team_member",
     "two_factor",
     "work_item_watcher",

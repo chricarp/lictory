@@ -13,6 +13,8 @@ import {
   type ProjectionScope,
 } from "@lictory/core/contracts/projection";
 import type { Entity } from "@lictory/core/contracts/protocol";
+import { refreshSpaceAccess } from "@lictory/core/spaces/access";
+import { rebuildSpaceProjections } from "@lictory/core/spaces/projections";
 import {
   lock,
   organizationDirectory,
@@ -256,6 +258,27 @@ export async function refreshDirectories(
     );
 }
 
+// After a Better Auth membership change (a member added, removed, leaving,
+// accepting an invitation or changing role): the directory lists members and
+// Spaces access follows organization membership. Each organization under its
+// lock, in its own transaction. `userId` narrows the access recomputation to
+// the person whose membership changed.
+export async function refreshMemberships(
+  db: Database,
+  organizationIds: Iterable<string>,
+  userId?: string,
+) {
+  for (const organizationId of new Set(organizationIds))
+    await db.transaction(async (tx) => {
+      await refreshDirectoryProjection(tx, organizationId);
+      await refreshSpaceAccess(
+        tx,
+        organizationId,
+        userId ? { userIds: [userId] } : {},
+      );
+    });
+}
+
 // The organizations a user belongs to; their directories list the user.
 export async function organizationsOf(db: Database | Tx, userId: string) {
   return (
@@ -318,10 +341,13 @@ export async function rebuildProjections(db: Database, organizationId: string) {
       .map((r) => r.key);
     await upsertRows(tx, organizationId, upserts);
     await deleteKeys(tx, organizationId, deletes);
+    // Lictory Spaces keep their own projections and effective access.
+    const spaces = await rebuildSpaceProjections(tx, organizationId);
     return {
       upserted: upserts.length,
       deleted: deletes.length,
       unchanged: expected.size - upserts.length,
+      spaces,
     };
   });
 }

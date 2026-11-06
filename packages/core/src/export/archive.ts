@@ -37,9 +37,9 @@ const CHUNK = 1024 * 1024;
 type Row = Record<string, unknown>;
 
 // Every organization-owned table that is part of the organization's record,
-// with the columns that never leave the server. Not exported: projections
-// and receipts (derived), personal notifications and Litto conversations,
-// and credentials (sessions, accounts, access tokens).
+// with the columns that never leave the server. Not exported: projections,
+// effective Spaces access and receipts (derived), personal notifications and
+// Litto conversations, and credentials (sessions, accounts, access tokens).
 const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.project },
   { table: s.projectMember },
@@ -75,6 +75,16 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.threadMessage },
   { table: s.decision },
   { table: s.activity },
+  // Lictory Spaces. Live drafts are exported as the working trees they are
+  // (Yjs state, base64), never as published content.
+  { table: s.space },
+  { table: s.spaceGrant },
+  { table: s.page },
+  { table: s.pageCommit },
+  { table: s.pageBranch },
+  { table: s.pageBranchCollaborator },
+  { table: s.spaceDraft },
+  { table: s.spaceDraftUpdate },
   { table: s.fileObject },
   { table: s.deliveryConnection, omit: ["encryptedCredential"] },
   { table: s.deliveryTarget },
@@ -413,7 +423,18 @@ async function twoPass(
   return rows;
 }
 
-const jsonLine = (row: Row) => `${JSON.stringify(row)}\n`;
+// Binary columns (live draft Yjs state) are base64 strings.
+const jsonLine = (row: Row) =>
+  `${JSON.stringify(
+    Object.values(row).some((v) => v instanceof Uint8Array)
+      ? Object.fromEntries(
+          Object.entries(row).map(([k, v]) => [
+            k,
+            v instanceof Uint8Array ? Buffer.from(v).toString("base64") : v,
+          ]),
+        )
+      : row,
+  )}\n`;
 
 // Everything read from the database, from one consistent snapshot `tx`
 // (REPEATABLE READ): the organization, members and every entity type, the

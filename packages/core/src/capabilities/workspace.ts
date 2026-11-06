@@ -111,6 +111,47 @@ type CommandDoc = {
 // protocol therefore exposes it to every surface once it has a description,
 // and the type checker refuses a command without one.
 const commandDocs: Record<CommandType, CommandDoc> = {
+  createSpace: {
+    title: "Create space",
+    description:
+      "Create a space of nested knowledge pages. `slug` is its lowercase URL handle, unique among active spaces. `home` is {} (the organization), { projectId } or { projectId, teamId }. `accessMode` inherited (default: the home's members edit, every organization member views, named grants add) or restricted (only named grants; the creator receives edit). `publishing` direct (default: editors publish main's live draft) or reviewed (changes to main need reviewed pull requests).",
+  },
+  updateSpace: {
+    title: "Update space",
+    description:
+      "Editors change a space's name, slug, description or icon. Changing its `home` or `publishing` policy is for the space's administrators (its creator, organization administrators and its home project's administrators). Requiring reviews is refused while a page has unpublished changes.",
+  },
+  setSpaceAccessMode: {
+    title: "Set space access mode",
+    description:
+      "Space administrators: switch a space between inherited and restricted access. Restricting gives the person making the change an edit grant if they hold none; switching back keeps named grants. Recorded in the audit log.",
+  },
+  setSpaceGrant: {
+    title: "Set space access",
+    description:
+      "Space administrators: give an organization member named access to a space (`level` view, comment or edit) or remove it (`level` null). In inherited spaces grants only add access. An administrator reads a restricted space only by granting themselves access, which is recorded in the audit log.",
+  },
+  archiveSpace: {
+    title: "Archive space",
+    description:
+      "Space administrators: archive (archived: true) or restore a space. Archived spaces are read-only and free their handle; history is kept.",
+    destructive: true,
+  },
+  createPage: {
+    title: "Create page",
+    description:
+      "Editors of a space: create a page, optionally under `parentId` in the same space, placed between sibling pages `afterId` and `beforeId` (both omitted: last). The page starts with its title and an empty document as its first published commit on `main`.",
+  },
+  movePage: {
+    title: "Move page",
+    description:
+      "Editors of a space: move a page under another page of the same space (`parentId`, null for the top level) between siblings `afterId` and `beforeId`. A page cannot move under its own subpages or to another space.",
+  },
+  archivePage: {
+    title: "Archive page",
+    description:
+      "Editors of a space: archive (archived: true) a page with its subpages, or restore it with the subpages archived together with it. History is kept; nothing is deleted.",
+  },
   createProject: {
     title: "Create project",
     description:
