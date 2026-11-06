@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { consentStatePath } from "../consent-setup";
 import { reloadWhenSaved, waitUntilSaved } from "../helpers/sync-helpers";
-import { controlZeroConnection } from "../helpers/zero-socket";
+import {
+  controlZeroConnection,
+  type ZeroMutationId,
+} from "../helpers/zero-socket";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
@@ -139,6 +142,18 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(inApp);
+}
+// The last mutation the server processed (applied or rejected) for a Zero
+// client, from zero-cache's bookkeeping in the application database.
+async function lastProcessedMutation(clientID: string) {
+  const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+  try {
+    const [row] = await client<{ lastMutationID: string }[]>`
+      select "lastMutationID" from zero_0.clients where "clientID" = ${clientID}`;
+    return Number(row?.lastMutationID ?? 0);
+  } finally {
+    await client.end();
+  }
 }
 async function commit(page: Page, content: string, message: string) {
   await page
@@ -351,20 +366,31 @@ test("a handled server rejection is forgotten and never replays its toast after 
   // exactly like a domain rejection of the real item. Routes apply to
   // connections opened afterwards, so the proxy is installed before loading.
   let rejectedId: string | undefined;
-  let attempts = 0;
+  let rejected: ZeroMutationId | undefined;
+  // Zero's identities of every push of the urgent change.
+  const attempts = new Set<string>();
   const zero = await controlZeroConnection(page);
   await page.goto(itemUrl);
   const properties = page
     .getByRole("heading", { name: "Properties", exact: true })
     .locator("..");
   await expect(properties).toBeVisible();
-  zero.rewrite((mutation) => {
+  // The test sets its own starting point: a retry runs in a new worker whose
+  // seeded item has no priority yet.
+  await properties.getByRole("button", { name: /^Priority: / }).click();
+  await page.getByRole("option", { name: "High", exact: true }).click();
+  await expect(
+    properties.getByRole("button", { name: "Priority: High", exact: true }),
+  ).toBeVisible();
+  await waitUntilSaved(page);
+  zero.rewrite((mutation, zeroId) => {
     if (
       mutation.command.type === "updateWorkItem" &&
       mutation.command.priority === "urgent"
     ) {
-      attempts++;
+      attempts.add(`${zeroId.clientID}/${zeroId.id}`);
       rejectedId = mutation.id;
+      rejected = zeroId;
       mutation.command.workItemId = crypto.randomUUID();
     }
   });
@@ -400,7 +426,17 @@ test("a handled server rejection is forgotten and never replays its toast after 
     page.getByRole("button", { name: "Everything is saved", exact: true }),
   ).toBeVisible();
   await expect(notification).toHaveCount(0);
-  expect(attempts).toBe(1);
+  // The server consumed the rejected mutation: its client's last processed
+  // mutation covers it, so Zero answers any resend as already processed
+  // without running it.
+  expect(
+    await lastProcessedMutation(rejected!.clientID),
+  ).toBeGreaterThanOrEqual(rejected!.id);
+  // Zero stores the server's answer on the device about a second after it
+  // arrives; a reload inside that window resends the same mutation (same
+  // client and sequence number), which the check above makes harmless. A new
+  // attempt of the change would carry a new identity.
+  expect([...attempts]).toEqual([`${rejected!.clientID}/${rejected!.id}`]);
   await properties
     .getByRole("button", { name: "Priority: High", exact: true })
     .click();
