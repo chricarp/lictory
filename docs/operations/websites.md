@@ -28,7 +28,9 @@ and immutable caching of hashed assets are defined once:
   account pages) are not redirected; they are ordinary missing pages.
 - **Docs** is a Fumadocs static export. Search downloads a prebuilt index
   (`/search.json`) and runs in the browser. The Worker only serves files and
-  headers: no redirects, no backend, no analytics.
+  headers and relays `/relay` to PostHog like marketing: no redirects, no
+  backend. Its analytics use the same consent model and the same PostHog
+  project, with a `site: "docs"` super property.
 
 ## GitHub configuration
 
@@ -41,8 +43,8 @@ It holds:
 | ------------------------------------------------- | -------------------------------------------------------------- |
 | Secret `CLOUDFLARE_API_TOKEN`                     | The websites token below                                       |
 | Variable `CLOUDFLARE_ACCOUNT_ID`                  | The Cloudflare account ID                                      |
-| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Optional marketing analytics; empty disables them              |
-| Variable `ANALYTICS_CONSENT`                      | Optional consent mode for marketing analytics                  |
+| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Optional website analytics; empty disables them                |
+| Variable `ANALYTICS_CONSENT`                      | Optional consent mode for website analytics                    |
 | Variables `LICTORY_LEGAL_*`                       | The operator's legal notice ([public legal notices](legal.md)) |
 
 All variables are public build inputs compiled into pages or Worker

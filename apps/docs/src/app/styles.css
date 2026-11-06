@@ -6,6 +6,10 @@
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
 
+/* Tailwind only detects classes below this app: scan the shared consent
+   banner and dialog explicitly. */
+@source "../../../../packages/ui/src/consent";
+
 body {
   --font-sans: var(--font-geist-sans), ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;

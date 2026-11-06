@@ -160,6 +160,35 @@ void test("exported Markdown has a canonical HTML target and cannot be indexed a
   );
 });
 
+void test("the documentation relays analytics like the website, and only when PostHog is configured", async () => {
+  const sent = captureFetch();
+  const docs = {
+    ...env,
+    SITE_KIND: "docs" as const,
+    SITE_URL: "https://docs.lictory.com",
+  };
+  const response = await worker.fetch(
+    new Request("https://docs.lictory.com/relay/e/?ip=0", {
+      method: "POST",
+      body: "event",
+      headers: { Cookie: "c15t=1", "CF-Connecting-IP": "192.0.2.7" },
+    }),
+    { ...docs, POSTHOG_HOST: "https://eu.i.posthog.com" },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.url, "https://eu.i.posthog.com/e/?ip=0");
+  assert.equal(sent[0]!.headers.get("cookie"), null);
+  assert.equal(sent[0]!.headers.get("x-forwarded-for"), "192.0.2.7");
+
+  const unconfigured = await worker.fetch(
+    new Request("https://docs.lictory.com/relay/e/", { method: "POST" }),
+    docs,
+  );
+  assert.equal(unconfigured.status, 404);
+  assert.equal(sent.length, 1);
+});
+
 void test("the documentation serves only its static files, with the website's security headers", async () => {
   const sent = captureFetch();
   const docs = {
@@ -176,8 +205,8 @@ void test("the documentation serves only its static files, with the website's se
         ),
     },
   };
-  // No relay behind the documentation, and no website redirects.
-  for (const path of ["/api/search", "/zero/sync", "/relay/e/", "/home"]) {
+  // No backend and no website redirects (the relay is tested below).
+  for (const path of ["/api/search", "/zero/sync", "/home"]) {
     const response = await worker.fetch(
       new Request(`https://docs.lictory.com${path}`),
       docs,

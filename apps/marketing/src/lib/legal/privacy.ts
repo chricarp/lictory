@@ -29,7 +29,7 @@ It also does not cover GitHub, where the source code, issues, discussions and re
 We therefore process only:
 
 1. the technical data any website needs to deliver its pages (section 3);
-2. on lictory.com only, privacy-friendly usage statistics (section 4); and
+2. privacy-friendly usage statistics (section 4); and
 3. the messages you choose to send us (section 5).
 
 We do not sell personal data, use it for advertising, build profiles of visitors or make automated decisions about anyone. Analytics are never required to read the websites or to download, install or use Lictory.`,
@@ -47,17 +47,17 @@ The pages load no third-party scripts, fonts, images or embedded content: fonts 
   },
   {
     id: "analytics",
-    title: "Usage statistics on lictory.com",
-    body: `We use **PostHog** to understand how many people visit lictory.com and which pages they find useful. docs.lictory.com uses no analytics at all.
+    title: "Usage statistics",
+    body: `We use **PostHog** to understand how many people visit lictory.com and docs.lictory.com and which pages they find useful. Both websites work the same way, with separate choices: a choice made on one does not apply to the other. On docs.lictory.com we also record that the search was opened and which page was chosen from the results (never what you typed), that a code block was copied and which command it showed (never the copied text), and clicks on the GitHub and Website links in its navigation.
 
-Your browser never contacts PostHog directly: requests go to lictory.com/relay and are forwarded to PostHog's EU servers. The relay forwards the event with your IP address and your browser's user-agent and language (PostHog needs the first two for the visitor count described below), never cookies. Session recording, heatmaps, click capture, page text and form capture are all disabled. Addresses are sent without their query string or fragment, and page titles are removed.
+Your browser never contacts PostHog directly: requests go to /relay on the website you are visiting and are forwarded to PostHog's EU servers. The relay forwards the event with your IP address and your browser's user-agent and language (PostHog needs the first two for the visitor count described below), never cookies. Session recording, heatmaps, click capture, page text and form capture are all disabled. Addresses are sent without their query string or fragment, and page titles are removed.
 
 The first time you visit, a banner lets you choose. Until you accept, and whenever you reject or withdraw consent, statistics are collected **without cookies**:
 
 - **Without your consent (cookieless).** Nothing is stored on your device to recognize you: no analytics cookie and no identifier in local storage. PostHog counts unique visitors with a hash of your IP address, user-agent and a secret salt that changes every day, so the same visitor cannot be followed from one day to the next. PostHog does not store your IP address with the events. Events record the page viewed, the referring page, browser, operating system, device type, screen size and an approximate location (country and city) derived from your IP address. These events are pseudonymous rather than anonymous, so we treat them as personal data. The legal basis is our legitimate interest in measuring the reach and usefulness of an open-source project with minimal data (Article 6(1)(f) GDPR). We consider this interest not to be overridden by your interests or rights, because the data are minimized, cannot be linked to your name, and are never used for advertising.
-- **With your consent.** PostHog also stores a random identifier in a first-party cookie and in local storage on lictory.com, so that repeat visits from the same browser can be recognized. The identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR and the national rules implementing Article 5(3) of the ePrivacy Directive). You can withdraw it at any time.
+- **With your consent.** PostHog also stores a random identifier in a first-party cookie and in local storage on that website, so that repeat visits from the same browser can be recognized. The identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR and the national rules implementing Article 5(3) of the ePrivacy Directive). You can withdraw it at any time.
 
-Open **Privacy preferences** in the footer of lictory.com to change your choice at any time. Your choice is stored in your browser by the c15t consent manager, without an external consent service. Withdrawing consent deletes PostHog's cookie and storage from your browser and reloads the page, which returns to cookieless statistics. It does not affect the lawfulness of processing before withdrawal, and it does not erase events already collected.
+Open **Privacy preferences** in the footer of lictory.com or below the navigation of docs.lictory.com to change your choice at any time. Your choice is stored in your browser by the c15t consent manager, without an external consent service. Withdrawing consent deletes PostHog's cookie and storage from your browser and reloads the page, which returns to cookieless statistics. It does not affect the lawfulness of processing before withdrawal, and it does not erase events already collected.
 
 **Processor and location.** PostHog Inc. processes these data on our behalf under its data processing agreement, in its EU cloud region. If PostHog or one of its subprocessors accesses data from outside the European Economic Area, the transfer relies on the safeguards in that agreement, such as the European Commission's standard contractual clauses or the EU-U.S. Data Privacy Framework where the recipient is certified.`,
   },
@@ -75,9 +75,9 @@ Feedback about the software belongs in the project's GitHub repository, where Gi
     title: "Cookies and local storage",
     body: `These are all the cookies and local-storage entries the websites use:
 
-- **\`c15t\`** (cookie and local storage, lictory.com): remembers your analytics choice so the banner does not appear again. Kept for 1 year or until you change your choice.
-- **\`lictory_analytics_consent\`** (cookie, lictory.com): records that you granted analytics consent. Kept for 1 year and deleted when you withdraw.
-- **\`ph_…\`** (cookie and local storage, lictory.com): PostHog's analytics identifier, set **only with your consent**. Kept for up to 1 year and deleted when you withdraw. Without consent, PostHog stores only a flag telling it to stay cookieless.
+- **\`c15t\`** (cookie and local storage, both websites): remembers your analytics choice so the banner does not appear again. Kept for 1 year or until you change your choice.
+- **\`lictory_analytics_consent\`** (cookie, both websites): records that you granted analytics consent. Kept for 1 year and deleted when you withdraw.
+- **\`ph_…\`** (cookie and local storage, both websites): PostHog's analytics identifier, set **only with your consent**. Kept for up to 1 year and deleted when you withdraw. Without consent, PostHog stores only a flag telling it to stay cookieless.
 - **\`theme\`** (local storage, docs.lictory.com): remembers light or dark mode if you change it, until you clear site data.
 
 Apart from the PostHog identifier, these entries only remember choices you made; storing them does not require consent. The relay never forwards any of these cookies to PostHog. You can delete all of them at any time in your browser's settings.`,
@@ -103,7 +103,7 @@ Apart from the PostHog identifier, these entries only remember choices you made;
 
 Write to the email address at the top of this page. We reply within one month; for complex requests we may extend this by two further months and will tell you why within the first month. Requests are free. We may ask for information to confirm your identity only where we have a reasonable doubt about it.
 
-Cookieless statistics contain no identifier that we can connect to you, so we usually cannot find or erase the events of a particular visitor (Article 11 GDPR). If you object, we will consider whether to stop this processing altogether. You can also stop it yourself at any time by blocking requests to lictory.com/relay with a content blocker; the website works the same without them.
+Cookieless statistics contain no identifier that we can connect to you, so we usually cannot find or erase the events of a particular visitor (Article 11 GDPR). If you object, we will consider whether to stop this processing altogether. You can also stop it yourself at any time by blocking requests to lictory.com/relay and docs.lictory.com/relay with a content blocker; the websites work the same without them.
 
 You also have the right to lodge a complaint with a data protection supervisory authority, in particular in the EU member state where you live, work or where you believe an infringement occurred (Article 77 GDPR). You do not need to contact us first, though we would welcome the chance to address your concern.`,
   },

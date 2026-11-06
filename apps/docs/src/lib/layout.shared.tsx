@@ -1,4 +1,5 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 
 import { Wordmark } from "@lictory/docs/components/wordmark";
 import { site } from "@lictory/docs/lib/site";
@@ -24,6 +25,10 @@ export function LegalLinks() {
       >
         Terms
       </a>
+      {/* Hidden unless the build carries analytics settings. */}
+      <PrivacyPreferencesButton className="hover:text-fd-foreground">
+        Privacy preferences
+      </PrivacyPreferencesButton>
     </p>
   );
 }
