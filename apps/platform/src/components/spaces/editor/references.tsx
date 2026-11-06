@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { FileText } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { identifier, refinementMeta } from "@lictory/core/lib/work-items";
+import { identifier } from "@lictory/core/lib/work-items";
 import type {
   WorkflowStatus,
   WorkItem,
@@ -10,13 +10,10 @@ import type {
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
-import {
-  RefinementIcon,
-  StatusIcon,
-} from "@lictory/platform/components/items/status";
+import { StatusIcon } from "@lictory/platform/components/items/status";
 
 // Live references inside page content. A work item mention shows the item
-// as I can see it now (identifier, status, refinement, readiness); a page
+// as I can see it now (status, identifier, title); a page
 // link shows the page's current title. What I cannot read shows no more
 // than the content itself already says: the stored key, or "Unavailable
 // page" without a title.
@@ -95,37 +92,15 @@ export function WorkItemReference({ node }: ReactNodeViewProps) {
   const key = refs.itemKey(item);
   const status = refs.status(item.statusId);
   const href = refs.itemHref(item);
-  const refinement = item.refinementState;
-  const readiness =
-    refinement && item.readinessTotal > 0
-      ? `${item.readinessPassed}/${item.readinessTotal}`
-      : null;
-  // Read after the visible key and title (the name starts with what is
-  // shown, WCAG 2.5.3); the glyphs are described in words.
-  const details = [
-    status && `status ${status.name}`,
-    refinement && `refinement ${refinementMeta[refinement].label}`,
-    readiness &&
-      `readiness ${item.readinessPassed} of ${item.readinessTotal} checks`,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const label = `${key} ${item.title}${details ? `, ${details}` : ""}`;
+  // The name starts with what is shown (WCAG 2.5.3) and ends with the
+  // status the icon draws; the tooltip carries the full, untruncated title.
+  const label = `${key} ${item.title}${status ? ` · ${status.name}` : ""}`;
   const content = (
     <>
       <StatusIcon category={status?.category} color={status?.color} />
-      <span className="font-mono text-[12px] tabular-nums">{key}</span>
+      <span className="page-ref-key">{key}</span>
       <span className="page-ref-title">{item.title}</span>
-      {refinement && <RefinementIcon state={refinement} className="size-3" />}
-      {readiness && (
-        <span
-          aria-hidden
-          className="text-[11px] text-muted-foreground tabular-nums"
-        >
-          {readiness}
-        </span>
-      )}
-      {details && <span className="sr-only">, {details}</span>}
+      {status && <span className="sr-only">, status {status.name}</span>}
     </>
   );
   return (

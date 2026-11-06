@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { Archive, FileText, Home, KeyRound, Plus } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import { Plus } from "lucide-react";
 import {
   spaceLevelAtLeast,
   type Command,
@@ -23,9 +23,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
   ReadOnlyNotice,
-  SettingsBody,
-  SettingsList,
-  SettingsSection,
+  SettingsGroup,
 } from "@lictory/platform/components/workspace/settings-section";
 import {
   useSpaceGrants,
@@ -40,7 +38,7 @@ import {
 } from "@lictory/platform/components/spaces/dialog";
 import {
   HomeFields,
-  IconField,
+  IconPicker,
   homeChoice,
   type HomeChoice,
 } from "@lictory/platform/components/spaces/space-fields";
@@ -82,44 +80,51 @@ export function SpaceSettings() {
   const manage = canManageSpace(space);
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl space-y-6 px-4 pt-5 pb-16 sm:px-8 sm:pt-7">
-        <div>
-          <SpaceBreadcrumbs space={space} />
-          <header className="mt-6 flex items-center gap-3.5">
-            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted shadow-(--shadow-border)">
-              <SpaceIcon space={space} className="size-6 text-xl" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-semibold tracking-tight">
-                Space settings
-              </h1>
-              <p className="text-[13px] text-muted-foreground">
-                Editors change the details. Administrators of the space decide
-                its home, publishing, access and archiving.
-              </p>
-            </div>
-          </header>
-        </div>
-        {!manage && !canEditDetails && (
-          <ReadOnlyNotice>
-            You can view these settings. Ask an administrator of this space to
-            change them.
-          </ReadOnlyNotice>
+      <div className="mx-auto max-w-2xl px-4 pt-5 pb-16 sm:px-8 sm:pt-7">
+        <SpaceBreadcrumbs space={space} />
+        <header className="mt-4 flex items-center gap-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
+            <SpaceIcon space={space} className="size-5 text-lg" />
+          </div>
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">
+            Space settings
+          </h1>
+        </header>
+        {!manage && (
+          <div className="mt-5">
+            <ReadOnlyNotice>
+              {canEditDetails
+                ? "You can change the details. The space’s administrators decide its home, publishing and access."
+                : "You can view these settings. Ask an administrator of this space to change them."}
+            </ReadOnlyNotice>
+          </div>
         )}
-        {/* Re-read after every confirmed change (by anyone). */}
-        <DetailsSection
-          key={`details:${space.updatedAt}`}
-          space={space}
-          canEdit={canEditDetails}
-        />
-        <HomeSection
-          key={`home:${space.updatedAt}`}
-          space={space}
-          canEdit={manage && !space.archivedAt}
-        />
-        <AccessSection space={space} canEdit={manage && !space.archivedAt} />
-        <ArchiveSection space={space} canEdit={manage} />
+        <div className="mt-8 space-y-9">
+          {/* Re-read after every confirmed change (by anyone). */}
+          <DetailsSection
+            key={`details:${space.updatedAt}`}
+            space={space}
+            canEdit={canEditDetails}
+          />
+          <HomeSection
+            key={`home:${space.updatedAt}`}
+            space={space}
+            canEdit={manage && !space.archivedAt}
+          />
+          <AccessSection space={space} canEdit={manage && !space.archivedAt} />
+          <ArchiveSection space={space} canEdit={manage} />
+        </div>
       </div>
+    </div>
+  );
+}
+
+// One group of settings: a quiet label over a card whose rows are divided
+// by hairlines.
+function Panel({ children }: { children: ReactNode }) {
+  return (
+    <div className="divide-y divide-border overflow-clip rounded-xl border border-transparent bg-card shadow-(--shadow-border)">
+      {children}
     </div>
   );
 }
@@ -141,7 +146,7 @@ function SaveBar({
   onSave?: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/40 px-5 py-2.5">
+    <div className="flex flex-wrap items-center justify-end gap-2 bg-muted/40 px-4 py-2">
       <span className="mr-auto text-xs text-muted-foreground">
         Unsaved changes
       </span>
@@ -197,77 +202,83 @@ function DetailsSection({
       router.replace(paths.spaceSettings(organization.slug, slug));
   };
   return (
-    <SettingsSection
-      id="details"
-      icon={<FileText />}
-      title="Details"
-      description="How the space is named and found."
-    >
+    <SettingsGroup title="Details">
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void save();
         }}
       >
-        <SettingsBody className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Name" htmlFor={ids.name}>
-              <Input
-                id={ids.name}
-                value={name}
-                maxLength={120}
+        <Panel>
+          <div className="space-y-4 px-4 py-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Name" htmlFor={ids.name}>
+                <div className="flex items-center gap-2">
+                  <IconPicker
+                    value={icon}
+                    onChange={setIcon}
+                    disabled={!canEdit}
+                    className="size-9 text-lg"
+                  />
+                  <Input
+                    id={ids.name}
+                    value={name}
+                    maxLength={120}
+                    disabled={!canEdit}
+                    className="h-9 text-sm"
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+              </Field>
+              <Field
+                label="Handle"
+                htmlFor={ids.slug}
+                hint={
+                  slugPattern.test(slug)
+                    ? `/${organization.slug}/spaces/${slug}`
+                    : "Use lowercase letters, digits and single hyphens."
+                }
+              >
+                <Input
+                  id={ids.slug}
+                  value={slug}
+                  maxLength={60}
+                  disabled={!canEdit}
+                  className="h-9 text-sm"
+                  aria-invalid={!slugPattern.test(slug)}
+                  onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                />
+              </Field>
+            </div>
+            <Field label="Description" htmlFor={ids.description} optional>
+              <textarea
+                id={ids.description}
+                value={description}
+                maxLength={2000}
+                rows={2}
                 disabled={!canEdit}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full resize-y rounded-xl border border-input bg-card px-3.5 py-2 text-sm shadow-xs outline-none focus:border-primary/60 focus:ring-3 focus:ring-primary/10 disabled:opacity-60 touch:text-base"
               />
             </Field>
-            <Field
-              label="Handle"
-              htmlFor={ids.slug}
-              hint={
-                slugPattern.test(slug)
-                  ? `/${organization.slug}/spaces/${slug}`
-                  : "Use lowercase letters, digits and single hyphens."
-              }
-            >
-              <Input
-                id={ids.slug}
-                value={slug}
-                maxLength={60}
-                disabled={!canEdit}
-                aria-invalid={!slugPattern.test(slug)}
-                onChange={(e) => setSlug(e.target.value.toLowerCase())}
-              />
-            </Field>
+            <InlineError>{error}</InlineError>
           </div>
-          <IconField value={icon} onChange={setIcon} disabled={!canEdit} />
-          <Field label="Description" htmlFor={ids.description} optional>
-            <textarea
-              id={ids.description}
-              value={description}
-              maxLength={2000}
-              rows={3}
-              disabled={!canEdit}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full resize-y rounded-xl border border-input bg-card px-3.5 py-2 text-[13px] shadow-xs outline-none focus:border-primary/60 focus:ring-3 focus:ring-primary/10 disabled:opacity-60 touch:text-base"
+          {canEdit && changed && (
+            <SaveBar
+              submit
+              pending={pending}
+              canSave={valid}
+              onDiscard={() => {
+                setName(space.name);
+                setSlug(space.slug);
+                setDescription(space.description ?? "");
+                setIcon(space.icon);
+              }}
             />
-          </Field>
-          <InlineError>{error}</InlineError>
-        </SettingsBody>
-        {canEdit && changed && (
-          <SaveBar
-            submit
-            pending={pending}
-            canSave={valid}
-            onDiscard={() => {
-              setName(space.name);
-              setSlug(space.slug);
-              setDescription(space.description ?? "");
-              setIcon(space.icon);
-            }}
-          />
-        )}
+          )}
+        </Panel>
       </form>
-    </SettingsSection>
+    </SettingsGroup>
   );
 }
 
@@ -280,66 +291,66 @@ function HomeSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
   const changed =
     home.projectId !== space.projectId || home.teamId !== space.teamId;
   return (
-    <SettingsSection
-      id="home"
-      icon={<Home />}
-      title="Home & publishing"
-      description="Where the space appears in navigation, and how changes reach its published pages."
-    >
-      <SettingsBody className="space-y-5">
-        <HomeFields
-          value={home}
-          onChange={setHome}
-          disabled={!canEdit}
-          hint="Changing the home changes who can edit while access is Inherited."
-        />
-        <InlineError>{error}</InlineError>
-        <SegmentedChoice<SpacePublishing>
-          label="Publishing"
-          name="space-publishing-setting"
-          value={space.publishing}
-          disabled={!canEdit || publishing.pending}
-          onChange={(next) =>
-            void publishing.run({
-              type: "updateSpace",
-              spaceId: space.id,
-              publishing: next,
-            })
-          }
-          options={[
-            {
-              value: "direct",
-              label: "Direct",
-              description: publishingDescriptions.direct,
-            },
-            {
-              value: "reviewed",
-              label: "Reviewed",
-              description: publishingDescriptions.reviewed,
-            },
-          ]}
-        />
-        <InlineError>{publishing.error}</InlineError>
-      </SettingsBody>
-      {canEdit && changed && (
-        <SaveBar
-          pending={pending}
-          canSave
-          onDiscard={() => setHome(homeChoice(space.projectId, space.teamId))}
-          onSave={() =>
-            void run({
-              type: "updateSpace",
-              spaceId: space.id,
-              home: home.projectId
-                ? home.teamId
-                  ? { projectId: home.projectId, teamId: home.teamId }
-                  : { projectId: home.projectId }
-                : {},
-            })
-          }
-        />
-      )}
-    </SettingsSection>
+    <SettingsGroup title="Home & publishing">
+      <Panel>
+        <div className="space-y-2 px-4 py-3.5">
+          <HomeFields
+            inline
+            value={home}
+            onChange={setHome}
+            disabled={!canEdit}
+            hint="Where the space is listed. While access is inherited, the home’s members can edit."
+          />
+          <InlineError>{error}</InlineError>
+        </div>
+        {canEdit && changed && (
+          <SaveBar
+            pending={pending}
+            canSave
+            onDiscard={() => setHome(homeChoice(space.projectId, space.teamId))}
+            onSave={() =>
+              void run({
+                type: "updateSpace",
+                spaceId: space.id,
+                home: home.projectId
+                  ? home.teamId
+                    ? { projectId: home.projectId, teamId: home.teamId }
+                    : { projectId: home.projectId }
+                  : {},
+              })
+            }
+          />
+        )}
+        <div className="space-y-2 px-4 py-3.5">
+          <SegmentedChoice<SpacePublishing>
+            label="Publishing"
+            name="space-publishing-setting"
+            value={space.publishing}
+            disabled={!canEdit || publishing.pending}
+            onChange={(next) =>
+              void publishing.run({
+                type: "updateSpace",
+                spaceId: space.id,
+                publishing: next,
+              })
+            }
+            options={[
+              {
+                value: "direct",
+                label: "Direct",
+                description: publishingDescriptions.direct,
+              },
+              {
+                value: "reviewed",
+                label: "Reviewed",
+                description: publishingDescriptions.reviewed,
+              },
+            ]}
+          />
+          <InlineError>{publishing.error}</InlineError>
+        </div>
+      </Panel>
+    </SettingsGroup>
   );
 }
 
@@ -374,133 +385,138 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
       });
   };
   return (
-    <SettingsSection
-      id="access"
-      icon={<KeyRound />}
-      title="Access"
-      description={
-        space.accessMode === "inherited"
-          ? `Who can open and edit the space: its home’s people (${home.label}), and anyone named below.`
-          : "Only the people named below can open this space; membership of its home grants nothing."
-      }
-      action={
-        canEdit ? (
-          <Popover
-            width={280}
-            align="end"
-            trigger={(props) => (
-              <Button {...props} size="sm" variant="secondary">
-                <Plus className="size-3.5" aria-hidden /> Add people
-              </Button>
-            )}
-          >
-            <PeoplePicker
-              title="Give access"
-              excludeIds={grants.map((g) => g.userId)}
-              onSelect={(id) => setGrant(id, "view")}
-            />
-          </Popover>
-        ) : undefined
-      }
-      footer={
-        isAdmin || canEdit
-          ? "Administrators manage access without reading a restricted space. Adding yourself is how an administrator reads one, and every grant you give yourself is recorded in the audit log."
-          : undefined
-      }
-    >
-      <SettingsBody className="space-y-3 border-b">
-        <SegmentedChoice<SpaceAccessMode>
-          label="Access mode"
-          name="space-access-setting"
-          value={space.accessMode}
-          disabled={!canEdit || mode.pending}
-          onChange={switchMode}
-          options={[
-            {
-              value: "inherited",
-              label: "Inherited",
-              description: inheritedAccess(home, organization.name),
-            },
-            {
-              value: "restricted",
-              label: "Restricted",
-              description:
-                "Only people with named access. Switching back keeps them.",
-            },
-          ]}
-        />
-        <InlineError>{mode.error}</InlineError>
-      </SettingsBody>
-      <SettingsList
-        isEmpty={people.length === 0}
-        empty={
-          space.accessMode === "restricted"
-            ? "Nobody has named access yet."
-            : "No named access. Everyone gets access from the home."
-        }
-      >
-        {people.map(({ grant: g, member }) => {
-          const name = member?.name ?? "Former member";
-          return (
-            <div
-              key={g.id}
-              className="group flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-2.5 text-[13px]"
-            >
-              <Avatar image={member?.image} name={name} size="md" />
-              <div className="min-w-0 flex-1 basis-40">
-                <span className="truncate font-medium">
-                  {name}
-                  {g.userId === userId && (
-                    <span className="font-normal text-muted-foreground">
-                      {" "}
-                      (you)
-                    </span>
-                  )}
-                </span>
-                {member?.email && (
-                  <div className="truncate text-xs text-muted-foreground">
-                    {member.email}
-                  </div>
-                )}
-              </div>
-              {g.userId === userId && g.grantedById === userId && (
-                <Badge tone="info">Self-granted · audited</Badge>
-              )}
-              <DropdownSelect
-                size="sm"
-                className="w-32"
-                aria-label={`Access of ${name}`}
-                disabled={!canEdit || grant.pending}
-                value={g.level}
-                onValueChange={(value) =>
-                  setGrant(g.userId, value as SpaceAccessLevel)
-                }
-              >
-                {(["view", "comment", "edit"] as const).map((level) => (
-                  <DropdownSelectOption key={level} value={level}>
-                    {levelLabels[level]}
-                  </DropdownSelectOption>
-                ))}
-              </DropdownSelect>
-              {canEdit && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`Remove ${name}’s access`}
-                  disabled={grant.pending}
-                  onClick={() => setGrant(g.userId, null)}
-                >
-                  Remove
-                </Button>
-              )}
-            </div>
-          );
-        })}
-      </SettingsList>
-      {grant.error && (
-        <div className="border-t px-5 py-3">
-          <InlineError>{grant.error}</InlineError>
+    <SettingsGroup title="Access">
+      <Panel>
+        <div className="space-y-2 px-4 py-3.5">
+          <SegmentedChoice<SpaceAccessMode>
+            label="Access mode"
+            name="space-access-setting"
+            value={space.accessMode}
+            disabled={!canEdit || mode.pending}
+            onChange={switchMode}
+            options={[
+              {
+                value: "inherited",
+                label: "Inherited",
+                description: inheritedAccess(home, organization.name),
+              },
+              {
+                value: "restricted",
+                label: "Restricted",
+                description:
+                  "Only people with named access can open it. Switching back keeps them.",
+              },
+            ]}
+          />
+          <InlineError>{mode.error}</InlineError>
         </div>
+        <div>
+          <div className="flex min-h-12 items-center justify-between gap-3 px-4 py-2">
+            <h3 className="text-xs font-medium">
+              Named access
+              {people.length > 0 && (
+                <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
+                  {people.length}
+                </span>
+              )}
+            </h3>
+            {canEdit && (
+              <Popover
+                width={280}
+                align="end"
+                trigger={(props) => (
+                  <Button {...props} size="sm" variant="secondary">
+                    <Plus className="size-3.5" aria-hidden /> Add people
+                  </Button>
+                )}
+              >
+                <PeoplePicker
+                  title="Give access"
+                  excludeIds={grants.map((g) => g.userId)}
+                  onSelect={(id) => setGrant(id, "view")}
+                />
+              </Popover>
+            )}
+          </div>
+          {people.length === 0 ? (
+            <p className="px-4 pb-4 text-xs text-muted-foreground">
+              {space.accessMode === "restricted"
+                ? "Nobody has named access yet."
+                : "Nobody yet. Everyone gets access from the home."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-border border-t">
+              {people.map(({ grant: g, member }) => {
+                const name = member?.name ?? "Former member";
+                return (
+                  <li
+                    key={g.id}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 text-[13px]"
+                  >
+                    <Avatar image={member?.image} name={name} size="md" />
+                    <div className="min-w-0 flex-1 basis-40">
+                      <div className="truncate font-medium">
+                        {name}
+                        {g.userId === userId && (
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            (you)
+                          </span>
+                        )}
+                      </div>
+                      {member?.email && (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {member.email}
+                        </div>
+                      )}
+                    </div>
+                    {g.userId === userId && g.grantedById === userId && (
+                      <Badge tone="info">Self-granted · audited</Badge>
+                    )}
+                    <DropdownSelect
+                      size="sm"
+                      className="w-32"
+                      aria-label={`Access of ${name}`}
+                      disabled={!canEdit || grant.pending}
+                      value={g.level}
+                      onValueChange={(value) =>
+                        setGrant(g.userId, value as SpaceAccessLevel)
+                      }
+                    >
+                      {(["view", "comment", "edit"] as const).map((level) => (
+                        <DropdownSelectOption key={level} value={level}>
+                          {levelLabels[level]}
+                        </DropdownSelectOption>
+                      ))}
+                    </DropdownSelect>
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Remove ${name}’s access`}
+                        disabled={grant.pending}
+                        onClick={() => setGrant(g.userId, null)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        {grant.error && (
+          <div className="px-4 py-3">
+            <InlineError>{grant.error}</InlineError>
+          </div>
+        )}
+      </Panel>
+      {(isAdmin || canEdit) && (
+        <p className="px-1 text-xs leading-5 text-muted-foreground">
+          Administrators can manage access without reading the space. Access
+          they grant themselves is audited.
+        </p>
       )}
       {confirmRestrict && (
         <Dialog
@@ -537,7 +553,7 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
           </p>
         </Dialog>
       )}
-    </SettingsSection>
+    </SettingsGroup>
   );
 }
 
@@ -551,39 +567,42 @@ function ArchiveSection({
   const { run, error, pending } = useConfirmed();
   const archived = Boolean(space.archivedAt);
   return (
-    <SettingsSection
-      id="archive"
-      icon={<Archive />}
-      title={archived ? "Archived" : "Archive"}
-      description={
-        archived
-          ? "This space is hidden from navigation and its pages cannot change. Restoring it brings everything back."
-          : "Hide the space from navigation and freeze its pages. Nothing is deleted, and administrators can restore it."
-      }
-      action={
-        canEdit ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={pending}
-            onClick={() =>
-              void run({
-                type: "archiveSpace",
-                spaceId: space.id,
-                archived: !archived,
-              })
-            }
-          >
-            {archived ? "Restore space" : "Archive space"}
-          </Button>
-        ) : undefined
-      }
-    >
-      {error ? (
-        <SettingsBody>
-          <InlineError>{error}</InlineError>
-        </SettingsBody>
-      ) : null}
-    </SettingsSection>
+    <SettingsGroup title="Archive">
+      <Panel>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5">
+          <div className="min-w-0 flex-1 basis-56">
+            <p className="text-xs font-medium">
+              {archived ? "This space is archived" : "Archive this space"}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+              {archived
+                ? "Hidden from navigation, its pages frozen. Restoring brings everything back."
+                : "Hides it from navigation and freezes its pages. Nothing is deleted."}
+            </p>
+          </div>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={pending}
+              onClick={() =>
+                void run({
+                  type: "archiveSpace",
+                  spaceId: space.id,
+                  archived: !archived,
+                })
+              }
+            >
+              {archived ? "Restore space" : "Archive space"}
+            </Button>
+          )}
+        </div>
+        {error && (
+          <div className="px-4 py-3">
+            <InlineError>{error}</InlineError>
+          </div>
+        )}
+      </Panel>
+    </SettingsGroup>
   );
 }

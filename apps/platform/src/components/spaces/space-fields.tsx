@@ -50,11 +50,15 @@ export function HomeFields({
   onChange,
   disabled,
   hint,
+  inline = false,
 }: {
   value: HomeChoice;
   onChange: (home: HomeChoice) => void;
   disabled?: boolean;
   hint?: string;
+  // A settings row: the label and the picker on one line, the hint below
+  // (the layout of SegmentedChoice).
+  inline?: boolean;
 }) {
   const { organization, projects, directory } = useWorkspace();
   const id = useId();
@@ -71,42 +75,50 @@ export function HomeFields({
       .sort((a, b) => a.name.localeCompare(b.name));
   // Projects only from the synchronized list when the directory is empty.
   const options = ordered.length ? ordered : projects;
-  return (
-    <Field
-      label="Home"
-      htmlFor={id}
-      hint={
-        hint ??
-        "Where the space appears in navigation. Members of a project or team home can edit; everyone else can view."
-      }
+  const select = (
+    <DropdownSelect
+      id={id}
+      className={inline ? "w-full sm:w-64" : "w-full"}
+      disabled={disabled}
+      value={encode(value)}
+      onValueChange={(next) => onChange(decode(next))}
     >
-      <DropdownSelect
-        id={id}
-        className="w-full"
-        disabled={disabled}
-        value={encode(value)}
-        onValueChange={(next) => onChange(decode(next))}
-      >
-        <DropdownSelectOption value="organization">
-          {organization.name} (organization)
-        </DropdownSelectOption>
-        {options.flatMap((project) => [
+      <DropdownSelectOption value="organization">
+        {organization.name} (organization)
+      </DropdownSelectOption>
+      {options.flatMap((project) => [
+        <DropdownSelectOption key={project.id} value={`project:${project.id}`}>
+          {project.name}
+        </DropdownSelectOption>,
+        ...teamsOf(project.id).map((team) => (
           <DropdownSelectOption
-            key={project.id}
-            value={`project:${project.id}`}
+            key={team.id}
+            value={`team:${project.id}:${team.id}`}
           >
-            {project.name}
-          </DropdownSelectOption>,
-          ...teamsOf(project.id).map((team) => (
-            <DropdownSelectOption
-              key={team.id}
-              value={`team:${project.id}:${team.id}`}
-            >
-              {`${team.name} team · ${project.name}`}
-            </DropdownSelectOption>
-          )),
-        ])}
-      </DropdownSelect>
+            {`${team.name} team · ${project.name}`}
+          </DropdownSelectOption>
+        )),
+      ])}
+    </DropdownSelect>
+  );
+  const text =
+    hint ??
+    "Where the space appears in navigation. Members of a project or team home can edit; everyone else can view.";
+  if (inline)
+    return (
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+          <label htmlFor={id} className="text-xs font-medium">
+            Home
+          </label>
+          {select}
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">{text}</p>
+      </div>
+    );
+  return (
+    <Field label="Home" htmlFor={id} hint={text}>
+      {select}
     </Field>
   );
 }
@@ -162,20 +174,28 @@ export function IconField({
 export function IconPicker({
   value,
   onChange,
+  disabled,
+  className,
 }: {
   value: string | null;
   onChange: (icon: string | null) => void;
+  disabled?: boolean;
+  className?: string;
 }) {
   return (
     <Popover
       width={300}
+      disabled={disabled}
       trigger={(props) => (
         <button
           {...props}
           type="button"
           aria-label={value ? `Icon: ${value}` : "Icon: none"}
           title="Choose an icon"
-          className="grid size-10 shrink-0 place-items-center rounded-xl border border-input bg-card text-xl shadow-xs transition-[background-color,scale] duration-150 ease-out outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.96]"
+          className={cn(
+            "grid size-10 shrink-0 place-items-center rounded-xl border border-input bg-card text-xl shadow-xs transition-[background-color,scale] duration-150 ease-out outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60",
+            className,
+          )}
         >
           {value ?? (
             <BookOpen className="size-4 text-muted-foreground" aria-hidden />
